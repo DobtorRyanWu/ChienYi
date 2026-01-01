@@ -19,10 +19,10 @@
             <!-- 篩選按鈕 - 大按鈕 -->
             <div class="mb-4">
                 <div class="btn-group w-100" role="group">
-                    <t t-foreach="searchbar_filters" t-as="filter">
-                        <a t-attf-href="/my/construction/#{project.id}/defects?filterby=#{filter}"
-                           t-attf-class="btn btn-lg py-2 #{filterby == filter and 'btn-primary' or 'btn-outline-primary'}">
-                            <t t-out="searchbar_filters[filter]['label']"/>
+                    <t t-foreach="searchbar_filters" t-as="filter_key">
+                        <a t-attf-href="/my/construction/#{project.id}/defects?filterby=#{filter_key}"
+                           t-attf-class="btn btn-lg py-2 #{filterby == filter_key and 'btn-primary' or 'btn-outline-primary'}">
+                            <t t-out="searchbar_filters[filter_key]['label']"/>
                         </a>
                     </t>
                 </div>

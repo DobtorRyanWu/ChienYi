@@ -2,7 +2,7 @@
 <odoo>
     <!-- Portal 首頁工程案件選單 -->
     <template id="portal_my_home_construction" name="Portal My Home: Construction"
-              inherit_id="portal.portal_my_home" priority="45">
+              customize_show="True" inherit_id="portal.portal_my_home" priority="45">
         <xpath expr="//div[hasclass('o_portal_docs')]" position="before">
             <t t-set="portal_service_category_enable" t-value="True"/>
         </xpath>
@@ -13,6 +13,7 @@
                 <t t-set="url" t-value="'/my/construction'"/>
                 <t t-set="text">查看工程進度、自主檢查與缺失改善</t>
                 <t t-set="placeholder_count" t-value="'construction_count'"/>
+                <t t-set="config_card" t-value="True"/>
             </t>
         </div>
     </template>
@@ -96,9 +97,9 @@
 
                                 <div class="card-body">
                                     <!-- 工程編號 -->
-                                    <p class="mb-3" t-if="project.project_code">
+                                    <p class="mb-3" t-if="project.code">
                                         <span class="text-muted">工程編號：</span>
-                                        <strong t-out="project.project_code"/>
+                                        <strong t-out="project.code"/>
                                     </p>
 
                                     <!-- 統計數據 - 橫向滾動 -->
@@ -159,14 +160,14 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-6 mb-2" t-if="project.project_code">
+                        <div class="col-6 mb-2" t-if="project.code">
                             <small class="text-muted d-block">工程編號</small>
-                            <strong t-out="project.project_code"/>
+                            <strong t-out="project.code"/>
                         </div>
                         <div class="col-6 mb-2">
                             <small class="text-muted d-block">狀態</small>
                             <span class="badge fs-6"
-                                  t-attf-class="badge #{project.state == 'in_progress' and 'bg-success' or project.state == 'completed' and 'bg-primary' or 'bg-secondary'}">
+                                  t-attf-class="badge #{project.state == 'construction' and 'bg-success' or project.state == 'completed' and 'bg-primary' or project.state == 'acceptance' and 'bg-info' or 'bg-secondary'}">
                                 <t t-out="dict(project._fields['state'].selection).get(project.state, project.state)"/>
                             </span>
                         </div>

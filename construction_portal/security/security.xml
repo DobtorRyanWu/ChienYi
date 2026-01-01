@@ -7,6 +7,24 @@
     因為 Many2many 欄位遍歷 (contractor_company_ids.partner_id) 在 ir.rule domain 中無法正確運作
     -->
 
+    <!--
+    project.project: Portal 用戶可存取關聯的工程專案
+    這條規則繞過 project 模組的關注者要求，讓承包廠商可以直接存取
+    使用 portal_contractor_partner_ids 輔助欄位（stored computed field）
+    -->
+    <record id="project_project_portal_contractor_rule" model="ir.rule">
+        <field name="name">Portal: 工程專案 - 承包廠商關聯 (繞過關注者)</field>
+        <field name="model_id" ref="project.model_project_project"/>
+        <field name="domain_force">[
+            ('portal_contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
     <!-- 工程案件: Portal 用戶可查看其公司為承包廠商的工程 -->
     <record id="supervision_project_portal_rule" model="ir.rule">
         <field name="name">Portal: 工程案件 - 承包廠商關聯</field>
