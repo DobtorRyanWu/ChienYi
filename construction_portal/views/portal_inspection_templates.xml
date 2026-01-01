@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 自主檢查列表 - 手機友善版 -->
+    <template id="portal_construction_inspections" name="Construction Inspections List">
+        <t t-call="portal.portal_layout">
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回工程
+                </a>
+            </div>
+
+            <!-- 頁面標題 -->
+            <div class="mb-4">
+                <h3 class="mb-1">自主檢查</h3>
+                <p class="text-muted mb-0" t-out="project.name"/>
+            </div>
+
+            <!-- 新增按鈕 -->
+            <div class="mb-4">
+                <a t-attf-href="/my/construction/#{project.id}/inspection/new"
+                   class="btn btn-success btn-lg w-100 py-3">
+                    <i class="fa fa-plus-circle me-2"/> 新增自主檢查
+                </a>
+            </div>
+
+            <t t-if="not inspections">
+                <div class="alert alert-info py-4 text-center" role="alert">
+                    <i class="fa fa-clipboard fa-2x mb-2 d-block"/>
+                    <span class="fs-5">尚無自主檢查記錄</span>
+                </div>
+            </t>
+
+            <t t-if="inspections">
+                <!-- 檢查卡片列表 -->
+                <div class="list-group">
+                    <t t-foreach="inspections" t-as="inspection">
+                        <a t-attf-href="/my/construction/inspection/#{inspection.id}"
+                           class="list-group-item list-group-item-action py-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1 fw-bold">
+                                        <t t-out="inspection.name or inspection.inspection_type_id.name or '自主檢查'"/>
+                                    </h6>
+                                    <p class="mb-1 text-muted" t-if="inspection.location">
+                                        <i class="fa fa-map-marker-alt me-1"/>
+                                        <t t-out="inspection.location"/>
+                                    </p>
+                                    <small class="text-muted">
+                                        <i class="fa fa-calendar me-1"/>
+                                        <t t-out="inspection.inspection_date"/>
+                                    </small>
+                                </div>
+                                <i class="fa fa-chevron-right text-muted align-self-center ms-2"/>
+                            </div>
+                        </a>
+                    </t>
+                </div>
+            </t>
+
+            <!-- 分頁 -->
+            <div class="d-flex justify-content-center mt-4">
+                <t t-call="portal.pager"/>
+            </div>
+
+            <!-- 底部返回 -->
+            <div class="mt-4">
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-secondary w-100">
+                    <i class="fa fa-arrow-left me-2"/> 返回工程案件
+                </a>
+            </div>
+        </t>
+    </template>
+
+    <!-- 新增自主檢查表單 - 手機友善版 -->
+    <template id="portal_construction_inspection_form" name="New Construction Inspection Form">
+        <t t-call="portal.portal_layout">
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回工程
+                </a>
+            </div>
+
+            <!-- 頁面標題 -->
+            <div class="mb-4">
+                <h3 class="mb-1">
+                    <i class="fa fa-plus-circle text-success me-2"/>
+                    新增自主檢查
+                </h3>
+                <p class="text-muted mb-0" t-out="project.name"/>
+            </div>
+
+            <form action="/my/construction/inspection/create" method="post">
+                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                <input type="hidden" name="project_id" t-att-value="project.id"/>
+
+                <!-- 檢查類型 -->
+                <div class="mb-4">
+                    <label for="inspection_type_id" class="form-label fw-bold">
+                        檢查類型
+                    </label>
+                    <select name="inspection_type_id" id="inspection_type_id" class="form-select form-select-lg">
+                        <option value="">-- 請選擇檢查類型 --</option>
+                        <t t-foreach="inspection_types" t-as="itype">
+                            <option t-att-value="itype.id">
+                                <t t-out="itype.name"/>
+                            </option>
+                        </t>
+                    </select>
+                </div>
+
+                <!-- 檢查日期 -->
+                <div class="mb-4">
+                    <label for="inspection_date" class="form-label fw-bold">
+                        檢查日期 <span class="text-danger">*</span>
+                    </label>
+                    <input type="date" name="inspection_date" id="inspection_date"
+                           class="form-control form-control-lg" required="required"
+                           t-att-value="datetime.date.today().isoformat()"/>
+                </div>
+
+                <!-- 檢查地點 -->
+                <div class="mb-4">
+                    <label for="location" class="form-label fw-bold">
+                        檢查地點
+                    </label>
+                    <input type="text" name="location" id="location"
+                           class="form-control form-control-lg"
+                           placeholder="例如：A棟1F"/>
+                </div>
+
+                <!-- 備註 -->
+                <div class="mb-4">
+                    <label for="notes" class="form-label fw-bold">
+                        備註說明
+                    </label>
+                    <textarea name="notes" id="notes"
+                              class="form-control"
+                              rows="4"
+                              placeholder="請輸入備註說明（選填）"></textarea>
+                </div>
+
+                <!-- 提交按鈕 -->
+                <div class="d-grid gap-3 mt-4">
+                    <button type="submit" class="btn btn-success btn-lg py-3">
+                        <i class="fa fa-check-circle me-2"/> 建立檢查
+                    </button>
+                    <a t-attf-href="/my/construction/#{project.id}" class="btn btn-secondary btn-lg">
+                        取消
+                    </a>
+                </div>
+            </form>
+        </t>
+    </template>
+
+    <!-- 自主檢查詳情 - 手機友善版 -->
+    <template id="portal_construction_inspection_detail" name="Construction Inspection Detail">
+        <t t-call="portal.portal_layout">
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a t-attf-href="/my/construction/#{project.id}/inspections" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回列表
+                </a>
+            </div>
+
+            <!-- 標題卡片 -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h4 class="mb-0">
+                        <i class="fa fa-clipboard-check me-2"/>
+                        <t t-out="inspection.name or inspection.inspection_type_id.name or '自主檢查'"/>
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- 基本資訊 -->
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">檢查日期</small>
+                            <strong t-out="inspection.inspection_date"/>
+                        </div>
+                        <div class="col-6 mb-3" t-if="inspection.location">
+                            <small class="text-muted d-block">檢查地點</small>
+                            <strong t-out="inspection.location"/>
+                        </div>
+                        <div class="col-12 mb-3" t-if="inspection.inspection_type_id">
+                            <small class="text-muted d-block">檢查類型</small>
+                            <strong t-out="inspection.inspection_type_id.name"/>
+                        </div>
+                    </div>
+
+                    <!-- 填表人資訊 -->
+                    <div class="border-top pt-3 mt-2" t-if="inspection.portal_creator_id">
+                        <small class="text-muted d-block">Portal 填表人</small>
+                        <span class="badge bg-info me-1">Portal</span>
+                        <strong t-out="inspection.portal_creator_id.name"/>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 備註說明 -->
+            <t t-if="inspection.notes">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">備註說明</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0" t-out="inspection.notes"/>
+                    </div>
+                </div>
+            </t>
+
+            <!-- 檢查項目 -->
+            <t t-if="inspection.line_ids">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">檢查項目</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            <t t-foreach="inspection.line_ids" t-as="line">
+                                <div class="list-group-item py-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <p class="mb-1 fw-bold" t-out="line.name or line.item_id.name"/>
+                                            <small class="text-muted" t-if="line.notes" t-out="line.notes"/>
+                                        </div>
+                                        <span class="badge ms-2"
+                                              t-attf-class="badge #{line.result == 'pass' and 'bg-success' or line.result == 'fail' and 'bg-danger' or 'bg-secondary'}">
+                                            <t t-if="hasattr(line._fields.get('result', {}), 'selection')">
+                                                <t t-out="dict(line._fields['result'].selection).get(line.result, line.result)"/>
+                                            </t>
+                                            <t t-else="">-</t>
+                                        </span>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
+            <!-- 底部按鈕 -->
+            <div class="d-grid gap-3 mt-4">
+                <a t-attf-href="/my/construction/#{project.id}/inspections" class="btn btn-secondary btn-lg">
+                    <i class="fa fa-arrow-left me-2"/> 返回檢查列表
+                </a>
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-primary btn-lg">
+                    返回工程案件
+                </a>
+            </div>
+        </t>
+    </template>
+</odoo>

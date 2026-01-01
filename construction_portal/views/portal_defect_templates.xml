@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 缺失列表 - 手機友善版 -->
+    <template id="portal_construction_defects" name="Construction Defects List">
+        <t t-call="portal.portal_layout">
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回工程
+                </a>
+            </div>
+
+            <!-- 頁面標題 -->
+            <div class="mb-4">
+                <h3 class="mb-1">缺失管理</h3>
+                <p class="text-muted mb-0" t-out="project.name"/>
+            </div>
+
+            <!-- 篩選按鈕 - 大按鈕 -->
+            <div class="mb-4">
+                <div class="btn-group w-100" role="group">
+                    <t t-foreach="searchbar_filters" t-as="filter">
+                        <a t-attf-href="/my/construction/#{project.id}/defects?filterby=#{filter}"
+                           t-attf-class="btn btn-lg py-2 #{filterby == filter and 'btn-primary' or 'btn-outline-primary'}">
+                            <t t-out="searchbar_filters[filter]['label']"/>
+                        </a>
+                    </t>
+                </div>
+            </div>
+
+            <t t-if="not defects">
+                <div class="alert alert-info py-4 text-center" role="alert">
+                    <i class="fa fa-check-circle fa-2x mb-2 d-block"/>
+                    <span class="fs-5">目前沒有缺失記錄</span>
+                </div>
+            </t>
+
+            <t t-if="defects">
+                <!-- 缺失卡片列表 -->
+                <div class="list-group">
+                    <t t-foreach="defects" t-as="defect">
+                        <a t-attf-href="/my/construction/defect/#{defect.id}"
+                           t-attf-class="list-group-item list-group-item-action py-3 #{defect.state not in ['verified', 'closed'] and 'defect-status-open' or 'defect-status-closed'}">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0 fw-bold" t-out="defect.name"/>
+                                <span class="badge ms-2"
+                                      t-attf-class="badge #{defect.state in ['verified', 'closed'] and 'bg-success' or 'bg-warning text-dark'}">
+                                    <t t-out="dict(defect._fields['state'].selection).get(defect.state, defect.state)"/>
+                                </span>
+                            </div>
+
+                            <!-- 缺失類型 -->
+                            <p class="mb-1 text-muted" t-if="defect.defect_type_id">
+                                <i class="fa fa-tag me-1"/>
+                                <t t-out="defect.defect_type_id.name"/>
+                            </p>
+
+                            <!-- 改善期限 -->
+                            <div t-if="defect.deadline" class="d-flex align-items-center">
+                                <small class="text-muted me-2">
+                                    <i class="fa fa-clock me-1"/>
+                                    期限: <t t-out="defect.deadline"/>
+                                </small>
+                                <t t-if="defect.state not in ['verified', 'closed']">
+                                    <span t-if="defect.deadline &lt; datetime.date.today()" class="badge bg-danger">
+                                        已逾期
+                                    </span>
+                                </t>
+                            </div>
+
+                            <div class="mt-2 text-end">
+                                <span class="text-primary">
+                                    <t t-if="defect.state not in ['verified', 'closed']">
+                                        點擊填寫改善 <i class="fa fa-chevron-right"/>
+                                    </t>
+                                    <t t-else="">
+                                        查看詳情 <i class="fa fa-chevron-right"/>
+                                    </t>
+                                </span>
+                            </div>
+                        </a>
+                    </t>
+                </div>
+            </t>
+
+            <!-- 分頁 -->
+            <div class="d-flex justify-content-center mt-4">
+                <t t-call="portal.pager"/>
+            </div>
+
+            <!-- 底部返回 -->
+            <div class="mt-4">
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-secondary w-100 btn-lg">
+                    <i class="fa fa-arrow-left me-2"/> 返回工程案件
+                </a>
+            </div>
+        </t>
+    </template>
+
+    <!-- 缺失詳情 - 手機友善版 -->
+    <template id="portal_construction_defect_detail" name="Construction Defect Detail">
+        <t t-call="portal.portal_layout">
+            <!-- 成功訊息 -->
+            <t t-if="request.params.get('message') == 'success'">
+                <div class="alert alert-success py-3 text-center" role="alert">
+                    <i class="fa fa-check-circle fa-2x mb-2 d-block"/>
+                    <span class="fs-5 fw-bold">改善說明已成功提交！</span>
+                </div>
+            </t>
+
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a t-attf-href="/my/construction/#{project.id}/defects" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回列表
+                </a>
+            </div>
+
+            <!-- 標題卡片 -->
+            <div class="card mb-4"
+                 t-attf-class="card mb-4 #{defect.state not in ['verified', 'closed'] and 'defect-status-open' or 'defect-status-closed'}">
+                <div t-attf-class="card-header #{defect.state in ['verified', 'closed'] and 'bg-success text-white' or 'bg-warning'}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fa fa-exclamation-triangle me-2"/>
+                            <t t-out="defect.name"/>
+                        </h4>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- 狀態 -->
+                    <div class="text-center mb-4">
+                        <span class="badge fs-5 px-4 py-2"
+                              t-attf-class="badge #{defect.state in ['verified', 'closed'] and 'bg-success' or 'bg-warning text-dark'}">
+                            <t t-out="dict(defect._fields['state'].selection).get(defect.state, defect.state)"/>
+                        </span>
+                    </div>
+
+                    <!-- 基本資訊 -->
+                    <div class="row g-3">
+                        <div class="col-6" t-if="defect.defect_type_id">
+                            <small class="text-muted d-block">缺失類型</small>
+                            <strong t-out="defect.defect_type_id.name"/>
+                        </div>
+                        <div class="col-6" t-if="defect.discovery_date">
+                            <small class="text-muted d-block">發現日期</small>
+                            <strong t-out="defect.discovery_date"/>
+                        </div>
+                        <div class="col-6" t-if="defect.deadline">
+                            <small class="text-muted d-block">改善期限</small>
+                            <strong t-out="defect.deadline"/>
+                            <t t-if="defect.state not in ['verified', 'closed']">
+                                <span t-if="defect.deadline &lt; datetime.date.today()"
+                                      class="badge bg-danger ms-1">已逾期</span>
+                            </t>
+                        </div>
+                        <div class="col-6" t-if="defect.location">
+                            <small class="text-muted d-block">缺失位置</small>
+                            <strong t-out="defect.location"/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 缺失說明 -->
+            <t t-if="defect.description">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">缺失說明</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0 fs-5" t-out="defect.description"/>
+                    </div>
+                </div>
+            </t>
+
+            <!-- 缺失照片 -->
+            <t t-if="defect.before_photo_ids">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fa fa-camera me-2"/>
+                            缺失照片
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="photo-grid">
+                            <t t-foreach="defect.before_photo_ids" t-as="photo">
+                                <div class="photo-item">
+                                    <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image?width=300&amp;height=300&amp;crop=true"
+                                         alt="缺失照片"/>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
+            <!-- 已提交的改善說明 -->
+            <t t-if="defect.improvement_description or defect.portal_improvement_note">
+                <div class="card mb-4 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fa fa-check-circle me-2"/>
+                            改善說明
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0 fs-5" t-out="defect.improvement_description or defect.portal_improvement_note"/>
+
+                        <t t-if="defect.portal_improver_id">
+                            <div class="border-top pt-3 mt-3">
+                                <small class="text-muted">提交者：</small>
+                                <span class="badge bg-info">Portal</span>
+                                <strong t-out="defect.portal_improver_id.name"/>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </t>
+
+            <!-- 改善後照片 -->
+            <t t-if="defect.after_photo_ids">
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fa fa-check me-2"/>
+                            改善後照片
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="photo-grid">
+                            <t t-foreach="defect.after_photo_ids" t-as="photo">
+                                <div class="photo-item">
+                                    <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image?width=300&amp;height=300&amp;crop=true"
+                                         alt="改善後照片"/>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
+            <!-- 改善表單 (僅在未結案時顯示) -->
+            <t t-if="defect.state not in ['verified', 'closed']">
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">
+                            <i class="fa fa-edit me-2"/>
+                            填寫改善說明
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form t-attf-action="/my/construction/defect/#{defect.id}/improve" method="post">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                            <div class="mb-4">
+                                <label for="improvement_description" class="form-label fw-bold fs-5">
+                                    改善說明 <span class="text-danger">*</span>
+                                </label>
+                                <textarea name="improvement_description" id="improvement_description"
+                                          class="form-control form-control-lg"
+                                          rows="6"
+                                          required="required"
+                                          placeholder="請詳細說明改善措施及處理情況..."><t t-out="defect.portal_improvement_note or ''"/></textarea>
+                            </div>
+
+                            <button type="submit" class="btn btn-success btn-lg w-100 py-3">
+                                <i class="fa fa-paper-plane me-2"/> 提交改善說明
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </t>
+
+            <!-- 底部按鈕 -->
+            <div class="d-grid gap-3 mt-4">
+                <a t-attf-href="/my/construction/#{project.id}/defects" class="btn btn-secondary btn-lg">
+                    <i class="fa fa-arrow-left me-2"/> 返回缺失列表
+                </a>
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-primary btn-lg">
+                    返回工程案件
+                </a>
+            </div>
+        </t>
+    </template>
+</odoo>

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Portal 用戶存取規則 -->
+
+    <!-- 工程案件: Portal 用戶可查看其公司為承包廠商的工程 -->
+    <record id="supervision_project_portal_rule" model="ir.rule">
+        <field name="name">Portal: 工程案件 - 承包廠商關聯</field>
+        <field name="model_id" ref="construction_supervision_base.model_supervision_project"/>
+        <field name="domain_force">[
+            ('contractor_company_ids.partner_id', '=', user.partner_id.commercial_partner_id.id),
+            ('state', 'not in', ['draft', 'terminated'])
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- 自主檢查: Portal 用戶可查看其工程的檢查記錄 -->
+    <record id="general_self_inspection_portal_rule" model="ir.rule">
+        <field name="name">Portal: 自主檢查 - 工程關聯</field>
+        <field name="model_id" ref="construction_quality.model_general_self_inspection"/>
+        <field name="domain_force">[
+            ('project_id.contractor_company_ids.partner_id', '=', user.partner_id.commercial_partner_id.id)
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- 缺失: Portal 用戶可查看其工程的缺失記錄 -->
+    <record id="supervision_defect_portal_rule" model="ir.rule">
+        <field name="name">Portal: 缺失 - 工程關聯</field>
+        <field name="model_id" ref="construction_quality.model_supervision_defect"/>
+        <field name="domain_force">[
+            ('project_id.contractor_company_ids.partner_id', '=', user.partner_id.commercial_partner_id.id)
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- 照片: Portal 用戶可查看其工程的照片 -->
+    <record id="supervision_photo_portal_rule" model="ir.rule">
+        <field name="name">Portal: 照片 - 工程關聯</field>
+        <field name="model_id" ref="construction_photo.model_supervision_photo"/>
+        <field name="domain_force">[
+            ('project_id.contractor_company_ids.partner_id', '=', user.partner_id.commercial_partner_id.id)
+        ]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- 檢查類型: Portal 用戶可讀取 -->
+    <record id="self_inspection_type_portal_rule" model="ir.rule">
+        <field name="name">Portal: 檢查類型 - 讀取</field>
+        <field name="model_id" ref="construction_quality.model_self_inspection_type"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+</odoo>

@@ -4,7 +4,7 @@
 
 [![Odoo Version](https://img.shields.io/badge/Odoo-18.0-blue.svg)](https://www.odoo.com)
 [![License](https://img.shields.io/badge/License-LGPL--3-green.svg)](https://www.gnu.org/licenses/lgpl-3.0)
-[![Modules](https://img.shields.io/badge/Modules-21-orange.svg)](#模組清單)
+[![Modules](https://img.shields.io/badge/Modules-22-orange.svg)](#模組清單)
 
 ---
 
@@ -46,6 +46,7 @@
                                    • construction_test
                                    • construction_review
                                    • construction_photo
+                                   • construction_portal
                                    • construction_template
                                    • construction_cost_analysis
                                    • construction_price_library
@@ -79,6 +80,7 @@
 | `construction_test` | 檢試驗管理 | 檢試驗項目、管制記錄 | base |
 | `construction_review` | 送審管制 | 材料送審、審查結果、廠驗 | base |
 | `construction_photo` | 照片管理 | 工程照片、GPS追蹤、標籤分類 | base |
+| `construction_portal` | Portal 入口 | 承包廠商前台、自主檢查、缺失改善 | portal, base, quality, photo |
 | `construction_progress` | 進度表管理 | 進度規劃、差異分析 | base, daily_log |
 | `construction_template` | 樣板設定 | 文件樣板管理 | base |
 | `construction_cost_analysis` | 成本分析 | 成本報表、損益追蹤 (DB View) | base, payment |
@@ -355,7 +357,39 @@
 
 ---
 
-### 12. construction_progress
+### 12. construction_portal
+
+> Portal 入口
+
+| 項目 | 內容 |
+|------|------|
+| **版本** | 18.0.1.0.0 |
+| **分類** | Construction/Portal |
+| **依賴** | portal, construction_supervision_base, construction_quality, construction_photo |
+
+**模型清單**：
+- `supervision.project` (擴展) - 新增 Portal 統計欄位
+- `general.self.inspection` (擴展) - Portal 填表功能
+- `supervision.defect` (擴展) - Portal 改善提交
+- `supervision.photo` (擴展) - Portal 上傳功能
+
+**主要功能**：
+- 承包廠商 Portal 用戶前台介面
+- 工程案件瀏覽與統計
+- 自主檢查表填寫
+- 缺失改善說明提交
+- 工程照片上傳
+
+**Portal 路由**：
+- `/my/construction` - 工程案件列表
+- `/my/construction/{id}` - 工程詳情
+- `/my/construction/{id}/inspections` - 自主檢查
+- `/my/construction/{id}/defects` - 缺失列表
+- `/my/construction/{id}/photos` - 照片管理
+
+---
+
+### 13. construction_progress
 
 > 進度表管理
 
@@ -377,7 +411,7 @@
 
 ---
 
-### 13. construction_template
+### 14. construction_template
 
 > 樣板設定
 
@@ -398,7 +432,7 @@
 
 ---
 
-### 14. construction_cost_analysis
+### 15. construction_cost_analysis
 
 > 成本分析
 
@@ -421,7 +455,7 @@
 
 ---
 
-### 15. construction_price_library
+### 16. construction_price_library
 
 > 價格庫管理
 
@@ -445,7 +479,7 @@
 
 ---
 
-### 16. construction_batch
+### 17. construction_batch
 
 > 批次操作
 
@@ -466,7 +500,7 @@
 
 ---
 
-### 17. construction_timeline
+### 18. construction_timeline
 
 > 時程控制
 
@@ -490,7 +524,7 @@
 
 ---
 
-### 18. construction_acceptance
+### 19. construction_acceptance
 
 > 驗收與結案
 
@@ -514,7 +548,7 @@
 
 ---
 
-### 19. construction_general
+### 20. construction_general
 
 > 一般式工程專用
 
@@ -538,7 +572,7 @@
 
 ---
 
-### 20. construction_reservation
+### 21. construction_reservation
 
 > 預約式工程專用
 
@@ -559,7 +593,7 @@
 
 ---
 
-### 21. construction_audit
+### 22. construction_audit
 
 > 稽核模組
 
@@ -613,6 +647,7 @@ construction_equipment
 construction_test
 construction_review
 construction_photo
+construction_portal        # Portal 入口
 construction_progress
 construction_template
 construction_cost_analysis
@@ -639,6 +674,7 @@ construction_reservation  # 預約式工程
 | `contacts` | 聯絡人管理 |
 | `mail` | 郵件與 Chatter |
 | `maintenance` | 設備維護 |
+| `portal` | Portal 入口 |
 
 ---
 

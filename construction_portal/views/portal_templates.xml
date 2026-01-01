@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Portal 首頁工程案件計數器 -->
+    <template id="portal_my_home_construction" name="Portal My Home: Construction"
+              inherit_id="portal.portal_my_home" priority="30">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="before">
+            <t t-set="portal_client_category_enable" t-value="True"/>
+        </xpath>
+        <div id="portal_client_category" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/construction_portal/static/src/img/construction.svg'"/>
+                <t t-set="title">工程案件</t>
+                <t t-set="url" t-value="'/my/construction'"/>
+                <t t-set="text">查看工程案件</t>
+                <t t-set="placeholder_count" t-value="'construction_count'"/>
+            </t>
+        </div>
+    </template>
+
+    <!-- 工程案件列表 - 手機友善版 -->
+    <template id="portal_my_construction_projects" name="My Construction Projects">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+
+            <!-- 頁面標題 -->
+            <div class="mb-4">
+                <h2 class="mb-1">我的工程案件</h2>
+                <p class="text-muted mb-0">點擊查看工程詳情</p>
+            </div>
+
+            <t t-if="not projects">
+                <div class="alert alert-info py-4 text-center" role="alert">
+                    <i class="fa fa-info-circle fa-2x mb-2 d-block"/>
+                    <span class="fs-5">目前沒有工程案件</span>
+                </div>
+            </t>
+
+            <t t-if="projects">
+                <!-- 工程案件卡片列表 -->
+                <div class="row g-3">
+                    <t t-foreach="projects" t-as="project">
+                        <div class="col-12">
+                            <div class="card construction-project-card">
+                                <!-- 卡片標題 -->
+                                <div class="card-header">
+                                    <a t-attf-href="/my/construction/#{project.id}" class="text-decoration-none">
+                                        <h5 class="mb-0 text-white">
+                                            <t t-out="project.name"/>
+                                        </h5>
+                                    </a>
+                                </div>
+
+                                <div class="card-body">
+                                    <!-- 工程編號 -->
+                                    <p class="mb-3" t-if="project.project_code">
+                                        <span class="text-muted">工程編號：</span>
+                                        <strong t-out="project.project_code"/>
+                                    </p>
+
+                                    <!-- 統計數據 - 橫向滾動 -->
+                                    <div class="stats-row d-flex gap-3 mb-3">
+                                        <div class="stat-badge text-center flex-fill">
+                                            <span class="badge bg-info rounded-pill fs-5" t-out="project.inspection_count"/>
+                                            <small class="d-block mt-1">自主檢查</small>
+                                        </div>
+                                        <div class="stat-badge text-center flex-fill">
+                                            <span class="badge bg-warning text-dark rounded-pill fs-5" t-out="project.open_defect_count"/>
+                                            <small class="d-block mt-1">待改善缺失</small>
+                                        </div>
+                                        <div class="stat-badge text-center flex-fill">
+                                            <span class="badge bg-secondary rounded-pill fs-5" t-out="project.photo_count"/>
+                                            <small class="d-block mt-1">照片</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- 進入按鈕 -->
+                                <div class="card-footer">
+                                    <a t-attf-href="/my/construction/#{project.id}"
+                                       class="btn btn-primary btn-lg w-100">
+                                        <i class="fa fa-arrow-right me-2"/> 進入工程
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </t>
+
+            <!-- 分頁 -->
+            <div class="d-flex justify-content-center mt-4">
+                <t t-call="portal.pager"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- 工程案件詳情 - 手機友善版 -->
+    <template id="portal_construction_project_detail" name="Construction Project Detail">
+        <t t-call="portal.portal_layout">
+            <t t-set="o_portal_fullwidth_alert" t-value="True"/>
+
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a href="/my/construction" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回列表
+                </a>
+            </div>
+
+            <!-- 工程標題卡片 -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <t t-out="project.name"/>
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6 mb-2" t-if="project.project_code">
+                            <small class="text-muted d-block">工程編號</small>
+                            <strong t-out="project.project_code"/>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <small class="text-muted d-block">狀態</small>
+                            <span class="badge fs-6"
+                                  t-attf-class="badge #{project.state == 'in_progress' and 'bg-success' or project.state == 'completed' and 'bg-primary' or 'bg-secondary'}">
+                                <t t-out="dict(project._fields['state'].selection).get(project.state, project.state)"/>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 快速操作區 -->
+            <div class="mb-4">
+                <h5 class="mb-3">快速操作</h5>
+                <div class="row g-3">
+                    <!-- 自主檢查 -->
+                    <div class="col-12">
+                        <a t-attf-href="/my/construction/#{project.id}/inspection/new"
+                           class="btn btn-success btn-lg w-100 py-3">
+                            <i class="fa fa-plus-circle me-2"/>
+                            新增自主檢查
+                        </a>
+                    </div>
+                    <!-- 上傳照片 -->
+                    <div class="col-12">
+                        <a t-attf-href="/my/construction/#{project.id}/photo/upload"
+                           class="btn btn-info btn-lg w-100 py-3 text-white">
+                            <i class="fa fa-camera me-2"/>
+                            上傳照片
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 功能區塊 -->
+            <div class="row g-3">
+                <!-- 自主檢查 -->
+                <div class="col-12">
+                    <div class="card feature-card">
+                        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                            <span><i class="fa fa-clipboard-check me-2"/> 自主檢查</span>
+                            <span class="badge bg-light text-dark rounded-pill fs-6" t-out="project.inspection_count"/>
+                        </div>
+                        <div class="card-body">
+                            <t t-if="inspections">
+                                <div class="list-group list-group-flush">
+                                    <t t-foreach="inspections[:5]" t-as="insp">
+                                        <a t-attf-href="/my/construction/inspection/#{insp.id}"
+                                           class="list-group-item list-group-item-action py-3">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <span class="fw-bold">
+                                                    <t t-out="insp.name or insp.inspection_type_id.name or '自主檢查'"/>
+                                                </span>
+                                                <small class="text-muted" t-out="insp.inspection_date"/>
+                                            </div>
+                                        </a>
+                                    </t>
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <p class="text-muted text-center py-3 mb-0">尚無檢查記錄</p>
+                            </t>
+                        </div>
+                        <div class="card-footer">
+                            <a t-attf-href="/my/construction/#{project.id}/inspections"
+                               class="btn btn-outline-info w-100">
+                                查看全部檢查
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 缺失管理 -->
+                <div class="col-12">
+                    <div class="card feature-card">
+                        <div class="card-header bg-warning d-flex justify-content-between align-items-center">
+                            <span><i class="fa fa-exclamation-triangle me-2"/> 待改善缺失</span>
+                            <span class="badge bg-danger rounded-pill fs-6" t-out="project.open_defect_count"/>
+                        </div>
+                        <div class="card-body">
+                            <t t-if="defects">
+                                <div class="list-group list-group-flush">
+                                    <t t-foreach="defects[:5]" t-as="defect">
+                                        <a t-attf-href="/my/construction/defect/#{defect.id}"
+                                           class="list-group-item list-group-item-action py-3"
+                                           t-attf-class="list-group-item list-group-item-action py-3 #{defect.state not in ['verified', 'closed'] and 'defect-status-open' or 'defect-status-closed'}">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <span class="fw-bold" t-out="defect.name"/>
+                                                <span class="badge"
+                                                      t-attf-class="badge #{defect.state in ['verified', 'closed'] and 'bg-success' or 'bg-warning text-dark'}">
+                                                    <t t-out="dict(defect._fields['state'].selection).get(defect.state, defect.state)"/>
+                                                </span>
+                                            </div>
+                                        </a>
+                                    </t>
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <p class="text-muted text-center py-3 mb-0">目前沒有缺失</p>
+                            </t>
+                        </div>
+                        <div class="card-footer">
+                            <a t-attf-href="/my/construction/#{project.id}/defects"
+                               class="btn btn-outline-warning w-100">
+                                查看全部缺失
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 照片管理 -->
+                <div class="col-12">
+                    <div class="card feature-card">
+                        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                            <span><i class="fa fa-images me-2"/> 工程照片</span>
+                            <span class="badge bg-light text-dark rounded-pill fs-6" t-out="project.photo_count"/>
+                        </div>
+                        <div class="card-body">
+                            <t t-if="photos">
+                                <div class="photo-grid">
+                                    <t t-foreach="photos[:4]" t-as="photo">
+                                        <div class="photo-item">
+                                            <a t-attf-href="/my/construction/photo/#{photo.id}">
+                                                <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image?width=200&amp;height=200&amp;crop=true"
+                                                     alt="工程照片"/>
+                                            </a>
+                                        </div>
+                                    </t>
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <p class="text-muted text-center py-3 mb-0">尚無照片</p>
+                            </t>
+                        </div>
+                        <div class="card-footer">
+                            <a t-attf-href="/my/construction/#{project.id}/photos"
+                               class="btn btn-outline-secondary w-100">
+                                查看全部照片
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部返回按鈕 -->
+            <div class="mt-4 mb-3">
+                <a href="/my/construction" class="btn btn-secondary btn-lg w-100">
+                    <i class="fa fa-arrow-left me-2"/> 返回工程列表
+                </a>
+            </div>
+        </t>
+    </template>
+</odoo>

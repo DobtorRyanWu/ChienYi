@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 照片列表 - 手機友善版 -->
+    <template id="portal_construction_photos" name="Construction Photos List">
+        <t t-call="portal.portal_layout">
+            <!-- 成功訊息 -->
+            <t t-if="request.params.get('message') == 'uploaded'">
+                <div class="alert alert-success py-3 text-center" role="alert">
+                    <i class="fa fa-check-circle fa-2x mb-2 d-block"/>
+                    <span class="fs-5 fw-bold">照片已成功上傳！</span>
+                </div>
+            </t>
+
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回工程
+                </a>
+            </div>
+
+            <!-- 頁面標題 -->
+            <div class="mb-4">
+                <h3 class="mb-1">工程照片</h3>
+                <p class="text-muted mb-0" t-out="project.name"/>
+            </div>
+
+            <!-- 上傳按鈕 -->
+            <div class="mb-4">
+                <a t-attf-href="/my/construction/#{project.id}/photo/upload"
+                   class="btn btn-info btn-lg w-100 py-3 text-white">
+                    <i class="fa fa-camera me-2"/> 拍照上傳
+                </a>
+            </div>
+
+            <t t-if="not photos">
+                <div class="alert alert-info py-4 text-center" role="alert">
+                    <i class="fa fa-images fa-2x mb-2 d-block"/>
+                    <span class="fs-5">尚無照片</span>
+                    <p class="text-muted mt-2 mb-0">點擊上方按鈕上傳第一張照片</p>
+                </div>
+            </t>
+
+            <t t-if="photos">
+                <!-- 照片網格 -->
+                <div class="photo-grid">
+                    <t t-foreach="photos" t-as="photo">
+                        <div class="photo-item">
+                            <a t-attf-href="/my/construction/photo/#{photo.id}">
+                                <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image?width=300&amp;height=300&amp;crop=true"
+                                     t-att-alt="photo.name or '工程照片'"/>
+                            </a>
+                        </div>
+                    </t>
+                </div>
+            </t>
+
+            <!-- 分頁 -->
+            <div class="d-flex justify-content-center mt-4">
+                <t t-call="portal.pager"/>
+            </div>
+
+            <!-- 底部返回 -->
+            <div class="mt-4">
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-secondary w-100 btn-lg">
+                    <i class="fa fa-arrow-left me-2"/> 返回工程案件
+                </a>
+            </div>
+        </t>
+    </template>
+
+    <!-- 照片上傳表單 - 手機友善版 -->
+    <template id="portal_construction_photo_upload" name="Upload Construction Photo">
+        <t t-call="portal.portal_layout">
+            <!-- 錯誤訊息 -->
+            <t t-if="request.params.get('error') == 'no_file'">
+                <div class="alert alert-danger py-3 text-center" role="alert">
+                    <i class="fa fa-exclamation-circle fa-2x mb-2 d-block"/>
+                    <span class="fs-5">請選擇要上傳的照片</span>
+                </div>
+            </t>
+
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a t-attf-href="/my/construction/#{project.id}/photos" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回照片
+                </a>
+            </div>
+
+            <!-- 頁面標題 -->
+            <div class="mb-4">
+                <h3 class="mb-1">
+                    <i class="fa fa-camera text-info me-2"/>
+                    上傳照片
+                </h3>
+                <p class="text-muted mb-0" t-out="project.name"/>
+            </div>
+
+            <form action="/my/construction/photo/upload" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                <input type="hidden" name="project_id" t-att-value="project.id"/>
+
+                <!-- 照片選擇 - 大按鈕樣式 -->
+                <div class="mb-4">
+                    <label for="photo" class="form-label fw-bold fs-5">
+                        選擇照片 <span class="text-danger">*</span>
+                    </label>
+                    <div class="upload-area border border-2 border-dashed rounded-3 p-4 text-center bg-light">
+                        <input type="file" name="photo" id="photo"
+                               class="form-control form-control-lg"
+                               accept="image/*"
+                               capture="environment"
+                               required="required"
+                               style="font-size: 16px;"/>
+                        <p class="text-muted mt-2 mb-0">
+                            <i class="fa fa-info-circle me-1"/>
+                            可直接使用相機拍照
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 圖片預覽 -->
+                <div class="mb-4" id="preview-container" style="display: none;">
+                    <label class="form-label fw-bold">預覽</label>
+                    <div class="text-center">
+                        <img id="image-preview" class="img-fluid rounded shadow" style="max-height: 300px;"/>
+                    </div>
+                </div>
+
+                <!-- 拍攝日期 -->
+                <div class="mb-4">
+                    <label for="photo_date" class="form-label fw-bold fs-5">
+                        拍攝日期
+                    </label>
+                    <input type="date" name="photo_date" id="photo_date"
+                           class="form-control form-control-lg"
+                           t-att-value="datetime.date.today().isoformat()"/>
+                </div>
+
+                <!-- 照片說明 -->
+                <div class="mb-4">
+                    <label for="description" class="form-label fw-bold fs-5">
+                        照片說明
+                    </label>
+                    <textarea name="description" id="description"
+                              class="form-control form-control-lg"
+                              rows="3"
+                              placeholder="簡單描述照片內容（選填）"></textarea>
+                </div>
+
+                <!-- 提交按鈕 -->
+                <div class="d-grid gap-3 mt-4">
+                    <button type="submit" class="btn btn-info btn-lg py-3 text-white">
+                        <i class="fa fa-cloud-upload-alt me-2"/> 上傳照片
+                    </button>
+                    <a t-attf-href="/my/construction/#{project.id}/photos" class="btn btn-secondary btn-lg">
+                        取消
+                    </a>
+                </div>
+            </form>
+
+            <!-- 圖片預覽 JavaScript -->
+            <script>
+                document.getElementById('photo').addEventListener('change', function(e) {
+                    var file = e.target.files[0];
+                    if (file) {
+                        var reader = new FileReader();
+                        reader.onload = function(e) {
+                            document.getElementById('image-preview').src = e.target.result;
+                            document.getElementById('preview-container').style.display = 'block';
+                        }
+                        reader.readAsDataURL(file);
+                    }
+                });
+            </script>
+        </t>
+    </template>
+
+    <!-- 照片詳情 - 手機友善版 -->
+    <template id="portal_construction_photo_detail" name="Construction Photo Detail">
+        <t t-call="portal.portal_layout">
+            <!-- 返回按鈕 -->
+            <div class="mb-3">
+                <a t-attf-href="/my/construction/#{project.id}/photos" class="btn btn-outline-secondary">
+                    <i class="fa fa-arrow-left me-1"/> 返回照片
+                </a>
+            </div>
+
+            <!-- 照片顯示 -->
+            <div class="card mb-4">
+                <div class="card-body p-0">
+                    <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image"
+                         class="img-fluid w-100"
+                         t-att-alt="photo.name or '工程照片'"/>
+                </div>
+            </div>
+
+            <!-- 照片資訊 -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">照片資訊</h5>
+                </div>
+                <div class="card-body">
+                    <!-- 照片說明 -->
+                    <t t-if="photo.name">
+                        <div class="mb-3">
+                            <small class="text-muted d-block">照片說明</small>
+                            <p class="mb-0 fs-5" t-out="photo.name"/>
+                        </div>
+                    </t>
+
+                    <div class="row g-3">
+                        <div class="col-6" t-if="photo.shot_date">
+                            <small class="text-muted d-block">拍攝日期</small>
+                            <strong t-out="photo.shot_date"/>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">上傳時間</small>
+                            <strong t-out="photo.create_date" t-options='{"widget": "date"}'/>
+                        </div>
+                    </div>
+
+                    <!-- Portal 上傳標示 -->
+                    <t t-if="photo.portal_uploader_id">
+                        <div class="border-top pt-3 mt-3">
+                            <small class="text-muted d-block">上傳者</small>
+                            <span class="badge bg-info me-1">Portal</span>
+                            <strong t-out="photo.portal_uploader_id.name"/>
+                        </div>
+                    </t>
+
+                    <!-- 照片標籤 -->
+                    <t t-if="photo.tag_ids">
+                        <div class="border-top pt-3 mt-3">
+                            <small class="text-muted d-block mb-2">照片標籤</small>
+                            <div>
+                                <t t-foreach="photo.tag_ids" t-as="tag">
+                                    <span class="badge bg-secondary me-1 mb-1" t-out="tag.name"/>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <!-- 下載按鈕 -->
+            <div class="mb-4">
+                <a t-attf-href="/web/content/#{photo.attachment_id.id}?download=true"
+                   class="btn btn-primary btn-lg w-100">
+                    <i class="fa fa-download me-2"/> 下載原圖
+                </a>
+            </div>
+
+            <!-- 底部按鈕 -->
+            <div class="d-grid gap-3">
+                <a t-attf-href="/my/construction/#{project.id}/photos" class="btn btn-secondary btn-lg">
+                    <i class="fa fa-arrow-left me-2"/> 返回照片列表
+                </a>
+                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-primary btn-lg">
+                    返回工程案件
+                </a>
+            </div>
+        </t>
+    </template>
+</odoo>
