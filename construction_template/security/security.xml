@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================== -->
+        <!-- 資料隔離規則 (Record Rules)                      -->
+        <!-- ============================================== -->
+
+        <!-- 文件樣板 - 系統管理者完整存取 -->
+        <record id="rule_document_template_admin" model="ir.rule">
+            <field name="name">文件樣板: 管理者完整存取</field>
+            <field name="model_id" ref="model_document_template"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 文件樣板 - 監造主管可管理公司樣板 -->
+        <record id="rule_document_template_supervision_manager" model="ir.rule">
+            <field name="name">文件樣板: 監造主管管理</field>
+            <field name="model_id" ref="model_document_template"/>
+            <field name="domain_force">[
+                '|',
+                ('is_default', '=', True),
+                '|',
+                ('company_id', '=', user.company_id.id),
+                ('project_id.company_id', '=', user.company_id.id)
+            ]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 文件樣板 - 監造工程師可讀取 -->
+        <record id="rule_document_template_supervision_engineer" model="ir.rule">
+            <field name="name">文件樣板: 監造工程師讀取</field>
+            <field name="model_id" ref="model_document_template"/>
+            <field name="domain_force">[
+                '|',
+                ('is_default', '=', True),
+                '|',
+                ('company_id', '=', user.company_id.id),
+                ('project_id.company_id', '=', user.company_id.id)
+            ]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 文件樣板 - 廠商主管可讀取系統預設與參與專案的樣板 -->
+        <record id="rule_document_template_contractor_manager" model="ir.rule">
+            <field name="name">文件樣板: 廠商主管讀取</field>
+            <field name="model_id" ref="model_document_template"/>
+            <field name="domain_force">[
+                '|',
+                ('is_default', '=', True),
+                '|',
+                ('company_id', '=', user.company_id.id),
+                ('project_id.contractor_company_ids', 'in', [user.company_id.id])
+            ]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 文件樣板 - 廠商工程師可讀取 -->
+        <record id="rule_document_template_contractor_engineer" model="ir.rule">
+            <field name="name">文件樣板: 廠商工程師讀取</field>
+            <field name="model_id" ref="model_document_template"/>
+            <field name="domain_force">[
+                '|',
+                ('is_default', '=', True),
+                '|',
+                ('company_id', '=', user.company_id.id),
+                ('project_id.contractor_company_ids', 'in', [user.company_id.id])
+            ]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

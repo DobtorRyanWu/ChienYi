@@ -1,0 +1,200 @@
+/**
+ * Construction Timeline - CSS 樣式
+ * 工程監造系統時程控制模組樣式
+ */
+
+/* ============================================== */
+/* 甘特圖樣式                                       */
+/* ============================================== */
+
+/* 工項狀態顏色 */
+.o_gantt_pill[data-schedule-status="delayed"] {
+    background-color: #dc3545 !important;
+    border-color: #c82333 !important;
+}
+
+.o_gantt_pill[data-schedule-status="ahead"] {
+    background-color: #28a745 !important;
+    border-color: #1e7e34 !important;
+}
+
+.o_gantt_pill[data-schedule-status="on_schedule"] {
+    background-color: #17a2b8 !important;
+    border-color: #138496 !important;
+}
+
+/* 警示狀態 */
+.o_gantt_pill[data-schedule-alert="critical"] {
+    animation: pulse-critical 1s infinite;
+}
+
+.o_gantt_pill[data-schedule-alert="warning"] {
+    animation: pulse-warning 2s infinite;
+}
+
+@keyframes pulse-critical {
+    0% { opacity: 1; }
+    50% { opacity: 0.6; }
+    100% { opacity: 1; }
+}
+
+@keyframes pulse-warning {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}
+
+/* 關鍵路徑標記 */
+.o_gantt_pill.critical-path {
+    border-width: 2px;
+    border-style: solid;
+    border-color: #ff0000 !important;
+}
+
+/* ============================================== */
+/* 計時器按鈕樣式                                   */
+/* ============================================== */
+
+.o_timer_button {
+    min-width: 100px;
+}
+
+.o_timer_button.timer-running {
+    animation: timer-pulse 1.5s infinite;
+}
+
+@keyframes timer-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+}
+
+/* 計時器顯示 */
+.o_timer_display {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.2em;
+    font-weight: bold;
+    padding: 5px 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+
+.o_timer_display.running {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+/* ============================================== */
+/* 時程差異分析表格樣式                              */
+/* ============================================== */
+
+.o_schedule_variance_tree .o_data_row.delayed {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+
+.o_schedule_variance_tree .o_data_row.ahead {
+    background-color: rgba(40, 167, 69, 0.1);
+}
+
+.o_schedule_variance_tree .o_data_row.on_schedule {
+    background-color: rgba(23, 162, 184, 0.05);
+}
+
+/* 差異數值顏色 */
+.o_variance_negative {
+    color: #28a745;
+    font-weight: bold;
+}
+
+.o_variance_positive {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.o_variance_zero {
+    color: #6c757d;
+}
+
+/* ============================================== */
+/* 效率進度條樣式                                   */
+/* ============================================== */
+
+.o_efficiency_bar {
+    height: 20px;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: #e9ecef;
+}
+
+.o_efficiency_bar .progress-bar {
+    transition: width 0.6s ease;
+}
+
+.o_efficiency_bar.efficiency-low .progress-bar {
+    background-color: #dc3545;
+}
+
+.o_efficiency_bar.efficiency-medium .progress-bar {
+    background-color: #ffc107;
+}
+
+.o_efficiency_bar.efficiency-high .progress-bar {
+    background-color: #28a745;
+}
+
+/* ============================================== */
+/* 依賴關係視覺化                                   */
+/* ============================================== */
+
+.o_dependency_badge {
+    display: inline-block;
+    padding: 2px 6px;
+    margin: 1px;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.o_dependency_badge.predecessor {
+    background-color: #e9ecef;
+    border: 1px solid #adb5bd;
+}
+
+.o_dependency_badge.successor {
+    background-color: #d1ecf1;
+    border: 1px solid #bee5eb;
+}
+
+.o_dependency_badge.blocked {
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+}
+
+/* ============================================== */
+/* 響應式調整                                       */
+/* ============================================== */
+
+@media (max-width: 768px) {
+    .o_gantt_popover {
+        max-width: 280px;
+    }
+
+    .o_timer_display {
+        font-size: 1em;
+    }
+}
+
+/* ============================================== */
+/* 列印樣式                                        */
+/* ============================================== */
+
+@media print {
+    .o_timer_button,
+    .o_action_button {
+        display: none !important;
+    }
+
+    .o_gantt_pill {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}

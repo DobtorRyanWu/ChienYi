@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 時程差異分析 - 專用列表視圖                        -->
+    <!-- ============================================== -->
+    <record id="view_task_schedule_variance_tree" model="ir.ui.view">
+        <field name="name">project.task.tree.schedule.variance</field>
+        <field name="model">project.task</field>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <list string="時程差異分析"
+                  decoration-danger="schedule_status == 'delayed' or schedule_alert == 'critical'"
+                  decoration-warning="schedule_alert == 'warning'"
+                  decoration-success="schedule_status == 'ahead'"
+                  default_order="schedule_variance desc">
+                <!-- 基本資訊 -->
+                <field name="item_no"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="assigned_company_id"/>
+
+                <!-- 預定時程 -->
+                <field name="planned_date_start" string="預定開始"/>
+                <field name="planned_date_end" string="預定完成"/>
+                <field name="planned_duration" string="預定工期"/>
+
+                <!-- 實際時程 -->
+                <field name="actual_date_start" string="實際開始"/>
+                <field name="actual_date_end" string="實際完成"/>
+                <field name="actual_duration" string="實際工期"/>
+
+                <!-- 差異分析 -->
+                <field name="schedule_variance" string="差異(天)"
+                       decoration-danger="schedule_variance > 0"
+                       decoration-success="schedule_variance &lt; 0"/>
+                <field name="duration_variance" string="工期差異"/>
+                <field name="efficiency_rate" widget="progressbar" string="效率"/>
+
+                <!-- 狀態 -->
+                <field name="schedule_status" widget="badge"
+                       decoration-success="schedule_status == 'ahead'"
+                       decoration-warning="schedule_status == 'on_schedule'"
+                       decoration-danger="schedule_status == 'delayed'"/>
+                <field name="schedule_alert" widget="badge"
+                       decoration-warning="schedule_alert == 'warning'"
+                       decoration-danger="schedule_alert == 'critical'"/>
+                <field name="assignment_state" widget="badge" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 時程差異分析 - 樞紐分析視圖                        -->
+    <!-- ============================================== -->
+    <record id="view_task_schedule_variance_pivot" model="ir.ui.view">
+        <field name="name">project.task.pivot.schedule.variance</field>
+        <field name="model">project.task</field>
+        <field name="arch" type="xml">
+            <pivot string="時程差異分析">
+                <field name="project_id" type="row"/>
+                <field name="assigned_company_id" type="row"/>
+                <field name="schedule_status" type="col"/>
+                <field name="schedule_variance" type="measure"/>
+                <field name="duration_variance" type="measure"/>
+                <field name="efficiency_rate" type="measure"/>
+                <field name="planned_duration" type="measure"/>
+                <field name="actual_duration" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 時程差異分析 - 圖表視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_task_schedule_variance_graph" model="ir.ui.view">
+        <field name="name">project.task.graph.schedule.variance</field>
+        <field name="model">project.task</field>
+        <field name="arch" type="xml">
+            <graph string="時程差異分析" type="bar">
+                <field name="assigned_company_id"/>
+                <field name="schedule_variance" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 時程差異分析 - 搜尋視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_task_schedule_variance_search" model="ir.ui.view">
+        <field name="name">project.task.search.schedule.variance</field>
+        <field name="model">project.task</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <search string="時程差異分析">
+                <field name="name"/>
+                <field name="item_no"/>
+                <field name="project_id"/>
+                <field name="assigned_company_id"/>
+
+                <separator/>
+                <filter string="進度超前" name="ahead"
+                        domain="[('schedule_status', '=', 'ahead')]"/>
+                <filter string="進度正常" name="on_schedule"
+                        domain="[('schedule_status', '=', 'on_schedule')]"/>
+                <filter string="進度落後" name="delayed"
+                        domain="[('schedule_status', '=', 'delayed')]"/>
+
+                <separator/>
+                <filter string="時程警示" name="has_alert"
+                        domain="[('schedule_alert', 'in', ('warning', 'critical'))]"/>
+                <filter string="嚴重警示" name="critical_alert"
+                        domain="[('schedule_alert', '=', 'critical')]"/>
+
+                <separator/>
+                <filter string="已分配" name="assigned"
+                        domain="[('assigned_company_id', '!=', False)]"/>
+                <filter string="執行中" name="in_progress"
+                        domain="[('assignment_state', '=', 'in_progress')]"/>
+                <filter string="已完成" name="completed"
+                        domain="[('assignment_state', 'in', ('completed', 'accepted'))]"/>
+
+                <separator/>
+                <filter string="關鍵路徑" name="critical_path"
+                        domain="[('is_critical_path', '=', True)]"/>
+
+                <group expand="0" string="分組依據">
+                    <filter string="專案" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="承包廠商" name="group_company"
+                            context="{'group_by': 'assigned_company_id'}"/>
+                    <filter string="時程狀態" name="group_schedule_status"
+                            context="{'group_by': 'schedule_status'}"/>
+                    <filter string="警示等級" name="group_alert"
+                            context="{'group_by': 'schedule_alert'}"/>
+                    <filter string="分配狀態" name="group_assignment"
+                            context="{'group_by': 'assignment_state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 時程差異分析 - 動作                               -->
+    <!-- ============================================== -->
+    <record id="action_schedule_variance_analysis" model="ir.actions.act_window">
+        <field name="name">時程差異分析</field>
+        <field name="res_model">project.task</field>
+        <field name="view_mode">list,pivot,graph,gantt,form</field>
+        <field name="search_view_id" ref="view_task_schedule_variance_search"/>
+        <field name="domain">[('planned_date_start', '!=', False)]</field>
+        <field name="context">{
+            'search_default_assigned': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                沒有符合條件的工項
+            </p>
+            <p>
+                設定工項的預定開始與完成時間以進行時程分析。
+            </p>
+        </field>
+    </record>
+
+    <!-- 設定視圖順序 -->
+    <record id="action_schedule_variance_view_tree" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_task_schedule_variance_tree"/>
+        <field name="act_window_id" ref="action_schedule_variance_analysis"/>
+    </record>
+
+    <record id="action_schedule_variance_view_pivot" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">pivot</field>
+        <field name="view_id" ref="view_task_schedule_variance_pivot"/>
+        <field name="act_window_id" ref="action_schedule_variance_analysis"/>
+    </record>
+
+    <record id="action_schedule_variance_view_graph" model="ir.actions.act_window.view">
+        <field name="sequence" eval="3"/>
+        <field name="view_mode">graph</field>
+        <field name="view_id" ref="view_task_schedule_variance_graph"/>
+        <field name="act_window_id" ref="action_schedule_variance_analysis"/>
+    </record>
+
+    <record id="action_schedule_variance_view_gantt" model="ir.actions.act_window.view">
+        <field name="sequence" eval="4"/>
+        <field name="view_mode">gantt</field>
+        <field name="view_id" ref="view_task_timeline"/>
+        <field name="act_window_id" ref="action_schedule_variance_analysis"/>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 落後工項快速動作                                  -->
+    <!-- ============================================== -->
+    <record id="action_delayed_tasks" model="ir.actions.act_window">
+        <field name="name">進度落後工項</field>
+        <field name="res_model">project.task</field>
+        <field name="view_mode">list,gantt,form</field>
+        <field name="view_id" ref="view_task_schedule_variance_tree"/>
+        <field name="search_view_id" ref="view_task_schedule_variance_search"/>
+        <field name="domain">[('schedule_status', '=', 'delayed')]</field>
+        <field name="context">{
+            'search_default_delayed': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                太好了！沒有進度落後的工項
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 時程警示工項動作                                  -->
+    <!-- ============================================== -->
+    <record id="action_alert_tasks" model="ir.actions.act_window">
+        <field name="name">時程警示工項</field>
+        <field name="res_model">project.task</field>
+        <field name="view_mode">list,gantt,form</field>
+        <field name="view_id" ref="view_task_schedule_variance_tree"/>
+        <field name="search_view_id" ref="view_task_schedule_variance_search"/>
+        <field name="domain">[('schedule_alert', 'in', ('warning', 'critical'))]</field>
+        <field name="context">{
+            'search_default_has_alert': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有時程警示
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 關鍵路徑工項動作                                  -->
+    <!-- ============================================== -->
+    <record id="action_critical_path_tasks" model="ir.actions.act_window">
+        <field name="name">關鍵路徑工項</field>
+        <field name="res_model">project.task</field>
+        <field name="view_mode">list,gantt,form</field>
+        <field name="view_id" ref="view_task_schedule_variance_tree"/>
+        <field name="search_view_id" ref="view_task_schedule_variance_search"/>
+        <field name="domain">[('is_critical_path', '=', True)]</field>
+        <field name="context">{
+            'search_default_critical_path': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚未標記關鍵路徑工項
+            </p>
+            <p>
+                在工項表單中勾選「關鍵路徑」以標記重要工項。
+            </p>
+        </field>
+    </record>
+
+</odoo>

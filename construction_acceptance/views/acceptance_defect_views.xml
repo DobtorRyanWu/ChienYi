@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================ -->
+    <!-- Acceptance Defect Views                     -->
+    <!-- ============================================ -->
+
+    <!-- Tree View -->
+    <record id="view_acceptance_defect_tree" model="ir.ui.view">
+        <field name="name">acceptance.defect.tree</field>
+        <field name="model">acceptance.defect</field>
+        <field name="arch" type="xml">
+            <list string="驗收缺失" decoration-danger="is_overdue" decoration-warning="days_remaining &lt;= 3 and days_remaining &gt; 0" decoration-success="state in ('resolved', 'closed')">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="source"/>
+                <field name="category"/>
+                <field name="severity" optional="show"/>
+                <field name="description" optional="show"/>
+                <field name="deadline"/>
+                <field name="effective_deadline" optional="hide"/>
+                <field name="overdue_days" optional="show"/>
+                <field name="recheck_count" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'open'"
+                       decoration-primary="state == 'improving'"
+                       decoration-warning="state in ('submitted', 'rechecking')"
+                       decoration-success="state in ('resolved', 'closed')"/>
+                <field name="is_overdue" column_invisible="1"/>
+                <field name="days_remaining" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_acceptance_defect_form" model="ir.ui.view">
+        <field name="name">acceptance.defect.form</field>
+        <field name="model">acceptance.defect</field>
+        <field name="arch" type="xml">
+            <form string="驗收缺失">
+                <header>
+                    <button name="action_start_improvement" string="開始改善" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'open'"/>
+                    <button name="action_submit_improvement" string="提交改善" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'improving'"/>
+                    <button name="action_start_recheck" string="開始覆驗" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'submitted'"/>
+                    <button name="action_recheck_pass" string="覆驗通過" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'rechecking'"/>
+                    <button name="action_recheck_fail" string="覆驗不通過" type="object"
+                            invisible="state != 'rechecking'"/>
+                    <button name="action_close" string="結案" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'resolved'"/>
+                    <button name="action_extend_deadline" string="展延期限" type="object"
+                            invisible="state in ('resolved', 'closed')"/>
+                    <button name="action_reopen" string="重新開啟" type="object"
+                            invisible="state not in ('resolved', 'closed')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="open,improving,submitted,rechecking,resolved,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <div class="alert alert-danger" role="alert"
+                         invisible="not is_overdue">
+                        <strong>已逾期 <field name="overdue_days" nolabel="1"/> 天！</strong> 請儘速處理。
+                    </div>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="days_remaining &gt; 3 or days_remaining &lt;= 0 or state in ('resolved', 'closed')">
+                        <strong>即將到期！</strong> 剩餘 <field name="days_remaining" nolabel="1"/> 天。
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id"/>
+                            <field name="source"/>
+                            <field name="preliminary_acceptance_id"
+                                   invisible="source != 'preliminary'"
+                                   required="source == 'preliminary'"/>
+                            <field name="final_acceptance_id"
+                                   invisible="source != 'final'"
+                                   required="source == 'final'"/>
+                            <field name="task_id"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="缺失分類">
+                            <field name="category"/>
+                            <field name="severity"/>
+                            <field name="location"/>
+                        </group>
+                    </group>
+                    <group string="缺失說明">
+                        <field name="description" nolabel="1" placeholder="詳細描述缺失內容..."/>
+                    </group>
+                    <group>
+                        <group string="責任歸屬">
+                            <field name="responsible_company_id"/>
+                            <field name="responsible_user_id"/>
+                        </group>
+                        <group string="期限管理">
+                            <field name="found_date"/>
+                            <field name="deadline"/>
+                            <field name="extension_deadline" invisible="not extension_deadline"/>
+                            <field name="effective_deadline"/>
+                            <field name="extension_count" invisible="extension_count == 0"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="改善記錄" name="improvement">
+                            <group>
+                                <group string="改善資訊">
+                                    <field name="improvement_description"/>
+                                    <field name="improvement_date"/>
+                                    <field name="improver_id"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="改善前照片">
+                                    <field name="before_photo_ids" widget="many2many_binary" nolabel="1"/>
+                                </group>
+                                <group string="改善後照片">
+                                    <field name="after_photo_ids" widget="many2many_binary" nolabel="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="覆驗記錄" name="recheck"
+                              invisible="recheck_count == 0">
+                            <group>
+                                <group>
+                                    <field name="recheck_date"/>
+                                    <field name="recheck_user_id"/>
+                                    <field name="recheck_count"/>
+                                </group>
+                                <group>
+                                    <field name="recheck_result"/>
+                                    <field name="recheck_comment"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="結案資訊" name="close"
+                              invisible="state != 'closed'">
+                            <group>
+                                <group>
+                                    <field name="close_date"/>
+                                    <field name="closer_id"/>
+                                </group>
+                                <group>
+                                    <field name="close_comment"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                    <field name="is_overdue" invisible="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_acceptance_defect_search" model="ir.ui.view">
+        <field name="name">acceptance.defect.search</field>
+        <field name="model">acceptance.defect</field>
+        <field name="arch" type="xml">
+            <search string="搜尋驗收缺失">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="description"/>
+                <field name="responsible_company_id"/>
+                <separator/>
+                <filter string="開立" name="open" domain="[('state', '=', 'open')]"/>
+                <filter string="改善中" name="improving" domain="[('state', '=', 'improving')]"/>
+                <filter string="已提交" name="submitted" domain="[('state', '=', 'submitted')]"/>
+                <filter string="覆驗中" name="rechecking" domain="[('state', '=', 'rechecking')]"/>
+                <filter string="已解決" name="resolved" domain="[('state', '=', 'resolved')]"/>
+                <filter string="已結案" name="closed" domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter string="未結案" name="not_closed" domain="[('state', 'not in', ('resolved', 'closed'))]"/>
+                <filter string="已逾期" name="overdue" domain="[('is_overdue', '=', True)]"/>
+                <filter string="即將到期" name="due_soon" domain="[('days_remaining', '&lt;=', 3), ('days_remaining', '&gt;', 0), ('state', 'not in', ('resolved', 'closed'))]"/>
+                <separator/>
+                <filter string="初驗缺失" name="preliminary" domain="[('source', '=', 'preliminary')]"/>
+                <filter string="正驗缺失" name="final" domain="[('source', '=', 'final')]"/>
+                <separator/>
+                <filter string="輕微" name="minor" domain="[('severity', '=', 'minor')]"/>
+                <filter string="重大" name="major" domain="[('severity', '=', 'major')]"/>
+                <filter string="嚴重" name="critical" domain="[('severity', '=', 'critical')]"/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_by_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="狀態" name="group_by_state" context="{'group_by': 'state'}"/>
+                    <filter string="來源" name="group_by_source" context="{'group_by': 'source'}"/>
+                    <filter string="類別" name="group_by_category" context="{'group_by': 'category'}"/>
+                    <filter string="嚴重程度" name="group_by_severity" context="{'group_by': 'severity'}"/>
+                    <filter string="責任廠商" name="group_by_company" context="{'group_by': 'responsible_company_id'}"/>
+                    <filter string="期限月份" name="group_by_deadline" context="{'group_by': 'deadline:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_acceptance_defect" model="ir.actions.act_window">
+        <field name="name">驗收缺失</field>
+        <field name="res_model">acceptance.defect</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_acceptance_defect_search"/>
+        <field name="context">{'search_default_not_closed': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有驗收缺失
+            </p>
+            <p>
+                驗收缺失是在初驗或正驗過程中發現的問題，需要追蹤改善進度。
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: Overdue -->
+    <record id="action_acceptance_defect_overdue" model="ir.actions.act_window">
+        <field name="name">逾期缺失</field>
+        <field name="res_model">acceptance.defect</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_acceptance_defect_search"/>
+        <field name="domain">[('is_overdue', '=', True), ('state', 'not in', ('resolved', 'closed'))]</field>
+    </record>
+
+    <!-- Action: Pending Recheck -->
+    <record id="action_acceptance_defect_pending_recheck" model="ir.actions.act_window">
+        <field name="name">待覆驗缺失</field>
+        <field name="res_model">acceptance.defect</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_acceptance_defect_search"/>
+        <field name="domain">[('state', '=', 'submitted')]</field>
+    </record>
+
+    <!-- ============================================ -->
+    <!-- Extend Deadline Wizard View                 -->
+    <!-- ============================================ -->
+    <record id="view_acceptance_defect_extend_wizard_form" model="ir.ui.view">
+        <field name="name">acceptance.defect.extend.wizard.form</field>
+        <field name="model">acceptance.defect.extend.wizard</field>
+        <field name="arch" type="xml">
+            <form string="展延期限">
+                <group>
+                    <field name="defect_id" readonly="1"/>
+                    <field name="current_deadline"/>
+                    <field name="new_deadline"/>
+                    <field name="reason"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" string="確認展延" type="object" class="oe_highlight"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

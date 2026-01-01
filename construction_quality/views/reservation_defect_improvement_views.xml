@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 預約式缺失改善 Tree View -->
+    <record id="view_reservation_defect_improvement_tree" model="ir.ui.view">
+        <field name="name">reservation.defect.improvement.tree</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="is_overdue" decoration-success="state in ('conform', 'corrected')">
+                <field name="record_no"/>
+                <field name="slip_id"/>
+                <field name="project_id"/>
+                <field name="check_type"/>
+                <field name="defect_description" widget="text"/>
+                <field name="discovery_unit"/>
+                <field name="notification_date"/>
+                <field name="deadline"/>
+                <field name="is_overdue" column_invisible="1"/>
+                <field name="overdue_days" optional="hide"/>
+                <field name="state"
+                       decoration-success="state in ('conform', 'corrected')"
+                       decoration-warning="state == 'uncorrected'"
+                       decoration-danger="state == 'overdue'"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 預約式缺失改善 Form View -->
+    <record id="view_reservation_defect_improvement_form" model="ir.ui.view">
+        <field name="name">reservation.defect.improvement.form</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_mark_corrected"
+                            string="標記已矯正"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state not in ('uncorrected', 'overdue')"/>
+                    <button name="action_mark_conform"
+                            string="標記符合要求"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state in ('conform', 'corrected')"/>
+                    <button name="action_mark_overdue"
+                            string="標記逾時"
+                            type="object"
+                            class="btn-warning"
+                            invisible="state != 'uncorrected'"/>
+                    <button name="action_reopen"
+                            string="重新開啟"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state not in ('corrected', 'conform')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="uncorrected,corrected,conform"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="已逾期" bg_color="text-bg-danger"
+                            invisible="not is_overdue"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="record_no" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="通報單資訊">
+                            <field name="slip_id"/>
+                            <field name="project_id"/>
+                            <field name="acceptance_id"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="檢查資訊">
+                            <field name="check_type"/>
+                            <field name="discovery_unit"/>
+                            <field name="improvement_unit"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="日期資訊">
+                            <field name="notification_date"/>
+                            <field name="deadline"/>
+                            <field name="closure_date"/>
+                            <field name="is_overdue"/>
+                            <field name="overdue_days" invisible="not is_overdue"/>
+                        </group>
+                        <group string="編號設定">
+                            <field name="supervision_prefix"/>
+                            <field name="contractor_prefix"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="缺失內容" name="defect">
+                            <group>
+                                <field name="defect_description"/>
+                                <field name="defect_location"/>
+                                <field name="defect_cause"/>
+                            </group>
+                        </page>
+                        <page string="改善措施" name="improvement">
+                            <group>
+                                <field name="improvement_action"/>
+                                <field name="prevention_action"/>
+                            </group>
+                        </page>
+                        <page string="確認資訊" name="confirmation">
+                            <group>
+                                <group>
+                                    <field name="confirmer_id"/>
+                                    <field name="confirm_date"/>
+                                </group>
+                                <group>
+                                    <field name="confirm_comment"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="照片" name="photos">
+                            <group>
+                                <group string="缺失照片">
+                                    <field name="defect_photo_ids" widget="many2many_binary" nolabel="1"/>
+                                </group>
+                                <group string="改善後照片">
+                                    <field name="improvement_photo_ids" widget="many2many_binary" nolabel="1"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 預約式缺失改善 Search View -->
+    <record id="view_reservation_defect_improvement_search" model="ir.ui.view">
+        <field name="name">reservation.defect.improvement.search</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="record_no"/>
+                <field name="slip_id"/>
+                <field name="project_id"/>
+                <field name="defect_description"/>
+                <separator/>
+                <filter string="未矯正" name="uncorrected"
+                        domain="[('state', '=', 'uncorrected')]"/>
+                <filter string="逾時未矯正" name="overdue_state"
+                        domain="[('state', '=', 'overdue')]"/>
+                <filter string="已矯正" name="corrected"
+                        domain="[('state', '=', 'corrected')]"/>
+                <filter string="符合要求" name="conform"
+                        domain="[('state', '=', 'conform')]"/>
+                <separator/>
+                <filter string="已逾期" name="is_overdue"
+                        domain="[('is_overdue', '=', True)]"/>
+                <separator/>
+                <filter string="施工檢查" name="construction"
+                        domain="[('check_type', '=', 'construction')]"/>
+                <filter string="安衛環境" name="safety_env"
+                        domain="[('check_type', '=', 'safety_env')]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="通報單" name="group_slip"
+                            context="{'group_by': 'slip_id'}"/>
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="檢查類型" name="group_check_type"
+                            context="{'group_by': 'check_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 預約式缺失改善 Kanban View -->
+    <record id="view_reservation_defect_improvement_kanban" model="ir.ui.view">
+        <field name="name">reservation.defect.improvement.kanban</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_mobile">
+                <field name="record_no"/>
+                <field name="slip_id"/>
+                <field name="defect_description"/>
+                <field name="deadline"/>
+                <field name="is_overdue"/>
+                <field name="state"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_content">
+                            <div class="o_kanban_record_title">
+                                <strong><field name="record_no"/></strong>
+                            </div>
+                            <div class="o_kanban_record_subtitle">
+                                <field name="slip_id"/>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div class="text-truncate"><field name="defect_description"/></div>
+                                <div>期限: <field name="deadline"/></div>
+                                <div t-if="record.is_overdue.raw_value" class="text-danger">
+                                    已逾期
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- 預約式缺失改善 Action -->
+    <record id="action_reservation_defect_improvement" model="ir.actions.act_window">
+        <field name="name">預約式缺失改善</field>
+        <field name="res_model">reservation.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_reservation_defect_improvement_search"/>
+        <field name="context">{'search_default_uncorrected': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆缺失改善記錄
+            </p>
+            <p>
+                預約式缺失改善用於追蹤通報單中的施工缺失及其改善狀態。
+            </p>
+        </field>
+    </record>
+
+</odoo>

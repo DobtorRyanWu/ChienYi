@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 一般式自主檢查序列 -->
+    <record id="seq_general_self_inspection" model="ir.sequence">
+        <field name="name">一般式自主檢查</field>
+        <field name="code">general.self.inspection</field>
+        <field name="prefix">GSI-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+    <!-- 預約式自主檢查序列 -->
+    <record id="seq_reservation_self_inspection" model="ir.sequence">
+        <field name="name">預約式自主檢查</field>
+        <field name="code">reservation.self.inspection</field>
+        <field name="prefix">RSI-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+    <!-- 預約式缺失改善序列 -->
+    <record id="seq_reservation_defect_improvement" model="ir.sequence">
+        <field name="name">預約式缺失改善</field>
+        <field name="code">reservation.defect.improvement</field>
+        <field name="prefix">RDI-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+    <!-- NCR 缺失管理序列 -->
+    <record id="seq_supervision_defect" model="ir.sequence">
+        <field name="name">缺失管理 (NCR)</field>
+        <field name="code">supervision.defect</field>
+        <field name="prefix">NCR-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+</odoo>

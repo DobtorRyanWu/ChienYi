@@ -1,0 +1,18 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+# =============================================
+# 工程照片 (supervision.photo)
+# =============================================
+access_supervision_photo_admin,supervision.photo admin,model_supervision_photo,construction_supervision_base.group_supervisor_admin,1,1,1,1
+access_supervision_photo_supervision_manager,supervision.photo supervision manager,model_supervision_photo,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_supervision_photo_supervision_engineer,supervision.photo supervision engineer,model_supervision_photo,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_supervision_photo_contractor_manager,supervision.photo contractor manager,model_supervision_photo,construction_supervision_base.group_contractor_manager,1,1,1,0
+access_supervision_photo_contractor_engineer,supervision.photo contractor engineer,model_supervision_photo,construction_supervision_base.group_contractor_engineer,1,1,1,0
+
+# =============================================
+# 照片標籤 (supervision.photo.tag)
+# =============================================
+access_photo_tag_admin,supervision.photo.tag admin,model_supervision_photo_tag,construction_supervision_base.group_supervisor_admin,1,1,1,1
+access_photo_tag_supervision_manager,supervision.photo.tag supervision manager,model_supervision_photo_tag,construction_supervision_base.group_supervision_manager,1,1,1,0
+access_photo_tag_supervision_engineer,supervision.photo.tag supervision engineer,model_supervision_photo_tag,construction_supervision_base.group_supervision_engineer,1,0,0,0
+access_photo_tag_contractor_manager,supervision.photo.tag contractor manager,model_supervision_photo_tag,construction_supervision_base.group_contractor_manager,1,0,0,0
+access_photo_tag_contractor_engineer,supervision.photo.tag contractor engineer,model_supervision_photo_tag,construction_supervision_base.group_contractor_engineer,1,0,0,0

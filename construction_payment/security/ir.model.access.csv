@@ -1,0 +1,41 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+# =============================================
+# Work Acceptance Access Rights
+# =============================================
+access_work_acceptance_user,work.acceptance.user,model_work_acceptance,construction_supervision_base.group_construction_user,1,0,0,0
+access_work_acceptance_contractor_engineer,work.acceptance.contractor.engineer,model_work_acceptance,construction_supervision_base.group_contractor_engineer,1,0,0,0
+access_work_acceptance_contractor_manager,work.acceptance.contractor.manager,model_work_acceptance,construction_supervision_base.group_contractor_manager,1,0,0,0
+access_work_acceptance_supervision_engineer,work.acceptance.supervision.engineer,model_work_acceptance,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_work_acceptance_supervision_manager,work.acceptance.supervision.manager,model_work_acceptance,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_work_acceptance_admin,work.acceptance.admin,model_work_acceptance,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# Work Acceptance Line
+access_work_acceptance_line_user,work.acceptance.line.user,model_work_acceptance_line,construction_supervision_base.group_construction_user,1,0,0,0
+access_work_acceptance_line_contractor_engineer,work.acceptance.line.contractor.engineer,model_work_acceptance_line,construction_supervision_base.group_contractor_engineer,1,0,0,0
+access_work_acceptance_line_supervision_engineer,work.acceptance.line.supervision.engineer,model_work_acceptance_line,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_work_acceptance_line_supervision_manager,work.acceptance.line.supervision.manager,model_work_acceptance_line,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_work_acceptance_line_admin,work.acceptance.line.admin,model_work_acceptance_line,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# =============================================
+# Payment Estimate Access Rights
+# =============================================
+access_payment_estimate_user,payment.estimate.user,model_payment_estimate,construction_supervision_base.group_construction_user,1,0,0,0
+access_payment_estimate_contractor_engineer,payment.estimate.contractor.engineer,model_payment_estimate,construction_supervision_base.group_contractor_engineer,1,1,1,0
+access_payment_estimate_contractor_manager,payment.estimate.contractor.manager,model_payment_estimate,construction_supervision_base.group_contractor_manager,1,1,1,0
+access_payment_estimate_supervision_engineer,payment.estimate.supervision.engineer,model_payment_estimate,construction_supervision_base.group_supervision_engineer,1,1,0,0
+access_payment_estimate_supervision_manager,payment.estimate.supervision.manager,model_payment_estimate,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_payment_estimate_admin,payment.estimate.admin,model_payment_estimate,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# Payment Estimate Line
+access_payment_estimate_line_user,payment.estimate.line.user,model_payment_estimate_line,construction_supervision_base.group_construction_user,1,0,0,0
+access_payment_estimate_line_contractor_engineer,payment.estimate.line.contractor.engineer,model_payment_estimate_line,construction_supervision_base.group_contractor_engineer,1,1,1,0
+access_payment_estimate_line_contractor_manager,payment.estimate.line.contractor.manager,model_payment_estimate_line,construction_supervision_base.group_contractor_manager,1,1,1,0
+access_payment_estimate_line_supervision_engineer,payment.estimate.line.supervision.engineer,model_payment_estimate_line,construction_supervision_base.group_supervision_engineer,1,1,0,0
+access_payment_estimate_line_supervision_manager,payment.estimate.line.supervision.manager,model_payment_estimate_line,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_payment_estimate_line_admin,payment.estimate.line.admin,model_payment_estimate_line,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# =============================================
+# Payment Claim Access Rights
+# =============================================
+access_payment_claim_user,payment.claim.user,model_payment_claim,construction_supervision_base.group_construction_user,1,0,0,0
+access_payment_claim_contractor_engineer,payment.claim.contractor.engineer,model_payment_claim,construction_supervision_base.group_contractor_engineer,1,0,0,0
+access_payment_claim_contractor_manager,payment.claim.contractor.manager,model_payment_claim,construction_supervision_base.group_contractor_manager,1,1,1,0
+access_payment_claim_supervision_engineer,payment.claim.supervision.engineer,model_payment_claim,construction_supervision_base.group_supervision_engineer,1,1,0,0
+access_payment_claim_supervision_manager,payment.claim.supervision.manager,model_payment_claim,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_payment_claim_admin,payment.claim.admin,model_payment_claim,construction_supervision_base.group_supervisor_admin,1,1,1,1

@@ -1,0 +1,391 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+    Views for Progress Schedule module.
+-->
+<odoo>
+
+    <!-- ===================================================================
+         Progress Schedule Views
+         =================================================================== -->
+
+    <!-- Form View -->
+    <record id="view_progress_schedule_form" model="ir.ui.view">
+        <field name="name">progress.schedule.form</field>
+        <field name="model">progress.schedule</field>
+        <field name="arch" type="xml">
+            <form string="進度表">
+                <header>
+                    <!-- 狀態動作按鈕 -->
+                    <button name="action_generate_lines" type="object"
+                            string="產生進度區間" class="btn-primary"
+                            invisible="state != 'draft' or calculation_mode == 'custom'"
+                            confirm="確定要產生進度區間嗎？現有明細將被清除。"/>
+                    <button name="action_add_line" type="object"
+                            string="新增區間" class="btn-secondary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_sync_all_lines_from_daily_log" type="object"
+                            string="從日誌同步進度" class="btn-secondary"
+                            invisible="state == 'archived'"
+                            icon="fa-refresh"/>
+                    <button name="action_activate" type="object"
+                            string="啟用" class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_archive" type="object"
+                            string="歸檔" class="btn-secondary"
+                            invisible="state != 'active'"/>
+                    <button name="action_reset_draft" type="object"
+                            string="重設草稿"
+                            invisible="state not in ('active', 'archived')"/>
+                    <button name="action_create_new_version" type="object"
+                            string="建立新版本" class="btn-secondary"
+                            invisible="state != 'active'"
+                            icon="fa-copy"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,active,archived"/>
+                </header>
+                <sheet>
+                    <!-- 進度狀態標籤 -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_lines" type="object"
+                                class="oe_stat_button" icon="fa-list">
+                            <field name="line_count" widget="statinfo" string="進度區間"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="使用中"
+                            invisible="state != 'active'"
+                            bg_color="bg-success"/>
+                    <widget name="web_ribbon" title="已歸檔"
+                            invisible="state != 'archived'"
+                            bg_color="bg-secondary"/>
+
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id"
+                                   readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="version" readonly="1"/>
+                            <field name="change_date"
+                                   readonly="state != 'draft'"/>
+                            <field name="calculation_mode"
+                                   readonly="state != 'draft'"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="工期資訊">
+                            <field name="start_date"/>
+                            <field name="original_end_date"/>
+                            <field name="duration_extension"
+                                   readonly="state != 'draft'"/>
+                            <field name="adjusted_end_date"/>
+                            <field name="approved_duration"/>
+                            <field name="total_duration"/>
+                        </group>
+                    </group>
+
+                    <!-- 目前進度摘要 -->
+                    <group string="目前進度摘要" invisible="not line_ids">
+                        <group>
+                            <field name="current_cumulative_planned"/>
+                            <field name="current_cumulative_actual"/>
+                        </group>
+                        <group>
+                            <field name="current_variance"/>
+                            <field name="current_variance_status" widget="badge"
+                                   decoration-success="current_variance_status == 'ahead'"
+                                   decoration-warning="current_variance_status == 'on_track'"
+                                   decoration-danger="current_variance_status == 'delayed'"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="進度明細" name="lines">
+                            <field name="line_ids" nolabel="1"
+                                   context="{'default_schedule_id': id}">
+                                <list string="進度明細" editable="bottom"
+                                      decoration-success="variance_status == 'ahead'"
+                                      decoration-warning="variance_status == 'on_track'"
+                                      decoration-danger="variance_status == 'delayed'">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="period_display" string="期間" readonly="1"/>
+                                    <field name="date_start"
+                                           readonly="parent.state != 'draft'"
+                                           column_invisible="1"/>
+                                    <field name="date_end"
+                                           readonly="parent.state != 'draft'"
+                                           column_invisible="1"/>
+                                    <field name="period_days" string="天數" readonly="1"/>
+                                    <field name="planned_progress"
+                                           readonly="parent.state != 'draft'"
+                                           sum="預定進度合計"/>
+                                    <field name="cumulative_planned" readonly="1"/>
+                                    <field name="actual_progress"
+                                           readonly="parent.state == 'archived'"
+                                           sum="實際進度合計"/>
+                                    <field name="cumulative_actual" readonly="1"/>
+                                    <field name="variance" readonly="1"/>
+                                    <field name="variance_status" widget="badge"
+                                           decoration-success="variance_status == 'ahead'"
+                                           decoration-warning="variance_status == 'on_track'"
+                                           decoration-danger="variance_status == 'delayed'"/>
+                                    <field name="synced_from_log" readonly="1" widget="boolean"/>
+                                    <field name="notes"/>
+                                    <field name="schedule_state" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="變更說明" name="change_info"
+                              invisible="version == 1">
+                            <group>
+                                <field name="change_reason"
+                                       readonly="state != 'draft'"
+                                       placeholder="請說明本版本進度表的變更原因..."/>
+                            </group>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="notes"
+                                   readonly="state == 'archived'"
+                                   placeholder="其他備註說明..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <footer class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Tree View -->
+    <record id="view_progress_schedule_tree" model="ir.ui.view">
+        <field name="name">progress.schedule.tree</field>
+        <field name="model">progress.schedule</field>
+        <field name="arch" type="xml">
+            <list string="進度表"
+                  decoration-success="current_variance_status == 'ahead'"
+                  decoration-warning="current_variance_status == 'on_track'"
+                  decoration-danger="current_variance_status == 'delayed'"
+                  decoration-muted="state == 'archived'">
+                <field name="project_id"/>
+                <field name="version"/>
+                <field name="calculation_mode"/>
+                <field name="start_date"/>
+                <field name="adjusted_end_date"/>
+                <field name="total_duration"/>
+                <field name="current_cumulative_planned" string="預定進度"/>
+                <field name="current_cumulative_actual" string="實際進度"/>
+                <field name="current_variance" string="差異"/>
+                <field name="current_variance_status" widget="badge"
+                       decoration-success="current_variance_status == 'ahead'"
+                       decoration-warning="current_variance_status == 'on_track'"
+                       decoration-danger="current_variance_status == 'delayed'"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-info="state == 'draft'"
+                       decoration-muted="state == 'archived'"/>
+                <field name="change_date"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_progress_schedule_search" model="ir.ui.view">
+        <field name="name">progress.schedule.search</field>
+        <field name="model">progress.schedule</field>
+        <field name="arch" type="xml">
+            <search string="搜尋進度表">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="version"/>
+                <separator/>
+                <filter string="使用中" name="filter_active"
+                        domain="[('state', '=', 'active')]"/>
+                <filter string="草稿" name="filter_draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已歸檔" name="filter_archived"
+                        domain="[('state', '=', 'archived')]"/>
+                <separator/>
+                <filter string="超前" name="filter_ahead"
+                        domain="[('current_variance_status', '=', 'ahead')]"/>
+                <filter string="正常" name="filter_on_track"
+                        domain="[('current_variance_status', '=', 'on_track')]"/>
+                <filter string="落後" name="filter_delayed"
+                        domain="[('current_variance_status', '=', 'delayed')]"/>
+                <separator/>
+                <filter string="每周" name="filter_weekly"
+                        domain="[('calculation_mode', '=', 'weekly')]"/>
+                <filter string="每兩周" name="filter_biweekly"
+                        domain="[('calculation_mode', '=', 'biweekly')]"/>
+                <filter string="自訂" name="filter_custom"
+                        domain="[('calculation_mode', '=', 'custom')]"/>
+                <separator/>
+                <group expand="0" string="分組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="進度狀態" name="group_variance_status"
+                            context="{'group_by': 'current_variance_status'}"/>
+                    <filter string="計算模式" name="group_mode"
+                            context="{'group_by': 'calculation_mode'}"/>
+                    <filter string="變更月份" name="group_change_month"
+                            context="{'group_by': 'change_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ===================================================================
+         Progress Schedule Line Views
+         =================================================================== -->
+
+    <!-- Line Form View -->
+    <record id="view_progress_schedule_line_form" model="ir.ui.view">
+        <field name="name">progress.schedule.line.form</field>
+        <field name="model">progress.schedule.line</field>
+        <field name="arch" type="xml">
+            <form string="進度表明細">
+                <sheet>
+                    <group>
+                        <group string="時間區間">
+                            <field name="schedule_id" readonly="1"
+                                   options="{'no_create': True}"/>
+                            <field name="project_id" readonly="1"/>
+                            <field name="sequence"/>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="period_display" readonly="1"/>
+                            <field name="period_days" readonly="1"/>
+                        </group>
+                        <group string="進度資料">
+                            <field name="planned_progress"/>
+                            <field name="cumulative_planned" readonly="1"/>
+                            <field name="actual_progress"/>
+                            <field name="cumulative_actual" readonly="1"/>
+                            <field name="variance" readonly="1"/>
+                            <field name="variance_status" readonly="1" widget="badge"
+                                   decoration-success="variance_status == 'ahead'"
+                                   decoration-warning="variance_status == 'on_track'"
+                                   decoration-danger="variance_status == 'delayed'"/>
+                        </group>
+                    </group>
+                    <group string="同步資訊">
+                        <group>
+                            <field name="synced_from_log" readonly="1"/>
+                            <field name="last_sync_date" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="備註">
+                        <field name="notes" nolabel="1"/>
+                    </group>
+                    <field name="schedule_state" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Line Tree View -->
+    <record id="view_progress_schedule_line_tree" model="ir.ui.view">
+        <field name="name">progress.schedule.line.tree</field>
+        <field name="model">progress.schedule.line</field>
+        <field name="arch" type="xml">
+            <list string="進度表明細"
+                  decoration-success="variance_status == 'ahead'"
+                  decoration-warning="variance_status == 'on_track'"
+                  decoration-danger="variance_status == 'delayed'">
+                <field name="schedule_id"/>
+                <field name="sequence"/>
+                <field name="period_display" string="期間"/>
+                <field name="period_days" string="天數"/>
+                <field name="planned_progress" sum="預定進度合計"/>
+                <field name="cumulative_planned"/>
+                <field name="actual_progress" sum="實際進度合計"/>
+                <field name="cumulative_actual"/>
+                <field name="variance"/>
+                <field name="variance_status" widget="badge"
+                       decoration-success="variance_status == 'ahead'"
+                       decoration-warning="variance_status == 'on_track'"
+                       decoration-danger="variance_status == 'delayed'"/>
+                <field name="synced_from_log" widget="boolean"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Line Search View -->
+    <record id="view_progress_schedule_line_search" model="ir.ui.view">
+        <field name="name">progress.schedule.line.search</field>
+        <field name="model">progress.schedule.line</field>
+        <field name="arch" type="xml">
+            <search string="搜尋進度明細">
+                <field name="schedule_id"/>
+                <field name="project_id"/>
+                <separator/>
+                <filter string="超前" name="filter_ahead"
+                        domain="[('variance_status', '=', 'ahead')]"/>
+                <filter string="正常" name="filter_on_track"
+                        domain="[('variance_status', '=', 'on_track')]"/>
+                <filter string="落後" name="filter_delayed"
+                        domain="[('variance_status', '=', 'delayed')]"/>
+                <separator/>
+                <filter string="已從日誌同步" name="filter_synced"
+                        domain="[('synced_from_log', '=', True)]"/>
+                <separator/>
+                <group expand="0" string="分組">
+                    <filter string="進度表" name="group_schedule"
+                            context="{'group_by': 'schedule_id'}"/>
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="進度狀態" name="group_status"
+                            context="{'group_by': 'variance_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ===================================================================
+         Actions
+         =================================================================== -->
+
+    <record id="action_progress_schedule" model="ir.actions.act_window">
+        <field name="name">進度表</field>
+        <field name="res_model">progress.schedule</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_progress_schedule_search"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立您的第一個進度表
+            </p>
+            <p>
+                進度表用於追蹤工程的預定進度與實際進度。
+                您可以選擇每周、每兩周或自訂的計算模式。
+            </p>
+        </field>
+    </record>
+
+    <record id="action_progress_schedule_line" model="ir.actions.act_window">
+        <field name="name">進度明細</field>
+        <field name="res_model">progress.schedule.line</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_progress_schedule_line_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無進度明細
+            </p>
+            <p>
+                請從進度表中產生或新增進度區間。
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 工程相關單位管理 選單                              -->
+    <!-- ============================================== -->
+
+    <!-- 主選單: 工程單位 (在工程監造主選單下) -->
+    <menuitem id="menu_construction_partner_root"
+              name="工程單位"
+              parent="construction_supervision_base.menu_construction_supervision_root"
+              sequence="50"/>
+
+    <!-- 子選單: 工程相關單位 -->
+    <menuitem id="menu_construction_partners"
+              name="所有單位"
+              parent="menu_construction_partner_root"
+              action="action_construction_partners"
+              sequence="10"/>
+
+    <!-- 子選單: 施工廠商 -->
+    <menuitem id="menu_construction_contractors"
+              name="施工廠商"
+              parent="menu_construction_partner_root"
+              action="action_construction_contractors"
+              sequence="20"/>
+
+    <!-- 子選單: 監造/設計單位 -->
+    <menuitem id="menu_supervision_units"
+              name="監造/設計單位"
+              parent="menu_construction_partner_root"
+              action="action_supervision_units"
+              sequence="30"/>
+
+    <!-- 子選單: 業主單位 -->
+    <menuitem id="menu_construction_owners"
+              name="業主單位"
+              parent="menu_construction_partner_root"
+              action="action_construction_owners"
+              sequence="40"/>
+
+    <!-- 分隔線 -->
+    <menuitem id="menu_partner_separator"
+              name=""
+              parent="menu_construction_partner_root"
+              sequence="50"/>
+
+    <!-- 子選單: 廠商證照 -->
+    <menuitem id="menu_partner_licenses"
+              name="廠商證照"
+              parent="menu_construction_partner_root"
+              action="action_partner_license"
+              sequence="60"/>
+
+    <!-- 子選單: 即將過期證照 -->
+    <menuitem id="menu_partner_licenses_expiring"
+              name="即將過期證照"
+              parent="menu_construction_partner_root"
+              action="action_partner_license_expiring"
+              sequence="61"/>
+
+    <!-- 子選單: 技術聯絡人 -->
+    <menuitem id="menu_technical_contacts"
+              name="技術聯絡人"
+              parent="menu_construction_partner_root"
+              action="action_partner_technical_contact"
+              sequence="70"/>
+
+    <!-- ============================================== -->
+    <!-- 設定選單                                         -->
+    <!-- ============================================== -->
+
+    <!-- 設定主選單 -->
+    <menuitem id="menu_construction_partner_config"
+              name="設定"
+              parent="menu_construction_partner_root"
+              sequence="100"
+              groups="construction_supervision_base.group_supervision_manager"/>
+
+    <!-- 子選單: 工程單位分類 -->
+    <menuitem id="menu_partner_categories"
+              name="工程單位分類"
+              parent="menu_construction_partner_config"
+              action="action_supervision_partner_category"
+              sequence="10"/>
+
+</odoo>

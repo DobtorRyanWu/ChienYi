@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 操作軌跡 樹狀視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_audit_trail_tree" model="ir.ui.view">
+        <field name="name">audit.trail.tree</field>
+        <field name="model">audit.trail</field>
+        <field name="arch" type="xml">
+            <list string="操作軌跡" create="0" edit="0" delete="0"
+                  decoration-info="operation_type == 'create'"
+                  decoration-warning="operation_type == 'write'"
+                  decoration-success="operation_type == 'state_change'"
+                  decoration-danger="operation_type == 'unlink'">
+                <field name="create_date" string="操作時間"/>
+                <field name="operation_type"/>
+                <field name="model_description"/>
+                <field name="res_name"/>
+                <field name="user_id"/>
+                <field name="changed_fields" optional="hide"/>
+                <field name="old_state" optional="show"/>
+                <field name="new_state" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 操作軌跡 表單視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_audit_trail_form" model="ir.ui.view">
+        <field name="name">audit.trail.form</field>
+        <field name="model">audit.trail</field>
+        <field name="arch" type="xml">
+            <form string="操作軌跡" create="0" edit="0" delete="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="display_name" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="操作資訊">
+                            <field name="operation_type"/>
+                            <field name="create_date" string="操作時間"/>
+                            <field name="user_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="來源記錄">
+                            <field name="model_description"/>
+                            <field name="model_name"/>
+                            <field name="res_id"/>
+                            <field name="res_name"/>
+                        </group>
+                    </group>
+
+                    <group string="狀態變更" invisible="operation_type != 'state_change'">
+                        <group>
+                            <field name="old_state"/>
+                        </group>
+                        <group>
+                            <field name="new_state"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="變更詳情" name="changes">
+                            <group>
+                                <field name="changed_fields" string="變更欄位"/>
+                            </group>
+                            <group>
+                                <group string="變更前">
+                                    <field name="old_values_display" nolabel="1" widget="text"/>
+                                </group>
+                                <group string="變更後">
+                                    <field name="new_values_display" nolabel="1" widget="text"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="原始資料" name="raw_data">
+                            <group>
+                                <group string="變更前 (JSON)">
+                                    <field name="old_values" nolabel="1" widget="text"/>
+                                </group>
+                                <group string="變更後 (JSON)">
+                                    <field name="new_values" nolabel="1" widget="text"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="備註" name="note" invisible="not note">
+                            <field name="note" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 操作軌跡 搜尋視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_audit_trail_search" model="ir.ui.view">
+        <field name="name">audit.trail.search</field>
+        <field name="model">audit.trail</field>
+        <field name="arch" type="xml">
+            <search string="搜尋操作軌跡">
+                <field name="res_name" string="記錄名稱"/>
+                <field name="user_id"/>
+                <field name="model_description"/>
+                <field name="model_name"/>
+                <separator/>
+                <filter name="filter_create" string="建立" domain="[('operation_type', '=', 'create')]"/>
+                <filter name="filter_write" string="修改" domain="[('operation_type', '=', 'write')]"/>
+                <filter name="filter_state_change" string="狀態變更" domain="[('operation_type', '=', 'state_change')]"/>
+                <filter name="filter_unlink" string="刪除" domain="[('operation_type', '=', 'unlink')]"/>
+                <separator/>
+                <filter name="filter_today" string="今天" domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_week" string="本週" domain="[('create_date', '&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_month" string="本月" domain="[('create_date', '&gt;=', context_today().strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <filter name="filter_my_operations" string="我的操作" domain="[('user_id', '=', uid)]"/>
+                <separator/>
+                <group expand="0" string="分組">
+                    <filter name="group_by_type" string="操作類型" context="{'group_by': 'operation_type'}"/>
+                    <filter name="group_by_model" string="模型" context="{'group_by': 'model_id'}"/>
+                    <filter name="group_by_user" string="操作者" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_by_date" string="日期" context="{'group_by': 'create_date:day'}"/>
+                    <filter name="group_by_company" string="公司" context="{'group_by': 'company_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 操作軌跡 時間軸視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_audit_trail_pivot" model="ir.ui.view">
+        <field name="name">audit.trail.pivot</field>
+        <field name="model">audit.trail</field>
+        <field name="arch" type="xml">
+            <pivot string="操作軌跡分析">
+                <field name="create_date" type="row" interval="day"/>
+                <field name="operation_type" type="col"/>
+                <field name="res_id" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 操作軌跡 圖表視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_audit_trail_graph" model="ir.ui.view">
+        <field name="name">audit.trail.graph</field>
+        <field name="model">audit.trail</field>
+        <field name="arch" type="xml">
+            <graph string="操作軌跡統計" type="bar">
+                <field name="create_date" type="row" interval="day"/>
+                <field name="operation_type" type="col"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 操作軌跡 動作                                    -->
+    <!-- ============================================== -->
+    <record id="action_audit_trail" model="ir.actions.act_window">
+        <field name="name">操作軌跡</field>
+        <field name="res_model">audit.trail</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_audit_trail_search"/>
+        <field name="context">{'search_default_filter_today': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有操作軌跡記錄
+            </p>
+            <p>
+                系統會自動記錄重要操作，包含建立、修改、狀態變更和刪除。
+            </p>
+        </field>
+    </record>
+
+    <!-- 依模型查看 -->
+    <record id="action_audit_trail_by_model" model="ir.actions.act_window">
+        <field name="name">依模型查看</field>
+        <field name="res_model">audit.trail</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_audit_trail_search"/>
+        <field name="context">{'search_default_group_by_model': 1}</field>
+    </record>
+
+    <!-- 依操作者查看 -->
+    <record id="action_audit_trail_by_user" model="ir.actions.act_window">
+        <field name="name">依操作者查看</field>
+        <field name="res_model">audit.trail</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_audit_trail_search"/>
+        <field name="context">{'search_default_group_by_user': 1}</field>
+    </record>
+
+    <!-- 狀態變更記錄 -->
+    <record id="action_audit_trail_state_changes" model="ir.actions.act_window">
+        <field name="name">狀態變更記錄</field>
+        <field name="res_model">audit.trail</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('operation_type', '=', 'state_change')]</field>
+        <field name="search_view_id" ref="view_audit_trail_search"/>
+    </record>
+
+</odoo>

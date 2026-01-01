@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 一般式缺失改善序列 -->
+    <record id="seq_general_defect_improvement" model="ir.sequence">
+        <field name="name">一般式缺失改善</field>
+        <field name="code">general.defect.improvement</field>
+        <field name="prefix">GDI-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+    <!-- 一般式進度報告序列 -->
+    <record id="seq_general_progress_report" model="ir.sequence">
+        <field name="name">一般式進度報告</field>
+        <field name="code">general.progress.report</field>
+        <field name="prefix">GPR-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+    <!-- 一般式即時損益序列 -->
+    <record id="seq_general_realtime_profit" model="ir.sequence">
+        <field name="name">一般式即時損益</field>
+        <field name="code">general.realtime.profit</field>
+        <field name="prefix">GRP-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+</odoo>

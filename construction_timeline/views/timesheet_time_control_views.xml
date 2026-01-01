@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 工時記錄表單視圖擴展 - 計時器欄位                  -->
+    <!-- ============================================== -->
+    <record id="view_hr_timesheet_line_form_timer" model="ir.ui.view">
+        <field name="name">account.analytic.line.form.timer</field>
+        <field name="model">account.analytic.line</field>
+        <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_form"/>
+        <field name="arch" type="xml">
+            <!-- 新增計時器控制按鈕 -->
+            <xpath expr="//form/sheet" position="before">
+                <header>
+                    <button name="button_start_work"
+                            string="開始計時"
+                            type="object"
+                            class="btn-primary"
+                            invisible="is_timer_running"/>
+                    <button name="button_end_work"
+                            string="結束計時"
+                            type="object"
+                            class="btn-warning"
+                            invisible="not is_timer_running"/>
+                    <button name="button_pause_work"
+                            string="暫停"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="not is_timer_running"/>
+                    <button name="button_resume_work"
+                            string="繼續"
+                            type="object"
+                            class="btn-info"
+                            invisible="is_timer_running or not date_time"/>
+                </header>
+            </xpath>
+
+            <!-- 新增計時器欄位 -->
+            <xpath expr="//field[@name='unit_amount']" position="after">
+                <field name="is_timer_running" widget="boolean_toggle"/>
+                <field name="timer_duration" widget="float_time" readonly="1"
+                       invisible="not date_time"/>
+            </xpath>
+
+            <!-- 新增時間詳細資訊 -->
+            <xpath expr="//group" position="after">
+                <group string="計時器詳細資訊" invisible="not date_time">
+                    <group>
+                        <field name="date_time"/>
+                        <field name="date_time_end"/>
+                    </group>
+                    <group>
+                        <field name="work_description" placeholder="描述工作內容..."/>
+                        <field name="weather_condition"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工時記錄列表視圖擴展                              -->
+    <!-- ============================================== -->
+    <record id="view_hr_timesheet_line_tree_timer" model="ir.ui.view">
+        <field name="name">account.analytic.line.tree.timer</field>
+        <field name="model">account.analytic.line</field>
+        <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='unit_amount']" position="after">
+                <field name="is_timer_running" widget="boolean"
+                       decoration-success="is_timer_running"
+                       optional="show"/>
+                <field name="date_time" optional="hide"/>
+                <field name="date_time_end" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工時記錄搜尋視圖擴展                              -->
+    <!-- ============================================== -->
+    <record id="view_hr_timesheet_search_timer" model="ir.ui.view">
+        <field name="name">account.analytic.line.search.timer</field>
+        <field name="model">account.analytic.line</field>
+        <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[1]" position="before">
+                <filter string="計時中" name="timer_running"
+                        domain="[('is_timer_running', '=', True)]"/>
+                <separator/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 執行中工時記錄列表 (樹狀視圖)                     -->
+    <!-- ============================================== -->
+    <record id="view_running_timesheet_tree" model="ir.ui.view">
+        <field name="name">account.analytic.line.tree.running</field>
+        <field name="model">account.analytic.line</field>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <list string="執行中工時"
+                  decoration-info="is_timer_running"
+                  editable="bottom">
+                <field name="date"/>
+                <field name="task_id"/>
+                <field name="project_id" optional="hide"/>
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="date_time"/>
+                <field name="timer_duration" widget="float_time" readonly="1"/>
+                <field name="is_timer_running" widget="boolean"/>
+                <button name="button_end_work"
+                        string="結束"
+                        type="object"
+                        class="btn-warning btn-sm"
+                        invisible="not is_timer_running"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 執行中工時記錄動作                                -->
+    <!-- ============================================== -->
+    <record id="action_running_timesheet" model="ir.actions.act_window">
+        <field name="name">執行中工時</field>
+        <field name="res_model">account.analytic.line</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_running_timesheet_tree"/>
+        <field name="domain">[('is_timer_running', '=', True)]</field>
+        <field name="context">{
+            'search_default_timer_running': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有執行中的計時器
+            </p>
+            <p>
+                開始工項施工後，計時器會自動開始記錄工時。
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 我的計時器快捷視圖                                -->
+    <!-- ============================================== -->
+    <record id="action_my_running_timesheet" model="ir.actions.act_window">
+        <field name="name">我的計時器</field>
+        <field name="res_model">account.analytic.line</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_running_timesheet_tree"/>
+        <field name="domain">[
+            ('is_timer_running', '=', True),
+            ('employee_id.user_id', '=', uid)
+        ]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                您目前沒有執行中的計時器
+            </p>
+            <p>
+                前往工項開始施工以啟動計時器。
+            </p>
+        </field>
+    </record>
+
+</odoo>

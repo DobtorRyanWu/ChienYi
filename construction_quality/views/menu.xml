@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 品質管理主選單 -->
+    <menuitem id="menu_quality_root"
+              name="品質管理"
+              web_icon="construction_quality,static/description/icon.png"
+              sequence="30"/>
+
+    <!-- 品質管理 - 自主檢查 -->
+    <menuitem id="menu_quality_inspection"
+              name="自主檢查"
+              parent="menu_quality_root"
+              sequence="10"/>
+
+    <!-- 一般式自主檢查 -->
+    <menuitem id="menu_general_self_inspection"
+              name="一般式自主檢查"
+              parent="menu_quality_inspection"
+              action="action_general_self_inspection"
+              sequence="10"/>
+
+    <!-- 預約式自主檢查 -->
+    <menuitem id="menu_reservation_self_inspection"
+              name="預約式自主檢查"
+              parent="menu_quality_inspection"
+              action="action_reservation_self_inspection"
+              sequence="20"/>
+
+    <!-- 品質管理 - 缺失管理 -->
+    <menuitem id="menu_quality_defect"
+              name="缺失管理"
+              parent="menu_quality_root"
+              sequence="20"/>
+
+    <!-- NCR 缺失管理 -->
+    <menuitem id="menu_supervision_defect"
+              name="缺失管理 (NCR)"
+              parent="menu_quality_defect"
+              action="action_supervision_defect"
+              sequence="10"/>
+
+    <!-- 逾期缺失 -->
+    <menuitem id="menu_supervision_defect_overdue"
+              name="逾期缺失"
+              parent="menu_quality_defect"
+              action="action_supervision_defect_overdue"
+              sequence="15"/>
+
+    <!-- 預約式缺失改善 -->
+    <menuitem id="menu_reservation_defect_improvement"
+              name="預約式缺失改善"
+              parent="menu_quality_defect"
+              action="action_reservation_defect_improvement"
+              sequence="20"/>
+
+    <!-- 品質管理 - 設定 -->
+    <menuitem id="menu_quality_config"
+              name="設定"
+              parent="menu_quality_root"
+              sequence="90"
+              groups="group_quality_manager"/>
+
+    <!-- 自主檢查類型 -->
+    <menuitem id="menu_self_inspection_type"
+              name="自主檢查類型"
+              parent="menu_quality_config"
+              action="action_self_inspection_type"
+              sequence="10"/>
+
+</odoo>

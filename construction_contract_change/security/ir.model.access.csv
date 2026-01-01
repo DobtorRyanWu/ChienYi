@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_contract_change_order_user,contract.change.order.user,model_contract_change_order,group_contract_change_user,1,1,1,0
+access_contract_change_order_manager,contract.change.order.manager,model_contract_change_order,group_contract_change_manager,1,1,1,1
+access_contract_change_order_line_user,contract.change.order.line.user,model_contract_change_order_line,group_contract_change_user,1,1,1,0
+access_contract_change_order_line_manager,contract.change.order.line.manager,model_contract_change_order_line,group_contract_change_manager,1,1,1,1
+access_contract_change_reject_wizard,contract.change.reject.wizard,model_contract_change_reject_wizard,group_contract_change_manager,1,1,1,1

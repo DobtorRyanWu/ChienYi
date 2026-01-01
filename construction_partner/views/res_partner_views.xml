@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- res.partner 擴展視圖                              -->
+    <!-- ============================================== -->
+
+    <!-- Form View Extension -->
+    <record id="view_partner_form_construction" model="ir.ui.view">
+        <field name="name">res.partner.form.construction</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="priority">50</field>
+        <field name="arch" type="xml">
+            <!-- 在表單頂部增加統計按鈕 -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_licenses"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-certificate"
+                        invisible="license_count == 0">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_value">
+                            <field name="valid_license_count"/>/<field name="license_count"/>
+                        </span>
+                        <span class="o_stat_text">證照</span>
+                    </div>
+                </button>
+                <button name="action_view_expiring_licenses"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-exclamation-triangle text-warning"
+                        invisible="expiring_license_count == 0">
+                    <field name="expiring_license_count" widget="statinfo" string="即將過期"/>
+                </button>
+                <button name="action_view_technical_contacts"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-users"
+                        invisible="technical_contact_count == 0">
+                    <field name="technical_contact_count" widget="statinfo" string="技術聯絡人"/>
+                </button>
+                <button name="action_view_supervision_projects"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-folder-open-o"
+                        invisible="supervision_project_count == 0">
+                    <field name="supervision_project_count" widget="statinfo" string="工程專案"/>
+                </button>
+            </xpath>
+
+            <!-- 在內部備註後新增工程資訊頁籤 -->
+            <xpath expr="//notebook" position="inside">
+                <page string="工程資訊" name="construction_info"
+                      invisible="not construction_partner_type">
+                    <group>
+                        <group string="工程單位類型">
+                            <field name="construction_partner_type"/>
+                            <field name="supervision_category_ids" widget="many2many_tags"
+                                   options="{'color_field': 'color'}"/>
+                        </group>
+                        <group string="營造廠商資訊"
+                               invisible="construction_partner_type not in ('contractor', 'subcontractor')">
+                            <field name="contractor_grade"/>
+                            <field name="contractor_registration_no"/>
+                            <field name="contractor_registration_expiry"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="公司資訊">
+                            <field name="specialization"/>
+                            <field name="established_year"/>
+                            <field name="employee_count"/>
+                            <label for="capital"/>
+                            <div class="o_row">
+                                <field name="capital"/>
+                                <field name="currency_capital_id" options="{'no_create': True}"/>
+                            </div>
+                        </group>
+                        <group string="工程評鑑">
+                            <field name="performance_rating" widget="progressbar"/>
+                            <field name="quality_score" widget="progressbar"/>
+                            <field name="safety_score" widget="progressbar"/>
+                            <field name="schedule_adherence"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="construction_experience" placeholder="描述重要工程經歷..."/>
+                    </group>
+                    <group>
+                        <field name="construction_note" placeholder="工程相關備註..."/>
+                    </group>
+                </page>
+                <page string="證照資料" name="licenses"
+                      invisible="not construction_partner_type">
+                    <field name="license_ids">
+                        <list editable="bottom"
+                              decoration-danger="expiry_status == 'expired'"
+                              decoration-warning="expiry_status == 'expiring'">
+                            <field name="name"/>
+                            <field name="license_type"/>
+                            <field name="license_no"/>
+                            <field name="issue_date"/>
+                            <field name="expiry_date"/>
+                            <field name="expiry_status" widget="badge"
+                                   decoration-success="expiry_status == 'valid'"
+                                   decoration-warning="expiry_status == 'expiring'"
+                                   decoration-danger="expiry_status == 'expired'"
+                                   decoration-info="expiry_status == 'no_expiry'"/>
+                            <field name="verification_state" widget="badge"/>
+                        </list>
+                    </field>
+                </page>
+                <page string="技術聯絡人" name="technical_contacts"
+                      invisible="not construction_partner_type">
+                    <field name="technical_contact_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="role"/>
+                            <field name="job_title"/>
+                            <field name="mobile" widget="phone"/>
+                            <field name="email" widget="email"/>
+                            <field name="license_type"/>
+                            <field name="active"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Tree View Extension -->
+    <record id="view_partner_tree_construction" model="ir.ui.view">
+        <field name="name">res.partner.tree.construction</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='phone']" position="after">
+                <field name="construction_partner_type" optional="hide"/>
+                <field name="contractor_grade" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Search View Extension -->
+    <record id="view_partner_search_construction" model="ir.ui.view">
+        <field name="name">res.partner.search.construction</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='supplier']" position="after">
+                <separator/>
+                <filter string="業主" name="filter_owner"
+                        domain="[('construction_partner_type', '=', 'owner')]"/>
+                <filter string="施工廠商" name="filter_contractor"
+                        domain="[('construction_partner_type', '=', 'contractor')]"/>
+                <filter string="分包商" name="filter_subcontractor"
+                        domain="[('construction_partner_type', '=', 'subcontractor')]"/>
+                <filter string="監造單位" name="filter_supervision"
+                        domain="[('construction_partner_type', '=', 'supervision')]"/>
+                <filter string="設計單位" name="filter_design"
+                        domain="[('construction_partner_type', '=', 'design')]"/>
+                <separator/>
+                <filter string="甲級營造廠" name="filter_grade_a"
+                        domain="[('contractor_grade', '=', 'grade_a')]"/>
+                <filter string="乙級營造廠" name="filter_grade_b"
+                        domain="[('contractor_grade', '=', 'grade_b')]"/>
+                <filter string="丙級營造廠" name="filter_grade_c"
+                        domain="[('contractor_grade', '=', 'grade_c')]"/>
+                <separator/>
+                <filter string="有即將過期證照" name="filter_expiring_license"
+                        domain="[('expiring_license_count', '>', 0)]"/>
+            </xpath>
+            <xpath expr="//group" position="inside">
+                <filter string="工程單位類型" name="group_construction_type"
+                        context="{'group_by': 'construction_partner_type'}"/>
+                <filter string="營造廠商等級" name="group_contractor_grade"
+                        context="{'group_by': 'contractor_grade'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Action: Construction Partners -->
+    <record id="action_construction_partners" model="ir.actions.act_window">
+        <field name="name">工程相關單位</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('construction_partner_type', '!=', False)]</field>
+        <field name="context">{'default_is_company': True}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                新增工程相關單位
+            </p>
+            <p>
+                管理工程相關的各類單位，包括業主、施工廠商、
+                監造單位、設計單位等，並追蹤其證照與聯絡人資訊。
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: Contractors -->
+    <record id="action_construction_contractors" model="ir.actions.act_window">
+        <field name="name">施工廠商</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('construction_partner_type', 'in', ['contractor', 'subcontractor'])]</field>
+        <field name="context">{'default_is_company': True, 'default_construction_partner_type': 'contractor'}</field>
+    </record>
+
+    <!-- Action: Supervision Units -->
+    <record id="action_supervision_units" model="ir.actions.act_window">
+        <field name="name">監造/設計單位</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('construction_partner_type', 'in', ['supervision', 'design'])]</field>
+        <field name="context">{'default_is_company': True, 'default_construction_partner_type': 'supervision'}</field>
+    </record>
+
+    <!-- Action: Owners -->
+    <record id="action_construction_owners" model="ir.actions.act_window">
+        <field name="name">業主單位</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('construction_partner_type', '=', 'owner')]</field>
+        <field name="context">{'default_is_company': True, 'default_construction_partner_type': 'owner'}</field>
+    </record>
+
+</odoo>

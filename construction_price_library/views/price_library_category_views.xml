@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 價格庫分類 - 樹狀視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_price_library_category_tree" model="ir.ui.view">
+        <field name="name">price.library.category.tree</field>
+        <field name="model">price.library.category</field>
+        <field name="arch" type="xml">
+            <list string="價格庫分類" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="parent_id"/>
+                <field name="item_count"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格庫分類 - 表單視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_price_library_category_form" model="ir.ui.view">
+        <field name="name">price.library.category.form</field>
+        <field name="model">price.library.category</field>
+        <field name="arch" type="xml">
+            <form string="價格庫分類">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(construction_price_library.action_price_library_item)d"
+                                type="action"
+                                class="oe_stat_button"
+                                icon="fa-list-alt"
+                                context="{'search_default_category_id': active_id}">
+                            <field name="item_count" widget="statinfo" string="項目"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="分類名稱..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="code"/>
+                            <field name="sequence"/>
+                            <field name="parent_id"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="其他資訊">
+                            <field name="description"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="子分類" name="children">
+                            <field name="child_ids">
+                                <list string="子分類" editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="code"/>
+                                    <field name="name"/>
+                                    <field name="item_count"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="價格項目" name="items">
+                            <field name="item_ids">
+                                <list string="價格項目">
+                                    <field name="item_no"/>
+                                    <field name="name"/>
+                                    <field name="unit"/>
+                                    <field name="unit_price"/>
+                                    <field name="price_date"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格庫分類 - 搜尋視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_price_library_category_search" model="ir.ui.view">
+        <field name="name">price.library.category.search</field>
+        <field name="model">price.library.category</field>
+        <field name="arch" type="xml">
+            <search string="搜尋價格庫分類">
+                <field name="name" string="名稱/編號"
+                       filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
+                <field name="code"/>
+                <field name="parent_id"/>
+                <separator/>
+                <filter name="filter_active" string="啟用中" domain="[('active', '=', True)]"/>
+                <filter name="filter_inactive" string="已停用" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter name="filter_root" string="根分類" domain="[('parent_id', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter name="group_by_parent" string="上層分類" context="{'group_by': 'parent_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格庫分類 - 動作                               -->
+    <!-- ============================================== -->
+    <record id="action_price_library_category" model="ir.actions.act_window">
+        <field name="name">價格庫分類</field>
+        <field name="res_model">price.library.category</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_price_library_category_search"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一個價格庫分類
+            </p>
+            <p>
+                價格庫分類用於組織工項價格資料，例如：土方工程、結構工程、裝修工程等。
+                支援樹狀階層結構。
+            </p>
+        </field>
+    </record>
+
+</odoo>

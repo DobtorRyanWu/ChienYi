@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 一般式自主檢查 Tree View -->
+    <record id="view_general_self_inspection_tree" model="ir.ui.view">
+        <field name="name">general.self.inspection.tree</field>
+        <field name="model">general.self.inspection</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="has_defect" decoration-muted="state == 'closed'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="inspection_type_id"/>
+                <field name="sub_project_name"/>
+                <field name="inspection_date"/>
+                <field name="inspection_timing"/>
+                <field name="inspector_id"/>
+                <field name="has_defect"/>
+                <field name="defect_count"/>
+                <field name="overall_result"
+                       decoration-success="overall_result == 'pass'"
+                       decoration-warning="overall_result == 'conditional_pass'"
+                       decoration-danger="overall_result == 'fail'"
+                       widget="badge"/>
+                <field name="state"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'inspected'"
+                       decoration-success="state in ('confirmed', 'closed')"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 一般式自主檢查 Form View -->
+    <record id="view_general_self_inspection_form" model="ir.ui.view">
+        <field name="name">general.self.inspection.form</field>
+        <field name="model">general.self.inspection</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_load_default_items"
+                            string="載入預設項目"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or checklist_ids"/>
+                    <button name="action_inspect"
+                            string="完成檢查"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_confirm"
+                            string="監造確認"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'inspected'"/>
+                    <button name="action_close"
+                            string="結案"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'confirmed'"/>
+                    <button name="action_reset_draft"
+                            string="重設"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state not in ('draft', 'inspected')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,inspected,confirmed,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="工程資訊">
+                            <field name="project_id"/>
+                            <field name="task_id"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="檢查資訊">
+                            <field name="inspection_type_id"/>
+                            <field name="sub_project_name"/>
+                            <field name="inspection_date"/>
+                            <field name="inspection_timing"/>
+                            <field name="inspection_location"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="廠商資訊">
+                            <field name="contractor_company_id"/>
+                            <field name="contractor_name" invisible="1"/>
+                            <field name="subcontractor_name"/>
+                        </group>
+                        <group string="人員資訊">
+                            <field name="inspector_id"/>
+                            <field name="supervisor_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="檢查項目" name="checklist">
+                            <field name="checklist_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="stage"/>
+                                    <field name="check_item"/>
+                                    <field name="design_standard"/>
+                                    <field name="actual_result"/>
+                                    <field name="check_result"
+                                           decoration-success="check_result == 'pass'"
+                                           decoration-danger="check_result == 'defect'"
+                                           decoration-muted="check_result == 'na'"
+                                           widget="badge"/>
+                                    <field name="defect_id"
+                                           invisible="check_result != 'defect'"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="檢查結果" name="result">
+                            <group>
+                                <group>
+                                    <field name="has_defect"/>
+                                    <field name="defect_count"/>
+                                    <field name="overall_result"
+                                           decoration-success="overall_result == 'pass'"
+                                           decoration-warning="overall_result == 'conditional_pass'"
+                                           decoration-danger="overall_result == 'fail'"
+                                           widget="badge"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="附件" name="attachments">
+                            <group>
+                                <field name="photo_ids" widget="many2many_binary"
+                                       string="檢查照片"/>
+                            </group>
+                            <group>
+                                <field name="attachment_ids" widget="many2many_binary"
+                                       string="相關附件"/>
+                            </group>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="note" placeholder="輸入備註說明..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 一般式自主檢查 Search View -->
+    <record id="view_general_self_inspection_search" model="ir.ui.view">
+        <field name="name">general.self.inspection.search</field>
+        <field name="model">general.self.inspection</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="inspection_type_id"/>
+                <field name="sub_project_name"/>
+                <field name="inspector_id"/>
+                <separator/>
+                <filter string="草稿" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已檢查" name="inspected"
+                        domain="[('state', '=', 'inspected')]"/>
+                <filter string="已確認" name="confirmed"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <filter string="結案" name="closed"
+                        domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter string="有缺失" name="has_defect"
+                        domain="[('has_defect', '=', True)]"/>
+                <filter string="合格" name="pass"
+                        domain="[('overall_result', '=', 'pass')]"/>
+                <filter string="不合格" name="fail"
+                        domain="[('overall_result', '=', 'fail')]"/>
+                <separator/>
+                <filter string="本月" name="this_month"
+                        domain="[('inspection_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="檢查類型" name="group_type"
+                            context="{'group_by': 'inspection_type_id'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="檢查日期" name="group_date"
+                            context="{'group_by': 'inspection_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 一般式自主檢查 Kanban View -->
+    <record id="view_general_self_inspection_kanban" model="ir.ui.view">
+        <field name="name">general.self.inspection.kanban</field>
+        <field name="model">general.self.inspection</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_mobile">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="inspection_type_id"/>
+                <field name="inspection_date"/>
+                <field name="has_defect"/>
+                <field name="state"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_content">
+                            <div class="o_kanban_record_title">
+                                <strong><field name="name"/></strong>
+                            </div>
+                            <div class="o_kanban_record_subtitle">
+                                <field name="project_id"/>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div><field name="inspection_type_id"/></div>
+                                <div><field name="inspection_date"/></div>
+                                <div t-if="record.has_defect.raw_value" class="text-danger">
+                                    有缺失
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- 一般式自主檢查 Action -->
+    <record id="action_general_self_inspection" model="ir.actions.act_window">
+        <field name="name">一般式自主檢查</field>
+        <field name="res_model">general.self.inspection</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_general_self_inspection_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆自主檢查記錄
+            </p>
+            <p>
+                自主檢查用於記錄施工品質的自我檢驗結果。
+            </p>
+        </field>
+    </record>
+
+</odoo>

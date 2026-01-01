@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+    View extensions for supervision.project to add progress schedule features.
+-->
+<odoo>
+
+    <!-- ===================================================================
+         Extend Supervision Project Form View
+         =================================================================== -->
+
+    <record id="view_supervision_project_form_progress" model="ir.ui.view">
+        <field name="name">supervision.project.form.progress</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
+        <field name="arch" type="xml">
+            <!-- Add schedule button to button box -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_schedules" type="object"
+                        class="oe_stat_button" icon="fa-calendar-check-o">
+                    <field name="schedule_count" string="進度表" widget="statinfo"/>
+                </button>
+            </xpath>
+
+            <!-- Add schedule progress info to the progress status group -->
+            <xpath expr="//group[@string='進度狀態']" position="after">
+                <group string="進度表進度" invisible="not active_schedule_id">
+                    <field name="schedule_planned_progress" widget="progressbar"/>
+                    <field name="schedule_actual_progress" widget="progressbar"/>
+                    <field name="schedule_variance"/>
+                    <field name="schedule_variance_status" widget="badge"
+                           decoration-success="schedule_variance_status == 'ahead'"
+                           decoration-warning="schedule_variance_status == 'on_track'"
+                           decoration-danger="schedule_variance_status == 'delayed'"/>
+                    <field name="active_schedule_id" readonly="1"
+                           options="{'no_open': False}"/>
+                </group>
+            </xpath>
+
+            <!-- Add schedule tab to notebook -->
+            <xpath expr="//notebook" position="inside">
+                <page string="進度表" name="schedules">
+                    <group>
+                        <group>
+                            <button name="action_create_schedule" type="object"
+                                    string="建立新進度表" class="btn-primary"
+                                    icon="fa-plus"/>
+                            <button name="action_view_active_schedule" type="object"
+                                    string="檢視使用中進度表"
+                                    icon="fa-eye"
+                                    invisible="not active_schedule_id"/>
+                        </group>
+                    </group>
+                    <field name="schedule_ids" nolabel="1" readonly="1">
+                        <list string="進度表"
+                              decoration-success="current_variance_status == 'ahead'"
+                              decoration-warning="current_variance_status == 'on_track'"
+                              decoration-danger="current_variance_status == 'delayed'"
+                              decoration-muted="state == 'archived'">
+                            <field name="version"/>
+                            <field name="calculation_mode"/>
+                            <field name="change_date"/>
+                            <field name="current_cumulative_planned" string="預定進度"/>
+                            <field name="current_cumulative_actual" string="實際進度"/>
+                            <field name="current_variance" string="差異"/>
+                            <field name="current_variance_status" widget="badge"
+                                   decoration-success="current_variance_status == 'ahead'"
+                                   decoration-warning="current_variance_status == 'on_track'"
+                                   decoration-danger="current_variance_status == 'delayed'"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state == 'active'"
+                                   decoration-info="state == 'draft'"
+                                   decoration-muted="state == 'archived'"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ===================================================================
+         Extend Supervision Project Tree View
+         =================================================================== -->
+
+    <record id="view_supervision_project_tree_progress" model="ir.ui.view">
+        <field name="name">supervision.project.tree.progress</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_tree"/>
+        <field name="arch" type="xml">
+            <!-- Add schedule progress columns (optional) -->
+            <xpath expr="//field[@name='progress_status']" position="after">
+                <field name="schedule_variance" string="進度表差異" optional="hide"/>
+                <field name="schedule_variance_status" string="進度表狀態" widget="badge"
+                       decoration-success="schedule_variance_status == 'ahead'"
+                       decoration-warning="schedule_variance_status == 'on_track'"
+                       decoration-danger="schedule_variance_status == 'delayed'"
+                       optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ===================================================================
+         Extend Supervision Project Search View
+         =================================================================== -->
+
+    <record id="view_supervision_project_search_progress" model="ir.ui.view">
+        <field name="name">supervision.project.search.progress</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_search"/>
+        <field name="arch" type="xml">
+            <!-- Add schedule filters -->
+            <xpath expr="//filter[@name='delayed']" position="after">
+                <separator/>
+                <filter string="有使用中進度表" name="has_schedule"
+                        domain="[('active_schedule_id', '!=', False)]"/>
+                <filter string="無進度表" name="no_schedule"
+                        domain="[('schedule_count', '=', 0)]"/>
+                <separator/>
+                <filter string="進度表超前" name="schedule_ahead"
+                        domain="[('schedule_variance_status', '=', 'ahead')]"/>
+                <filter string="進度表正常" name="schedule_on_track"
+                        domain="[('schedule_variance_status', '=', 'on_track')]"/>
+                <filter string="進度表落後" name="schedule_delayed"
+                        domain="[('schedule_variance_status', '=', 'delayed')]"/>
+            </xpath>
+
+            <!-- Add schedule group by -->
+            <xpath expr="//filter[@name='group_progress']" position="after">
+                <filter string="進度表狀態" name="group_schedule_status"
+                        context="{'group_by': 'schedule_variance_status'}"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

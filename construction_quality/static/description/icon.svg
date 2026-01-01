@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="quality_gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#28a745;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e7e34;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="15" fill="url(#quality_gradient)"/>
+  <!-- Checkmark icon for quality -->
+  <path d="M25 50 L40 65 L75 30" stroke="white" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Quality badge circle -->
+  <circle cx="50" cy="50" r="35" stroke="white" stroke-width="3" fill="none" opacity="0.3"/>
+</svg>

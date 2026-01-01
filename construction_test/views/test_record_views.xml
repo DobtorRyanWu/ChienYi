@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 檢(試)驗管制記錄 Tree View -->
+    <record id="view_test_record_tree" model="ir.ui.view">
+        <field name="name">supervision.test.record.tree</field>
+        <field name="model">supervision.test.record</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="result == 'fail'"
+                  decoration-muted="state == 'archived'"
+                  decoration-warning="result == 'pending'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="standard_id"/>
+                <field name="material_name"/>
+                <field name="in_site_date"/>
+                <field name="in_site_quantity" sum="本頁進場"/>
+                <field name="in_site_sum_quantity"/>
+                <field name="sample_date"/>
+                <field name="sample_quantity" sum="本頁取樣"/>
+                <field name="sample_sum_quantity"/>
+                <field name="sample_rate"
+                       decoration-success="sample_rate >= 100"
+                       decoration-warning="sample_rate >= 80 and sample_rate &lt; 100"
+                       decoration-danger="sample_rate &lt; 80"/>
+                <field name="result"
+                       decoration-success="result == 'pass'"
+                       decoration-danger="result == 'fail'"
+                       decoration-warning="result == 'pending'"
+                       widget="badge"/>
+                <field name="archive_number"/>
+                <field name="state"
+                       decoration-info="state == 'draft'"
+                       decoration-primary="state == 'sampled'"
+                       decoration-success="state == 'tested'"
+                       decoration-muted="state == 'archived'"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 檢(試)驗管制記錄 Form View -->
+    <record id="view_test_record_form" model="ir.ui.view">
+        <field name="name">supervision.test.record.form</field>
+        <field name="model">supervision.test.record</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_sample"
+                            string="完成取樣"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_test"
+                            string="完成檢驗"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'sampled'"/>
+                    <button name="action_archive"
+                            string="歸檔"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'tested'"/>
+                    <button name="action_reset_draft"
+                            string="重設"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state in ('draft', 'archived')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,sampled,tested,archived"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" icon="fa-paperclip"
+                                type="object" name="action_view_attachments"
+                                invisible="attachment_count == 0">
+                            <field name="attachment_count" widget="statinfo" string="附件"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="standard_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="material_name"/>
+                            <field name="task_id"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="人員資訊">
+                            <field name="inspector_id"/>
+                            <field name="member_ids" widget="many2many_tags"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="進場記錄">
+                            <field name="in_site_date"
+                                   readonly="state in ('tested', 'archived')"/>
+                            <field name="in_site_quantity"
+                                   readonly="state in ('tested', 'archived')"/>
+                            <field name="in_site_sum_quantity"/>
+                        </group>
+                        <group string="取樣記錄">
+                            <field name="sample_date"
+                                   readonly="state in ('tested', 'archived')"/>
+                            <field name="sample_quantity"
+                                   readonly="state in ('tested', 'archived')"/>
+                            <field name="sample_sum_quantity"/>
+                            <field name="sample_rate" widget="progressbar"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="檢驗結果">
+                            <field name="result"
+                                   readonly="state == 'archived'"/>
+                            <field name="result_date"
+                                   readonly="state == 'archived'"/>
+                            <field name="result_description"
+                                   readonly="state == 'archived'"/>
+                        </group>
+                        <group string="歸檔資訊">
+                            <field name="archive_number"
+                                   readonly="state == 'archived'"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="檢驗報告附件" name="attachments">
+                            <field name="attachment_ids" widget="many2many_binary"
+                                   string="檢驗報告"/>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="note" placeholder="輸入備註說明..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 檢(試)驗管制記錄 Search View -->
+    <record id="view_test_record_search" model="ir.ui.view">
+        <field name="name">supervision.test.record.search</field>
+        <field name="model">supervision.test.record</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="standard_id"/>
+                <field name="material_name"/>
+                <field name="archive_number"/>
+                <separator/>
+                <filter string="草稿" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已取樣" name="sampled"
+                        domain="[('state', '=', 'sampled')]"/>
+                <filter string="已檢驗" name="tested"
+                        domain="[('state', '=', 'tested')]"/>
+                <filter string="已歸檔" name="archived"
+                        domain="[('state', '=', 'archived')]"/>
+                <separator/>
+                <filter string="合格" name="pass"
+                        domain="[('result', '=', 'pass')]"/>
+                <filter string="不合格" name="fail"
+                        domain="[('result', '=', 'fail')]"/>
+                <filter string="待判定" name="pending"
+                        domain="[('result', '=', 'pending')]"/>
+                <separator/>
+                <filter string="本月進場" name="this_month"
+                        domain="[('in_site_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="本週進場" name="this_week"
+                        domain="[('in_site_date', '&gt;=', (context_today() - relativedelta(weeks=0, weekday=0)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="取樣率不足" name="low_sample_rate"
+                        domain="[('sample_rate', '&lt;', 100)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="檢試驗項目" name="group_standard"
+                            context="{'group_by': 'standard_id'}"/>
+                    <filter string="檢驗結果" name="group_result"
+                            context="{'group_by': 'result'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="進場日期" name="group_in_site_date"
+                            context="{'group_by': 'in_site_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 檢(試)驗管制記錄 Kanban View -->
+    <record id="view_test_record_kanban" model="ir.ui.view">
+        <field name="name">supervision.test.record.kanban</field>
+        <field name="model">supervision.test.record</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_mobile">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="standard_id"/>
+                <field name="material_name"/>
+                <field name="in_site_date"/>
+                <field name="in_site_quantity"/>
+                <field name="sample_rate"/>
+                <field name="result"/>
+                <field name="state"/>
+                <progressbar field="result"
+                             colors='{"pass": "success", "fail": "danger", "pending": "warning"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_content">
+                            <div class="o_kanban_record_title">
+                                <strong><field name="name"/></strong>
+                            </div>
+                            <div class="o_kanban_record_subtitle">
+                                <field name="material_name"/>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div><strong>進場日期:</strong> <field name="in_site_date"/></div>
+                                <div><strong>進場數量:</strong> <field name="in_site_quantity"/></div>
+                                <div>
+                                    <strong>取樣率:</strong>
+                                    <field name="sample_rate"/>%
+                                </div>
+                                <div t-if="record.result.raw_value == 'fail'" class="text-danger">
+                                    <strong>不合格</strong>
+                                </div>
+                                <div t-if="record.result.raw_value == 'pass'" class="text-success">
+                                    <strong>合格</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- 檢(試)驗管制記錄 Pivot View -->
+    <record id="view_test_record_pivot" model="ir.ui.view">
+        <field name="name">supervision.test.record.pivot</field>
+        <field name="model">supervision.test.record</field>
+        <field name="arch" type="xml">
+            <pivot string="檢(試)驗統計">
+                <field name="project_id" type="row"/>
+                <field name="standard_id" type="row"/>
+                <field name="in_site_date" type="col" interval="month"/>
+                <field name="in_site_quantity" type="measure"/>
+                <field name="sample_quantity" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- 檢(試)驗管制記錄 Graph View -->
+    <record id="view_test_record_graph" model="ir.ui.view">
+        <field name="name">supervision.test.record.graph</field>
+        <field name="model">supervision.test.record</field>
+        <field name="arch" type="xml">
+            <graph string="檢(試)驗趨勢" type="line">
+                <field name="in_site_date" interval="month"/>
+                <field name="in_site_quantity" type="measure"/>
+                <field name="sample_quantity" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- 檢(試)驗管制記錄 Action -->
+    <record id="action_test_record" model="ir.actions.act_window">
+        <field name="name">檢(試)驗管制記錄</field>
+        <field name="res_model">supervision.test.record</field>
+        <field name="view_mode">list,kanban,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_test_record_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆檢(試)驗記錄
+            </p>
+            <p>
+                檢(試)驗記錄用於記錄材料進場、取樣及試驗結果。
+            </p>
+        </field>
+    </record>
+
+</odoo>

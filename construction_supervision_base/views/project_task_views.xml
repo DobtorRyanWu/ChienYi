@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 契約工項 - 表單視圖擴展                          -->
+    <!-- ============================================== -->
+    <record id="view_task_form_supervision" model="ir.ui.view">
+        <field name="name">project.task.form.supervision</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_form2"/>
+        <field name="arch" type="xml">
+            <!-- 新增工程相關欄位到主要區塊 -->
+            <xpath expr="//field[@name='user_ids']" position="after">
+                <field name="item_no"/>
+                <field name="assigned_company_id"
+                       options="{'no_create': True}"/>
+                <field name="assignment_state" widget="badge"
+                       decoration-muted="assignment_state == 'unassigned'"
+                       decoration-info="assignment_state == 'assigned'"
+                       decoration-warning="assignment_state == 'in_progress'"
+                       decoration-success="assignment_state in ('completed', 'accepted')"/>
+            </xpath>
+
+            <!-- 新增分頁 -->
+            <xpath expr="//notebook" position="inside">
+                <!-- 預算與成本分頁 -->
+                <page string="預算與成本" name="budget_cost">
+                    <group>
+                        <group string="契約價量 (預算)">
+                            <field name="planned_qty"/>
+                            <field name="unit"/>
+                            <field name="unit_price"/>
+                            <field name="planned_amount" class="oe_inline"/>
+                        </group>
+                        <group string="實際執行">
+                            <field name="actual_qty"/>
+                            <field name="actual_amount"/>
+                            <field name="qty_remaining"/>
+                            <field name="completion_rate" widget="progressbar"/>
+                            <field name="budget_status" widget="badge"
+                                   decoration-success="budget_status == 'under'"
+                                   decoration-warning="budget_status == 'on_budget'"
+                                   decoration-danger="budget_status == 'over'"/>
+                        </group>
+                    </group>
+                </page>
+
+                <!-- 時程管理分頁 -->
+                <page string="時程管理" name="schedule">
+                    <group>
+                        <group string="預定時程">
+                            <field name="planned_date_start"/>
+                            <field name="planned_date_end"/>
+                            <field name="planned_duration"/>
+                        </group>
+                        <group string="實際時程">
+                            <field name="actual_date_start"/>
+                            <field name="actual_date_end"/>
+                            <field name="actual_duration"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="時程分析">
+                            <field name="schedule_variance"/>
+                            <field name="schedule_status" widget="badge"
+                                   decoration-success="schedule_status == 'ahead'"
+                                   decoration-warning="schedule_status == 'on_schedule'"
+                                   decoration-danger="schedule_status == 'delayed'"/>
+                        </group>
+                    </group>
+                </page>
+
+                <!-- 廠商分配分頁 -->
+                <page string="廠商分配" name="contractor"
+                      groups="construction_supervision_base.group_supervision_manager">
+                    <group>
+                        <group string="分配資訊">
+                            <field name="assigned_company_id"
+                                   options="{'no_create': True}"/>
+                            <field name="assignment_date"/>
+                            <field name="assigned_by_id"/>
+                        </group>
+                        <group string="分配狀態">
+                            <field name="assignment_state" widget="badge"/>
+                        </group>
+                    </group>
+                    <group>
+                        <button name="action_assign_to_contractor"
+                                string="分配/變更廠商"
+                                type="object"
+                                class="btn-primary"
+                                invisible="not supervision_project_id"/>
+                    </group>
+                </page>
+
+                <!-- 施工說明分頁 -->
+                <page string="施工說明" name="construction_info">
+                    <group>
+                        <field name="construction_notes" placeholder="輸入施工注意事項..."/>
+                    </group>
+                    <group>
+                        <field name="specification" placeholder="輸入規格說明..."/>
+                    </group>
+                </page>
+            </xpath>
+
+            <!-- 隱藏欄位 -->
+            <xpath expr="//form" position="inside">
+                <field name="supervision_project_id" invisible="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 契約工項 - 列表視圖擴展                          -->
+    <!-- ============================================== -->
+    <record id="view_task_tree_supervision" model="ir.ui.view">
+        <field name="name">project.task.tree.supervision</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_tree2"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="before">
+                <field name="item_no" optional="show"/>
+            </xpath>
+            <xpath expr="//field[@name='stage_id']" position="after">
+                <field name="assigned_company_id" optional="show"/>
+                <field name="assignment_state" widget="badge" optional="show"
+                       decoration-muted="assignment_state == 'unassigned'"
+                       decoration-info="assignment_state == 'assigned'"
+                       decoration-warning="assignment_state == 'in_progress'"
+                       decoration-success="assignment_state in ('completed', 'accepted')"/>
+                <field name="planned_qty" optional="hide" sum="數量合計"/>
+                <field name="unit" optional="hide"/>
+                <field name="unit_price" optional="hide"/>
+                <field name="planned_amount" optional="show" sum="金額合計"/>
+                <field name="completion_rate" widget="progressbar" optional="show"/>
+                <field name="schedule_status" widget="badge" optional="hide"
+                       decoration-success="schedule_status == 'ahead'"
+                       decoration-warning="schedule_status == 'on_schedule'"
+                       decoration-danger="schedule_status == 'delayed'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 契約工項 - 搜尋視圖擴展                          -->
+    <!-- ============================================== -->
+    <record id="view_task_search_supervision" model="ir.ui.view">
+        <field name="name">project.task.search.supervision</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_search_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="item_no"/>
+                <field name="assigned_company_id"/>
+            </xpath>
+            <xpath expr="//filter[@name='my_tasks']" position="after">
+                <separator/>
+                <filter string="未分配" name="unassigned"
+                        domain="[('assigned_company_id', '=', False)]"/>
+                <filter string="已分配" name="assigned"
+                        domain="[('assigned_company_id', '!=', False)]"/>
+                <filter string="執行中" name="in_progress"
+                        domain="[('assignment_state', '=', 'in_progress')]"/>
+                <filter string="已完成" name="completed"
+                        domain="[('assignment_state', 'in', ('completed', 'accepted'))]"/>
+                <separator/>
+                <filter string="進度落後" name="schedule_delayed"
+                        domain="[('schedule_status', '=', 'delayed')]"/>
+                <filter string="超出預算" name="over_budget"
+                        domain="[('budget_status', '=', 'over')]"/>
+            </xpath>
+            <xpath expr="//group" position="inside">
+                <filter string="承包廠商" name="group_by_assigned_company"
+                        context="{'group_by': 'assigned_company_id'}"/>
+                <filter string="分配狀態" name="group_by_assignment_state"
+                        context="{'group_by': 'assignment_state'}"/>
+                <filter string="預算狀態" name="group_by_budget_status"
+                        context="{'group_by': 'budget_status'}"/>
+                <filter string="時程狀態" name="group_by_schedule_status"
+                        context="{'group_by': 'schedule_status'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 契約工項 - 專用列表視圖                          -->
+    <!-- ============================================== -->
+    <record id="view_task_tree_supervision_full" model="ir.ui.view">
+        <field name="name">project.task.tree.supervision.full</field>
+        <field name="model">project.task</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <list string="契約工項" default_order="item_no"
+                  decoration-muted="assignment_state == 'accepted'"
+                  decoration-info="assignment_state == 'assigned'"
+                  decoration-warning="assignment_state == 'in_progress'"
+                  decoration-danger="schedule_status == 'delayed'"
+                  editable="bottom">
+                <field name="item_no"/>
+                <field name="name"/>
+                <field name="project_id" optional="hide"/>
+                <field name="assigned_company_id" options="{'no_create': True}"/>
+                <field name="planned_qty"/>
+                <field name="unit"/>
+                <field name="unit_price"/>
+                <field name="planned_amount" sum="契約金額合計"/>
+                <field name="actual_qty"/>
+                <field name="actual_amount" sum="實際金額合計"/>
+                <field name="completion_rate" widget="progressbar"/>
+                <field name="assignment_state" widget="badge"
+                       decoration-muted="assignment_state == 'unassigned'"
+                       decoration-info="assignment_state == 'assigned'"
+                       decoration-warning="assignment_state == 'in_progress'"
+                       decoration-success="assignment_state in ('completed', 'accepted')"/>
+                <field name="planned_date_start" optional="hide"/>
+                <field name="planned_date_end" optional="hide"/>
+                <field name="schedule_status" widget="badge" optional="hide"
+                       decoration-success="schedule_status == 'ahead'"
+                       decoration-warning="schedule_status == 'on_schedule'"
+                       decoration-danger="schedule_status == 'delayed'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 契約工項 - 專用動作                              -->
+    <!-- ============================================== -->
+    <record id="action_supervision_task" model="ir.actions.act_window">
+        <field name="name">契約工項</field>
+        <field name="res_model">project.task</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="view_id" ref="view_task_tree_supervision_full"/>
+        <field name="search_view_id" ref="project.view_task_search_form"/>
+        <field name="context">{
+            'search_default_group_by_assigned_company': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一個契約工項
+            </p>
+            <p>
+                契約工項用於管理工程專案中的各項施工項目，
+                可分配給不同廠商執行並追蹤預算與進度。
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 專案階段類型擴展                                  -->
+    <!-- ============================================== -->
+    <record id="view_task_type_form_supervision" model="ir.ui.view">
+        <field name="name">project.task.type.form.supervision</field>
+        <field name="model">project.task.type</field>
+        <field name="inherit_id" ref="project.task_type_edit"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='fold']" position="after">
+                <field name="is_construction_stage"/>
+                <field name="is_acceptance_stage"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

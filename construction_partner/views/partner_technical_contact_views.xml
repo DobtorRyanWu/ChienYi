@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 技術聯絡人 視圖                                    -->
+    <!-- ============================================== -->
+
+    <!-- Tree View -->
+    <record id="view_partner_technical_contact_tree" model="ir.ui.view">
+        <field name="name">partner.technical.contact.tree</field>
+        <field name="model">partner.technical.contact</field>
+        <field name="arch" type="xml">
+            <list string="技術聯絡人"
+                  decoration-muted="not active">
+                <field name="sequence" widget="handle"/>
+                <field name="partner_id"/>
+                <field name="name"/>
+                <field name="role" widget="badge"/>
+                <field name="job_title"/>
+                <field name="mobile" widget="phone"/>
+                <field name="email" widget="email"/>
+                <field name="license_type"/>
+                <field name="is_license_valid" widget="boolean"
+                       invisible="not license_type"/>
+                <field name="assigned_project_count"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_partner_technical_contact_form" model="ir.ui.view">
+        <field name="name">partner.technical.contact.form</field>
+        <field name="model">partner.technical.contact</field>
+        <field name="arch" type="xml">
+            <form string="技術聯絡人">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_projects"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-folder-open-o"
+                                invisible="assigned_project_count == 0">
+                            <field name="assigned_project_count" widget="statinfo" string="指派專案"/>
+                        </button>
+                        <button name="action_send_email"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-envelope-o"
+                                invisible="not email">
+                            <span>發送郵件</span>
+                        </button>
+                        <button name="action_call_mobile"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-phone"
+                                invisible="not mobile">
+                            <span>撥打電話</span>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已離職" bg_color="text-bg-secondary"
+                            invisible="active"/>
+                    <field name="image_128" widget="image" class="oe_avatar"/>
+                    <div class="oe_title">
+                        <label for="name" string="聯絡人姓名"/>
+                        <h1>
+                            <field name="name" placeholder="輸入姓名..."/>
+                        </h1>
+                        <field name="role" widget="badge"/>
+                    </div>
+                    <group>
+                        <group string="基本資料">
+                            <field name="partner_id" options="{'no_create': True}"/>
+                            <field name="job_title"/>
+                            <field name="department"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="聯絡方式">
+                            <field name="mobile" widget="phone"/>
+                            <field name="phone" widget="phone"/>
+                            <field name="email" widget="email"/>
+                            <field name="fax"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="專業證照">
+                            <field name="license_type"/>
+                            <field name="license_no"/>
+                            <field name="license_expiry_date"/>
+                            <field name="is_license_valid" widget="boolean"
+                                   invisible="not license_type"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="指派專案" name="projects">
+                            <field name="assigned_project_ids">
+                                <list create="0" delete="0">
+                                    <field name="code"/>
+                                    <field name="name"/>
+                                    <field name="state" widget="badge"/>
+                                    <field name="actual_progress" widget="progressbar"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="note" placeholder="輸入備註說明..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_partner_technical_contact_search" model="ir.ui.view">
+        <field name="name">partner.technical.contact.search</field>
+        <field name="model">partner.technical.contact</field>
+        <field name="arch" type="xml">
+            <search string="搜尋技術聯絡人">
+                <field name="name" string="姓名/電話/郵件"
+                       filter_domain="['|', '|', ('name', 'ilike', self), ('mobile', 'ilike', self), ('email', 'ilike', self)]"/>
+                <field name="partner_id"/>
+                <field name="role"/>
+                <separator/>
+                <filter string="在職" name="filter_active"
+                        domain="[('active', '=', True)]"/>
+                <filter string="已離職" name="filter_inactive"
+                        domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="專案經理" name="filter_pm"
+                        domain="[('role', '=', 'project_manager')]"/>
+                <filter string="工地主任" name="filter_site_manager"
+                        domain="[('role', '=', 'site_manager')]"/>
+                <filter string="安全人員" name="filter_safety"
+                        domain="[('role', '=', 'safety_officer')]"/>
+                <filter string="品管人員" name="filter_quality"
+                        domain="[('role', '=', 'quality_officer')]"/>
+                <filter string="監造人員" name="filter_supervisor"
+                        domain="[('role', '=', 'supervisor')]"/>
+                <separator/>
+                <filter string="有專業證照" name="filter_licensed"
+                        domain="[('license_type', '!=', False)]"/>
+                <filter string="證照即將過期" name="filter_license_expiring"
+                        domain="[('is_license_valid', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="分組">
+                    <filter string="所屬單位" name="group_partner"
+                            context="{'group_by': 'partner_id'}"/>
+                    <filter string="角色" name="group_role"
+                            context="{'group_by': 'role'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Kanban View -->
+    <record id="view_partner_technical_contact_kanban" model="ir.ui.view">
+        <field name="name">partner.technical.contact.kanban</field>
+        <field name="model">partner.technical.contact</field>
+        <field name="arch" type="xml">
+            <kanban>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="role"/>
+                <field name="mobile"/>
+                <field name="email"/>
+                <field name="image_128"/>
+                <field name="active"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_global_click #{!record.active.raw_value ? 'text-muted' : ''}">
+                            <div class="o_kanban_image">
+                                <img t-att-src="kanban_image('partner.technical.contact', 'image_128', record.id.raw_value)"
+                                     class="o_image_64_contain" alt="聯絡人照片"/>
+                            </div>
+                            <div class="oe_kanban_details">
+                                <div class="o_kanban_record_title">
+                                    <strong><field name="name"/></strong>
+                                </div>
+                                <div class="o_kanban_record_subtitle">
+                                    <field name="partner_id"/>
+                                </div>
+                                <div>
+                                    <field name="role" widget="badge"/>
+                                </div>
+                                <div class="text-muted mt-1">
+                                    <span t-if="record.mobile.raw_value">
+                                        <i class="fa fa-mobile"/> <field name="mobile"/>
+                                    </span>
+                                </div>
+                                <div class="text-muted">
+                                    <span t-if="record.email.raw_value">
+                                        <i class="fa fa-envelope-o"/> <field name="email"/>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_partner_technical_contact" model="ir.actions.act_window">
+        <field name="name">技術聯絡人</field>
+        <field name="res_model">partner.technical.contact</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_partner_technical_contact_search"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                新增技術聯絡人
+            </p>
+            <p>
+                管理各單位的技術聯絡人，包括專案經理、工地主任、
+                安全人員、品管人員等，方便專案期間聯繫溝通。
+            </p>
+        </field>
+    </record>
+
+</odoo>

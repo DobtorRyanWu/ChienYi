@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================== -->
+        <!-- 資料隔離規則 (Record Rules)                      -->
+        <!-- ============================================== -->
+
+        <!-- 工程單位分類標籤 - 所有人可讀取 -->
+        <record id="rule_partner_category_read_all" model="ir.rule">
+            <field name="name">工程分類標籤: 所有人可讀取</field>
+            <field name="model_id" ref="model_supervision_partner_category"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 工程單位分類標籤 - 監造單位可管理 -->
+        <record id="rule_partner_category_supervision_manage" model="ir.rule">
+            <field name="name">工程分類標籤: 監造單位管理</field>
+            <field name="model_id" ref="model_supervision_partner_category"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 廠商證照 - 監造單位可查看所有 -->
+        <record id="rule_partner_license_supervision_read" model="ir.rule">
+            <field name="name">廠商證照: 監造單位完整存取</field>
+            <field name="model_id" ref="model_partner_license"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 廠商證照 - 廠商只能管理自己的 -->
+        <record id="rule_partner_license_contractor_own" model="ir.rule">
+            <field name="name">廠商證照: 廠商管理自己公司</field>
+            <field name="model_id" ref="model_partner_license"/>
+            <field name="domain_force">[('partner_id.user_ids.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 技術聯絡人 - 監造單位可查看所有 -->
+        <record id="rule_technical_contact_supervision_read" model="ir.rule">
+            <field name="name">技術聯絡人: 監造單位完整存取</field>
+            <field name="model_id" ref="model_partner_technical_contact"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 技術聯絡人 - 廠商只能管理自己的 -->
+        <record id="rule_technical_contact_contractor_own" model="ir.rule">
+            <field name="name">技術聯絡人: 廠商管理自己公司</field>
+            <field name="model_id" ref="model_partner_technical_contact"/>
+            <field name="domain_force">[('partner_id.user_ids.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 系統管理者 - 完整存取 -->
+        <record id="rule_admin_full_access_partner_category" model="ir.rule">
+            <field name="name">管理者: 工程分類標籤完整存取</field>
+            <field name="model_id" ref="model_supervision_partner_category"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+        </record>
+
+        <record id="rule_admin_full_access_partner_license" model="ir.rule">
+            <field name="name">管理者: 廠商證照完整存取</field>
+            <field name="model_id" ref="model_partner_license"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+        </record>
+
+        <record id="rule_admin_full_access_technical_contact" model="ir.rule">
+            <field name="name">管理者: 技術聯絡人完整存取</field>
+            <field name="model_id" ref="model_partner_technical_contact"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+        </record>
+
+    </data>
+</odoo>

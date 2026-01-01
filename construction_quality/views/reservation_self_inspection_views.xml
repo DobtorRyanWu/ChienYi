@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 預約式自主檢查 Tree View -->
+    <record id="view_reservation_self_inspection_tree" model="ir.ui.view">
+        <field name="name">reservation.self.inspection.tree</field>
+        <field name="model">reservation.self.inspection</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="has_defect" decoration-muted="state == 'confirmed'">
+                <field name="inspection_no"/>
+                <field name="slip_id"/>
+                <field name="project_id"/>
+                <field name="inspection_type_id"/>
+                <field name="sub_project_name"/>
+                <field name="inspection_date"/>
+                <field name="inspection_timing"/>
+                <field name="inspector_id"/>
+                <field name="has_defect"/>
+                <field name="defect_count"/>
+                <field name="state"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'inspected'"
+                       decoration-success="state == 'confirmed'"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 預約式自主檢查 Form View -->
+    <record id="view_reservation_self_inspection_form" model="ir.ui.view">
+        <field name="name">reservation.self.inspection.form</field>
+        <field name="model">reservation.self.inspection</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_load_default_items"
+                            string="載入預設項目"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or checklist_ids"/>
+                    <button name="action_inspect"
+                            string="完成檢查"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_confirm"
+                            string="確認"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'inspected'"/>
+                    <button name="action_reset_draft"
+                            string="重設"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state not in ('draft', 'inspected')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,inspected,confirmed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="inspection_no" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="通報單資訊">
+                            <field name="slip_id"/>
+                            <field name="project_id"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="檢查資訊">
+                            <field name="inspection_type_id"/>
+                            <field name="sub_project_name"/>
+                            <field name="inspection_date"/>
+                            <field name="inspection_timing"/>
+                            <field name="inspection_location"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="廠商資訊">
+                            <field name="contractor_name"/>
+                            <field name="subcontractor_name"/>
+                        </group>
+                        <group string="人員資訊">
+                            <field name="inspector_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="檢查項目" name="checklist">
+                            <field name="checklist_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="stage"/>
+                                    <field name="check_item"/>
+                                    <field name="design_standard"/>
+                                    <field name="actual_result"/>
+                                    <field name="check_result"
+                                           decoration-success="check_result == 'pass'"
+                                           decoration-danger="check_result == 'defect'"
+                                           decoration-muted="check_result == 'na'"
+                                           widget="badge"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="檢查結果" name="result">
+                            <group>
+                                <group>
+                                    <field name="has_defect"/>
+                                    <field name="defect_count"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="附件" name="attachments">
+                            <group>
+                                <field name="photo_ids" widget="many2many_binary"
+                                       string="檢查照片"/>
+                            </group>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="note" placeholder="輸入備註說明..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 預約式自主檢查 Search View -->
+    <record id="view_reservation_self_inspection_search" model="ir.ui.view">
+        <field name="name">reservation.self.inspection.search</field>
+        <field name="model">reservation.self.inspection</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="inspection_no"/>
+                <field name="slip_id"/>
+                <field name="project_id"/>
+                <field name="inspection_type_id"/>
+                <separator/>
+                <filter string="草稿" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已檢查" name="inspected"
+                        domain="[('state', '=', 'inspected')]"/>
+                <filter string="已確認" name="confirmed"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <separator/>
+                <filter string="有缺失" name="has_defect"
+                        domain="[('has_defect', '=', True)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="通報單" name="group_slip"
+                            context="{'group_by': 'slip_id'}"/>
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="檢查類型" name="group_type"
+                            context="{'group_by': 'inspection_type_id'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 預約式自主檢查 Action -->
+    <record id="action_reservation_self_inspection" model="ir.actions.act_window">
+        <field name="name">預約式自主檢查</field>
+        <field name="res_model">reservation.self.inspection</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_reservation_self_inspection_search"/>
+        <field name="context">{'search_default_group_slip': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆預約式自主檢查記錄
+            </p>
+            <p>
+                預約式自主檢查綁定於通報單，用於記錄預約式工程的品質檢驗結果。
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- ============================================== -->
+        <!-- 模組分類                                        -->
+        <!-- ============================================== -->
+        <record id="module_category_construction_supervision" model="ir.module.category">
+            <field name="name">工程監造</field>
+            <field name="description">工程監造與施工協作管理系統</field>
+            <field name="sequence">100</field>
+        </record>
+
+        <!-- ============================================== -->
+        <!-- 使用者群組                                      -->
+        <!-- ============================================== -->
+
+        <!-- 系統管理者 -->
+        <record id="group_supervisor_admin" model="res.groups">
+            <field name="name">系統管理者</field>
+            <field name="category_id" ref="module_category_construction_supervision"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">工程監造系統管理者，擁有所有權限</field>
+        </record>
+
+        <!-- 監造主管 -->
+        <record id="group_supervision_manager" model="res.groups">
+            <field name="name">監造主管</field>
+            <field name="category_id" ref="module_category_construction_supervision"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">設計監造單位主管，可管理專案、分配工項、執行驗收</field>
+        </record>
+
+        <!-- 監造工程師 -->
+        <record id="group_supervision_engineer" model="res.groups">
+            <field name="name">監造工程師</field>
+            <field name="category_id" ref="module_category_construction_supervision"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">設計監造單位工程師，可審查文件、填寫監造日報</field>
+        </record>
+
+        <!-- 廠商主管 -->
+        <record id="group_contractor_manager" model="res.groups">
+            <field name="name">廠商主管</field>
+            <field name="category_id" ref="module_category_construction_supervision"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">施工廠商主管，可提送請款申請、核准文件提送</field>
+        </record>
+
+        <!-- 廠商工程師 -->
+        <record id="group_contractor_engineer" model="res.groups">
+            <field name="name">廠商工程師</field>
+            <field name="category_id" ref="module_category_construction_supervision"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">施工廠商工程師，可填寫施工記錄、提送文件</field>
+        </record>
+
+    </data>
+
+    <data noupdate="1">
+
+        <!-- ============================================== -->
+        <!-- 資料隔離規則 (Record Rules)                      -->
+        <!-- ============================================== -->
+
+        <!-- 工程案件 - 監造單位可看所有專案 -->
+        <record id="rule_supervision_project_supervision_company" model="ir.rule">
+            <field name="name">工程案件: 監造單位完整存取</field>
+            <field name="model_id" ref="model_supervision_project"/>
+            <field name="domain_force">[('company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('group_supervision_manager')), (4, ref('group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 工程案件 - 施工廠商只能看自己參與的專案 -->
+        <record id="rule_supervision_project_contractor" model="ir.rule">
+            <field name="name">工程案件: 施工廠商限制存取</field>
+            <field name="model_id" ref="model_supervision_project"/>
+            <field name="domain_force">[('contractor_company_ids', 'in', [user.company_id.id])]</field>
+            <field name="groups" eval="[(4, ref('group_contractor_manager')), (4, ref('group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 工項 - 監造單位可看所有工項 -->
+        <record id="rule_task_supervision_company" model="ir.rule">
+            <field name="name">工項: 監造單位完整存取</field>
+            <field name="model_id" ref="project.model_project_task"/>
+            <field name="domain_force">[('project_id.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('group_supervision_manager')), (4, ref('group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 工項 - 施工廠商只能看分配給自己的工項 -->
+        <record id="rule_task_contractor" model="ir.rule">
+            <field name="name">工項: 施工廠商限制存取</field>
+            <field name="model_id" ref="project.model_project_task"/>
+            <field name="domain_force">['|', ('assigned_company_id', '=', False), ('assigned_company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('group_contractor_manager')), (4, ref('group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 文件 - 監造單位可看所有文件 -->
+        <record id="rule_document_supervision" model="ir.rule">
+            <field name="name">文件: 監造單位完整存取</field>
+            <field name="model_id" ref="model_supervision_document"/>
+            <field name="domain_force">[('project_id.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('group_supervision_manager')), (4, ref('group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 文件 - 施工廠商只能看自己公司提送的文件 -->
+        <record id="rule_document_contractor" model="ir.rule">
+            <field name="name">文件: 施工廠商限制存取</field>
+            <field name="model_id" ref="model_supervision_document"/>
+            <field name="domain_force">[('company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('group_contractor_manager')), (4, ref('group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 審查意見 - 監造單位可完整存取 -->
+        <record id="rule_review_comment_supervision" model="ir.rule">
+            <field name="name">審查意見: 監造單位完整存取</field>
+            <field name="model_id" ref="model_supervision_review_comment"/>
+            <field name="domain_force">[('document_id.project_id.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('group_supervision_manager')), (4, ref('group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 審查意見 - 施工廠商可讀取並回覆 -->
+        <record id="rule_review_comment_contractor" model="ir.rule">
+            <field name="name">審查意見: 施工廠商讀取回覆</field>
+            <field name="model_id" ref="model_supervision_review_comment"/>
+            <field name="domain_force">[('document_id.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('group_contractor_manager')), (4, ref('group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 系統管理者 - 完整存取 -->
+        <record id="rule_admin_full_access_project" model="ir.rule">
+            <field name="name">管理者: 工程案件完整存取</field>
+            <field name="model_id" ref="model_supervision_project"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_supervisor_admin'))]"/>
+        </record>
+
+        <record id="rule_admin_full_access_document" model="ir.rule">
+            <field name="name">管理者: 文件完整存取</field>
+            <field name="model_id" ref="model_supervision_document"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_supervisor_admin'))]"/>
+        </record>
+
+        <record id="rule_admin_full_access_comment" model="ir.rule">
+            <field name="name">管理者: 審查意見完整存取</field>
+            <field name="model_id" ref="model_supervision_review_comment"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_supervisor_admin'))]"/>
+        </record>
+
+    </data>
+</odoo>

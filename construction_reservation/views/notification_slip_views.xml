@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 通報單表單視圖擴展 - 新增品質管理功能            -->
+    <!-- ============================================== -->
+    <record id="view_reservation_notification_slip_form_reservation" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.form.reservation</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="inherit_id" ref="construction_notification_slip.view_reservation_notification_slip_form"/>
+        <field name="arch" type="xml">
+            <!-- 在按鈕區新增品質管理按鈕 -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_self_inspections" type="object"
+                        class="oe_stat_button" icon="fa-check-circle">
+                    <div class="o_stat_info">
+                        <field name="self_inspection_count" class="o_stat_value"/>
+                        <span class="o_stat_text">自主檢查</span>
+                    </div>
+                </button>
+                <button name="action_view_defect_improvements" type="object"
+                        class="oe_stat_button" icon="fa-exclamation-triangle"
+                        invisible="defect_improvement_count == 0">
+                    <div class="o_stat_info">
+                        <field name="defect_improvement_count" class="o_stat_value"/>
+                        <span class="o_stat_text">缺失改善</span>
+                    </div>
+                </button>
+                <button name="action_view_uncorrected_defects" type="object"
+                        class="oe_stat_button" icon="fa-warning"
+                        invisible="defect_uncorrected_count == 0">
+                    <div class="o_stat_info text-danger">
+                        <field name="defect_uncorrected_count" class="o_stat_value"/>
+                        <span class="o_stat_text">待處理</span>
+                    </div>
+                </button>
+            </xpath>
+
+            <!-- 在表頭新增快速建立按鈕 -->
+            <xpath expr="//button[@name='action_create_acceptance']" position="after">
+                <button name="action_create_self_inspection"
+                        string="新增自主檢查" type="object"
+                        class="btn-secondary"
+                        invisible="state not in ['approved', 'in_progress']"/>
+                <button name="action_create_defect_improvement"
+                        string="新增缺失改善" type="object"
+                        class="btn-secondary"
+                        invisible="state not in ['approved', 'in_progress']"/>
+                <button name="action_create_defect_from_inspection"
+                        string="從檢查建立缺失" type="object"
+                        class="btn-warning"
+                        invisible="state not in ['approved', 'in_progress'] or self_inspection_defect_count == 0"/>
+            </xpath>
+
+            <!-- 在 notebook 中新增品質管理頁籤 -->
+            <xpath expr="//notebook" position="inside">
+                <page string="品質管理" name="quality_management">
+                    <group>
+                        <group string="品質指標">
+                            <field name="quality_pass_rate" widget="progressbar"/>
+                            <field name="defect_closure_rate" widget="progressbar"/>
+                        </group>
+                        <group string="統計資訊">
+                            <field name="self_inspection_count"/>
+                            <field name="self_inspection_confirmed_count"/>
+                            <field name="self_inspection_defect_count"
+                                   decoration-danger="self_inspection_defect_count > 0"/>
+                            <field name="defect_improvement_count"/>
+                            <field name="defect_uncorrected_count"
+                                   decoration-danger="defect_uncorrected_count > 0"/>
+                            <field name="defect_corrected_count"/>
+                            <field name="defect_overdue_count"
+                                   decoration-danger="defect_overdue_count > 0"/>
+                        </group>
+                    </group>
+
+                    <separator string="自主檢查記錄"/>
+                    <field name="self_inspection_ids" readonly="1">
+                        <list decoration-danger="has_defect" decoration-muted="state == 'confirmed'">
+                            <field name="inspection_no"/>
+                            <field name="inspection_type_id"/>
+                            <field name="sub_project_name"/>
+                            <field name="inspection_date"/>
+                            <field name="inspection_timing"/>
+                            <field name="inspector_id"/>
+                            <field name="has_defect"/>
+                            <field name="defect_count"/>
+                            <field name="state" widget="badge"
+                                   decoration-info="state == 'draft'"
+                                   decoration-warning="state == 'inspected'"
+                                   decoration-success="state == 'confirmed'"/>
+                        </list>
+                    </field>
+
+                    <separator string="缺失改善記錄"/>
+                    <field name="defect_improvement_ids" readonly="1">
+                        <list decoration-danger="is_overdue" decoration-success="state in ('conform', 'corrected')">
+                            <field name="record_no"/>
+                            <field name="check_type"/>
+                            <field name="defect_category" optional="show"/>
+                            <field name="severity" optional="show"
+                                   decoration-danger="severity in ('major', 'critical')"
+                                   decoration-warning="severity == 'moderate'"
+                                   widget="badge"/>
+                            <field name="defect_description" widget="text"/>
+                            <field name="notification_date"/>
+                            <field name="deadline"/>
+                            <field name="is_overdue" column_invisible="1"/>
+                            <field name="improvement_progress" widget="progressbar" optional="show"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state in ('conform', 'corrected')"
+                                   decoration-warning="state == 'uncorrected'"
+                                   decoration-danger="state == 'overdue'"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 通報單列表視圖擴展                              -->
+    <!-- ============================================== -->
+    <record id="view_reservation_notification_slip_tree_reservation" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.tree.reservation</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="inherit_id" ref="construction_notification_slip.view_reservation_notification_slip_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='work_status']" position="before">
+                <field name="self_inspection_count" optional="hide"/>
+                <field name="defect_uncorrected_count" optional="show"
+                       decoration-danger="defect_uncorrected_count > 0"
+                       string="待處理缺失"/>
+                <field name="quality_pass_rate" optional="hide" widget="progressbar"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 通報單搜尋視圖擴展                              -->
+    <!-- ============================================== -->
+    <record id="view_reservation_notification_slip_search_reservation" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.search.reservation</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="inherit_id" ref="construction_notification_slip.view_reservation_notification_slip_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='overdue']" position="after">
+                <filter string="有待處理缺失" name="has_uncorrected_defects"
+                        domain="[('defect_uncorrected_count', '>', 0)]"/>
+                <filter string="有自主檢查" name="has_inspections"
+                        domain="[('self_inspection_count', '>', 0)]"/>
+                <filter string="品質合格率低於90%" name="low_quality"
+                        domain="[('quality_pass_rate', '&lt;', 90)]"/>
+            </xpath>
+            <xpath expr="//group[@string='群組']" position="inside">
+                <filter string="品質合格率" name="group_by_quality"
+                        context="{'group_by': 'quality_pass_rate'}"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

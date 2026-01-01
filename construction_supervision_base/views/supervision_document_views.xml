@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 工程文件 - 表單視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_supervision_document_form" model="ir.ui.view">
+        <field name="name">supervision.document.form</field>
+        <field name="model">supervision.document</field>
+        <field name="arch" type="xml">
+            <form string="工程文件">
+                <header>
+                    <!-- 狀態按鈕 -->
+                    <button name="action_submit" string="提送"
+                            type="object" class="oe_highlight"
+                            invisible="state not in ('draft', 'revision')"/>
+                    <button name="action_start_review" string="開始審查"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'submitted'"
+                            groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
+                    <button name="action_recommend" string="建議核定"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'reviewing'"
+                            groups="construction_supervision_base.group_supervision_engineer"/>
+                    <button name="action_approve" string="核定"
+                            type="object" class="oe_highlight"
+                            invisible="state not in ('reviewing', 'recommended')"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <button name="action_request_revision" string="退回補正"
+                            type="object"
+                            invisible="state != 'reviewing'"
+                            groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
+                    <button name="action_reject" string="退件"
+                            type="object"
+                            invisible="state not in ('submitted', 'reviewing')"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <button name="action_reset_draft" string="重設草稿"
+                            type="object"
+                            invisible="state not in ('submitted', 'rejected')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,reviewing,recommended,approved"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_attachments" type="object"
+                                class="oe_stat_button" icon="fa-paperclip">
+                            <field name="attachment_count" string="附件" widget="statinfo"/>
+                        </button>
+                        <button name="action_view_history" type="object"
+                                class="oe_stat_button" icon="fa-history"
+                                invisible="version == 1 and not child_ids">
+                            <span class="o_stat_text">版本歷史</span>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已核定" bg_color="text-bg-success"
+                            invisible="state != 'approved'"/>
+                    <widget name="web_ribbon" title="已鎖定" bg_color="text-bg-secondary"
+                            invisible="not is_locked"/>
+                    <widget name="web_ribbon" title="退件" bg_color="text-bg-danger"
+                            invisible="state != 'rejected'"/>
+                    <widget name="web_ribbon" title="逾期" bg_color="text-bg-warning"
+                            invisible="not is_overdue"/>
+                    <div class="oe_title">
+                        <label for="document_no"/>
+                        <h1>
+                            <field name="document_no" readonly="1"/>
+                            <span invisible="version == 1" class="text-muted">
+                                (v<field name="version" readonly="1" class="oe_inline"/>)
+                            </span>
+                        </h1>
+                        <label for="name"/>
+                        <h2>
+                            <field name="name" placeholder="輸入文件名稱"
+                                   readonly="is_locked"/>
+                        </h2>
+                    </div>
+                    <group>
+                        <group string="文件資訊">
+                            <field name="project_id" options="{'no_create': True}"/>
+                            <field name="document_type" readonly="is_locked"/>
+                            <field name="document_category"/>
+                            <field name="due_date"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="版本資訊">
+                            <field name="version"/>
+                            <field name="is_current"/>
+                            <field name="parent_id" readonly="1"
+                                   invisible="not parent_id"/>
+                            <field name="is_locked"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="附件檔案" name="attachments">
+                            <field name="attachment_ids" widget="many2many_binary"
+                                   readonly="is_locked"/>
+                        </page>
+                        <page string="簽核紀錄" name="approval">
+                            <group>
+                                <group string="提送資訊">
+                                    <field name="submitter_id"/>
+                                    <field name="submit_date"/>
+                                </group>
+                                <group string="審查資訊">
+                                    <field name="reviewer_id"/>
+                                    <field name="review_date"/>
+                                    <field name="review_result" widget="badge"
+                                           decoration-success="review_result == 'pass'"
+                                           decoration-warning="review_result == 'revision'"
+                                           decoration-danger="review_result == 'reject'"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="核定資訊">
+                                    <field name="approver_id"/>
+                                    <field name="approve_date"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="審查意見" name="review_comments">
+                            <field name="review_comment_ids">
+                                <list editable="bottom">
+                                    <field name="item_no"/>
+                                    <field name="review_item"/>
+                                    <field name="review_result" widget="badge"
+                                           decoration-success="review_result == 'pass'"
+                                           decoration-warning="review_result == 'revision'"
+                                           decoration-danger="review_result == 'reject'"/>
+                                    <field name="comment"/>
+                                    <field name="reviewer_id"/>
+                                    <field name="review_date"/>
+                                    <field name="reply"/>
+                                    <field name="reply_user_id"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="備註" name="notes"
+                              invisible="not notes and not rejection_reason">
+                            <group>
+                                <field name="notes" nolabel="1" placeholder="備註說明..."/>
+                            </group>
+                            <group invisible="not rejection_reason">
+                                <field name="rejection_reason" readonly="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工程文件 - 列表視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_supervision_document_tree" model="ir.ui.view">
+        <field name="name">supervision.document.tree</field>
+        <field name="model">supervision.document</field>
+        <field name="arch" type="xml">
+            <list string="工程文件" default_order="create_date desc"
+                  decoration-muted="state in ('approved', 'rejected') and not is_current"
+                  decoration-success="state == 'approved'"
+                  decoration-warning="state in ('revision', 'reviewing')"
+                  decoration-danger="is_overdue">
+                <field name="document_no"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="document_type"/>
+                <field name="document_category" widget="badge"/>
+                <field name="version"/>
+                <field name="is_current" widget="boolean"/>
+                <field name="submitter_id" optional="show"/>
+                <field name="submit_date" optional="show"/>
+                <field name="reviewer_id" optional="hide"/>
+                <field name="due_date" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-primary="state == 'submitted'"
+                       decoration-warning="state in ('reviewing', 'revision')"
+                       decoration-success="state in ('recommended', 'approved')"
+                       decoration-danger="state == 'rejected'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工程文件 - 看板視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_supervision_document_kanban" model="ir.ui.view">
+        <field name="name">supervision.document.kanban</field>
+        <field name="model">supervision.document</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_small_column">
+                <field name="document_no"/>
+                <field name="name"/>
+                <field name="document_type"/>
+                <field name="state"/>
+                <field name="is_overdue"/>
+                <field name="attachment_count"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click"
+                             t-attf-class="#{record.is_overdue.raw_value ? 'border-danger' : ''}">
+                            <div class="o_kanban_record_top mb-0">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="document_no"/>
+                                    </strong>
+                                </div>
+                                <span class="float-end">
+                                    <t t-if="record.is_overdue.raw_value">
+                                        <span class="badge text-bg-danger">逾期</span>
+                                    </t>
+                                </span>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <field name="name"/>
+                                <div class="mt-2">
+                                    <field name="document_type" widget="badge"/>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_bottom">
+                                <div class="oe_kanban_bottom_left">
+                                    <t t-if="record.attachment_count.raw_value > 0">
+                                        <span class="badge text-bg-secondary">
+                                            <i class="fa fa-paperclip"/> <field name="attachment_count"/>
+                                        </span>
+                                    </t>
+                                </div>
+                                <div class="oe_kanban_bottom_right">
+                                    <field name="state" widget="label_selection"
+                                           options="{'classes': {
+                                               'draft': 'secondary',
+                                               'submitted': 'primary',
+                                               'reviewing': 'warning',
+                                               'revision': 'warning',
+                                               'recommended': 'info',
+                                               'approved': 'success',
+                                               'rejected': 'danger'
+                                           }}"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工程文件 - 搜尋視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_supervision_document_search" model="ir.ui.view">
+        <field name="name">supervision.document.search</field>
+        <field name="model">supervision.document</field>
+        <field name="arch" type="xml">
+            <search string="搜尋工程文件">
+                <field name="document_no"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="submitter_id"/>
+                <field name="reviewer_id"/>
+                <separator/>
+                <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="已提送" name="submitted" domain="[('state', '=', 'submitted')]"/>
+                <filter string="審查中" name="reviewing" domain="[('state', '=', 'reviewing')]"/>
+                <filter string="補正中" name="revision" domain="[('state', '=', 'revision')]"/>
+                <filter string="已核定" name="approved" domain="[('state', '=', 'approved')]"/>
+                <filter string="退件" name="rejected" domain="[('state', '=', 'rejected')]"/>
+                <separator/>
+                <filter string="當前版本" name="current" domain="[('is_current', '=', True)]"/>
+                <filter string="已逾期" name="overdue" domain="[('is_overdue', '=', True)]"/>
+                <separator/>
+                <filter string="施工前文件" name="pre_construction"
+                        domain="[('document_category', '=', 'pre_construction')]"/>
+                <filter string="施工中文件" name="construction"
+                        domain="[('document_category', '=', 'construction')]"/>
+                <filter string="竣工文件" name="completion"
+                        domain="[('document_category', '=', 'completion')]"/>
+                <separator/>
+                <filter string="我提送的" name="my_submitted"
+                        domain="[('submitter_id', '=', uid)]"/>
+                <filter string="待我審查" name="to_review"
+                        domain="[('state', '=', 'submitted'), ('reviewer_id', '=', False)]"/>
+                <group expand="0" string="群組">
+                    <filter string="狀態" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="文件類型" name="group_type" context="{'group_by': 'document_type'}"/>
+                    <filter string="文件類別" name="group_category" context="{'group_by': 'document_category'}"/>
+                    <filter string="工程案件" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="提送者" name="group_submitter" context="{'group_by': 'submitter_id'}"/>
+                    <filter string="提送月份" name="group_submit_month" context="{'group_by': 'submit_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工程文件 - 動作                                  -->
+    <!-- ============================================== -->
+    <record id="action_supervision_document" model="ir.actions.act_window">
+        <field name="name">工程文件</field>
+        <field name="res_model">supervision.document</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_supervision_document_search"/>
+        <field name="context">{'search_default_current': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                上傳第一份工程文件
+            </p>
+            <p>
+                工程文件用於管理專案相關的各類文件，
+                支援版本控制與審核流程。
+            </p>
+        </field>
+    </record>
+
+    <!-- 待審查文件動作 -->
+    <record id="action_supervision_document_to_review" model="ir.actions.act_window">
+        <field name="name">待審查文件</field>
+        <field name="res_model">supervision.document</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_supervision_document_search"/>
+        <field name="domain">[('state', '=', 'submitted')]</field>
+        <field name="context">{'search_default_current': 1}</field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 審查意見 - 表單視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_review_comment_form" model="ir.ui.view">
+        <field name="name">supervision.review.comment.form</field>
+        <field name="model">supervision.review.comment</field>
+        <field name="arch" type="xml">
+            <form string="審查意見">
+                <group>
+                    <group string="審查資訊">
+                        <field name="document_id" readonly="1"/>
+                        <field name="item_no"/>
+                        <field name="review_item"/>
+                        <field name="review_result" widget="radio"/>
+                        <field name="comment"/>
+                        <field name="reviewer_id"/>
+                        <field name="review_date"/>
+                    </group>
+                    <group string="回覆資訊">
+                        <field name="reply"/>
+                        <field name="reply_user_id"/>
+                        <field name="reply_date"/>
+                        <field name="reply_attachment_ids" widget="many2many_binary"/>
+                    </group>
+                </group>
+            </form>
+        </field>
+    </record>
+
+</odoo>

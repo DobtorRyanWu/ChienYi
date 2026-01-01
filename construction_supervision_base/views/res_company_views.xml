@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 公司表單視圖擴展                                  -->
+    <!-- ============================================== -->
+    <record id="view_company_form_supervision" model="ir.ui.view">
+        <field name="name">res.company.form.supervision</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='general_info']" position="after">
+                <page string="工程監造" name="supervision_info">
+                    <group>
+                        <group string="公司類型">
+                            <field name="company_type" widget="radio"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="營造業資訊" invisible="company_type != 'contractor'">
+                            <field name="contractor_license"/>
+                            <field name="contractor_grade"/>
+                            <field name="license_expiry_date"/>
+                        </group>
+                        <group string="技師事務所資訊" invisible="company_type != 'supervision'">
+                            <field name="engineer_license"/>
+                            <field name="engineer_categories"/>
+                        </group>
+                    </group>
+                    <group string="專案統計">
+                        <group>
+                            <field name="supervised_project_count" invisible="company_type != 'supervision'"/>
+                            <button name="action_view_supervised_projects"
+                                    string="查看管理的專案"
+                                    type="object"
+                                    class="oe_link"
+                                    invisible="company_type != 'supervision' or supervised_project_count == 0"/>
+                        </group>
+                        <group>
+                            <field name="contracted_project_count" invisible="company_type != 'contractor'"/>
+                            <button name="action_view_contracted_projects"
+                                    string="查看承包的專案"
+                                    type="object"
+                                    class="oe_link"
+                                    invisible="company_type != 'contractor' or contracted_project_count == 0"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 聯絡人表單視圖擴展                                -->
+    <!-- ============================================== -->
+    <record id="view_partner_form_supervision" model="ir.ui.view">
+        <field name="name">res.partner.form.supervision</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='category_id']" position="after">
+                <field name="partner_type"/>
+            </xpath>
+            <xpath expr="//page[@name='sales_purchases']" position="before">
+                <page string="工程資訊" name="supervision_info"
+                      invisible="partner_type not in ('authority', 'supervision', 'contractor')">
+                    <group invisible="partner_type != 'authority'">
+                        <group string="機關資訊">
+                            <field name="authority_level"/>
+                            <field name="authority_code"/>
+                        </group>
+                        <group string="主辦工程">
+                            <field name="owned_project_count"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 聯絡人列表視圖擴展 -->
+    <record id="view_partner_tree_supervision" model="ir.ui.view">
+        <field name="name">res.partner.tree.supervision</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='phone']" position="before">
+                <field name="partner_type" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 聯絡人搜尋視圖擴展 -->
+    <record id="view_partner_search_supervision" model="ir.ui.view">
+        <field name="name">res.partner.search.supervision</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='type_company']" position="after">
+                <separator/>
+                <filter string="政府機關" name="authority"
+                        domain="[('partner_type', '=', 'authority')]"/>
+                <filter string="設計監造" name="supervision"
+                        domain="[('partner_type', '=', 'supervision')]"/>
+                <filter string="施工廠商" name="contractor"
+                        domain="[('partner_type', '=', 'contractor')]"/>
+            </xpath>
+            <xpath expr="//group" position="inside">
+                <filter string="單位類型" name="group_partner_type"
+                        context="{'group_by': 'partner_type'}"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

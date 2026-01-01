@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================ -->
+    <!-- Final Acceptance Views                      -->
+    <!-- ============================================ -->
+
+    <!-- Tree View -->
+    <record id="view_acceptance_final_tree" model="ir.ui.view">
+        <field name="name">acceptance.final.tree</field>
+        <field name="model">acceptance.final</field>
+        <field name="arch" type="xml">
+            <list string="正驗紀錄" decoration-success="is_pass" decoration-danger="result == 'fail'" decoration-muted="state == 'cancelled'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="preliminary_acceptance_id"/>
+                <field name="acceptance_date"/>
+                <field name="result" optional="show"/>
+                <field name="certificate_no" optional="show"/>
+                <field name="warranty_end_date" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-primary="state == 'scheduled'"
+                       decoration-warning="state in ('in_progress', 'pending_review')"
+                       decoration-success="state in ('reviewed', 'approved', 'closed')"
+                       decoration-danger="state == 'cancelled'"/>
+                <field name="is_pass" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_acceptance_final_form" model="ir.ui.view">
+        <field name="name">acceptance.final.form</field>
+        <field name="model">acceptance.final</field>
+        <field name="arch" type="xml">
+            <form string="正驗紀錄">
+                <header>
+                    <button name="action_schedule" string="排定驗收" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_start" string="開始驗收" type="object"
+                            class="oe_highlight"
+                            invisible="state not in ('draft', 'scheduled')"/>
+                    <button name="action_submit_review" string="提交審核" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'in_progress'"/>
+                    <button name="action_review" string="審核通過" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'pending_review'"/>
+                    <button name="action_approve" string="核定" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'reviewed'"/>
+                    <button name="action_close" string="結案" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'approved'"/>
+                    <button name="action_create_closure" string="建立結案" type="object"
+                            invisible="not can_create_closure"/>
+                    <button name="action_return_revision" string="退回修正" type="object"
+                            invisible="state not in ('pending_review', 'reviewed')"/>
+                    <button name="action_cancel" string="取消" type="object"
+                            invisible="state in ('approved', 'closed', 'cancelled')"/>
+                    <button name="action_reset_draft" string="重設為草稿" type="object"
+                            invisible="state not in ('scheduled', 'cancelled')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,scheduled,in_progress,pending_review,reviewed,approved,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_create_defect" type="object"
+                                class="oe_stat_button" icon="fa-exclamation-triangle"
+                                invisible="state not in ('in_progress', 'pending_review')">
+                            <field name="defect_count" widget="statinfo" string="缺失"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id"/>
+                            <field name="preliminary_acceptance_id"/>
+                            <field name="preliminary_result"/>
+                            <field name="preliminary_defect_count"/>
+                            <field name="authority_id"/>
+                            <field name="contractor_company_id"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="驗收日期">
+                            <field name="scheduled_date"/>
+                            <field name="acceptance_date"/>
+                            <field name="days_from_preliminary"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="驗收人員">
+                            <field name="chairman_id"/>
+                            <field name="committee_ids" widget="many2many_tags"/>
+                            <field name="supervision_representative_id"/>
+                            <field name="contractor_representative_id"/>
+                        </group>
+                        <group string="驗收結果">
+                            <field name="result"/>
+                            <field name="is_pass" invisible="1"/>
+                        </group>
+                    </group>
+                    <group invisible="not is_pass">
+                        <group string="驗收合格證明">
+                            <field name="certificate_no"/>
+                            <field name="certificate_date"/>
+                            <field name="certificate_attachment_id"/>
+                        </group>
+                        <group string="保固資訊">
+                            <field name="warranty_start_date"/>
+                            <field name="warranty_period_months"/>
+                            <field name="warranty_end_date"/>
+                            <field name="warranty_bond_amount"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="驗收項目" name="lines">
+                            <field name="line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="category"/>
+                                    <field name="name"/>
+                                    <field name="preliminary_defect_id" optional="show"/>
+                                    <field name="result"/>
+                                    <field name="defect_description"/>
+                                    <field name="note" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="正驗缺失" name="defects" invisible="defect_count == 0">
+                            <field name="defect_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="category"/>
+                                    <field name="severity"/>
+                                    <field name="description"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="會議紀錄" name="minutes">
+                            <field name="minutes"/>
+                        </page>
+                        <page string="附件" name="attachments">
+                            <field name="attachment_ids" widget="many2many_binary"/>
+                        </page>
+                        <page string="審核資訊" name="review"
+                              invisible="state == 'draft'">
+                            <group>
+                                <group string="審核">
+                                    <field name="reviewer_id"/>
+                                    <field name="review_date"/>
+                                    <field name="review_comment"/>
+                                </group>
+                                <group string="核定">
+                                    <field name="approver_id"/>
+                                    <field name="approve_date"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                    <group string="備註">
+                        <field name="note" nolabel="1"/>
+                    </group>
+                    <field name="can_create_closure" invisible="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_acceptance_final_search" model="ir.ui.view">
+        <field name="name">acceptance.final.search</field>
+        <field name="model">acceptance.final</field>
+        <field name="arch" type="xml">
+            <search string="搜尋正驗紀錄">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="preliminary_acceptance_id"/>
+                <field name="certificate_no"/>
+                <separator/>
+                <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="驗收中" name="in_progress" domain="[('state', '=', 'in_progress')]"/>
+                <filter string="待審核" name="pending_review" domain="[('state', '=', 'pending_review')]"/>
+                <filter string="已核定" name="approved" domain="[('state', '=', 'approved')]"/>
+                <filter string="已結案" name="closed" domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter string="驗收合格" name="pass" domain="[('is_pass', '=', True)]"/>
+                <filter string="驗收不合格" name="fail" domain="[('result', '=', 'fail')]"/>
+                <separator/>
+                <filter string="保固中" name="warranty_active" domain="[('warranty_end_date', '>=', context_today().strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="本月" name="this_month" domain="[
+                    ('acceptance_date', '>=', (context_today() - datetime.timedelta(days=context_today().day - 1)).strftime('%Y-%m-%d')),
+                    ('acceptance_date', '&lt;', (context_today() + datetime.timedelta(days=32 - context_today().day)).replace(day=1).strftime('%Y-%m-%d'))
+                ]"/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_by_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="狀態" name="group_by_state" context="{'group_by': 'state'}"/>
+                    <filter string="結果" name="group_by_result" context="{'group_by': 'result'}"/>
+                    <filter string="驗收月份" name="group_by_month" context="{'group_by': 'acceptance_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_acceptance_final" model="ir.actions.act_window">
+        <field name="name">正驗紀錄</field>
+        <field name="res_model">acceptance.final</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_acceptance_final_search"/>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆正驗紀錄
+            </p>
+            <p>
+                正驗是初驗缺失改善後的正式驗收，通過後即可進入結案程序。
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: Pending Review -->
+    <record id="action_acceptance_final_pending" model="ir.actions.act_window">
+        <field name="name">待審核正驗</field>
+        <field name="res_model">acceptance.final</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_acceptance_final_search"/>
+        <field name="domain">[('state', 'in', ('pending_review', 'reviewed'))]</field>
+    </record>
+
+</odoo>

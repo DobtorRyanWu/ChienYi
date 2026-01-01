@@ -1,0 +1,279 @@
+# -*- coding: utf-8 -*-
+
+from odoo import models, fields, api
+from odoo.exceptions import ValidationError
+
+
+class ContractChangeOrderLine(models.Model):
+    """
+    契約變更明細
+
+    記錄每個工項的變更內容：新增、修改、刪除
+    - add: 新增工項，需填寫完整工項資訊
+    - modify: 修改工項，需選擇既有工項並設定新數量/單價
+    - delete: 刪除工項，選擇要刪除的工項
+    """
+    _name = 'contract.change.order.line'
+    _description = '契約變更明細'
+    _order = 'sequence, id'
+
+    # === 關聯 ===
+    change_order_id = fields.Many2one(
+        'contract.change.order',
+        string='變更單',
+        required=True,
+        ondelete='cascade',
+        index=True)
+
+    project_id = fields.Many2one(
+        'supervision.project',
+        string='工程案件',
+        related='change_order_id.project_id',
+        store=True)
+
+    company_id = fields.Many2one(
+        'res.company',
+        string='公司',
+        related='change_order_id.company_id',
+        store=True)
+
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='幣別',
+        related='change_order_id.currency_id',
+        store=True)
+
+    sequence = fields.Integer(
+        string='序號',
+        default=10)
+
+    # === 變更類型 ===
+    change_type = fields.Selection([
+        ('add', '新增'),
+        ('modify', '修改'),
+        ('delete', '刪除'),
+    ], string='變更類型',
+       required=True,
+       default='modify',
+       help='新增: 新增工項; 修改: 修改數量/單價; 刪除: 刪除工項')
+
+    # === 工項資訊 (既有工項) ===
+    task_id = fields.Many2one(
+        'project.task',
+        string='原工項',
+        domain="[('supervision_project_id', '=', project_id), ('active', '=', True)]",
+        help='選擇要修改或刪除的既有工項')
+
+    # === 工項資訊 (新增或顯示用) ===
+    item_no = fields.Char(
+        string='工項編號',
+        help='工項編號，新增時必填')
+
+    item_name = fields.Char(
+        string='工項名稱',
+        required=True)
+
+    unit = fields.Char(
+        string='單位')
+
+    specification = fields.Text(
+        string='規格說明')
+
+    # === 原值 (from task_id) ===
+    original_qty = fields.Float(
+        string='原數量',
+        digits=(16, 4),
+        readonly=True,
+        help='變更前的契約數量')
+
+    original_unit_price = fields.Float(
+        string='原單價',
+        digits=(16, 2),
+        readonly=True,
+        help='變更前的契約單價')
+
+    original_amount = fields.Monetary(
+        string='原金額',
+        currency_field='currency_id',
+        compute='_compute_original_amount',
+        store=True,
+        help='原數量 x 原單價')
+
+    # === 新值 ===
+    new_qty = fields.Float(
+        string='新數量',
+        digits=(16, 4),
+        help='變更後的數量')
+
+    new_unit_price = fields.Float(
+        string='新單價',
+        digits=(16, 2),
+        help='變更後的單價')
+
+    new_amount = fields.Monetary(
+        string='新金額',
+        currency_field='currency_id',
+        compute='_compute_new_amount',
+        store=True,
+        help='新數量 x 新單價')
+
+    # === 差異 ===
+    qty_change = fields.Float(
+        string='數量增減',
+        digits=(16, 4),
+        compute='_compute_differences',
+        store=True,
+        help='新數量 - 原數量')
+
+    price_change = fields.Float(
+        string='單價增減',
+        digits=(16, 2),
+        compute='_compute_differences',
+        store=True,
+        help='新單價 - 原單價')
+
+    change_amount = fields.Monetary(
+        string='金額增減',
+        currency_field='currency_id',
+        compute='_compute_differences',
+        store=True,
+        help='新金額 - 原金額')
+
+    change_amount_rate = fields.Float(
+        string='變動比率 (%)',
+        digits=(5, 2),
+        compute='_compute_differences',
+        store=True,
+        help='(金額增減 / 原金額) x 100')
+
+    # === 備註 ===
+    notes = fields.Text(
+        string='變更說明',
+        help='此項變更的詳細說明')
+
+    # === 計算欄位 ===
+    @api.depends('original_qty', 'original_unit_price')
+    def _compute_original_amount(self):
+        for line in self:
+            line.original_amount = line.original_qty * line.original_unit_price
+
+    @api.depends('new_qty', 'new_unit_price')
+    def _compute_new_amount(self):
+        for line in self:
+            line.new_amount = line.new_qty * line.new_unit_price
+
+    @api.depends('original_qty', 'original_unit_price', 'original_amount',
+                 'new_qty', 'new_unit_price', 'new_amount', 'change_type')
+    def _compute_differences(self):
+        for line in self:
+            if line.change_type == 'add':
+                # 新增：差異 = 新值
+                line.qty_change = line.new_qty
+                line.price_change = 0.0
+                line.change_amount = line.new_amount
+            elif line.change_type == 'delete':
+                # 刪除：差異 = -原值
+                line.qty_change = -line.original_qty
+                line.price_change = 0.0
+                line.change_amount = -line.original_amount
+            else:  # modify
+                line.qty_change = line.new_qty - line.original_qty
+                line.price_change = line.new_unit_price - line.original_unit_price
+                line.change_amount = line.new_amount - line.original_amount
+
+            # 計算變動比率
+            if line.original_amount:
+                line.change_amount_rate = (
+                    line.change_amount / line.original_amount) * 100
+            elif line.change_type == 'add':
+                line.change_amount_rate = 100.0  # 新增視為100%增加
+            else:
+                line.change_amount_rate = 0.0
+
+    # === Onchange ===
+    @api.onchange('task_id')
+    def _onchange_task_id(self):
+        """選擇工項時，自動填入原始資訊"""
+        if self.task_id:
+            self.item_no = self.task_id.item_no
+            self.item_name = self.task_id.name
+            self.unit = self.task_id.unit
+            self.specification = self.task_id.specification
+            self.original_qty = self.task_id.planned_qty
+            self.original_unit_price = self.task_id.unit_price
+
+            # 修改類型：預設新值 = 原值
+            if self.change_type == 'modify':
+                self.new_qty = self.task_id.planned_qty
+                self.new_unit_price = self.task_id.unit_price
+
+    @api.onchange('change_type')
+    def _onchange_change_type(self):
+        """變更類型改變時，清空或重設欄位"""
+        if self.change_type == 'add':
+            # 新增：清空原工項關聯與原值
+            self.task_id = False
+            self.original_qty = 0.0
+            self.original_unit_price = 0.0
+        elif self.change_type == 'delete' and self.task_id:
+            # 刪除：新值設為0
+            self.new_qty = 0.0
+            self.new_unit_price = 0.0
+        elif self.change_type == 'modify' and self.task_id:
+            # 修改：新值預設為原值
+            self.new_qty = self.original_qty
+            self.new_unit_price = self.original_unit_price
+
+    # === 約束 ===
+    @api.constrains('change_type', 'task_id')
+    def _check_task_required(self):
+        """檢查修改/刪除必須選擇工項"""
+        for line in self:
+            if line.change_type in ('modify', 'delete') and not line.task_id:
+                raise ValidationError(
+                    '修改或刪除類型必須選擇原工項！')
+
+    @api.constrains('change_type', 'item_no', 'item_name')
+    def _check_add_fields(self):
+        """檢查新增類型必填欄位"""
+        for line in self:
+            if line.change_type == 'add':
+                if not line.item_no:
+                    raise ValidationError('新增工項必須填寫工項編號！')
+                if not line.item_name:
+                    raise ValidationError('新增工項必須填寫工項名稱！')
+
+    @api.constrains('new_qty', 'new_unit_price')
+    def _check_positive_values(self):
+        """檢查數量與單價"""
+        for line in self:
+            if line.change_type != 'delete':
+                if line.new_qty < 0:
+                    raise ValidationError('新數量不可為負數！')
+                if line.new_unit_price < 0:
+                    raise ValidationError('新單價不可為負數！')
+
+    @api.constrains('task_id', 'change_order_id')
+    def _check_unique_task(self):
+        """同一變更單不可重複選擇相同工項"""
+        for line in self:
+            if line.task_id:
+                duplicate = self.search([
+                    ('change_order_id', '=', line.change_order_id.id),
+                    ('task_id', '=', line.task_id.id),
+                    ('id', '!=', line.id),
+                ], limit=1)
+                if duplicate:
+                    raise ValidationError(
+                        f'工項 [{line.task_id.item_no}] {line.task_id.name} '
+                        f'已存在於此變更單中！')
+
+    # === 名稱顯示 ===
+    def name_get(self):
+        result = []
+        for line in self:
+            change_type_label = dict(
+                self._fields['change_type'].selection).get(line.change_type, '')
+            name = f'[{change_type_label}] {line.item_name}'
+            result.append((line.id, name))
+        return result

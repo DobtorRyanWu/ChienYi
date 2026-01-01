@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 自主檢查類型 Tree View -->
+    <record id="view_self_inspection_type_tree" model="ir.ui.view">
+        <field name="name">self.inspection.type.tree</field>
+        <field name="model">self.inspection.type</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="category"/>
+                <field name="inspection_count"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 自主檢查類型 Form View -->
+    <record id="view_self_inspection_type_form" model="ir.ui.view">
+        <field name="name">self.inspection.type.form</field>
+        <field name="model">self.inspection.type</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(construction_quality.action_general_self_inspection)d"
+                                type="action"
+                                class="oe_stat_button"
+                                icon="fa-check-square-o"
+                                context="{'search_default_inspection_type_id': active_id}">
+                            <field name="inspection_count" widget="statinfo" string="檢查次數"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已封存" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                        </group>
+                        <group>
+                            <field name="category"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description"/>
+                    </group>
+                    <notebook>
+                        <page string="預設檢查項目" name="default_items">
+                            <field name="default_item_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="stage"/>
+                                    <field name="check_standard"/>
+                                    <field name="check_method"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- 自主檢查類型 Search View -->
+    <record id="view_self_inspection_type_search" model="ir.ui.view">
+        <field name="name">self.inspection.type.search</field>
+        <field name="model">self.inspection.type</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <filter string="結構工程" name="structure"
+                        domain="[('category', '=', 'structure')]"/>
+                <filter string="土木工程" name="civil"
+                        domain="[('category', '=', 'civil')]"/>
+                <filter string="電氣工程" name="electrical"
+                        domain="[('category', '=', 'electrical')]"/>
+                <filter string="已封存" name="inactive"
+                        domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程類別" name="group_category"
+                            context="{'group_by': 'category'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 自主檢查類型 Action -->
+    <record id="action_self_inspection_type" model="ir.actions.act_window">
+        <field name="name">自主檢查類型</field>
+        <field name="res_model">self.inspection.type</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_self_inspection_type_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一個自主檢查類型
+            </p>
+            <p>
+                自主檢查類型用於管理不同工程項目的檢查表樣板。
+            </p>
+        </field>
+    </record>
+
+</odoo>

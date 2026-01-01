@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================== -->
+        <!-- 業主分類                                         -->
+        <!-- ============================================== -->
+        <record id="partner_category_owner" model="supervision.partner.category">
+            <field name="name">業主</field>
+            <field name="code">OWNER</field>
+            <field name="color">1</field>
+            <field name="sequence">10</field>
+            <field name="note">工程業主/主辦機關</field>
+        </record>
+
+        <record id="partner_category_owner_gov" model="supervision.partner.category">
+            <field name="name">政府機關</field>
+            <field name="code">OWNER_GOV</field>
+            <field name="parent_id" ref="partner_category_owner"/>
+            <field name="color">1</field>
+            <field name="sequence">11</field>
+        </record>
+
+        <record id="partner_category_owner_state" model="supervision.partner.category">
+            <field name="name">國營事業</field>
+            <field name="code">OWNER_STATE</field>
+            <field name="parent_id" ref="partner_category_owner"/>
+            <field name="color">1</field>
+            <field name="sequence">12</field>
+        </record>
+
+        <record id="partner_category_owner_private" model="supervision.partner.category">
+            <field name="name">民間企業</field>
+            <field name="code">OWNER_PRIVATE</field>
+            <field name="parent_id" ref="partner_category_owner"/>
+            <field name="color">1</field>
+            <field name="sequence">13</field>
+        </record>
+
+        <!-- ============================================== -->
+        <!-- 施工廠商分類                                      -->
+        <!-- ============================================== -->
+        <record id="partner_category_contractor" model="supervision.partner.category">
+            <field name="name">施工廠商</field>
+            <field name="code">CONTRACTOR</field>
+            <field name="color">2</field>
+            <field name="sequence">20</field>
+            <field name="note">營造廠商及專業分包商</field>
+        </record>
+
+        <record id="partner_category_contractor_general" model="supervision.partner.category">
+            <field name="name">總承包商</field>
+            <field name="code">CONTRACTOR_GENERAL</field>
+            <field name="parent_id" ref="partner_category_contractor"/>
+            <field name="color">2</field>
+            <field name="sequence">21</field>
+        </record>
+
+        <record id="partner_category_contractor_sub" model="supervision.partner.category">
+            <field name="name">專業分包商</field>
+            <field name="code">CONTRACTOR_SUB</field>
+            <field name="parent_id" ref="partner_category_contractor"/>
+            <field name="color">2</field>
+            <field name="sequence">22</field>
+        </record>
+
+        <record id="partner_category_contractor_sub_civil" model="supervision.partner.category">
+            <field name="name">土建分包</field>
+            <field name="code">CONTRACTOR_SUB_CIVIL</field>
+            <field name="parent_id" ref="partner_category_contractor_sub"/>
+            <field name="color">2</field>
+            <field name="sequence">23</field>
+        </record>
+
+        <record id="partner_category_contractor_sub_mep" model="supervision.partner.category">
+            <field name="name">機電分包</field>
+            <field name="code">CONTRACTOR_SUB_MEP</field>
+            <field name="parent_id" ref="partner_category_contractor_sub"/>
+            <field name="color">2</field>
+            <field name="sequence">24</field>
+        </record>
+
+        <record id="partner_category_contractor_sub_finish" model="supervision.partner.category">
+            <field name="name">裝修分包</field>
+            <field name="code">CONTRACTOR_SUB_FINISH</field>
+            <field name="parent_id" ref="partner_category_contractor_sub"/>
+            <field name="color">2</field>
+            <field name="sequence">25</field>
+        </record>
+
+        <record id="partner_category_supplier" model="supervision.partner.category">
+            <field name="name">材料/設備供應商</field>
+            <field name="code">SUPPLIER</field>
+            <field name="parent_id" ref="partner_category_contractor"/>
+            <field name="color">2</field>
+            <field name="sequence">26</field>
+        </record>
+
+        <!-- ============================================== -->
+        <!-- 監造單位分類                                      -->
+        <!-- ============================================== -->
+        <record id="partner_category_supervision" model="supervision.partner.category">
+            <field name="name">監造單位</field>
+            <field name="code">SUPERVISION</field>
+            <field name="color">3</field>
+            <field name="sequence">30</field>
+            <field name="note">工程監造及顧問公司</field>
+        </record>
+
+        <record id="partner_category_supervision_arch" model="supervision.partner.category">
+            <field name="name">建築監造</field>
+            <field name="code">SUPERVISION_ARCH</field>
+            <field name="parent_id" ref="partner_category_supervision"/>
+            <field name="color">3</field>
+            <field name="sequence">31</field>
+        </record>
+
+        <record id="partner_category_supervision_struct" model="supervision.partner.category">
+            <field name="name">結構監造</field>
+            <field name="code">SUPERVISION_STRUCT</field>
+            <field name="parent_id" ref="partner_category_supervision"/>
+            <field name="color">3</field>
+            <field name="sequence">32</field>
+        </record>
+
+        <record id="partner_category_supervision_mep" model="supervision.partner.category">
+            <field name="name">機電監造</field>
+            <field name="code">SUPERVISION_MEP</field>
+            <field name="parent_id" ref="partner_category_supervision"/>
+            <field name="color">3</field>
+            <field name="sequence">33</field>
+        </record>
+
+        <!-- ============================================== -->
+        <!-- 設計單位分類                                      -->
+        <!-- ============================================== -->
+        <record id="partner_category_design" model="supervision.partner.category">
+            <field name="name">設計單位</field>
+            <field name="code">DESIGN</field>
+            <field name="color">4</field>
+            <field name="sequence">40</field>
+            <field name="note">建築師及技師事務所</field>
+        </record>
+
+        <record id="partner_category_design_arch" model="supervision.partner.category">
+            <field name="name">建築師事務所</field>
+            <field name="code">DESIGN_ARCH</field>
+            <field name="parent_id" ref="partner_category_design"/>
+            <field name="color">4</field>
+            <field name="sequence">41</field>
+        </record>
+
+        <record id="partner_category_design_struct" model="supervision.partner.category">
+            <field name="name">結構技師事務所</field>
+            <field name="code">DESIGN_STRUCT</field>
+            <field name="parent_id" ref="partner_category_design"/>
+            <field name="color">4</field>
+            <field name="sequence">42</field>
+        </record>
+
+        <record id="partner_category_design_mep" model="supervision.partner.category">
+            <field name="name">機電技師事務所</field>
+            <field name="code">DESIGN_MEP</field>
+            <field name="parent_id" ref="partner_category_design"/>
+            <field name="color">4</field>
+            <field name="sequence">43</field>
+        </record>
+
+        <!-- ============================================== -->
+        <!-- 政府部門分類                                      -->
+        <!-- ============================================== -->
+        <record id="partner_category_government" model="supervision.partner.category">
+            <field name="name">政府部門</field>
+            <field name="code">GOVERNMENT</field>
+            <field name="color">5</field>
+            <field name="sequence">50</field>
+            <field name="note">相關政府單位</field>
+        </record>
+
+        <record id="partner_category_gov_authority" model="supervision.partner.category">
+            <field name="name">主管機關</field>
+            <field name="code">GOV_AUTHORITY</field>
+            <field name="parent_id" ref="partner_category_government"/>
+            <field name="color">5</field>
+            <field name="sequence">51</field>
+        </record>
+
+        <record id="partner_category_gov_fire" model="supervision.partner.category">
+            <field name="name">消防單位</field>
+            <field name="code">GOV_FIRE</field>
+            <field name="parent_id" ref="partner_category_government"/>
+            <field name="color">5</field>
+            <field name="sequence">52</field>
+        </record>
+
+        <record id="partner_category_gov_env" model="supervision.partner.category">
+            <field name="name">環保單位</field>
+            <field name="code">GOV_ENV</field>
+            <field name="parent_id" ref="partner_category_government"/>
+            <field name="color">5</field>
+            <field name="sequence">53</field>
+        </record>
+
+        <record id="partner_category_gov_labor" model="supervision.partner.category">
+            <field name="name">勞動檢查單位</field>
+            <field name="code">GOV_LABOR</field>
+            <field name="parent_id" ref="partner_category_government"/>
+            <field name="color">5</field>
+            <field name="sequence">54</field>
+        </record>
+
+    </data>
+</odoo>

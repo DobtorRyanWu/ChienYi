@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 檢試驗項目序列 -->
+    <record id="seq_test_standard" model="ir.sequence">
+        <field name="name">檢試驗項目</field>
+        <field name="code">supervision.test.standard</field>
+        <field name="prefix">TS-%(year)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+    <!-- 檢(試)驗管制記錄序列 -->
+    <record id="seq_test_record" model="ir.sequence">
+        <field name="name">檢(試)驗管制記錄</field>
+        <field name="code">supervision.test.record</field>
+        <field name="prefix">TR-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+</odoo>

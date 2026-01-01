@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 批次下載精靈 - 設定表單 -->
+    <record id="batch_download_wizard_form_view" model="ir.ui.view">
+        <field name="name">batch.download.wizard.form</field>
+        <field name="model">batch.download.wizard</field>
+        <field name="arch" type="xml">
+            <form string="批次下載">
+                <group invisible="state != 'draft'">
+                    <group string="下載設定">
+                        <field name="download_type" widget="radio"/>
+                        <field name="log_format" widget="radio"
+                               invisible="download_type not in ['daily_log', 'estimate']"/>
+                    </group>
+                    <group string="選項" invisible="download_type != 'daily_log'">
+                        <field name="include_photos"/>
+                        <field name="include_weather"/>
+                    </group>
+                </group>
+
+                <group invisible="state != 'draft'">
+                    <group string="篩選條件">
+                        <field name="project_id" options="{'no_create': True}"/>
+                        <field name="company_id" options="{'no_create': True}" groups="base.group_multi_company"/>
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                    </group>
+                    <group string="統計">
+                        <field name="record_count" readonly="1"/>
+                    </group>
+                </group>
+
+                <notebook invisible="state != 'draft'">
+                    <page string="施工日誌" invisible="download_type != 'daily_log'">
+                        <field name="daily_log_ids" widget="many2many_tags"
+                               options="{'no_create': True}"
+                               placeholder="留空則依篩選條件自動選取..."/>
+                        <p class="text-muted">
+                            手動選擇要下載的施工日誌，或留空以依據上方篩選條件自動選取已核准的日誌。
+                        </p>
+                    </page>
+                    <page string="估驗計價" invisible="download_type != 'estimate'">
+                        <field name="estimate_ids" widget="many2many_tags"
+                               options="{'no_create': True}"
+                               placeholder="留空則依篩選條件自動選取..."/>
+                        <p class="text-muted">
+                            手動選擇要下載的估驗計價表，或留空以依據上方篩選條件自動選取已核定的估驗單。
+                        </p>
+                    </page>
+                    <page string="自主檢查" invisible="download_type != 'self_inspection'">
+                        <p class="text-warning">
+                            自主檢查表批次下載功能開發中...
+                        </p>
+                    </page>
+                    <page string="檢試驗記錄" invisible="download_type != 'test_record'">
+                        <p class="text-warning">
+                            檢試驗記錄批次下載功能開發中...
+                        </p>
+                    </page>
+                </notebook>
+
+                <field name="state" invisible="1"/>
+
+                <footer invisible="state != 'draft'">
+                    <button name="action_preview" string="預覽記錄" type="object"
+                            class="btn-secondary"
+                            invisible="download_type not in ['daily_log', 'estimate']"/>
+                    <button name="action_download" string="開始下載" type="object"
+                            class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 批次下載精靈 - 結果表單 -->
+    <record id="batch_download_wizard_result_view" model="ir.ui.view">
+        <field name="name">batch.download.wizard.result.form</field>
+        <field name="model">batch.download.wizard</field>
+        <field name="arch" type="xml">
+            <form string="下載完成">
+                <div class="alert alert-success" role="alert">
+                    <h4 class="alert-heading">檔案準備完成!</h4>
+                    <p>點擊下方按鈕下載檔案。</p>
+                </div>
+
+                <group>
+                    <field name="result_filename" readonly="1"/>
+                    <field name="result_file" filename="result_filename" readonly="1"/>
+                </group>
+
+                <field name="state" invisible="1"/>
+
+                <footer>
+                    <button name="action_reset" string="重新下載" type="object"
+                            class="btn-secondary"/>
+                    <button string="關閉" class="btn-primary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 批次下載動作 -->
+    <record id="action_batch_download_wizard" model="ir.actions.act_window">
+        <field name="name">批次下載</field>
+        <field name="res_model">batch.download.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="batch_download_wizard_form_view"/>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

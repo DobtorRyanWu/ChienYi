@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 時程控制主選單                                    -->
+    <!-- ============================================== -->
+    <menuitem id="menu_construction_timeline_root"
+              name="時程控制"
+              parent="construction_supervision_base.menu_construction_supervision_root"
+              sequence="30"/>
+
+    <!-- ============================================== -->
+    <!-- 工項時程選單                                      -->
+    <!-- ============================================== -->
+    <menuitem id="menu_task_timeline"
+              name="工項時程"
+              parent="menu_construction_timeline_root"
+              action="action_task_timeline"
+              sequence="10"/>
+
+    <!-- ============================================== -->
+    <!-- 時程分析選單                                      -->
+    <!-- ============================================== -->
+    <menuitem id="menu_schedule_analysis"
+              name="時程分析"
+              parent="menu_construction_timeline_root"
+              sequence="20"/>
+
+    <menuitem id="menu_schedule_variance_analysis"
+              name="時程差異分析"
+              parent="menu_schedule_analysis"
+              action="action_schedule_variance_analysis"
+              sequence="10"/>
+
+    <menuitem id="menu_delayed_tasks"
+              name="進度落後工項"
+              parent="menu_schedule_analysis"
+              action="action_delayed_tasks"
+              sequence="20"/>
+
+    <menuitem id="menu_alert_tasks"
+              name="時程警示工項"
+              parent="menu_schedule_analysis"
+              action="action_alert_tasks"
+              sequence="30"/>
+
+    <menuitem id="menu_critical_path_tasks"
+              name="關鍵路徑工項"
+              parent="menu_schedule_analysis"
+              action="action_critical_path_tasks"
+              sequence="40"/>
+
+    <!-- ============================================== -->
+    <!-- 計時器選單                                        -->
+    <!-- ============================================== -->
+    <menuitem id="menu_timer"
+              name="計時器"
+              parent="menu_construction_timeline_root"
+              sequence="30"/>
+
+    <menuitem id="menu_my_running_timesheet"
+              name="我的計時器"
+              parent="menu_timer"
+              action="action_my_running_timesheet"
+              sequence="10"/>
+
+    <menuitem id="menu_running_timesheet"
+              name="執行中工時"
+              parent="menu_timer"
+              action="action_running_timesheet"
+              sequence="20"
+              groups="construction_supervision_base.group_supervision_manager"/>
+
+</odoo>

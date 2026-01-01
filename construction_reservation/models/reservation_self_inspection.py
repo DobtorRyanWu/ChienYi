@@ -1,0 +1,192 @@
+# -*- coding: utf-8 -*-
+
+from odoo import models, fields, api, Command
+from odoo.exceptions import UserError, ValidationError
+
+
+class ReservationSelfInspectionReservation(models.Model):
+    """
+    預約式自主檢查擴展
+
+    擴展說明：
+    - 增強與通報單的互動
+    - 提供從缺失項目建立缺失改善記錄的功能
+    - 增加工期驗證
+    """
+    _inherit = 'reservation.self.inspection'
+
+    # === 通報單資訊擴展 ===
+    slip_state = fields.Selection(
+        related='slip_id.state',
+        string='通報單狀態',
+        store=True)
+
+    slip_work_status = fields.Selection(
+        related='slip_id.work_status',
+        string='施作狀態',
+        store=True)
+
+    slip_location = fields.Char(
+        related='slip_id.location',
+        string='通報單地點',
+        store=True)
+
+    # === 缺失改善關聯 ===
+    defect_improvement_ids = fields.One2many(
+        'reservation.defect.improvement',
+        compute='_compute_defect_improvement_ids',
+        string='關聯缺失改善')
+
+    defect_improvement_count = fields.Integer(
+        string='缺失改善數',
+        compute='_compute_defect_improvement_ids')
+
+    # === 計算方法 ===
+    @api.depends('checklist_ids.defect_improvement_id')
+    def _compute_defect_improvement_ids(self):
+        for record in self:
+            improvements = record.checklist_ids.mapped('defect_improvement_id')
+            record.defect_improvement_ids = improvements
+            record.defect_improvement_count = len(improvements)
+
+    # === 動作方法 ===
+    def action_view_defect_improvements(self):
+        """查看關聯的缺失改善記錄"""
+        self.ensure_one()
+        improvement_ids = self.checklist_ids.mapped('defect_improvement_id').ids
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '缺失改善記錄',
+            'res_model': 'reservation.defect.improvement',
+            'view_mode': 'tree,form',
+            'domain': [('id', 'in', improvement_ids)],
+        }
+
+    def action_create_defect_improvements(self):
+        """從缺失項目建立缺失改善記錄"""
+        self.ensure_one()
+
+        # 找出有缺失但尚未建立改善記錄的項目
+        defect_items = self.checklist_ids.filtered(
+            lambda x: x.check_result == 'defect' and not x.defect_improvement_id
+        )
+
+        if not defect_items:
+            raise UserError('沒有需要建立缺失改善記錄的檢查項目')
+
+        created_improvements = self.env['reservation.defect.improvement']
+        for item in defect_items:
+            vals = {
+                'slip_id': self.slip_id.id,
+                'check_type': 'construction',
+                'defect_description': f'{item.check_item}\n實際情形: {item.actual_result or ""}',
+                'defect_location': self.inspection_location or self.slip_id.location,
+                'notification_date': fields.Date.today(),
+            }
+            defect = self.env['reservation.defect.improvement'].create(vals)
+            item.defect_improvement_id = defect.id
+            created_improvements |= defect
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '已建立的缺失改善記錄',
+            'res_model': 'reservation.defect.improvement',
+            'view_mode': 'tree,form',
+            'domain': [('id', 'in', created_improvements.ids)],
+            'context': {'create': False},
+        }
+
+    # === 約束驗證 ===
+    @api.constrains('inspection_date', 'slip_id')
+    def _check_inspection_date_in_slip_period(self):
+        """驗證檢查日期在通報單工期內"""
+        for record in self:
+            if record.slip_id and record.inspection_date:
+                slip = record.slip_id
+                # 檢查是否在預定工期內
+                if slip.planned_start_date and record.inspection_date < slip.planned_start_date:
+                    raise ValidationError(
+                        f'檢查日期 ({record.inspection_date}) 不得早於'
+                        f'通報單預定開工日 ({slip.planned_start_date})')
+
+    @api.constrains('slip_id')
+    def _check_slip_state(self):
+        """驗證通報單狀態"""
+        for record in self:
+            if record.slip_id and record.slip_id.state not in ('approved', 'in_progress', 'completed'):
+                raise ValidationError(
+                    '只能在已核准、執行中或已完成的通報單中建立自主檢查')
+
+
+class ReservationSelfInspectionItemReservation(models.Model):
+    """
+    預約式自主檢查項目擴展
+
+    擴展說明：
+    - 新增缺失改善關聯欄位
+    """
+    _inherit = 'reservation.self.inspection.item'
+
+    # === 缺失改善關聯 ===
+    defect_improvement_id = fields.Many2one(
+        'reservation.defect.improvement',
+        string='缺失改善記錄',
+        ondelete='set null',
+        help='若此項目有缺失，關聯的缺失改善記錄')
+
+    has_improvement = fields.Boolean(
+        string='已建立改善',
+        compute='_compute_has_improvement',
+        store=True)
+
+    improvement_state = fields.Selection(
+        related='defect_improvement_id.state',
+        string='改善狀態',
+        store=True)
+
+    @api.depends('defect_improvement_id')
+    def _compute_has_improvement(self):
+        for record in self:
+            record.has_improvement = bool(record.defect_improvement_id)
+
+    def action_view_improvement(self):
+        """查看缺失改善記錄"""
+        self.ensure_one()
+        if not self.defect_improvement_id:
+            raise UserError('尚未建立缺失改善記錄')
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '缺失改善記錄',
+            'res_model': 'reservation.defect.improvement',
+            'view_mode': 'form',
+            'res_id': self.defect_improvement_id.id,
+        }
+
+    def action_create_improvement(self):
+        """建立缺失改善記錄"""
+        self.ensure_one()
+        if self.check_result != 'defect':
+            raise UserError('只有缺失項目可以建立缺失改善記錄')
+
+        if self.defect_improvement_id:
+            raise UserError('已建立缺失改善記錄')
+
+        inspection = self.inspection_id
+        vals = {
+            'slip_id': inspection.slip_id.id,
+            'check_type': 'construction',
+            'defect_description': f'{self.check_item}\n實際情形: {self.actual_result or ""}',
+            'defect_location': inspection.inspection_location or inspection.slip_id.location,
+            'notification_date': fields.Date.today(),
+        }
+        defect = self.env['reservation.defect.improvement'].create(vals)
+        self.defect_improvement_id = defect.id
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '缺失改善記錄',
+            'res_model': 'reservation.defect.improvement',
+            'view_mode': 'form',
+            'res_id': defect.id,
+        }

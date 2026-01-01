@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 預約式缺失改善表單視圖擴展                       -->
+    <!-- ============================================== -->
+    <record id="view_reservation_defect_improvement_form_reservation" model="ir.ui.view">
+        <field name="name">reservation.defect.improvement.form.reservation</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="inherit_id" ref="construction_quality.view_reservation_defect_improvement_form"/>
+        <field name="arch" type="xml">
+            <!-- 新增複查相關按鈕 -->
+            <xpath expr="//button[@name='action_reopen']" position="after">
+                <button name="action_schedule_recheck"
+                        string="安排複查"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="state not in ('uncorrected', 'overdue')"/>
+                <button name="action_recheck_pass"
+                        string="複查通過"
+                        type="object"
+                        class="btn-success"
+                        invisible="recheck_result != 'pending'"/>
+                <button name="action_recheck_fail"
+                        string="複查不通過"
+                        type="object"
+                        class="btn-danger"
+                        invisible="recheck_result != 'pending'"/>
+            </xpath>
+
+            <!-- 擴展通報單資訊群組 -->
+            <xpath expr="//field[@name='company_id']" position="after">
+                <field name="slip_number"/>
+                <field name="slip_state" invisible="1"/>
+                <field name="slip_work_status" widget="badge"
+                       decoration-info="slip_work_status == 'pending'"
+                       decoration-warning="slip_work_status == 'working'"
+                       decoration-success="slip_work_status in ('completed', 'accepted')"/>
+                <field name="slip_location"/>
+            </xpath>
+
+            <!-- 擴展檢查資訊群組 -->
+            <xpath expr="//field[@name='improvement_unit']" position="after">
+                <field name="defect_category"/>
+                <field name="severity" widget="radio"
+                       options="{'horizontal': true}"/>
+                <field name="responsible_party"/>
+            </xpath>
+
+            <!-- 新增改善進度欄位 -->
+            <xpath expr="//group[@string='日期資訊']" position="after">
+                <group string="改善進度">
+                    <field name="improvement_progress" widget="progressbar"/>
+                    <field name="is_from_inspection"/>
+                    <field name="source_inspection_count" invisible="not is_from_inspection"/>
+                    <button name="action_view_source_inspections"
+                            string="查看來源檢查"
+                            type="object"
+                            class="btn-link"
+                            invisible="not is_from_inspection"/>
+                </group>
+            </xpath>
+
+            <!-- 新增複查頁籤 -->
+            <xpath expr="//page[@name='photos']" position="after">
+                <page string="複查記錄" name="recheck">
+                    <group>
+                        <group string="複查資訊">
+                            <field name="recheck_date"/>
+                            <field name="recheck_result" widget="badge"
+                                   decoration-success="recheck_result == 'pass'"
+                                   decoration-danger="recheck_result == 'fail'"
+                                   decoration-warning="recheck_result == 'pending'"/>
+                        </group>
+                        <group string="複查說明">
+                            <field name="recheck_note" nolabel="1" placeholder="輸入複查說明..."/>
+                        </group>
+                    </group>
+                </page>
+                <page string="來源檢查" name="source_inspections"
+                      invisible="source_inspection_count == 0">
+                    <field name="source_inspection_item_ids" readonly="1">
+                        <list>
+                            <field name="inspection_id"/>
+                            <field name="stage"/>
+                            <field name="check_item"/>
+                            <field name="actual_result"/>
+                            <field name="check_result" widget="badge"
+                                   decoration-danger="check_result == 'defect'"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 預約式缺失改善列表視圖擴展                       -->
+    <!-- ============================================== -->
+    <record id="view_reservation_defect_improvement_tree_reservation" model="ir.ui.view">
+        <field name="name">reservation.defect.improvement.tree.reservation</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="inherit_id" ref="construction_quality.view_reservation_defect_improvement_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='check_type']" position="after">
+                <field name="defect_category" optional="show"/>
+                <field name="severity" optional="show" widget="badge"
+                       decoration-danger="severity in ('major', 'critical')"
+                       decoration-warning="severity == 'moderate'"/>
+                <field name="responsible_party" optional="hide"/>
+            </xpath>
+            <xpath expr="//field[@name='state']" position="before">
+                <field name="improvement_progress" widget="progressbar" optional="show"/>
+                <field name="recheck_result" optional="hide" widget="badge"
+                       decoration-success="recheck_result == 'pass'"
+                       decoration-danger="recheck_result == 'fail'"
+                       decoration-warning="recheck_result == 'pending'"/>
+                <field name="is_from_inspection" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 預約式缺失改善搜尋視圖擴展                       -->
+    <!-- ============================================== -->
+    <record id="view_reservation_defect_improvement_search_reservation" model="ir.ui.view">
+        <field name="name">reservation.defect.improvement.search.reservation</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="inherit_id" ref="construction_quality.view_reservation_defect_improvement_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='safety_env']" position="after">
+                <separator/>
+                <filter string="輕微" name="severity_minor"
+                        domain="[('severity', '=', 'minor')]"/>
+                <filter string="中等" name="severity_moderate"
+                        domain="[('severity', '=', 'moderate')]"/>
+                <filter string="重大" name="severity_major"
+                        domain="[('severity', '=', 'major')]"/>
+                <filter string="嚴重" name="severity_critical"
+                        domain="[('severity', '=', 'critical')]"/>
+                <separator/>
+                <filter string="來自自主檢查" name="from_inspection"
+                        domain="[('is_from_inspection', '=', True)]"/>
+                <filter string="待複查" name="pending_recheck"
+                        domain="[('recheck_result', '=', 'pending')]"/>
+                <filter string="複查通過" name="recheck_pass"
+                        domain="[('recheck_result', '=', 'pass')]"/>
+                <filter string="複查不通過" name="recheck_fail"
+                        domain="[('recheck_result', '=', 'fail')]"/>
+            </xpath>
+            <xpath expr="//group[@string='群組']" position="inside">
+                <filter string="缺失類別" name="group_defect_category"
+                        context="{'group_by': 'defect_category'}"/>
+                <filter string="嚴重程度" name="group_severity"
+                        context="{'group_by': 'severity'}"/>
+                <filter string="責任歸屬" name="group_responsible"
+                        context="{'group_by': 'responsible_party'}"/>
+                <filter string="複查結果" name="group_recheck"
+                        context="{'group_by': 'recheck_result'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 預約式缺失改善 Kanban 視圖擴展                   -->
+    <!-- ============================================== -->
+    <record id="view_reservation_defect_improvement_kanban_reservation" model="ir.ui.view">
+        <field name="name">reservation.defect.improvement.kanban.reservation</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="inherit_id" ref="construction_quality.view_reservation_defect_improvement_kanban"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='state']" position="after">
+                <field name="severity"/>
+                <field name="defect_category"/>
+                <field name="improvement_progress"/>
+            </xpath>
+            <xpath expr="//div[@class='o_kanban_record_body']" position="inside">
+                <div class="mt-1">
+                    <span t-if="record.severity.raw_value == 'critical'" class="badge text-bg-danger">嚴重</span>
+                    <span t-if="record.severity.raw_value == 'major'" class="badge text-bg-warning">重大</span>
+                </div>
+                <div class="progress mt-1" style="height: 5px;">
+                    <div class="progress-bar" role="progressbar"
+                         t-attf-style="width: #{record.improvement_progress.raw_value}%"
+                         t-att-aria-valuenow="record.improvement_progress.raw_value"
+                         aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

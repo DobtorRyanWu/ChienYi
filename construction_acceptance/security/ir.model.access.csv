@@ -1,0 +1,54 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+# =============================================
+# Preliminary Acceptance Access Rights
+# =============================================
+access_acceptance_preliminary_user,acceptance.preliminary.user,model_acceptance_preliminary,construction_supervision_base.group_construction_user,1,0,0,0
+access_acceptance_preliminary_contractor_engineer,acceptance.preliminary.contractor.engineer,model_acceptance_preliminary,construction_supervision_base.group_contractor_engineer,1,0,0,0
+access_acceptance_preliminary_contractor_manager,acceptance.preliminary.contractor.manager,model_acceptance_preliminary,construction_supervision_base.group_contractor_manager,1,0,0,0
+access_acceptance_preliminary_supervision_engineer,acceptance.preliminary.supervision.engineer,model_acceptance_preliminary,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_acceptance_preliminary_supervision_manager,acceptance.preliminary.supervision.manager,model_acceptance_preliminary,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_acceptance_preliminary_admin,acceptance.preliminary.admin,model_acceptance_preliminary,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# Preliminary Acceptance Line
+access_acceptance_preliminary_line_user,acceptance.preliminary.line.user,model_acceptance_preliminary_line,construction_supervision_base.group_construction_user,1,0,0,0
+access_acceptance_preliminary_line_supervision_engineer,acceptance.preliminary.line.supervision.engineer,model_acceptance_preliminary_line,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_acceptance_preliminary_line_supervision_manager,acceptance.preliminary.line.supervision.manager,model_acceptance_preliminary_line,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_acceptance_preliminary_line_admin,acceptance.preliminary.line.admin,model_acceptance_preliminary_line,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# =============================================
+# Final Acceptance Access Rights
+# =============================================
+access_acceptance_final_user,acceptance.final.user,model_acceptance_final,construction_supervision_base.group_construction_user,1,0,0,0
+access_acceptance_final_contractor_engineer,acceptance.final.contractor.engineer,model_acceptance_final,construction_supervision_base.group_contractor_engineer,1,0,0,0
+access_acceptance_final_contractor_manager,acceptance.final.contractor.manager,model_acceptance_final,construction_supervision_base.group_contractor_manager,1,0,0,0
+access_acceptance_final_supervision_engineer,acceptance.final.supervision.engineer,model_acceptance_final,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_acceptance_final_supervision_manager,acceptance.final.supervision.manager,model_acceptance_final,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_acceptance_final_admin,acceptance.final.admin,model_acceptance_final,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# Final Acceptance Line
+access_acceptance_final_line_user,acceptance.final.line.user,model_acceptance_final_line,construction_supervision_base.group_construction_user,1,0,0,0
+access_acceptance_final_line_supervision_engineer,acceptance.final.line.supervision.engineer,model_acceptance_final_line,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_acceptance_final_line_supervision_manager,acceptance.final.line.supervision.manager,model_acceptance_final_line,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_acceptance_final_line_admin,acceptance.final.line.admin,model_acceptance_final_line,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# =============================================
+# Acceptance Defect Access Rights
+# =============================================
+access_acceptance_defect_user,acceptance.defect.user,model_acceptance_defect,construction_supervision_base.group_construction_user,1,0,0,0
+access_acceptance_defect_contractor_engineer,acceptance.defect.contractor.engineer,model_acceptance_defect,construction_supervision_base.group_contractor_engineer,1,1,0,0
+access_acceptance_defect_contractor_manager,acceptance.defect.contractor.manager,model_acceptance_defect,construction_supervision_base.group_contractor_manager,1,1,0,0
+access_acceptance_defect_supervision_engineer,acceptance.defect.supervision.engineer,model_acceptance_defect,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_acceptance_defect_supervision_manager,acceptance.defect.supervision.manager,model_acceptance_defect,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_acceptance_defect_admin,acceptance.defect.admin,model_acceptance_defect,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# Acceptance Defect Extend Wizard
+access_acceptance_defect_extend_wizard_user,acceptance.defect.extend.wizard.user,model_acceptance_defect_extend_wizard,construction_supervision_base.group_construction_user,1,1,1,1
+# =============================================
+# Project Closure Access Rights
+# =============================================
+access_project_closure_user,project.closure.user,model_project_closure,construction_supervision_base.group_construction_user,1,0,0,0
+access_project_closure_contractor_engineer,project.closure.contractor.engineer,model_project_closure,construction_supervision_base.group_contractor_engineer,1,0,0,0
+access_project_closure_contractor_manager,project.closure.contractor.manager,model_project_closure,construction_supervision_base.group_contractor_manager,1,0,0,0
+access_project_closure_supervision_engineer,project.closure.supervision.engineer,model_project_closure,construction_supervision_base.group_supervision_engineer,1,1,0,0
+access_project_closure_supervision_manager,project.closure.supervision.manager,model_project_closure,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_project_closure_admin,project.closure.admin,model_project_closure,construction_supervision_base.group_supervisor_admin,1,1,1,1
+# Project Closure Document
+access_project_closure_document_user,project.closure.document.user,model_project_closure_document,construction_supervision_base.group_construction_user,1,0,0,0
+access_project_closure_document_supervision_engineer,project.closure.document.supervision.engineer,model_project_closure_document,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_project_closure_document_supervision_manager,project.closure.document.supervision.manager,model_project_closure_document,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_project_closure_document_admin,project.closure.document.admin,model_project_closure_document,construction_supervision_base.group_supervisor_admin,1,1,1,1

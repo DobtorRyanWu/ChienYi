@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_timesheet_control_mixin_user,hr.timesheet.time.control.mixin.user,model_hr_timesheet_time_control_mixin,base.group_user,1,0,0,0
+access_analytic_line_timeline_user,account.analytic.line.timeline.user,account.model_account_analytic_line,base.group_user,1,1,1,0
+access_analytic_line_timeline_manager,account.analytic.line.timeline.manager,account.model_account_analytic_line,construction_supervision_base.group_supervision_manager,1,1,1,1

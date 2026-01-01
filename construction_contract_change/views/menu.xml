@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 契約變更子選單 (位於工程監造主選單下) -->
+    <menuitem id="menu_contract_change_root"
+              name="契約變更"
+              parent="construction_supervision_base.menu_supervision_root"
+              sequence="25"/>
+
+    <!-- 契約變更單 -->
+    <menuitem id="menu_contract_change_order"
+              name="契約變更單"
+              parent="menu_contract_change_root"
+              action="action_contract_change_order"
+              sequence="10"/>
+
+    <!-- 待審核變更單 -->
+    <record id="action_contract_change_order_pending" model="ir.actions.act_window">
+        <field name="name">待處理變更單</field>
+        <field name="res_model">contract.change.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', 'in', ('submitted', 'reviewing', 'approved'))]</field>
+        <field name="context">{}</field>
+    </record>
+
+    <menuitem id="menu_contract_change_order_pending"
+              name="待處理變更單"
+              parent="menu_contract_change_root"
+              action="action_contract_change_order_pending"
+              sequence="20"
+              groups="construction_contract_change.group_contract_change_manager"/>
+
+    <!-- 已套用變更單 -->
+    <record id="action_contract_change_order_applied" model="ir.actions.act_window">
+        <field name="name">已套用變更單</field>
+        <field name="res_model">contract.change.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'applied')]</field>
+        <field name="context">{}</field>
+    </record>
+
+    <menuitem id="menu_contract_change_order_applied"
+              name="已套用變更單"
+              parent="menu_contract_change_root"
+              action="action_contract_change_order_applied"
+              sequence="30"/>
+
+</odoo>

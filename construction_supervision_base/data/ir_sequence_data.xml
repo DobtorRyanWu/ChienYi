@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 工程案件編號序號 -->
+        <record id="seq_supervision_project" model="ir.sequence">
+            <field name="name">工程案件編號</field>
+            <field name="code">supervision.project</field>
+            <field name="prefix">PRJ-%(year)s-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
+        <!-- 工程文件編號序號 -->
+        <record id="seq_supervision_document" model="ir.sequence">
+            <field name="name">工程文件編號</field>
+            <field name="code">supervision.document</field>
+            <field name="prefix">DOC-%(year)s%(month)s-</field>
+            <field name="padding">5</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

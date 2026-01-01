@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 稽核選單                                        -->
+    <!-- ============================================== -->
+
+    <!-- 主選單 -->
+    <menuitem id="menu_construction_audit_root"
+              name="稽核管理"
+              web_icon="construction_audit,static/description/icon.svg"
+              sequence="90"/>
+
+    <!-- 操作軌跡選單 -->
+    <menuitem id="menu_audit_trail"
+              name="操作軌跡"
+              parent="menu_construction_audit_root"
+              sequence="10"/>
+
+    <menuitem id="menu_audit_trail_all"
+              name="所有記錄"
+              parent="menu_audit_trail"
+              action="action_audit_trail"
+              sequence="10"/>
+
+    <menuitem id="menu_audit_trail_by_model"
+              name="依模型查看"
+              parent="menu_audit_trail"
+              action="action_audit_trail_by_model"
+              sequence="20"/>
+
+    <menuitem id="menu_audit_trail_by_user"
+              name="依操作者查看"
+              parent="menu_audit_trail"
+              action="action_audit_trail_by_user"
+              sequence="30"/>
+
+    <menuitem id="menu_audit_trail_state_changes"
+              name="狀態變更記錄"
+              parent="menu_audit_trail"
+              action="action_audit_trail_state_changes"
+              sequence="40"/>
+
+</odoo>

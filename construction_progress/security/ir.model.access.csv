@@ -1,0 +1,18 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+# =============================================
+# 進度表 (progress.schedule)
+# =============================================
+access_progress_schedule_admin,progress.schedule admin,model_progress_schedule,construction_supervision_base.group_supervisor_admin,1,1,1,1
+access_progress_schedule_supervision_manager,progress.schedule supervision manager,model_progress_schedule,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_progress_schedule_supervision_engineer,progress.schedule supervision engineer,model_progress_schedule,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_progress_schedule_contractor_manager,progress.schedule contractor manager,model_progress_schedule,construction_supervision_base.group_contractor_manager,1,0,0,0
+access_progress_schedule_contractor_engineer,progress.schedule contractor engineer,model_progress_schedule,construction_supervision_base.group_contractor_engineer,1,0,0,0
+
+# =============================================
+# 進度表明細 (progress.schedule.line)
+# =============================================
+access_progress_schedule_line_admin,progress.schedule.line admin,model_progress_schedule_line,construction_supervision_base.group_supervisor_admin,1,1,1,1
+access_progress_schedule_line_supervision_manager,progress.schedule.line supervision manager,model_progress_schedule_line,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_progress_schedule_line_supervision_engineer,progress.schedule.line supervision engineer,model_progress_schedule_line,construction_supervision_base.group_supervision_engineer,1,1,1,0
+access_progress_schedule_line_contractor_manager,progress.schedule.line contractor manager,model_progress_schedule_line,construction_supervision_base.group_contractor_manager,1,0,0,0
+access_progress_schedule_line_contractor_engineer,progress.schedule.line contractor engineer,model_progress_schedule_line,construction_supervision_base.group_contractor_engineer,1,0,0,0

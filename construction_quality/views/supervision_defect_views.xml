@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- NCR 缺失管理 Tree View -->
+    <record id="view_supervision_defect_tree" model="ir.ui.view">
+        <field name="name">supervision.defect.tree</field>
+        <field name="model">supervision.defect</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="is_overdue"
+                  decoration-success="state == 'closed'"
+                  decoration-muted="state == 'verified'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="defect_type"
+                       decoration-danger="defect_type == 'safety'"
+                       decoration-warning="defect_type == 'quality'"
+                       widget="badge"/>
+                <field name="severity"
+                       decoration-danger="severity == 'critical'"
+                       decoration-warning="severity == 'major'"
+                       widget="badge"/>
+                <field name="source"/>
+                <field name="description" widget="text"/>
+                <field name="location"/>
+                <field name="found_date"/>
+                <field name="deadline"/>
+                <field name="responsible_user_id"/>
+                <field name="is_overdue" column_invisible="1"/>
+                <field name="overdue_days" optional="hide"/>
+                <field name="days_open" optional="hide"/>
+                <field name="state"
+                       decoration-info="state == 'open'"
+                       decoration-warning="state in ('investigating', 'action_taken')"
+                       decoration-success="state in ('verified', 'closed')"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- NCR 缺失管理 Form View -->
+    <record id="view_supervision_defect_form" model="ir.ui.view">
+        <field name="name">supervision.defect.form</field>
+        <field name="model">supervision.defect</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_start_investigation"
+                            string="開始調查"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'open'"/>
+                    <button name="action_take_action"
+                            string="採取改善措施"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'investigating'"/>
+                    <button name="action_verify"
+                            string="驗證通過"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'action_taken'"/>
+                    <button name="action_verify_fail"
+                            string="驗證不通過"
+                            type="object"
+                            class="btn-warning"
+                            invisible="state != 'action_taken'"/>
+                    <button name="action_close"
+                            string="結案"
+                            type="object"
+                            class="btn-success"
+                            invisible="state != 'verified'"/>
+                    <button name="action_reopen"
+                            string="重新開啟"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'closed'"/>
+                    <button name="action_reset_draft"
+                            string="重設"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state not in ('investigating', 'action_taken')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="open,investigating,action_taken,verified,closed"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="已逾期" bg_color="text-bg-danger"
+                            invisible="not is_overdue"/>
+                    <widget name="web_ribbon" title="嚴重缺失" bg_color="text-bg-warning"
+                            invisible="severity != 'critical' or is_overdue"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="工程資訊">
+                            <field name="project_id"/>
+                            <field name="task_id"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="缺失分類">
+                            <field name="defect_type"/>
+                            <field name="severity"/>
+                            <field name="source"/>
+                            <field name="source_reference"/>
+                            <field name="source_description"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="缺失詳情">
+                            <field name="description"/>
+                            <field name="location"/>
+                            <field name="found_date"/>
+                        </group>
+                        <group string="責任歸屬">
+                            <field name="responsible_party"/>
+                            <field name="responsible_company_id"/>
+                            <field name="responsible_user_id"/>
+                            <field name="deadline"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="逾期資訊">
+                            <field name="is_overdue"/>
+                            <field name="overdue_days" invisible="not is_overdue"/>
+                            <field name="days_open"/>
+                        </group>
+                        <group string="開立資訊">
+                            <field name="issuer_id"/>
+                            <field name="issue_date"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="調查分析" name="investigation">
+                            <group>
+                                <group string="調查人員">
+                                    <field name="investigator_id"/>
+                                    <field name="investigation_date"/>
+                                </group>
+                                <group string="根本原因分析">
+                                    <field name="root_cause" nolabel="1" placeholder="使用 5 Whys 或其他方法進行根因分析..."/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="改善措施" name="improvement">
+                            <group>
+                                <group string="改善資訊">
+                                    <field name="improver_id"/>
+                                    <field name="improvement_date"/>
+                                </group>
+                            </group>
+                            <group>
+                                <field name="improvement_description" string="改善說明"/>
+                                <field name="corrective_action" string="矯正措施"/>
+                                <field name="preventive_action" string="預防措施"/>
+                            </group>
+                        </page>
+                        <page string="驗證確認" name="verification">
+                            <group>
+                                <group string="驗證人員">
+                                    <field name="verifier_id"/>
+                                    <field name="verify_date"/>
+                                    <field name="verify_result"
+                                           decoration-success="verify_result == 'pass'"
+                                           decoration-danger="verify_result == 'fail'"
+                                           widget="badge"/>
+                                </group>
+                                <group string="驗證意見">
+                                    <field name="verify_comment" nolabel="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="結案" name="closure">
+                            <group>
+                                <group>
+                                    <field name="closer_id"/>
+                                    <field name="close_date"/>
+                                </group>
+                                <group>
+                                    <field name="close_comment"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="照片" name="photos">
+                            <group>
+                                <group string="改善前照片">
+                                    <field name="before_photo_ids" widget="many2many_binary" nolabel="1"/>
+                                </group>
+                                <group string="改善後照片">
+                                    <field name="after_photo_ids" widget="many2many_binary" nolabel="1"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="附件" name="attachments">
+                            <field name="attachment_ids" widget="many2many_binary"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- NCR 缺失管理 Search View -->
+    <record id="view_supervision_defect_search" model="ir.ui.view">
+        <field name="name">supervision.defect.search</field>
+        <field name="model">supervision.defect</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="description"/>
+                <field name="location"/>
+                <field name="responsible_user_id"/>
+                <separator/>
+                <filter string="開立" name="open"
+                        domain="[('state', '=', 'open')]"/>
+                <filter string="調查中" name="investigating"
+                        domain="[('state', '=', 'investigating')]"/>
+                <filter string="已採取措施" name="action_taken"
+                        domain="[('state', '=', 'action_taken')]"/>
+                <filter string="已驗證" name="verified"
+                        domain="[('state', '=', 'verified')]"/>
+                <filter string="結案" name="closed"
+                        domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter string="待處理" name="pending"
+                        domain="[('state', 'not in', ('verified', 'closed'))]"/>
+                <filter string="已逾期" name="is_overdue"
+                        domain="[('is_overdue', '=', True)]"/>
+                <separator/>
+                <filter string="品質缺失" name="quality"
+                        domain="[('defect_type', '=', 'quality')]"/>
+                <filter string="安全缺失" name="safety"
+                        domain="[('defect_type', '=', 'safety')]"/>
+                <filter string="環境缺失" name="environmental"
+                        domain="[('defect_type', '=', 'environmental')]"/>
+                <separator/>
+                <filter string="輕微" name="minor"
+                        domain="[('severity', '=', 'minor')]"/>
+                <filter string="重大" name="major"
+                        domain="[('severity', '=', 'major')]"/>
+                <filter string="嚴重" name="critical"
+                        domain="[('severity', '=', 'critical')]"/>
+                <separator/>
+                <filter string="本月發現" name="this_month"
+                        domain="[('found_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="缺失類型" name="group_type"
+                            context="{'group_by': 'defect_type'}"/>
+                    <filter string="嚴重程度" name="group_severity"
+                            context="{'group_by': 'severity'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="負責人" name="group_responsible"
+                            context="{'group_by': 'responsible_user_id'}"/>
+                    <filter string="發現日期" name="group_date"
+                            context="{'group_by': 'found_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- NCR 缺失管理 Kanban View -->
+    <record id="view_supervision_defect_kanban" model="ir.ui.view">
+        <field name="name">supervision.defect.kanban</field>
+        <field name="model">supervision.defect</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_mobile">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="defect_type"/>
+                <field name="severity"/>
+                <field name="description"/>
+                <field name="deadline"/>
+                <field name="is_overdue"/>
+                <field name="state"/>
+                <progressbar field="state"
+                            colors='{"open": "info", "investigating": "warning", "action_taken": "warning", "verified": "success", "closed": "muted"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_content">
+                            <div class="o_kanban_record_title">
+                                <strong><field name="name"/></strong>
+                            </div>
+                            <div class="o_kanban_record_subtitle">
+                                <field name="project_id"/>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div>
+                                    <field name="defect_type" widget="badge"
+                                           decoration-danger="defect_type == 'safety'"/>
+                                    <field name="severity" widget="badge"
+                                           decoration-danger="severity == 'critical'"
+                                           decoration-warning="severity == 'major'"/>
+                                </div>
+                                <div class="text-truncate"><field name="description"/></div>
+                                <div>期限: <field name="deadline"/></div>
+                                <div t-if="record.is_overdue.raw_value" class="text-danger">
+                                    已逾期
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- NCR 缺失管理 Calendar View -->
+    <record id="view_supervision_defect_calendar" model="ir.ui.view">
+        <field name="name">supervision.defect.calendar</field>
+        <field name="model">supervision.defect</field>
+        <field name="arch" type="xml">
+            <calendar string="缺失改善期限" date_start="deadline" color="severity" mode="month">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="defect_type"/>
+                <field name="state"/>
+            </calendar>
+        </field>
+    </record>
+
+    <!-- NCR 缺失管理 Pivot View -->
+    <record id="view_supervision_defect_pivot" model="ir.ui.view">
+        <field name="name">supervision.defect.pivot</field>
+        <field name="model">supervision.defect</field>
+        <field name="arch" type="xml">
+            <pivot string="缺失統計">
+                <field name="project_id" type="row"/>
+                <field name="defect_type" type="col"/>
+                <field name="name" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- NCR 缺失管理 Graph View -->
+    <record id="view_supervision_defect_graph" model="ir.ui.view">
+        <field name="name">supervision.defect.graph</field>
+        <field name="model">supervision.defect</field>
+        <field name="arch" type="xml">
+            <graph string="缺失趨勢" type="bar">
+                <field name="found_date" interval="month"/>
+                <field name="name" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- NCR 缺失管理 Action -->
+    <record id="action_supervision_defect" model="ir.actions.act_window">
+        <field name="name">缺失管理 (NCR)</field>
+        <field name="res_model">supervision.defect</field>
+        <field name="view_mode">list,kanban,calendar,pivot,graph,form</field>
+        <field name="search_view_id" ref="view_supervision_defect_search"/>
+        <field name="context">{'search_default_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆缺失記錄 (NCR)
+            </p>
+            <p>
+                缺失管理 (NCR - Non-Conformance Report) 用於追蹤工程品質缺失的發現、調查、改善與驗證流程。
+            </p>
+        </field>
+    </record>
+
+    <!-- NCR 缺失管理 - 逾期 Action -->
+    <record id="action_supervision_defect_overdue" model="ir.actions.act_window">
+        <field name="name">逾期缺失</field>
+        <field name="res_model">supervision.defect</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('is_overdue', '=', True)]</field>
+        <field name="context">{'search_default_is_overdue': 1}</field>
+    </record>
+
+</odoo>

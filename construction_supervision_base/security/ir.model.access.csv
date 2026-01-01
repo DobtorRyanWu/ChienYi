@@ -1,0 +1,27 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+# =============================================
+# 工程案件 (supervision.project)
+# =============================================
+access_supervision_project_admin,supervision.project admin,model_supervision_project,group_supervisor_admin,1,1,1,1
+access_supervision_project_supervision_manager,supervision.project supervision manager,model_supervision_project,group_supervision_manager,1,1,1,1
+access_supervision_project_supervision_engineer,supervision.project supervision engineer,model_supervision_project,group_supervision_engineer,1,1,0,0
+access_supervision_project_contractor_manager,supervision.project contractor manager,model_supervision_project,group_contractor_manager,1,0,0,0
+access_supervision_project_contractor_engineer,supervision.project contractor engineer,model_supervision_project,group_contractor_engineer,1,0,0,0
+
+# =============================================
+# 工程文件 (supervision.document)
+# =============================================
+access_supervision_document_admin,supervision.document admin,model_supervision_document,group_supervisor_admin,1,1,1,1
+access_supervision_document_supervision_manager,supervision.document supervision manager,model_supervision_document,group_supervision_manager,1,1,1,1
+access_supervision_document_supervision_engineer,supervision.document supervision engineer,model_supervision_document,group_supervision_engineer,1,1,1,0
+access_supervision_document_contractor_manager,supervision.document contractor manager,model_supervision_document,group_contractor_manager,1,1,1,1
+access_supervision_document_contractor_engineer,supervision.document contractor engineer,model_supervision_document,group_contractor_engineer,1,1,1,0
+
+# =============================================
+# 審查意見 (supervision.review.comment)
+# =============================================
+access_review_comment_admin,supervision.review.comment admin,model_supervision_review_comment,group_supervisor_admin,1,1,1,1
+access_review_comment_supervision_manager,supervision.review.comment supervision manager,model_supervision_review_comment,group_supervision_manager,1,1,1,1
+access_review_comment_supervision_engineer,supervision.review.comment supervision engineer,model_supervision_review_comment,group_supervision_engineer,1,1,1,0
+access_review_comment_contractor_manager,supervision.review.comment contractor manager,model_supervision_review_comment,group_contractor_manager,1,1,0,0
+access_review_comment_contractor_engineer,supervision.review.comment contractor engineer,model_supervision_review_comment,group_contractor_engineer,1,1,0,0

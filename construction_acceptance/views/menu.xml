@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ====================================== -->
+    <!-- Construction Acceptance Menu Structure -->
+    <!-- ====================================== -->
+
+    <!-- Main Menu: Acceptance & Closure -->
+    <menuitem id="menu_construction_acceptance_root"
+              name="驗收與結案"
+              sequence="50"
+              groups="construction_supervision_base.group_construction_user"/>
+
+    <!-- ======== Preliminary Acceptance Section ======== -->
+    <menuitem id="menu_acceptance_preliminary"
+              name="初驗管理"
+              parent="menu_construction_acceptance_root"
+              sequence="10"/>
+
+    <menuitem id="menu_acceptance_preliminary_list"
+              name="初驗紀錄"
+              parent="menu_acceptance_preliminary"
+              action="action_acceptance_preliminary"
+              sequence="10"/>
+
+    <menuitem id="menu_acceptance_preliminary_pending"
+              name="待改善初驗"
+              parent="menu_acceptance_preliminary"
+              action="action_acceptance_preliminary_pending"
+              sequence="20"
+              groups="construction_supervision_base.group_supervision_engineer"/>
+
+    <!-- ======== Final Acceptance Section ======== -->
+    <menuitem id="menu_acceptance_final"
+              name="正驗管理"
+              parent="menu_construction_acceptance_root"
+              sequence="20"/>
+
+    <menuitem id="menu_acceptance_final_list"
+              name="正驗紀錄"
+              parent="menu_acceptance_final"
+              action="action_acceptance_final"
+              sequence="10"/>
+
+    <menuitem id="menu_acceptance_final_pending"
+              name="待審核正驗"
+              parent="menu_acceptance_final"
+              action="action_acceptance_final_pending"
+              sequence="20"
+              groups="construction_supervision_base.group_supervision_engineer"/>
+
+    <!-- ======== Defect Section ======== -->
+    <menuitem id="menu_acceptance_defect"
+              name="缺失管理"
+              parent="menu_construction_acceptance_root"
+              sequence="30"/>
+
+    <menuitem id="menu_acceptance_defect_list"
+              name="驗收缺失"
+              parent="menu_acceptance_defect"
+              action="action_acceptance_defect"
+              sequence="10"/>
+
+    <menuitem id="menu_acceptance_defect_overdue"
+              name="逾期缺失"
+              parent="menu_acceptance_defect"
+              action="action_acceptance_defect_overdue"
+              sequence="20"
+              groups="construction_supervision_base.group_supervision_engineer"/>
+
+    <menuitem id="menu_acceptance_defect_pending_recheck"
+              name="待覆驗缺失"
+              parent="menu_acceptance_defect"
+              action="action_acceptance_defect_pending_recheck"
+              sequence="30"
+              groups="construction_supervision_base.group_supervision_engineer"/>
+
+    <!-- ======== Closure Section ======== -->
+    <menuitem id="menu_project_closure"
+              name="結案管理"
+              parent="menu_construction_acceptance_root"
+              sequence="40"/>
+
+    <menuitem id="menu_project_closure_list"
+              name="結案處理"
+              parent="menu_project_closure"
+              action="action_project_closure"
+              sequence="10"/>
+
+    <menuitem id="menu_project_closure_warranty"
+              name="保固中工程"
+              parent="menu_project_closure"
+              action="action_project_closure_warranty"
+              sequence="20"/>
+
+    <menuitem id="menu_project_closure_retention"
+              name="待退保留款"
+              parent="menu_project_closure"
+              action="action_project_closure_retention"
+              sequence="30"
+              groups="construction_supervision_base.group_supervision_manager"/>
+
+    <!-- ======== Reports Section ======== -->
+    <menuitem id="menu_acceptance_reports"
+              name="報表分析"
+              parent="menu_construction_acceptance_root"
+              sequence="90"
+              groups="construction_supervision_base.group_supervision_manager"/>
+
+</odoo>

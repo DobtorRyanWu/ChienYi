@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+# =============================================
+# 文件樣板 (document.template)
+# =============================================
+access_document_template_admin,document.template admin,model_document_template,construction_supervision_base.group_supervisor_admin,1,1,1,1
+access_document_template_supervision_manager,document.template supervision manager,model_document_template,construction_supervision_base.group_supervision_manager,1,1,1,1
+access_document_template_supervision_engineer,document.template supervision engineer,model_document_template,construction_supervision_base.group_supervision_engineer,1,0,0,0
+access_document_template_contractor_manager,document.template contractor manager,model_document_template,construction_supervision_base.group_contractor_manager,1,0,0,0
+access_document_template_contractor_engineer,document.template contractor engineer,model_document_template,construction_supervision_base.group_contractor_engineer,1,0,0,0

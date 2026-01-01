@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 一般式進度報告 Tree View -->
+    <record id="view_general_progress_report_tree" model="ir.ui.view">
+        <field name="name">general.progress.report.tree</field>
+        <field name="model">general.progress.report</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'approved'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="report_type"/>
+                <field name="report_date"/>
+                <field name="period_start"/>
+                <field name="period_end"/>
+                <field name="planned_progress"/>
+                <field name="actual_progress"/>
+                <field name="progress_variance"
+                       decoration-success="progress_variance > 0"
+                       decoration-danger="progress_variance &lt; -5"/>
+                <field name="progress_status"
+                       decoration-success="progress_status == 'ahead'"
+                       decoration-info="progress_status == 'on_track'"
+                       decoration-warning="progress_status == 'delayed'"
+                       decoration-danger="progress_status == 'critical'"
+                       widget="badge"/>
+                <field name="reporter_id"/>
+                <field name="state"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'submitted'"
+                       decoration-primary="state == 'reviewed'"
+                       decoration-success="state == 'approved'"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 一般式進度報告 Form View -->
+    <record id="view_general_progress_report_form" model="ir.ui.view">
+        <field name="name">general.progress.report.form</field>
+        <field name="model">general.progress.report</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_compute_progress"
+                            string="同步進度"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_load_task_progress"
+                            string="載入工項進度"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or progress_line_ids"/>
+                    <button name="action_submit"
+                            string="提交"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_review"
+                            string="審核"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'submitted'"
+                            groups="construction_general.group_general_manager"/>
+                    <button name="action_approve"
+                            string="核准"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'reviewed'"
+                            groups="construction_general.group_general_manager"/>
+                    <button name="action_return"
+                            string="退回"
+                            type="object"
+                            class="btn-warning"
+                            invisible="state not in ('submitted', 'reviewed')"
+                            groups="construction_general.group_general_manager"/>
+                    <button name="action_reset_draft"
+                            string="重設"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'submitted'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,reviewed,approved"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="落後" bg_color="text-bg-warning"
+                            invisible="progress_status != 'delayed'"/>
+                    <widget name="web_ribbon" title="嚴重落後" bg_color="text-bg-danger"
+                            invisible="progress_status != 'critical'"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="工程資訊">
+                            <field name="project_id"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="report_type"/>
+                        </group>
+                        <group string="報告期間">
+                            <field name="report_date"/>
+                            <field name="period_start"/>
+                            <field name="period_end"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="累計進度">
+                            <field name="planned_progress"/>
+                            <field name="actual_progress"/>
+                            <field name="progress_variance"
+                                   decoration-success="progress_variance > 0"
+                                   decoration-danger="progress_variance &lt; -5"/>
+                            <field name="progress_status"
+                                   decoration-success="progress_status == 'ahead'"
+                                   decoration-info="progress_status == 'on_track'"
+                                   decoration-warning="progress_status == 'delayed'"
+                                   decoration-danger="progress_status == 'critical'"
+                                   widget="badge"/>
+                        </group>
+                        <group string="本期進度">
+                            <field name="period_planned_progress"/>
+                            <field name="period_actual_progress"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="工期資訊">
+                            <field name="contract_duration"/>
+                            <field name="elapsed_days"/>
+                            <field name="remaining_days"/>
+                        </group>
+                        <group string="施工日數">
+                            <field name="work_days"/>
+                            <field name="rain_days"/>
+                            <field name="holiday_days"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="報告人">
+                            <field name="reporter_id"/>
+                        </group>
+                        <group string="審核人">
+                            <field name="reviewer_id"/>
+                            <field name="review_date"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="施工概況" name="summary">
+                            <group string="本期施工概況">
+                                <field name="work_summary" nolabel="1"/>
+                            </group>
+                            <group string="本期施工項目">
+                                <field name="work_items" nolabel="1"/>
+                            </group>
+                        </page>
+                        <page string="工項進度明細" name="progress_lines">
+                            <field name="progress_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="task_id"/>
+                                    <field name="item_no"/>
+                                    <field name="item_name"/>
+                                    <field name="unit"/>
+                                    <field name="planned_qty"/>
+                                    <field name="prev_qty"/>
+                                    <field name="period_qty"/>
+                                    <field name="actual_qty"/>
+                                    <field name="remaining_qty"/>
+                                    <field name="completion_rate"
+                                           decoration-success="completion_rate >= 100"
+                                           decoration-warning="completion_rate >= 50 and completion_rate &lt; 100"
+                                           decoration-info="completion_rate &lt; 50"
+                                           widget="progressbar"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="重要事項" name="issues">
+                            <group string="重要里程碑說明">
+                                <field name="milestone_description" nolabel="1"/>
+                            </group>
+                            <group string="遭遇問題">
+                                <field name="issue_description" nolabel="1"/>
+                            </group>
+                            <group string="解決方案">
+                                <field name="solution_description" nolabel="1"/>
+                            </group>
+                            <group string="下期工作計畫">
+                                <field name="next_period_plan" nolabel="1"/>
+                            </group>
+                        </page>
+                        <page string="品質安全" name="quality_safety">
+                            <group>
+                                <group string="品質管理摘要">
+                                    <field name="quality_summary" nolabel="1"/>
+                                </group>
+                                <group string="安全衛生摘要">
+                                    <field name="safety_summary" nolabel="1"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group>
+                                    <field name="defect_count"/>
+                                    <field name="defect_improved_count"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="照片附件" name="attachments">
+                            <group string="施工照片">
+                                <field name="photo_ids" widget="many2many_binary" nolabel="1"/>
+                            </group>
+                            <group string="相關附件">
+                                <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+                            </group>
+                        </page>
+                        <page string="審核" name="review">
+                            <group string="審核意見">
+                                <field name="review_comment" nolabel="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 一般式進度報告 Search View -->
+    <record id="view_general_progress_report_search" model="ir.ui.view">
+        <field name="name">general.progress.report.search</field>
+        <field name="model">general.progress.report</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="reporter_id"/>
+                <separator/>
+                <filter string="草稿" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已提交" name="submitted"
+                        domain="[('state', '=', 'submitted')]"/>
+                <filter string="已審核" name="reviewed"
+                        domain="[('state', '=', 'reviewed')]"/>
+                <filter string="已核准" name="approved"
+                        domain="[('state', '=', 'approved')]"/>
+                <separator/>
+                <filter string="週報" name="weekly"
+                        domain="[('report_type', '=', 'weekly')]"/>
+                <filter string="月報" name="monthly"
+                        domain="[('report_type', '=', 'monthly')]"/>
+                <separator/>
+                <filter string="進度落後" name="delayed"
+                        domain="[('progress_status', 'in', ('delayed', 'critical'))]"/>
+                <separator/>
+                <filter string="本月" name="this_month"
+                        domain="[('report_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="報告類型" name="group_type"
+                            context="{'group_by': 'report_type'}"/>
+                    <filter string="進度狀態" name="group_progress"
+                            context="{'group_by': 'progress_status'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="報告日期" name="group_date"
+                            context="{'group_by': 'report_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 一般式進度報告 Kanban View -->
+    <record id="view_general_progress_report_kanban" model="ir.ui.view">
+        <field name="name">general.progress.report.kanban</field>
+        <field name="model">general.progress.report</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_mobile">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="report_type"/>
+                <field name="report_date"/>
+                <field name="actual_progress"/>
+                <field name="progress_status"/>
+                <field name="state"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_content">
+                            <div class="o_kanban_record_title">
+                                <strong><field name="name"/></strong>
+                            </div>
+                            <div class="o_kanban_record_subtitle">
+                                <field name="project_id"/>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div>
+                                    <field name="report_type"/> - <field name="report_date"/>
+                                </div>
+                                <div>
+                                    實際進度: <field name="actual_progress"/>%
+                                </div>
+                                <div>
+                                    <span t-if="record.progress_status.raw_value == 'critical'" class="badge text-bg-danger">嚴重落後</span>
+                                    <span t-if="record.progress_status.raw_value == 'delayed'" class="badge text-bg-warning">落後</span>
+                                    <span t-if="record.progress_status.raw_value == 'on_track'" class="badge text-bg-info">正常</span>
+                                    <span t-if="record.progress_status.raw_value == 'ahead'" class="badge text-bg-success">超前</span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- 一般式進度報告 Action -->
+    <record id="action_general_progress_report" model="ir.actions.act_window">
+        <field name="name">進度報告</field>
+        <field name="res_model">general.progress.report</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_general_progress_report_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一份進度報告
+            </p>
+            <p>
+                定期記錄工程施工進度與狀況。
+            </p>
+        </field>
+    </record>
+
+</odoo>

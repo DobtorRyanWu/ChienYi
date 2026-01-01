@@ -1,0 +1,236 @@
+# -*- coding: utf-8 -*-
+
+from odoo import models, fields, api, Command
+from odoo.exceptions import UserError, ValidationError
+
+
+class ReservationSelfInspection(models.Model):
+    """
+    預約式自主檢查 (通報單內)
+
+    設計說明：
+    - 綁定於通報單的自主檢查記錄
+    - 用於預約式工程的品質自主檢查
+    - 與 reservation.notification.slip 關聯
+    """
+    _name = 'reservation.self.inspection'
+    _description = '預約式自主檢查 (通報單內)'
+    _inherit = ['mail.thread']
+    _order = 'inspection_date desc, id desc'
+
+    # === 通報單關聯 ===
+    slip_id = fields.Many2one(
+        'reservation.notification.slip',
+        string='所屬通報單',
+        required=True,
+        ondelete='cascade',
+        tracking=True)
+
+    project_id = fields.Many2one(
+        'supervision.project',
+        string='所屬工程',
+        related='slip_id.project_id',
+        store=True)
+
+    company_id = fields.Many2one(
+        'res.company',
+        string='公司',
+        related='project_id.company_id',
+        store=True)
+
+    # === 基本資料 ===
+    inspection_no = fields.Char(
+        string='編號',
+        copy=False,
+        default=lambda self: self.env['ir.sequence'].next_by_code('reservation.self.inspection') or '/')
+
+    # === 檢查資訊 ===
+    inspection_type_id = fields.Many2one(
+        'self.inspection.type',
+        string='自主檢查類型',
+        required=True,
+        tracking=True)
+
+    sub_project_name = fields.Char(
+        string='分項工程名稱',
+        help='施作項目名稱')
+
+    inspection_date = fields.Date(
+        string='檢查日期',
+        required=True,
+        default=fields.Date.today,
+        tracking=True)
+
+    inspection_location = fields.Char(
+        string='檢查位置',
+        help='具體施工位置')
+
+    # === 廠商資訊 ===
+    contractor_name = fields.Char(
+        string='承攬廠商')
+
+    subcontractor_name = fields.Char(
+        string='協力廠商')
+
+    # === 檢查時機 ===
+    inspection_timing = fields.Selection([
+        ('hold_point', '查驗停留點'),
+        ('before', '施工前檢查'),
+        ('during', '施工中檢查'),
+        ('after', '施工完成檢查'),
+    ], string='檢查時機', default='during', tracking=True)
+
+    # === 檢查人員 ===
+    inspector_id = fields.Many2one(
+        'res.users',
+        string='填表人',
+        default=lambda self: self.env.uid,
+        tracking=True)
+
+    # === 檢查項目 ===
+    checklist_ids = fields.One2many(
+        'reservation.self.inspection.item', 'inspection_id',
+        string='檢查項目')
+
+    # === 檢查結果 ===
+    has_defect = fields.Boolean(
+        string='是否有缺失',
+        compute='_compute_has_defect',
+        store=True,
+        tracking=True)
+
+    defect_count = fields.Integer(
+        string='缺失項數',
+        compute='_compute_has_defect',
+        store=True)
+
+    @api.depends('checklist_ids.check_result')
+    def _compute_has_defect(self):
+        for record in self:
+            defect_items = record.checklist_ids.filtered(
+                lambda x: x.check_result == 'defect')
+            record.defect_count = len(defect_items)
+            record.has_defect = record.defect_count > 0
+
+    # === 附件 ===
+    photo_ids = fields.Many2many(
+        'ir.attachment',
+        'reservation_inspection_photo_rel',
+        'inspection_id', 'attachment_id',
+        string='檢查照片')
+
+    # === 備註 ===
+    note = fields.Text(string='備註說明')
+
+    # === 狀態 ===
+    state = fields.Selection([
+        ('draft', '草稿'),
+        ('inspected', '已檢查'),
+        ('confirmed', '已確認'),
+    ], string='狀態', default='draft', tracking=True)
+
+    # === 動作方法 ===
+    def action_inspect(self):
+        """完成檢查"""
+        for record in self:
+            if not record.checklist_ids:
+                raise UserError('請先填寫檢查項目')
+            record.state = 'inspected'
+
+    def action_confirm(self):
+        """確認檢查"""
+        for record in self:
+            if record.state != 'inspected':
+                raise UserError('只有已檢查狀態可以確認')
+            record.state = 'confirmed'
+
+    def action_reset_draft(self):
+        """重設為草稿"""
+        for record in self:
+            if record.state not in ('draft', 'inspected'):
+                raise UserError('只有草稿或已檢查狀態可以重設')
+            record.state = 'draft'
+
+    def action_load_default_items(self):
+        """載入預設檢查項目"""
+        self.ensure_one()
+        if not self.inspection_type_id:
+            raise UserError('請先選擇自主檢查類型')
+
+        if self.checklist_ids:
+            raise UserError('已有檢查項目，如需重新載入請先清除')
+
+        items_vals = []
+        for item in self.inspection_type_id.default_item_ids:
+            items_vals.append(Command.create({
+                'sequence': item.sequence,
+                'check_item': item.name,
+                'design_standard': item.check_standard,
+                'stage': item.stage,
+                'note': item.note,
+            }))
+
+        if items_vals:
+            self.checklist_ids = items_vals
+
+        return True
+
+    # === CRUD 覆寫 ===
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('inspection_no') or vals.get('inspection_no') == '/':
+                vals['inspection_no'] = self.env['ir.sequence'].next_by_code('reservation.self.inspection') or '/'
+        return super().create(vals_list)
+
+
+class ReservationSelfInspectionItem(models.Model):
+    """
+    預約式自主檢查項目
+
+    設計說明：
+    - 記錄每個檢查項目的詳細結果
+    - 支援多階段查驗
+    """
+    _name = 'reservation.self.inspection.item'
+    _description = '預約式自主檢查項目'
+    _order = 'sequence, id'
+
+    # === 關聯 ===
+    inspection_id = fields.Many2one(
+        'reservation.self.inspection',
+        string='自主檢查',
+        required=True,
+        ondelete='cascade')
+
+    # === 階段 ===
+    stage = fields.Selection([
+        ('stage1', '第一查驗階段'),
+        ('stage2', '第二查驗階段'),
+        ('stage3', '第三查驗階段'),
+    ], string='查驗階段', default='stage1')
+
+    sequence = fields.Integer(
+        string='序號',
+        default=10)
+
+    # === 檢查內容 ===
+    check_item = fields.Char(
+        string='檢查項目',
+        required=True)
+
+    design_standard = fields.Text(
+        string='設計圖說、規範之管理標準(定性定量)')
+
+    actual_result = fields.Text(
+        string='實際檢查情形')
+
+    # === 檢查結果 ===
+    check_result = fields.Selection([
+        ('pass', '檢查合格'),
+        ('defect', '有缺失需改正'),
+        ('na', '無此項目'),
+    ], string='檢查成果', default='pass')
+
+    # === 備註 ===
+    note = fields.Text(string='備註')

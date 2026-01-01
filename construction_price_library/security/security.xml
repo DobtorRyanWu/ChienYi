@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- ============================================== -->
+        <!-- 價格庫管理權限群組                               -->
+        <!-- ============================================== -->
+
+        <!-- 價格庫檢視者 -->
+        <record id="group_price_library_viewer" model="res.groups">
+            <field name="name">價格庫 - 檢視者</field>
+            <field name="category_id" ref="construction_supervision_base.module_category_construction_supervision"/>
+            <field name="comment">可以檢視價格庫資料，但不能修改</field>
+        </record>
+
+        <!-- 價格庫編輯者 -->
+        <record id="group_price_library_editor" model="res.groups">
+            <field name="name">價格庫 - 編輯者</field>
+            <field name="category_id" ref="construction_supervision_base.module_category_construction_supervision"/>
+            <field name="implied_ids" eval="[(4, ref('group_price_library_viewer'))]"/>
+            <field name="comment">可以新增、編輯價格庫資料</field>
+        </record>
+
+        <!-- 價格庫管理者 -->
+        <record id="group_price_library_manager" model="res.groups">
+            <field name="name">價格庫 - 管理者</field>
+            <field name="category_id" ref="construction_supervision_base.module_category_construction_supervision"/>
+            <field name="implied_ids" eval="[(4, ref('group_price_library_editor'))]"/>
+            <field name="comment">完整價格庫管理權限，包含刪除</field>
+        </record>
+
+        <!-- ============================================== -->
+        <!-- 將價格庫權限群組加入現有角色                     -->
+        <!-- 使用 users 欄位關聯，避免修改原有群組定義        -->
+        <!-- ============================================== -->
+
+        <!-- 監造主管自動獲得價格庫管理者權限 -->
+        <record id="group_supervision_manager_price_library" model="res.groups">
+            <field name="name">價格庫 - 管理者</field>
+            <field name="implied_ids" eval="[
+                (4, ref('group_price_library_manager')),
+            ]"/>
+            <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+        </record>
+
+    </data>
+
+    <data noupdate="1">
+
+        <!-- ============================================== -->
+        <!-- 記錄規則 (Record Rules)                         -->
+        <!-- ============================================== -->
+
+        <!-- 價格庫分類：全部人員可見 -->
+        <record id="rule_price_library_category_global_read" model="ir.rule">
+            <field name="name">價格庫分類 - 全部可見</field>
+            <field name="model_id" ref="model_price_library_category"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_viewer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 價格庫分類：編輯者可編輯 -->
+        <record id="rule_price_library_category_editor" model="ir.rule">
+            <field name="name">價格庫分類 - 編輯者權限</field>
+            <field name="model_id" ref="model_price_library_category"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_editor'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 價格庫分類：管理者完整權限 -->
+        <record id="rule_price_library_category_manager" model="ir.rule">
+            <field name="name">價格庫分類 - 管理者權限</field>
+            <field name="model_id" ref="model_price_library_category"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 價格庫項目：全部人員可見 -->
+        <record id="rule_price_library_item_global_read" model="ir.rule">
+            <field name="name">價格庫項目 - 全部可見</field>
+            <field name="model_id" ref="model_price_library_item"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_viewer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 價格庫項目：編輯者可編輯 -->
+        <record id="rule_price_library_item_editor" model="ir.rule">
+            <field name="name">價格庫項目 - 編輯者權限</field>
+            <field name="model_id" ref="model_price_library_item"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_editor'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 價格庫項目：管理者完整權限 -->
+        <record id="rule_price_library_item_manager" model="ir.rule">
+            <field name="name">價格庫項目 - 管理者權限</field>
+            <field name="model_id" ref="model_price_library_item"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- 價格歷史：全部人員可見（唯讀） -->
+        <record id="rule_price_library_item_history_global_read" model="ir.rule">
+            <field name="name">價格歷史 - 全部可見</field>
+            <field name="model_id" ref="model_price_library_item_history"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_viewer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 價格歷史：編輯者可建立（系統自動建立） -->
+        <record id="rule_price_library_item_history_editor" model="ir.rule">
+            <field name="name">價格歷史 - 編輯者權限</field>
+            <field name="model_id" ref="model_price_library_item_history"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_editor'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 價格歷史：管理者完整權限 -->
+        <record id="rule_price_library_item_history_manager" model="ir.rule">
+            <field name="name">價格歷史 - 管理者權限</field>
+            <field name="model_id" ref="model_price_library_item_history"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_price_library_manager'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+    </data>
+</odoo>

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 價格庫匯入精靈 - 表單視圖                       -->
+    <!-- ============================================== -->
+    <record id="view_price_library_import_wizard_form" model="ir.ui.view">
+        <field name="name">price.library.import.wizard.form</field>
+        <field name="model">price.library.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="價格庫匯入精靈">
+                <group>
+                    <group string="目標設定">
+                        <field name="project_id"
+                               options="{'no_create': True, 'no_open': True}"/>
+                    </group>
+                    <group string="篩選條件">
+                        <field name="category_id"
+                               options="{'no_create': True}"/>
+                    </group>
+                </group>
+                <group string="匯入選項">
+                    <group>
+                        <field name="import_qty"/>
+                        <field name="default_qty" invisible="not import_qty"/>
+                    </group>
+                    <group>
+                        <field name="selected_count" readonly="1"/>
+                        <field name="total_amount" readonly="1" invisible="not import_qty"/>
+                    </group>
+                </group>
+                <notebook>
+                    <page string="選擇項目" name="items">
+                        <div class="mb-2">
+                            <button name="action_select_all" type="object"
+                                    string="全選" class="btn-secondary me-2"/>
+                            <button name="action_clear_selection" type="object"
+                                    string="清除選擇" class="btn-secondary"/>
+                        </div>
+                        <field name="item_ids" widget="many2many_tags"
+                               options="{'no_create': True}"
+                               domain="[('active', '=', True)]"/>
+                        <separator/>
+                        <p class="text-muted">
+                            提示：可使用 Shift/Ctrl 鍵多選項目
+                        </p>
+                    </page>
+                </notebook>
+                <footer>
+                    <button name="action_import" type="object"
+                            string="匯入" class="btn-primary"
+                            invisible="selected_count == 0"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格庫匯入精靈 - 動作                           -->
+    <!-- ============================================== -->
+    <record id="action_price_library_import_wizard" model="ir.actions.act_window">
+        <field name="name">從價格庫匯入工項</field>
+        <field name="res_model">price.library.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="context">{}</field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 在工程案件中加入匯入按鈕                        -->
+    <!-- ============================================== -->
+    <record id="view_supervision_project_form_inherit_price_library" model="ir.ui.view">
+        <field name="name">supervision.project.form.inherit.price.library</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="%(action_price_library_import_wizard)d"
+                        type="action"
+                        class="oe_stat_button"
+                        icon="fa-database"
+                        context="{'default_project_id': active_id}">
+                    <span class="o_stat_text">匯入價格庫</span>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

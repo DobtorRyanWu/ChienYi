@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 工項 Timeline 視圖 (甘特圖)                      -->
+    <!-- ============================================== -->
+    <record id="view_task_timeline" model="ir.ui.view">
+        <field name="name">project.task.timeline</field>
+        <field name="model">project.task</field>
+        <field name="arch" type="xml">
+            <gantt string="工項時程"
+                   date_start="planned_date_start"
+                   date_stop="planned_date_end"
+                   default_group_by="assigned_company_id"
+                   color="timeline_color"
+                   display_unavailability="1"
+                   progress="completion_rate"
+                   precision="{'day': 'hour:quarter', 'week': 'day:half', 'month': 'day:half'}"
+                   decoration-danger="schedule_status == 'delayed'"
+                   decoration-warning="schedule_alert == 'warning'"
+                   decoration-success="schedule_status == 'ahead'"
+                   thumbnails="{'assigned_company_id': 'image_128'}">
+                <field name="item_no"/>
+                <field name="name"/>
+                <field name="assigned_company_id"/>
+                <field name="assignment_state"/>
+                <field name="schedule_status"/>
+                <field name="schedule_alert"/>
+                <field name="completion_rate"/>
+                <field name="timeline_color"/>
+                <templates>
+                    <div t-name="gantt-popover">
+                        <div class="o_gantt_popover_header">
+                            <strong><t t-esc="item_no"/> - <t t-esc="name"/></strong>
+                        </div>
+                        <ul class="list-unstyled mb-0">
+                            <li>
+                                <strong>承包廠商:</strong>
+                                <t t-esc="assigned_company_id[1] or '未分配'"/>
+                            </li>
+                            <li>
+                                <strong>完成率:</strong>
+                                <t t-esc="completion_rate"/>%
+                            </li>
+                            <li>
+                                <strong>時程狀態:</strong>
+                                <span t-attf-class="badge #{schedule_status == 'delayed' ? 'text-bg-danger' : schedule_status == 'ahead' ? 'text-bg-success' : 'text-bg-secondary'}">
+                                    <t t-if="schedule_status == 'delayed'">落後</t>
+                                    <t t-elif="schedule_status == 'ahead'">超前</t>
+                                    <t t-elif="schedule_status == 'on_schedule'">正常</t>
+                                    <t t-else="">-</t>
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+                </templates>
+            </gantt>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工項表單視圖擴展 - 時程控制                       -->
+    <!-- ============================================== -->
+    <record id="view_task_form_timeline" model="ir.ui.view">
+        <field name="name">project.task.form.timeline</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_task_form_supervision"/>
+        <field name="arch" type="xml">
+            <!-- 在頂部新增計時控制按鈕 -->
+            <xpath expr="//form/sheet" position="before">
+                <header>
+                    <button name="button_start_work"
+                            string="開始施工"
+                            type="object"
+                            class="btn-primary"
+                            invisible="show_time_control != 'start' or assignment_state in ('completed', 'accepted')"/>
+                    <button name="button_end_work"
+                            string="結束施工"
+                            type="object"
+                            class="btn-warning"
+                            invisible="show_time_control != 'stop'"/>
+                    <field name="show_time_control" invisible="1"/>
+                </header>
+            </xpath>
+
+            <!-- 擴展時程管理分頁 -->
+            <xpath expr="//page[@name='schedule']//group[@string='時程分析']" position="inside">
+                <field name="schedule_variance_hours"/>
+                <field name="duration_variance"/>
+                <field name="efficiency_rate" widget="progressbar"/>
+                <field name="schedule_alert" widget="badge"
+                       decoration-warning="schedule_alert == 'warning'"
+                       decoration-danger="schedule_alert == 'critical'"/>
+                <field name="schedule_alert_message" invisible="not schedule_alert_message"/>
+            </xpath>
+
+            <!-- 新增時程依賴分頁 -->
+            <xpath expr="//page[@name='schedule']" position="after">
+                <page string="時程依賴" name="dependencies">
+                    <group>
+                        <group string="前置工項">
+                            <field name="depend_on_ids" widget="many2many_tags"
+                                   options="{'color_field': 'timeline_color'}"
+                                   domain="[('project_id', '=', project_id), ('id', '!=', id)]"/>
+                            <field name="has_dependency" invisible="1"/>
+                        </group>
+                        <group string="後續工項">
+                            <field name="dependent_ids" widget="many2many_tags" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="關鍵路徑分析">
+                            <field name="is_critical_path"/>
+                            <field name="slack_days"/>
+                        </group>
+                        <group string="動作">
+                            <button name="action_auto_schedule"
+                                    string="自動排程"
+                                    type="object"
+                                    class="btn-secondary"
+                                    invisible="not has_dependency"/>
+                            <button name="action_view_timeline"
+                                    string="查看時程圖"
+                                    type="object"
+                                    class="btn-link"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+
+            <!-- 新增執行中工時記錄 -->
+            <xpath expr="//page[@name='schedule']//group[@string='實際時程']" position="after">
+                <group string="計時器狀態" invisible="running_timesheet_count == 0">
+                    <field name="running_timesheet_count"/>
+                    <button name="action_view_running_timesheet"
+                            string="查看執行中工時"
+                            type="object"
+                            class="btn-link"
+                            invisible="running_timesheet_count == 0"/>
+                </group>
+            </xpath>
+
+            <!-- 隱藏欄位 -->
+            <xpath expr="//form" position="inside">
+                <field name="running_timesheet_count" invisible="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工項列表視圖擴展 - 時程欄位                       -->
+    <!-- ============================================== -->
+    <record id="view_task_tree_timeline" model="ir.ui.view">
+        <field name="name">project.task.tree.timeline</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_task_tree_supervision"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='schedule_status']" position="after">
+                <field name="schedule_alert" widget="badge" optional="hide"
+                       decoration-warning="schedule_alert == 'warning'"
+                       decoration-danger="schedule_alert == 'critical'"/>
+                <field name="is_critical_path" widget="boolean" optional="hide"/>
+                <field name="slack_days" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工項搜尋視圖擴展                                  -->
+    <!-- ============================================== -->
+    <record id="view_task_search_timeline" model="ir.ui.view">
+        <field name="name">project.task.search.timeline</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_task_search_supervision"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='schedule_delayed']" position="after">
+                <filter string="時程警示" name="schedule_alert"
+                        domain="[('schedule_alert', 'in', ('warning', 'critical'))]"/>
+                <filter string="關鍵路徑" name="critical_path"
+                        domain="[('is_critical_path', '=', True)]"/>
+                <filter string="有前置依賴" name="has_dependency"
+                        domain="[('has_dependency', '=', True)]"/>
+                <separator/>
+                <filter string="計時器執行中" name="timer_running"
+                        domain="[('running_timesheet_count', '>', 0)]"/>
+            </xpath>
+            <xpath expr="//group/filter[@name='group_by_schedule_status']" position="after">
+                <filter string="時程警示" name="group_by_schedule_alert"
+                        context="{'group_by': 'schedule_alert'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- Timeline 視圖專用動作                            -->
+    <!-- ============================================== -->
+    <record id="action_task_timeline" model="ir.actions.act_window">
+        <field name="name">工項時程</field>
+        <field name="res_model">project.task</field>
+        <field name="view_mode">gantt,list,form,kanban</field>
+        <field name="search_view_id" ref="project.view_task_search_form"/>
+        <field name="context">{
+            'search_default_group_by_assigned_company': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立工項以在時程圖上顯示
+            </p>
+            <p>
+                使用甘特圖視圖可視化工項的時程安排，
+                透過拖放調整時程，並追蹤進度狀態。
+            </p>
+        </field>
+    </record>
+
+    <!-- 設定視圖順序 -->
+    <record id="action_task_timeline_view_gantt" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">gantt</field>
+        <field name="view_id" ref="view_task_timeline"/>
+        <field name="act_window_id" ref="action_task_timeline"/>
+    </record>
+
+    <record id="action_task_timeline_view_tree" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="construction_supervision_base.view_task_tree_supervision_full"/>
+        <field name="act_window_id" ref="action_task_timeline"/>
+    </record>
+
+</odoo>

@@ -1,0 +1,11 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_general_defect_improvement_user,general.defect.improvement.user,model_general_defect_improvement,group_general_user,1,1,1,0
+access_general_defect_improvement_manager,general.defect.improvement.manager,model_general_defect_improvement,group_general_manager,1,1,1,1
+access_general_progress_report_user,general.progress.report.user,model_general_progress_report,group_general_user,1,1,1,0
+access_general_progress_report_manager,general.progress.report.manager,model_general_progress_report,group_general_manager,1,1,1,1
+access_general_progress_report_line_user,general.progress.report.line.user,model_general_progress_report_line,group_general_user,1,1,1,0
+access_general_progress_report_line_manager,general.progress.report.line.manager,model_general_progress_report_line,group_general_manager,1,1,1,1
+access_general_realtime_profit_user,general.realtime.profit.user,model_general_realtime_profit,group_general_user,1,1,1,0
+access_general_realtime_profit_manager,general.realtime.profit.manager,model_general_realtime_profit,group_general_manager,1,1,1,1
+access_general_realtime_profit_cost_user,general.realtime.profit.cost.user,model_general_realtime_profit_cost,group_general_user,1,1,1,0
+access_general_realtime_profit_cost_manager,general.realtime.profit.cost.manager,model_general_realtime_profit_cost,group_general_manager,1,1,1,1

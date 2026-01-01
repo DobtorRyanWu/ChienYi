@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 工程案件 - 表單視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_supervision_project_form" model="ir.ui.view">
+        <field name="name">supervision.project.form</field>
+        <field name="model">supervision.project</field>
+        <field name="arch" type="xml">
+            <form string="工程案件">
+                <header>
+                    <!-- 狀態按鈕 -->
+                    <button name="action_prepare" string="開始籌備"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_submit_approval" string="提交核定"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'preparing'"/>
+                    <button name="action_approve" string="核定開工"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'pending_approval'"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <button name="action_complete" string="竣工"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'construction'"/>
+                    <button name="action_accept" string="進入驗收"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'completion'"/>
+                    <button name="action_close" string="結案"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'acceptance'"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <button name="action_suspend" string="停工"
+                            type="object"
+                            invisible="state not in ('construction', 'completion')"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <button name="action_resume" string="復工"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'suspended'"/>
+                    <button name="action_reset_draft" string="重設草稿"
+                            type="object"
+                            invisible="state not in ('preparing', 'pending_approval')"/>
+                    <button name="action_terminate" string="終止"
+                            type="object"
+                            invisible="state in ('closed', 'terminated')"
+                            groups="construction_supervision_base.group_supervisor_admin"
+                            confirm="確定要終止此專案嗎？此操作無法復原。"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,preparing,construction,completion,acceptance,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_documents" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o">
+                            <field name="document_count" string="文件" widget="statinfo"/>
+                        </button>
+                        <button name="action_view_tasks" type="object"
+                                class="oe_stat_button" icon="fa-tasks">
+                            <field name="task_count" string="工項" widget="statinfo"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已結案" bg_color="text-bg-success"
+                            invisible="state != 'closed'"/>
+                    <widget name="web_ribbon" title="已終止" bg_color="text-bg-danger"
+                            invisible="state != 'terminated'"/>
+                    <widget name="web_ribbon" title="停工" bg_color="text-bg-warning"
+                            invisible="state != 'suspended'"/>
+                    <div class="oe_title">
+                        <label for="code"/>
+                        <h1>
+                            <field name="code" readonly="state != 'draft'"/>
+                        </h1>
+                        <label for="name"/>
+                        <h2>
+                            <field name="name" placeholder="輸入工程名稱"/>
+                        </h2>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_type" widget="radio"/>
+                            <field name="authority_id"
+                                   options="{'no_create': True}"
+                                   context="{'default_partner_type': 'authority'}"/>
+                            <field name="authority_contact_id"
+                                   options="{'no_create': True}"/>
+                            <field name="company_id"
+                                   options="{'no_create': True}"
+                                   groups="base.group_multi_company"/>
+                            <field name="supervision_engineer_id"/>
+                        </group>
+                        <group string="契約資訊">
+                            <field name="contract_no"/>
+                            <field name="contract_amount"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="contract_start_date"/>
+                            <field name="contract_end_date"/>
+                            <field name="contract_duration"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="實際日期">
+                            <field name="actual_start_date"/>
+                            <field name="actual_end_date"/>
+                            <field name="actual_duration"/>
+                        </group>
+                        <group string="進度狀態">
+                            <field name="planned_progress" widget="progressbar"/>
+                            <field name="actual_progress" widget="progressbar"/>
+                            <field name="progress_status" widget="badge"
+                                   decoration-success="progress_status == 'ahead'"
+                                   decoration-warning="progress_status == 'on_track'"
+                                   decoration-danger="progress_status == 'delayed'"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="承包廠商" name="contractors">
+                            <field name="contractor_company_ids" widget="many2many_tags"
+                                   options="{'no_create': True}"
+                                   context="{'default_company_type': 'contractor'}"/>
+                            <group string="工項分配統計">
+                                <group>
+                                    <field name="task_count"/>
+                                    <field name="assigned_task_count"/>
+                                    <field name="completed_task_count"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="工程位置" name="location">
+                            <group>
+                                <group>
+                                    <field name="location"/>
+                                    <field name="location_detail"/>
+                                </group>
+                                <group>
+                                    <field name="latitude"/>
+                                    <field name="longitude"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="預算與成本" name="budget">
+                            <group>
+                                <group>
+                                    <field name="budget_amount"/>
+                                    <field name="actual_cost"/>
+                                </group>
+                                <group>
+                                    <field name="budget_usage_rate" widget="progressbar"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="notes"/>
+                        </page>
+                    </notebook>
+                    <field name="project_id" invisible="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工程案件 - 列表視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_supervision_project_tree" model="ir.ui.view">
+        <field name="name">supervision.project.tree</field>
+        <field name="model">supervision.project</field>
+        <field name="arch" type="xml">
+            <list string="工程案件" default_order="code desc"
+                  decoration-muted="state in ('closed', 'terminated')"
+                  decoration-warning="state == 'suspended'"
+                  decoration-info="state == 'acceptance'">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="project_type" widget="badge"/>
+                <field name="authority_id"/>
+                <field name="contract_amount" sum="契約金額合計"/>
+                <field name="contract_start_date"/>
+                <field name="contract_end_date"/>
+                <field name="actual_progress" widget="progressbar"/>
+                <field name="progress_status" widget="badge"
+                       decoration-success="progress_status == 'ahead'"
+                       decoration-warning="progress_status == 'on_track'"
+                       decoration-danger="progress_status == 'delayed'"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'closed'"
+                       decoration-warning="state in ('suspended', 'acceptance')"
+                       decoration-info="state == 'construction'"
+                       decoration-muted="state == 'terminated'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工程案件 - 看板視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_supervision_project_kanban" model="ir.ui.view">
+        <field name="name">supervision.project.kanban</field>
+        <field name="model">supervision.project</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_small_column">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="state"/>
+                <field name="project_type"/>
+                <field name="authority_id"/>
+                <field name="actual_progress"/>
+                <field name="progress_status"/>
+                <field name="contract_amount"/>
+                <progressbar field="progress_status"
+                             colors='{"ahead": "success", "on_track": "warning", "delayed": "danger"}'/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top mb-0">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="code"/>
+                                    </strong>
+                                </div>
+                                <span class="float-end">
+                                    <field name="project_type" widget="badge"/>
+                                </span>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <field name="name"/>
+                                <div class="mt-2">
+                                    <field name="authority_id"/>
+                                </div>
+                            </div>
+                            <div class="o_kanban_record_bottom">
+                                <div class="oe_kanban_bottom_left">
+                                    <field name="actual_progress" widget="progressbar"
+                                           title="實際進度"/>
+                                </div>
+                                <div class="oe_kanban_bottom_right">
+                                    <field name="contract_amount" widget="monetary"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工程案件 - 搜尋視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_supervision_project_search" model="ir.ui.view">
+        <field name="name">supervision.project.search</field>
+        <field name="model">supervision.project</field>
+        <field name="arch" type="xml">
+            <search string="搜尋工程案件">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="contract_no"/>
+                <field name="authority_id"/>
+                <field name="supervision_engineer_id"/>
+                <separator/>
+                <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="籌備中" name="preparing" domain="[('state', '=', 'preparing')]"/>
+                <filter string="施工中" name="construction" domain="[('state', '=', 'construction')]"/>
+                <filter string="驗收中" name="acceptance" domain="[('state', '=', 'acceptance')]"/>
+                <filter string="已結案" name="closed" domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter string="一般式" name="general" domain="[('project_type', '=', 'general')]"/>
+                <filter string="預約式" name="reservation" domain="[('project_type', '=', 'reservation')]"/>
+                <separator/>
+                <filter string="進度超前" name="ahead" domain="[('progress_status', '=', 'ahead')]"/>
+                <filter string="進度正常" name="on_track" domain="[('progress_status', '=', 'on_track')]"/>
+                <filter string="進度落後" name="delayed" domain="[('progress_status', '=', 'delayed')]"/>
+                <separator/>
+                <filter string="我的專案" name="my_projects"
+                        domain="[('supervision_engineer_id', '=', uid)]"/>
+                <group expand="0" string="群組">
+                    <filter string="狀態" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="工程類型" name="group_type" context="{'group_by': 'project_type'}"/>
+                    <filter string="業主" name="group_authority" context="{'group_by': 'authority_id'}"/>
+                    <filter string="進度狀態" name="group_progress" context="{'group_by': 'progress_status'}"/>
+                    <filter string="開工月份" name="group_start_month" context="{'group_by': 'contract_start_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工程案件 - 動作                                  -->
+    <!-- ============================================== -->
+    <record id="action_supervision_project" model="ir.actions.act_window">
+        <field name="name">工程案件</field>
+        <field name="res_model">supervision.project</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_supervision_project_search"/>
+        <field name="context">{'search_default_construction': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一個工程案件
+            </p>
+            <p>
+                工程案件是工程監造系統的核心，用於管理工程專案的完整生命週期。
+            </p>
+        </field>
+    </record>
+
+</odoo>

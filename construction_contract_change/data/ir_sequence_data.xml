@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 契約變更單序號 -->
+        <record id="seq_contract_change_order" model="ir.sequence">
+            <field name="name">契約變更單</field>
+            <field name="code">contract.change.order</field>
+            <field name="prefix">CHG-%(year)s-</field>
+            <field name="padding">4</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

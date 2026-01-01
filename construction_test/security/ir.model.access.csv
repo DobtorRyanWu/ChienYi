@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_test_standard_user,supervision.test.standard.user,model_supervision_test_standard,group_test_user,1,0,0,0
+access_test_standard_manager,supervision.test.standard.manager,model_supervision_test_standard,group_test_manager,1,1,1,1
+access_test_record_user,supervision.test.record.user,model_supervision_test_record,group_test_user,1,1,1,0
+access_test_record_manager,supervision.test.record.manager,model_supervision_test_record,group_test_manager,1,1,1,1

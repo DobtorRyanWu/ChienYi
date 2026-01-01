@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ==================== -->
+    <!-- 機具設備視圖          -->
+    <!-- ==================== -->
+
+    <!-- Form View -->
+    <record id="view_supervision_equipment_form" model="ir.ui.view">
+        <field name="name">supervision.equipment.form</field>
+        <field name="model">supervision.equipment</field>
+        <field name="arch" type="xml">
+            <form string="機具設備">
+                <header>
+                    <button name="action_create_maintenance_request"
+                            string="建立維護請求"
+                            type="object"
+                            class="btn-primary"/>
+                    <button name="action_set_available"
+                            string="設為可用"
+                            type="object"
+                            invisible="equipment_state == 'available'"/>
+                    <button name="action_set_in_use"
+                            string="設為使用中"
+                            type="object"
+                            invisible="equipment_state == 'in_use'"/>
+                    <button name="action_set_maintenance"
+                            string="設為維護中"
+                            type="object"
+                            invisible="equipment_state == 'maintenance'"/>
+                    <field name="equipment_state" widget="statusbar"
+                           statusbar_visible="available,in_use,maintenance"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_maintenance_requests"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-wrench">
+                            <div class="o_stat_info">
+                                <field name="open_maintenance_count" class="o_stat_value"/>
+                                <span class="o_stat_text">進行中維護</span>
+                            </div>
+                        </button>
+                        <button name="action_view_maintenance_requests"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-history">
+                            <div class="o_stat_info">
+                                <field name="maintenance_count" class="o_stat_value"/>
+                                <span class="o_stat_text">歷史維護</span>
+                            </div>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="設備名稱..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="category_id"/>
+                            <field name="serial_no"/>
+                            <field name="model"/>
+                            <field name="capacity"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group string="位置與歸屬">
+                            <field name="project_id"/>
+                            <field name="location"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="owner_type"/>
+                            <field name="owner_partner_id"
+                                   invisible="owner_type == 'own'"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="維護資訊">
+                            <field name="technician_id"/>
+                            <field name="operator_name"/>
+                        </group>
+                        <group string="日期">
+                            <field name="effective_date"/>
+                            <field name="warranty_date"/>
+                            <field name="scrap_date"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="成本資訊">
+                            <field name="cost" widget="monetary"/>
+                            <field name="daily_rate" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="使用統計">
+                            <field name="total_usage_hours"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="效能指標 (MTBF/MTTR)" name="performance">
+                            <group>
+                                <group>
+                                    <field name="expected_mtbf"/>
+                                    <field name="mtbf" readonly="1"/>
+                                    <field name="mttr" readonly="1"/>
+                                </group>
+                                <group>
+                                    <field name="latest_failure_date" readonly="1"/>
+                                    <field name="estimated_next_failure" readonly="1"/>
+                                </group>
+                            </group>
+                            <div class="alert alert-info" role="alert">
+                                <strong>MTBF</strong> (Mean Time Between Failures): 平均故障間隔時間，數值越高代表設備越可靠。<br/>
+                                <strong>MTTR</strong> (Mean Time To Repair): 平均修復時間，數值越低代表維護效率越高。
+                            </div>
+                        </page>
+                        <page string="設備規格" name="properties">
+                            <field name="equipment_properties"/>
+                        </page>
+                        <page string="備註" name="note">
+                            <field name="note" placeholder="設備備註..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- List View -->
+    <record id="view_supervision_equipment_list" model="ir.ui.view">
+        <field name="name">supervision.equipment.list</field>
+        <field name="model">supervision.equipment</field>
+        <field name="arch" type="xml">
+            <list string="機具設備" multi_edit="1">
+                <field name="name"/>
+                <field name="category_id"/>
+                <field name="serial_no" optional="show"/>
+                <field name="model" optional="hide"/>
+                <field name="project_id"/>
+                <field name="equipment_state" widget="badge"
+                       decoration-success="equipment_state == 'available'"
+                       decoration-info="equipment_state == 'in_use'"
+                       decoration-warning="equipment_state == 'maintenance'"
+                       decoration-danger="equipment_state == 'unavailable'"/>
+                <field name="owner_type" optional="hide"/>
+                <field name="technician_id" optional="show"/>
+                <field name="mtbf" optional="hide"/>
+                <field name="mttr" optional="hide"/>
+                <field name="open_maintenance_count" string="進行中維護" optional="show"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Kanban View -->
+    <record id="view_supervision_equipment_kanban" model="ir.ui.view">
+        <field name="name">supervision.equipment.kanban</field>
+        <field name="model">supervision.equipment</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" default_group_by="category_id">
+                <field name="name"/>
+                <field name="category_id"/>
+                <field name="equipment_state"/>
+                <field name="project_id"/>
+                <field name="open_maintenance_count"/>
+                <progressbar field="equipment_state"
+                             colors='{"available": "success", "in_use": "info", "maintenance": "warning", "unavailable": "danger"}'/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_global_click">
+                            <div class="oe_kanban_content">
+                                <div class="o_kanban_record_title">
+                                    <strong><field name="name"/></strong>
+                                </div>
+                                <div class="o_kanban_record_subtitle">
+                                    <field name="serial_no"/>
+                                </div>
+                                <div>
+                                    <field name="project_id"/>
+                                </div>
+                                <div class="o_kanban_record_bottom">
+                                    <span class="oe_kanban_bottom_left">
+                                        <field name="equipment_state" widget="badge"
+                                               decoration-success="equipment_state == 'available'"
+                                               decoration-info="equipment_state == 'in_use'"
+                                               decoration-warning="equipment_state == 'maintenance'"
+                                               decoration-danger="equipment_state == 'unavailable'"/>
+                                    </span>
+                                    <span class="oe_kanban_bottom_right" t-if="record.open_maintenance_count.raw_value > 0">
+                                        <span class="badge rounded-pill text-bg-warning">
+                                            <i class="fa fa-wrench"/> <field name="open_maintenance_count"/>
+                                        </span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_supervision_equipment_search" model="ir.ui.view">
+        <field name="name">supervision.equipment.search</field>
+        <field name="model">supervision.equipment</field>
+        <field name="arch" type="xml">
+            <search string="搜尋機具設備">
+                <field name="name"/>
+                <field name="serial_no"/>
+                <field name="model"/>
+                <field name="category_id"/>
+                <field name="project_id"/>
+                <field name="technician_id"/>
+                <separator/>
+                <filter string="可用" name="available" domain="[('equipment_state', '=', 'available')]"/>
+                <filter string="使用中" name="in_use" domain="[('equipment_state', '=', 'in_use')]"/>
+                <filter string="維護中" name="maintenance" domain="[('equipment_state', '=', 'maintenance')]"/>
+                <filter string="不可用" name="unavailable" domain="[('equipment_state', '=', 'unavailable')]"/>
+                <separator/>
+                <filter string="自有設備" name="own" domain="[('owner_type', '=', 'own')]"/>
+                <filter string="租賃設備" name="rent" domain="[('owner_type', '=', 'rent')]"/>
+                <separator/>
+                <filter string="有進行中維護" name="has_open_maintenance"
+                        domain="[('open_maintenance_count', '>', 0)]"/>
+                <filter string="已停用" name="inactive" domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="設備分類" name="group_category" context="{'group_by': 'category_id'}"/>
+                    <filter string="設備狀態" name="group_state" context="{'group_by': 'equipment_state'}"/>
+                    <filter string="所屬工程" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="負責技師" name="group_technician" context="{'group_by': 'technician_id'}"/>
+                    <filter string="設備來源" name="group_owner_type" context="{'group_by': 'owner_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_supervision_equipment" model="ir.actions.act_window">
+        <field name="name">機具設備</field>
+        <field name="res_model">supervision.equipment</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_supervision_equipment_search"/>
+        <field name="context">{'search_default_group_category': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一台機具設備
+            </p>
+            <p>
+                管理施工現場的機具設備，追蹤使用狀態與維護記錄。
+                系統會自動計算 MTBF/MTTR 效能指標。
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: 維護中設備 -->
+    <record id="action_supervision_equipment_maintenance" model="ir.actions.act_window">
+        <field name="name">維護中設備</field>
+        <field name="res_model">supervision.equipment</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('equipment_state', '=', 'maintenance')]</field>
+        <field name="context">{}</field>
+    </record>
+
+</odoo>

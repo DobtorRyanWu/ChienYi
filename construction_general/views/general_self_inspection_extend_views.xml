@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 擴展一般式自主檢查 Form View - 增加缺失改善功能 -->
+    <record id="view_general_self_inspection_form_extend" model="ir.ui.view">
+        <field name="name">general.self.inspection.form.extend</field>
+        <field name="model">general.self.inspection</field>
+        <field name="inherit_id" ref="construction_quality.view_general_self_inspection_form"/>
+        <field name="arch" type="xml">
+            <!-- 在 header 增加建立缺失改善按鈕 -->
+            <button name="action_close" position="after">
+                <button name="action_create_defect_improvement"
+                        string="建立缺失改善"
+                        type="object"
+                        class="btn-warning"
+                        invisible="not has_defect or state == 'draft'"/>
+            </button>
+
+            <!-- 在 sheet 增加按鈕盒子 -->
+            <div class="oe_title" position="before">
+                <div class="oe_button_box" name="button_box">
+                    <button name="action_view_defect_improvements"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-exclamation-circle"
+                            invisible="defect_improvement_count == 0">
+                        <field name="defect_improvement_count" widget="statinfo" string="缺失改善"/>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 在檢查項目 tree 增加缺失改善關聯欄位 -->
+            <field name="defect_id" position="after">
+                <field name="defect_improvement_id"
+                       invisible="check_result != 'defect'"
+                       optional="hide"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

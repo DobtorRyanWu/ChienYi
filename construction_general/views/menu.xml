@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 一般式工程主選單 -->
+    <menuitem id="menu_general_root"
+              name="一般式工程"
+              web_icon="construction_general,static/description/icon.png"
+              sequence="25"/>
+
+    <!-- 一般式工程 - 缺失管理 -->
+    <menuitem id="menu_general_defect"
+              name="缺失管理"
+              parent="menu_general_root"
+              sequence="10"/>
+
+    <!-- 一般式缺失改善 -->
+    <menuitem id="menu_general_defect_improvement"
+              name="缺失改善"
+              parent="menu_general_defect"
+              action="action_general_defect_improvement"
+              sequence="10"/>
+
+    <!-- 逾期缺失 -->
+    <menuitem id="menu_general_defect_improvement_overdue"
+              name="逾期缺失"
+              parent="menu_general_defect"
+              action="action_general_defect_improvement_overdue"
+              sequence="20"/>
+
+    <!-- 一般式工程 - 進度管理 -->
+    <menuitem id="menu_general_progress"
+              name="進度管理"
+              parent="menu_general_root"
+              sequence="20"/>
+
+    <!-- 進度報告 -->
+    <menuitem id="menu_general_progress_report"
+              name="進度報告"
+              parent="menu_general_progress"
+              action="action_general_progress_report"
+              sequence="10"/>
+
+    <!-- 一般式工程 - 財務管理 -->
+    <menuitem id="menu_general_finance"
+              name="財務管理"
+              parent="menu_general_root"
+              sequence="30"/>
+
+    <!-- 即時損益 -->
+    <menuitem id="menu_general_realtime_profit"
+              name="即時損益"
+              parent="menu_general_finance"
+              action="action_general_realtime_profit"
+              sequence="10"/>
+
+</odoo>

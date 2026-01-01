@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 主選單                                          -->
+    <!-- ============================================== -->
+    <menuitem id="menu_construction_supervision_root"
+              name="工程監造"
+              sequence="50"
+              web_icon="construction_supervision_base,static/description/icon.png"/>
+
+    <!-- ============================================== -->
+    <!-- 工程管理                                        -->
+    <!-- ============================================== -->
+    <menuitem id="menu_project_management"
+              name="工程管理"
+              parent="menu_construction_supervision_root"
+              sequence="10"/>
+
+    <menuitem id="menu_supervision_project"
+              name="工程案件"
+              parent="menu_project_management"
+              action="action_supervision_project"
+              sequence="10"/>
+
+    <menuitem id="menu_supervision_task"
+              name="契約工項"
+              parent="menu_project_management"
+              action="action_supervision_task"
+              sequence="20"/>
+
+    <!-- ============================================== -->
+    <!-- 文件管理                                        -->
+    <!-- ============================================== -->
+    <menuitem id="menu_document_management"
+              name="文件管理"
+              parent="menu_construction_supervision_root"
+              sequence="20"/>
+
+    <menuitem id="menu_supervision_document"
+              name="工程文件"
+              parent="menu_document_management"
+              action="action_supervision_document"
+              sequence="10"/>
+
+    <menuitem id="menu_supervision_document_to_review"
+              name="待審查文件"
+              parent="menu_document_management"
+              action="action_supervision_document_to_review"
+              sequence="20"
+              groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
+
+    <!-- ============================================== -->
+    <!-- 報表 (預留)                                     -->
+    <!-- ============================================== -->
+    <menuitem id="menu_reports"
+              name="報表"
+              parent="menu_construction_supervision_root"
+              sequence="80"
+              groups="construction_supervision_base.group_supervision_manager"/>
+
+    <!-- ============================================== -->
+    <!-- 設定                                           -->
+    <!-- ============================================== -->
+    <menuitem id="menu_configuration"
+              name="設定"
+              parent="menu_construction_supervision_root"
+              sequence="90"
+              groups="construction_supervision_base.group_supervisor_admin"/>
+
+</odoo>

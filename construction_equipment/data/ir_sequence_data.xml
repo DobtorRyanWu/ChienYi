@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 機具設備序列 -->
+    <record id="seq_supervision_equipment" model="ir.sequence">
+        <field name="name">機具設備</field>
+        <field name="code">supervision.equipment</field>
+        <field name="prefix">EQP-</field>
+        <field name="padding">5</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+    <!-- 維護請求序列 -->
+    <record id="seq_supervision_equipment_request" model="ir.sequence">
+        <field name="name">設備維護請求</field>
+        <field name="code">supervision.equipment.request</field>
+        <field name="prefix">MR-%(year)s%(month)s-</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+    </record>
+
+</odoo>

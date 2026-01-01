@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 一般式即時損益 Tree View -->
+    <record id="view_general_realtime_profit_tree" model="ir.ui.view">
+        <field name="name">general.realtime.profit.tree</field>
+        <field name="model">general.realtime.profit</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'approved'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="report_type"/>
+                <field name="report_date"/>
+                <field name="total_contract_amount" sum="契約總額"/>
+                <field name="estimated_revenue" sum="累計估驗"/>
+                <field name="total_cost" sum="累計成本"/>
+                <field name="gross_profit" sum="毛利"/>
+                <field name="gross_profit_rate"
+                       decoration-success="gross_profit_rate >= 15"
+                       decoration-info="gross_profit_rate >= 5 and gross_profit_rate &lt; 15"
+                       decoration-warning="gross_profit_rate >= 0 and gross_profit_rate &lt; 5"
+                       decoration-danger="gross_profit_rate &lt; 0"/>
+                <field name="profit_status"
+                       decoration-success="profit_status == 'good'"
+                       decoration-info="profit_status == 'normal'"
+                       decoration-warning="profit_status == 'warning'"
+                       decoration-danger="profit_status == 'critical'"
+                       widget="badge"/>
+                <field name="state"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'submitted'"
+                       decoration-primary="state == 'reviewed'"
+                       decoration-success="state == 'approved'"
+                       widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 一般式即時損益 Form View -->
+    <record id="view_general_realtime_profit_form" model="ir.ui.view">
+        <field name="name">general.realtime.profit.form</field>
+        <field name="model">general.realtime.profit</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_sync_from_project"
+                            string="同步工程資料"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_create_cost_lines"
+                            string="建立成本類別"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or cost_line_ids"/>
+                    <button name="action_submit"
+                            string="提交"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_review"
+                            string="審核"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'submitted'"
+                            groups="construction_general.group_general_manager"/>
+                    <button name="action_approve"
+                            string="核准"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'reviewed'"
+                            groups="construction_general.group_general_manager"/>
+                    <button name="action_return"
+                            string="退回"
+                            type="object"
+                            class="btn-warning"
+                            invisible="state not in ('submitted', 'reviewed')"
+                            groups="construction_general.group_general_manager"/>
+                    <button name="action_reset_draft"
+                            string="重設"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'submitted'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,reviewed,approved"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="警示" bg_color="text-bg-warning"
+                            invisible="profit_status != 'warning'"/>
+                    <widget name="web_ribbon" title="危險" bg_color="text-bg-danger"
+                            invisible="profit_status != 'critical'"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="工程資訊">
+                            <field name="project_id"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="report_type"/>
+                        </group>
+                        <group string="報告期間">
+                            <field name="report_date"/>
+                            <field name="period_start"/>
+                            <field name="period_end"/>
+                        </group>
+                    </group>
+
+                    <!-- 關鍵指標儀表板 -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">調整後契約金額</h6>
+                                    <h4><field name="total_contract_amount" widget="monetary"/></h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">累計估驗金額</h6>
+                                    <h4><field name="estimated_revenue" widget="monetary"/></h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">累計總成本</h6>
+                                    <h4><field name="total_cost" widget="monetary"/></h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card" t-attf-class="card #{gross_profit >= 0 ? 'bg-success text-white' : 'bg-danger text-white'}">
+                                <div class="card-body text-center">
+                                    <h6 class="card-title">毛利</h6>
+                                    <h4><field name="gross_profit" widget="monetary"/></h4>
+                                    <small>毛利率: <field name="gross_profit_rate"/>%</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <group>
+                        <group string="契約資訊">
+                            <field name="contract_amount"/>
+                            <field name="change_order_amount"/>
+                            <field name="total_contract_amount"/>
+                        </group>
+                        <group string="進度資訊">
+                            <field name="actual_progress"/>
+                            <field name="cost_progress"/>
+                            <field name="profit_status"
+                                   decoration-success="profit_status == 'good'"
+                                   decoration-info="profit_status == 'normal'"
+                                   decoration-warning="profit_status == 'warning'"
+                                   decoration-danger="profit_status == 'critical'"
+                                   widget="badge"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="報告人">
+                            <field name="reporter_id"/>
+                        </group>
+                        <group string="審核人">
+                            <field name="reviewer_id"/>
+                            <field name="review_date"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="收入" name="revenue">
+                            <group>
+                                <group string="累計收入">
+                                    <field name="estimated_revenue"/>
+                                    <field name="received_revenue"/>
+                                    <field name="receivable_amount"/>
+                                </group>
+                                <group string="本期收入">
+                                    <field name="period_estimated_revenue"/>
+                                    <field name="period_received_revenue"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="成本明細" name="costs">
+                            <field name="cost_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="cost_type"/>
+                                    <field name="description"/>
+                                    <field name="budget_amount" sum="預算總計"/>
+                                    <field name="prev_amount" sum="前期總計"/>
+                                    <field name="period_amount" sum="本期總計"/>
+                                    <field name="cumulative_amount" sum="累計總計"/>
+                                    <field name="remaining_budget" sum="剩餘預算"/>
+                                    <field name="budget_usage_rate"
+                                           decoration-success="budget_usage_rate &lt; 80"
+                                           decoration-warning="budget_usage_rate >= 80 and budget_usage_rate &lt; 100"
+                                           decoration-danger="budget_usage_rate >= 100"
+                                           widget="progressbar"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                            <group>
+                                <group string="累計成本彙總">
+                                    <field name="total_labor_cost"/>
+                                    <field name="total_material_cost"/>
+                                    <field name="total_equipment_cost"/>
+                                    <field name="total_subcontract_cost"/>
+                                    <field name="total_indirect_cost"/>
+                                    <field name="total_other_cost"/>
+                                    <field name="total_cost" class="oe_subtotal_footer_separator"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="損益分析" name="profit">
+                            <group>
+                                <group string="即時損益">
+                                    <field name="gross_profit"/>
+                                    <field name="gross_profit_rate"/>
+                                    <field name="net_cash_flow"/>
+                                </group>
+                                <group string="預估完工損益">
+                                    <field name="estimated_final_revenue"/>
+                                    <field name="estimated_final_cost"/>
+                                    <field name="estimated_final_profit"/>
+                                    <field name="estimated_final_profit_rate"/>
+                                </group>
+                            </group>
+                            <group string="損益分析摘要">
+                                <field name="analysis_summary" nolabel="1"/>
+                            </group>
+                        </page>
+                        <page string="風險與改善" name="risk">
+                            <group string="成本差異說明">
+                                <field name="cost_variance_note" nolabel="1"/>
+                            </group>
+                            <group string="風險說明">
+                                <field name="risk_description" nolabel="1"/>
+                            </group>
+                            <group string="改善計畫">
+                                <field name="improvement_plan" nolabel="1"/>
+                            </group>
+                        </page>
+                        <page string="附件" name="attachments">
+                            <group string="相關附件">
+                                <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+                            </group>
+                        </page>
+                        <page string="審核" name="review">
+                            <group string="審核意見">
+                                <field name="review_comment" nolabel="1"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 一般式即時損益 Search View -->
+    <record id="view_general_realtime_profit_search" model="ir.ui.view">
+        <field name="name">general.realtime.profit.search</field>
+        <field name="model">general.realtime.profit</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="reporter_id"/>
+                <separator/>
+                <filter string="草稿" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已提交" name="submitted"
+                        domain="[('state', '=', 'submitted')]"/>
+                <filter string="已審核" name="reviewed"
+                        domain="[('state', '=', 'reviewed')]"/>
+                <filter string="已核准" name="approved"
+                        domain="[('state', '=', 'approved')]"/>
+                <separator/>
+                <filter string="月報" name="monthly"
+                        domain="[('report_type', '=', 'monthly')]"/>
+                <filter string="季報" name="quarterly"
+                        domain="[('report_type', '=', 'quarterly')]"/>
+                <separator/>
+                <filter string="獲利良好" name="good"
+                        domain="[('profit_status', '=', 'good')]"/>
+                <filter string="需注意" name="warning"
+                        domain="[('profit_status', 'in', ('warning', 'critical'))]"/>
+                <separator/>
+                <filter string="本月" name="this_month"
+                        domain="[('report_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="報告類型" name="group_type"
+                            context="{'group_by': 'report_type'}"/>
+                    <filter string="獲利狀態" name="group_profit"
+                            context="{'group_by': 'profit_status'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="報告日期" name="group_date"
+                            context="{'group_by': 'report_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 一般式即時損益 Pivot View -->
+    <record id="view_general_realtime_profit_pivot" model="ir.ui.view">
+        <field name="name">general.realtime.profit.pivot</field>
+        <field name="model">general.realtime.profit</field>
+        <field name="arch" type="xml">
+            <pivot string="即時損益分析">
+                <field name="project_id" type="row"/>
+                <field name="report_date" type="col" interval="month"/>
+                <field name="estimated_revenue" type="measure"/>
+                <field name="total_cost" type="measure"/>
+                <field name="gross_profit" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- 一般式即時損益 Graph View -->
+    <record id="view_general_realtime_profit_graph" model="ir.ui.view">
+        <field name="name">general.realtime.profit.graph</field>
+        <field name="model">general.realtime.profit</field>
+        <field name="arch" type="xml">
+            <graph string="損益趨勢" type="line">
+                <field name="report_date" type="row"/>
+                <field name="gross_profit" type="measure"/>
+                <field name="gross_profit_rate" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- 一般式即時損益 Action -->
+    <record id="action_general_realtime_profit" model="ir.actions.act_window">
+        <field name="name">即時損益</field>
+        <field name="res_model">general.realtime.profit</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+        <field name="search_view_id" ref="view_general_realtime_profit_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一份損益報告
+            </p>
+            <p>
+                追蹤工程的即時損益狀況，包含收入、成本與毛利分析。
+            </p>
+        </field>
+    </record>
+
+</odoo>

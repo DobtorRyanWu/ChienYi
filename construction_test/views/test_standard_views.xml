@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 檢試驗項目 Tree View -->
+    <record id="view_test_standard_tree" model="ir.ui.view">
+        <field name="name">supervision.test.standard.tree</field>
+        <field name="model">supervision.test.standard</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="material"/>
+                <field name="unit"/>
+                <field name="standard"/>
+                <field name="test_record_count"/>
+                <field name="total_in_site_quantity" sum="總進場"/>
+                <field name="total_sample_quantity" sum="總取樣"/>
+                <field name="overall_sample_rate"
+                       decoration-success="overall_sample_rate >= 100"
+                       decoration-warning="overall_sample_rate >= 80 and overall_sample_rate &lt; 100"
+                       decoration-danger="overall_sample_rate &lt; 80"
+                       widget="progressbar"/>
+                <field name="pass_rate"
+                       decoration-success="pass_rate >= 95"
+                       decoration-warning="pass_rate >= 80 and pass_rate &lt; 95"
+                       decoration-danger="pass_rate &lt; 80"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 檢試驗項目 Form View -->
+    <record id="view_test_standard_form" model="ir.ui.view">
+        <field name="name">supervision.test.standard.form</field>
+        <field name="model">supervision.test.standard</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_test_records"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-flask">
+                            <field name="test_record_count" widget="statinfo" string="檢驗記錄"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="輸入項目名稱..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id"/>
+                            <field name="material"/>
+                            <field name="unit"/>
+                            <field name="sequence"/>
+                            <field name="active" invisible="1"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="檢驗規範">
+                            <field name="describe" placeholder="依據之方法..."/>
+                            <field name="norm" placeholder="規範之要求..."/>
+                            <field name="standard" placeholder="頻率及下限..."/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="取樣規則">
+                            <field name="sampling_size"/>
+                            <field name="sampling_conditions" placeholder="檢驗頻率條件..."/>
+                        </group>
+                        <group string="統計資訊">
+                            <field name="total_in_site_quantity"/>
+                            <field name="total_sample_quantity"/>
+                            <field name="overall_sample_rate" widget="progressbar"/>
+                            <field name="pass_count"/>
+                            <field name="fail_count"/>
+                            <field name="pass_rate" widget="progressbar"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="關聯契約工項" name="tasks">
+                            <field name="task_ids">
+                                <list>
+                                    <field name="item_no"/>
+                                    <field name="name"/>
+                                    <field name="unit"/>
+                                    <field name="planned_qty"/>
+                                    <field name="actual_qty"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="檢驗記錄" name="records">
+                            <field name="test_record_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="in_site_date"/>
+                                    <field name="in_site_quantity"/>
+                                    <field name="in_site_sum_quantity"/>
+                                    <field name="sample_date"/>
+                                    <field name="sample_quantity"/>
+                                    <field name="sample_sum_quantity"/>
+                                    <field name="sample_rate"/>
+                                    <field name="result"
+                                           decoration-success="result == 'pass'"
+                                           decoration-danger="result == 'fail'"
+                                           decoration-warning="result == 'pending'"
+                                           widget="badge"/>
+                                    <field name="state"
+                                           decoration-info="state == 'draft'"
+                                           decoration-primary="state == 'sampled'"
+                                           decoration-success="state in ('tested', 'archived')"
+                                           widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="note" placeholder="輸入備註說明..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 檢試驗項目 Search View -->
+    <record id="view_test_standard_search" model="ir.ui.view">
+        <field name="name">supervision.test.standard.search</field>
+        <field name="model">supervision.test.standard</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="material"/>
+                <separator/>
+                <filter string="有檢驗記錄" name="has_records"
+                        domain="[('test_record_count', '>', 0)]"/>
+                <filter string="無檢驗記錄" name="no_records"
+                        domain="[('test_record_count', '=', 0)]"/>
+                <separator/>
+                <filter string="取樣率不足" name="low_sample_rate"
+                        domain="[('overall_sample_rate', '&lt;', 100)]"/>
+                <filter string="有不合格" name="has_fail"
+                        domain="[('fail_count', '>', 0)]"/>
+                <separator/>
+                <filter string="已停用" name="inactive"
+                        domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="材料" name="group_material"
+                            context="{'group_by': 'material'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 檢試驗項目 Kanban View -->
+    <record id="view_test_standard_kanban" model="ir.ui.view">
+        <field name="name">supervision.test.standard.kanban</field>
+        <field name="model">supervision.test.standard</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="material"/>
+                <field name="test_record_count"/>
+                <field name="overall_sample_rate"/>
+                <field name="pass_rate"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_content">
+                            <div class="o_kanban_record_title">
+                                <strong><field name="name"/></strong>
+                            </div>
+                            <div class="o_kanban_record_subtitle">
+                                <field name="project_id"/>
+                            </div>
+                            <div class="o_kanban_record_body">
+                                <div><strong>材料:</strong> <field name="material"/></div>
+                                <div><strong>檢驗次數:</strong> <field name="test_record_count"/></div>
+                                <div>
+                                    <strong>取樣率:</strong>
+                                    <field name="overall_sample_rate" widget="progressbar"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- 檢試驗項目 Action -->
+    <record id="action_test_standard" model="ir.actions.act_window">
+        <field name="name">檢試驗項目管理</field>
+        <field name="res_model">supervision.test.standard</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_test_standard_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一個檢試驗項目
+            </p>
+            <p>
+                檢試驗項目用於定義工程材料的檢驗標準、規範和取樣規則。
+            </p>
+        </field>
+    </record>
+
+</odoo>

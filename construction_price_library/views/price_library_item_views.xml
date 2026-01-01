@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 價格庫項目 - 列表視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_price_library_item_tree" model="ir.ui.view">
+        <field name="name">price.library.item.tree</field>
+        <field name="model">price.library.item</field>
+        <field name="arch" type="xml">
+            <list string="價格庫項目" multi_edit="1">
+                <field name="item_no"/>
+                <field name="name"/>
+                <field name="category_id"/>
+                <field name="specification"/>
+                <field name="unit"/>
+                <field name="unit_price" sum="總計"/>
+                <field name="price_date"/>
+                <field name="price_source" optional="hide"/>
+                <field name="material_cost" optional="hide"/>
+                <field name="labor_cost" optional="hide"/>
+                <field name="equipment_cost" optional="hide"/>
+                <field name="overhead_cost" optional="hide"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格庫項目 - 表單視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_price_library_item_form" model="ir.ui.view">
+        <field name="name">price.library.item.form</field>
+        <field name="model">price.library.item</field>
+        <field name="arch" type="xml">
+            <form string="價格庫項目">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_history"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-history">
+                            <field name="history_count" widget="statinfo" string="歷史記錄"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="項目名稱..."/>
+                        </h1>
+                        <div class="o_row">
+                            <label for="item_no"/>
+                            <field name="item_no" placeholder="項目編號"/>
+                        </div>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="category_id"/>
+                            <field name="unit"/>
+                            <field name="specification"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="價格資訊">
+                            <field name="unit_price"/>
+                            <field name="price_date"/>
+                            <field name="price_source"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="成本組成" name="cost_breakdown">
+                            <group>
+                                <group string="成本明細">
+                                    <field name="material_cost"/>
+                                    <field name="labor_cost"/>
+                                    <field name="equipment_cost"/>
+                                    <field name="overhead_cost"/>
+                                </group>
+                                <group string="合計">
+                                    <field name="cost_breakdown_total"/>
+                                    <field name="has_cost_breakdown" invisible="1"/>
+                                    <div colspan="2" invisible="not has_cost_breakdown">
+                                        <span class="text-muted">
+                                            成本組成合計應等於單價
+                                        </span>
+                                    </div>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="說明" name="description">
+                            <field name="description" nolabel="1"
+                                   placeholder="輸入項目詳細說明..."/>
+                        </page>
+                        <page string="價格歷史" name="history">
+                            <field name="history_ids">
+                                <list string="價格歷史" editable="bottom">
+                                    <field name="change_date"/>
+                                    <field name="old_price"/>
+                                    <field name="new_price"/>
+                                    <field name="price_change"/>
+                                    <field name="price_change_rate" widget="percentage"/>
+                                    <field name="change_reason"/>
+                                    <field name="user_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格庫項目 - 搜尋視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_price_library_item_search" model="ir.ui.view">
+        <field name="name">price.library.item.search</field>
+        <field name="model">price.library.item</field>
+        <field name="arch" type="xml">
+            <search string="搜尋價格庫項目">
+                <field name="name" string="名稱/編號"
+                       filter_domain="['|', ('name', 'ilike', self), ('item_no', 'ilike', self)]"/>
+                <field name="item_no"/>
+                <field name="category_id"/>
+                <field name="unit"/>
+                <field name="specification"/>
+                <field name="price_source"/>
+                <separator/>
+                <filter name="filter_active" string="啟用中" domain="[('active', '=', True)]"/>
+                <filter name="filter_inactive" string="已停用" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter name="filter_has_cost_breakdown" string="有成本組成"
+                        domain="[('has_cost_breakdown', '=', True)]"/>
+                <filter name="filter_no_cost_breakdown" string="無成本組成"
+                        domain="[('has_cost_breakdown', '=', False)]"/>
+                <separator/>
+                <filter name="filter_price_updated_this_month" string="本月更新"
+                        domain="[('price_date', '&gt;=', (context_today()-relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter name="group_by_category" string="分類"
+                            context="{'group_by': 'category_id'}"/>
+                    <filter name="group_by_unit" string="單位"
+                            context="{'group_by': 'unit'}"/>
+                    <filter name="group_by_price_date" string="價格日期"
+                            context="{'group_by': 'price_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格庫項目 - 看板視圖                           -->
+    <!-- ============================================== -->
+    <record id="view_price_library_item_kanban" model="ir.ui.view">
+        <field name="name">price.library.item.kanban</field>
+        <field name="model">price.library.item</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile">
+                <field name="name"/>
+                <field name="item_no"/>
+                <field name="category_id"/>
+                <field name="unit"/>
+                <field name="unit_price"/>
+                <field name="price_date"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="row mb-2">
+                            <div class="col-8">
+                                <strong>
+                                    <field name="name"/>
+                                </strong>
+                            </div>
+                            <div class="col-4 text-end">
+                                <span class="badge bg-primary">
+                                    <field name="unit_price"/> /
+                                    <field name="unit"/>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <span class="text-muted">
+                                    <field name="item_no"/>
+                                </span>
+                            </div>
+                            <div class="col-6 text-end">
+                                <field name="category_id"/>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格庫項目 - 動作                               -->
+    <!-- ============================================== -->
+    <record id="action_price_library_item" model="ir.actions.act_window">
+        <field name="name">價格庫項目</field>
+        <field name="res_model">price.library.item</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_price_library_item_search"/>
+        <field name="context">{
+            'search_default_filter_active': 1,
+            'search_default_group_by_category': 1
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一個價格庫項目
+            </p>
+            <p>
+                價格庫項目記錄標準工項的單價資訊，可用於快速匯入契約工項。
+                支援成本組成明細和價格變更歷史追蹤。
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格變更歷史 - 列表視圖                         -->
+    <!-- ============================================== -->
+    <record id="view_price_library_item_history_tree" model="ir.ui.view">
+        <field name="name">price.library.item.history.tree</field>
+        <field name="model">price.library.item.history</field>
+        <field name="arch" type="xml">
+            <list string="價格變更歷史" create="false" edit="false">
+                <field name="change_date"/>
+                <field name="item_id"/>
+                <field name="item_no"/>
+                <field name="category_id"/>
+                <field name="old_price"/>
+                <field name="new_price"/>
+                <field name="price_change" decoration-success="price_change &lt; 0"
+                       decoration-danger="price_change &gt; 0"/>
+                <field name="price_change_rate" widget="percentage"
+                       decoration-success="price_change_rate &lt; 0"
+                       decoration-danger="price_change_rate &gt; 0"/>
+                <field name="change_reason"/>
+                <field name="user_id"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格變更歷史 - 表單視圖                         -->
+    <!-- ============================================== -->
+    <record id="view_price_library_item_history_form" model="ir.ui.view">
+        <field name="name">price.library.item.history.form</field>
+        <field name="model">price.library.item.history</field>
+        <field name="arch" type="xml">
+            <form string="價格變更歷史" create="false" edit="false">
+                <sheet>
+                    <group>
+                        <group string="項目資訊">
+                            <field name="item_id"/>
+                            <field name="item_no"/>
+                            <field name="category_id"/>
+                        </group>
+                        <group string="變更資訊">
+                            <field name="change_date"/>
+                            <field name="user_id"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="價格變更">
+                            <field name="old_price"/>
+                            <field name="new_price"/>
+                            <field name="price_change"/>
+                            <field name="price_change_rate" widget="percentage"/>
+                        </group>
+                        <group string="說明">
+                            <field name="change_reason"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格變更歷史 - 搜尋視圖                         -->
+    <!-- ============================================== -->
+    <record id="view_price_library_item_history_search" model="ir.ui.view">
+        <field name="name">price.library.item.history.search</field>
+        <field name="model">price.library.item.history</field>
+        <field name="arch" type="xml">
+            <search string="搜尋價格變更歷史">
+                <field name="item_id"/>
+                <field name="item_no"/>
+                <field name="category_id"/>
+                <field name="change_reason"/>
+                <separator/>
+                <filter name="filter_price_increase" string="漲價"
+                        domain="[('price_change', '&gt;', 0)]"/>
+                <filter name="filter_price_decrease" string="降價"
+                        domain="[('price_change', '&lt;', 0)]"/>
+                <separator/>
+                <filter name="filter_this_month" string="本月"
+                        domain="[('change_date', '&gt;=', (context_today()-relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <filter name="filter_this_year" string="今年"
+                        domain="[('change_date', '&gt;=', context_today().strftime('%Y-01-01'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter name="group_by_item" string="項目"
+                            context="{'group_by': 'item_id'}"/>
+                    <filter name="group_by_category" string="分類"
+                            context="{'group_by': 'category_id'}"/>
+                    <filter name="group_by_date" string="變更日期"
+                            context="{'group_by': 'change_date:month'}"/>
+                    <filter name="group_by_user" string="操作者"
+                            context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 價格變更歷史 - 動作                             -->
+    <!-- ============================================== -->
+    <record id="action_price_library_item_history" model="ir.actions.act_window">
+        <field name="name">價格變更歷史</field>
+        <field name="res_model">price.library.item.history</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_price_library_item_history_search"/>
+        <field name="context">{'search_default_group_by_date': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無價格變更記錄
+            </p>
+            <p>
+                當價格庫項目的單價變更時，系統會自動記錄歷史。
+            </p>
+        </field>
+    </record>
+
+</odoo>

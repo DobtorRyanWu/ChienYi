@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ==================== -->
+    <!-- 施工日誌人機記錄視圖  -->
+    <!-- ==================== -->
+
+    <!-- Form View -->
+    <record id="view_daily_log_man_machine_form" model="ir.ui.view">
+        <field name="name">daily.log.man.machine.form</field>
+        <field name="model">daily.log.man.machine</field>
+        <field name="arch" type="xml">
+            <form string="人機記錄">
+                <sheet>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="daily_log_id"/>
+                            <field name="project_id" readonly="1"/>
+                            <field name="date" readonly="1"/>
+                            <field name="record_type" widget="radio"/>
+                        </group>
+                    </group>
+                    <group invisible="record_type != 'personnel'" string="人員資訊">
+                        <group>
+                            <field name="personnel_type"
+                                   required="record_type == 'personnel'"/>
+                            <field name="personnel_count"/>
+                        </group>
+                        <group>
+                            <field name="work_hours"/>
+                            <field name="total_man_hours" readonly="1"/>
+                        </group>
+                    </group>
+                    <group invisible="record_type != 'equipment'" string="機具資訊">
+                        <group>
+                            <field name="equipment_id"/>
+                            <field name="equipment_name"
+                                   required="record_type == 'equipment' and not equipment_id"/>
+                            <field name="equipment_capacity"/>
+                        </group>
+                        <group>
+                            <field name="equipment_count"/>
+                            <field name="equipment_hours"/>
+                            <field name="total_equipment_hours" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="operator_name"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="note" placeholder="備註..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- List View -->
+    <record id="view_daily_log_man_machine_list" model="ir.ui.view">
+        <field name="name">daily.log.man.machine.list</field>
+        <field name="model">daily.log.man.machine</field>
+        <field name="arch" type="xml">
+            <list string="人機記錄" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="record_type"/>
+                <field name="personnel_type" invisible="record_type != 'personnel'"/>
+                <field name="personnel_count" invisible="record_type != 'personnel'"
+                       sum="總人數"/>
+                <field name="work_hours" invisible="record_type != 'personnel'"/>
+                <field name="total_man_hours" invisible="record_type != 'personnel'"
+                       sum="總人時"/>
+                <field name="equipment_id" invisible="record_type != 'equipment'"/>
+                <field name="equipment_name" invisible="record_type != 'equipment' or equipment_id"/>
+                <field name="equipment_capacity" invisible="record_type != 'equipment'"
+                       optional="hide"/>
+                <field name="equipment_count" invisible="record_type != 'equipment'"
+                       sum="總數量"/>
+                <field name="equipment_hours" invisible="record_type != 'equipment'"
+                       sum="總時數"/>
+                <field name="total_equipment_hours" invisible="record_type != 'equipment'"
+                       sum="總機時"/>
+                <field name="operator_name" optional="hide"/>
+                <field name="note" optional="hide"/>
+                <field name="daily_log_id" column_invisible="True"/>
+                <field name="project_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- List View for Embedded in Daily Log Sheet -->
+    <record id="view_daily_log_man_machine_list_embedded" model="ir.ui.view">
+        <field name="name">daily.log.man.machine.list.embedded</field>
+        <field name="model">daily.log.man.machine</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <list string="人機記錄" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="record_type"/>
+                <field name="personnel_type" invisible="record_type != 'personnel'"
+                       required="record_type == 'personnel'"/>
+                <field name="personnel_count" invisible="record_type != 'personnel'"
+                       sum="總人數"/>
+                <field name="work_hours" invisible="record_type != 'personnel'"/>
+                <field name="total_man_hours" invisible="record_type != 'personnel'"
+                       sum="總人時" readonly="1"/>
+                <field name="equipment_id" invisible="record_type != 'equipment'"
+                       domain="[('project_id', '=', parent.project_id)]"/>
+                <field name="equipment_name" invisible="record_type != 'equipment' or equipment_id"
+                       required="record_type == 'equipment' and not equipment_id"/>
+                <field name="equipment_capacity" invisible="record_type != 'equipment'"
+                       optional="hide"/>
+                <field name="equipment_count" invisible="record_type != 'equipment'"
+                       sum="總數量"/>
+                <field name="equipment_hours" invisible="record_type != 'equipment'"
+                       sum="總時數"/>
+                <field name="total_equipment_hours" invisible="record_type != 'equipment'"
+                       sum="總機時" readonly="1"/>
+                <field name="operator_name" invisible="record_type != 'equipment'"
+                       optional="hide"/>
+                <field name="note" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_daily_log_man_machine_search" model="ir.ui.view">
+        <field name="name">daily.log.man.machine.search</field>
+        <field name="model">daily.log.man.machine</field>
+        <field name="arch" type="xml">
+            <search string="搜尋人機記錄">
+                <field name="daily_log_id"/>
+                <field name="project_id"/>
+                <field name="equipment_id"/>
+                <field name="equipment_name"/>
+                <separator/>
+                <filter string="人員" name="personnel"
+                        domain="[('record_type', '=', 'personnel')]"/>
+                <filter string="機具" name="equipment"
+                        domain="[('record_type', '=', 'equipment')]"/>
+                <separator/>
+                <filter string="本月" name="this_month"
+                        domain="[('date', '>=', (context_today()).strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="施工日誌" name="group_daily_log"
+                            context="{'group_by': 'daily_log_id'}"/>
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="記錄類型" name="group_type"
+                            context="{'group_by': 'record_type'}"/>
+                    <filter string="人員類型" name="group_personnel_type"
+                            context="{'group_by': 'personnel_type'}"/>
+                    <filter string="設備" name="group_equipment"
+                            context="{'group_by': 'equipment_id'}"/>
+                    <filter string="日期" name="group_date"
+                            context="{'group_by': 'date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_daily_log_man_machine" model="ir.actions.act_window">
+        <field name="name">人機記錄</field>
+        <field name="res_model">daily.log.man.machine</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_daily_log_man_machine_search"/>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無人機記錄
+            </p>
+            <p>
+                人機記錄用於記錄施工日誌中的人員出工與機具使用情況。
+                請透過施工日誌表單新增記錄。
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: 人員統計 -->
+    <record id="action_daily_log_man_machine_personnel" model="ir.actions.act_window">
+        <field name="name">人員出工統計</field>
+        <field name="res_model">daily.log.man.machine</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('record_type', '=', 'personnel')]</field>
+        <field name="context">{'search_default_group_personnel_type': 1}</field>
+    </record>
+
+    <!-- Action: 機具統計 -->
+    <record id="action_daily_log_man_machine_equipment" model="ir.actions.act_window">
+        <field name="name">機具使用統計</field>
+        <field name="res_model">daily.log.man.machine</field>
+        <field name="view_mode">list</field>
+        <field name="domain">[('record_type', '=', 'equipment')]</field>
+        <field name="context">{'search_default_group_equipment': 1}</field>
+    </record>
+
+</odoo>

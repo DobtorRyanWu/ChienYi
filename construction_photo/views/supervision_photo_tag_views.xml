@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 照片標籤 Tree View                              -->
+    <!-- ============================================== -->
+    <record id="supervision_photo_tag_view_tree" model="ir.ui.view">
+        <field name="name">supervision.photo.tag.view.tree</field>
+        <field name="model">supervision.photo.tag</field>
+        <field name="arch" type="xml">
+            <list string="照片標籤" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="color" widget="color_picker"/>
+                <field name="photo_count"/>
+                <field name="note"/>
+                <field name="active" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 照片標籤 Form View                              -->
+    <!-- ============================================== -->
+    <record id="supervision_photo_tag_view_form" model="ir.ui.view">
+        <field name="name">supervision.photo.tag.view.form</field>
+        <field name="model">supervision.photo.tag</field>
+        <field name="arch" type="xml">
+            <form string="照片標籤">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="%(supervision_photo_action)d"
+                                type="action"
+                                class="oe_stat_button"
+                                icon="fa-picture-o"
+                                context="{'search_default_tag_ids': active_id}">
+                            <field name="photo_count" widget="statinfo" string="照片"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="color" widget="color_picker"/>
+                        </group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="note" placeholder="標籤用途說明..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 照片標籤 Kanban View                            -->
+    <!-- ============================================== -->
+    <record id="supervision_photo_tag_view_kanban" model="ir.ui.view">
+        <field name="name">supervision.photo.tag.view.kanban</field>
+        <field name="model">supervision.photo.tag</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile">
+                <field name="name"/>
+                <field name="color"/>
+                <field name="photo_count"/>
+                <templates>
+                    <t t-name="card">
+                        <field name="name" class="fw-bold fs-5"/>
+                        <field name="photo_count" string="照片數"/>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 照片標籤 Search View                            -->
+    <!-- ============================================== -->
+    <record id="supervision_photo_tag_view_search" model="ir.ui.view">
+        <field name="name">supervision.photo.tag.view.search</field>
+        <field name="model">supervision.photo.tag</field>
+        <field name="arch" type="xml">
+            <search string="搜尋照片標籤">
+                <field name="name"/>
+                <field name="note"/>
+                <separator/>
+                <filter string="已停用" name="inactive" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="有照片" name="has_photos" domain="[('photo_count', '>', 0)]"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 照片標籤 Action                                 -->
+    <!-- ============================================== -->
+    <record id="supervision_photo_tag_action" model="ir.actions.act_window">
+        <field name="name">照片標籤</field>
+        <field name="res_model">supervision.photo.tag</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="supervision_photo_tag_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一個照片標籤
+            </p>
+            <p>
+                照片標籤用於分類工程照片，便於查詢和管理。
+            </p>
+        </field>
+    </record>
+
+</odoo>

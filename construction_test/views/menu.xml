@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 檢試驗管理主選單 -->
+    <menuitem id="menu_test_management_root"
+              name="檢試驗管理"
+              parent="construction_supervision_base.menu_supervision_root"
+              sequence="50"/>
+
+    <!-- 檢試驗項目管理 -->
+    <menuitem id="menu_test_standard"
+              name="檢試驗項目管理"
+              parent="menu_test_management_root"
+              action="action_test_standard"
+              sequence="10"/>
+
+    <!-- 檢(試)驗管制記錄 -->
+    <menuitem id="menu_test_record"
+              name="檢(試)驗管制記錄"
+              parent="menu_test_management_root"
+              action="action_test_record"
+              sequence="20"/>
+
+    <!-- 設定子選單 -->
+    <menuitem id="menu_test_config"
+              name="設定"
+              parent="menu_test_management_root"
+              sequence="100"
+              groups="group_test_manager"/>
+
+</odoo>

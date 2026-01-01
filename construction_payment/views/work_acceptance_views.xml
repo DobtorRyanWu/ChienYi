@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ===================== -->
+    <!-- Work Acceptance Views -->
+    <!-- ===================== -->
+
+    <!-- Tree View -->
+    <record id="view_work_acceptance_tree" model="ir.ui.view">
+        <field name="name">work.acceptance.tree</field>
+        <field name="model">work.acceptance</field>
+        <field name="arch" type="xml">
+            <list string="工項驗收單" decoration-info="state == 'draft'"
+                  decoration-warning="state == 'pending_fix'"
+                  decoration-success="state == 'accepted'"
+                  decoration-danger="state == 'rejected'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="contractor_company_id"/>
+                <field name="acceptance_date"/>
+                <field name="acceptance_type"/>
+                <field name="acceptor_id"/>
+                <field name="total_accepted_amount" sum="Total"/>
+                <field name="has_defect"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state in ('inspecting', 'pending_fix')"
+                       decoration-success="state == 'accepted'"
+                       decoration-danger="state == 'rejected'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_work_acceptance_form" model="ir.ui.view">
+        <field name="name">work.acceptance.form</field>
+        <field name="model">work.acceptance</field>
+        <field name="arch" type="xml">
+            <form string="工項驗收單">
+                <header>
+                    <button name="action_start_inspection"
+                            string="開始檢驗"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_accept"
+                            string="驗收通過"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state not in ('inspecting', 'pending_fix')"/>
+                    <button name="action_request_fix"
+                            string="要求改善"
+                            type="object"
+                            class="btn-warning"
+                            invisible="state != 'inspecting'"/>
+                    <button name="action_reject"
+                            string="退回"
+                            type="object"
+                            class="btn-danger"
+                            invisible="state not in ('inspecting', 'pending_fix')"/>
+                    <button name="action_reset_to_draft"
+                            string="重設為草稿"
+                            type="object"
+                            invisible="state not in ('rejected', 'pending_fix')"
+                            groups="base.group_system"/>
+                    <button name="action_create_estimate"
+                            string="建立估驗計價"
+                            type="object"
+                            class="btn-success"
+                            invisible="state != 'accepted'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,inspecting,accepted"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <!-- Defect count stat button - visible when has defects -->
+                        <button class="oe_stat_button"
+                                icon="fa-warning"
+                                invisible="defect_count == 0">
+                            <field name="defect_count" widget="statinfo" string="缺失數"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"/>
+                            <field name="contractor_company_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"/>
+                            <field name="acceptance_date"/>
+                            <field name="acceptance_type"/>
+                        </group>
+                        <group string="驗收人員">
+                            <field name="acceptor_id"/>
+                            <field name="witness_ids" widget="many2many_tags"/>
+                            <field name="has_defect" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="驗收明細" name="lines">
+                            <field name="line_ids">
+                                <list string="驗收明細" editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="task_id"
+                                           options="{'no_create': True}"
+                                           domain="[('project_id', '=', parent.project_id)]"/>
+                                    <field name="item_no" optional="show"/>
+                                    <field name="description" optional="hide"/>
+                                    <field name="unit"/>
+                                    <field name="contract_qty"/>
+                                    <field name="previous_accepted_qty"/>
+                                    <field name="completed_qty"/>
+                                    <field name="accepted_qty"/>
+                                    <field name="remaining_qty"/>
+                                    <field name="unit_price"/>
+                                    <field name="accepted_amount" sum="Total"/>
+                                    <field name="acceptance_result" widget="badge"
+                                           decoration-success="acceptance_result == 'pass'"
+                                           decoration-warning="acceptance_result == 'conditional'"
+                                           decoration-danger="acceptance_result == 'fail'"/>
+                                    <field name="defect_description" optional="hide"/>
+                                    <field name="note" optional="hide"/>
+                                </list>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="currency_id" invisible="1"/>
+                                <field name="total_contract_amount"/>
+                                <field name="total_accepted_amount" class="oe_subtotal_footer_separator"/>
+                            </group>
+                        </page>
+                        <page string="附件" name="attachments">
+                            <field name="attachment_ids" widget="many2many_binary"/>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="note" placeholder="輸入備註..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_work_acceptance_search" model="ir.ui.view">
+        <field name="name">work.acceptance.search</field>
+        <field name="model">work.acceptance</field>
+        <field name="arch" type="xml">
+            <search string="工項驗收單">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="contractor_company_id"/>
+                <field name="acceptor_id"/>
+                <separator/>
+                <filter string="草稿" name="filter_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="檢驗中" name="filter_inspecting" domain="[('state', '=', 'inspecting')]"/>
+                <filter string="待改善" name="filter_pending_fix" domain="[('state', '=', 'pending_fix')]"/>
+                <filter string="已驗收" name="filter_accepted" domain="[('state', '=', 'accepted')]"/>
+                <filter string="退回" name="filter_rejected" domain="[('state', '=', 'rejected')]"/>
+                <separator/>
+                <filter string="有缺失" name="filter_has_defect" domain="[('has_defect', '=', True)]"/>
+                <filter string="部分驗收" name="filter_partial" domain="[('acceptance_type', '=', 'partial')]"/>
+                <filter string="完工驗收" name="filter_final" domain="[('acceptance_type', '=', 'final')]"/>
+                <separator/>
+                <filter string="本月" name="filter_this_month"
+                        domain="[('acceptance_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('acceptance_date', '&lt;', (context_today() + relativedelta(months=1, day=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="施工廠商" name="group_contractor" context="{'group_by': 'contractor_company_id'}"/>
+                    <filter string="驗收類型" name="group_type" context="{'group_by': 'acceptance_type'}"/>
+                    <filter string="狀態" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="驗收日期" name="group_date" context="{'group_by': 'acceptance_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Calendar View -->
+    <record id="view_work_acceptance_calendar" model="ir.ui.view">
+        <field name="name">work.acceptance.calendar</field>
+        <field name="model">work.acceptance</field>
+        <field name="arch" type="xml">
+            <calendar string="工項驗收" date_start="acceptance_date" color="state" quick_create="0">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="contractor_company_id"/>
+                <field name="state"/>
+            </calendar>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_work_acceptance" model="ir.actions.act_window">
+        <field name="name">工項驗收</field>
+        <field name="res_model">work.acceptance</field>
+        <field name="view_mode">list,form,calendar</field>
+        <field name="search_view_id" ref="view_work_acceptance_search"/>
+        <field name="context">{'search_default_filter_draft': 0}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立工項驗收單
+            </p>
+            <p>
+                工項驗收單用於監造單位驗收施工廠商完成的工項，
+                驗收通過後可進行估驗計價。
+            </p>
+        </field>
+    </record>
+
+</odoo>

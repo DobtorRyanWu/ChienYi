@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+    Security configuration for Construction Daily Log module.
+    Uses groups defined in construction_supervision_base module.
+-->
+<odoo>
+    <data noupdate="1">
+
+        <!-- ===================================================================
+             Record Rules - Multi-Company Isolation for Daily Log
+             =================================================================== -->
+
+        <!-- Daily Log Sheet: Contractor can only see own company sheets -->
+        <record id="rule_daily_log_sheet_contractor" model="ir.rule">
+            <field name="name">施工日誌: 廠商只能存取自己公司的日誌</field>
+            <field name="model_id" ref="model_daily_log_sheet"/>
+            <field name="domain_force">[('company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- Daily Log Sheet: Supervision can see all sheets for review -->
+        <record id="rule_daily_log_sheet_supervision" model="ir.rule">
+            <field name="name">施工日誌: 監造單位可審核所有日誌</field>
+            <field name="model_id" ref="model_daily_log_sheet"/>
+            <field name="domain_force">[('project_id.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Daily Log Sheet: Admin full access -->
+        <record id="rule_daily_log_sheet_admin" model="ir.rule">
+            <field name="name">施工日誌: 管理者完整存取</field>
+            <field name="model_id" ref="model_daily_log_sheet"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+        </record>
+
+        <!-- Daily Log Line: Contractor isolation -->
+        <record id="rule_daily_log_line_contractor" model="ir.rule">
+            <field name="name">施工日誌明細: 廠商只能存取自己公司的明細</field>
+            <field name="model_id" ref="model_daily_log_line"/>
+            <field name="domain_force">[('company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
+        </record>
+
+        <!-- Daily Log Line: Supervision access -->
+        <record id="rule_daily_log_line_supervision" model="ir.rule">
+            <field name="name">施工日誌明細: 監造單位可檢視</field>
+            <field name="model_id" ref="model_daily_log_line"/>
+            <field name="domain_force">[('sheet_id.project_id.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Daily Log Line: Admin full access -->
+        <record id="rule_daily_log_line_admin" model="ir.rule">
+            <field name="name">施工日誌明細: 管理者完整存取</field>
+            <field name="model_id" ref="model_daily_log_line"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+        </record>
+
+        <!-- Daily Log Weather: Contractor isolation -->
+        <record id="rule_daily_log_weather_contractor" model="ir.rule">
+            <field name="name">施工日誌天氣: 廠商只能存取自己公司的天氣記錄</field>
+            <field name="model_id" ref="model_daily_log_weather"/>
+            <field name="domain_force">[('company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
+        </record>
+
+        <!-- Daily Log Weather: Supervision access -->
+        <record id="rule_daily_log_weather_supervision" model="ir.rule">
+            <field name="name">施工日誌天氣: 監造單位可檢視</field>
+            <field name="model_id" ref="model_daily_log_weather"/>
+            <field name="domain_force">[('sheet_id.project_id.company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Daily Log Weather: Admin full access -->
+        <record id="rule_daily_log_weather_admin" model="ir.rule">
+            <field name="name">施工日誌天氣: 管理者完整存取</field>
+            <field name="model_id" ref="model_daily_log_weather"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+        </record>
+
+    </data>
+
+    <data noupdate="0">
+
+    <!-- ===================================================================
+         Message Subtypes for Tracking
+         =================================================================== -->
+
+    <record id="mt_daily_log_confirmed" model="mail.message.subtype">
+        <field name="name">Daily Log Submitted</field>
+        <field name="res_model">daily.log.sheet</field>
+        <field name="description">Daily log submitted for review</field>
+        <field name="default" eval="False"/>
+        <field name="hidden" eval="False"/>
+    </record>
+
+    <record id="mt_daily_log_approved" model="mail.message.subtype">
+        <field name="name">Daily Log Approved</field>
+        <field name="res_model">daily.log.sheet</field>
+        <field name="description">Daily log approved</field>
+        <field name="default" eval="False"/>
+        <field name="hidden" eval="False"/>
+    </record>
+
+</odoo>

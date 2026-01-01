@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ====================================== -->
+    <!-- Construction Payment Menu Structure    -->
+    <!-- ====================================== -->
+
+    <!-- Main Menu: Payment & Claims -->
+    <menuitem id="menu_construction_payment_root"
+              name="計價與請款"
+              sequence="40"
+              groups="construction_supervision_base.group_construction_user"/>
+
+    <!-- ======== Estimate Section ======== -->
+    <menuitem id="menu_payment_estimate"
+              name="估驗計價"
+              parent="menu_construction_payment_root"
+              sequence="10"/>
+
+    <menuitem id="menu_payment_estimate_list"
+              name="估驗計價單"
+              parent="menu_payment_estimate"
+              action="action_payment_estimate"
+              sequence="10"/>
+
+    <menuitem id="menu_payment_estimate_pending"
+              name="待審核估驗"
+              parent="menu_payment_estimate"
+              action="action_payment_estimate_pending"
+              sequence="20"
+              groups="construction_supervision_base.group_supervision_engineer"/>
+
+    <!-- ======== Acceptance Section ======== -->
+    <menuitem id="menu_work_acceptance"
+              name="驗收管理"
+              parent="menu_construction_payment_root"
+              sequence="20"/>
+
+    <menuitem id="menu_work_acceptance_list"
+              name="工項驗收單"
+              parent="menu_work_acceptance"
+              action="action_work_acceptance"
+              sequence="10"/>
+
+    <!-- ======== Claim Section ======== -->
+    <menuitem id="menu_payment_claim"
+              name="請款管理"
+              parent="menu_construction_payment_root"
+              sequence="30"/>
+
+    <menuitem id="menu_payment_claim_list"
+              name="所有請款單"
+              parent="menu_payment_claim"
+              action="action_payment_claim"
+              sequence="10"/>
+
+    <menuitem id="menu_payment_claim_service_fee"
+              name="服務費請款"
+              parent="menu_payment_claim"
+              action="action_payment_claim_service_fee"
+              sequence="20"
+              groups="construction_supervision_base.group_supervision_manager"/>
+
+    <menuitem id="menu_payment_claim_construction"
+              name="工程款請款"
+              parent="menu_payment_claim"
+              action="action_payment_claim_construction"
+              sequence="30"/>
+
+    <menuitem id="menu_payment_claim_pending"
+              name="待處理請款"
+              parent="menu_payment_claim"
+              action="action_payment_claim_pending"
+              sequence="40"
+              groups="construction_supervision_base.group_supervision_manager"/>
+
+    <!-- ======== Reports Section ======== -->
+    <menuitem id="menu_payment_reports"
+              name="報表分析"
+              parent="menu_construction_payment_root"
+              sequence="90"
+              groups="construction_supervision_base.group_supervision_manager"/>
+
+</odoo>

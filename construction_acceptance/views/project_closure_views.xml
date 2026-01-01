@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================ -->
+    <!-- Project Closure Views                       -->
+    <!-- ============================================ -->
+
+    <!-- Tree View -->
+    <record id="view_project_closure_tree" model="ir.ui.view">
+        <field name="name">project.closure.tree</field>
+        <field name="model">project.closure</field>
+        <field name="arch" type="xml">
+            <list string="結案處理" decoration-muted="state == 'cancelled'">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="closure_date"/>
+                <field name="final_amount" optional="show"/>
+                <field name="warranty_end_date" optional="show"/>
+                <field name="warranty_status" widget="badge"
+                       decoration-success="warranty_status == 'active'"
+                       decoration-warning="warranty_status == 'expired'"
+                       optional="show"/>
+                <field name="retention_released" optional="show"/>
+                <field name="document_complete_rate" widget="progressbar" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-primary="state == 'pending_document'"
+                       decoration-warning="state in ('pending_review', 'reviewed')"
+                       decoration-success="state in ('approved', 'closed')"
+                       decoration-danger="state == 'cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_project_closure_form" model="ir.ui.view">
+        <field name="name">project.closure.form</field>
+        <field name="model">project.closure</field>
+        <field name="arch" type="xml">
+            <form string="結案處理">
+                <header>
+                    <button name="action_start_document_check" string="開始文件檢核" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_submit_review" string="提交審核" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'pending_document'"/>
+                    <button name="action_review" string="審核通過" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'pending_review'"/>
+                    <button name="action_approve" string="核定" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'reviewed'"/>
+                    <button name="action_close" string="完成結案" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'approved'"/>
+                    <button name="action_release_retention" string="退還保留款" type="object"
+                            invisible="state != 'closed' or retention_released or warranty_status != 'expired'"/>
+                    <button name="action_return_revision" string="退回修正" type="object"
+                            invisible="state not in ('pending_review', 'reviewed')"/>
+                    <button name="action_cancel" string="取消" type="object"
+                            invisible="state in ('approved', 'closed', 'cancelled')"/>
+                    <button name="action_reset_draft" string="重設為草稿" type="object"
+                            invisible="state not in ('pending_document', 'cancelled')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,pending_document,pending_review,reviewed,approved,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id"/>
+                            <field name="final_acceptance_id"/>
+                            <field name="acceptance_date"/>
+                            <field name="certificate_no"/>
+                            <field name="closure_date"/>
+                            <field name="authority_id"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="結算金額">
+                            <field name="contract_amount"/>
+                            <field name="final_amount"/>
+                            <field name="amount_variance"/>
+                            <field name="amount_variance_rate"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="工期統計">
+                            <field name="contract_start_date"/>
+                            <field name="contract_end_date"/>
+                            <field name="contract_duration"/>
+                            <field name="actual_start_date"/>
+                            <field name="actual_end_date"/>
+                            <field name="actual_duration"/>
+                            <field name="duration_variance"/>
+                            <field name="is_delayed"/>
+                        </group>
+                        <group string="保固管理">
+                            <field name="warranty_start_date"/>
+                            <field name="warranty_period_months"/>
+                            <field name="warranty_end_date"/>
+                            <field name="warranty_status" widget="badge"
+                                   decoration-success="warranty_status == 'active'"
+                                   decoration-warning="warranty_status == 'expired'"/>
+                            <field name="days_to_warranty_end"
+                                   invisible="warranty_status != 'active'"/>
+                            <field name="warranty_bond_amount"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="保留款">
+                            <field name="retention_amount"/>
+                            <field name="retention_released"/>
+                            <field name="retention_release_date"
+                                   invisible="not retention_released"/>
+                            <field name="retention_release_amount"
+                                   invisible="not retention_released"/>
+                            <field name="retention_note"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="文件檢核" name="documents">
+                            <field name="document_checklist_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="document_type"/>
+                                    <field name="name"/>
+                                    <field name="is_required"/>
+                                    <field name="is_received"/>
+                                    <field name="received_date"/>
+                                    <field name="receiver_id"/>
+                                    <field name="attachment_id"/>
+                                    <field name="note" optional="hide"/>
+                                </list>
+                            </field>
+                            <group>
+                                <group>
+                                    <field name="document_complete"/>
+                                    <field name="document_complete_rate" widget="progressbar"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="績效總結" name="performance">
+                            <group>
+                                <group>
+                                    <field name="performance_score"/>
+                                </group>
+                            </group>
+                            <field name="performance_summary" placeholder="工程績效總結..."/>
+                        </page>
+                        <page string="經驗教訓" name="lessons">
+                            <field name="lessons_learned" placeholder="記錄此工程的經驗教訓，供未來參考..."/>
+                        </page>
+                        <page string="附件" name="attachments">
+                            <field name="attachment_ids" widget="many2many_binary"/>
+                        </page>
+                        <page string="審核資訊" name="review"
+                              invisible="state == 'draft'">
+                            <group>
+                                <group string="審核">
+                                    <field name="reviewer_id"/>
+                                    <field name="review_date"/>
+                                </group>
+                                <group string="核定">
+                                    <field name="approver_id"/>
+                                    <field name="approve_date"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                    <group string="備註">
+                        <field name="note" nolabel="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_project_closure_search" model="ir.ui.view">
+        <field name="name">project.closure.search</field>
+        <field name="model">project.closure</field>
+        <field name="arch" type="xml">
+            <search string="搜尋結案處理">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="certificate_no"/>
+                <separator/>
+                <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="待文件" name="pending_document" domain="[('state', '=', 'pending_document')]"/>
+                <filter string="待審核" name="pending_review" domain="[('state', '=', 'pending_review')]"/>
+                <filter string="已核定" name="approved" domain="[('state', '=', 'approved')]"/>
+                <filter string="已結案" name="closed" domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter string="保固中" name="warranty_active" domain="[('warranty_status', '=', 'active')]"/>
+                <filter string="保固已到期" name="warranty_expired" domain="[('warranty_status', '=', 'expired')]"/>
+                <separator/>
+                <filter string="保留款未退還" name="retention_pending" domain="[('retention_released', '=', False), ('retention_amount', '>', 0)]"/>
+                <filter string="保留款已退還" name="retention_released" domain="[('retention_released', '=', True)]"/>
+                <separator/>
+                <filter string="工期延遲" name="delayed" domain="[('is_delayed', '=', True)]"/>
+                <filter string="文件齊全" name="doc_complete" domain="[('document_complete', '=', True)]"/>
+                <filter string="文件不齊" name="doc_incomplete" domain="[('document_complete', '=', False)]"/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_by_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="狀態" name="group_by_state" context="{'group_by': 'state'}"/>
+                    <filter string="保固狀態" name="group_by_warranty" context="{'group_by': 'warranty_status'}"/>
+                    <filter string="結案月份" name="group_by_month" context="{'group_by': 'closure_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_project_closure" model="ir.actions.act_window">
+        <field name="name">結案處理</field>
+        <field name="res_model">project.closure</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_project_closure_search"/>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆結案記錄
+            </p>
+            <p>
+                結案處理是驗收合格後的收尾程序，包含文件檢核、保固管理和保留款退還。
+            </p>
+        </field>
+    </record>
+
+    <!-- Action: Warranty Active -->
+    <record id="action_project_closure_warranty" model="ir.actions.act_window">
+        <field name="name">保固中工程</field>
+        <field name="res_model">project.closure</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_project_closure_search"/>
+        <field name="domain">[('warranty_status', '=', 'active'), ('state', '=', 'closed')]</field>
+    </record>
+
+    <!-- Action: Pending Retention Release -->
+    <record id="action_project_closure_retention" model="ir.actions.act_window">
+        <field name="name">待退保留款</field>
+        <field name="res_model">project.closure</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_project_closure_search"/>
+        <field name="domain">[('retention_released', '=', False), ('retention_amount', '>', 0), ('warranty_status', '=', 'expired')]</field>
+    </record>
+
+</odoo>

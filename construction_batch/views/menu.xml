@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo>
+
+    <!-- ===================================================================
+         Menu Structure for Batch Download
+         =================================================================== -->
+
+    <!-- 在施工日誌選單下新增批次下載 -->
+    <menuitem id="menu_daily_log_batch_download"
+              name="批次下載"
+              parent="construction_daily_log.menu_daily_log_root"
+              action="action_batch_download_wizard"
+              sequence="50"/>
+
+    <!-- 在計價管理選單下新增批次下載 (報表分析區塊) -->
+    <menuitem id="menu_payment_batch_download"
+              name="批次下載"
+              parent="construction_payment.menu_payment_reports"
+              action="action_batch_download_wizard"
+              sequence="10"/>
+
+</odoo>

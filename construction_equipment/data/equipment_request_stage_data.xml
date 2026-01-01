@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 維護請求階段預設資料 (參考 maintenance.stage) -->
+
+        <record id="stage_new" model="supervision.equipment.request.stage">
+            <field name="name">新建立</field>
+            <field name="sequence">1</field>
+            <field name="fold">False</field>
+            <field name="done">False</field>
+        </record>
+
+        <record id="stage_in_progress" model="supervision.equipment.request.stage">
+            <field name="name">處理中</field>
+            <field name="sequence">10</field>
+            <field name="fold">False</field>
+            <field name="done">False</field>
+        </record>
+
+        <record id="stage_waiting_parts" model="supervision.equipment.request.stage">
+            <field name="name">等待零件</field>
+            <field name="sequence">20</field>
+            <field name="fold">False</field>
+            <field name="done">False</field>
+        </record>
+
+        <record id="stage_testing" model="supervision.equipment.request.stage">
+            <field name="name">測試中</field>
+            <field name="sequence">30</field>
+            <field name="fold">False</field>
+            <field name="done">False</field>
+        </record>
+
+        <record id="stage_done" model="supervision.equipment.request.stage">
+            <field name="name">已完成</field>
+            <field name="sequence">100</field>
+            <field name="fold">True</field>
+            <field name="done">True</field>
+        </record>
+
+        <record id="stage_cancelled" model="supervision.equipment.request.stage">
+            <field name="name">已取消</field>
+            <field name="sequence">110</field>
+            <field name="fold">True</field>
+            <field name="done">False</field>
+        </record>
+
+    </data>
+</odoo>

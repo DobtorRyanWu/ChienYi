@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================ -->
+    <!-- Supervision Project View Extension          -->
+    <!-- ============================================ -->
+
+    <!-- Extend Project Form View -->
+    <record id="view_supervision_project_form_acceptance" model="ir.ui.view">
+        <field name="name">supervision.project.form.acceptance</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
+        <field name="arch" type="xml">
+            <!-- Add acceptance buttons to button_box -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_preliminary_acceptances" type="object"
+                        class="oe_stat_button" icon="fa-check-square-o"
+                        invisible="preliminary_acceptance_count == 0">
+                    <field name="preliminary_acceptance_count" widget="statinfo" string="初驗"/>
+                </button>
+                <button name="action_view_final_acceptances" type="object"
+                        class="oe_stat_button" icon="fa-check-circle"
+                        invisible="final_acceptance_count == 0">
+                    <field name="final_acceptance_count" widget="statinfo" string="正驗"/>
+                </button>
+                <button name="action_view_acceptance_defects" type="object"
+                        class="oe_stat_button" icon="fa-exclamation-triangle"
+                        invisible="acceptance_defect_count == 0">
+                    <field name="acceptance_defect_count" widget="statinfo" string="驗收缺失"/>
+                </button>
+                <button name="action_view_closure" type="object"
+                        class="oe_stat_button" icon="fa-archive"
+                        invisible="not closure_id">
+                    <span class="o_stat_text">結案</span>
+                </button>
+            </xpath>
+
+            <!-- Add create preliminary acceptance button in header -->
+            <xpath expr="//header" position="inside">
+                <button name="action_create_preliminary_acceptance" string="建立初驗" type="object"
+                        invisible="state not in ('completion', 'acceptance')"/>
+            </xpath>
+
+            <!-- Add warranty info to project form -->
+            <xpath expr="//notebook" position="inside">
+                <page string="驗收與結案" name="acceptance"
+                      invisible="state not in ('completion', 'acceptance', 'closed')">
+                    <group>
+                        <group string="驗收統計">
+                            <field name="preliminary_acceptance_count"/>
+                            <field name="final_acceptance_count"/>
+                            <field name="acceptance_defect_count"/>
+                            <field name="unresolved_defect_count"/>
+                        </group>
+                        <group string="結案與保固">
+                            <field name="is_closed"/>
+                            <field name="closure_id" invisible="not closure_id"/>
+                            <field name="warranty_end_date" invisible="not warranty_end_date"/>
+                            <field name="warranty_status" widget="badge"
+                                   decoration-success="warranty_status == 'active'"
+                                   decoration-warning="warranty_status == 'expired'"
+                                   invisible="warranty_status == 'none'"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Extend Project Tree View -->
+    <record id="view_supervision_project_tree_acceptance" model="ir.ui.view">
+        <field name="name">supervision.project.tree.acceptance</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='state']" position="after">
+                <field name="warranty_status" widget="badge"
+                       decoration-success="warranty_status == 'active'"
+                       decoration-warning="warranty_status == 'expired'"
+                       optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Extend Project Search View -->
+    <record id="view_supervision_project_search_acceptance" model="ir.ui.view">
+        <field name="name">supervision.project.search.acceptance</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter string="已結案" name="is_closed" domain="[('is_closed', '=', True)]"/>
+                <filter string="保固中" name="warranty_active" domain="[('warranty_status', '=', 'active')]"/>
+                <filter string="保固已到期" name="warranty_expired" domain="[('warranty_status', '=', 'expired')]"/>
+                <filter string="有未解決缺失" name="has_defects" domain="[('unresolved_defect_count', '>', 0)]"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

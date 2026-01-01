@@ -1,0 +1,47 @@
+# -*- coding: utf-8 -*-
+# Copyright 2024-2025 Engineering Supervision System
+# License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+{
+    "name": "工程監造系統 - 施工日誌",
+    "version": "18.0.1.0.0",
+    "category": "Construction/Supervision",
+    "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
+    "description": """
+施工日誌模組
+============
+
+此模組提供施工日誌管理功能，參考 hr_timesheet_sheet 的 Sheet 聚合模式設計。
+
+主要功能
+--------
+* 施工日誌表單 (daily.log.sheet) - 聚合多日日誌
+* 施工日誌明細 (daily.log.line) - 繼承 account.analytic.line
+* 每日天氣紀錄 (daily.log.weather)
+* 四態工作流程：新建 -> 草稿 -> 待審核 -> 已核准
+* 多公司資料隔離 (施工廠商只能看自己公司的日誌)
+* 與 hr_timesheet 整合
+
+參考設計
+--------
+* hr_timesheet_sheet: Sheet 聚合模式 + 審核流程
+* account.analytic.line: 工時表行整合
+    """,
+    "author": "Engineering Supervision System",
+    "website": "https://github.com/engineering-supervision",
+    "license": "LGPL-3",
+    "depends": [
+        "construction_supervision_base",
+        "hr_timesheet",
+    ],
+    "data": [
+        "security/security.xml",
+        "security/ir.model.access.csv",
+        "views/daily_log_views.xml",
+        "views/menu.xml",
+    ],
+    "installable": True,
+    "auto_install": False,
+    "application": False,
+    "sequence": 10,
+}
