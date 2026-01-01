@@ -31,7 +31,6 @@ class PaymentClaim(models.Model):
         '所屬工程',
         required=True,
         tracking=True,
-        states={'draft': [('readonly', False)]},
         readonly=True,
         index=True
     )
@@ -44,7 +43,6 @@ class PaymentClaim(models.Model):
         default=lambda self: self.env.company,
         tracking=True,
         help='提出請款的公司（設計監造或施工廠商）',
-        states={'draft': [('readonly', False)]},
         readonly=True
     )
 

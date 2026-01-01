@@ -47,8 +47,14 @@ class DailyLogSheet(models.Model):
         tracking=True,
         domain="[('company_id', '=', company_id)]",
     )
+    supervision_project_id = fields.Many2one(
+        'supervision.project',
+        string='Supervision Project',
+        compute='_compute_supervision_project_id',
+        store=True,
+    )
     project_type = fields.Selection(
-        related='project_id.project_type',
+        related='supervision_project_id.project_type',
         string='Project Type',
         store=True,
         readonly=True,
@@ -74,9 +80,9 @@ class DailyLogSheet(models.Model):
 
     # Reservation type specific
     notification_slip_id = fields.Many2one(
-        'notification.slip',
+        'reservation.notification.slip',
         string='Notification Slip',
-        domain="[('project_id', '=', project_id)]",
+        domain="[('project_id', '=', supervision_project_id)]",
         help='For reservation type projects',
     )
 
@@ -218,6 +224,19 @@ class DailyLogSheet(models.Model):
     # -------------------------------------------------------------------------
     # Compute Methods
     # -------------------------------------------------------------------------
+
+    @api.depends('project_id')
+    def _compute_supervision_project_id(self):
+        """Find the supervision project linked to this project"""
+        SupervisionProject = self.env['supervision.project']
+        for sheet in self:
+            if sheet.project_id:
+                supervision = SupervisionProject.search([
+                    ('project_id', '=', sheet.project_id.id)
+                ], limit=1)
+                sheet.supervision_project_id = supervision
+            else:
+                sheet.supervision_project_id = False
 
     @api.depends('date_start', 'date_end')
     def _compute_name(self):

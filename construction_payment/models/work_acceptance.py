@@ -31,7 +31,6 @@ class WorkAcceptance(models.Model):
         '所屬工程',
         required=True,
         tracking=True,
-        states={'draft': [('readonly', False)]},
         readonly=True
     )
 
@@ -43,7 +42,6 @@ class WorkAcceptance(models.Model):
         tracking=True,
         domain="[('company_type', '=', 'contractor')]",
         help='被驗收的施工廠商',
-        states={'draft': [('readonly', False)]},
         readonly=True
     )
 

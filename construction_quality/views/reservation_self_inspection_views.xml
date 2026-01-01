@@ -148,7 +148,7 @@
                 <filter string="有缺失" name="has_defect"
                         domain="[('has_defect', '=', True)]"/>
                 <separator/>
-                <group expand="0" string="群組">
+                <group expand="0" string="群組" name="groupby">
                     <filter string="通報單" name="group_slip"
                             context="{'group_by': 'slip_id'}"/>
                     <filter string="工程" name="group_project"

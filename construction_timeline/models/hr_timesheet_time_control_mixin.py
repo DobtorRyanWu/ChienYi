@@ -144,7 +144,7 @@ class HrTimesheetTimeControlMixin(models.AbstractModel):
             'type': 'ir.actions.act_window',
             'name': '執行中工時',
             'res_model': 'account.analytic.line',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': self._get_running_timesheet_domain(),
             'context': {'default_' + self._relation_with_timesheet_line(): self.id},
         }

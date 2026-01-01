@@ -37,7 +37,6 @@ class ProjectClosure(models.Model):
         required=True,
         tracking=True,
         index=True,
-        states={'draft': [('readonly', False)]},
         readonly=True,
         domain="[('state', '=', 'acceptance')]")
 
@@ -60,7 +59,6 @@ class ProjectClosure(models.Model):
         required=True,
         tracking=True,
         domain="[('project_id', '=', project_id), ('is_pass', '=', True), ('state', 'in', ['approved', 'closed'])]",
-        states={'draft': [('readonly', False)]},
         readonly=True)
 
     acceptance_date = fields.Date(
@@ -204,21 +202,29 @@ class ProjectClosure(models.Model):
 
     days_to_warranty_end = fields.Integer(
         string='距保固到期(日)',
-        compute='_compute_warranty_status')
+        compute='_compute_days_to_warranty_end')
 
     @api.depends('warranty_end_date')
     def _compute_warranty_status(self):
+        """計算保固狀態 (stored)"""
         today = fields.Date.today()
         for record in self:
             if record.warranty_end_date:
                 if today <= record.warranty_end_date:
                     record.warranty_status = 'active'
-                    record.days_to_warranty_end = (record.warranty_end_date - today).days
                 else:
                     record.warranty_status = 'expired'
-                    record.days_to_warranty_end = 0
             else:
                 record.warranty_status = False
+
+    @api.depends('warranty_end_date')
+    def _compute_days_to_warranty_end(self):
+        """計算距保固到期天數 (non-stored)"""
+        today = fields.Date.today()
+        for record in self:
+            if record.warranty_end_date and today <= record.warranty_end_date:
+                record.days_to_warranty_end = (record.warranty_end_date - today).days
+            else:
                 record.days_to_warranty_end = 0
 
     # === 保留款管理 ===

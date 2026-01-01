@@ -187,7 +187,7 @@ class PartnerTechnicalContact(models.Model):
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 指派專案',
             'res_model': 'supervision.project',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('id', 'in', self.assigned_project_ids.ids)],
         }
 

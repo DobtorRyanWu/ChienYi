@@ -1,27 +1,12 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-# =============================================
-# 價格庫分類 (price.library.category)
-# =============================================
 access_price_library_category_manager,price.library.category manager,model_price_library_category,group_price_library_manager,1,1,1,1
 access_price_library_category_editor,price.library.category editor,model_price_library_category,group_price_library_editor,1,1,1,0
 access_price_library_category_viewer,price.library.category viewer,model_price_library_category,group_price_library_viewer,1,0,0,0
-
-# =============================================
-# 價格庫項目 (price.library.item)
-# =============================================
 access_price_library_item_manager,price.library.item manager,model_price_library_item,group_price_library_manager,1,1,1,1
 access_price_library_item_editor,price.library.item editor,model_price_library_item,group_price_library_editor,1,1,1,0
 access_price_library_item_viewer,price.library.item viewer,model_price_library_item,group_price_library_viewer,1,0,0,0
-
-# =============================================
-# 價格變更歷史 (price.library.item.history)
-# =============================================
 access_price_library_item_history_manager,price.library.item.history manager,model_price_library_item_history,group_price_library_manager,1,1,1,1
 access_price_library_item_history_editor,price.library.item.history editor,model_price_library_item_history,group_price_library_editor,1,1,1,0
 access_price_library_item_history_viewer,price.library.item.history viewer,model_price_library_item_history,group_price_library_viewer,1,0,0,0
-
-# =============================================
-# 價格庫匯入精靈 (price.library.import.wizard)
-# =============================================
 access_price_library_import_wizard_manager,price.library.import.wizard manager,model_price_library_import_wizard,group_price_library_manager,1,1,1,1
 access_price_library_import_wizard_editor,price.library.import.wizard editor,model_price_library_import_wizard,group_price_library_editor,1,1,1,1

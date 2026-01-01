@@ -125,4 +125,5 @@
         <field name="hidden" eval="False"/>
     </record>
 
+    </data>
 </odoo>

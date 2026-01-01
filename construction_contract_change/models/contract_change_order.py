@@ -468,7 +468,7 @@ class ContractChangeOrder(models.Model):
             'type': 'ir.actions.act_window',
             'name': '變更明細',
             'res_model': 'contract.change.order.line',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('change_order_id', '=', self.id)],
             'context': {
                 'default_change_order_id': self.id,

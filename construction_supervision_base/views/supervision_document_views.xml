@@ -224,7 +224,7 @@
                                 <div class="oe_kanban_bottom_left">
                                     <t t-if="record.attachment_count.raw_value > 0">
                                         <span class="badge text-bg-secondary">
-                                            <i class="fa fa-paperclip"/> <field name="attachment_count"/>
+                                            <i class="fa fa-paperclip" title="附件"/> <field name="attachment_count"/>
                                         </span>
                                     </t>
                                 </div>

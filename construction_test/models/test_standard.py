@@ -206,7 +206,7 @@ class TestStandard(models.Model):
             'type': 'ir.actions.act_window',
             'name': '檢驗記錄',
             'res_model': 'supervision.test.record',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('standard_id', '=', self.id)],
             'context': {
                 'default_standard_id': self.id,

@@ -47,6 +47,7 @@
         'views/project_task_views.xml',
         'views/supervision_document_views.xml',
         'views/menu.xml',
+        'views/hide_official_menus.xml',
     ],
     'demo': [],
     'installable': True,

@@ -79,7 +79,7 @@ class ResCompany(models.Model):
             'type': 'ir.actions.act_window',
             'name': '管理的專案',
             'res_model': 'supervision.project',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('company_id', '=', self.id)],
             'context': {'default_company_id': self.id},
         }
@@ -91,7 +91,7 @@ class ResCompany(models.Model):
             'type': 'ir.actions.act_window',
             'name': '承包的專案',
             'res_model': 'supervision.project',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('contractor_company_ids', 'in', [self.id])],
         }
 

@@ -6,20 +6,20 @@
 <odoo>
 
     <!-- ===================================================================
-         Menu Structure for Batch Download
+         批次下載選單
          =================================================================== -->
 
-    <!-- 在施工日誌選單下新增批次下載 -->
+    <!-- 施工日誌批次下載 (歸屬於 施工執行 > 施工日誌) -->
     <menuitem id="menu_daily_log_batch_download"
               name="批次下載"
-              parent="construction_daily_log.menu_daily_log_root"
+              parent="construction_supervision_base.menu_daily_log"
               action="action_batch_download_wizard"
               sequence="50"/>
 
-    <!-- 在計價管理選單下新增批次下載 (報表分析區塊) -->
+    <!-- 報表下載 (歸屬於 計價請款 > 報表下載) -->
     <menuitem id="menu_payment_batch_download"
               name="批次下載"
-              parent="construction_payment.menu_payment_reports"
+              parent="construction_supervision_base.menu_report_download"
               action="action_batch_download_wizard"
               sequence="10"/>
 

@@ -24,18 +24,20 @@
                 </button>
             </xpath>
 
-            <!-- Add schedule progress info to the progress status group -->
-            <xpath expr="//group[@string='進度狀態']" position="after">
-                <group string="進度表進度" invisible="not active_schedule_id">
-                    <field name="schedule_planned_progress" widget="progressbar"/>
-                    <field name="schedule_actual_progress" widget="progressbar"/>
-                    <field name="schedule_variance"/>
-                    <field name="schedule_variance_status" widget="badge"
-                           decoration-success="schedule_variance_status == 'ahead'"
-                           decoration-warning="schedule_variance_status == 'on_track'"
-                           decoration-danger="schedule_variance_status == 'delayed'"/>
-                    <field name="active_schedule_id" readonly="1"
-                           options="{'no_open': False}"/>
+            <!-- Add schedule progress info before notebook -->
+            <xpath expr="//notebook" position="before">
+                <group invisible="not active_schedule_id">
+                    <group string="進度表進度">
+                        <field name="schedule_planned_progress" widget="progressbar"/>
+                        <field name="schedule_actual_progress" widget="progressbar"/>
+                        <field name="schedule_variance"/>
+                        <field name="schedule_variance_status" widget="badge"
+                               decoration-success="schedule_variance_status == 'ahead'"
+                               decoration-warning="schedule_variance_status == 'on_track'"
+                               decoration-danger="schedule_variance_status == 'delayed'"/>
+                        <field name="active_schedule_id" readonly="1"
+                               options="{'no_open': False}"/>
+                    </group>
                 </group>
             </xpath>
 
@@ -115,21 +117,6 @@
                 <separator/>
                 <filter string="有使用中進度表" name="has_schedule"
                         domain="[('active_schedule_id', '!=', False)]"/>
-                <filter string="無進度表" name="no_schedule"
-                        domain="[('schedule_count', '=', 0)]"/>
-                <separator/>
-                <filter string="進度表超前" name="schedule_ahead"
-                        domain="[('schedule_variance_status', '=', 'ahead')]"/>
-                <filter string="進度表正常" name="schedule_on_track"
-                        domain="[('schedule_variance_status', '=', 'on_track')]"/>
-                <filter string="進度表落後" name="schedule_delayed"
-                        domain="[('schedule_variance_status', '=', 'delayed')]"/>
-            </xpath>
-
-            <!-- Add schedule group by -->
-            <xpath expr="//filter[@name='group_progress']" position="after">
-                <filter string="進度表狀態" name="group_schedule_status"
-                        context="{'group_by': 'schedule_variance_status'}"/>
             </xpath>
         </field>
     </record>

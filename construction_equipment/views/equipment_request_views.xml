@@ -209,7 +209,7 @@
                 <progressbar field="kanban_state"
                              colors='{"normal": "200", "blocked": "danger", "done": "success"}'/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div t-attf-class="oe_kanban_global_click oe_kanban_card #{record.is_overdue.raw_value ? 'border-danger' : ''}"
                              t-att-style="'border-left: 4px solid ' + kanban_getcolor(record.color.raw_value) + ';'">
                             <div class="oe_kanban_content">

@@ -419,7 +419,7 @@ class SupervisionReviewApplication(models.Model):
             'type': 'ir.actions.act_window',
             'name': '送審文件',
             'res_model': 'ir.attachment',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('id', 'in', self.attachment_ids.ids)],
             'context': {
                 'default_res_model': self._name,

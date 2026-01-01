@@ -184,7 +184,6 @@
                 <separator/>
                 <filter string="未結案" name="not_closed" domain="[('state', 'not in', ('resolved', 'closed'))]"/>
                 <filter string="已逾期" name="overdue" domain="[('is_overdue', '=', True)]"/>
-                <filter string="即將到期" name="due_soon" domain="[('days_remaining', '&lt;=', 3), ('days_remaining', '&gt;', 0), ('state', 'not in', ('resolved', 'closed'))]"/>
                 <separator/>
                 <filter string="初驗缺失" name="preliminary" domain="[('source', '=', 'preliminary')]"/>
                 <filter string="正驗缺失" name="final" domain="[('source', '=', 'final')]"/>

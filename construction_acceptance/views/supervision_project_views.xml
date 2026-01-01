@@ -93,7 +93,6 @@
                 <filter string="已結案" name="is_closed" domain="[('is_closed', '=', True)]"/>
                 <filter string="保固中" name="warranty_active" domain="[('warranty_status', '=', 'active')]"/>
                 <filter string="保固已到期" name="warranty_expired" domain="[('warranty_status', '=', 'expired')]"/>
-                <filter string="有未解決缺失" name="has_defects" domain="[('unresolved_defect_count', '>', 0)]"/>
             </xpath>
         </field>
     </record>

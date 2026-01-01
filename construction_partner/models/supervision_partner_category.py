@@ -67,7 +67,6 @@ class SupervisionPartnerCategory(models.Model):
 
     parent_path = fields.Char(
         index=True,
-        unaccent=False,
         help='Odoo parent_store 路徑欄位')
 
     # === 完整路徑名稱 ===
@@ -127,7 +126,7 @@ class SupervisionPartnerCategory(models.Model):
     @api.constrains('parent_id')
     def _check_parent_id(self):
         """檢查是否建立遞迴分類"""
-        if not self._check_recursion():
+        if self._has_cycle():
             raise ValidationError('不可建立遞迴分類！上層分類不能選擇自己或子分類。')
 
     # === 顯示名稱 ===
@@ -159,7 +158,7 @@ class SupervisionPartnerCategory(models.Model):
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 相關單位',
             'res_model': 'res.partner',
-            'view_mode': 'tree,kanban,form',
+            'view_mode': 'list,kanban,form',
             'domain': [('supervision_category_ids', 'in', [self.id])],
             'context': {
                 'default_supervision_category_ids': [self.id],

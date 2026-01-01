@@ -78,7 +78,7 @@
                         </group>
                     </group>
                     <group>
-                        <group string="日期資訊">
+                        <group string="日期資訊" name="date_info">
                             <field name="notification_date"/>
                             <field name="deadline"/>
                             <field name="closure_date"/>
@@ -160,7 +160,7 @@
                 <filter string="安衛環境" name="safety_env"
                         domain="[('check_type', '=', 'safety_env')]"/>
                 <separator/>
-                <group expand="0" string="群組">
+                <group expand="0" string="群組" name="groupby">
                     <filter string="通報單" name="group_slip"
                             context="{'group_by': 'slip_id'}"/>
                     <filter string="工程" name="group_project"

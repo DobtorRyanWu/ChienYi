@@ -32,6 +32,7 @@
     "license": "LGPL-3",
     "depends": [
         "construction_supervision_base",
+        "construction_notification_slip",
         "hr_timesheet",
     ],
     "data": [

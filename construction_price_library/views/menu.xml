@@ -1,43 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ============================================== -->
-    <!-- 價格庫管理選單                                  -->
-    <!-- ============================================== -->
-
-    <!-- 價格庫主選單 -->
-    <menuitem id="menu_price_library"
-              name="價格庫"
-              parent="construction_supervision_base.menu_configuration"
-              sequence="50"/>
+    <!-- ===================================================================
+         價格庫選單 (歸屬於 系統設定 > 價格庫)
+         =================================================================== -->
 
     <!-- 價格庫分類 -->
     <menuitem id="menu_price_library_category"
               name="價格庫分類"
-              parent="menu_price_library"
+              parent="construction_supervision_base.menu_price_library_config"
               action="action_price_library_category"
               sequence="10"/>
 
     <!-- 價格庫項目 -->
     <menuitem id="menu_price_library_item"
               name="價格庫項目"
-              parent="menu_price_library"
+              parent="construction_supervision_base.menu_price_library_config"
               action="action_price_library_item"
               sequence="20"/>
 
     <!-- 價格變更歷史 -->
     <menuitem id="menu_price_library_item_history"
               name="價格變更歷史"
-              parent="menu_price_library"
+              parent="construction_supervision_base.menu_price_library_config"
               action="action_price_library_item_history"
               sequence="30"/>
 
-    <!-- ============================================== -->
-    <!-- 匯入精靈選單（可從工程管理存取）                 -->
-    <!-- ============================================== -->
+    <!-- 從價格庫匯入工項 (歸屬於 工程管理 > 工程總覽) -->
     <menuitem id="menu_price_library_import"
               name="從價格庫匯入工項"
-              parent="construction_supervision_base.menu_project_management"
+              parent="construction_supervision_base.menu_project_overview"
               action="action_price_library_import_wizard"
               sequence="90"
               groups="group_price_library_editor"/>

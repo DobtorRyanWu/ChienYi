@@ -116,7 +116,7 @@ class SupervisionProject(models.Model):
             'type': 'ir.actions.act_window',
             'name': '初驗紀錄',
             'res_model': 'acceptance.preliminary',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('project_id', '=', self.id)],
             'context': {
                 'default_project_id': self.id,
@@ -130,7 +130,7 @@ class SupervisionProject(models.Model):
             'type': 'ir.actions.act_window',
             'name': '正驗紀錄',
             'res_model': 'acceptance.final',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('project_id', '=', self.id)],
             'context': {
                 'default_project_id': self.id,
@@ -144,7 +144,7 @@ class SupervisionProject(models.Model):
             'type': 'ir.actions.act_window',
             'name': '驗收缺失',
             'res_model': 'acceptance.defect',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('project_id', '=', self.id)],
             'context': {
                 'default_project_id': self.id,
@@ -167,7 +167,7 @@ class SupervisionProject(models.Model):
                 'type': 'ir.actions.act_window',
                 'name': '結案處理',
                 'res_model': 'project.closure',
-                'view_mode': 'tree,form',
+                'view_mode': 'list,form',
                 'domain': [('project_id', '=', self.id)],
                 'context': {
                     'default_project_id': self.id,

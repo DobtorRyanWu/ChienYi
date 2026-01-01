@@ -1,29 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ============================================== -->
-    <!-- 時程控制主選單                                    -->
-    <!-- ============================================== -->
-    <menuitem id="menu_construction_timeline_root"
-              name="時程控制"
-              parent="construction_supervision_base.menu_construction_supervision_root"
-              sequence="30"/>
+    <!-- ===================================================================
+         時程控制選單 (歸屬於 工程管理 > 進度管理)
+         =================================================================== -->
 
-    <!-- ============================================== -->
-    <!-- 工項時程選單                                      -->
-    <!-- ============================================== -->
+    <!-- 工項時程 -->
     <menuitem id="menu_task_timeline"
               name="工項時程"
-              parent="menu_construction_timeline_root"
+              parent="construction_supervision_base.menu_schedule_management"
               action="action_task_timeline"
               sequence="10"/>
 
-    <!-- ============================================== -->
-    <!-- 時程分析選單                                      -->
-    <!-- ============================================== -->
+    <!-- 時程分析 -->
     <menuitem id="menu_schedule_analysis"
               name="時程分析"
-              parent="menu_construction_timeline_root"
+              parent="construction_supervision_base.menu_schedule_management"
               sequence="20"/>
 
     <menuitem id="menu_schedule_variance_analysis"
@@ -50,23 +42,19 @@
               action="action_critical_path_tasks"
               sequence="40"/>
 
-    <!-- ============================================== -->
-    <!-- 計時器選單                                        -->
-    <!-- ============================================== -->
-    <menuitem id="menu_timer"
-              name="計時器"
-              parent="menu_construction_timeline_root"
-              sequence="30"/>
+    <!-- ===================================================================
+         工時管理選單 (歸屬於 施工執行 > 工時管理)
+         =================================================================== -->
 
     <menuitem id="menu_my_running_timesheet"
               name="我的計時器"
-              parent="menu_timer"
+              parent="construction_supervision_base.menu_timesheet_management"
               action="action_my_running_timesheet"
               sequence="10"/>
 
     <menuitem id="menu_running_timesheet"
               name="執行中工時"
-              parent="menu_timer"
+              parent="construction_supervision_base.menu_timesheet_management"
               action="action_running_timesheet"
               sequence="20"
               groups="construction_supervision_base.group_supervision_manager"/>

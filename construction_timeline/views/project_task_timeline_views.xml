@@ -2,61 +2,9 @@
 <odoo>
 
     <!-- ============================================== -->
-    <!-- 工項 Timeline 視圖 (甘特圖)                      -->
+    <!-- 注意：Gantt 視圖需要 Odoo Enterprise 版本        -->
+    <!-- 目前使用列表視圖替代                              -->
     <!-- ============================================== -->
-    <record id="view_task_timeline" model="ir.ui.view">
-        <field name="name">project.task.timeline</field>
-        <field name="model">project.task</field>
-        <field name="arch" type="xml">
-            <gantt string="工項時程"
-                   date_start="planned_date_start"
-                   date_stop="planned_date_end"
-                   default_group_by="assigned_company_id"
-                   color="timeline_color"
-                   display_unavailability="1"
-                   progress="completion_rate"
-                   precision="{'day': 'hour:quarter', 'week': 'day:half', 'month': 'day:half'}"
-                   decoration-danger="schedule_status == 'delayed'"
-                   decoration-warning="schedule_alert == 'warning'"
-                   decoration-success="schedule_status == 'ahead'"
-                   thumbnails="{'assigned_company_id': 'image_128'}">
-                <field name="item_no"/>
-                <field name="name"/>
-                <field name="assigned_company_id"/>
-                <field name="assignment_state"/>
-                <field name="schedule_status"/>
-                <field name="schedule_alert"/>
-                <field name="completion_rate"/>
-                <field name="timeline_color"/>
-                <templates>
-                    <div t-name="gantt-popover">
-                        <div class="o_gantt_popover_header">
-                            <strong><t t-esc="item_no"/> - <t t-esc="name"/></strong>
-                        </div>
-                        <ul class="list-unstyled mb-0">
-                            <li>
-                                <strong>承包廠商:</strong>
-                                <t t-esc="assigned_company_id[1] or '未分配'"/>
-                            </li>
-                            <li>
-                                <strong>完成率:</strong>
-                                <t t-esc="completion_rate"/>%
-                            </li>
-                            <li>
-                                <strong>時程狀態:</strong>
-                                <span t-attf-class="badge #{schedule_status == 'delayed' ? 'text-bg-danger' : schedule_status == 'ahead' ? 'text-bg-success' : 'text-bg-secondary'}">
-                                    <t t-if="schedule_status == 'delayed'">落後</t>
-                                    <t t-elif="schedule_status == 'ahead'">超前</t>
-                                    <t t-elif="schedule_status == 'on_schedule'">正常</t>
-                                    <t t-else="">-</t>
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
-                </templates>
-            </gantt>
-        </field>
-    </record>
 
     <!-- ============================================== -->
     <!-- 工項表單視圖擴展 - 時程控制                       -->
@@ -84,7 +32,7 @@
             </xpath>
 
             <!-- 擴展時程管理分頁 -->
-            <xpath expr="//page[@name='schedule']//group[@string='時程分析']" position="inside">
+            <xpath expr="//page[@name='schedule']//group[@name='schedule_analysis']" position="inside">
                 <field name="schedule_variance_hours"/>
                 <field name="duration_variance"/>
                 <field name="efficiency_rate" widget="progressbar"/>
@@ -129,7 +77,7 @@
             </xpath>
 
             <!-- 新增執行中工時記錄 -->
-            <xpath expr="//page[@name='schedule']//group[@string='實際時程']" position="after">
+            <xpath expr="//page[@name='schedule']//group[@name='actual_schedule']" position="after">
                 <group string="計時器狀態" invisible="running_timesheet_count == 0">
                     <field name="running_timesheet_count"/>
                     <button name="action_view_running_timesheet"
@@ -180,9 +128,6 @@
                         domain="[('is_critical_path', '=', True)]"/>
                 <filter string="有前置依賴" name="has_dependency"
                         domain="[('has_dependency', '=', True)]"/>
-                <separator/>
-                <filter string="計時器執行中" name="timer_running"
-                        domain="[('running_timesheet_count', '>', 0)]"/>
             </xpath>
             <xpath expr="//group/filter[@name='group_by_schedule_status']" position="after">
                 <filter string="時程警示" name="group_by_schedule_alert"
@@ -197,32 +142,24 @@
     <record id="action_task_timeline" model="ir.actions.act_window">
         <field name="name">工項時程</field>
         <field name="res_model">project.task</field>
-        <field name="view_mode">gantt,list,form,kanban</field>
+        <field name="view_mode">list,form,kanban</field>
         <field name="search_view_id" ref="project.view_task_search_form"/>
         <field name="context">{
             'search_default_group_by_assigned_company': 1,
         }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                建立工項以在時程圖上顯示
+                建立工項以管理時程
             </p>
             <p>
-                使用甘特圖視圖可視化工項的時程安排，
-                透過拖放調整時程，並追蹤進度狀態。
+                追蹤工項的時程安排與進度狀態。
             </p>
         </field>
     </record>
 
     <!-- 設定視圖順序 -->
-    <record id="action_task_timeline_view_gantt" model="ir.actions.act_window.view">
-        <field name="sequence" eval="1"/>
-        <field name="view_mode">gantt</field>
-        <field name="view_id" ref="view_task_timeline"/>
-        <field name="act_window_id" ref="action_task_timeline"/>
-    </record>
-
     <record id="action_task_timeline_view_tree" model="ir.actions.act_window.view">
-        <field name="sequence" eval="2"/>
+        <field name="sequence" eval="1"/>
         <field name="view_mode">list</field>
         <field name="view_id" ref="construction_supervision_base.view_task_tree_supervision_full"/>
         <field name="act_window_id" ref="action_task_timeline"/>

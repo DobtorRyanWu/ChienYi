@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 隱藏官方選單 (對所有使用者，包含 admin)          -->
+    <!-- 使用 active="False" 完全停用選單                -->
+    <!-- ============================================== -->
+
+    <!-- 隱藏官方專案 (Project) 主選單 -->
+    <record id="project.menu_main_pm" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- 隱藏官方工時表 (Timesheets) 主選單 -->
+    <record id="hr_timesheet.timesheet_menu_root" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- 注意: 保養選單由 construction_equipment 模組負責隱藏 -->
+
+</odoo>

@@ -223,7 +223,7 @@ class PriceLibraryItem(models.Model):
             'type': 'ir.actions.act_window',
             'name': '價格歷史',
             'res_model': 'price.library.item.history',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('item_id', '=', self.id)],
             'context': {'default_item_id': self.id},
         }

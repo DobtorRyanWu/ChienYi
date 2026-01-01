@@ -1,117 +1,98 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- 人機管理主選單 -->
-    <menuitem id="menu_equipment_root"
-              name="人機管理"
-              web_icon="construction_equipment,static/description/icon.png"
-              sequence="40"/>
-
-    <!-- ==================== -->
-    <!-- 人機管理 - 設備      -->
-    <!-- ==================== -->
-
-    <menuitem id="menu_equipment_equipment"
-              name="機具設備"
-              parent="menu_equipment_root"
-              sequence="10"/>
+    <!-- ===================================================================
+         人機管理選單 (歸屬於 施工執行 > 人機管理)
+         =================================================================== -->
 
     <!-- 機具設備 -->
+    <menuitem id="menu_equipment_list"
+              name="機具設備"
+              parent="construction_supervision_base.menu_manpower_equipment"
+              sequence="10"/>
+
     <menuitem id="menu_supervision_equipment"
               name="機具設備"
-              parent="menu_equipment_equipment"
+              parent="menu_equipment_list"
               action="action_supervision_equipment"
               sequence="10"/>
 
-    <!-- 維護中設備 -->
     <menuitem id="menu_supervision_equipment_maintenance"
               name="維護中設備"
-              parent="menu_equipment_equipment"
+              parent="menu_equipment_list"
               action="action_supervision_equipment_maintenance"
               sequence="20"/>
 
-    <!-- ==================== -->
-    <!-- 人機管理 - 維護請求  -->
-    <!-- ==================== -->
-
+    <!-- 維護請求 -->
     <menuitem id="menu_equipment_maintenance"
               name="維護請求"
-              parent="menu_equipment_root"
+              parent="construction_supervision_base.menu_manpower_equipment"
               sequence="20"/>
 
-    <!-- 所有維護請求 -->
     <menuitem id="menu_supervision_equipment_request"
               name="所有維護請求"
               parent="menu_equipment_maintenance"
               action="action_supervision_equipment_request"
               sequence="10"/>
 
-    <!-- 我的維護請求 -->
     <menuitem id="menu_supervision_equipment_request_my"
               name="我的維護請求"
               parent="menu_equipment_maintenance"
               action="action_supervision_equipment_request_my"
               sequence="20"/>
 
-    <!-- 逾期維護請求 -->
     <menuitem id="menu_supervision_equipment_request_overdue"
               name="逾期維護請求"
               parent="menu_equipment_maintenance"
               action="action_supervision_equipment_request_overdue"
               sequence="30"/>
 
-    <!-- ==================== -->
-    <!-- 人機管理 - 人機記錄  -->
-    <!-- ==================== -->
-
+    <!-- 人機記錄 -->
     <menuitem id="menu_equipment_records"
               name="人機記錄"
-              parent="menu_equipment_root"
+              parent="construction_supervision_base.menu_manpower_equipment"
               sequence="30"/>
 
-    <!-- 人機記錄 -->
     <menuitem id="menu_daily_log_man_machine"
               name="所有人機記錄"
               parent="menu_equipment_records"
               action="action_daily_log_man_machine"
               sequence="10"/>
 
-    <!-- 人員出工統計 -->
     <menuitem id="menu_daily_log_man_machine_personnel"
               name="人員出工統計"
               parent="menu_equipment_records"
               action="action_daily_log_man_machine_personnel"
               sequence="20"/>
 
-    <!-- 機具使用統計 -->
     <menuitem id="menu_daily_log_man_machine_equipment"
               name="機具使用統計"
               parent="menu_equipment_records"
               action="action_daily_log_man_machine_equipment"
               sequence="30"/>
 
-    <!-- ==================== -->
-    <!-- 人機管理 - 設定      -->
-    <!-- ==================== -->
+    <!-- ===================================================================
+         設備設定 (歸屬於 系統設定 > 設備設定)
+         =================================================================== -->
 
-    <menuitem id="menu_equipment_config"
-              name="設定"
-              parent="menu_equipment_root"
-              sequence="90"
-              groups="group_equipment_manager"/>
-
-    <!-- 機具設備分類 -->
     <menuitem id="menu_supervision_equipment_category"
               name="機具設備分類"
-              parent="menu_equipment_config"
+              parent="construction_supervision_base.menu_equipment_config"
               action="action_supervision_equipment_category"
               sequence="10"/>
 
-    <!-- 維護請求階段 -->
     <menuitem id="menu_supervision_equipment_request_stage"
               name="維護請求階段"
-              parent="menu_equipment_config"
+              parent="construction_supervision_base.menu_equipment_config"
               action="action_supervision_equipment_request_stage"
               sequence="20"/>
+
+    <!-- ===================================================================
+         隱藏官方保養選單 (由本模組接管維護功能)
+         =================================================================== -->
+
+    <record id="maintenance.menu_maintenance_title" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
 
 </odoo>

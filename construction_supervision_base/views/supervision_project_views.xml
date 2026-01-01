@@ -77,7 +77,7 @@
                         </h2>
                     </div>
                     <group>
-                        <group string="基本資訊">
+                        <group string="基本資訊" name="basic_info">
                             <field name="project_type" widget="radio"/>
                             <field name="authority_id"
                                    options="{'no_create': True}"
@@ -89,7 +89,7 @@
                                    groups="base.group_multi_company"/>
                             <field name="supervision_engineer_id"/>
                         </group>
-                        <group string="契約資訊">
+                        <group string="契約資訊" name="contract_info">
                             <field name="contract_no"/>
                             <field name="contract_amount"/>
                             <field name="currency_id" invisible="1"/>
@@ -99,12 +99,12 @@
                         </group>
                     </group>
                     <group>
-                        <group string="實際日期">
+                        <group string="實際日期" name="actual_dates">
                             <field name="actual_start_date"/>
                             <field name="actual_end_date"/>
                             <field name="actual_duration"/>
                         </group>
-                        <group string="進度狀態">
+                        <group string="進度狀態" name="progress_status_info">
                             <field name="planned_progress" widget="progressbar"/>
                             <field name="actual_progress" widget="progressbar"/>
                             <field name="progress_status" widget="badge"
@@ -275,7 +275,7 @@
                 <separator/>
                 <filter string="我的專案" name="my_projects"
                         domain="[('supervision_engineer_id', '=', uid)]"/>
-                <group expand="0" string="群組">
+                <group expand="0" string="群組" name="groupby">
                     <filter string="狀態" name="group_state" context="{'group_by': 'state'}"/>
                     <filter string="工程類型" name="group_type" context="{'group_by': 'project_type'}"/>
                     <filter string="業主" name="group_authority" context="{'group_by': 'authority_id'}"/>

@@ -380,21 +380,23 @@
                 </button>
             </xpath>
 
-            <!-- 在契約資訊後增加變更資訊 -->
-            <xpath expr="//group[@string='契約資訊']" position="after">
-                <group string="契約變更資訊" name="change_info"
-                       invisible="change_order_count == 0">
-                    <group>
+            <!-- 在契約工期欄位後增加變更資訊 -->
+            <xpath expr="//field[@name='contract_duration']" position="after">
+                <field name="change_order_count" invisible="1"/>
+            </xpath>
+            <xpath expr="//notebook" position="before">
+                <group invisible="change_order_count == 0">
+                    <group string="契約變更資訊" name="change_info">
                         <field name="original_contract_amount"/>
                         <field name="original_duration"/>
                         <field name="approved_change_count"/>
                     </group>
-                    <group>
+                    <group string="變更後金額">
                         <field name="total_change_amount"/>
                         <field name="total_duration_change"/>
                         <field name="change_rate" widget="percentage"/>
                     </group>
-                    <group>
+                    <group string="現行契約">
                         <field name="current_contract_amount"/>
                         <field name="current_duration"/>
                     </group>

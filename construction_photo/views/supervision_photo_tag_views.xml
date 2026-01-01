@@ -33,7 +33,7 @@
                                 type="action"
                                 class="oe_stat_button"
                                 icon="fa-picture-o"
-                                context="{'search_default_tag_ids': active_id}">
+                                context="{'search_default_tag_ids': id}">
                             <field name="photo_count" widget="statinfo" string="照片"/>
                         </button>
                     </div>
@@ -89,8 +89,6 @@
                 <field name="note"/>
                 <separator/>
                 <filter string="已停用" name="inactive" domain="[('active', '=', False)]"/>
-                <separator/>
-                <filter string="有照片" name="has_photos" domain="[('photo_count', '>', 0)]"/>
             </search>
         </field>
     </record>

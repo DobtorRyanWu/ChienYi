@@ -86,6 +86,19 @@ class SelfInspectionType(models.Model):
          '類型代碼必須唯一！'),
     ]
 
+    # === 動作方法 ===
+    def action_view_inspections(self):
+        """檢視使用此類型的檢查紀錄"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'{self.name} - 檢查紀錄',
+            'res_model': 'general.self.inspection',
+            'view_mode': 'list,form',
+            'domain': [('inspection_type_id', '=', self.id)],
+            'context': {'default_inspection_type_id': self.id},
+        }
+
 
 class SelfInspectionTypeItem(models.Model):
     """

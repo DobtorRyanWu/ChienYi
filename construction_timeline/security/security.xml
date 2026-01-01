@@ -9,7 +9,7 @@
         <!-- 工時記錄 - 使用者可存取自己的工時記錄 -->
         <record id="rule_timesheet_user_own" model="ir.rule">
             <field name="name">工時記錄: 使用者存取自己的記錄</field>
-            <field name="model_id" ref="account.model_account_analytic_line"/>
+            <field name="model_id" ref="analytic.model_account_analytic_line"/>
             <field name="domain_force">[('user_id', '=', user.id)]</field>
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
             <field name="perm_read" eval="True"/>
@@ -21,7 +21,7 @@
         <!-- 工時記錄 - 監造主管可存取專案下所有工時記錄 -->
         <record id="rule_timesheet_supervision_manager" model="ir.rule">
             <field name="name">工時記錄: 監造主管完整存取</field>
-            <field name="model_id" ref="account.model_account_analytic_line"/>
+            <field name="model_id" ref="analytic.model_account_analytic_line"/>
             <field name="domain_force">[('project_id.company_id', '=', user.company_id.id)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager'))]"/>
             <field name="perm_read" eval="True"/>
@@ -33,7 +33,7 @@
         <!-- 工時記錄 - 廠商主管可存取公司下所有工時記錄 -->
         <record id="rule_timesheet_contractor_manager" model="ir.rule">
             <field name="name">工時記錄: 廠商主管公司存取</field>
-            <field name="model_id" ref="account.model_account_analytic_line"/>
+            <field name="model_id" ref="analytic.model_account_analytic_line"/>
             <field name="domain_force">[('task_id.assigned_company_id', '=', user.company_id.id)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager'))]"/>
             <field name="perm_read" eval="True"/>
@@ -45,7 +45,7 @@
         <!-- 工時記錄 - 廠商工程師只能存取自己的記錄 -->
         <record id="rule_timesheet_contractor_engineer" model="ir.rule">
             <field name="name">工時記錄: 廠商工程師自己的記錄</field>
-            <field name="model_id" ref="account.model_account_analytic_line"/>
+            <field name="model_id" ref="analytic.model_account_analytic_line"/>
             <field name="domain_force">[
                 '&amp;',
                 ('user_id', '=', user.id),
@@ -61,7 +61,7 @@
         <!-- 系統管理者 - 完整存取 -->
         <record id="rule_timesheet_admin_full_access" model="ir.rule">
             <field name="name">工時記錄: 管理者完整存取</field>
-            <field name="model_id" ref="account.model_account_analytic_line"/>
+            <field name="model_id" ref="analytic.model_account_analytic_line"/>
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
         </record>

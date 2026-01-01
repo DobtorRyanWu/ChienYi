@@ -410,7 +410,7 @@ class ProgressSchedule(models.Model):
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 進度明細',
             'res_model': 'progress.schedule.line',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('schedule_id', '=', self.id)],
             'context': {
                 'default_schedule_id': self.id,

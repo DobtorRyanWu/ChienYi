@@ -25,11 +25,10 @@
             <form>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="%(construction_quality.action_general_self_inspection)d"
-                                type="action"
+                        <button name="action_view_inspections"
+                                type="object"
                                 class="oe_stat_button"
-                                icon="fa-check-square-o"
-                                context="{'search_default_inspection_type_id': active_id}">
+                                icon="fa-check-square-o">
                             <field name="inspection_count" widget="statinfo" string="檢查次數"/>
                         </button>
                     </div>
@@ -85,7 +84,7 @@
                 <filter string="已封存" name="inactive"
                         domain="[('active', '=', False)]"/>
                 <separator/>
-                <group expand="0" string="群組">
+                <group expand="0" string="群組" name="groupby">
                     <filter string="工程類別" name="group_category"
                             context="{'group_by': 'category'}"/>
                 </group>

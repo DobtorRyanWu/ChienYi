@@ -36,7 +36,6 @@ class AcceptanceFinal(models.Model):
         required=True,
         tracking=True,
         index=True,
-        states={'draft': [('readonly', False)]},
         readonly=True)
 
     company_id = fields.Many2one(
@@ -64,7 +63,6 @@ class AcceptanceFinal(models.Model):
         required=True,
         tracking=True,
         domain="[('project_id', '=', project_id), ('state', 'in', ['reviewed', 'improvement_done', 'closed'])]",
-        states={'draft': [('readonly', False)]},
         readonly=True)
 
     preliminary_result = fields.Selection(

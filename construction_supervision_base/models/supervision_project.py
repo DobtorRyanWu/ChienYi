@@ -334,7 +334,7 @@ class SupervisionProject(models.Model):
             'type': 'ir.actions.act_window',
             'name': '工程文件',
             'res_model': 'supervision.document',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('project_id', '=', self.id)],
             'context': {'default_project_id': self.id},
         }
@@ -346,7 +346,7 @@ class SupervisionProject(models.Model):
             'type': 'ir.actions.act_window',
             'name': '契約工項',
             'res_model': 'project.task',
-            'view_mode': 'tree,kanban,form',
+            'view_mode': 'list,kanban,form',
             'domain': [('project_id', '=', self.project_id.id)],
             'context': {
                 'default_project_id': self.project_id.id,

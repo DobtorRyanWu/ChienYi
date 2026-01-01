@@ -1,7 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-# =============================================
-# 操作軌跡 (audit.trail)
-# =============================================
 access_audit_trail_admin,audit.trail admin,model_audit_trail,construction_supervision_base.group_supervisor_admin,1,0,1,0
 access_audit_trail_supervision_manager,audit.trail supervision manager,model_audit_trail,construction_supervision_base.group_supervision_manager,1,0,1,0
 access_audit_trail_supervision_engineer,audit.trail supervision engineer,model_audit_trail,construction_supervision_base.group_supervision_engineer,1,0,1,0

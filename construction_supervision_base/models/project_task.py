@@ -46,12 +46,12 @@ class ProjectTask(models.Model):
     ], string='分配狀態', default='unassigned',
        compute='_compute_assignment_state', store=True, tracking=True)
 
-    @api.depends('assigned_company_id', 'stage_id', 'stage_id.is_closed')
+    @api.depends('assigned_company_id', 'stage_id', 'stage_id.is_acceptance_stage')
     def _compute_assignment_state(self):
         for task in self:
             if not task.assigned_company_id:
                 task.assignment_state = 'unassigned'
-            elif task.stage_id and task.stage_id.is_closed:
+            elif task.stage_id and task.stage_id.is_acceptance_stage:
                 task.assignment_state = 'accepted'
             elif task.actual_date_end:
                 task.assignment_state = 'completed'

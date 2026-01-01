@@ -246,7 +246,7 @@
                 <filter string="本月發現" name="this_month"
                         domain="[('found_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
                 <separator/>
-                <group expand="0" string="群組">
+                <group expand="0" string="群組" name="groupby">
                     <filter string="工程" name="group_project"
                             context="{'group_by': 'project_id'}"/>
                     <filter string="缺失類型" name="group_type"

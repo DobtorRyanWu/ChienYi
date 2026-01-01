@@ -94,7 +94,7 @@ class SupervisionProjectProgress(models.Model):
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 進度表',
             'res_model': 'progress.schedule',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('project_id', '=', self.id)],
             'context': {
                 'default_project_id': self.id,

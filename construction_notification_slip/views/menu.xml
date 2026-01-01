@@ -1,25 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ============================================== -->
-    <!-- 通報單管理選單                                   -->
-    <!-- ============================================== -->
-    <menuitem id="menu_notification_slip_management"
-              name="通報單管理"
-              parent="construction_supervision_base.menu_construction_supervision_root"
-              sequence="15"/>
+    <!-- ===================================================================
+         通報單選單 (歸屬於 施工執行 > 通報單管理)
+         =================================================================== -->
 
     <!-- 通報單 -->
-    <menuitem id="menu_notification_slip"
+    <menuitem id="menu_notification_slip_list"
               name="通報單"
-              parent="menu_notification_slip_management"
+              parent="construction_supervision_base.menu_notification_slip"
               action="action_reservation_notification_slip"
               sequence="10"/>
 
     <!-- 待核准通報單 -->
     <menuitem id="menu_notification_slip_to_approve"
               name="待核准通報單"
-              parent="menu_notification_slip_management"
+              parent="construction_supervision_base.menu_notification_slip"
               action="action_notification_slip_to_approve"
               sequence="20"
               groups="construction_supervision_base.group_supervision_manager"/>
@@ -27,16 +23,14 @@
     <!-- 執行中通報單 -->
     <menuitem id="menu_notification_slip_in_progress"
               name="執行中通報單"
-              parent="menu_notification_slip_management"
+              parent="construction_supervision_base.menu_notification_slip"
               action="action_notification_slip_in_progress"
               sequence="30"/>
 
-    <!-- ============================================== -->
-    <!-- 驗收管理選單                                     -->
-    <!-- ============================================== -->
+    <!-- 通報單驗收 -->
     <menuitem id="menu_notification_acceptance_management"
               name="通報單驗收"
-              parent="menu_notification_slip_management"
+              parent="construction_supervision_base.menu_notification_slip"
               sequence="50"/>
 
     <!-- 驗收單 -->

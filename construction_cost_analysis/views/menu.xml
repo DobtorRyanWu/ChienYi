@@ -1,23 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- 成本分析主選單 -->
-    <menuitem id="menu_cost_analysis_root"
-              name="成本分析"
-              parent="construction_supervision_base.menu_supervision_root"
-              sequence="80"/>
+    <!-- ===================================================================
+         成本分析選單 (歸屬於 計價請款 > 成本分析)
+         =================================================================== -->
 
-    <!-- 成本分析報表 -->
     <menuitem id="menu_cost_analysis_report"
               name="成本分析報表"
-              parent="menu_cost_analysis_root"
+              parent="construction_supervision_base.menu_cost_analysis"
               action="action_cost_analysis_report"
               sequence="10"/>
 
-    <!-- 成本分析摘要 -->
     <menuitem id="menu_cost_analysis_summary"
               name="成本分析摘要"
-              parent="menu_cost_analysis_root"
+              parent="construction_supervision_base.menu_cost_analysis"
               action="action_cost_analysis_summary"
               sequence="20"/>
 

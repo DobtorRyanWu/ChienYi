@@ -121,7 +121,7 @@ class ReservationDefectImprovementReservation(models.Model):
             'type': 'ir.actions.act_window',
             'name': '來源自主檢查',
             'res_model': 'reservation.self.inspection',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('id', 'in', inspection_ids)],
         }
 

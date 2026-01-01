@@ -36,7 +36,6 @@ class AcceptancePreliminary(models.Model):
         required=True,
         tracking=True,
         index=True,
-        states={'draft': [('readonly', False)]},
         readonly=True,
         domain="[('state', '=', 'completion')]")
 
@@ -393,7 +392,7 @@ class AcceptancePreliminary(models.Model):
             'type': 'ir.actions.act_window',
             'name': '驗收缺失',
             'res_model': 'acceptance.defect',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('preliminary_acceptance_id', '=', self.id)],
             'context': {
                 'default_project_id': self.project_id.id,

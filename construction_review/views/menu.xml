@@ -1,37 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- 送審管制主選單 -->
-    <menuitem id="menu_review_root"
-              name="送審管制"
-              web_icon="construction_review,static/description/icon.png"
-              sequence="25"/>
+    <!-- ===================================================================
+         送審管制選單 (歸屬於 工程管理 > 文件管理)
+         =================================================================== -->
 
-    <!-- 送審管制 - 送審項目 -->
-    <menuitem id="menu_review_applications"
-              name="送審項目"
-              parent="menu_review_root"
-              sequence="10"/>
-
-    <!-- 所有送審項目 -->
     <menuitem id="menu_review_application_all"
               name="送審管制表"
-              parent="menu_review_applications"
+              parent="construction_supervision_base.menu_document_management"
               action="action_review_application"
-              sequence="10"/>
+              sequence="30"/>
 
-    <!-- 待審查送審項目 -->
     <menuitem id="menu_review_application_pending"
               name="待審查送審"
-              parent="menu_review_applications"
+              parent="construction_supervision_base.menu_document_management"
               action="action_review_application_pending"
-              sequence="20"/>
+              sequence="40"/>
 
-    <!-- 已核定送審項目 -->
     <menuitem id="menu_review_application_approved"
               name="已核定送審"
-              parent="menu_review_applications"
+              parent="construction_supervision_base.menu_document_management"
               action="action_review_application_approved"
-              sequence="30"/>
+              sequence="50"/>
 
 </odoo>

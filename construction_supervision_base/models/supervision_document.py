@@ -308,7 +308,7 @@ class SupervisionDocument(models.Model):
             'type': 'ir.actions.act_window',
             'name': '附件檔案',
             'res_model': 'ir.attachment',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('id', 'in', self.attachment_ids.ids)],
         }
 
@@ -331,7 +331,7 @@ class SupervisionDocument(models.Model):
             'type': 'ir.actions.act_window',
             'name': '版本歷史',
             'res_model': 'supervision.document',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('id', 'in', all_versions.ids)],
             'context': {'create': False},
         }

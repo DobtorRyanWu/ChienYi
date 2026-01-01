@@ -238,15 +238,14 @@ class ProjectTaskTimeline(models.Model):
 
     schedule_alert_message = fields.Char(
         string='警示訊息',
-        compute='_compute_schedule_alert')
+        compute='_compute_schedule_alert_message')
 
     @api.depends('planned_date_end', 'assignment_state', 'schedule_variance')
     def _compute_schedule_alert(self):
-        """計算時程警示等級"""
+        """計算時程警示等級 (stored)"""
         today = fields.Datetime.now()
         for task in self:
             task.schedule_alert = 'none'
-            task.schedule_alert_message = ''
 
             if task.assignment_state in ('completed', 'accepted'):
                 continue
@@ -260,14 +259,34 @@ class ProjectTaskTimeline(models.Model):
             if days_remaining < 0:
                 # 已逾期
                 task.schedule_alert = 'critical'
-                task.schedule_alert_message = f'已逾期 {abs(days_remaining)} 天'
             elif days_remaining <= 3:
                 # 即將到期
                 task.schedule_alert = 'warning'
-                task.schedule_alert_message = f'剩餘 {days_remaining} 天'
             elif task.schedule_variance > 5:
                 # 進度落後超過 5 天
                 task.schedule_alert = 'warning'
+
+    @api.depends('planned_date_end', 'assignment_state', 'schedule_variance')
+    def _compute_schedule_alert_message(self):
+        """計算警示訊息 (non-stored)"""
+        today = fields.Datetime.now()
+        for task in self:
+            task.schedule_alert_message = ''
+
+            if task.assignment_state in ('completed', 'accepted'):
+                continue
+
+            if not task.planned_date_end:
+                continue
+
+            # 計算距離預定完成日的天數
+            days_remaining = (task.planned_date_end - today).days
+
+            if days_remaining < 0:
+                task.schedule_alert_message = f'已逾期 {abs(days_remaining)} 天'
+            elif days_remaining <= 3:
+                task.schedule_alert_message = f'剩餘 {days_remaining} 天'
+            elif task.schedule_variance > 5:
                 task.schedule_alert_message = f'進度落後 {task.schedule_variance:.1f} 天'
 
     # === 動作方法 ===

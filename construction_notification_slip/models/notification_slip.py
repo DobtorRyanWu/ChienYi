@@ -356,7 +356,7 @@ class ReservationNotificationSlip(models.Model):
             'type': 'ir.actions.act_window',
             'name': '驗收紀錄',
             'res_model': 'notification.acceptance',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('slip_id', '=', self.id)],
             'context': {'default_slip_id': self.id},
         }

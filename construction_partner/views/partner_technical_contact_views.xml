@@ -168,7 +168,7 @@
                 <field name="image_128"/>
                 <field name="active"/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div t-attf-class="oe_kanban_global_click #{!record.active.raw_value ? 'text-muted' : ''}">
                             <div class="o_kanban_image">
                                 <img t-att-src="kanban_image('partner.technical.contact', 'image_128', record.id.raw_value)"
@@ -186,12 +186,12 @@
                                 </div>
                                 <div class="text-muted mt-1">
                                     <span t-if="record.mobile.raw_value">
-                                        <i class="fa fa-mobile"/> <field name="mobile"/>
+                                        <i class="fa fa-mobile" title="手機"/> <field name="mobile"/>
                                     </span>
                                 </div>
                                 <div class="text-muted">
                                     <span t-if="record.email.raw_value">
-                                        <i class="fa fa-envelope-o"/> <field name="email"/>
+                                        <i class="fa fa-envelope-o" title="電子郵件"/> <field name="email"/>
                                     </span>
                                 </div>
                             </div>

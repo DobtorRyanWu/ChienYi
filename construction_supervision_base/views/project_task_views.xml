@@ -48,19 +48,19 @@
                 <!-- 時程管理分頁 -->
                 <page string="時程管理" name="schedule">
                     <group>
-                        <group string="預定時程">
+                        <group string="預定時程" name="planned_schedule">
                             <field name="planned_date_start"/>
                             <field name="planned_date_end"/>
                             <field name="planned_duration"/>
                         </group>
-                        <group string="實際時程">
+                        <group string="實際時程" name="actual_schedule">
                             <field name="actual_date_start"/>
                             <field name="actual_date_end"/>
                             <field name="actual_duration"/>
                         </group>
                     </group>
                     <group>
-                        <group string="時程分析">
+                        <group string="時程分析" name="schedule_analysis">
                             <field name="schedule_variance"/>
                             <field name="schedule_status" widget="badge"
                                    decoration-success="schedule_status == 'ahead'"

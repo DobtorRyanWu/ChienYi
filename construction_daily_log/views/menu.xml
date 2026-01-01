@@ -5,57 +5,49 @@
 -->
 <odoo>
     <!-- ===================================================================
-         Menu Structure for Construction Daily Log
+         施工日誌選單 (歸屬於 施工執行 > 施工日誌)
          =================================================================== -->
 
-    <!-- Daily Log Main Menu (under Project menu) -->
-    <menuitem
-        id="menu_daily_log_root"
-        name="施工日誌"
-        parent="project.menu_main_pm"
-        sequence="20"
-    />
-
-    <!-- My Daily Logs - for contractors -->
+    <!-- 我的日誌 - for contractors -->
     <menuitem
         id="menu_daily_log_my"
         name="我的日誌"
-        parent="menu_daily_log_root"
+        parent="construction_supervision_base.menu_daily_log"
         action="action_daily_log_sheet_my"
         sequence="10"
         groups="construction_supervision_base.group_contractor_manager,construction_supervision_base.group_contractor_engineer"
     />
 
-    <!-- All Daily Logs (for supervision) -->
+    <!-- 所有日誌 (for supervision) -->
     <menuitem
         id="menu_daily_log_all"
         name="所有日誌"
-        parent="menu_daily_log_root"
+        parent="construction_supervision_base.menu_daily_log"
         action="action_daily_log_sheet_all"
         sequence="20"
         groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer,construction_supervision_base.group_supervisor_admin"
     />
 
-    <!-- To Review (for supervisors) -->
+    <!-- 待審核 (for supervisors) -->
     <menuitem
         id="menu_daily_log_to_review"
         name="待審核"
-        parent="menu_daily_log_root"
+        parent="construction_supervision_base.menu_daily_log"
         action="action_daily_log_sheet_to_review"
         sequence="30"
         groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"
     />
 
-    <!-- Configuration Menu -->
+    <!-- 設定選單 -->
     <menuitem
         id="menu_daily_log_config"
         name="設定"
-        parent="menu_daily_log_root"
+        parent="construction_supervision_base.menu_daily_log"
         sequence="100"
         groups="construction_supervision_base.group_supervisor_admin"
     />
 
-    <!-- Daily Log Lines (under Configuration) -->
+    <!-- 日誌明細 (under 設定) -->
     <menuitem
         id="menu_daily_log_lines"
         name="日誌明細"
@@ -64,7 +56,7 @@
         sequence="10"
     />
 
-    <!-- Weather Records (under Configuration) -->
+    <!-- 天氣記錄 (under 設定) -->
     <menuitem
         id="menu_daily_log_weather"
         name="天氣記錄"

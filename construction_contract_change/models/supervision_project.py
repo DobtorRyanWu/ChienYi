@@ -140,7 +140,7 @@ class SupervisionProject(models.Model):
             'type': 'ir.actions.act_window',
             'name': '契約變更單',
             'res_model': 'contract.change.order',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('project_id', '=', self.id)],
             'context': {
                 'default_project_id': self.id,

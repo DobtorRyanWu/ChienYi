@@ -107,8 +107,8 @@ class DailyLogWeather(models.Model):
     # === Duration Information ===
     approved_duration = fields.Integer(
         string='Approved Duration (days)',
-        related='sheet_id.project_id.date_count',
-        readonly=True,
+        compute='_compute_approved_duration',
+        store=True,
         help='Total approved project duration in days',
     )
     cumulative_duration = fields.Integer(
@@ -174,26 +174,31 @@ class DailyLogWeather(models.Model):
             else:
                 record.day_week = False
 
-    @api.depends('date', 'sheet_id.project_id')
+    @api.depends('sheet_id.supervision_project_id.contract_duration')
+    def _compute_approved_duration(self):
+        """Compute approved duration from supervision project"""
+        for record in self:
+            if record.sheet_id and record.sheet_id.supervision_project_id:
+                record.approved_duration = record.sheet_id.supervision_project_id.contract_duration or 0
+            else:
+                record.approved_duration = 0
+
+    @api.depends('date', 'sheet_id.supervision_project_id.contract_start_date', 'approved_duration')
     def _compute_duration(self):
         """Compute cumulative and remaining duration"""
         for record in self:
-            if record.date and record.sheet_id.project_id:
-                project = record.sheet_id.project_id
-                if project.date_start:
-                    # Calculate cumulative days from project start
-                    delta = record.date - project.date_start
-                    record.cumulative_duration = delta.days + 1
+            supervision_project = record.sheet_id.supervision_project_id if record.sheet_id else False
+            if record.date and supervision_project and supervision_project.contract_start_date:
+                # Calculate cumulative days from project start
+                delta = record.date - supervision_project.contract_start_date
+                record.cumulative_duration = delta.days + 1
 
-                    # Calculate remaining days
-                    approved = record.approved_duration or 0
-                    record.remaining_duration = max(0, approved - record.cumulative_duration)
-                else:
-                    record.cumulative_duration = 0
-                    record.remaining_duration = record.approved_duration or 0
+                # Calculate remaining days
+                approved = record.approved_duration or 0
+                record.remaining_duration = max(0, approved - record.cumulative_duration)
             else:
                 record.cumulative_duration = 0
-                record.remaining_duration = 0
+                record.remaining_duration = record.approved_duration or 0
 
     @api.depends('planned_progress', 'actual_progress')
     def _compute_progress_variance(self):

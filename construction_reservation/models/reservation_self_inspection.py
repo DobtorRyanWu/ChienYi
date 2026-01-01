@@ -58,7 +58,7 @@ class ReservationSelfInspectionReservation(models.Model):
             'type': 'ir.actions.act_window',
             'name': '缺失改善記錄',
             'res_model': 'reservation.defect.improvement',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('id', 'in', improvement_ids)],
         }
 
@@ -91,7 +91,7 @@ class ReservationSelfInspectionReservation(models.Model):
             'type': 'ir.actions.act_window',
             'name': '已建立的缺失改善記錄',
             'res_model': 'reservation.defect.improvement',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('id', 'in', created_improvements.ids)],
             'context': {'create': False},
         }

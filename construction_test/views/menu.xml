@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- ===================================================================
+         檢試驗管理選單 (歸屬於 品質安全)
+         =================================================================== -->
+
     <!-- 檢試驗管理主選單 -->
     <menuitem id="menu_test_management_root"
               name="檢試驗管理"
-              parent="construction_supervision_base.menu_supervision_root"
-              sequence="50"/>
+              parent="construction_supervision_base.menu_quality_safety_root"
+              sequence="30"/>
 
     <!-- 檢試驗項目管理 -->
     <menuitem id="menu_test_standard"

@@ -152,7 +152,7 @@
                 <filter string="品質合格率低於90%" name="low_quality"
                         domain="[('quality_pass_rate', '&lt;', 90)]"/>
             </xpath>
-            <xpath expr="//group[@string='群組']" position="inside">
+            <xpath expr="//group[@expand='0']" position="inside">
                 <filter string="品質合格率" name="group_by_quality"
                         context="{'group_by': 'quality_pass_rate'}"/>
             </xpath>

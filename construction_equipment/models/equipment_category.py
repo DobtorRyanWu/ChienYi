@@ -53,8 +53,7 @@ class EquipmentCategory(models.Model):
         index=True)
 
     parent_path = fields.Char(
-        index=True,
-        unaccent=False)
+        index=True)
 
     child_ids = fields.One2many(
         'supervision.equipment.category',
@@ -113,7 +112,7 @@ class EquipmentCategory(models.Model):
     @api.constrains('parent_id')
     def _check_parent_id(self):
         """防止循環階層結構"""
-        if not self._check_recursion():
+        if self._has_cycle():
             raise models.ValidationError('錯誤！分類不能是自己的上層分類。')
 
     # -------------------------------------------------------------------------

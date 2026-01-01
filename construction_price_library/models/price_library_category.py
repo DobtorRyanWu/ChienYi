@@ -42,7 +42,6 @@ class PriceLibraryCategory(models.Model):
 
     parent_path = fields.Char(
         index=True,
-        unaccent=False,
         help='樹狀結構路徑，用於高效查詢')
 
     child_ids = fields.One2many(
@@ -108,7 +107,7 @@ class PriceLibraryCategory(models.Model):
     @api.constrains('parent_id')
     def _check_parent_id(self):
         """檢查父分類不能是自己或自己的子分類"""
-        if not self._check_recursion():
+        if self._has_cycle():
             from odoo.exceptions import ValidationError
             raise ValidationError('分類不能設定自己或子分類為上層分類！')
 
@@ -117,3 +116,16 @@ class PriceLibraryCategory(models.Model):
         ('code_unique', 'UNIQUE(code)',
          '分類編號必須唯一！'),
     ]
+
+    # === 動作方法 ===
+    def action_view_items(self):
+        """檢視此分類下的價格項目"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'{self.name} - 價格項目',
+            'res_model': 'price.library.item',
+            'view_mode': 'list,kanban,form',
+            'domain': [('category_id', '=', self.id)],
+            'context': {'default_category_id': self.id},
+        }

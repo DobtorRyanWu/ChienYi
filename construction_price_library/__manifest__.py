@@ -34,9 +34,9 @@
         # Security
         'security/security.xml',
         'security/ir.model.access.csv',
-        # Views
-        'views/price_library_category_views.xml',
+        # Views - item views must load before category (action reference)
         'views/price_library_item_views.xml',
+        'views/price_library_category_views.xml',
         'views/price_library_import_wizard_views.xml',
         'views/menu.xml',
     ],

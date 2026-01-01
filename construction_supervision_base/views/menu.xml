@@ -2,40 +2,57 @@
 <odoo>
 
     <!-- ============================================== -->
-    <!-- 主選單                                          -->
+    <!-- 主選單結構 (依業務流程重新組織)                  -->
     <!-- ============================================== -->
-    <menuitem id="menu_construction_supervision_root"
-              name="工程監造"
-              sequence="50"
-              web_icon="construction_supervision_base,static/description/icon.png"/>
 
     <!-- ============================================== -->
-    <!-- 工程管理                                        -->
+    <!-- 1. 工程管理 - 專案與契約管理                    -->
     <!-- ============================================== -->
-    <menuitem id="menu_project_management"
+    <menuitem id="menu_project_management_root"
               name="工程管理"
-              parent="menu_construction_supervision_root"
+              sequence="10"/>
+
+    <!-- 1.1 工程總覽 -->
+    <menuitem id="menu_project_overview"
+              name="工程總覽"
+              parent="menu_project_management_root"
               sequence="10"/>
 
     <menuitem id="menu_supervision_project"
               name="工程案件"
-              parent="menu_project_management"
+              parent="menu_project_overview"
               action="action_supervision_project"
               sequence="10"/>
 
     <menuitem id="menu_supervision_task"
               name="契約工項"
-              parent="menu_project_management"
+              parent="menu_project_overview"
               action="action_supervision_task"
               sequence="20"/>
 
-    <!-- ============================================== -->
-    <!-- 文件管理                                        -->
-    <!-- ============================================== -->
+    <!-- 1.2 契約管理 (由 construction_contract_change 填充) -->
+    <menuitem id="menu_contract_management"
+              name="契約管理"
+              parent="menu_project_management_root"
+              sequence="20"/>
+
+    <!-- 1.3 進度管理 (由 construction_progress, construction_timeline 填充) -->
+    <menuitem id="menu_schedule_management"
+              name="進度管理"
+              parent="menu_project_management_root"
+              sequence="30"/>
+
+    <!-- 1.4 資源管理 (由 construction_partner 填充) -->
+    <menuitem id="menu_resource_management"
+              name="資源管理"
+              parent="menu_project_management_root"
+              sequence="40"/>
+
+    <!-- 1.5 文件管理 -->
     <menuitem id="menu_document_management"
               name="文件管理"
-              parent="menu_construction_supervision_root"
-              sequence="20"/>
+              parent="menu_project_management_root"
+              sequence="50"/>
 
     <menuitem id="menu_supervision_document"
               name="工程文件"
@@ -51,21 +68,188 @@
               groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
 
     <!-- ============================================== -->
-    <!-- 報表 (預留)                                     -->
+    <!-- 2. 施工執行 - 日常施工作業                      -->
+    <!-- ============================================== -->
+    <menuitem id="menu_construction_execution_root"
+              name="施工執行"
+              sequence="20"/>
+
+    <!-- 2.1 施工日誌 (由 construction_daily_log 填充) -->
+    <menuitem id="menu_daily_log"
+              name="施工日誌"
+              parent="menu_construction_execution_root"
+              sequence="10"/>
+
+    <!-- 2.2 通報單管理 (由 construction_notification_slip 填充) -->
+    <menuitem id="menu_notification_slip"
+              name="通報單管理"
+              parent="menu_construction_execution_root"
+              sequence="20"/>
+
+    <!-- 2.3 人機管理 (由 construction_equipment 填充) -->
+    <menuitem id="menu_manpower_equipment"
+              name="人機管理"
+              parent="menu_construction_execution_root"
+              sequence="30"/>
+
+    <!-- 2.4 照片管理 (由 construction_photo 填充) -->
+    <menuitem id="menu_photo_management"
+              name="照片管理"
+              parent="menu_construction_execution_root"
+              sequence="40"/>
+
+    <!-- 2.5 工時管理 (由 construction_timeline 填充) -->
+    <menuitem id="menu_timesheet_management"
+              name="工時管理"
+              parent="menu_construction_execution_root"
+              sequence="50"/>
+
+    <!-- ============================================== -->
+    <!-- 3. 品質安全 - 品質與安全管控                    -->
+    <!-- ============================================== -->
+    <menuitem id="menu_quality_safety_root"
+              name="品質安全"
+              sequence="30"/>
+
+    <!-- 3.1 自主檢查 (由 construction_quality 填充) -->
+    <menuitem id="menu_self_inspection"
+              name="自主檢查"
+              parent="menu_quality_safety_root"
+              sequence="10"/>
+
+    <!-- 3.2 缺失管理 (由 construction_quality 填充) -->
+    <menuitem id="menu_defect_management"
+              name="缺失管理"
+              parent="menu_quality_safety_root"
+              sequence="20"/>
+
+    <!-- ============================================== -->
+    <!-- 4. 計價請款 - 財務相關                          -->
+    <!-- ============================================== -->
+    <menuitem id="menu_payment_root"
+              name="計價請款"
+              sequence="40"/>
+
+    <!-- 4.1 估驗計價 (由 construction_payment 填充) -->
+    <menuitem id="menu_estimate"
+              name="估驗計價"
+              parent="menu_payment_root"
+              sequence="10"/>
+
+    <!-- 4.2 請款管理 (由 construction_payment 填充) -->
+    <menuitem id="menu_claim"
+              name="請款管理"
+              parent="menu_payment_root"
+              sequence="20"/>
+
+    <!-- 4.3 成本分析 (由 construction_cost_analysis 填充) -->
+    <menuitem id="menu_cost_analysis"
+              name="成本分析"
+              parent="menu_payment_root"
+              sequence="30"/>
+
+    <!-- 4.4 報表下載 (由 construction_batch 填充) -->
+    <menuitem id="menu_report_download"
+              name="報表下載"
+              parent="menu_payment_root"
+              sequence="40"/>
+
+    <!-- ============================================== -->
+    <!-- 5. 驗收結案 - 驗收與收尾                        -->
+    <!-- ============================================== -->
+    <menuitem id="menu_acceptance_root"
+              name="驗收結案"
+              sequence="50"/>
+
+    <!-- 5.1 初驗管理 (由 construction_acceptance 填充) -->
+    <menuitem id="menu_preliminary_acceptance"
+              name="初驗管理"
+              parent="menu_acceptance_root"
+              sequence="10"/>
+
+    <!-- 5.2 正驗管理 (由 construction_acceptance 填充) -->
+    <menuitem id="menu_final_acceptance"
+              name="正驗管理"
+              parent="menu_acceptance_root"
+              sequence="20"/>
+
+    <!-- 5.3 驗收缺失 (由 construction_acceptance 填充) -->
+    <menuitem id="menu_acceptance_defect"
+              name="驗收缺失"
+              parent="menu_acceptance_root"
+              sequence="30"/>
+
+    <!-- 5.4 結案管理 (由 construction_acceptance 填充) -->
+    <menuitem id="menu_closure"
+              name="結案管理"
+              parent="menu_acceptance_root"
+              sequence="40"/>
+
+    <!-- ============================================== -->
+    <!-- 6. 系統設定 - 管理者專用                        -->
+    <!-- ============================================== -->
+    <menuitem id="menu_system_config_root"
+              name="系統設定"
+              sequence="90"
+              groups="construction_supervision_base.group_supervisor_admin"/>
+
+    <!-- 6.1 樣板設定 (由 construction_template 填充) -->
+    <menuitem id="menu_template_config"
+              name="樣板設定"
+              parent="menu_system_config_root"
+              sequence="10"/>
+
+    <!-- 6.2 價格庫 (由 construction_price_library 填充) -->
+    <menuitem id="menu_price_library_config"
+              name="價格庫"
+              parent="menu_system_config_root"
+              sequence="20"/>
+
+    <!-- 6.3 設備設定 (由 construction_equipment 填充) -->
+    <menuitem id="menu_equipment_config"
+              name="設備設定"
+              parent="menu_system_config_root"
+              sequence="30"/>
+
+    <!-- 6.4 基礎設定 -->
+    <menuitem id="menu_basic_config"
+              name="基礎設定"
+              parent="menu_system_config_root"
+              sequence="40"/>
+
+    <!-- 6.5 稽核管理 (由 construction_audit 填充) -->
+    <menuitem id="menu_audit_config"
+              name="稽核管理"
+              parent="menu_system_config_root"
+              sequence="50"/>
+
+    <!-- ============================================== -->
+    <!-- 報表 (整合至工程管理)                           -->
     <!-- ============================================== -->
     <menuitem id="menu_reports"
               name="報表"
-              parent="menu_construction_supervision_root"
+              parent="menu_project_management_root"
               sequence="80"
               groups="construction_supervision_base.group_supervision_manager"/>
 
-    <!-- ============================================== -->
-    <!-- 設定                                           -->
-    <!-- ============================================== -->
-    <menuitem id="menu_configuration"
-              name="設定"
-              parent="menu_construction_supervision_root"
-              sequence="90"
-              groups="construction_supervision_base.group_supervisor_admin"/>
+    <!-- 工項分析報表 (來自 project 模組) -->
+    <menuitem id="menu_task_analysis_report"
+              name="工項分析"
+              parent="menu_reports"
+              action="project.action_project_task_user_tree"
+              sequence="10"/>
+
+    <!-- 工時報表 (來自 hr_timesheet 模組) -->
+    <menuitem id="menu_timesheet_report_by_project"
+              name="工時統計 (依專案)"
+              parent="menu_reports"
+              action="hr_timesheet.timesheet_action_report_by_project"
+              sequence="20"/>
+
+    <menuitem id="menu_timesheet_report_by_task"
+              name="工時統計 (依工項)"
+              parent="menu_reports"
+              action="hr_timesheet.timesheet_action_report_by_task"
+              sequence="30"/>
 
 </odoo>

@@ -169,7 +169,7 @@
                 <progressbar field="equipment_state"
                              colors='{"available": "success", "in_use": "info", "maintenance": "warning", "unavailable": "danger"}'/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div t-attf-class="oe_kanban_global_click">
                             <div class="oe_kanban_content">
                                 <div class="o_kanban_record_title">
@@ -191,7 +191,7 @@
                                     </span>
                                     <span class="oe_kanban_bottom_right" t-if="record.open_maintenance_count.raw_value > 0">
                                         <span class="badge rounded-pill text-bg-warning">
-                                            <i class="fa fa-wrench"/> <field name="open_maintenance_count"/>
+                                            <i class="fa fa-wrench" title="維護中"/> <field name="open_maintenance_count"/>
                                         </span>
                                     </span>
                                 </div>
@@ -224,8 +224,6 @@
                 <filter string="自有設備" name="own" domain="[('owner_type', '=', 'own')]"/>
                 <filter string="租賃設備" name="rent" domain="[('owner_type', '=', 'rent')]"/>
                 <separator/>
-                <filter string="有進行中維護" name="has_open_maintenance"
-                        domain="[('open_maintenance_count', '>', 0)]"/>
                 <filter string="已停用" name="inactive" domain="[('active', '=', False)]"/>
                 <separator/>
                 <group expand="0" string="群組">

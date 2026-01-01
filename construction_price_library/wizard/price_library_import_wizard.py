@@ -133,7 +133,7 @@ class PriceLibraryImportWizard(models.TransientModel):
             'type': 'ir.actions.act_window',
             'name': '已匯入的工項',
             'res_model': 'project.task',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('id', 'in', created_tasks.ids)],
             'context': {
                 'default_project_id': self.project_id.project_id.id,

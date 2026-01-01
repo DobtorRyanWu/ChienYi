@@ -1,87 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ============================================== -->
-    <!-- 工程相關單位管理 選單                              -->
-    <!-- ============================================== -->
+    <!-- ===================================================================
+         工程單位選單 (歸屬於 工程管理 > 資源管理)
+         =================================================================== -->
 
-    <!-- 主選單: 工程單位 (在工程監造主選單下) -->
-    <menuitem id="menu_construction_partner_root"
+    <!-- 工程單位 -->
+    <menuitem id="menu_partner_units"
               name="工程單位"
-              parent="construction_supervision_base.menu_construction_supervision_root"
-              sequence="50"/>
+              parent="construction_supervision_base.menu_resource_management"
+              sequence="10"/>
 
-    <!-- 子選單: 工程相關單位 -->
     <menuitem id="menu_construction_partners"
               name="所有單位"
-              parent="menu_construction_partner_root"
+              parent="menu_partner_units"
               action="action_construction_partners"
               sequence="10"/>
 
-    <!-- 子選單: 施工廠商 -->
     <menuitem id="menu_construction_contractors"
               name="施工廠商"
-              parent="menu_construction_partner_root"
+              parent="menu_partner_units"
               action="action_construction_contractors"
               sequence="20"/>
 
-    <!-- 子選單: 監造/設計單位 -->
     <menuitem id="menu_supervision_units"
               name="監造/設計單位"
-              parent="menu_construction_partner_root"
+              parent="menu_partner_units"
               action="action_supervision_units"
               sequence="30"/>
 
-    <!-- 子選單: 業主單位 -->
     <menuitem id="menu_construction_owners"
               name="業主單位"
-              parent="menu_construction_partner_root"
+              parent="menu_partner_units"
               action="action_construction_owners"
               sequence="40"/>
 
-    <!-- 分隔線 -->
-    <menuitem id="menu_partner_separator"
-              name=""
-              parent="menu_construction_partner_root"
-              sequence="50"/>
-
-    <!-- 子選單: 廠商證照 -->
-    <menuitem id="menu_partner_licenses"
-              name="廠商證照"
-              parent="menu_construction_partner_root"
-              action="action_partner_license"
-              sequence="60"/>
-
-    <!-- 子選單: 即將過期證照 -->
-    <menuitem id="menu_partner_licenses_expiring"
-              name="即將過期證照"
-              parent="menu_construction_partner_root"
-              action="action_partner_license_expiring"
-              sequence="61"/>
-
-    <!-- 子選單: 技術聯絡人 -->
+    <!-- 技術聯絡人 -->
     <menuitem id="menu_technical_contacts"
               name="技術聯絡人"
-              parent="menu_construction_partner_root"
+              parent="construction_supervision_base.menu_resource_management"
               action="action_partner_technical_contact"
-              sequence="70"/>
+              sequence="20"/>
 
-    <!-- ============================================== -->
-    <!-- 設定選單                                         -->
-    <!-- ============================================== -->
+    <!-- 廠商證照 -->
+    <menuitem id="menu_partner_licenses"
+              name="廠商證照"
+              parent="construction_supervision_base.menu_resource_management"
+              action="action_partner_license"
+              sequence="30"/>
 
-    <!-- 設定主選單 -->
-    <menuitem id="menu_construction_partner_config"
-              name="設定"
-              parent="menu_construction_partner_root"
-              sequence="100"
-              groups="construction_supervision_base.group_supervision_manager"/>
+    <menuitem id="menu_partner_licenses_expiring"
+              name="即將過期證照"
+              parent="construction_supervision_base.menu_resource_management"
+              action="action_partner_license_expiring"
+              sequence="31"/>
 
-    <!-- 子選單: 工程單位分類 -->
+    <!-- 工程單位分類設定 (歸屬於 系統設定 > 基礎設定) -->
     <menuitem id="menu_partner_categories"
               name="工程單位分類"
-              parent="menu_construction_partner_config"
+              parent="construction_supervision_base.menu_basic_config"
               action="action_supervision_partner_category"
-              sequence="10"/>
+              sequence="20"/>
 
 </odoo>

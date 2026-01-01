@@ -80,7 +80,7 @@
                         type="action"
                         class="oe_stat_button"
                         icon="fa-database"
-                        context="{'default_project_id': active_id}">
+                        context="{'default_project_id': id}">
                     <span class="o_stat_text">匯入價格庫</span>
                 </button>
             </xpath>

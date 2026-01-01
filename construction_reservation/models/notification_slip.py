@@ -137,7 +137,7 @@ class ReservationNotificationSlipReservation(models.Model):
             'type': 'ir.actions.act_window',
             'name': '自主檢查記錄',
             'res_model': 'reservation.self.inspection',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('slip_id', '=', self.id)],
             'context': {
                 'default_slip_id': self.id,
@@ -152,7 +152,7 @@ class ReservationNotificationSlipReservation(models.Model):
             'type': 'ir.actions.act_window',
             'name': '缺失改善記錄',
             'res_model': 'reservation.defect.improvement',
-            'view_mode': 'tree,kanban,form',
+            'view_mode': 'list,kanban,form',
             'domain': [('slip_id', '=', self.id)],
             'context': {
                 'default_slip_id': self.id,
@@ -167,7 +167,7 @@ class ReservationNotificationSlipReservation(models.Model):
             'type': 'ir.actions.act_window',
             'name': '未矯正缺失',
             'res_model': 'reservation.defect.improvement',
-            'view_mode': 'tree,kanban,form',
+            'view_mode': 'list,kanban,form',
             'domain': [
                 ('slip_id', '=', self.id),
                 ('state', 'in', ('uncorrected', 'overdue'))

@@ -38,7 +38,7 @@ class GeneralSelfInspectionExtend(models.Model):
             'type': 'ir.actions.act_window',
             'name': '關聯缺失改善',
             'res_model': 'general.defect.improvement',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('self_inspection_id', '=', self.id)],
             'context': {
                 'default_self_inspection_id': self.id,
@@ -94,7 +94,7 @@ class GeneralSelfInspectionExtend(models.Model):
                 'type': 'ir.actions.act_window',
                 'name': '已建立的缺失改善',
                 'res_model': 'general.defect.improvement',
-                'view_mode': 'tree,form',
+                'view_mode': 'list,form',
                 'domain': [('id', 'in', created_improvements.ids)],
             }
 

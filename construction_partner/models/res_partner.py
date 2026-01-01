@@ -258,7 +258,7 @@ class ResPartner(models.Model):
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 證照資料',
             'res_model': 'partner.license',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('partner_id', '=', self.id)],
             'context': {'default_partner_id': self.id},
         }
@@ -270,7 +270,7 @@ class ResPartner(models.Model):
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 技術聯絡人',
             'res_model': 'partner.technical.contact',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [('partner_id', '=', self.id)],
             'context': {'default_partner_id': self.id},
         }
@@ -282,7 +282,7 @@ class ResPartner(models.Model):
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 工程專案',
             'res_model': 'supervision.project',
-            'view_mode': 'tree,kanban,form',
+            'view_mode': 'list,kanban,form',
             'domain': [('id', 'in', self.supervision_project_ids.ids)],
         }
 
@@ -293,7 +293,7 @@ class ResPartner(models.Model):
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 即將過期證照',
             'res_model': 'partner.license',
-            'view_mode': 'tree,form',
+            'view_mode': 'list,form',
             'domain': [
                 ('partner_id', '=', self.id),
                 ('is_expiring_soon', '=', True),

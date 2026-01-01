@@ -1,28 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ============================================== -->
-    <!-- 樣板設定主選單                                   -->
-    <!-- ============================================== -->
-
-    <!-- 主選單 - 放在工程監造設定下 -->
-    <menuitem id="menu_document_template_root"
-        name="樣板設定"
-        parent="construction_supervision_base.menu_configuration"
-        sequence="30"
-        groups="construction_supervision_base.group_supervisor_admin,construction_supervision_base.group_supervision_manager"/>
+    <!-- ===================================================================
+         樣板設定選單 (歸屬於 系統設定 > 樣板設定)
+         =================================================================== -->
 
     <!-- 所有樣板 -->
     <menuitem id="menu_document_template_all"
         name="所有樣板"
-        parent="menu_document_template_root"
+        parent="construction_supervision_base.menu_template_config"
         action="action_document_template"
         sequence="1"/>
 
     <!-- 依類型分類選單 -->
     <menuitem id="menu_document_template_by_type"
         name="依類型"
-        parent="menu_document_template_root"
+        parent="construction_supervision_base.menu_template_config"
         sequence="10"/>
 
     <menuitem id="menu_document_template_daily_log"

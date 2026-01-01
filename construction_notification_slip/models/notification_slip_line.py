@@ -60,8 +60,7 @@ class ReservationNotificationSlipLine(models.Model):
 
     unit_price = fields.Monetary(
         string='單價', required=True,
-        currency_field='currency_id',
-        digits=(16, 2))
+        currency_field='currency_id')
 
     # === 預算欄位 (預估需求) ===
     planned_qty = fields.Float(

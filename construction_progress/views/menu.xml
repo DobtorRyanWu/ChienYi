@@ -8,32 +8,22 @@
 <odoo>
 
     <!-- ===================================================================
-         Root Menu (under Construction Supervision Base)
-         =================================================================== -->
-
-    <!-- 進度管理主選單 -->
-    <menuitem id="menu_construction_progress_root"
-              name="進度管理"
-              parent="construction_supervision_base.menu_construction_supervision_root"
-              sequence="30"/>
-
-    <!-- ===================================================================
-         Sub Menus
+         進度管理選單 (歸屬於 工程管理 > 進度管理)
          =================================================================== -->
 
     <!-- 進度表 -->
     <menuitem id="menu_progress_schedule"
               name="進度表"
-              parent="menu_construction_progress_root"
+              parent="construction_supervision_base.menu_schedule_management"
               action="action_progress_schedule"
-              sequence="10"/>
+              sequence="30"/>
 
     <!-- 進度明細 (供進階查詢使用) -->
     <menuitem id="menu_progress_schedule_line"
               name="進度明細"
-              parent="menu_construction_progress_root"
+              parent="construction_supervision_base.menu_schedule_management"
               action="action_progress_schedule_line"
-              sequence="20"
+              sequence="40"
               groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervisor_admin"/>
 
 </odoo>

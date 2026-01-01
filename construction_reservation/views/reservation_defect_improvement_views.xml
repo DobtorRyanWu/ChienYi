@@ -48,7 +48,7 @@
             </xpath>
 
             <!-- 新增改善進度欄位 -->
-            <xpath expr="//group[@string='日期資訊']" position="after">
+            <xpath expr="//group[@name='date_info']" position="after">
                 <group string="改善進度">
                     <field name="improvement_progress" widget="progressbar"/>
                     <field name="is_from_inspection"/>
@@ -148,7 +148,7 @@
                 <filter string="複查不通過" name="recheck_fail"
                         domain="[('recheck_result', '=', 'fail')]"/>
             </xpath>
-            <xpath expr="//group[@string='群組']" position="inside">
+            <xpath expr="//group[@expand='0']" position="inside">
                 <filter string="缺失類別" name="group_defect_category"
                         context="{'group_by': 'defect_category'}"/>
                 <filter string="嚴重程度" name="group_severity"

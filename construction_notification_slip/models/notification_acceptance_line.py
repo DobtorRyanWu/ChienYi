@@ -64,7 +64,7 @@ class NotificationAcceptanceLine(models.Model):
 
     qty_previously_accepted = fields.Float(
         string='累計已驗收',
-        compute='_compute_qty_to_accept',
+        compute='_compute_qty_previously_accepted',
         digits=(16, 4))
 
     qty_to_accept = fields.Float(
@@ -93,15 +93,23 @@ class NotificationAcceptanceLine(models.Model):
     note = fields.Text(string='備註')
 
     # === 計算方法 ===
-    @api.depends('slip_line_id', 'slip_line_id.qty_remaining', 'slip_line_id.qty_accepted')
+    @api.depends('slip_line_id', 'slip_line_id.qty_remaining')
     def _compute_qty_to_accept(self):
+        """計算待驗收數量 (stored)"""
+        for rec in self:
+            if rec.slip_line_id:
+                rec.qty_to_accept = rec.slip_line_id.qty_remaining
+            else:
+                rec.qty_to_accept = 0.0
+
+    @api.depends('slip_line_id', 'slip_line_id.qty_accepted')
+    def _compute_qty_previously_accepted(self):
+        """計算累計已驗收數量 (non-stored)"""
         for rec in self:
             if rec.slip_line_id:
                 rec.qty_previously_accepted = rec.slip_line_id.qty_accepted
-                rec.qty_to_accept = rec.slip_line_id.qty_remaining
             else:
                 rec.qty_previously_accepted = 0.0
-                rec.qty_to_accept = 0.0
 
     @api.depends('qty_accepted', 'unit_price')
     def _compute_amount(self):

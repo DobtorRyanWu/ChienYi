@@ -30,7 +30,6 @@ class PaymentEstimate(models.Model):
         '所屬工程',
         required=True,
         tracking=True,
-        states={'draft': [('readonly', False)]},
         readonly=True,
         index=True
     )
@@ -44,7 +43,6 @@ class PaymentEstimate(models.Model):
         domain="[('company_type', '=', 'contractor')]",
         tracking=True,
         help='提送此估驗的施工廠商',
-        states={'draft': [('readonly', False)]},
         readonly=True
     )
 

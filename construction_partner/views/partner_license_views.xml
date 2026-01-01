@@ -163,7 +163,7 @@
                 <field name="expiry_status"/>
                 <field name="verification_state"/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div t-attf-class="oe_kanban_card oe_kanban_global_click #{record.expiry_status.raw_value == 'expired' ? 'bg-danger-light' : record.expiry_status.raw_value == 'expiring' ? 'bg-warning-light' : ''}">
                             <div class="oe_kanban_content">
                                 <div class="o_kanban_record_title">

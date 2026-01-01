@@ -33,8 +33,8 @@
                 <field name="slip_location"/>
             </xpath>
 
-            <!-- 擴展檢查項目 tree 視圖 -->
-            <xpath expr="//field[@name='checklist_ids']/tree/field[@name='note']" position="after">
+            <!-- 擴展檢查項目 list 視圖 -->
+            <xpath expr="//field[@name='checklist_ids']/list/field[@name='note']" position="after">
                 <field name="defect_improvement_id" optional="hide"/>
                 <field name="has_improvement" column_invisible="1"/>
                 <button name="action_create_improvement"
@@ -98,13 +98,7 @@
         <field name="model">reservation.self.inspection</field>
         <field name="inherit_id" ref="construction_quality.view_reservation_self_inspection_search"/>
         <field name="arch" type="xml">
-            <xpath expr="//filter[@name='has_defect']" position="after">
-                <filter string="有改善記錄" name="has_improvement"
-                        domain="[('defect_improvement_count', '>', 0)]"/>
-                <filter string="待建立改善" name="pending_improvement"
-                        domain="[('has_defect', '=', True), ('defect_improvement_count', '=', 0)]"/>
-            </xpath>
-            <xpath expr="//group[@string='群組']" position="inside">
+            <xpath expr="//group[@expand='0']" position="inside">
                 <filter string="通報單地點" name="group_slip_location"
                         context="{'group_by': 'slip_location'}"/>
                 <filter string="施作狀態" name="group_work_status"

@@ -149,7 +149,7 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="base.view_res_partner_filter"/>
         <field name="arch" type="xml">
-            <xpath expr="//filter[@name='supplier']" position="after">
+            <xpath expr="//search/filter[last()]" position="after">
                 <separator/>
                 <filter string="業主" name="filter_owner"
                         domain="[('construction_partner_type', '=', 'owner')]"/>
@@ -168,9 +168,6 @@
                         domain="[('contractor_grade', '=', 'grade_b')]"/>
                 <filter string="丙級營造廠" name="filter_grade_c"
                         domain="[('contractor_grade', '=', 'grade_c')]"/>
-                <separator/>
-                <filter string="有即將過期證照" name="filter_expiring_license"
-                        domain="[('expiring_license_count', '>', 0)]"/>
             </xpath>
             <xpath expr="//group" position="inside">
                 <filter string="工程單位類型" name="group_construction_type"

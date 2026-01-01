@@ -298,7 +298,7 @@
                 <field name="settlement_amount"/>
                 <field name="currency_id"/>
                 <templates>
-                    <t t-name="kanban-box">
+                    <t t-name="card">
                         <div class="oe_kanban_global_click">
                             <div class="oe_kanban_details">
                                 <div class="o_kanban_record_top">
@@ -313,7 +313,7 @@
                                 <div class="o_kanban_record_body">
                                     <field name="name"/>
                                     <div>
-                                        <i class="fa fa-map-marker"/> <field name="location"/>
+                                        <i class="fa fa-map-marker" title="位置"/> <field name="location"/>
                                     </div>
                                 </div>
                                 <div class="o_kanban_record_bottom">
