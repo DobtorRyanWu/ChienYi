@@ -199,8 +199,8 @@ class ConstructionPortal(CustomerPortal):
             'project_id': project_id,
             'inspection_type_id': int(post.get('inspection_type_id', 0)) or False,
             'inspection_date': post.get('inspection_date'),
-            'location': post.get('location', ''),
-            'notes': post.get('notes', ''),
+            'inspection_location': post.get('location', ''),
+            'note': post.get('note', ''),
         }
 
         Inspection = request.env['general.self.inspection']

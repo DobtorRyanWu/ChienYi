@@ -50,9 +50,9 @@
                             </div>
 
                             <!-- 缺失類型 -->
-                            <p class="mb-1 text-muted" t-if="defect.defect_type_id">
+                            <p class="mb-1 text-muted" t-if="defect.defect_type">
                                 <i class="fa fa-tag me-1"/>
-                                <t t-out="defect.defect_type_id.name"/>
+                                <t t-out="dict(defect._fields['defect_type'].selection).get(defect.defect_type, defect.defect_type)"/>
                             </p>
 
                             <!-- 改善期限 -->
@@ -137,13 +137,13 @@
 
                     <!-- 基本資訊 -->
                     <div class="row g-3">
-                        <div class="col-6" t-if="defect.defect_type_id">
+                        <div class="col-6" t-if="defect.defect_type">
                             <small class="text-muted d-block">缺失類型</small>
-                            <strong t-out="defect.defect_type_id.name"/>
+                            <strong t-out="dict(defect._fields['defect_type'].selection).get(defect.defect_type, defect.defect_type)"/>
                         </div>
-                        <div class="col-6" t-if="defect.discovery_date">
+                        <div class="col-6" t-if="defect.found_date">
                             <small class="text-muted d-block">發現日期</small>
-                            <strong t-out="defect.discovery_date"/>
+                            <strong t-out="defect.found_date"/>
                         </div>
                         <div class="col-6" t-if="defect.deadline">
                             <small class="text-muted d-block">改善期限</small>
@@ -184,9 +184,9 @@
                     </div>
                     <div class="card-body">
                         <div class="photo-grid">
-                            <t t-foreach="defect.before_photo_ids" t-as="photo">
+                            <t t-foreach="defect.before_photo_ids" t-as="attachment">
                                 <div class="photo-item">
-                                    <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image?width=300&amp;height=300&amp;crop=true"
+                                    <img t-attf-src="/web/image/ir.attachment/#{attachment.id}?width=300&amp;height=300&amp;crop=true"
                                          alt="缺失照片"/>
                                 </div>
                             </t>
@@ -229,9 +229,9 @@
                     </div>
                     <div class="card-body">
                         <div class="photo-grid">
-                            <t t-foreach="defect.after_photo_ids" t-as="photo">
+                            <t t-foreach="defect.after_photo_ids" t-as="attachment">
                                 <div class="photo-item">
-                                    <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image?width=300&amp;height=300&amp;crop=true"
+                                    <img t-attf-src="/web/image/ir.attachment/#{attachment.id}?width=300&amp;height=300&amp;crop=true"
                                          alt="改善後照片"/>
                                 </div>
                             </t>

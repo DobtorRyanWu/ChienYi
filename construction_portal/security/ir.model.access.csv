@@ -1,8 +1,8 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_supervision_project_portal,supervision.project.portal,construction_supervision_base.model_supervision_project,base.group_portal,1,0,0,0
-access_general_self_inspection_portal,general.self.inspection.portal,construction_quality.model_general_self_inspection,base.group_portal,1,0,0,0
-access_supervision_defect_portal,supervision.defect.portal,construction_quality.model_supervision_defect,base.group_portal,1,0,0,0
-access_supervision_photo_portal,supervision.photo.portal,construction_photo.model_supervision_photo,base.group_portal,1,0,0,0
+access_general_self_inspection_portal,general.self.inspection.portal,construction_quality.model_general_self_inspection,base.group_portal,1,1,1,0
+access_general_self_inspection_item_portal,general.self.inspection.item.portal,construction_quality.model_general_self_inspection_item,base.group_portal,1,1,1,0
+access_supervision_defect_portal,supervision.defect.portal,construction_quality.model_supervision_defect,base.group_portal,1,1,0,0
+access_supervision_photo_portal,supervision.photo.portal,construction_photo.model_supervision_photo,base.group_portal,1,1,1,0
 access_self_inspection_type_portal,self.inspection.type.portal,construction_quality.model_self_inspection_type,base.group_portal,1,0,0,0
-access_defect_type_portal,supervision.defect.type.portal,construction_quality.model_supervision_defect_type,base.group_portal,1,0,0,0
-access_photo_tag_portal,supervision.photo.tag.portal,construction_photo.model_supervision_photo_tag,base.group_portal,1,0,0,0
+access_self_inspection_type_item_portal,self.inspection.type.item.portal,construction_quality.model_self_inspection_type_item,base.group_portal,1,0,0,0

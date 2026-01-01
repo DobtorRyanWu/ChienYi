@@ -142,10 +142,10 @@ class ProjectTaskTimeline(models.Model):
         vals.update({
             'task_id': self.id,
             'project_id': self.project_id.id,
-            'account_id': self.project_id.analytic_account_id.id if self.project_id.analytic_account_id else False,
             'employee_id': self.env.user.employee_id.id if self.env.user.employee_id else False,
             'name': f'{self.item_no or ""} - {self.name}',
         })
+        # Odoo 18: account_id 已被移除，改用 analytic distribution 系統
         return vals
 
     def button_start_work(self):

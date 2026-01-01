@@ -1,20 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Portal 首頁工程案件計數器 -->
+    <!-- Portal 首頁工程案件選單 -->
     <template id="portal_my_home_construction" name="Portal My Home: Construction"
-              inherit_id="portal.portal_my_home" priority="30">
+              inherit_id="portal.portal_my_home" priority="45">
         <xpath expr="//div[hasclass('o_portal_docs')]" position="before">
-            <t t-set="portal_client_category_enable" t-value="True"/>
+            <t t-set="portal_service_category_enable" t-value="True"/>
         </xpath>
-        <div id="portal_client_category" position="inside">
+        <div id="portal_service_category" position="inside">
             <t t-call="portal.portal_docs_entry">
                 <t t-set="icon" t-value="'/construction_portal/static/src/img/construction.svg'"/>
                 <t t-set="title">工程案件</t>
                 <t t-set="url" t-value="'/my/construction'"/>
-                <t t-set="text">查看工程案件</t>
+                <t t-set="text">查看工程進度、自主檢查與缺失改善</t>
                 <t t-set="placeholder_count" t-value="'construction_count'"/>
             </t>
         </div>
+    </template>
+
+    <!-- Portal Breadcrumb 配置 -->
+    <template id="portal_layout_construction" name="Portal layout: Construction menu entry"
+              inherit_id="portal.portal_breadcrumbs" priority="45">
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li t-if="page_name == 'construction' or page_name == 'construction_detail'"
+                t-attf-class="breadcrumb-item #{'active' if page_name == 'construction' else ''}">
+                <a t-if="page_name != 'construction'" t-attf-href="/my/construction">工程案件</a>
+                <t t-else="">工程案件</t>
+            </li>
+            <li t-if="page_name == 'construction_detail' and project"
+                class="breadcrumb-item active text-truncate">
+                <t t-esc="project.name"/>
+            </li>
+            <li t-if="page_name == 'construction_inspections'"
+                t-attf-class="breadcrumb-item #{'active' if not inspection else ''}">
+                <a t-if="inspection" t-attf-href="/my/construction/#{project.id}/inspections">自主檢查</a>
+                <t t-else="">自主檢查</t>
+            </li>
+            <li t-if="page_name == 'construction_inspection_detail' or page_name == 'construction_inspection_new'"
+                class="breadcrumb-item active">
+                <t t-if="page_name == 'construction_inspection_new'">新增檢查</t>
+                <t t-elif="inspection"><t t-esc="inspection.name or '檢查詳情'"/></t>
+            </li>
+            <li t-if="page_name == 'construction_defects'"
+                t-attf-class="breadcrumb-item #{'active' if not defect else ''}">
+                <a t-if="defect" t-attf-href="/my/construction/#{project.id}/defects">缺失</a>
+                <t t-else="">缺失</t>
+            </li>
+            <li t-if="page_name == 'construction_defect_detail'" class="breadcrumb-item active">
+                <t t-esc="defect.name or '缺失詳情'"/>
+            </li>
+            <li t-if="page_name == 'construction_photos'"
+                t-attf-class="breadcrumb-item #{'active' if not photo else ''}">
+                <a t-if="photo" t-attf-href="/my/construction/#{project.id}/photos">照片</a>
+                <t t-else="">照片</t>
+            </li>
+            <li t-if="page_name == 'construction_photo_detail' or page_name == 'construction_photo_upload'"
+                class="breadcrumb-item active">
+                <t t-if="page_name == 'construction_photo_upload'">上傳照片</t>
+                <t t-elif="photo">照片詳情</t>
+            </li>
+        </xpath>
     </template>
 
     <!-- 工程案件列表 - 手機友善版 -->

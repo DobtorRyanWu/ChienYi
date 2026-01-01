@@ -42,9 +42,9 @@
                                     <h6 class="mb-1 fw-bold">
                                         <t t-out="inspection.name or inspection.inspection_type_id.name or '自主檢查'"/>
                                     </h6>
-                                    <p class="mb-1 text-muted" t-if="inspection.location">
+                                    <p class="mb-1 text-muted" t-if="inspection.inspection_location">
                                         <i class="fa fa-map-marker-alt me-1"/>
-                                        <t t-out="inspection.location"/>
+                                        <t t-out="inspection.inspection_location"/>
                                     </p>
                                     <small class="text-muted">
                                         <i class="fa fa-calendar me-1"/>
@@ -132,11 +132,11 @@
 
                 <!-- 備註 -->
                 <div class="mb-4">
-                    <label for="notes" class="form-label fw-bold">
+                    <label for="note" class="form-label fw-bold">
                         備註說明
                     </label>
-                    <textarea name="notes" id="notes"
-                              class="form-control"
+                    <textarea name="note" id="note"
+                              class="form-control form-control-lg"
                               rows="4"
                               placeholder="請輸入備註說明（選填）"></textarea>
                 </div>
@@ -179,9 +179,9 @@
                             <small class="text-muted d-block">檢查日期</small>
                             <strong t-out="inspection.inspection_date"/>
                         </div>
-                        <div class="col-6 mb-3" t-if="inspection.location">
+                        <div class="col-6 mb-3" t-if="inspection.inspection_location">
                             <small class="text-muted d-block">檢查地點</small>
-                            <strong t-out="inspection.location"/>
+                            <strong t-out="inspection.inspection_location"/>
                         </div>
                         <div class="col-12 mb-3" t-if="inspection.inspection_type_id">
                             <small class="text-muted d-block">檢查類型</small>
@@ -199,13 +199,13 @@
             </div>
 
             <!-- 備註說明 -->
-            <t t-if="inspection.notes">
+            <t t-if="inspection.note">
                 <div class="card mb-4">
                     <div class="card-header">
                         <h5 class="mb-0">備註說明</h5>
                     </div>
                     <div class="card-body">
-                        <p class="mb-0" t-out="inspection.notes"/>
+                        <p class="mb-0" t-out="inspection.note"/>
                     </div>
                 </div>
             </t>

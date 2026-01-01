@@ -14,6 +14,24 @@ class SupervisionProjectPortal(models.Model):
     _inherit = ['supervision.project', 'portal.mixin']
     _name = 'supervision.project'
 
+    # === Portal 安全規則輔助欄位 ===
+    # 因為 Many2many 欄位遍歷在 ir.rule domain 中無法正確運作
+    # 所以新增此欄位儲存承包廠商的 partner IDs
+    contractor_partner_ids = fields.Many2many(
+        'res.partner',
+        'supervision_project_contractor_partner_rel',
+        'project_id', 'partner_id',
+        string='承包廠商聯絡人',
+        compute='_compute_contractor_partner_ids',
+        store=True,
+        help='承包廠商公司對應的聯絡人，用於 Portal 安全規則')
+
+    @api.depends('contractor_company_ids', 'contractor_company_ids.partner_id')
+    def _compute_contractor_partner_ids(self):
+        """計算承包廠商的 partner IDs"""
+        for project in self:
+            project.contractor_partner_ids = project.contractor_company_ids.mapped('partner_id')
+
     def _compute_access_url(self):
         super()._compute_access_url()
         for project in self:
@@ -36,18 +54,10 @@ class SupervisionProjectPortal(models.Model):
         # 取得 partner 的公司 (parent or self)
         company_partner = partner.commercial_partner_id or partner
 
-        # 找出以此公司為承包廠商的工程案件
-        # 承包廠商是 res.company，需要找到對應的 company
-        companies = self.env['res.company'].sudo().search([
-            ('partner_id', '=', company_partner.id)
-        ])
-
-        if companies:
-            return [
-                ('contractor_company_ids', 'in', companies.ids),
-                ('state', 'not in', ['draft', 'terminated']),
-            ]
-        return [('id', '=', False)]  # 沒有符合的公司，返回空結果
+        return [
+            ('contractor_partner_ids', 'in', [company_partner.id]),
+            ('state', 'not in', ['draft', 'terminated']),
+        ]
 
     # === Portal 統計欄位 ===
     inspection_count = fields.Integer(
