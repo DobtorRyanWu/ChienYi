@@ -289,7 +289,7 @@
 
                             <!-- 改善說明（defaultOpen）-->
                             <div class="cy-section-title" style="cursor: pointer; margin-top: 0;" data-collapse-toggle="sec_improve_desc">
-                                <span>改善說明（你來填）</span>
+                                <span>改善說明</span>
                                 <i class="fa fa-chevron-up" style="font-size: 0.8rem; color: var(--wb-t3);"/>
                             </div>
                             <div id="sec_improve_desc">
@@ -322,7 +322,7 @@
 
                             <!-- 改善後照片（defaultOpen）-->
                             <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_after_photo">
-                                <span>改善後照片（你來拍）</span>
+                                <span>改善後照片</span>
                                 <i class="fa fa-chevron-up" style="font-size: 0.8rem; color: var(--wb-t3);"/>
                             </div>
                             <div id="sec_after_photo">
