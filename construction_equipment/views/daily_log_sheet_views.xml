@@ -14,6 +14,15 @@
             <!-- 在 notebook 中加入人機使用頁籤 -->
             <xpath expr="//page[@name='material_management']" position="after">
                 <page string="人機使用" name="man_machine_usage">
+                    <!-- 批次新增按鈕 -->
+                    <div class="mb-2"
+                         invisible="is_locked and not is_unlocked">
+                        <button name="action_add_man_machine_wizard"
+                                type="object"
+                                string="批次新增"
+                                class="btn-primary"
+                                icon="fa-plus"/>
+                    </div>
                     <!-- 直接內嵌 List View -->
                     <field name="man_machine_detail_ids">
                         <list editable="bottom">

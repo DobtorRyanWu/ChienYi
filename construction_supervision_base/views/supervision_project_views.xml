@@ -218,18 +218,16 @@
                             <field name="year"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="authority_id"
-                                   options="{'no_create': True}"
                                    context="{'default_partner_type': 'authority'}"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="authority_contact_id"
-                                   options="{'no_create': True}"/>
+                            <field name="authority_contact_id"/>
                             <field name="location"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="company_id"
-                                   options="{'no_create': True}"
-                                   groups="base.group_multi_company"
+                            <field name="management_company_name"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="supervision_engineer_id"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="supervision_engineer_id"
+                                   domain="[('active', '=', True)]"/>
                         </group>
                         <group string="契約資訊" name="contract_info">
                             <field name="contract_no"
@@ -244,7 +242,7 @@
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="contract_duration"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="extension_duration"/>
+                            <field name="extension_duration" readonly="1"/>
                             <field name="total_approved_duration" readonly="1"/>
                         </group>
                     </group>

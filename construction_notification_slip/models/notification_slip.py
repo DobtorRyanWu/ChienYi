@@ -254,6 +254,20 @@ class ReservationNotificationSlip(models.Model):
             if not rec.detail_line_ids:
                 raise ValidationError('請先填寫詳細表項目')
             rec.write({'state': 'not_started'})
+            site_manager = rec.project_id.site_manager_id
+            if site_manager:
+                partner = site_manager.partner_id
+                rec.message_subscribe(partner_ids=partner.ids)
+                rec.message_post(
+                    body=(
+                        f'通報單 <b>{rec.slip_number}</b> 已確認，'
+                        f'預定開工：{rec.planned_start_date or "未設定"}，'
+                        f'地點：{rec.location}。'
+                    ),
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
 
     def action_start(self):
         """開始施工: not_started → in_progress"""

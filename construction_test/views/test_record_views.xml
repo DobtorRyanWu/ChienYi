@@ -55,7 +55,7 @@
                 decoration-danger="result == 'fail'"
                 decoration-warning="result == 'pending'"/>
                 
-                <field name="member_ids" string="抽驗及會同人員" widget="many2many_tags"/>
+                <field name="responsible_user_id" string="負責人"/>
                 
                 <field name="archive_number" string="歸檔編號"/>
             </list>
@@ -110,12 +110,21 @@
                             <field name="task_id"/>
                             <field name="company_id" invisible="1"/>
                         </group>
-                        <group string="人員資訊">
-                            <field name="inspector_id"/>
-                            <field name="member_ids" widget="many2many_tags"/>
+                        <group string="基本資訊（續）">
+                            <field name="responsible_user_id"/>
                         </group>
                     </group>
-                    
+                    <group string="抽驗及會同人員">
+                        <group string="業主方">
+                            <field name="owner_member_ids" widget="many2many_tags" nolabel="1"/>
+                        </group>
+                        <group string="監造方">
+                            <field name="supervision_member_ids" widget="many2many_tags" nolabel="1"/>
+                        </group>
+                        <group string="營造方">
+                            <field name="contractor_member_ids" widget="many2many_tags" nolabel="1"/>
+                        </group>
+                    </group>
                     <!-- 需求5: 新增檢試驗項目設定資料區塊 -->
                     <group string="檢試驗項目設定資料" invisible="not standard_id">
                         <group>

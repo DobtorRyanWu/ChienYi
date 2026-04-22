@@ -131,8 +131,7 @@ class ConstructionWeeklySchedule(models.Model):
             return
 
         # 取得指派對象
-        # TODO: 權限設計完成後改回 self.supervision_project_id._get_activity_user('inspection')
-        user = self.env.ref('base.user_admin')
+        user = self.supervision_project_id._get_activity_user('inspection')
 
         # 組合活動 note：列出所有需檢查的工項
         note_lines = []

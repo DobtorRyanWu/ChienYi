@@ -75,8 +75,14 @@ class ContractChangeOrderLine(models.Model):
     parent_task_id = fields.Many2one(
         'project.task',
         string='父工項',
-        domain="[('project_id', '=', project_project_id), ('active', '=', True)]",
+        domain="[('project_id', '=', project_project_id), ('active', '=', True), ('is_summary_item', '=', True)]",
         help='新增工項時，指定此工項的父項次（用於階層結構）')
+
+    parent_task_path = fields.Char(
+        string='父工項路徑',
+        related='parent_task_id.full_item_path',
+        readonly=True,
+        help='父工項的完整祖先路徑，如：壹 > 一 > (一)')
 
     item_level = fields.Integer(
         string='層級',
@@ -87,6 +93,12 @@ class ContractChangeOrderLine(models.Model):
     item_no = fields.Char(
         string='工項編號',
         help='工項編號，新增時必填')
+
+    display_item_no = fields.Char(
+        string='工項編號(顯示)',
+        compute='_compute_display_item_no',
+        store=False,
+        help='非新增工項顯示 task 的葉節點編號，新增工項顯示 item_no')
 
     item_name = fields.Char(
         string='工項名稱',
@@ -102,13 +114,11 @@ class ContractChangeOrderLine(models.Model):
     original_qty = fields.Float(
         string='原數量',
         digits=(16, 4),
-        readonly=True,
         help='變更前的契約數量')
 
     original_unit_price = fields.Float(
         string='原單價',
         digits=(16, 2),
-        readonly=True,
         help='變更前的契約單價')
 
     original_amount = fields.Monetary(
@@ -185,6 +195,16 @@ class ContractChangeOrderLine(models.Model):
                 # 頂層工項
                 line.item_level = 0
 
+    @api.depends('task_id', 'task_id.display_item_no', 'item_no', 'change_type')
+    def _compute_display_item_no(self):
+        for line in self:
+            if line.change_type == 'add':
+                line.display_item_no = line.item_no or ''
+            else:
+                line.display_item_no = (
+                    line.task_id.display_item_no or line.task_id.item_no or line.item_no or ''
+                )
+
     @api.depends('original_qty', 'original_unit_price')
     def _compute_original_amount(self):
         for line in self:
@@ -228,7 +248,7 @@ class ContractChangeOrderLine(models.Model):
     def _onchange_task_id(self):
         """選擇工項時，自動填入原始資訊"""
         if self.task_id:
-            self.item_no = self.task_id.item_no
+            self.item_no = self.task_id.display_item_no or self.task_id.item_no
             self.item_name = self.task_id.name
             self.unit = self.task_id.unit
             self.specification = self.task_id.specification
@@ -270,7 +290,7 @@ class ContractChangeOrderLine(models.Model):
             next_number = 1
         else:
             # 從最後一個工項的編號解析並+1
-            last_item_no = siblings[0].item_no or ''
+            last_item_no = siblings[0].display_item_no or siblings[0].item_no or ''
             next_number = self._parse_and_increment_item_no(last_item_no)
         
         # 根據層級決定編號格式

@@ -66,9 +66,9 @@
                             <field name="deadline"/>
                             <field name="improvement_progress" widget="progressbar"/>
                             <field name="state" widget="badge"
-                                   decoration-success="state in ('conform', 'corrected')"
-                                   decoration-warning="state == 'uncorrected'"
-                                   decoration-danger="state == 'overdue'"/>
+                                   decoration-info="state == 'draft'"
+                                   decoration-warning="state in ('notified', 'improving')"
+                                   decoration-success="state in ('improved', 'verified', 'closed')"/>
                         </list>
                     </field>
                 </page>

@@ -78,7 +78,7 @@
                         </group>
                         <group string="送審日期">
                             <field name="expected_review_date"/>
-                            <field name="final_review_date" readonly="state == 'draft'"/>
+                            <field name="final_review_date" readonly="id == False"/>
                             <field name="review_delay_days" readonly="1"/>
                         </group>
                     </group>

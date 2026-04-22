@@ -61,7 +61,7 @@ class AddSlipLineWizard(models.TransientModel):
         return {
             'task_id': task.id,
             'name': task.name or '',
-            'parent_name': task.parent_id.name if task.parent_id else '',
+            'parent_name': task.parent_id.full_item_path if task.parent_id else '',
             'item_no': task.item_no or '',
             'unit': task.unit or '',
             'unit_price': task.unit_price or 0.0,
@@ -97,7 +97,7 @@ class AddSlipLineWizard(models.TransientModel):
             domain += ['|', '|',
                 ('name', 'ilike', self.search_term),
                 ('item_no', 'ilike', self.search_term),
-                ('parent_id.name', 'ilike', self.search_term),
+                ('parent_id.full_item_path', 'ilike', self.search_term),
             ]
         tasks = self.env['project.task'].search(
             domain, order='sequence, item_no, id')

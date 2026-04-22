@@ -185,6 +185,21 @@ class ProgressScheduleLine(models.Model):
             # 強制重新計算所有行（會觸發連鎖更新）
             self.schedule_id.line_ids._compute_cumulative_actual()
 
+    def _sync_actual_from_daily_logs(self):
+        """從施工日誌重算並同步實際進度（供日誌儲存時自動觸發）"""
+        for line in self:
+            logs = self.env['daily.log.sheet'].search([
+                ('supervision_project_id', '=', line.schedule_id.project_id.id),
+                ('log_date', '>=', line.date_start),
+                ('log_date', '<=', line.date_end),
+            ])
+            total = sum(logs.mapped('daily_actual_progress'))
+            line.with_context(allow_sync_progress=True).write({
+                'actual_progress': total,
+                'synced_from_log': True,
+                'last_sync_date': fields.Datetime.now(),
+            })
+
     # === 差異分析 ===
     variance = fields.Float(
         string='超前(+)/落後(-)',

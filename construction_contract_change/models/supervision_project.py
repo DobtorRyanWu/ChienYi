@@ -36,11 +36,6 @@ class SupervisionProject(models.Model):
         tracking=True,
         help='初始契約金額 (不含變更)')
 
-    original_duration = fields.Integer(
-        string='原始工期(日)',
-        tracking=True,
-        help='初始契約工期')
-
     # === 累計變更資訊 (計算欄位) ===
     total_change_amount = fields.Monetary(
         string='累計變更金額',

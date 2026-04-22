@@ -59,8 +59,10 @@
                             <field name="sequence" widget="handle"/>
                             <field name="task_id" column_invisible="1"/>
                             <field name="task_name" string="施工項目" readonly="1"/>
-                            <field name="parent_id" string="父工項" readonly="1" optional="show"/>
-                            <field name="item_no" string="工項編號" readonly="1" width="80px"/>
+                            <field name="parent_item_path" string="父工項路徑" readonly="1" optional="show"/>
+                            <field name="parent_id" column_invisible="1"/>
+                            <field name="display_item_no" string="項次" readonly="1" width="60px"/>
+                            <field name="item_no" string="完整項次" readonly="1" optional="hide"/>
                             <field name="unit" string="單位" readonly="1" width="50px"/>
                             <field name="planned_qty" string="契約數量" readonly="1"
                                    digits="[16, 4]" width="90px"/>

@@ -53,6 +53,56 @@ class ProjectTask(models.Model):
         for task in self:
             task.is_summary_item = bool(task.child_ids)
 
+    # === 項次顯示 ===
+    display_item_no = fields.Char(
+        string='顯示項次',
+        compute='_compute_display_item_no',
+        store=True,
+        help='葉節點只顯示末段數字（如 1），非葉節點顯示完整項次（如 (一)、1.1）')
+
+    @api.depends('item_no', 'is_summary_item')
+    def _compute_display_item_no(self):
+        for task in self:
+            if not task.item_no:
+                task.display_item_no = ''
+            elif task.is_summary_item or '.' not in task.item_no:
+                # 非葉節點或無點號（中文項次）→ 原樣顯示
+                task.display_item_no = task.item_no
+            else:
+                # 葉節點（數字點分格式，如 1.1.3）→ 只取最後一段
+                task.display_item_no = task.item_no.split('.')[-1]
+
+    item_no_path = fields.Char(
+        string='項次路徑',
+        compute='_compute_item_no_path',
+        store=True,
+        recursive=True,
+        help='點分隔的完整項次路徑，如：壹.一.(一).1.1.1')
+
+    @api.depends('item_no', 'parent_id', 'parent_id.item_no_path')
+    def _compute_item_no_path(self):
+        for task in self:
+            if task.parent_id and task.parent_id.item_no_path:
+                task.item_no_path = f"{task.parent_id.item_no_path}.{task.item_no}"
+            else:
+                task.item_no_path = task.item_no or ''
+
+    full_item_path = fields.Char(
+        string='完整項次路徑',
+        compute='_compute_full_item_path',
+        store=True,
+        help='項次編號 + 名稱，如：(一) 整備工程')
+
+    @api.depends('item_no', 'name')
+    def _compute_full_item_path(self):
+        for task in self:
+            item_no = task.item_no or ''
+            name = task.name or ''
+            if item_no and name:
+                task.full_item_path = f"{item_no} {name}"
+            else:
+                task.full_item_path = name or item_no
+
     # === 廠商分配 ===
     assigned_company_id = fields.Many2one(
         'res.company', string='承包廠商', index=True,
@@ -93,20 +143,16 @@ class ProjectTask(models.Model):
                 task.assignment_state = 'assigned'
 
     # === 預算欄位 (契約價量) ===
-    # 這三個欄位僅對「契約工項」(隸屬 supervision.project 的 task) 必填。
-    # 使用 view 層 required="1" + @api.constrains 檢查 (_check_contract_task_required)
-    # 代替欄位層 required=True，避免 project_todo 等其他模組建立的 task
-    # 因 NOT NULL 約束而無法建立 (見 _check_contract_task_required 的說明)。
     planned_qty = fields.Float(
-        string='契約數量', digits=(16, 4),
+        string='契約數量', digits=(16, 4), required=True,
         help='契約預估數量 (預算)')
 
     unit = fields.Char(
-        string='單位',
+        string='單位', required=True,
         help='計量單位，如：M, M2, M3, 式')
 
     unit_price = fields.Float(
-        string='契約單價', digits=(16, 2),
+        string='契約單價', digits=(16, 2), required=True,
         help='契約預估單價')
 
     planned_amount = fields.Float(
@@ -118,36 +164,6 @@ class ProjectTask(models.Model):
     def _compute_planned_amount(self):
         for task in self:
             task.planned_amount = task.planned_qty * task.unit_price
-
-    @api.constrains('project_id', 'unit')
-    def _check_contract_task_required(self):
-        """契約工項 (隸屬 supervision.project) 必須填寫單位。
-
-        非契約 task (如 project_todo 建立的 Training / Meeting / Time Off、
-        Odoo 原生 project 的一般任務) 則不受限制，保持 project.task 欄位
-        層面的「可選」語意，避免 DB NOT NULL 擋住其他模組的 create。
-
-        planned_qty / unit_price 為 Float，0 是合法值 (變更工項原契約數量
-        可能為 0)，改由 view 層 required="1" 做 UX 提醒，不在此強制。
-        """
-        if not self:
-            return
-        SupProj = self.env['supervision.project'].sudo()
-        project_ids = {t.project_id.id for t in self if t.project_id}
-        if not project_ids:
-            return
-        contract_project_ids = set(
-            SupProj.search([('project_id', 'in', list(project_ids))]).mapped('project_id').ids
-        )
-        if not contract_project_ids:
-            return
-        for task in self:
-            if not task.project_id or task.project_id.id not in contract_project_ids:
-                continue
-            if not task.unit:
-                raise ValidationError(
-                    f'契約工項「{task.name or task.item_no or task.id}」必須填寫「單位」'
-                )
 
     # === 實際執行欄位 ===
     actual_qty = fields.Float(

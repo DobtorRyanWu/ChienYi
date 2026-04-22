@@ -1,47 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-
-        <!-- ============================================== -->
-        <!-- 步驟 1：刪除舊的 ir.model.access 記錄             -->
-        <!-- ============================================== -->
-
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_category_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_category_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_technician'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_request_stage_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_request_stage_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_request_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_request_technician'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_equipment_request_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_daily_log_man_machine_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_daily_log_man_machine_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_daily_log_man_machine_detail_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_daily_log_man_machine_detail_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_man_machine_copy_wizard_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_man_machine_copy_wizard_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_man_machine_copy_wizard_line_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_man_machine_copy_wizard_line_manager'))]"/>
-
-        <!-- ============================================== -->
-        <!-- 步驟 2：刪除使用舊群組的 ir.rule                    -->
-        <!-- ============================================== -->
-
-        <delete model="ir.rule" search="[('id', '=', ref('rule_equipment_company'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_equipment_request_company'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_daily_log_man_machine_company'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_daily_log_man_machine_detail'))]"/>
-
-        <!-- ============================================== -->
-        <!-- 步驟 3：刪除舊的群組定義                           -->
-        <!-- ============================================== -->
-
-        <delete model="res.groups" search="[('id', '=', ref('group_equipment_user'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('group_equipment_technician'))]"/>
-        <delete model="res.groups" search="[('id', '=', ref('group_equipment_manager'))]"/>
-
+        <!-- 舊版遷移清理已移除（記錄從未被建立，ref() 會報錯） -->
     </data>
 
     <data noupdate="1">

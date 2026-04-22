@@ -1,39 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-
-        <!-- ============================================== -->
-        <!-- 步驟 1：刪除舊的 ir.model.access 記錄             -->
-        <!-- ============================================== -->
-
-        <delete model="ir.model.access" search="[('id', '=', ref('access_test_standard_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_test_standard_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_test_record_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_test_record_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_test_frequency_condition_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_test_frequency_condition_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_check_test_requirement_wizard_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_check_test_requirement_wizard_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_check_test_requirement_cron_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_test_task_statistics_user'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_test_task_statistics_manager'))]"/>
-
-        <!-- ============================================== -->
-        <!-- 步驟 2：刪除使用舊基礎群組的 ir.rule                -->
-        <!-- ============================================== -->
-
-        <delete model="ir.rule" search="[('id', '=', ref('rule_test_standard_supervision'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_test_record_supervision'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_test_standard_contractor'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_test_record_contractor'))]"/>
-
-        <!-- ============================================== -->
-        <!-- 步驟 3：刪除舊的群組定義                           -->
-        <!-- ============================================== -->
-
-        <delete model="res.groups" search="[('id', '=', ref('group_test_user'))]"/>
-        <delete model="res.groups" search="[('id', '=', ref('group_test_manager'))]"/>
-
+        <!-- 舊版遷移清理已移除（記錄從未被建立，ref() 會報錯） -->
     </data>
 
     <data noupdate="1">

@@ -57,11 +57,16 @@ class SupervisionProject(models.Model):
 
     # === 多公司架構 ===
     company_id = fields.Many2one(
-        'res.company', string='管理公司', required=True,
+        'res.company', string='管理公司（系統）', required=True,
         default=lambda self: self.env.company,
         domain="[('company_type', '=', 'supervision')]",
         tracking=True,
-        help='負責管理此專案的設計監造單位')
+        help='負責管理此專案的設計監造單位（多公司存取控制用）')
+
+    management_company_name = fields.Char(
+        string='管理公司',
+        tracking=True,
+        help='負責管理此專案的設計監造單位名稱（自由輸入）')
 
     contractor_company_ids = fields.Many2many(
         'res.company', 'supervision_project_contractor_rel',
@@ -99,7 +104,17 @@ class SupervisionProject(models.Model):
         default=lambda self: self.env.company.currency_id)
 
     contract_start_date = fields.Date(string='契約開工日', tracking=True)
-    contract_end_date = fields.Date(string='契約完工日', tracking=True)
+    contract_end_date = fields.Date(
+        string='預定契約完工日',
+        tracking=True,
+        help='最新調整後完工日，隨進度表啟用自動更新',
+    )
+    original_contract_end_date = fields.Date(
+        string='原始契約完工日',
+        tracking=True,
+        readonly=True,
+        help='初始契約完工日，作為進度表展延計算基準',
+    )
 
     contract_duration = fields.Integer(
         string='契約工期(日)',
@@ -114,12 +129,20 @@ class SupervisionProject(models.Model):
             else:
                 project.contract_duration = 0
 
-    # === 工期展延 ===
-    extension_duration = fields.Integer(
-        string='核准展延工期(日)',
+    # 原始核定工期：開工時凍結，不隨展延變動（由 action_construct 設定）
+    original_duration = fields.Integer(
+        string='原始核定工期(日)',
         default=0,
         tracking=True,
-        help='經核准的工期展延天數（含契約變更、天候等因素）',
+        help='初始核定工期（開工時自動凍結），作為進度表展延計算基準',
+    )
+
+    # === 工期展延 ===
+    extension_duration = fields.Integer(
+        string='累計核准展延工期(日)',
+        default=0,
+        tracking=True,
+        help='由進度表啟用時自動累計，請勿手動修改',
     )
 
     total_approved_duration = fields.Integer(
@@ -515,9 +538,13 @@ class SupervisionProject(models.Model):
                     '請完成設定或標記為「不適用」後才能開始施工。'
                 )
 
-            # 凍結原始契約金額
+            # 凍結原始契約金額、完工日、工期
             if not project.original_contract_amount:
                 project.original_contract_amount = project.contract_amount or 0.0
+            if not project.original_contract_end_date and project.contract_end_date:
+                project.original_contract_end_date = project.contract_end_date
+            if not project.original_duration and project.contract_duration:
+                project.original_duration = project.contract_duration
 
             project.state = 'construction'
             if not project.actual_start_date:

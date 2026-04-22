@@ -845,11 +845,11 @@
 .cy-badge-verified { background: rgba(34, 179, 87, 0.12); color: var(--wb-green); }
 
 /* 缺失改善狀態（reservation.defect.improvement） */
-.cy-badge-conform { background: rgba(34, 179, 87, 0.12); color: var(--wb-green); }
-.cy-badge-corrected { background: rgba(59, 141, 224, 0.12); color: var(--wb-blue); }
-.cy-badge-uncorrected { background: rgba(232, 54, 79, 0.12); color: var(--wb-red); }
-.cy-badge-overdue { background: rgba(253, 126, 20, 0.12); color: #fd7e14; }
-.cy-badge-other { background: rgba(139, 144, 160, 0.12); color: var(--wb-t3); }
+.cy-badge-draft { background: rgba(139, 144, 160, 0.12); color: var(--wb-t3); }
+.cy-badge-notified { background: rgba(232, 54, 79, 0.12); color: var(--wb-red); }
+.cy-badge-improving { background: rgba(253, 126, 20, 0.12); color: #fd7e14; }
+.cy-badge-improved { background: rgba(59, 141, 224, 0.12); color: var(--wb-blue); }
+.cy-badge-closed { background: rgba(34, 179, 87, 0.12); color: var(--wb-green); }
 
 /* 檢查狀態 */
 .cy-badge-inspected { background: rgba(59, 141, 224, 0.12); color: var(--wb-blue); }

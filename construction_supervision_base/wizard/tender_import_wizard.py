@@ -50,14 +50,15 @@ class TenderImportWizard(models.TransientModel):
         readonly=True)
 
     # === 解析 XML ===
-    def _parse_pay_items(self, root, parent_item_no='', level=0):
+    def _parse_pay_items(self, root, parent_item_key='', level=0):
         """
         遞迴解析 PayItem
 
         返回格式：
         [
             {
-                'item_no': '壹',
+                'item_key': '1',          # XML itemKey（唯一整數，用於父子關係追蹤）
+                'item_no': '壹',           # XML itemNo（完整項次編號）
                 'name': '發包工程費',
                 'unit': '式',
                 'quantity': 1,
@@ -65,7 +66,7 @@ class TenderImportWizard(models.TransientModel):
                 'amount': 0,
                 'remark': '[發包]',
                 'level': 0,
-                'parent_item_no': '',
+                'parent_item_key': '',    # 父節點的 itemKey
                 'ref_item_code': '',
                 'has_children': True,
             },
@@ -82,17 +83,18 @@ class TenderImportWizard(models.TransientModel):
             return items
 
         # 解析所有 PayItem
-        items = self._parse_pay_item_recursive(detail_list, ns, parent_item_no, level)
+        items = self._parse_pay_item_recursive(detail_list, ns, parent_item_key, level)
 
         return items
 
-    def _parse_pay_item_recursive(self, element, ns, parent_item_no='', level=0):
-        """遞迴解析 PayItem"""
+    def _parse_pay_item_recursive(self, element, ns, parent_item_key='', level=0):
+        """遞迴解析 PayItem，以 itemKey 作為父子關係的唯一識別"""
         items = []
 
         for pay_item in element.findall('ns:PayItem', ns):
             # 取得基本資訊
-            item_no = pay_item.get('itemNo', '')
+            item_key = pay_item.get('itemKey', '')      # 唯一識別（用於 task_map）
+            item_no = pay_item.get('itemNo', '')         # 完整項次編號
             ref_item_code = pay_item.get('refItemCode', '').strip()
 
             # 取得中文描述
@@ -125,6 +127,7 @@ class TenderImportWizard(models.TransientModel):
 
             # 建立項目資料
             item_data = {
+                'item_key': item_key,
                 'item_no': item_no,
                 'name': name,
                 'unit': unit,
@@ -133,17 +136,17 @@ class TenderImportWizard(models.TransientModel):
                 'amount': amount,
                 'remark': remark,
                 'level': level,
-                'parent_item_no': parent_item_no,
+                'parent_item_key': parent_item_key,
                 'ref_item_code': ref_item_code,
                 'has_children': has_children,
             }
 
             items.append(item_data)
 
-            # 遞迴解析子項目
+            # 遞迴解析子項目，傳遞本節點的 itemKey 作為子節點的父參考
             if has_children:
                 child_items = self._parse_pay_item_recursive(
-                    pay_item, ns, item_no, level + 1
+                    pay_item, ns, item_key, level + 1
                 )
                 items.extend(child_items)
 
@@ -217,19 +220,19 @@ class TenderImportWizard(models.TransientModel):
         Task = self.env['project.task']
         created_tasks = Task.browse()
 
-        # 用於儲存項次編號對應的 task record
+        # 以 itemKey（XML 唯一整數）作為 key，避免 itemNo 重複導致父子關係錯亂
         task_map = {}
 
         # 按順序賦予 sequence 值，從 10 開始，每次遞增 10
         for index, item in enumerate(items_data, start=1):
-            item_no = item.get('item_no', '')
-            parent_item_no = item.get('parent_item_no', '')
+            item_key = item.get('item_key', '')
+            parent_item_key = item.get('parent_item_key', '')
 
             # 準備工項資料
             task_vals = {
                 'project_id': self.project_id.project_id.id,
                 'name': item.get('name', ''),
-                'item_no': item_no,
+                'item_no': item.get('item_no', ''),
                 'sequence': index * 10,
                 'unit': item.get('unit', ''),
                 'planned_qty': item.get('quantity', 0),
@@ -239,9 +242,9 @@ class TenderImportWizard(models.TransientModel):
                 'ref_item_code': item.get('ref_item_code', ''),
             }
 
-            # 保留階層結構
-            if parent_item_no:
-                parent_task = task_map.get(parent_item_no)
+            # 以 itemKey 查找父節點，保留階層結構
+            if parent_item_key:
+                parent_task = task_map.get(parent_item_key)
                 if parent_task:
                     task_vals['parent_id'] = parent_task.id
 
@@ -249,7 +252,8 @@ class TenderImportWizard(models.TransientModel):
             task = Task.create(task_vals)
             created_tasks |= task
 
-            # 記錄到 map
-            task_map[item_no] = task
+            # 以 itemKey 記錄，確保唯一性
+            if item_key:
+                task_map[item_key] = task
 
         return created_tasks

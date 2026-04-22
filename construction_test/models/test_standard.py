@@ -20,6 +20,7 @@ class TestStandard(models.Model):
     _description = '檢試驗項目'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'sequence, id'
+    _rec_names_search = ['name', 'material']  # 讓 name_search / display_name 搜尋同時比對兩個欄位
 
     # === 基本資料 ===
     name = fields.Char(
@@ -263,11 +264,12 @@ class TestStandard(models.Model):
     # 統一計算入口
     # =========================================================================
 
-    def calculate_required_tests(self, cumulative_qty):
+    def calculate_required_tests(self, cumulative_qty, daily_qty=0):
         """
         統一入口：頻率條件 + 自訂公式（並存相加）
 
         :param cumulative_qty: 累計完成數量
+        :param daily_qty: 本日/本批施工數量（預設 0，用於每日計量型公式）
         :return: int, 總共需要的檢驗次數
         """
         self.ensure_one()
@@ -282,19 +284,27 @@ class TestStandard(models.Model):
 
         # 自訂公式（結果相加）
         if self.use_custom_formula and self.custom_formula:
-            total += self._eval_custom_formula(cumulative_qty)
+            total += self._eval_custom_formula(cumulative_qty, daily_qty=daily_qty)
 
         return total
 
-    def _eval_custom_formula(self, cumulative_qty):
+    def _eval_custom_formula(self, cumulative_qty, daily_qty=0):
         """
         評估自訂公式
 
         :param cumulative_qty: 累計完成數量
+        :param daily_qty: 本日/本批施工數量（預設 0）
         :return: int, 公式計算的檢驗次數
+
+        公式可用變數：
+          - cumulative_qty: 累計數量
+          - daily_qty: 本日數量（用於「每日澆築量」型頻率）
         """
         from odoo.tools.safe_eval import safe_eval
-        variables = {'cumulative_qty': cumulative_qty}
+        variables = {
+            'cumulative_qty': cumulative_qty,
+            'daily_qty': daily_qty or 0,
+        }
         for var in self.custom_formula_variable_ids:
             variables[var.name] = var.value
         try:

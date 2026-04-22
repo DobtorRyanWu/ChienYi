@@ -509,10 +509,8 @@ class DailyLogSheet(models.Model):
     # -------------------------------------------------------------------------
 
     def action_mark_filled(self):
-        """標記為已填寫（需至少有一筆明細）"""
+        """標記為已填寫（允許無明細，代表當日無施工）"""
         for sheet in self:
-            if not sheet.line_ids:
-                raise UserError('請至少新增一筆施工明細後，才能標記為已填寫。')
             sheet.state = 'filled'
 
     def action_revert_to_draft(self):

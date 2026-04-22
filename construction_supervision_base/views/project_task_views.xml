@@ -24,13 +24,14 @@
             
             <!-- 新增工程相關欄位到主要區塊 -->
             <xpath expr="//field[@name='user_ids']" position="after">
-                <field name="parent_id" 
+                <field name="parent_id"
                        placeholder="選擇父工項（根節點請留空）"
-                       domain="[('project_id', '=', project_id), ('id', '!=', id), ('item_level', '&lt;', 2)]"
+                       domain="[('project_id', '=', project_id), ('id', '!=', id), ('is_summary_item', '=', True)]"
                        options="{'no_create': True}"
                        readonly="is_project_approved"
-                       help="最細項（阿拉伯數字編號）不可作為父工項"/>
+                       help="有子項次的彙總項目才可作為父工項"/>
                 <field name="item_no" required="1" placeholder="自動產生" readonly="is_project_approved"/>
+                <field name="display_item_no" readonly="1" string="顯示項次"/>
                 <field name="item_level" readonly="1"/>
             </xpath>
 
@@ -239,17 +240,16 @@
                 <!-- 排序控制 -->
                 <field name="sequence" widget="handle"/>
                 
-                <!-- 父工項 (可選擇顯示，排除最細項 item_level >= 2) -->
-                <field name="parent_id" 
-                       string="父工項" 
-                       optional="show"
-                       column_invisible="0"
+                <!-- 父工項 (編輯用，隱藏) -->
+                <field name="parent_id"
+                       column_invisible="1"
                        readonly="is_project_approved"
-                       domain="[('project_id', '=', project_id), ('id', '!=', id), ('item_level', '&lt;', 2)]"
+                       domain="[('project_id', '=', project_id), ('id', '!=', id), ('is_summary_item', '=', True)]"
                        options="{'no_create': True}"/>
-                
-                <!-- 工項編號 -->
-                <field name="item_no" string="工項編號" readonly="is_project_approved"/>
+
+                <!-- 工項編號（顯示：葉節點只顯示末段，非葉節點顯示完整）-->
+                <field name="display_item_no" string="項次" readonly="1"/>
+                <field name="item_no" string="完整項次" optional="hide" readonly="is_project_approved"/>
                 
                 <!-- 項目及說明 -->
                 <field name="name" string="項目及說明" readonly="is_project_approved"/>
@@ -308,27 +308,28 @@
                 <!-- 工程案件 -->
                 <field name="project_id" string="工程案件"/>
                 
-                <!-- 工項編號 -->
-                <field name="item_no" string="工項編號"/>
-                
+                <!-- 工項編號（顯示：葉節點末段，非葉節點完整）-->
+                <field name="display_item_no" string="項次"/>
+                <field name="item_no" string="完整項次" optional="hide"/>
+
                 <!-- 項目及說明 -->
                 <field name="name" string="項目及說明"/>
-                
+
                 <!-- 單位 -->
                 <field name="unit" string="單位"/>
-                
+
                 <!-- 契約數量 -->
                 <field name="planned_qty" string="契約數量"/>
-                
+
                 <!-- 契約單價 -->
                 <field name="unit_price" string="契約單價"/>
-                
+
                 <!-- 契約複價 -->
                 <field name="planned_amount" string="契約複價" sum="契約複價合計"/>
-                
+
                 <!-- 備註 -->
                 <field name="construction_notes" string="備註" optional="show"/>
-                
+
                 <!-- 隱藏欄位 -->
                 <field name="parent_id" column_invisible="1"/>
                 <field name="item_level" column_invisible="1"/>

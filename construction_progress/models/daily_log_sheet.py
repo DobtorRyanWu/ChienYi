@@ -36,7 +36,7 @@ class DailyLogSheet(models.Model):
         help='手動填寫本日實際完成進度（該區間內的進度增量）',
     )
     
-    # 當前使用的進度表
+    # 當前使用的進度表（永遠指向目前 active 版本，供過時警告等用途）
     active_progress_schedule_id = fields.Many2one(
         'progress.schedule',
         string='目前進度表',
@@ -44,7 +44,20 @@ class DailyLogSheet(models.Model):
         store=True,
         help='該工程目前使用中的進度表版本',
     )
-    
+
+    # 計算本日預定進度用的進度表（日期感知版）
+    # 語意：log_date 當天「生效」的進度表版本
+    # - 若當天有新版啟用（進度表變更日 = log_date），仍使用「舊版」
+    #   → 保留舊版數值在 daily_planned_progress，新版數值在 changed_planned_progress
+    # - 若當天無新版啟用，使用當天能找到的最新版
+    base_progress_schedule_id = fields.Many2one(
+        'progress.schedule',
+        string='基礎進度表（本日預定用）',
+        compute='_compute_base_progress_schedule',
+        store=True,
+        help='計算 daily_planned_progress 的進度表；變更當天使用舊版，隔天起才切換新版',
+    )
+
     # 對應的進度區間
     progress_line_id = fields.Many2one(
         'progress.schedule.line',
@@ -54,22 +67,24 @@ class DailyLogSheet(models.Model):
         help='本日所屬的進度區間',
     )
     
-    # 進度表過時檢查
-    has_outdated_schedule = fields.Boolean(
-        string='進度表過時',
-        compute='_compute_has_outdated_schedule',
-        help='契約變更已核准但進度表尚未更新',
+    # 有無進度變更（覆寫 construction_daily_log 的定義，改為 compute+store）
+    # 語意：當天是否有新版進度表被啟用，與 daily_actual_progress 無關
+    has_progress_change = fields.Boolean(
+        string='有進度變更',
+        compute='_compute_has_progress_change',
+        store=True,
+        readonly=False,  # 允許使用者手動覆寫
+        help='當天有新版進度表被啟用時自動為 True',
     )
-    outdated_warning_message = fields.Html(
-        string='警告訊息',
-        compute='_compute_has_outdated_schedule',
-    )
-    
-    # 變更後預定進度（契約變更時使用）
+
+    # 變更後預定進度（覆寫，改為 compute+store，自動從新版進度表取得）
     changed_planned_progress = fields.Float(
         string='變更後本日預定進度(%)',
+        compute='_compute_changed_planned_progress',
+        store=True,
+        readonly=False,  # 允許使用者手動覆寫
         digits=(5, 2),
-        help='契約變更後的預定進度（暫時手動填寫）',
+        help='新版進度表對應當天的預定進度（每日份額）',
     )
 
     # -------------------------------------------------------------------------
@@ -78,35 +93,73 @@ class DailyLogSheet(models.Model):
 
     @api.depends('supervision_project_id')
     def _compute_active_progress_schedule(self):
-        """找到該工程目前使用中的進度表"""
+        """找到該工程目前使用中的進度表（供過時警告等用途）"""
         for sheet in self:
             if not sheet.supervision_project_id:
                 sheet.active_progress_schedule_id = False
                 continue
-            
+
             # 找使用中的進度表
             schedule = self.env['progress.schedule'].search([
                 ('project_id', '=', sheet.supervision_project_id.id),
                 ('state', '=', 'active'),
             ], limit=1)
-            
+
             sheet.active_progress_schedule_id = schedule
 
-    @api.depends('active_progress_schedule_id', 'log_date')
-    def _compute_progress_line(self):
-        """找到本日對應的進度區間"""
+    @api.depends('supervision_project_id', 'log_date')
+    def _compute_base_progress_schedule(self):
+        """
+        找到 log_date 當天「生效」的進度表（日期感知版）
+
+        規則：
+        - 優先找 change_date < log_date（嚴格小於）的最新版
+          → 進度表變更當天（102/6/30），v2 的 change_date 等於 log_date，
+            被排除，仍返回 v1，使 daily_planned_progress 顯示舊版數值
+        - 若無（例如工程第一天），退後找 change_date = log_date 的最舊版
+
+        日期 → 返回版本：
+          102/6/29 以前 → v1（change_date = 100/1/1 < 102/6/29）
+          102/6/30      → v1（v2.change_date = 102/6/30，不滿足嚴格小於）
+          102/7/1 以後  → v2（v2.change_date = 102/6/30 < 102/7/1）
+        """
         for sheet in self:
-            if not sheet.active_progress_schedule_id or not sheet.log_date:
+            if not sheet.supervision_project_id or not sheet.log_date:
+                sheet.base_progress_schedule_id = False
+                continue
+
+            # 主查詢：change_date 嚴格小於 log_date，取最高版本
+            schedule = self.env['progress.schedule'].search([
+                ('project_id', '=', sheet.supervision_project_id.id),
+                ('state', 'in', ('active', 'archived')),
+                ('change_date', '<', sheet.log_date),
+            ], order='version desc', limit=1)
+
+            if not schedule:
+                # 退後：找 change_date = log_date 的最舊版（工程第一天）
+                schedule = self.env['progress.schedule'].search([
+                    ('project_id', '=', sheet.supervision_project_id.id),
+                    ('state', 'in', ('active', 'archived')),
+                    ('change_date', '=', sheet.log_date),
+                ], order='version asc', limit=1)
+
+            sheet.base_progress_schedule_id = schedule
+
+    @api.depends('base_progress_schedule_id', 'log_date')
+    def _compute_progress_line(self):
+        """找到本日對應的進度區間（使用 base_progress_schedule_id）"""
+        for sheet in self:
+            if not sheet.base_progress_schedule_id or not sheet.log_date:
                 sheet.progress_line_id = False
                 continue
-            
+
             # 找包含本日的區間
             line = self.env['progress.schedule.line'].search([
-                ('schedule_id', '=', sheet.active_progress_schedule_id.id),
+                ('schedule_id', '=', sheet.base_progress_schedule_id.id),
                 ('date_start', '<=', sheet.log_date),
                 ('date_end', '>=', sheet.log_date),
             ], limit=1)
-            
+
             sheet.progress_line_id = line
 
     @api.depends('progress_line_id', 'progress_line_id.planned_progress',
@@ -122,80 +175,49 @@ class DailyLogSheet(models.Model):
             total_days = (line.date_end - line.date_start).days + 1
             sheet.daily_planned_progress = line.planned_progress / total_days if total_days > 0 else 0.0
 
-    @api.depends('supervision_project_id', 'active_progress_schedule_id')
-    def _compute_has_outdated_schedule(self):
-        """檢查進度表是否過時"""
-        ContractChange = self.env['contract.change.order']
-        
+    @api.depends('supervision_project_id', 'log_date')
+    def _compute_has_progress_change(self):
+        """偵測當天是否有新版進度表被啟用"""
         for sheet in self:
-            if not sheet.supervision_project_id or not sheet.active_progress_schedule_id:
-                sheet.has_outdated_schedule = False
-                sheet.outdated_warning_message = ''
+            if not sheet.supervision_project_id or not sheet.log_date:
+                sheet.has_progress_change = False
                 continue
-            
-            # 查找所有契約變更單
-            all_changes = ContractChange.search([
+            changed = self.env['progress.schedule'].search_count([
                 ('project_id', '=', sheet.supervision_project_id.id),
+                ('change_date', '=', sheet.log_date),
+                ('state', 'in', ('active', 'archived')),
             ])
-            
-            # 排除已被進度表關聯的變更單
-            schedule = sheet.active_progress_schedule_id
-            unhandled_changes = all_changes - schedule.related_change_order_ids
-            
-            if unhandled_changes:
-                sheet.has_outdated_schedule = True
-                
-                # 分類顯示
-                draft_changes = unhandled_changes.filtered(lambda c: c.state == 'draft')
-                other_changes = unhandled_changes - draft_changes
-                
-                warning_parts = []
-                
-                if draft_changes:
-                    draft_list = '<ul>' + ''.join([
-                        f'<li>{c.name} (草稿)</li>' for c in draft_changes
-                    ]) + '</ul>'
-                    warning_parts.append(f'''
-                        <p><strong>草稿中的契約變更：</strong></p>
-                        {draft_list}
-                        <p class="text-warning">
-                            這些變更單尚在草擬中，但可能影響工程進度規劃。
-                        </p>
-                    ''')
-                
-                if other_changes:
-                    # 取得 state 的顯示名稱
-                    state_selection = dict(self.env['contract.change.order']._fields['state'].selection)
-                    other_list = '<ul>' + ''.join([
-                        f'<li>{c.name} ({state_selection.get(c.state, c.state)})</li>'
-                        for c in other_changes
-                    ]) + '</ul>'
-                    warning_parts.append(f'''
-                        <p><strong>已提交/審查/核准的契約變更：</strong></p>
-                        {other_list}
-                        <p class="text-danger">
-                            這些變更單已進入正式流程，建議儘速更新進度表！
-                        </p>
-                    ''')
-                
-                alert_class = 'warning' if not other_changes else 'danger'
-                need_text = '可能需要' if draft_changes and not other_changes else '需要'
-                
-                sheet.outdated_warning_message = f'''
-                    <div class="alert alert-{alert_class}">
-                        <h4><i class="fa fa-exclamation-triangle"></i> 
-                            {need_text}更新進度表
-                        </h4>
-                        {''.join(warning_parts)}
-                        <p>
-                            <strong>目前進度表：</strong>v{schedule.version} 
-                            (變更日期: {schedule.change_date})
-                        </p>
-                    </div>
-                '''
+            sheet.has_progress_change = bool(changed)
+
+    @api.depends('supervision_project_id', 'log_date', 'has_progress_change')
+    def _compute_changed_planned_progress(self):
+        """從當天啟用的新版進度表計算變更後的本日預定進度（每日份額）"""
+        for sheet in self:
+            if not sheet.has_progress_change or not sheet.log_date:
+                sheet.changed_planned_progress = 0.0
+                continue
+            # 找當天啟用的最新版進度表
+            new_schedule = self.env['progress.schedule'].search([
+                ('project_id', '=', sheet.supervision_project_id.id),
+                ('change_date', '=', sheet.log_date),
+                ('state', 'in', ('active', 'archived')),
+            ], limit=1, order='version desc')
+            if not new_schedule:
+                sheet.changed_planned_progress = 0.0
+                continue
+            # 找包含當天的進度區間
+            line = new_schedule.line_ids.filtered(
+                lambda l: l.date_start and l.date_end
+                          and l.date_start <= sheet.log_date <= l.date_end
+            )
+            if line:
+                l = line[0]
+                total_days = (l.date_end - l.date_start).days + 1
+                sheet.changed_planned_progress = (
+                    l.planned_progress / total_days if total_days > 0 else 0.0
+                )
             else:
-                sheet.has_outdated_schedule = False
-                sheet.outdated_warning_message = ''
+                sheet.changed_planned_progress = 0.0
 
     # -------------------------------------------------------------------------
     # Constraints
@@ -218,18 +240,21 @@ class DailyLogSheet(models.Model):
     # -------------------------------------------------------------------------
 
     def write(self, vals):
-        """當填寫實際進度時，標記為有進度變更"""
-        res = super().write(vals)
-        
-        # 如果修改了 daily_actual_progress
+        """當 daily_actual_progress 實際改變時，自動同步到進度表"""
+        # 在寫入前記錄舊值，供後續比較
         if 'daily_actual_progress' in vals:
+            old_values = {sheet.id: sheet.daily_actual_progress for sheet in self}
+
+        res = super().write(vals)
+
+        # 只有值真正改變時才觸發同步，避免每次儲存都重算
+        if 'daily_actual_progress' in vals:
+            new_value = vals['daily_actual_progress']
             for sheet in self:
-                if sheet.daily_actual_progress > 0:
-                    # 標記有進度變更（供 progress 模組同步使用）
-                    # 這個欄位原本就在 daily_log_sheet 中
-                    if hasattr(sheet, 'has_progress_change'):
-                        sheet.has_progress_change = True
-        
+                old_value = old_values.get(sheet.id, 0.0)
+                if new_value != old_value and sheet.progress_line_id:
+                    sheet.progress_line_id._sync_actual_from_daily_logs()
+
         return res
     
     # -------------------------------------------------------------------------

@@ -113,7 +113,6 @@
                                    invisible="source_type != 'self_inspection'"/>
                             <field name="check_type"/>
                             <field name="defect_category"/>
-                            <!-- 編輯模式才顯示 -->
                             <field name="severity" invisible="not id"/>
                         </group>
                     </group>
@@ -126,8 +125,6 @@
                         <group string="改善責任">
                             <field name="improvement_unit"/>
                             <field name="responsible_user_id"/>
-                            <!-- 編輯模式才顯示 -->
-                            <field name="responsible_company_id" invisible="not id"/>
                         </group>
                     </group>
                     <group>
@@ -159,10 +156,9 @@
                             <group>
                                 <field name="defect_location"/>
                             </group>
-                            <group string="缺失說明">
+                            <group string="缺失具體情形">
                                 <field name="defect_description" nolabel="1"/>
                             </group>
-                            <!-- 編輯模式才顯示原因 -->
                             <group string="缺失原因" invisible="not id">
                                 <field name="defect_cause" nolabel="1"/>
                             </group>
@@ -178,6 +174,19 @@
                             </group>
                             <group string="改善結果">
                                 <field name="improvement_result" nolabel="1"/>
+                            </group>
+                        </page>
+
+                        <!-- 複查資訊 -->
+                        <page string="複查資訊" name="recheck" invisible="not id">
+                            <group>
+                                <group string="複查資訊">
+                                    <field name="recheck_date"/>
+                                    <field name="recheck_result"/>
+                                </group>
+                            </group>
+                            <group string="複查說明">
+                                <field name="recheck_note" nolabel="1"/>
                             </group>
                         </page>
 

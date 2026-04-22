@@ -1,5 +1,7 @@
-/* 後台根字級放大至 125%（原 16px → 20px），讓文字、按鈕、表單欄位按比例變大。
-   不使用 CSS zoom 以避免 getBoundingClientRect 相關元件（popover、kanban、chart）座標錯亂。 */
+/* 後台字體放大 1.25x（等效 zoom 1.25 的文字效果，但不影響座標系統） */
 html {
-    font-size: 137.5%;
+    font-size: 20px !important;  /* 16px * 1.25 = 20px */
+}
+body {
+    font-size: 1rem !important;
 }

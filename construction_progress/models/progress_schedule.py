@@ -42,7 +42,7 @@ class ProgressSchedule(models.Model):
         default=1,
         required=True,
         tracking=True,
-        aggregator='max',
+        group_operator='max',
     )
     change_date = fields.Date(
         string='變更時間',
@@ -84,16 +84,35 @@ class ProgressSchedule(models.Model):
     )
     original_end_date = fields.Date(
         string='原定完工日期',
-        related='project_id.contract_end_date',
         readonly=True,
+        store=True,
+        help='建立/複製本版進度表時快照的 contract_end_date（前一版啟用後的完工日）',
     )
+
+    # 建立/複製時快照工程案件的累計展延天數，不隨工程案件的後續變動
+    base_extension_duration = fields.Integer(
+        string='展延基準值',
+        default=0,
+        readonly=True,
+        help='建立本版進度表時的累計展延天數（系統自動記錄，不可修改）',
+    )
+
+    # 使用者在此版本新增的核准展延天數
+    current_extension = fields.Integer(
+        string='本次核准展延工期(日)',
+        default=0,
+        help='本版本新增的核准展延天數；系統將自動累加至「累計工期展延」',
+    )
+
+    # 累計展延 = 基準 + 本次，啟用時寫回工程案件
     duration_extension = fields.Integer(
         string='累計工期展延(日)',
-        related='project_id.extension_duration',
+        compute='_compute_duration_extension',
         store=True,
         readonly=True,
-        help='從所屬工程的核准展延工期自動取得',
+        help='展延基準值 + 本次核准展延工期（啟用時寫回工程案件）',
     )
+
     adjusted_end_date = fields.Date(
         string='調整後完工日期',
         compute='_compute_adjusted_end_date',
@@ -101,7 +120,7 @@ class ProgressSchedule(models.Model):
     )
     approved_duration = fields.Integer(
         string='核定工期',
-        related='project_id.contract_duration',
+        related='project_id.original_duration',
         readonly=True,
     )
     total_duration = fields.Integer(
@@ -110,13 +129,39 @@ class ProgressSchedule(models.Model):
         store=True,
     )
 
-    @api.depends('original_end_date', 'duration_extension')
+    # 補充進度區間按鈕的顯示控制
+    lines_cover_adjusted_end = fields.Boolean(
+        string='區間已涵蓋完工日',
+        compute='_compute_lines_cover_adjusted_end',
+        help='當最後一筆區間的結束日 >= 調整後完工日期時為 True',
+    )
+
+    @api.depends('line_ids.date_end', 'adjusted_end_date')
+    def _compute_lines_cover_adjusted_end(self):
+        """判斷現有區間是否已涵蓋調整後完工日，用於控制「補充進度區間」按鈕顯示"""
+        for rec in self:
+            if not rec.line_ids or not rec.adjusted_end_date:
+                rec.lines_cover_adjusted_end = False
+                continue
+            last_end = max(
+                (l.date_end for l in rec.line_ids if l.date_end),
+                default=None,
+            )
+            rec.lines_cover_adjusted_end = bool(last_end and last_end >= rec.adjusted_end_date)
+
+    @api.depends('base_extension_duration', 'current_extension')
+    def _compute_duration_extension(self):
+        """累計工期展延 = 建立時基準 + 本次核准展延"""
+        for rec in self:
+            rec.duration_extension = (rec.base_extension_duration or 0) + (rec.current_extension or 0)
+
+    @api.depends('original_end_date', 'current_extension')
     def _compute_adjusted_end_date(self):
-        """計算調整後完工日期"""
+        """計算調整後完工日期：前一版完工日 + 本次核准展延"""
         for rec in self:
             if rec.original_end_date:
                 rec.adjusted_end_date = rec.original_end_date + timedelta(
-                    days=rec.duration_extension)
+                    days=rec.current_extension or 0)
             else:
                 rec.adjusted_end_date = False
 
@@ -132,6 +177,17 @@ class ProgressSchedule(models.Model):
         ('biweekly', '每兩周'),
         ('custom', '自訂'),
     ], string='計算模式', default='weekly', required=True, tracking=True)
+
+    week_alignment_mode = fields.Selection([
+        ('project_start', '工期起算制'),
+        ('calendar', '日曆周制'),
+    ], string='周期對齊方式', default='project_start',
+       help=(
+           '工期起算制：以開工日為基準，每 7（或 14）天為一組，不對齊日曆周。\n'
+           '例：開工日 3/5（週三）→ 3/5–3/11、3/12–3/18…\n\n'
+           '日曆周制：首個區間自動截斷至當週週日，後續區間對齊週一至週日。\n'
+           '例：開工日 3/5（週三）→ 3/5–3/9（5天）、3/10–3/16、3/17–3/23…'
+       ))
 
     # === 進度明細 ===
     line_ids = fields.One2many(
@@ -266,46 +322,6 @@ class ProgressSchedule(models.Model):
                     rec.current_variance = 0.0
                     rec.current_variance_status = 'on_track'
 
-    # === 過時檢查 ===
-    is_outdated = fields.Boolean(
-        string='已過時',
-        compute='_compute_is_outdated',
-        help='有未處理的契約變更單',
-    )
-
-    @api.depends('project_id', 'state', 'related_change_order_ids')
-    def _compute_is_outdated(self):
-        """
-        檢查進度表是否過時（安全檢查：契約變更模組為可選）
-
-        注意：此功能需要 construction_contract_change 模組
-        如果模組未安裝，is_outdated 將始終為 False
-        """
-        # 安全檢查：檢查契約變更模組是否已安裝
-        if 'contract.change.order' not in self.env:
-            # 模組未安裝，跳過檢查
-            for schedule in self:
-                schedule.is_outdated = False
-            return
-
-        ContractChange = self.env['contract.change.order']
-
-        for schedule in self:
-            if schedule.state != 'active':
-                schedule.is_outdated = False
-                continue
-
-            # 查找所有契約變更單
-            all_changes = ContractChange.search([
-                ('project_id', '=', schedule.project_id.id),
-            ])
-
-            # 排除已被此進度表關聯的變更單
-            unhandled_changes = all_changes - schedule.related_change_order_ids
-
-            # 只要有未處理的契約變更單（任何狀態），就標記為過時
-            schedule.is_outdated = bool(unhandled_changes)
-
     # === 版本資訊 ===
     is_latest_version = fields.Boolean(
         string='是最新版本',
@@ -351,11 +367,17 @@ class ProgressSchedule(models.Model):
     # === SQL 約束 ===
     _sql_constraints = [
         ('version_positive', 'CHECK(version > 0)', '版本號必須為正數'),
-        ('duration_extension_non_negative', 'CHECK(duration_extension >= 0)',
-         '累計工期展延不可為負數'),
+        # duration_extension 已改為 computed stored，由 Python constraint 驗證
         ('unique_project_version', 'UNIQUE(project_id, version)',
          '同一工程的進度表版本號不可重複'),
     ]
+
+    @api.constrains('current_extension')
+    def _check_current_extension_non_negative(self):
+        """本次核准展延工期不可為負數"""
+        for rec in self:
+            if (rec.current_extension or 0) < 0:
+                raise ValidationError('本次核准展延工期不可為負數')
 
     # =========================================================================
     # Onchange 方法
@@ -386,8 +408,18 @@ class ProgressSchedule(models.Model):
     # 動作方法
     # =========================================================================
 
+    def _calc_calendar_period_end(self, start_date, interval_weeks):
+        """計算日曆周制的期末日期（對齊至週日）
+
+        以 start_date 所在週的週一為基準，往後算 interval_weeks 週，
+        結果為該週的週日（Python weekday：週一=0，週日=6）。
+        """
+        days_to_monday = start_date.weekday()  # Mon=0, Sun=6
+        monday = start_date - timedelta(days=days_to_monday)
+        return monday + timedelta(weeks=interval_weeks) - timedelta(days=1)
+
     def action_generate_lines(self):
-        """根據計算模式自動產生進度區間"""
+        """根據計算模式自動產生進度區間（全部清除重建）"""
         self.ensure_one()
         if self.state != 'draft':
             raise UserError('只有草稿狀態可以產生進度區間')
@@ -410,21 +442,20 @@ class ProgressSchedule(models.Model):
                 }
             }
 
-        # 決定間隔天數
-        if self.calculation_mode == 'weekly':
-            interval = 7
-        else:  # biweekly
-            interval = 14
+        # 決定間隔週數
+        interval_weeks = 1 if self.calculation_mode == 'weekly' else 2
 
         lines = []
         current_date = self.start_date
         sequence = 1
 
-        while current_date < self.adjusted_end_date:
-            end_date = min(
-                current_date + timedelta(days=interval - 1),
-                self.adjusted_end_date
-            )
+        while current_date <= self.adjusted_end_date:
+            if self.week_alignment_mode == 'calendar':
+                end_date = self._calc_calendar_period_end(current_date, interval_weeks)
+            else:
+                end_date = current_date + timedelta(days=(interval_weeks * 7) - 1)
+
+            end_date = min(end_date, self.adjusted_end_date)
             lines.append({
                 'schedule_id': self.id,
                 'sequence': sequence,
@@ -437,16 +468,12 @@ class ProgressSchedule(models.Model):
 
         if lines:
             self.env['progress.schedule.line'].create(lines)
-            
-            # Odoo 18: 使用 invalidate_recordset() 失效快取
             self.invalidate_recordset(['line_ids', 'line_count'])
-            
-            # 使用 message_post 記錄（會顯示在 chatter 中）
             self.message_post(
                 body=f'✅ 已自動產生 {len(lines)} 個進度區間',
                 message_type='notification',
             )
-        
+
         # 返回重新開啟當前記錄
         return {
             'type': 'ir.actions.act_window',
@@ -454,7 +481,139 @@ class ProgressSchedule(models.Model):
             'res_id': self.id,
             'view_mode': 'form',
             'target': 'current',
-            'context': dict(self.env.context),  # 保留原有 context
+            'context': dict(self.env.context),
+        }
+
+    def action_extend_lines(self):
+        """補充進度區間（保留現有紀錄，只添加缺少部分）"""
+        self.ensure_one()
+
+        # 前置驗證
+        if self.state != 'draft':
+            raise UserError('只有草稿狀態可以補充進度區間')
+        if not self.adjusted_end_date:
+            raise ValidationError('請先設定工期展延天數')
+        if self.calculation_mode == 'custom':
+            raise UserError('自訂模式請手動新增進度區間')
+
+        interval_weeks = 1 if self.calculation_mode == 'weekly' else 2
+        interval_days = interval_weeks * 7
+
+        existing_lines = self.line_ids.sorted('date_start')
+        preserved_count = len(existing_lines)
+
+        if not existing_lines:
+            # 無現有資料，直接重新產生
+            return self.action_generate_lines()
+
+        last_line = existing_lines[-1]
+
+        # --- 處理最後一筆截斷的不完整區間 ---
+        if last_line.period_days < interval_days:
+            # 計算這個區間「完整」應結束到哪一天
+            if self.week_alignment_mode == 'calendar':
+                full_end = self._calc_calendar_period_end(last_line.date_start, interval_weeks)
+            else:
+                full_end = last_line.date_start + timedelta(days=interval_days - 1)
+
+            if full_end < self.adjusted_end_date:
+                # 補全最後一筆至完整區間結束，再繼續往後新增
+                if self.state != 'draft':
+                    raise UserError('狀態已變更，無法修改區間')
+                last_line.write({'date_end': full_end})
+                next_start = full_end + timedelta(days=1)
+            elif full_end == self.adjusted_end_date:
+                # 最後一筆剛好補到完工日，不需再新增
+                if self.state != 'draft':
+                    raise UserError('狀態已變更，無法修改區間')
+                last_line.write({'date_end': full_end})
+                self.invalidate_recordset(['line_ids', 'line_count'])
+                self.message_post(
+                    body=f'✅ 已保留舊有 {preserved_count} 筆，補全最後一個區間至完工日（新增 0 筆）',
+                    message_type='notification',
+                )
+                return {
+                    'type': 'ir.actions.act_window',
+                    'res_model': self._name,
+                    'res_id': self.id,
+                    'view_mode': 'form',
+                    'target': 'current',
+                    'context': dict(self.env.context),
+                }
+            else:
+                # 新完工日在最後一筆的完整區間之內，只更新結束日即可
+                if self.state != 'draft':
+                    raise UserError('狀態已變更，無法修改區間')
+                last_line.write({'date_end': self.adjusted_end_date})
+                self.invalidate_recordset(['line_ids', 'line_count'])
+                self.message_post(
+                    body=f'✅ 已保留舊有 {preserved_count} 筆，更新最後一個區間的結束日期（新增 0 筆）',
+                    message_type='notification',
+                )
+                return {
+                    'type': 'ir.actions.act_window',
+                    'res_model': self._name,
+                    'res_id': self.id,
+                    'view_mode': 'form',
+                    'target': 'current',
+                    'context': dict(self.env.context),
+                }
+        else:
+            # 最後一筆是完整區間，嚴格從其後一天開始
+            next_start = last_line.date_end + timedelta(days=1)
+
+        # --- 嚴格判斷：next_start 必須 <= adjusted_end_date 才建立 ---
+        if next_start > self.adjusted_end_date:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': '無需補充',
+                    'message': f'現有 {preserved_count} 筆區間已涵蓋完工日期，無需補充。',
+                    'type': 'info',
+                    'sticky': False,
+                }
+            }
+
+        # --- 建立缺少的區間 ---
+        lines = []
+        current_date = next_start
+        sequence = max(self.line_ids.mapped('sequence') or [0])
+
+        while current_date <= self.adjusted_end_date:
+            if self.week_alignment_mode == 'calendar':
+                end_date = self._calc_calendar_period_end(current_date, interval_weeks)
+            else:
+                end_date = current_date + timedelta(days=interval_days - 1)
+
+            end_date = min(end_date, self.adjusted_end_date)
+            sequence += 1
+            lines.append({
+                'schedule_id': self.id,
+                'sequence': sequence,
+                'date_start': current_date,
+                'date_end': end_date,
+                'planned_progress': 0.0,
+            })
+            current_date = end_date + timedelta(days=1)
+
+        added_count = len(lines)
+        if lines:
+            self.env['progress.schedule.line'].create(lines)
+
+        self.invalidate_recordset(['line_ids', 'line_count'])
+        self.message_post(
+            body=f'✅ 已保留舊有 {preserved_count} 筆，新增 {added_count} 筆區間',
+            message_type='notification',
+        )
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+            'context': dict(self.env.context),
         }
 
     def action_add_line(self):
@@ -566,6 +725,15 @@ class ProgressSchedule(models.Model):
         """實際執行啟用（由 wizard 呼叫）"""
         self.ensure_one()
 
+        # 【安全防護】展延天數不可逆向減少
+        current_project_extension = self.project_id.extension_duration or 0
+        if self.duration_extension < current_project_extension:
+            raise UserError(
+                f'無法啟用：本進度表的累計工期展延（{self.duration_extension} 天）'
+                f'小於工程案件目前的展延天數（{current_project_extension} 天）。\n'
+                f'展延天數只能增加，不可逆向減少。'
+            )
+
         # 將同專案其他進度表歸檔
         other_schedules = self.search([
             ('project_id', '=', self.project_id.id),
@@ -577,11 +745,48 @@ class ProgressSchedule(models.Model):
 
         self.write({'state': 'active'})
 
+        # 寫回工程案件：累計展延天數 + 最新預定完工日
+        update_vals = {}
+        if self.duration_extension != current_project_extension:
+            update_vals['extension_duration'] = self.duration_extension
+        if self.adjusted_end_date and self.adjusted_end_date != self.project_id.contract_end_date:
+            update_vals['contract_end_date'] = self.adjusted_end_date
+        if update_vals:
+            self.project_id.write(update_vals)
+
         # 在 Chatter 中記錄
         self.message_post(
             body='✅ 進度表已設為使用中',
             message_type='notification',
         )
+
+        # ── 觸發相關施工日誌重算 ──────────────────────────────────────────
+        # change_date 為新版進度表的生效日（通常 = 今天）
+        change_date = self.change_date
+
+        # 1. change_date 當天的日誌：重算 has_progress_change / changed_planned_progress
+        #    以及 active_progress_schedule_id（過時警告用）
+        logs_on_change = self.env['daily.log.sheet'].search([
+            ('supervision_project_id', '=', self.project_id.id),
+            ('log_date', '=', change_date),
+        ])
+        if logs_on_change:
+            logs_on_change._compute_active_progress_schedule()
+            logs_on_change._compute_has_progress_change()
+            logs_on_change._compute_changed_planned_progress()
+            # base_progress_schedule_id 在變更當天仍返回舊版，不需重算
+            # （change_date < log_date 嚴格小於，v2 不符合）
+
+        # 2. change_date 之後的日誌：切換到新版進度表
+        logs_after_change = self.env['daily.log.sheet'].search([
+            ('supervision_project_id', '=', self.project_id.id),
+            ('log_date', '>', change_date),
+        ])
+        if logs_after_change:
+            logs_after_change._compute_active_progress_schedule()
+            logs_after_change._compute_base_progress_schedule()
+            logs_after_change._compute_progress_line()
+            logs_after_change._compute_daily_planned_progress()
 
     def action_archive(self):
         """歸檔"""
@@ -663,7 +868,7 @@ class ProgressSchedule(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """建立進度表時自動計算版本號"""
+        """建立進度表時自動計算版本號，並快照 base_extension_duration"""
         for vals in vals_list:
             if 'version' not in vals or vals.get('version', 0) <= 0:
                 project_id = vals.get('project_id')
@@ -674,6 +879,13 @@ class ProgressSchedule(models.Model):
                     vals['version'] = len(existing_schedules) + 1
                 else:
                     vals['version'] = 1
+            # 快照當下工程案件的累計展延天數，作為本版基準
+            if 'project_id' in vals and 'base_extension_duration' not in vals:
+                project = self.env['supervision.project'].browse(vals['project_id'])
+                vals['base_extension_duration'] = project.extension_duration or 0
+                # 快照此刻的 contract_end_date 作為「前一版完工日」基準
+                if 'original_end_date' not in vals:
+                    vals['original_end_date'] = project.contract_end_date
         return super().create(vals_list)
 
     def unlink(self):
@@ -684,10 +896,14 @@ class ProgressSchedule(models.Model):
         return super().unlink()
 
     def copy(self, default=None):
-        """複製時重設狀態"""
+        """複製時重設狀態與展延欄位"""
         default = dict(default or {})
-        if 'state' not in default:
-            default['state'] = 'draft'
-        if 'change_date' not in default:
-            default['change_date'] = fields.Date.today()
+        default.setdefault('state', 'draft')
+        default.setdefault('change_date', fields.Date.today())
+        # 複製時重設展延欄位：以工程案件目前的累計值為新基準，本次從 0 開始
+        default['current_extension'] = 0
+        if self.project_id:
+            default['base_extension_duration'] = self.project_id.extension_duration or 0
+            # 快照此刻 contract_end_date，作為新版「前一版完工日」基準
+            default.setdefault('original_end_date', self.project_id.contract_end_date)
         return super().copy(default)

@@ -1,26 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- 預約式缺失改善 Tree View -->
+    <!-- 預約式缺失改善 List View -->
     <record id="view_reservation_defect_improvement_tree" model="ir.ui.view">
         <field name="name">reservation.defect.improvement.tree</field>
         <field name="model">reservation.defect.improvement</field>
         <field name="arch" type="xml">
-            <list decoration-danger="is_overdue" decoration-success="state in ('conform', 'corrected')">
+            <list decoration-danger="is_overdue" decoration-muted="state == 'closed'">
                 <field name="record_no"/>
                 <field name="slip_id"/>
                 <field name="project_id"/>
-                <field name="check_type"/>
-                <field name="defect_description" widget="text"/>
-                <field name="discovery_unit"/>
-                <field name="notification_date"/>
+                <field name="source_type"/>
+                <field name="defect_category"/>
+                <field name="severity"
+                       decoration-warning="severity == 'major'"
+                       decoration-danger="severity == 'critical'"
+                       widget="badge"/>
+                <field name="defect_location"/>
+                <field name="found_date"/>
                 <field name="deadline"/>
                 <field name="is_overdue" column_invisible="1"/>
-                <field name="overdue_days" optional="hide"/>
+                <field name="overdue_days"
+                       decoration-danger="overdue_days > 0"/>
+                <field name="responsible_user_id"/>
                 <field name="state"
-                       decoration-success="state in ('conform', 'corrected')"
-                       decoration-warning="state == 'uncorrected'"
-                       decoration-danger="state == 'overdue'"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state in ('notified', 'improving')"
+                       decoration-primary="state == 'improved'"
+                       decoration-success="state in ('verified', 'closed')"
                        widget="badge"/>
             </list>
         </field>
@@ -33,66 +40,89 @@
         <field name="arch" type="xml">
             <form string="預約式缺失改善">
                 <header>
-                    <!-- 保留原有的按鈕 -->
-                    <button name="action_mark_corrected" string="標記已矯正" type="object"
-                            invisible="state in ('corrected', 'conform')"
-                            groups="construction_quality.group_quality_user"/>
-                    <button name="action_mark_conform" string="確認符合" type="object"
-                            invisible="state == 'conform'"
-                            groups="construction_quality.group_quality_manager"/>
-                    <button name="action_reopen" string="重新開啟" type="object"
-                            invisible="state not in ('corrected', 'conform')"
-                            groups="construction_quality.group_quality_manager"/>
-                    <button name="action_mark_overdue" string="標記逾期" type="object"
-                            invisible="state in ('conform', 'overdue')"
-                            groups="construction_quality.group_quality_user"/>
-
+                    <button name="action_notify"
+                            string="通知改善"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_start_improvement"
+                            string="開始改善"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'notified'"/>
+                    <button name="action_complete_improvement"
+                            string="完成改善"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'improving'"/>
+                    <button name="action_verify_pass"
+                            string="驗證通過"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'improved'"/>
+                    <button name="action_verify_fail"
+                            string="驗證不通過"
+                            type="object"
+                            class="btn-warning"
+                            invisible="state != 'improved'"/>
+                    <button name="action_close"
+                            string="結案"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'verified'"/>
+                    <button name="action_reopen"
+                            string="重新開啟"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state not in ('verified', 'closed')"/>
+                    <button name="action_reset_draft"
+                            string="重設"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state not in ('draft', 'notified')"/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="uncorrected,corrected,conform"/>
+                           statusbar_visible="draft,notified,improving,improved,verified,closed"/>
                 </header>
-
                 <sheet>
+                    <widget name="web_ribbon" title="已逾期" bg_color="text-bg-danger"
+                            invisible="not is_overdue"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="record_no" readonly="1"/>
+                        </h1>
+                    </div>
                     <group>
-                        <!-- 通報單資訊 -->
                         <group string="通報單資訊">
                             <field name="slip_id" required="1"/>
                             <field name="project_id"/>
                             <field name="record_type" invisible="1"/>
-                            <!-- 編輯模式才顯示 -->
-                            <field name="record_no" readonly="1" invisible="not id"/>
+                            <field name="company_id" invisible="1"/>
                         </group>
-
-                        <!-- 檢查資訊 -->
-                        <group string="檢查資訊">
+                        <group string="缺失分類">
+                            <field name="source_type"/>
                             <field name="check_type"/>
+                            <field name="defect_category"/>
+                            <field name="severity" invisible="not id"/>
                         </group>
                     </group>
-
                     <group>
-                        <!-- 發現資訊 -->
                         <group string="發現資訊">
                             <field name="discovery_unit"/>
                             <field name="discovery_user_id"/>
                             <field name="found_date"/>
                         </group>
-
-                        <!-- 改善責任 -->
                         <group string="改善責任">
                             <field name="improvement_unit"/>
                             <field name="responsible_user_id"/>
                         </group>
                     </group>
-
                     <group>
-                        <!-- 日期 -->
-                        <group string="日期" name="date_info">
+                        <group string="日期">
                             <field name="notification_date"/>
                             <field name="deadline"/>
-                            <!-- 編輯模式才顯示 -->
                             <field name="improvement_date" readonly="1" invisible="not id"/>
+                            <field name="closure_date" readonly="1" invisible="not id"/>
                         </group>
-
-                        <!-- 編輯模式才顯示整個區塊 -->
                         <group string="逾期與罰款狀態" invisible="not id">
                             <field name="is_overdue"/>
                             <field name="overdue_days"/>
@@ -101,15 +131,12 @@
                             <field name="currency_id" invisible="1"/>
                         </group>
                     </group>
-
-                    <!-- 罰款說明（編輯模式且已罰款時顯示） -->
                     <group invisible="not id or not is_fined">
                         <group string="罰款說明">
                             <field name="fine_note" nolabel="1"/>
                         </group>
                     </group>
 
-                    <!-- 隱藏但保留於資料庫的欄位 -->
                     <field name="supervision_prefix" invisible="1"/>
                     <field name="contractor_prefix" invisible="1"/>
 
@@ -122,19 +149,39 @@
                             <group string="缺失具體情形">
                                 <field name="defect_description" nolabel="1"/>
                             </group>
-                            <!-- 編輯模式才顯示 -->
-                            <group string="缺失發生原因" invisible="not id">
+                            <group string="缺失原因" invisible="not id">
                                 <field name="defect_cause" nolabel="1"/>
                             </group>
-                            <group string="採取改善措施與預防措施" invisible="not id">
+                        </page>
+
+                        <!-- 改善內容 -->
+                        <page string="改善內容" name="improvement" invisible="not id">
+                            <group string="矯正措施">
                                 <field name="improvement_action" nolabel="1"/>
+                            </group>
+                            <group string="預防措施">
                                 <field name="prevention_action" nolabel="1"/>
+                            </group>
+                            <group string="改善結果">
+                                <field name="improvement_result" nolabel="1"/>
+                            </group>
+                        </page>
+
+                        <!-- 複查資訊 -->
+                        <page string="複查資訊" name="recheck" invisible="not id">
+                            <group>
+                                <group string="複查資訊">
+                                    <field name="recheck_date"/>
+                                    <field name="recheck_result"/>
+                                </group>
+                            </group>
+                            <group string="複查說明">
+                                <field name="recheck_note" nolabel="1"/>
                             </group>
                         </page>
 
                         <!-- 照片附件 -->
                         <page string="照片附件" name="photos">
-                            <!-- 新增模式: 僅矯正前 -->
                             <group invisible="id">
                                 <group string="缺失照片">
                                     <field name="before_photo_ids" nolabel="1" context="{'default_photo_stage': 'before'}">
@@ -172,7 +219,6 @@
                                 </group>
                             </group>
 
-                            <!-- 編輯模式: 三階段 -->
                             <group invisible="not id">
                                 <group string="矯正及預防前">
                                     <field name="before_photo_ids" nolabel="1" context="{'default_photo_stage': 'before'}">
@@ -208,7 +254,6 @@
                                         </form>
                                     </field>
                                 </group>
-
                                 <group string="矯正及預防中">
                                     <field name="during_photo_ids" nolabel="1" context="{'default_photo_stage': 'during'}">
                                         <kanban>
@@ -243,7 +288,6 @@
                                         </form>
                                     </field>
                                 </group>
-
                                 <group string="矯正及預防後">
                                     <field name="after_photo_ids" nolabel="1" context="{'default_photo_stage': 'after'}">
                                         <kanban>
@@ -280,26 +324,40 @@
                                 </group>
                             </group>
 
-                            <!-- 其他附件 -->
                             <group string="相關文件附件">
                                 <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
                             </group>
                         </page>
 
-                        <!-- 其他頁籤（編輯模式才顯示） -->
-                        <page string="確認資訊" name="confirmation" invisible="not id">
+                        <!-- 驗證結案 -->
+                        <page string="驗證結案" name="verification" invisible="not id">
                             <group>
-                                <group string="確認資訊">
-                                    <field name="confirmer_id"/>
-                                    <field name="confirm_date"/>
+                                <group string="驗證資訊">
+                                    <field name="verifier_id"/>
+                                    <field name="verify_date"/>
+                                    <field name="verify_result"/>
+                                </group>
+                                <group string="結案資訊">
+                                    <field name="closer_id"/>
+                                    <field name="closure_date"/>
                                 </group>
                             </group>
-                            <group string="確認意見">
-                                <field name="confirm_comment" nolabel="1"/>
+                            <group string="驗證意見">
+                                <field name="verify_comment" nolabel="1"/>
+                            </group>
+                            <group string="結案說明">
+                                <field name="close_comment" nolabel="1"/>
                             </group>
                         </page>
 
-                        <!-- 編號資訊（除錯用） -->
+                        <!-- 關聯與備註 -->
+                        <page string="關聯與備註" name="relations" invisible="not id">
+                            <group string="備註">
+                                <field name="note" nolabel="1"/>
+                            </group>
+                        </page>
+
+                        <!-- 編號資訊 -->
                         <page string="編號資訊" name="number_info">
                             <group>
                                 <group>
@@ -342,16 +400,23 @@
                 <field name="slip_id"/>
                 <field name="project_id"/>
                 <field name="defect_description"/>
+                <field name="responsible_user_id"/>
                 <separator/>
-                <filter string="未矯正" name="uncorrected"
-                        domain="[('state', '=', 'uncorrected')]"/>
-                <filter string="逾時未矯正" name="overdue_state"
-                        domain="[('state', '=', 'overdue')]"/>
-                <filter string="已矯正" name="corrected"
-                        domain="[('state', '=', 'corrected')]"/>
-                <filter string="符合要求" name="conform"
-                        domain="[('state', '=', 'conform')]"/>
+                <filter string="草稿" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已通知" name="notified"
+                        domain="[('state', '=', 'notified')]"/>
+                <filter string="改善中" name="improving"
+                        domain="[('state', '=', 'improving')]"/>
+                <filter string="已改善" name="improved"
+                        domain="[('state', '=', 'improved')]"/>
+                <filter string="已驗證" name="verified"
+                        domain="[('state', '=', 'verified')]"/>
+                <filter string="結案" name="closed"
+                        domain="[('state', '=', 'closed')]"/>
                 <separator/>
+                <filter string="待處理" name="pending"
+                        domain="[('state', 'in', ('notified', 'improving'))]"/>
                 <filter string="已逾期" name="is_overdue"
                         domain="[('is_overdue', '=', True)]"/>
                 <separator/>
@@ -370,10 +435,12 @@
                             context="{'group_by': 'slip_id'}"/>
                     <filter string="工程" name="group_project"
                             context="{'group_by': 'project_id'}"/>
+                    <filter string="缺失類別" name="group_category"
+                            context="{'group_by': 'defect_category'}"/>
+                    <filter string="嚴重程度" name="group_severity"
+                            context="{'group_by': 'severity'}"/>
                     <filter string="狀態" name="group_state"
                             context="{'group_by': 'state'}"/>
-                    <filter string="檢查類型" name="group_check_type"
-                            context="{'group_by': 'check_type'}"/>
                     <filter string="記錄類型" name="group_record_type"
                             context="{'group_by': 'record_type'}"/>
                 </group>
@@ -389,7 +456,8 @@
             <kanban default_group_by="state" class="o_kanban_mobile">
                 <field name="record_no"/>
                 <field name="slip_id"/>
-                <field name="defect_description"/>
+                <field name="defect_category"/>
+                <field name="severity"/>
                 <field name="deadline"/>
                 <field name="is_overdue"/>
                 <field name="state"/>
@@ -398,15 +466,20 @@
                         <div class="oe_kanban_content">
                             <div class="o_kanban_record_title">
                                 <strong><field name="record_no"/></strong>
+                                <span t-if="record.is_overdue.raw_value" class="badge text-bg-danger ms-1">逾期</span>
                             </div>
                             <div class="o_kanban_record_subtitle">
                                 <field name="slip_id"/>
                             </div>
                             <div class="o_kanban_record_body">
-                                <div class="text-truncate"><field name="defect_description"/></div>
-                                <div>期限: <field name="deadline"/></div>
-                                <div t-if="record.is_overdue.raw_value" class="text-danger">
-                                    已逾期
+                                <div>
+                                    <span t-if="record.severity.raw_value == 'critical'" class="badge text-bg-danger">嚴重</span>
+                                    <span t-if="record.severity.raw_value == 'major'" class="badge text-bg-warning">重大</span>
+                                    <span t-if="record.severity.raw_value == 'moderate'" class="badge text-bg-secondary">中等</span>
+                                    <field name="defect_category"/>
+                                </div>
+                                <div t-if="record.deadline.raw_value">
+                                    改善期限: <field name="deadline"/>
                                 </div>
                             </div>
                         </div>
@@ -469,7 +542,7 @@
         <field name="domain">[
             ('record_type', '=', 'supervision'),
             ('is_overdue', '=', True),
-            ('state', 'not in', ('conform',))
+            ('state', 'not in', ('verified', 'closed'))
         ]</field>
         <field name="context">{'default_record_type': 'supervision'}</field>
         <field name="help" type="html">
@@ -488,7 +561,7 @@
         <field name="domain">[
             ('record_type', '=', 'contractor'),
             ('is_overdue', '=', True),
-            ('state', 'not in', ('conform',))
+            ('state', 'not in', ('verified', 'closed'))
         ]</field>
         <field name="context">{'default_record_type': 'contractor'}</field>
         <field name="help" type="html">
@@ -498,7 +571,7 @@
         </field>
     </record>
 
-    <!-- 預約式缺失改善 Action (保留舊的通用 action，向後兼容) -->
+    <!-- 預約式缺失改善 Action (向後兼容) -->
     <record id="action_reservation_defect_improvement" model="ir.actions.act_window">
         <field name="name">預約式缺失改善</field>
         <field name="res_model">reservation.defect.improvement</field>

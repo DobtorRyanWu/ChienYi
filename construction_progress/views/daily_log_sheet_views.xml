@@ -16,20 +16,6 @@
         <field name="model">daily.log.sheet</field>
         <field name="inherit_id" ref="construction_daily_log.daily_log_sheet_view_form"/>
         <field name="arch" type="xml">
-            <!-- 在 notebook 之前加入警告橫幅 -->
-            <xpath expr="//notebook" position="before">
-                <div invisible="not has_outdated_schedule">
-                    <field name="outdated_warning_message" nolabel="1" readonly="1"/>
-                    <group>
-                        <button name="action_view_progress_schedule" type="object"
-                                string="立即前往更新進度表" class="btn-warning"
-                                icon="fa-line-chart"/>
-                    </group>
-                </div>
-                <!-- 隱藏欄位 -->
-                <field name="has_outdated_schedule" invisible="1"/>
-            </xpath>
-            
             <!-- 在 notebook 中加入進度狀況頁籤 -->
             <xpath expr="//page[@name='daily_log_lines']" position="before">
                 <page string="進度狀況" name="progress_status">

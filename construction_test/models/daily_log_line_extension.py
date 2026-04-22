@@ -76,11 +76,13 @@ class DailyLogLineTestExtension(models.Model):
         :param sup_project: supervision.project 記錄
         """
         cumulative_qty = line.cumulative_qty
+        daily_qty = line.daily_qty or 0
         conditions = standard.frequency_condition_ids.filtered('active').sorted('sequence')
 
         # === 步驟 1：計算應有檢驗次數，自動建立不足的記錄 ===
         # 統一入口：頻率條件 + 自訂公式（並存相加）
-        required_count = standard.calculate_required_tests(cumulative_qty)
+        # daily_qty 傳入以支援「每日澆築量」型自訂公式
+        required_count = standard.calculate_required_tests(cumulative_qty, daily_qty=daily_qty)
 
         if required_count > 0:
             existing_count = self.env['supervision.test.record'].search_count([

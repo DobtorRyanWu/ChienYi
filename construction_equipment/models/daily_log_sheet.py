@@ -80,3 +80,22 @@ class DailyLogSheet(models.Model):
             sheet.man_machine_equipment_count = 0
             sheet.man_machine_total_man_hours = 0.0
             sheet.man_machine_total_equipment_hours = 0.0
+
+    # -------------------------------------------------------------------------
+    # Actions
+    # -------------------------------------------------------------------------
+
+    def action_add_man_machine_wizard(self):
+        """開啟批次新增人機使用精靈"""
+        self.ensure_one()
+        wizard = self.env['daily.log.add.man.machine.wizard'].create({
+            'sheet_id': self.id,
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '批次新增人機使用',
+            'res_model': 'daily.log.add.man.machine.wizard',
+            'view_mode': 'form',
+            'res_id': wizard.id,
+            'target': 'new',
+        }

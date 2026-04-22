@@ -22,7 +22,12 @@
                     <button name="action_generate_lines" type="object"
                             string="產生進度區間" class="btn-primary"
                             invisible="state != 'draft' or calculation_mode == 'custom'"
-                            confirm="確定要產生進度區間嗎？現有明細將被清除。"/>
+                            confirm="確定要重新產生進度區間嗎？現有所有明細將被清除。"/>
+                    <button name="action_extend_lines" type="object"
+                            string="補充進度區間" class="btn-primary"
+                            invisible="state != 'draft' or not line_ids or calculation_mode == 'custom' or lines_cover_adjusted_end"
+                            confirm="確定要補充進度區間嗎？系統將保留現有資料，只補上缺少的部分。"
+                            help="保留現有進度資料，依新的調整後完工日期補充缺少的區間"/>
                     <button name="action_add_line" type="object"
                             string="新增區間" class="btn-secondary"
                             invisible="state != 'draft'"/>
@@ -82,11 +87,28 @@
                                    readonly="state != 'draft'"/>
                             <field name="calculation_mode"
                                    readonly="state != 'draft'"/>
+                            <!-- 周期對齊方式（自訂模式不顯示） -->
+                            <field name="week_alignment_mode"
+                                   widget="radio"
+                                   readonly="state != 'draft'"
+                                   invisible="calculation_mode == 'custom'"/>
+                            <!-- 說明文字（自訂模式不顯示） -->
+                            <div class="text-muted" style="font-size:0.85em; grid-column: 1 / -1; padding: 0 8px 4px 8px;"
+                                 invisible="calculation_mode == 'custom'">
+                                ● 工期起算制：以開工日為準，每 7/14 天固定循環。<br/>
+                                ● 日曆周制：首個區間自動截斷至當週週日，後續區間對齊週一至週日。
+                            </div>
                             <field name="company_id" invisible="1"/>
+                            <!-- 隱藏欄位：供按鈕 invisible 條件使用 -->
+                            <field name="lines_cover_adjusted_end" invisible="1"/>
                         </group>
                         <group string="工期資訊">
                             <field name="start_date"/>
                             <field name="original_end_date"/>
+                            <!-- 本次核准展延工期（使用者輸入，草稿可編輯） -->
+                            <field name="current_extension"
+                                   readonly="state != 'draft'"/>
+                            <!-- 累計工期展延（自動計算，唯讀） -->
                             <field name="duration_extension"/>
                             <field name="adjusted_end_date"/>
                             <field name="approved_duration"/>
@@ -125,13 +147,14 @@
                                       decoration-warning="variance_status == 'on_track'"
                                       decoration-danger="variance_status == 'delayed'">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="period_display" string="期間" readonly="1"/>
-                                    <field name="date_start"
+                                    <field name="period_display" string="期間" readonly="1"
+                                           column_invisible="parent.calculation_mode == 'custom'"/>
+                                    <field name="date_start" string="開始日期"
                                            readonly="parent.state != 'draft'"
-                                           column_invisible="1"/>
-                                    <field name="date_end"
+                                           column_invisible="parent.calculation_mode != 'custom'"/>
+                                    <field name="date_end" string="結束日期"
                                            readonly="parent.state != 'draft'"
-                                           column_invisible="1"/>
+                                           column_invisible="parent.calculation_mode != 'custom'"/>
                                     <field name="period_days" string="天數" readonly="1"/>
                                     <field name="planned_progress"
                                            readonly="parent.state != 'draft'"
@@ -183,7 +206,7 @@
         <field name="arch" type="xml">
             <list string="進度表"
                   decoration-success="current_variance_status == 'ahead'"
-                  decoration-warning="current_variance_status == 'on_track' or is_outdated"
+                  decoration-warning="current_variance_status == 'on_track'"
                   decoration-danger="current_variance_status == 'delayed'"
                   decoration-muted="state == 'archived'">
                 
@@ -222,10 +245,6 @@
                 
                 <!-- 11. 變更日期 -->
                 <field name="change_date"/>
-                
-                <!-- 12. 已過時 (可選顯示) -->
-                <field name="is_outdated" string="已過時" widget="boolean" 
-                       optional="show" readonly="1"/>
                 
                 <!-- 隱藏欄位：用於裝飾判斷 -->
                 <field name="current_variance_status" column_invisible="1"/>

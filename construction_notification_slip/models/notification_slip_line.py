@@ -44,7 +44,7 @@ class ReservationNotificationSlipLine(models.Model):
         help='關聯的契約工項')
 
     parent_item_name = fields.Char(
-        string='父工項',
+        string='父工項路徑',
         compute='_compute_parent_item_name', store=True)
 
     # === 項目基本資訊 ===
@@ -119,11 +119,11 @@ class ReservationNotificationSlipLine(models.Model):
             else:
                 line.completion_rate = 0.0
 
-    @api.depends('task_id', 'task_id.parent_id', 'task_id.parent_id.name')
+    @api.depends('task_id', 'task_id.parent_id', 'task_id.parent_id.full_item_path')
     def _compute_parent_item_name(self):
         for line in self:
             if line.task_id and line.task_id.parent_id:
-                line.parent_item_name = line.task_id.parent_id.name
+                line.parent_item_name = line.task_id.parent_id.full_item_path or ''
             else:
                 line.parent_item_name = ''
 

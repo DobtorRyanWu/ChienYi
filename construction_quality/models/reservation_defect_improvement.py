@@ -126,12 +126,6 @@ class ReservationDefectImprovement(models.Model):
         related='project_id.company_id',
         store=True)
 
-    # === 驗收關聯 ===
-    acceptance_id = fields.Many2one(
-        'notification.acceptance',
-        string='關聯驗收單',
-        help='若為驗收時發現的缺失')
-
     # === 基本資料 ===
     record_no = fields.Char(
         string='紀錄表編號',
@@ -154,6 +148,57 @@ class ReservationDefectImprovement(models.Model):
         required=True,
         default=1,
         help='當天同工程同類型的序號，可手動修改')
+
+    # === 缺失分類 ===
+    defect_category = fields.Selection([
+        ('material', '材料品質'),
+        ('workmanship', '施工品質'),
+        ('dimension', '尺寸偏差'),
+        ('safety', '安全衛生'),
+        ('environment', '環境清潔'),
+        ('document', '文件缺漏'),
+        ('other', '其他'),
+    ], string='缺失類別', default='workmanship', tracking=True)
+
+    severity = fields.Selection([
+        ('minor', '輕微'),
+        ('moderate', '中等'),
+        ('major', '重大'),
+        ('critical', '嚴重'),
+    ], string='嚴重程度', default='minor', tracking=True)
+
+    responsible_party = fields.Selection([
+        ('contractor', '承包商'),
+        ('subcontractor', '分包商'),
+        ('supplier', '供應商'),
+        ('design', '設計單位'),
+        ('owner', '業主'),
+        ('other', '其他'),
+    ], string='責任歸屬', tracking=True)
+
+    improvement_progress = fields.Integer(
+        string='改善進度 (%)',
+        default=0)
+
+    # === 複查資訊 ===
+    recheck_date = fields.Date(string='複查日期', tracking=True)
+
+    recheck_result = fields.Selection([
+        ('pass', '通過'),
+        ('fail', '不通過'),
+        ('pending', '待複查'),
+    ], string='複查結果', tracking=True)
+
+    recheck_note = fields.Text(string='複查說明')
+
+    # === 來源關聯 ===
+    source_type = fields.Selection([
+        ('slip', '通報單'),
+        ('self_inspection', '自主檢查'),
+        ('daily_check', '日常巡查'),
+        ('authority_audit', '機關查核'),
+        ('other', '其他'),
+    ], string='缺失來源', default='slip', tracking=True)
 
     # === 檢查類型 ===
     check_type = fields.Selection([
@@ -224,7 +269,7 @@ class ReservationDefectImprovement(models.Model):
     def _compute_overdue(self):
         today = fields.Date.today()
         for record in self:
-            if record.state in ('conform', 'corrected'):
+            if record.state in ('improved', 'verified', 'closed'):
                 # 已結案，不算逾期
                 record.is_overdue = False
                 record.overdue_days = 0
@@ -288,6 +333,8 @@ class ReservationDefectImprovement(models.Model):
         string='預防措施',
         help='避免再次發生的預防措施')
 
+    improvement_result = fields.Text(string='改善結果說明')
+
     # === 照片 (新結構) ===
     photo_ids = fields.One2many(
         'reservation.defect.improvement.photo',
@@ -333,17 +380,28 @@ class ReservationDefectImprovement(models.Model):
         'defect_id', 'attachment_id',
         string='改善照片(舊)')
 
-    # === 確認資訊 ===
-    confirmer_id = fields.Many2one(
+    # === 驗證資訊 ===
+    verifier_id = fields.Many2one(
         'res.users',
-        string='確認人',
+        string='驗證人',
         tracking=True)
 
-    confirm_date = fields.Date(
-        string='確認日期')
+    verify_date = fields.Date(string='驗證日期')
 
-    confirm_comment = fields.Text(
-        string='確認意見')
+    verify_result = fields.Selection([
+        ('pass', '驗證通過'),
+        ('fail', '驗證不通過'),
+    ], string='驗證結果', tracking=True)
+
+    verify_comment = fields.Text(string='驗證意見')
+
+    # === 結案資訊 ===
+    closer_id = fields.Many2one('res.users', string='結案人', tracking=True)
+
+    close_comment = fields.Text(string='結案說明')
+
+    # === 備註 ===
+    note = fields.Text(string='備註說明')
 
     # === 編號前綴設定 ===
     supervision_prefix = fields.Char(
@@ -354,68 +412,144 @@ class ReservationDefectImprovement(models.Model):
         string='營造編號前綴',
         help='營造廠商使用的編號前綴')
 
-    # === 狀態 (監造視角) ===
+    # === 狀態 ===
     state = fields.Selection([
-        ('conform', '符合要求'),
-        ('corrected', '已矯正'),
-        ('uncorrected', '未矯正'),
-        ('overdue', '逾時未矯正'),
-        ('other', '其他'),
-    ], string='缺失狀態', default='uncorrected', tracking=True)
+        ('draft', '草稿'),
+        ('notified', '已通知'),
+        ('improving', '改善中'),
+        ('improved', '已改善'),
+        ('verified', '已驗證'),
+        ('closed', '結案'),
+    ], string='缺失狀態', default='draft', tracking=True, index=True)
 
     # === 動作方法 ===
-    def action_mark_corrected(self):
-        """標記已矯正"""
+    def action_notify(self):
+        """通知改善: draft → notified"""
         for record in self:
-            if record.state not in ('uncorrected', 'overdue'):
-                raise UserError('只有未矯正或逾時未矯正狀態可以標記為已矯正')
+            if record.state != 'draft':
+                raise UserError('只有草稿狀態可以通知改善')
+            if not record.deadline:
+                raise ValidationError('請先設定改善期限')
+            record.write({
+                'state': 'notified',
+                'notification_date': fields.Date.today(),
+            })
+            if record.responsible_user_id:
+                partner = record.responsible_user_id.partner_id
+                unit = record.improvement_unit or ''
+                record.message_subscribe(partner_ids=partner.ids)
+                record.message_post(
+                    body=(
+                        f'缺失 <b>{record.record_no}</b> 已派發給您'
+                        + (f'（執行改善單位：{unit}）' if unit else '') + '，'
+                        f'請於 <b>{record.deadline}</b> 前完成改善。<br/>'
+                        f'缺失說明：{record.defect_description or "（無）"}'
+                    ),
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
+
+    def action_start_improvement(self):
+        """開始改善: notified → improving"""
+        for record in self:
+            if record.state != 'notified':
+                raise UserError('只有已通知狀態可以開始改善')
+            record.state = 'improving'
+
+    def action_complete_improvement(self):
+        """完成改善: improving → improved"""
+        for record in self:
+            if record.state != 'improving':
+                raise UserError('只有改善中狀態可以標記完成')
             if not record.improvement_action:
                 raise UserError('請先填寫矯正措施')
             record.write({
-                'state': 'corrected',
-                'closure_date': fields.Date.today(),
-                'confirmer_id': self.env.uid,
-                'confirm_date': fields.Date.today(),
+                'state': 'improved',
+                'improvement_date': fields.Date.today(),
             })
+            if record.discovery_user_id:
+                partner = record.discovery_user_id.partner_id
+                record.message_post(
+                    body=f'缺失 <b>{record.record_no}</b> 已完成改善，請複查。',
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
 
-    def action_mark_conform(self):
-        """標記符合要求"""
+    def action_verify_pass(self):
+        """驗證通過: improved → verified"""
         for record in self:
+            if record.state != 'improved':
+                raise UserError('只有已改善狀態可以驗證')
             record.write({
-                'state': 'conform',
-                'closure_date': fields.Date.today(),
-                'confirmer_id': self.env.uid,
-                'confirm_date': fields.Date.today(),
+                'state': 'verified',
+                'verifier_id': self.env.uid,
+                'verify_date': fields.Date.today(),
+                'verify_result': 'pass',
             })
 
-    def action_mark_overdue(self):
-        """標記逾時未矯正"""
+    def action_verify_fail(self):
+        """驗證不通過: improved → improving"""
         for record in self:
-            if record.state != 'uncorrected':
-                raise UserError('只有未矯正狀態可以標記為逾時')
-            record.state = 'overdue'
+            if record.state != 'improved':
+                raise UserError('只有已改善狀態可以驗證')
+            record.write({
+                'state': 'improving',
+                'verifier_id': self.env.uid,
+                'verify_date': fields.Date.today(),
+                'verify_result': 'fail',
+            })
+
+    def action_close(self):
+        """結案: verified → closed"""
+        for record in self:
+            if record.state != 'verified':
+                raise UserError('只有已驗證狀態可以結案')
+            record.write({
+                'state': 'closed',
+                'closer_id': self.env.uid,
+                'closure_date': fields.Date.today(),
+            })
 
     def action_reopen(self):
-        """重新開啟"""
+        """重新開啟: verified/closed → improving"""
         for record in self:
-            if record.state not in ('corrected', 'conform'):
-                raise UserError('只有已矯正或符合要求狀態可以重新開啟')
+            if record.state not in ('verified', 'closed'):
+                raise UserError('只有已驗證或結案狀態可以重新開啟')
             record.write({
-                'state': 'uncorrected',
+                'state': 'improving',
                 'closure_date': False,
             })
+
+    def action_reset_draft(self):
+        """退回草稿"""
+        for record in self:
+            if record.state not in ('notified',):
+                raise UserError('只有已通知狀態可以退回草稿')
+            record.state = 'draft'
 
     # === 排程任務 ===
     @api.model
     def _cron_check_overdue(self):
-        """定期檢查逾期缺失"""
+        """定期檢查逾期缺失並發送提醒"""
         today = fields.Date.today()
         overdue_records = self.search([
-            ('state', '=', 'uncorrected'),
+            ('state', 'in', ('notified', 'improving')),
             ('deadline', '<', today),
         ])
         for record in overdue_records:
-            record.state = 'overdue'
+            if record.responsible_user_id:
+                partner = record.responsible_user_id.partner_id
+                record.message_post(
+                    body=(
+                        f'缺失 <b>{record.record_no}</b> 已逾期（期限：{record.deadline}），'
+                        f'請盡快完成改善。'
+                    ),
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
 
     # === 編號生成輔助方法 ===
     def _get_minguo_date_string(self, date_obj):

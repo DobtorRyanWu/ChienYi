@@ -94,7 +94,7 @@
 
                     <separator string="缺失改善記錄"/>
                     <field name="defect_improvement_ids" readonly="1">
-                        <list decoration-danger="is_overdue" decoration-success="state in ('conform', 'corrected')">
+                        <list decoration-danger="is_overdue" decoration-success="state in ('improved', 'verified', 'closed')">
                             <field name="record_no"/>
                             <field name="check_type"/>
                             <field name="defect_category" optional="show"/>
@@ -108,9 +108,9 @@
                             <field name="is_overdue" column_invisible="1"/>
                             <field name="improvement_progress" widget="progressbar" optional="show"/>
                             <field name="state" widget="badge"
-                                   decoration-success="state in ('conform', 'corrected')"
-                                   decoration-warning="state == 'uncorrected'"
-                                   decoration-danger="state == 'overdue'"/>
+                                   decoration-info="state == 'draft'"
+                                   decoration-warning="state in ('notified', 'improving')"
+                                   decoration-success="state in ('improved', 'verified', 'closed')"/>
                         </list>
                     </field>
                 </page>

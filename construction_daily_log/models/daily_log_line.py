@@ -98,8 +98,8 @@ class DailyLogLine(models.Model):
     )
 
     parent_item_name = fields.Char(
-        related='work_item_id.parent_id.name',
-        string='父工項名稱',
+        related='work_item_id.parent_id.full_item_path',
+        string='父工項路徑',
         readonly=True,
         store=True,
     )

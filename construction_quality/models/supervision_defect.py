@@ -125,6 +125,13 @@ class SupervisionDefect(models.Model):
         default=lambda self: self.env.uid,
         tracking=True)
 
+    discovery_user_id = fields.Many2one(
+        'res.users',
+        string='發現人',
+        default=lambda self: self.env.uid,
+        tracking=True,
+        help='實際發現此缺失的人員')
+
     issue_date = fields.Datetime(
         string='開立時間',
         default=fields.Datetime.now)
@@ -280,6 +287,22 @@ class SupervisionDefect(models.Model):
                 'investigator_id': self.env.uid,
                 'investigation_date': fields.Datetime.now(),
             })
+            if record.responsible_user_id:
+                partner = record.responsible_user_id.partner_id
+                party = dict(record._fields['responsible_party'].selection).get(
+                    record.responsible_party, '') if record.responsible_party else ''
+                record.message_subscribe(partner_ids=partner.ids)
+                record.message_post(
+                    body=(
+                        f'缺失 <b>{record.name}</b> 已指派給您調查處理'
+                        + (f'（責任方：{party}）' if party else '') + '。'
+                        + (f'<br/>改善期限：<b>{record.deadline}</b>' if record.deadline else '')
+                        + f'<br/>缺失說明：{record.description or "（無）"}'
+                    ),
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
 
     def action_take_action(self):
         """採取改善措施"""
@@ -293,6 +316,15 @@ class SupervisionDefect(models.Model):
                 'improvement_date': fields.Datetime.now(),
                 'improver_id': self.env.uid,
             })
+            notify_user = record.discovery_user_id or record.issuer_id
+            if notify_user:
+                partner = notify_user.partner_id
+                record.message_post(
+                    body=f'缺失 <b>{record.name}</b> 已採取改善措施，請確認改善結果。',
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
 
     def action_verify(self):
         """驗證改善結果"""

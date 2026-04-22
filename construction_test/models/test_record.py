@@ -154,20 +154,30 @@ class TestRecord(models.Model):
         store=True,
         help='舊系統欄位: sampleRate，累計抽樣/累計進場 x 100')
 
-    # === 抽驗人員 ===
-    member_ids = fields.Many2many(
+    # === 抽驗及會同人員 ===
+    owner_member_ids = fields.Many2many(
         'res.users',
-        'test_record_member_rel',
-        'record_id',
-        'user_id',
-        string='抽驗及會同人員',
-        help='舊系統欄位: member')
+        'test_record_owner_member_rel',
+        'record_id', 'user_id',
+        string='業主方人員')
 
-    inspector_id = fields.Many2one(
+    supervision_member_ids = fields.Many2many(
         'res.users',
-        string='主辦抽驗人員',
-        default=lambda self: self.env.user,
-        tracking=True)
+        'test_record_supervision_member_rel',
+        'record_id', 'user_id',
+        string='監造方人員')
+
+    contractor_member_ids = fields.Many2many(
+        'res.users',
+        'test_record_contractor_member_rel',
+        'record_id', 'user_id',
+        string='營造方人員')
+
+    responsible_user_id = fields.Many2one(
+        'res.users',
+        string='檢試驗負責人',
+        tracking=True,
+        help='接收檢試驗通知的負責人員')
 
     # === 檢驗結果 ===
     result = fields.Selection([

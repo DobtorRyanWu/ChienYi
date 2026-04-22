@@ -36,6 +36,10 @@ class DailyLogAddItemsWizard(models.TransientModel):
         string='可選工項',
     )
 
+    search_keyword = fields.Char(
+        string='搜尋工項',
+        help='輸入工項名稱或編號關鍵字，按「搜尋」過濾列表')
+
     available_item_count = fields.Integer(
         string='可選工項數',
         compute='_compute_available_item_count',
@@ -112,19 +116,67 @@ class DailyLogAddItemsWizard(models.TransientModel):
 
         return self.env['daily.log.line'].create(lines_vals)
 
+    def action_search(self):
+        """依關鍵字過濾工項列表，保留已勾選狀態"""
+        self.ensure_one()
+
+        # 記錄目前已勾選的工項 id
+        selected_task_ids = set(
+            self.line_ids.filtered('selected').mapped('task_id').ids
+        )
+
+        # 取得所有可選工項
+        sheet = self.sheet_id
+        existing_items = sheet.line_ids.mapped('work_item_id')
+        all_leaf_items = self.env['project.task'].search([
+            ('project_id', '=', sheet.project_id.id),
+            ('is_summary_item', '=', False),
+            ('active', '=', True),
+        ])
+        available = all_leaf_items - existing_items
+
+        # 套用關鍵字過濾（空白則顯示全部）
+        kw = (self.search_keyword or '').strip().lower()
+        if kw:
+            available = available.filtered(
+                lambda t: kw in (t.name or '').lower()
+                       or kw in (t.item_no or '').lower()
+            )
+
+        # 重建列表，還原勾選狀態
+        self.line_ids.unlink()
+        if available:
+            self.env['daily.log.add.items.wizard.line'].create([
+                {
+                    'wizard_id': self.id,
+                    'task_id': task.id,
+                    'selected': task.id in selected_task_ids,
+                }
+                for task in available
+            ])
+
+        # 重新開啟同一 wizard，顯示過濾結果
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'daily.log.add.items.wizard',
+            'view_mode': 'form',
+            'res_id': self.id,
+            'target': 'new',
+        }
+
     def action_add_selected(self):
-        """新增勾選的工項並關閉視窗"""
+        """新增勾選的工項，刷新列表讓 wizard 停留"""
         self.ensure_one()
         selected = self.line_ids.filtered(lambda l: l.selected)
         if not selected:
             raise UserError('請至少勾選一個工項！')
         self._create_daily_log_lines(selected)
-        return {'type': 'ir.actions.act_window_close'}
+        return self.action_search()
 
     def action_add_all(self):
-        """全部新增（所有可選工項）"""
+        """全部新增（所有可選工項），刷新列表讓 wizard 停留"""
         self.ensure_one()
         if not self.line_ids:
             raise UserError('沒有可選的工項！')
         self._create_daily_log_lines(self.line_ids)
-        return self._reopen_wizard()
+        return self.action_search()

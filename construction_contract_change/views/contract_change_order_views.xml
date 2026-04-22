@@ -63,7 +63,7 @@
                             class="btn-danger"
                             invisible="state not in ('submitted', 'reviewing')"/>
                     <button name="action_reset_draft" type="object" string="重設為草稿"
-                            invisible="state not in ('submitted', 'rejected')"/>
+                            invisible="state not in ('submitted', 'rejected', 'approved')"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,submitted,reviewing,approved,applied"/>
                 </header>
@@ -129,21 +129,22 @@
                                       decoration-danger="change_type == 'delete'">
                                     <!-- 1. 變更類型 -->
                                     <field name="change_type" required="1"/>
-                                    <!-- 2. 原工項 -->
-                                    <field name="task_id"
-                                           invisible="change_type == 'add'"
-                                           required="change_type in ('modify', 'delete')"
-                                           domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True)]"
-                                           options="{'no_create': True}"/>
+                                    <!-- 2. 工項名稱（取代「原工項」欄；modify/delete 存 task.name，add 存輸入值） -->
+                                    <field name="item_name" string="工項名稱" readonly="1"/>
+                                    <field name="task_id" column_invisible="1"/>
                                     <!-- 3. 父工項 -->
                                     <field name="parent_task_id"
                                            invisible="change_type != 'add'"
                                            domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True), ('is_summary_item', '=', True)]"
                                            options="{'no_create': True}"/>
-                                    <!-- 4. 工項編號 -->
+                                    <!-- 4. 工項編號：computed display_item_no 顯示葉節點編號 -->
+                                    <field name="display_item_no"
+                                           string="工項編號"
+                                           readonly="1"/>
+                                    <!-- item_no 隱藏欄，供新增工項必填驗證使用 -->
                                     <field name="item_no"
-                                           required="change_type == 'add'"
-                                           readonly="change_type != 'add'"/>
+                                           column_invisible="1"
+                                           required="change_type == 'add'"/>
                                     <!-- 5. 單位 -->
                                     <field name="unit"/>
                                     <!-- 6. 原數量 -->
@@ -296,10 +297,14 @@
                 <field name="parent_task_id"
                        invisible="change_type != 'add'"
                        options="{'no_create': True}"/>
+                <field name="parent_task_path"
+                       invisible="change_type != 'add'"
+                       readonly="1" optional="show"/>
                 <field name="item_level" readonly="1" optional="show"/>
-                <field name="item_no" 
-                       required="change_type == 'add'"
-                       readonly="change_type != 'add'"/>
+                <!-- 顯示欄：非新增顯示葉節點編號（如 "1"），新增顯示使用者輸入值 -->
+                <field name="display_item_no" string="工項編號" readonly="1"/>
+                <!-- item_no 隱藏，供新增工項必填驗證使用 -->
+                <field name="item_no" column_invisible="1" required="change_type == 'add'"/>
                 <field name="item_name" required="1"
                        readonly="change_type != 'add'"/>
                 <field name="unit"/>
@@ -340,10 +345,16 @@
                             <field name="parent_task_id"
                                    invisible="change_type != 'add'"
                                    options="{'no_create': True}"/>
+                            <field name="parent_task_path"
+                                   invisible="change_type != 'add'"
+                                   readonly="1"/>
                             <field name="item_level" readonly="1"/>
                         </group>
                         <group string="工項資訊">
-                            <field name="item_no" required="change_type == 'add'"/>
+                            <field name="display_item_no" string="工項編號" readonly="1"
+                                   invisible="change_type == 'add'"/>
+                            <field name="item_no" required="change_type == 'add'"
+                                   invisible="change_type != 'add'"/>
                             <field name="item_name" required="1"/>
                             <field name="unit"/>
                             <field name="specification" placeholder="請輸入規格說明..."/>
@@ -397,7 +408,9 @@
                                    required="change_type != 'add'"/>
                         </group>
                         <group string="工項資訊">
-                            <field name="item_no"/>
+                            <field name="display_item_no" string="工項編號" readonly="1"
+                                   invisible="change_type == 'add'"/>
+                            <field name="item_no" invisible="change_type != 'add'"/>
                             <field name="item_name"/>
                             <field name="unit"/>
                         </group>
@@ -493,7 +506,7 @@
         <field name="res_model">contract.change.order</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="contract_change_order_view_search"/>
-        <field name="context">{}</field>
+        <field name="context">{'search_default_group_project': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一張契約變更單
@@ -530,6 +543,7 @@
             <xpath expr="//notebook" position="before">
                 <group string="契約變更資訊" invisible="change_order_count == 0">
                     <group string="原始契約" name="change_info">
+                        <field name="original_contract_end_date"/>
                         <field name="original_contract_amount"/>
                         <field name="original_duration"/>
                         <field name="approved_change_count"/>
@@ -540,6 +554,7 @@
                         <field name="change_rate" widget="percentage"/>
                     </group>
                     <group string="現行契約">
+                        <field name="contract_end_date"/>
                         <field name="current_contract_amount"/>
                         <field name="current_duration"/>
                     </group>

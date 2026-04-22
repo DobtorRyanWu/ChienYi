@@ -53,7 +53,7 @@ class ReservationNotificationSlipReservation(models.Model):
         string='未矯正數',
         compute='_compute_defect_improvement_stats',
         store=True,
-        help='狀態為未矯正或逾時未矯正的缺失數量')
+        help='尚未完成改善的缺失數量（draft/notified/improving）')
 
     defect_corrected_count = fields.Integer(
         string='已矯正數',
@@ -100,9 +100,9 @@ class ReservationNotificationSlipReservation(models.Model):
             defects = slip.defect_improvement_ids
             slip.defect_improvement_count = len(defects)
             slip.defect_uncorrected_count = len(
-                defects.filtered(lambda r: r.state in ('uncorrected', 'overdue')))
+                defects.filtered(lambda r: r.state in ('draft', 'notified', 'improving')))
             slip.defect_corrected_count = len(
-                defects.filtered(lambda r: r.state in ('corrected', 'conform')))
+                defects.filtered(lambda r: r.state in ('improved', 'verified', 'closed')))
             slip.defect_overdue_count = len(
                 defects.filtered(lambda r: r.is_overdue))
 
@@ -123,7 +123,7 @@ class ReservationNotificationSlipReservation(models.Model):
             total_defects = len(slip.defect_improvement_ids)
             closed_defects = len(
                 slip.defect_improvement_ids.filtered(
-                    lambda r: r.state in ('corrected', 'conform')))
+                    lambda r: r.state in ('improved', 'verified', 'closed')))
             if total_defects > 0:
                 slip.defect_closure_rate = (closed_defects / total_defects) * 100
             else:
@@ -170,7 +170,7 @@ class ReservationNotificationSlipReservation(models.Model):
             'view_mode': 'list,kanban,form',
             'domain': [
                 ('slip_id', '=', self.id),
-                ('state', 'in', ('uncorrected', 'overdue'))
+                ('state', 'in', ('draft', 'notified', 'improving'))
             ],
             'context': {
                 'default_slip_id': self.id,
@@ -257,7 +257,7 @@ class ReservationNotificationSlipReservation(models.Model):
         for rec in self:
             # 檢查未結案的缺失
             uncorrected = rec.defect_improvement_ids.filtered(
-                lambda r: r.state in ('uncorrected', 'overdue'))
+                lambda r: r.state in ('draft', 'notified', 'improving'))
             if uncorrected:
                 raise ValidationError(
                     f'尚有 {len(uncorrected)} 筆未矯正的缺失改善記錄，'

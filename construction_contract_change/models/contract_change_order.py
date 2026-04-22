@@ -360,30 +360,33 @@ class ContractChangeOrder(models.Model):
         })
 
         return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': '套用成功',
-                'message': f'已套用契約變更 {self.name}',
-                'type': 'success',
-                'sticky': False,
-            }
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
         }
 
     def action_reset_draft(self):
         """重設為草稿"""
         self.ensure_one()
-        if self.state not in ('submitted', 'rejected'):
-            raise UserError('只有已提送或已駁回狀態可以重設為草稿！')
+        if self.state not in ('submitted', 'rejected', 'approved'):
+            raise UserError('只有已提送、已駁回或已核定狀態可以重設為草稿！')
 
-        self.write({
+        vals = {
             'state': 'draft',
             'submitted_by_id': False,
             'submitted_date': False,
             'reviewed_by_id': False,
             'reviewed_date': False,
             'rejection_reason': False,
-        })
+        }
+        if self.state == 'approved':
+            vals.update({
+                'approved_by_id': False,
+                'approved_date': False,
+            })
+        self.write(vals)
 
     # === 套用變更邏輯 ===
     def _apply_changes_to_tasks(self):
@@ -436,32 +439,43 @@ class ContractChangeOrder(models.Model):
                 })
 
     def _update_project_contract(self):
-        """更新專案契約金額與工期"""
-        self.ensure_one()
-        project = self.project_id
-
-        # 更新契約完工日 (如有工期變更)
-        vals = {}
-        if self.change_duration and project.contract_end_date:
-            new_end = project.contract_end_date + timedelta(days=self.change_duration)
-            vals['contract_end_date'] = new_end
-
-        if vals:
-            project.write(vals)
-        
-        # 觸發 contract_amount 重算（從工項自動計算）
-        # 因為已經透過 _apply_changes_to_tasks 更新工項
-        # contract_amount 會自動重算
-        project._compute_contract_amount()
+        """契約變更套用時不修改 contract_end_date（預定契約完工日）。
+        該欄位由進度表啟用（_do_activate）時寫回 adjusted_end_date，確保單一更新來源。
+        contract_amount 由 ORM 依賴追蹤（task_ids.planned_amount）自動重算。
+        """
+        pass
 
     # === CRUD 覆寫 ===
+    def _generate_change_order_name(self):
+        """產生變更編號：{工程編號}-CHG-{N:02d}"""
+        self.ensure_one()
+        if not self.project_id:
+            return '/'
+        # 計算此工程已有的變更單數量（排除自身）
+        existing_count = self.search_count([
+            ('project_id', '=', self.project_id.id),
+            ('id', '!=', self.id),
+        ])
+        n = existing_count + 1
+        return f"{self.project_id.code}-CHG-{n:02d}"
+
     @api.model_create_multi
     def create(self, vals_list):
-        for vals in vals_list:
-            if vals.get('name', '/') == '/':
-                vals['name'] = self.env['ir.sequence'].next_by_code(
-                    'contract.change.order') or '/'
-        return super().create(vals_list)
+        # 先建立記錄取得 id，再依工程編號產生變更編號
+        records = super().create(vals_list)
+        for record in records:
+            if record.name == '/' and record.project_id:
+                record.name = record._generate_change_order_name()
+        return records
+
+    def write(self, vals):
+        result = super().write(vals)
+        # 當 project_id 首次設定時，自動產生變更編號
+        if vals.get('project_id'):
+            for record in self:
+                if record.name == '/':
+                    record.name = record._generate_change_order_name()
+        return result
 
     def unlink(self):
         for order in self:

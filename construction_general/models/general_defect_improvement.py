@@ -199,18 +199,34 @@ class GeneralDefectImprovement(models.Model):
 
     # === 缺失分類 ===
     defect_category = fields.Selection([
-        ('quality', '品質缺失'),
-        ('safety', '安全缺失'),
-        ('environmental', '環境缺失'),
-        ('documentation', '文件缺失'),
+        ('material', '材料品質'),
+        ('workmanship', '施工品質'),
+        ('dimension', '尺寸偏差'),
+        ('safety', '安全衛生'),
+        ('environment', '環境清潔'),
+        ('document', '文件缺漏'),
         ('other', '其他'),
-    ], string='缺失類別', required=True, default='quality', tracking=True)
+    ], string='缺失類別', required=True, default='workmanship', tracking=True)
 
     severity = fields.Selection([
         ('minor', '輕微'),
+        ('moderate', '中等'),
         ('major', '重大'),
         ('critical', '嚴重'),
     ], string='嚴重程度', required=True, default='minor', tracking=True)
+
+    responsible_party = fields.Selection([
+        ('contractor', '承包商'),
+        ('subcontractor', '分包商'),
+        ('supplier', '供應商'),
+        ('design', '設計單位'),
+        ('owner', '業主'),
+        ('other', '其他'),
+    ], string='責任歸屬', tracking=True)
+
+    improvement_progress = fields.Integer(
+        string='改善進度 (%)',
+        default=0)
 
     # === 單位資訊 ===
     discovery_unit = fields.Char(
@@ -328,7 +344,7 @@ class GeneralDefectImprovement(models.Model):
         help='發生缺失的具體位置')
 
     defect_description = fields.Text(
-        string='缺失說明',
+        string='缺失具體情形',
         required=True,
         tracking=True)
 
@@ -396,6 +412,17 @@ class GeneralDefectImprovement(models.Model):
         string='改善照片(舊)',
         help='數據遷移用，不要直接使用')
 
+    # === 複查資訊 ===
+    recheck_date = fields.Date(string='複查日期', tracking=True)
+
+    recheck_result = fields.Selection([
+        ('pass', '通過'),
+        ('fail', '不通過'),
+        ('pending', '待複查'),
+    ], string='複查結果', tracking=True)
+
+    recheck_note = fields.Text(string='複查說明')
+
     # === 驗證資訊 ===
     verifier_id = fields.Many2one(
         'res.users',
@@ -447,6 +474,21 @@ class GeneralDefectImprovement(models.Model):
                 'state': 'notified',
                 'notification_date': fields.Date.today(),
             })
+            if record.responsible_user_id:
+                partner = record.responsible_user_id.partner_id
+                unit = record.improvement_unit or ''
+                record.message_subscribe(partner_ids=partner.ids)
+                record.message_post(
+                    body=(
+                        f'缺失 <b>{record.name}</b> 已派發給您'
+                        + (f'（執行改善單位：{unit}）' if unit else '') + '，'
+                        f'請於 <b>{record.deadline}</b> 前完成改善。<br/>'
+                        f'缺失說明：{record.defect_description or "（無）"}'
+                    ),
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
 
     def action_start_improvement(self):
         """開始改善"""
@@ -466,6 +508,14 @@ class GeneralDefectImprovement(models.Model):
                 'state': 'improved',
                 'improvement_date': fields.Date.today(),
             })
+            if record.discovery_user_id:
+                partner = record.discovery_user_id.partner_id
+                record.message_post(
+                    body=f'缺失 <b>{record.name}</b> 已完成改善，請複查。',
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
 
     def action_verify_pass(self):
         """驗證通過"""

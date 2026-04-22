@@ -76,19 +76,18 @@
                               decoration-danger="change_type == 'delete'">
                             <!-- 1. 變更類型 -->
                             <field name="change_type"/>
-                            <!-- 2. 原工項 -->
-                            <field name="task_id"
-                                   domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True)]"
-                                   options="{'no_create': True}"/>
+                            <!-- 2. 工項名稱（computed：task 行取 task_id.name，新增行取 item_name，不受 readonly 提交問題影響） -->
+                            <field name="display_item_name" string="工項名稱" readonly="1"/>
+                            <!-- 隱藏：item_name 供後端 create/action_confirm 使用 -->
+                            <field name="item_name" column_invisible="1"/>
                             <!-- 3. 父工項 -->
                             <field name="parent_task_id"
-                                   domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True)]"
+                                   domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True), ('is_summary_item', '=', True)]"
                                    options="{'no_create': True}"/>
                             <!-- 4. 工項編號 -->
-                            <field name="item_no"
-                                   readonly="change_type != 'add'"/>
+                            <field name="item_no"/>
                             <!-- 5. 單位 -->
-                            <field name="unit" readonly="1"/>
+                            <field name="unit"/>
                             <!-- 6. 原數量 -->
                             <field name="original_qty" readonly="1"/>
                             <!-- 7. 原單價 -->
@@ -103,13 +102,52 @@
                             <field name="new_amount" readonly="1"/>
                             <!-- 12. 金額增減 -->
                             <field name="change_amount" readonly="1" sum="合計"/>
-                            <!-- 隱藏欄位 -->
+                            <!-- 隱藏欄位（後台邏輯用） -->
                             <field name="sequence" column_invisible="1"/>
-                            <field name="item_name" column_invisible="1"/>
+                            <field name="task_id" column_invisible="1"/>
                             <field name="currency_id" column_invisible="1"/>
                         </list>
                     </field>
                 </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ========================= -->
+    <!-- 新增工項 Dialog (wizard.line form) -->
+    <!-- ========================= -->
+    <record id="contract_change_wizard_line_view_form" model="ir.ui.view">
+        <field name="name">contract.change.wizard.line.form</field>
+        <field name="model">contract.change.wizard.line</field>
+        <field name="arch" type="xml">
+            <form string="新增工項">
+                <sheet>
+                    <field name="wizard_id" invisible="1"/>
+                    <field name="change_type" invisible="1"/>
+                    <field name="project_id" invisible="1"/>
+                    <field name="currency_id" invisible="1"/>
+                    <group string="基本資訊">
+                        <field name="parent_task_id"
+                               domain="[('supervision_project_id', '=', project_id), ('is_summary_item', '=', True), ('active', '=', True)]"
+                               options="{'no_create': True}"
+                               placeholder="留空 = 新增最高層工項（壹/貳/參...）"/>
+                        <field name="item_no"
+                               placeholder="系統自動產生，可手動修改"/>
+                        <field name="item_name"
+                               placeholder="請輸入工項名稱"/>
+                        <field name="unit"/>
+                    </group>
+                    <group string="數量單價">
+                        <field name="new_qty"/>
+                        <field name="new_unit_price"/>
+                        <field name="new_amount" readonly="1"/>
+                        <field name="change_amount" readonly="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="確認新增" class="oe_highlight" special="save"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
             </form>
         </field>
     </record>

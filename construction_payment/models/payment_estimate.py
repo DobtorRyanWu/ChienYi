@@ -235,7 +235,7 @@ class PaymentEstimateLine(models.Model):
         readonly=True
     )
     parent_item_name = fields.Char(
-        '父項次',
+        '父工項路徑',
         compute='_compute_parent_item_name',
         store=True,
         readonly=True
@@ -316,12 +316,12 @@ class PaymentEstimateLine(models.Model):
     note = fields.Text('備註', readonly=True)
 
     # === 計算方法 ===
-    @api.depends('task_id.parent_id', 'task_id.parent_id.item_no')
+    @api.depends('task_id.parent_id', 'task_id.parent_id.full_item_path')
     def _compute_parent_item_name(self):
-        """計算父項次"""
+        """計算父工項路徑"""
         for line in self:
             if line.task_id and line.task_id.parent_id:
-                line.parent_item_name = line.task_id.parent_id.item_no or ''
+                line.parent_item_name = line.task_id.parent_id.full_item_path or ''
             else:
                 line.parent_item_name = ''
 
