@@ -1,30 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="0">
+    <data>
 
-        <!-- 檢試驗管理模組安全群組 -->
+        <!-- ============================================== -->
+        <!-- 步驟 1：刪除舊的 ir.model.access 記錄             -->
+        <!-- ============================================== -->
 
-        <!-- 檢試驗管理 - 使用者 -->
-        <record id="group_test_user" model="res.groups">
-            <field name="name">檢試驗管理 - 使用者</field>
-            <field name="category_id" ref="construction_supervision_base.module_category_construction_supervision"/>
-            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
-            <field name="comment">可建立與填寫檢試驗記錄、查看檢試驗項目</field>
-        </record>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_test_standard_user'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_test_standard_manager'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_test_record_user'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_test_record_manager'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_test_frequency_condition_user'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_test_frequency_condition_manager'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_check_test_requirement_wizard_user'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_check_test_requirement_wizard_manager'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_check_test_requirement_cron_manager'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_test_task_statistics_user'))]"/>
+        <delete model="ir.model.access" search="[('id', '=', ref('access_test_task_statistics_manager'))]"/>
 
-        <!-- 檢試驗管理 - 主管 -->
-        <record id="group_test_manager" model="res.groups">
-            <field name="name">檢試驗管理 - 主管</field>
-            <field name="category_id" ref="construction_supervision_base.module_category_construction_supervision"/>
-            <field name="implied_ids" eval="[(4, ref('group_test_user'))]"/>
-            <field name="comment">可管理檢試驗項目、確認檢驗結果、歸檔記錄</field>
-        </record>
+        <!-- ============================================== -->
+        <!-- 步驟 2：刪除使用舊基礎群組的 ir.rule                -->
+        <!-- ============================================== -->
+
+        <delete model="ir.rule" search="[('id', '=', ref('rule_test_standard_supervision'))]"/>
+        <delete model="ir.rule" search="[('id', '=', ref('rule_test_record_supervision'))]"/>
+        <delete model="ir.rule" search="[('id', '=', ref('rule_test_standard_contractor'))]"/>
+        <delete model="ir.rule" search="[('id', '=', ref('rule_test_record_contractor'))]"/>
+
+        <!-- ============================================== -->
+        <!-- 步驟 3：刪除舊的群組定義                           -->
+        <!-- ============================================== -->
+
+        <delete model="res.groups" search="[('id', '=', ref('group_test_user'))]"/>
+        <delete model="res.groups" search="[('id', '=', ref('group_test_manager'))]"/>
 
     </data>
 
     <data noupdate="1">
 
-        <!-- Record Rules -->
+        <!-- ============================================== -->
+        <!-- Record Rules（保留基本的公司隔離規則）              -->
+        <!-- ============================================== -->
 
         <!-- 檢試驗項目 - 依專案公司隔離 -->
         <record id="rule_test_standard_company" model="ir.rule">
@@ -50,55 +66,7 @@
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
 
-        <!-- 監造單位 - 檢試驗項目完整存取 -->
-        <record id="rule_test_standard_supervision" model="ir.rule">
-            <field name="name">檢試驗項目: 監造單位完整存取</field>
-            <field name="model_id" ref="model_supervision_test_standard"/>
-            <field name="domain_force">[('project_id.company_id', '=', user.company_id.id)]</field>
-            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="True"/>
-        </record>
-
-        <!-- 監造單位 - 檢試驗記錄完整存取 -->
-        <record id="rule_test_record_supervision" model="ir.rule">
-            <field name="name">檢(試)驗記錄: 監造單位完整存取</field>
-            <field name="model_id" ref="model_supervision_test_record"/>
-            <field name="domain_force">[('project_id.company_id', '=', user.company_id.id)]</field>
-            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="True"/>
-        </record>
-
-        <!-- 施工廠商 - 檢試驗項目唯讀 -->
-        <record id="rule_test_standard_contractor" model="ir.rule">
-            <field name="name">檢試驗項目: 施工廠商唯讀</field>
-            <field name="model_id" ref="model_supervision_test_standard"/>
-            <field name="domain_force">[('project_id.contractor_company_ids', 'in', [user.company_id.id])]</field>
-            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="False"/>
-            <field name="perm_create" eval="False"/>
-            <field name="perm_unlink" eval="False"/>
-        </record>
-
-        <!-- 施工廠商 - 檢試驗記錄可新增編輯 -->
-        <record id="rule_test_record_contractor" model="ir.rule">
-            <field name="name">檢(試)驗記錄: 施工廠商可新增編輯</field>
-            <field name="model_id" ref="model_supervision_test_record"/>
-            <field name="domain_force">[('project_id.contractor_company_ids', 'in', [user.company_id.id])]</field>
-            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
-            <field name="perm_read" eval="True"/>
-            <field name="perm_write" eval="True"/>
-            <field name="perm_create" eval="True"/>
-            <field name="perm_unlink" eval="False"/>
-        </record>
-
-        <!-- 系統管理者 - 完整存取 -->
+        <!-- 系統管理者完整存取 -->
         <record id="rule_admin_full_access_test_standard" model="ir.rule">
             <field name="name">管理者: 檢試驗項目完整存取</field>
             <field name="model_id" ref="model_supervision_test_standard"/>

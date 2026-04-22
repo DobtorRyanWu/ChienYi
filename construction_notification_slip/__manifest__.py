@@ -14,15 +14,12 @@
 --------
 * 通報單管理 (reservation.notification.slip)
 * 通報單明細 (reservation.notification.slip.line)
-* 通報單驗收 (notification.acceptance)
-* 驗收明細 (notification.acceptance.line)
 
 技術特點
 --------
 * 預算追蹤 (planned vs actual)
-* 完整狀態機與驗收流程
+* 4 階段狀態流程（草稿→未開始→施工中→已結案）
 * 整合工程範疇量預估
-* 數量驗證與約束
     """,
     'author': 'Engineering Supervision System',
     'website': '',
@@ -39,7 +36,7 @@
         'data/ir_sequence_data.xml',
         # Views
         'views/notification_slip_views.xml',
-        'views/notification_acceptance_views.xml',
+        'wizard/add_slip_line_wizard_views.xml',
         'views/menu.xml',
     ],
     'demo': [],

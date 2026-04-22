@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================
+         EAGLE 風格登入頁（含 Splash 動畫）
+         設計參考：jttku.synology.me EAGLE 系統
+
+         注意：website 模組會完全替換 web.login_layout，
+         實際結構為 oe_website_login_container > form.oe_login_form，
+         沒有 .card / .card-body，CSS 需對應調整。
+         ============================================ -->
+
+    <template id="login_brand_override" inherit_id="web.login" priority="99"
+              name="ChienYi EAGLE Login">
+
+        <!-- 在登入表單前插入：合作公司 Logo 列 + EAGLE 品牌區 -->
+        <xpath expr="//form[contains(@t-attf-class, 'oe_login_form')]" position="before">
+
+            <!-- EAGLE 主視覺（logo 本身已含系統名稱與 EAGLE 字樣） -->
+            <div class="cy-login-brand text-center mb-3">
+                <img src="/construction_portal/static/src/img/eagle_logo.svg"
+                     alt="EAGLE 工程智慧管理系統" class="cy-login-eagle-img"/>
+            </div>
+        </xpath>
+
+        <!-- 帳號欄位：隱藏 label + 加入 icon -->
+        <xpath expr="//label[@for='login']" position="replace">
+            <label for="login" class="form-label visually-hidden">帳號</label>
+        </xpath>
+        <xpath expr="//input[@name='login']" position="replace">
+            <div class="cy-input-group">
+                <i class="fa fa-user cy-input-icon"></i>
+                <input type="text" placeholder="帳號" name="login" t-att-value="login" id="login"
+                       class="form-control" required="required"
+                       autocapitalize="off" autocomplete="username"/>
+            </div>
+        </xpath>
+
+        <!-- 密碼欄位：隱藏 label + 加入 icon -->
+        <xpath expr="//label[@for='password']" position="replace">
+            <label for="password" class="form-label visually-hidden">密碼</label>
+        </xpath>
+        <xpath expr="//input[@name='password']" position="replace">
+            <div class="cy-input-group">
+                <i class="fa fa-lock cy-input-icon"></i>
+                <input type="password" placeholder="密碼" name="password" id="password"
+                       class="form-control" required="required"
+                       autocomplete="current-password"
+                       t-att-autofocus="'autofocus' if login else None" maxlength="4096"/>
+            </div>
+        </xpath>
+
+        <!-- 登入按鈕：改為中文 -->
+        <xpath expr="//button[@type='submit'][hasclass('btn-primary')]" position="replace">
+            <button type="submit" class="btn btn-primary btn-lg w-100 cy-login-btn">登入</button>
+        </xpath>
+
+        <!-- 表單後：合作公司 Logo 列 + Copyright -->
+        <xpath expr="//form[contains(@t-attf-class, 'oe_login_form')]" position="after">
+            <!-- 合作公司 Logo 列（copyright 上方，置中等距） -->
+            <div class="cy-login-partners mt-3">
+                <img src="/construction_portal/static/src/img/logo_jentai.svg"
+                     alt="任泰"/>
+                <img src="/construction_portal/static/src/img/logo_tku_v2.svg"
+                     alt="淡江大學"/>
+                <img src="/construction_portal/static/src/img/logo_chienyi.svg"
+                     alt="千溢"/>
+            </div>
+
+            <div class="cy-login-footer text-center mt-2">
+                <div class="cy-login-copyright">
+                    <span class="cy-login-copyright-en">
+                        <b>E</b>ngineering <b>A</b>dministration and <b>G</b>eneral <b>L</b>edger <b>E</b>xpert
+                    </span>
+                    <br/>@copyright 2025
+                </div>
+            </div>
+        </xpath>
+    </template>
+</odoo>

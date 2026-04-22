@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 送審管制 - 樹狀視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_review_application_tree" model="ir.ui.view">
+        <field name="name">supervision.review.application.tree</field>
+        <field name="model">supervision.review.application</field>
+        <field name="arch" type="xml">
+            <list string="送審管制" decoration-success="state == 'done'">
+                <field name="project_id"/>
+                <field name="no"/>
+                <field name="name"/>
+                <field name="number"/>
+                <field name="expected_review_date"/>
+                <field name="final_review_date"/>
+                <field name="is_test"/>
+                <field name="test_unit"/>
+                <field name="is_factory_inspection"/>
+                <field name="factory_inspection_date"/>
+                <field name="review_materials_summary"/>
+                <field name="final_review_result"/>
+                <field name="review_date"/>
+                <field name="archive_number"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'"/>
+                <field name="sequence_code" optional="hide"/>
+                <field name="company_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 送審管制 - 表單視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_review_application_form" model="ir.ui.view">
+        <field name="name">supervision.review.application.form</field>
+        <field name="model">supervision.review.application</field>
+        <field name="arch" type="xml">
+            <form string="送審管制">
+                <header>
+                    <button name="action_done"
+                            string="完成"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_reset_draft"
+                            string="重設為編輯中"
+                            type="object"
+                            invisible="state != 'done'"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_attachments"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-paperclip">
+                            <field name="attachment_count" widget="statinfo" string="附件"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="請輸入材料名稱..." class="text-break"/>
+                        </h1>
+                        <h2>
+                            <field name="sequence_code" invisible="sequence_code == '/'"/>
+                        </h2>
+                    </div>
+
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id" readonly="state != 'draft'"/>
+                            <field name="no"/>
+                            <field name="number"/>
+                        </group>
+                        <group string="送審日期">
+                            <field name="expected_review_date"/>
+                            <field name="final_review_date" readonly="state == 'draft'"/>
+                            <field name="review_delay_days" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <!-- 送審資料頁籤 -->
+                        <page string="送審資料" name="review_materials">
+                            <group string="送審資料類型">
+                                <group>
+                                    <field name="has_catalog" widget="boolean_toggle"/>
+                                    <field name="has_demo" widget="boolean_toggle"/>
+                                    <field name="has_others" widget="boolean_toggle"/>
+                                </group>
+                                <group>
+                                    <field name="has_related_test_report" widget="boolean_toggle"/>
+                                    <field name="has_subcontractor" widget="boolean_toggle"/>
+                                </group>
+                            </group>
+                            <group invisible="not has_others">
+                                <field name="others" placeholder="請填寫其他送審資料說明..." nolabel="1"/>
+                            </group>
+                            <group string="送審文件">
+                                <field name="attachment_ids" widget="many2many_binary" nolabel="1" colspan="2"/>
+                            </group>
+                        </page>
+
+                        <!-- 審查資訊頁籤 -->
+                        <page string="審查資訊" name="review_info">
+                            <group string="審查結果">
+                                <group>
+                                    <field name="review_date"/>
+                                    <field name="final_review_result"/>
+                                </group>
+                            </group>
+                            <group>
+                                <field name="review_comment" placeholder="審查意見..."/>
+                            </group>
+                        </page>
+
+                        <!-- 廠驗資訊頁籤 -->
+                        <page string="廠驗資訊" name="factory_inspection">
+                            <group string="廠驗資訊">
+                                <field name="is_factory_inspection" widget="boolean_toggle"/>
+                                <field name="factory_inspection_date"/>
+                                <field name="factory_inspection_note"/>
+                            </group>
+                        </page>
+
+                        <!-- 取樣試驗頁籤 -->
+                        <page string="取樣試驗" name="sampling_test">
+                            <group string="取樣試驗資訊">
+                                <field name="is_test" widget="boolean_toggle"/>
+                                <field name="test_unit"/>
+                            </group>
+                        </page>
+
+                        <!-- 歸檔紀錄頁籤 -->
+                        <page string="歸檔紀錄" name="archive_record">
+                            <group>
+                                <field name="archive_number"/>
+                                <field name="archive_note" placeholder="備註..."/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter>
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </chatter>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 送審管制 - 搜尋視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_review_application_search" model="ir.ui.view">
+        <field name="name">supervision.review.application.search</field>
+        <field name="model">supervision.review.application</field>
+        <field name="arch" type="xml">
+            <search string="搜尋送審管制">
+                <field name="name" string="材料名稱"/>
+                <field name="sequence_code" string="送審編號"/>
+                <field name="project_id"/>
+                <field name="no" string="契約項次"/>
+                <field name="archive_number" string="歸檔編號"/>
+                <separator/>
+                <filter name="filter_draft" string="編輯中" domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_done" string="已完成" domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter name="filter_has_catalog" string="含型錄" domain="[('has_catalog', '=', True)]"/>
+                <filter name="filter_has_demo" string="含樣品" domain="[('has_demo', '=', True)]"/>
+                <filter name="filter_factory_inspection" string="需廠驗" domain="[('is_factory_inspection', '=', True)]"/>
+                <filter name="filter_test" string="需試驗" domain="[('is_test', '=', True)]"/>
+                <separator/>
+                <filter name="filter_pass" string="審查合格" domain="[('final_review_result', '=', 'pass')]"/>
+                <filter name="filter_conditional" string="條件式通過" domain="[('final_review_result', '=', 'conditional')]"/>
+                <filter name="filter_fail" string="審查不合格" domain="[('final_review_result', '=', 'fail')]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter name="group_by_project" string="所屬工程" context="{'group_by': 'project_id'}"/>
+                    <filter name="group_by_state" string="狀態" context="{'group_by': 'state'}"/>
+                    <filter name="group_by_result" string="審查結果" context="{'group_by': 'final_review_result'}"/>
+                    <filter name="group_by_expected_date" string="預定送審日" context="{'group_by': 'expected_review_date:month'}"/>
+                    <filter name="group_by_review_date" string="審查日期" context="{'group_by': 'review_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 送審管制 - 看板視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_review_application_kanban" model="ir.ui.view">
+        <field name="name">supervision.review.application.kanban</field>
+        <field name="model">supervision.review.application</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" class="o_kanban_small_column">
+                <field name="id"/>
+                <field name="name"/>
+                <field name="sequence_code"/>
+                <field name="project_id"/>
+                <field name="expected_review_date"/>
+                <field name="final_review_date"/>
+                <field name="final_review_result"/>
+                <field name="state"/>
+                <field name="review_materials_summary"/>
+                <field name="is_factory_inspection"/>
+                <field name="is_test"/>
+                <templates>
+                    <t t-name="card">
+                        <div t-attf-class="oe_kanban_global_click">
+                            <div class="oe_kanban_content">
+                                <div class="o_kanban_record_top mb-0">
+                                    <div class="o_kanban_record_headings">
+                                        <strong class="o_kanban_record_title">
+                                            <field name="name"/>
+                                        </strong>
+                                    </div>
+                                    <span t-if="record.sequence_code.raw_value != '/'" class="badge text-bg-secondary">
+                                        <field name="sequence_code"/>
+                                    </span>
+                                </div>
+                                <div class="o_kanban_record_body">
+                                    <div class="text-muted">
+                                        <field name="project_id"/>
+                                    </div>
+                                    <div class="mt-1">
+                                        <span class="text-muted">預定: </span>
+                                        <field name="expected_review_date"/>
+                                    </div>
+                                    <div t-if="record.review_materials_summary.raw_value" class="mt-1">
+                                        <small class="text-muted"><field name="review_materials_summary"/></small>
+                                    </div>
+                                    <div class="mt-2">
+                                        <span t-if="record.is_factory_inspection.raw_value" class="badge text-bg-warning me-1">廠驗</span>
+                                        <span t-if="record.is_test.raw_value" class="badge text-bg-info me-1">試驗</span>
+                                        <span t-if="record.state.raw_value == 'done'" class="badge text-bg-success me-1">已完成</span>
+                                        <span t-if="record.final_review_result.raw_value == 'pass'" class="badge text-bg-success">合格</span>
+                                        <span t-if="record.final_review_result.raw_value == 'conditional'" class="badge text-bg-warning">條件通過</span>
+                                        <span t-if="record.final_review_result.raw_value == 'fail'" class="badge text-bg-danger">不合格</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 送審管制 - 日曆視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_review_application_calendar" model="ir.ui.view">
+        <field name="name">supervision.review.application.calendar</field>
+        <field name="model">supervision.review.application</field>
+        <field name="arch" type="xml">
+            <calendar string="送審管制日曆" date_start="expected_review_date" color="state" mode="month" quick_create="0">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="state"/>
+            </calendar>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 送審管制 - 動作                                 -->
+    <!-- ============================================== -->
+    <record id="action_review_application" model="ir.actions.act_window">
+        <field name="name">送審管制</field>
+        <field name="res_model">supervision.review.application</field>
+        <field name="view_mode">list,kanban,form,calendar</field>
+        <field name="context">{'search_default_group_by_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆送審管制記錄
+            </p>
+            <p>
+                送審管制用於追蹤工程材料的送審流程，包含型錄、樣品、測試報告等資料的審查進度。
+            </p>
+        </field>
+    </record>
+
+</odoo>

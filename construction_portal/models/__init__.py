@@ -5,3 +5,5 @@ from . import supervision_project
 from . import general_self_inspection
 from . import supervision_defect
 from . import supervision_photo
+from . import daily_log_sheet
+from . import notification_slip

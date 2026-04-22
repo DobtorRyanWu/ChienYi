@@ -32,7 +32,21 @@ class PriceLibraryItem(models.Model):
         string='項目編號',
         index=True,
         tracking=True,
-        help='項目編號，用於快速識別和排序')
+        help='項目編號，用於快速識別和排序（注意：不同專案的相同編號可能指不同工項）')
+
+    parent_item_no = fields.Char(
+        string='父工項編號',
+        index=True,
+        help='父工項編號，用於參考層級關係（僅供參考，不參與唯一性判斷）')
+
+    # === 多公司支援 ===
+    company_id = fields.Many2one(
+        'res.company',
+        string='公司',
+        required=True,
+        default=lambda self: self.env.company,
+        index=True,
+        help='所屬公司，每個公司有獨立的價格庫')
 
     description = fields.Text(
         string='項目說明',
@@ -173,6 +187,112 @@ class PriceLibraryItem(models.Model):
         for item in self:
             item.history_count = len(item.history_ids)
 
+    # === 價格來源追蹤（自動化） ===
+    source_ids = fields.One2many(
+        'price.library.item.source',
+        'library_item_id',
+        string='價格來源',
+        help='此項目從哪些專案工項提取而來')
+
+    source_count = fields.Integer(
+        string='來源數',
+        compute='_compute_source_count',
+        store=True,
+        help='來源記錄數量')
+
+    @api.depends('source_ids')
+    def _compute_source_count(self):
+        """計算來源記錄數量"""
+        for item in self:
+            item.source_count = len(item.source_ids)
+
+    # === 系統建議單價（基於來源統計） ===
+    suggested_unit_price = fields.Float(
+        string='建議單價',
+        compute='_compute_price_statistics',
+        store=True,
+        digits=(12, 2),
+        help='基於所有來源的平均單價')
+
+    price_cv = fields.Float(
+        string='變異係數 CV (%)',
+        compute='_compute_price_statistics',
+        store=True,
+        digits=(12, 2),
+        help='價格變異係數 (Coefficient of Variation)，用於衡量價格穩定性')
+
+    price_std_dev = fields.Float(
+        string='標準差',
+        compute='_compute_price_statistics',
+        digits=(12, 2),
+        help='價格標準差')
+
+    min_source_price = fields.Float(
+        string='最低來源單價',
+        compute='_compute_price_statistics',
+        digits=(12, 2),
+        help='所有來源中的最低單價')
+
+    max_source_price = fields.Float(
+        string='最高來源單價',
+        compute='_compute_price_statistics',
+        digits=(12, 2),
+        help='所有來源中的最高單價')
+
+    # === 自動建立標記 ===
+    is_auto_created = fields.Boolean(
+        string='自動建立',
+        default=False,
+        help='是否由專案結案時自動建立')
+
+    auto_created_date = fields.Date(
+        string='自動建立日期',
+        help='自動建立的日期')
+
+    @api.depends('source_ids', 'source_ids.unit_price')
+    def _compute_price_statistics(self):
+        """
+        計算價格統計資訊
+
+        - suggested_unit_price: 所有來源的平均單價
+        - price_std_dev: 標準差
+        - price_cv: 變異係數 (CV = 標準差 / 平均值 × 100%)
+        - min_source_price: 最低單價
+        - max_source_price: 最高單價
+
+        當只有 1 筆來源時，CV 設為 0（無變異）
+        """
+        for item in self:
+            prices = item.source_ids.mapped('unit_price')
+            n = len(prices)
+
+            if n == 0:
+                # 無來源記錄
+                item.suggested_unit_price = item.unit_price
+                item.price_std_dev = 0.0
+                item.price_cv = 0.0
+                item.min_source_price = 0.0
+                item.max_source_price = 0.0
+            elif n == 1:
+                # 只有 1 筆來源，CV 為 0
+                item.suggested_unit_price = prices[0]
+                item.price_std_dev = 0.0
+                item.price_cv = 0.0
+                item.min_source_price = prices[0]
+                item.max_source_price = prices[0]
+            else:
+                # 多筆來源，計算統計值
+                import statistics
+                mean = statistics.mean(prices)
+                std_dev = statistics.stdev(prices)
+                cv = (std_dev / mean * 100.0) if mean > 0 else 0.0
+
+                item.suggested_unit_price = mean
+                item.price_std_dev = std_dev
+                item.price_cv = cv
+                item.min_source_price = min(prices)
+                item.max_source_price = max(prices)
+
     # === CRUD 覆寫 ===
     def write(self, vals):
         """
@@ -241,10 +361,23 @@ class PriceLibraryItem(models.Model):
             'context': {'focus_field': 'unit_price'},
         }
 
+    def action_view_sources(self):
+        """查看價格來源記錄"""
+        self.ensure_one()
+        return {
+            'name': f'{self.name} - 價格來源',
+            'type': 'ir.actions.act_window',
+            'res_model': 'price.library.item.source',
+            'view_mode': 'list,form',
+            'domain': [('library_item_id', '=', self.id)],
+            'context': {'default_library_item_id': self.id},
+        }
+
     # === SQL 約束 ===
     _sql_constraints = [
-        ('item_no_unique', 'UNIQUE(item_no)',
-         '項目編號必須唯一！'),
+        ('item_unique_per_company',
+         'UNIQUE(company_id, name, unit)',
+         '同一公司內，相同名稱和單位的項目已存在！'),
         ('unit_price_positive', 'CHECK(unit_price >= 0)',
          '單價不可為負數！'),
         ('material_cost_positive', 'CHECK(material_cost >= 0)',

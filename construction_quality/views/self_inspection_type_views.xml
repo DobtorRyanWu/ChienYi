@@ -1,17 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- 契約工項選擇用 Tree View（Many2many 彈出視窗用） -->
+    <record id="view_project_task_inspection_selection_tree" model="ir.ui.view">
+        <field name="name">project.task.inspection.selection.tree</field>
+        <field name="model">project.task</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name" string="項目及說明"/>
+                <field name="parent_id" string="父工項"/>
+                <field name="item_no" string="工項編號"/>
+                <field name="unit" string="單位"/>
+                <field name="planned_qty" string="契約數量"/>
+            </list>
+        </field>
+    </record>
+
     <!-- 自主檢查類型 Tree View -->
     <record id="view_self_inspection_type_tree" model="ir.ui.view">
         <field name="name">self.inspection.type.tree</field>
         <field name="model">self.inspection.type</field>
         <field name="arch" type="xml">
             <list>
-                <field name="sequence" widget="handle"/>
-                <field name="code"/>
+                <field name="project_id"/>
                 <field name="name"/>
                 <field name="category"/>
-                <field name="inspection_count"/>
+                <field name="description"/>
+                <field name="sequence" column_invisible="1"/>
                 <field name="active" column_invisible="1"/>
             </list>
         </field>
@@ -36,13 +52,12 @@
                             invisible="active"/>
                     <group>
                         <group>
+                            <field name="project_id"/>
                             <field name="name"/>
-                            <field name="code"/>
                         </group>
                         <group>
                             <field name="category"/>
-                            <field name="sequence"/>
-                            <field name="active"/>
+                            <field name="code"/>
                         </group>
                     </group>
                     <group>
@@ -56,8 +71,19 @@
                                     <field name="name"/>
                                     <field name="stage"/>
                                     <field name="check_standard"/>
-                                    <field name="check_method"/>
                                     <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="關聯契約工項" name="tasks">
+                            <field name="task_ids"
+                                   context="{'list_view_ref': 'construction_quality.view_project_task_inspection_selection_tree'}">
+                                <list>
+                                    <field name="name" string="項目及說明"/>
+                                    <field name="parent_id" string="父工項"/>
+                                    <field name="item_no" string="工項編號"/>
+                                    <field name="unit" string="單位"/>
+                                    <field name="planned_qty" string="契約數量"/>
                                 </list>
                             </field>
                         </page>
@@ -74,7 +100,7 @@
         <field name="arch" type="xml">
             <search>
                 <field name="name"/>
-                <field name="code"/>
+                <field name="project_id"/>
                 <filter string="結構工程" name="structure"
                         domain="[('category', '=', 'structure')]"/>
                 <filter string="土木工程" name="civil"
@@ -85,6 +111,8 @@
                         domain="[('active', '=', False)]"/>
                 <separator/>
                 <group expand="0" string="群組" name="groupby">
+                    <filter string="所屬工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
                     <filter string="工程類別" name="group_category"
                             context="{'group_by': 'category'}"/>
                 </group>
@@ -98,6 +126,7 @@
         <field name="res_model">self.inspection.type</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_self_inspection_type_search"/>
+        <field name="context">{"search_default_group_project": 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一個自主檢查類型

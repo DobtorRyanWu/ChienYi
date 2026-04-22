@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 文件分類 - 表單視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_document_category_form" model="ir.ui.view">
+        <field name="name">supervision.document.category.form</field>
+        <field name="model">supervision.document.category</field>
+        <field name="arch" type="xml">
+            <form string="文件分類">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_documents" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="document_count == 0">
+                            <field name="document_count" string="文件" widget="statinfo"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="系統預設" bg_color="text-bg-info"
+                            invisible="not is_system"/>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="name" placeholder="例如：契約文件、施工計畫..."/>
+                            <field name="code" placeholder="用於程式識別，可選填"/>
+                            <field name="parent_id" options="{'no_create': True}"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group string="狀態">
+                            <field name="active" widget="boolean_toggle"/>
+                            <field name="is_system" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="說明">
+                        <field name="description" placeholder="此分類的用途說明..." nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 文件分類 - 列表視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_document_category_tree" model="ir.ui.view">
+        <field name="name">supervision.document.category.tree</field>
+        <field name="model">supervision.document.category</field>
+        <field name="arch" type="xml">
+            <list string="文件分類" default_order="sequence, name">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code" optional="hide"/>
+                <field name="parent_id" optional="show"/>
+                <field name="document_count" sum="Total"/>
+                <field name="is_system" widget="boolean" optional="show"/>
+                <field name="active" widget="boolean_toggle" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 文件分類 - 搜尋視圖                              -->
+    <!-- ============================================== -->
+    <record id="view_document_category_search" model="ir.ui.view">
+        <field name="name">supervision.document.category.search</field>
+        <field name="model">supervision.document.category</field>
+        <field name="arch" type="xml">
+            <search string="搜尋文件分類">
+                <field name="name"/>
+                <field name="code"/>
+                <separator/>
+                <filter string="頂層分類" name="top_level" domain="[('parent_id', '=', False)]"/>
+                <filter string="系統預設" name="system" domain="[('is_system', '=', True)]"/>
+                <filter string="自訂分類" name="custom" domain="[('is_system', '=', False)]"/>
+                <separator/>
+                <filter string="已停用" name="inactive" domain="[('active', '=', False)]"/>
+                <group expand="0" string="群組">
+                    <filter string="上層分類" name="group_parent" context="{'group_by': 'parent_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 文件分類 - 動作                                  -->
+    <!-- ============================================== -->
+    <record id="action_document_category" model="ir.actions.act_window">
+        <field name="name">文件分類</field>
+        <field name="res_model">supervision.document.category</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_document_category_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                新增文件分類
+            </p>
+            <p>
+                文件分類用於組織管理工程文件。<br/>
+                您可以建立符合自己需求的分類方式，<br/>
+                例如：契約文件、設計圖說、施工記錄等。
+            </p>
+        </field>
+    </record>
+
+    <!-- 選單：放在 工程管理 > 文件管理 下 -->
+    <menuitem id="menu_document_category"
+              name="文件分類"
+              parent="menu_document_management"
+              action="action_document_category"
+              sequence="5"/>
+
+</odoo>

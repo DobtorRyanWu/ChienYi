@@ -4,27 +4,24 @@
          計價請款選單 (歸屬於 計價請款)
          =================================================================== -->
 
-    <!-- 估驗計價 -->
+    <!-- 讓 menu_estimate 父選單直接指向 action，取消子選單層級 -->
+    <record id="construction_supervision_base.menu_estimate" model="ir.ui.menu">
+        <field name="action" ref="action_payment_estimate"/>
+    </record>
+
+    <!-- 估驗計價子選單已改用父選單直連，不再需要
     <menuitem id="menu_payment_estimate_list"
               name="估驗計價單"
               parent="construction_supervision_base.menu_estimate"
               action="action_payment_estimate"
               sequence="10"/>
+    -->
 
-    <menuitem id="menu_payment_estimate_pending"
-              name="待審核估驗"
-              parent="construction_supervision_base.menu_estimate"
-              action="action_payment_estimate_pending"
-              sequence="20"
-              groups="construction_supervision_base.group_supervision_engineer"/>
-
-    <menuitem id="menu_work_acceptance_list"
-              name="工項驗收單"
-              parent="construction_supervision_base.menu_estimate"
-              action="action_work_acceptance"
-              sequence="30"/>
+    <!-- 工項驗收單：選單入口已移除，程式碼保留以利未來開發 -->
+    <!-- <menuitem id="menu_work_acceptance_list" ... /> -->
 
     <!-- 請款管理 -->
+    <!--
     <menuitem id="menu_payment_claim_list"
               name="所有請款單"
               parent="construction_supervision_base.menu_claim"
@@ -36,7 +33,7 @@
               parent="construction_supervision_base.menu_claim"
               action="action_payment_claim_service_fee"
               sequence="20"
-              groups="construction_supervision_base.group_supervision_manager"/>
+              groups="base.group_user"/>
 
     <menuitem id="menu_payment_claim_construction"
               name="工程款請款"
@@ -49,6 +46,6 @@
               parent="construction_supervision_base.menu_claim"
               action="action_payment_claim_pending"
               sequence="40"
-              groups="construction_supervision_base.group_supervision_manager"/>
-
+              groups="base.group_user"/>
+     -->
 </odoo>

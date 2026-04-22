@@ -1,6 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_audit_trail_user,audit.trail user,model_audit_trail,base.group_user,1,0,0,0
 access_audit_trail_admin,audit.trail admin,model_audit_trail,construction_supervision_base.group_supervisor_admin,1,0,1,0
-access_audit_trail_supervision_manager,audit.trail supervision manager,model_audit_trail,construction_supervision_base.group_supervision_manager,1,0,1,0
-access_audit_trail_supervision_engineer,audit.trail supervision engineer,model_audit_trail,construction_supervision_base.group_supervision_engineer,1,0,1,0
-access_audit_trail_contractor_manager,audit.trail contractor manager,model_audit_trail,construction_supervision_base.group_contractor_manager,1,0,1,0
-access_audit_trail_contractor_engineer,audit.trail contractor engineer,model_audit_trail,construction_supervision_base.group_contractor_engineer,1,0,1,0

@@ -48,6 +48,12 @@
               parent="menu_project_management_root"
               sequence="40"/>
 
+    <!-- 1.5 人機管理 (由 construction_equipment 填充) -->
+    <menuitem id="menu_manpower_equipment"
+              name="人機管理"
+              parent="menu_project_management_root"
+              sequence="45"/>
+
     <!-- 1.5 文件管理 -->
     <menuitem id="menu_document_management"
               name="文件管理"
@@ -60,12 +66,6 @@
               action="action_supervision_document"
               sequence="10"/>
 
-    <menuitem id="menu_supervision_document_to_review"
-              name="待審查文件"
-              parent="menu_document_management"
-              action="action_supervision_document_to_review"
-              sequence="20"
-              groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
 
     <!-- ============================================== -->
     <!-- 2. 施工執行 - 日常施工作業                      -->
@@ -86,11 +86,8 @@
               parent="menu_construction_execution_root"
               sequence="20"/>
 
-    <!-- 2.3 人機管理 (由 construction_equipment 填充) -->
-    <menuitem id="menu_manpower_equipment"
-              name="人機管理"
-              parent="menu_construction_execution_root"
-              sequence="30"/>
+    <!-- 2.3 人機管理 - 已移至工程管理 (見下方) -->
+    <!-- <menuitem id="menu_manpower_equipment" 已移至工程管理區塊 -->
 
     <!-- 2.4 照片管理 (由 construction_photo 填充) -->
     <menuitem id="menu_photo_management"
@@ -136,11 +133,12 @@
               parent="menu_payment_root"
               sequence="10"/>
 
-    <!-- 4.2 請款管理 (由 construction_payment 填充) -->
+    <!-- 4.2 請款管理 (隱藏，目前用不到) -->
     <menuitem id="menu_claim"
               name="請款管理"
               parent="menu_payment_root"
-              sequence="20"/>
+              sequence="20"
+              active="0"/>
 
     <!-- 4.3 成本分析 (由 construction_cost_analysis 填充) -->
     <menuitem id="menu_cost_analysis"
@@ -230,7 +228,7 @@
               name="報表"
               parent="menu_project_management_root"
               sequence="80"
-              groups="construction_supervision_base.group_supervision_manager"/>
+              groups="construction_supervision_base.group_supervisor_admin"/>
 
     <!-- 工項分析報表 (來自 project 模組) -->
     <menuitem id="menu_task_analysis_report"

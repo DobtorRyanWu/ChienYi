@@ -18,7 +18,7 @@
         </div>
     </template>
 
-    <!-- Portal Breadcrumb 配置 -->
+    <!-- Portal Breadcrumb（Odoo 原生 breadcrumb，非首頁用）-->
     <template id="portal_layout_construction" name="Portal layout: Construction menu entry"
               inherit_id="portal.portal_breadcrumbs" priority="45">
         <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
@@ -27,293 +27,1198 @@
                 <a t-if="page_name != 'construction'" t-attf-href="/my/construction">工程案件</a>
                 <t t-else="">工程案件</t>
             </li>
-            <li t-if="page_name == 'construction_detail' and project"
-                class="breadcrumb-item active text-truncate">
-                <t t-esc="project.name"/>
-            </li>
-            <li t-if="page_name == 'construction_inspections'"
-                t-attf-class="breadcrumb-item #{'active' if not inspection else ''}">
-                <a t-if="inspection" t-attf-href="/my/construction/#{project.id}/inspections">自主檢查</a>
-                <t t-else="">自主檢查</t>
-            </li>
-            <li t-if="page_name == 'construction_inspection_detail' or page_name == 'construction_inspection_new'"
-                class="breadcrumb-item active">
-                <t t-if="page_name == 'construction_inspection_new'">新增檢查</t>
-                <t t-elif="inspection"><t t-esc="inspection.name or '檢查詳情'"/></t>
-            </li>
-            <li t-if="page_name == 'construction_defects'"
-                t-attf-class="breadcrumb-item #{'active' if not defect else ''}">
-                <a t-if="defect" t-attf-href="/my/construction/#{project.id}/defects">缺失</a>
-                <t t-else="">缺失</t>
-            </li>
-            <li t-if="page_name == 'construction_defect_detail'" class="breadcrumb-item active">
-                <t t-esc="defect.name or '缺失詳情'"/>
-            </li>
-            <li t-if="page_name == 'construction_photos'"
-                t-attf-class="breadcrumb-item #{'active' if not photo else ''}">
-                <a t-if="photo" t-attf-href="/my/construction/#{project.id}/photos">照片</a>
-                <t t-else="">照片</t>
-            </li>
-            <li t-if="page_name == 'construction_photo_detail' or page_name == 'construction_photo_upload'"
-                class="breadcrumb-item active">
-                <t t-if="page_name == 'construction_photo_upload'">上傳照片</t>
-                <t t-elif="photo">照片詳情</t>
-            </li>
         </xpath>
     </template>
 
-    <!-- 工程案件列表 - 手機友善版 -->
+    <!-- ============================================
+         工程案件 GPS 定位中介頁(splash)
+         由 /my/construction 在「使用者有多個可見專案」時 render
+         ============================================ -->
+    <template id="portal_construction_locator" name="Construction Locator Splash">
+        <t t-call="portal.portal_layout">
+            <div class="cy-content cy-locator" style="padding: 24px; text-align: center;">
+                <div id="cy-locator-spinner" style="font-size: 48px; color: var(--wb-blue, #2563eb); margin-top: 32px;">
+                    <i class="fa fa-location-arrow fa-spin"/>
+                </div>
+                <h4 id="cy-locator-title" style="font-weight: 700; margin-top: 24px;">正在定位最近的工程案件…</h4>
+                <p id="cy-locator-hint" style="color: var(--wb-t3, #8b90a0); font-size: 0.9rem; margin-top: 8px;">
+                    請允許瀏覽器存取您的位置
+                </p>
+                <div style="margin-top: 32px;">
+                    <a href="/my/construction?view=list"
+                       id="cy-locator-skip"
+                       class="btn btn-outline-secondary">
+                        <i class="fa fa-list"/> 改用列表檢視
+                    </a>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         工程案件列表 /my/construction
+         ============================================ -->
     <template id="portal_my_construction_projects" name="My Construction Projects">
         <t t-call="portal.portal_layout">
             <t t-set="breadcrumbs_searchbar" t-value="True"/>
-
-            <!-- 頁面標題 -->
-            <div class="mb-4">
-                <h2 class="mb-1">我的工程案件</h2>
-                <p class="text-muted mb-0">點擊查看工程詳情</p>
+            <div class="cy-content" style="padding: 16px;">
+                <h4 style="font-weight: 700; margin-bottom: 4px;">我的工程案件</h4>
+                <p style="color: var(--wb-t3, #8b90a0); font-size: 0.9rem; margin-bottom: 16px;">點擊進入工程</p>
+                <t t-if="not projects">
+                    <div class="cy-empty"><i class="fa fa-hard-hat"/><div class="cy-empty-text">目前沒有工程案件</div></div>
+                </t>
+                <t t-foreach="projects" t-as="proj">
+                    <a t-attf-href="/my/construction/#{proj.id}" class="cy-project-list-card">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                            <span class="cy-project-list-name"><t t-esc="proj.name"/></span>
+                            <span t-attf-class="cy-badge cy-badge-#{proj.state}">
+                                <t t-esc="dict(proj._fields['state'].selection).get(proj.state, proj.state)"/>
+                            </span>
+                        </div>
+                        <div class="cy-project-list-code" t-if="proj.code"><t t-esc="proj.code"/></div>
+                        <div class="cy-project-list-stats">
+                            <span class="cy-project-list-stat">檢查 <strong><t t-esc="proj.inspection_count"/></strong></span>
+                            <span class="cy-project-list-stat">待改 <strong style="color: var(--wb-amber);"><t t-esc="proj.open_defect_count"/></strong></span>
+                            <span class="cy-project-list-stat">照片 <strong><t t-esc="proj.photo_count"/></strong></span>
+                        </div>
+                    </a>
+                </t>
+                <div class="d-flex justify-content-center mt-3"><t t-call="portal.pager"/></div>
             </div>
+        </t>
+    </template>
 
-            <t t-if="not projects">
-                <div class="alert alert-info py-4 text-center" role="alert">
-                    <i class="fa fa-info-circle fa-2x mb-2 d-block"/>
-                    <span class="fs-5">目前沒有工程案件</span>
+    <!-- ============================================
+         工程首頁（v10 HUD — 對齊 prototype）
+         ============================================ -->
+    <template id="portal_construction_project_detail" name="Construction Project Home v10">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <!-- Splash 載入動畫 -->
+                <div class="cy-splash">
+                    <div class="cy-splash-glow"/>
+                    <div class="cy-splash-stage">
+                        <!-- 從新版 logo_chienyi.svg 12 個 polygon 轉成 path：4 斜線 + 8 柱體 -->
+                        <svg class="cy-splash-draw" viewBox="0 0 53.74 51.81" xmlns="http://www.w3.org/2000/svg">
+                            <!-- 4 條斜線（由外往內，peak 在 y=0） -->
+                            <path class="cy-line cy-line-1" d="M 26.9,0 L 0,46.36 L 4.3,46.36 L 28.98,3.61 Z"/>
+                            <path class="cy-line cy-line-2" d="M 29.5,4.51 L 5.22,46.36 L 9.52,46.36 L 31.59,8.14 Z"/>
+                            <path class="cy-line cy-line-3" d="M 32.1,9.03 L 10.44,46.36 L 14.74,46.36 L 34.19,12.67 Z"/>
+                            <path class="cy-line cy-line-4" d="M 34.7,13.55 L 15.66,46.36 L 19.96,46.36 L 36.8,17.2 Z"/>
+                            <!-- 8 根柱體（依 x 由外往內：1/8 最外 → 4/5 內側 peak，全部對齊 ground y=46.36） -->
+                            <path class="cy-col cy-col-1" d="M 20.66,46.36 L 23.39,46.36 L 23.39,41.64 Z"/>
+                            <path class="cy-col cy-col-2" d="M 24.99,38.87 L 24.99,46.36 L 27.72,46.36 L 27.72,34.13 Z"/>
+                            <path class="cy-col cy-col-3" d="M 29.32,31.36 L 29.32,46.36 L 32.06,46.36 L 32.06,26.62 Z"/>
+                            <path class="cy-col cy-col-4" d="M 33.66,23.84 L 33.66,46.36 L 36.4,46.36 L 36.4,19.11 Z"/>
+                            <path class="cy-col cy-col-5" d="M 38,19.18 L 38,46.36 L 40.73,46.36 L 40.73,23.9 Z"/>
+                            <path class="cy-col cy-col-6" d="M 42.34,26.67 L 42.34,46.36 L 45.07,46.36 L 45.07,31.39 Z"/>
+                            <path class="cy-col cy-col-7" d="M 46.67,34.16 L 46.67,46.36 L 49.41,46.36 L 49.41,38.89 Z"/>
+                            <path class="cy-col cy-col-8" d="M 53.74,46.36 L 51.01,41.65 L 51.01,46.36 Z"/>
+                        </svg>
+                    </div>
+                    <div class="cy-splash-name">QIAN YI TECHNOLOGY</div>
+                    <div class="cy-splash-sub">千溢科技 · 工程監造系統</div>
+                    <div class="cy-splash-dots">
+                        <span class="cy-splash-dot"/><span class="cy-splash-dot"/><span class="cy-splash-dot"/>
+                    </div>
                 </div>
-            </t>
 
-            <t t-if="projects">
-                <!-- 工程案件卡片列表 -->
-                <div class="row g-3">
-                    <t t-foreach="projects" t-as="project">
-                        <div class="col-12">
-                            <div class="card construction-project-card">
-                                <!-- 卡片標題 -->
-                                <div class="card-header">
-                                    <a t-attf-href="/my/construction/#{project.id}" class="text-decoration-none">
-                                        <h5 class="mb-0 text-white">
-                                            <t t-out="project.name"/>
-                                        </h5>
-                                    </a>
-                                </div>
-
-                                <div class="card-body">
-                                    <!-- 工程編號 -->
-                                    <p class="mb-3" t-if="project.code">
-                                        <span class="text-muted">工程編號：</span>
-                                        <strong t-out="project.code"/>
-                                    </p>
-
-                                    <!-- 統計數據 - 橫向滾動 -->
-                                    <div class="stats-row d-flex gap-3 mb-3">
-                                        <div class="stat-badge text-center flex-fill">
-                                            <span class="badge bg-info rounded-pill fs-5" t-out="project.inspection_count"/>
-                                            <small class="d-block mt-1">自主檢查</small>
-                                        </div>
-                                        <div class="stat-badge text-center flex-fill">
-                                            <span class="badge bg-warning text-dark rounded-pill fs-5" t-out="project.open_defect_count"/>
-                                            <small class="d-block mt-1">待改善缺失</small>
-                                        </div>
-                                        <div class="stat-badge text-center flex-fill">
-                                            <span class="badge bg-secondary rounded-pill fs-5" t-out="project.photo_count"/>
-                                            <small class="d-block mt-1">照片</small>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- 進入按鈕 -->
-                                <div class="card-footer">
-                                    <a t-attf-href="/my/construction/#{project.id}"
-                                       class="btn btn-primary btn-lg w-100">
-                                        <i class="fa fa-arrow-right me-2"/> 進入工程
-                                    </a>
+                <!-- ===== HUD 固定頂部 ===== -->
+                <div class="cy-hud">
+                    <div class="cy-hud-top">
+                        <div class="cy-hud-left">
+                            <div class="cy-hud-day">
+                                <div>
+                                    <div class="cy-hud-day-num"><t t-esc="day_count"/></div>
+                                    <div style="font-size: 0.55rem; color: var(--wb-t3); letter-spacing: 2px; font-weight: 700;">DAY</div>
                                 </div>
                             </div>
                         </div>
+                        <div class="cy-hud-project"><t t-esc="project.name"/></div>
+                        <a t-attf-href="/my/construction/settings?from_project=#{project.id}" class="cy-hud-avatar">
+                            <t t-esc="request.env.user.name[:1]"/>
+                        </a>
+                    </div>
+
+                    <!-- 資源列（3 等寬方塊）：進度% / ＋快速新增 / 待改缺失 -->
+                    <div class="cy-hud-resbar">
+                        <!-- 工程進度 -->
+                        <a t-attf-href="/my/construction/#{project.id}/info" class="cy-hud-resbox"
+                           style="cursor: pointer; text-decoration: none; color: inherit;">
+                            <div class="cy-hud-resbox-val" style="color: #1a9e94;">
+                                <t t-esc="'%.0f' % progress_pct"/>%
+                            </div>
+                            <div class="cy-hud-resbox-label">工程進度</div>
+                        </a>
+                        <!-- ＋ 快速新增（下拉） -->
+                        <div class="cy-hud-resbox cy-quick-add-trigger" id="quickAddTrigger">
+                            <div class="cy-hud-resbox-val" style="color: #d4940a;">＋</div>
+                            <div class="cy-hud-resbox-label">快速新增</div>
+                            <!-- 下拉選單 -->
+                            <div class="cy-quick-add-menu" id="quickAddMenu" style="display: none;">
+                                <a t-attf-href="/my/construction/project/new?from_project=#{project.id}" class="cy-quick-add-item">
+                                    <span>➕</span><span>新增專案</span>
+                                </a>
+                                <t t-if="project.project_type == 'reservation'">
+                                    <a t-attf-href="/my/construction/#{project.id}/slips" class="cy-quick-add-item">
+                                        <span>📄</span><span>通報單</span>
+                                    </a>
+                                </t>
+                                <a t-attf-href="/my/construction/#{project.id}/daily-log/new" class="cy-quick-add-item">
+                                    <span>📋</span><span>施工日誌</span>
+                                </a>
+                                <a t-attf-href="/my/construction/#{project.id}/inspection/new" class="cy-quick-add-item">
+                                    <span>🔍</span><span>自主檢查</span>
+                                </a>
+                                <a t-attf-href="/my/construction/#{project.id}/defect/new" class="cy-quick-add-item">
+                                    <span>⚠</span><span>缺失改善</span>
+                                </a>
+                                <a t-attf-href="/my/construction/#{project.id}/documents" class="cy-quick-add-item">
+                                    <span>📂</span><span>檔案管理</span>
+                                </a>
+                            </div>
+                        </div>
+                        <!-- 待改缺失 -->
+                        <a t-attf-href="/my/construction/#{project.id}/defects?filterby=open" class="cy-hud-resbox"
+                           t-attf-style="border: 1px solid #{open_defect_count and 'rgba(232,54,79,0.25)' or 'var(--wb-bdr)'};">
+                            <div class="cy-hud-resbox-val" style="color: var(--wb-red);">
+                                <t t-esc="open_defect_count"/>件
+                            </div>
+                            <div class="cy-hud-resbox-label">待改缺失</div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- ===== 內容區 ===== -->
+                <div class="cy-content" style="padding-top: 8px;">
+
+                    <!-- 事件通知卡片（可 dismiss）-->
+                    <t t-if="overdue_defects">
+                        <t t-foreach="overdue_defects" t-as="od">
+                            <div class="cy-event-card cy-event-urgent">
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--wb-red); margin-bottom: 4px;">缺失逾期</div>
+                                    <div style="font-size: 1.125rem; font-weight: 700;">
+                                        <t t-esc="od.name"/> <t t-esc="od.description or ''"/> 逾期 <t t-esc="od.overdue_days"/> 天
+                                    </div>
+                                </div>
+                                <a t-attf-href="/my/construction/defect/#{od.id}"
+                                   style="padding: 10px 16px; border-radius: 10px; border: none; background: var(--wb-red); color: #fff; font-size: 0.9rem; font-weight: 700; text-decoration: none; min-height: 44px; white-space: nowrap; display: flex; align-items: center;">
+                                    立即處理 →
+                                </a>
+                            </div>
+                        </t>
+                    </t>
+                    <t t-if="draft_inspections">
+                        <t t-foreach="draft_inspections" t-as="di">
+                            <div class="cy-event-card cy-event-warn">
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--wb-amber); margin-bottom: 4px;">自主檢查指派</div>
+                                    <div style="font-size: 1rem; font-weight: 700;">
+                                        <t t-esc="di.inspection_type_id.name or di.name"/> 已指派給你
+                                    </div>
+                                </div>
+                                <a t-attf-href="/my/construction/inspection/#{di.id}"
+                                   style="padding: 10px 16px; border-radius: 10px; border: none; background: var(--wb-amber); color: #fff; font-size: 0.9rem; font-weight: 700; text-decoration: none; min-height: 44px; white-space: nowrap; display: flex; align-items: center;">
+                                    前往檢查 →
+                                </a>
+                            </div>
+                        </t>
+                    </t>
+
+                    <!-- 本週進度（大卡：預定%/實際%/差異%）-->
+                    <div class="cy-sec-divider"><span>本週進度</span></div>
+                    <a t-attf-href="/my/construction/#{project.id}/daily-log/new"
+                       class="cy-week-progress-card" style="text-decoration: none; color: inherit; display: block;">
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-bottom: 8px;">
+                            <t t-esc="week_display or ''"/>
+                        </div>
+                        <t t-if="week_target">
+                            <div style="font-size: 0.95rem; color: var(--wb-t1); margin-bottom: 4px;">
+                                目標：<t t-esc="week_target"/>
+                            </div>
+                        </t>
+                        <div style="display: flex; gap: 16px; margin-top: 12px;">
+                            <div style="flex: 1;">
+                                <div style="font-size: 0.85rem; color: var(--wb-t3); margin-bottom: 4px;">預定進度</div>
+                                <div style="font-size: 1.75rem; font-weight: 700; color: var(--wb-blue); font-variant-numeric: tabular-nums;">
+                                    <t t-esc="'%.1f' % planned_progress"/>%
+                                </div>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 0.85rem; color: var(--wb-t3); margin-bottom: 4px;">實際進度</div>
+                                <div t-attf-style="font-size: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; color: #{actual_progress >= planned_progress and 'var(--wb-green)' or 'var(--wb-amber)'};">
+                                    <t t-esc="'%.1f' % actual_progress"/>%
+                                </div>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 0.85rem; color: var(--wb-t3); margin-bottom: 4px;">差異</div>
+                                <div style="font-size: 1.75rem; font-weight: 700; color: var(--wb-red); font-variant-numeric: tabular-nums;">
+                                    <t t-esc="'%.1f' % (actual_progress - planned_progress)"/>%
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--wb-bdr);">
+                            <span style="font-size: 0.85rem; color: var(--wb-t2);">點擊填寫今日施工日誌</span>
+                            <span style="font-size: 0.9rem; font-weight: 700; color: var(--wb-amber);">前往 →</span>
+                        </div>
+                    </a>
+
+                    <!-- 每日任務 -->
+                    <div class="cy-sec-divider"><span>每日任務</span></div>
+                    <div class="cy-card" style="overflow: hidden;">
+                        <div style="padding: 16px; background: linear-gradient(135deg, rgba(230,160,32,0.05), transparent); border-bottom: 1px solid var(--wb-bdr);">
+                            <div style="padding: 10px 10px 4px; font-size: 0.85rem; font-weight: 700; color: var(--wb-t3);">例行任務</div>
+
+                            <!-- 登入系統 -->
+                            <div class="cy-taskrow">
+                                <div class="cy-taskrow-check done">✓</div>
+                                <div style="flex: 1;">
+                                    <div class="cy-taskrow-name done">登入系統</div>
+                                </div>
+                            </div>
+
+                            <!-- 上傳照片 ≥3張 -->
+                            <div class="cy-taskrow">
+                                <div t-attf-class="cy-taskrow-check #{today_photo_count >= 3 and 'done' or ''}">
+                                    <t t-if="today_photo_count >= 3">✓</t>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div t-attf-class="cy-taskrow-name #{today_photo_count >= 3 and 'done' or ''}">
+                                        上傳施工照片 ≥3張
+                                    </div>
+                                </div>
+                                <t t-if="today_photo_count &lt; 3">
+                                    <a t-attf-href="/my/construction/#{project.id}/photo/upload" class="cy-taskrow-action">前往 →</a>
+                                </t>
+                            </div>
+
+                            <!-- 上傳照片達 5 張 -->
+                            <div class="cy-taskrow">
+                                <div t-attf-class="cy-taskrow-check #{today_photo_count >= 5 and 'done' or ''}">
+                                    <t t-if="today_photo_count >= 5">✓</t>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div t-attf-class="cy-taskrow-name #{today_photo_count >= 5 and 'done' or ''}">
+                                        上傳照片達 5 張
+                                    </div>
+                                </div>
+                                <t t-if="today_photo_count &lt; 5">
+                                    <a t-attf-href="/my/construction/#{project.id}/photo/upload" class="cy-taskrow-action">前往 →</a>
+                                </t>
+                            </div>
+
+                            <!-- 填寫今日施工日誌 -->
+                            <div class="cy-taskrow">
+                                <div t-attf-class="cy-taskrow-check #{today_log and 'done' or ''}">
+                                    <t t-if="today_log">✓</t>
+                                </div>
+                                <div style="flex: 1;">
+                                    <div t-attf-class="cy-taskrow-name #{today_log and 'done' or ''}">
+                                        填寫今日施工日誌
+                                    </div>
+                                </div>
+                                <t t-if="not today_log">
+                                    <a t-attf-href="/my/construction/#{project.id}/daily-log/new" class="cy-taskrow-action">前往 →</a>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 通報單（預約式 only）-->
+                    <t t-if="project.project_type == 'reservation'">
+                        <div class="cy-sec-divider"><span>通報單</span></div>
+                        <t t-if="recent_slips">
+                            <t t-foreach="recent_slips" t-as="slip">
+                                <a t-attf-href="/my/construction/#{project.id}/slip/#{slip.id}" class="cy-slip-home-card"
+                                   t-att-data-state="slip.state">
+                                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+                                        <div>
+                                            <div style="font-size: 1rem; font-weight: 700;"><t t-esc="slip.name or ('第' + str(slip.slip_no) + '次通報單')"/></div>
+                                            <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">📍 <t t-esc="slip.location or ''"/></div>
+                                        </div>
+                                        <span t-attf-class="cy-slip-state #{slip.state}">
+                                            <t t-esc="dict(slip._fields['state'].selection).get(slip.state, slip.state)"/>
+                                        </span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--wb-t2);">
+                                        <span>
+                                            <t t-if="slip.planned_start_date">
+                                                <t t-esc="slip.planned_start_date"/> — <t t-esc="slip.planned_duration or ''"/>天
+                                            </t>
+                                            <t t-else="">未排定</t>
+                                        </span>
+                                        <span><t t-esc="len(slip.detail_line_ids)"/> 工項</span>
+                                    </div>
+                                    <div style="display: flex; gap: 12px; margin-top: 8px; font-size: 0.85rem; color: var(--wb-t3);">
+                                        <span>🔍 <t t-esc="slip.self_inspection_count"/> 檢查</span>
+                                        <span>⚠ <t t-esc="slip.defect_improvement_count"/> 缺失</span>
+                                        <t t-if="slip.estimated_amount">
+                                            <span>· NT$ <t t-esc="'{:,.0f}'.format(slip.estimated_amount)"/></span>
+                                        </t>
+                                        <span style="margin-left: auto; color: var(--wb-amber); font-weight: 700;">詳情 →</span>
+                                    </div>
+                                </a>
+                            </t>
+                        </t>
+                        <t t-else="">
+                            <div class="cy-empty" style="padding: 20px;"><div class="cy-empty-text">尚無通報單</div></div>
+                        </t>
                     </t>
                 </div>
-            </t>
 
-            <!-- 分頁 -->
-            <div class="d-flex justify-content-center mt-4">
-                <t t-call="portal.pager"/>
+                <!-- FAB 相機按鈕 -->
+                <label class="cy-fab-camera">
+                    <input type="file" accept="image/*" capture="environment" style="display: none;"
+                           id="fab_camera_input"/>
+                    <div class="cy-fab-camera-btn">📷</div>
+                </label>
+
+                <!-- 底部導航 5 tabs -->
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
             </div>
         </t>
     </template>
 
-    <!-- 工程案件詳情 - 手機友善版 -->
-    <template id="portal_construction_project_detail" name="Construction Project Detail">
-        <t t-call="portal.portal_layout">
-            <t t-set="o_portal_fullwidth_alert" t-value="True"/>
+    <!-- ============================================
+         工程資訊頁 /my/construction/<pid>/info
+         （底部導航第一 tab → InfoPage）
+         ============================================ -->
+    <template id="portal_construction_project_info" name="Construction Project Info">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
 
-            <!-- 返回按鈕 -->
-            <div class="mb-3">
-                <a href="/my/construction" class="btn btn-outline-secondary">
-                    <i class="fa fa-arrow-left me-1"/> 返回列表
-                </a>
-            </div>
-
-            <!-- 工程標題卡片 -->
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">
-                        <t t-out="project.name"/>
-                    </h4>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <span class="cy-breadcrumb-item active">工程資訊</span>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-6 mb-2" t-if="project.code">
-                            <small class="text-muted d-block">工程編號</small>
-                            <strong t-out="project.code"/>
+
+                <div class="cy-content">
+                    <!-- 狀態 badge + 編輯按鈕 -->
+                    <div style="margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                        <span t-attf-class="cy-badge cy-badge-#{project.state}" style="font-size: 0.9rem; padding: 6px 14px;">
+                            <t t-esc="dict(project._fields['state'].selection).get(project.state, project.state)"/>
+                        </span>
+                        <t t-if="project.state == 'draft'">
+                            <a t-attf-href="/my/construction/#{project.id}/edit"
+                               class="cy-btn"
+                               style="padding: 6px 14px; border: 1px solid var(--wb-blue); color: var(--wb-blue); font-weight: 700; font-size: 0.9rem; border-radius: 8px; text-decoration: none;">
+                                <i class="fa fa-pencil"/> 編輯
+                            </a>
+                        </t>
+                    </div>
+
+                    <!-- 成功 / 錯誤提示 -->
+                    <t t-if="request.params.get('message') == 'updated'">
+                        <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(34,197,94,0.12); color: var(--wb-green); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
+                            <i class="fa fa-check-circle"/> 工程資訊已儲存
                         </div>
-                        <div class="col-6 mb-2">
-                            <small class="text-muted d-block">狀態</small>
-                            <span class="badge fs-6"
-                                  t-attf-class="badge #{project.state == 'construction' and 'bg-success' or project.state == 'completed' and 'bg-primary' or project.state == 'acceptance' and 'bg-info' or 'bg-secondary'}">
-                                <t t-out="dict(project._fields['state'].selection).get(project.state, project.state)"/>
+                    </t>
+                    <t t-if="request.params.get('error') == 'not_draft'">
+                        <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(239,68,68,0.12); color: var(--wb-red); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
+                            <i class="fa fa-exclamation-triangle"/> 非草稿狀態無法編輯
+                        </div>
+                    </t>
+
+                    <!-- 基本資訊 -->
+                    <div class="cy-section-title">基本資訊</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">工程名稱</span>
+                            <span class="cy-info-value"><t t-esc="project.name"/></span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">工程編號</span>
+                            <span class="cy-info-value"><t t-esc="project.code or '-'"/></span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">工程地點</span>
+                            <span class="cy-info-value"><t t-esc="project.location or '-'"/></span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">工程類別</span>
+                            <span class="cy-info-value">
+                                <t t-if="project.project_type == 'general'">一般式工程</t>
+                                <t t-elif="project.project_type == 'reservation'">預約式工程</t>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">契約金額</span>
+                            <span class="cy-info-value accent">
+                                <t t-if="project.contract_amount">
+                                    NT$ <t t-esc="'{:,.0f}'.format(project.contract_amount)"/>
+                                </t>
+                                <t t-else="">-</t>
                             </span>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- 快速操作區 -->
-            <div class="mb-4">
-                <h5 class="mb-3">快速操作</h5>
-                <div class="row g-3">
-                    <!-- 自主檢查 -->
-                    <div class="col-12">
-                        <a t-attf-href="/my/construction/#{project.id}/inspection/new"
-                           class="btn btn-success btn-lg w-100 py-3">
-                            <i class="fa fa-plus-circle me-2"/>
-                            新增自主檢查
-                        </a>
-                    </div>
-                    <!-- 上傳照片 -->
-                    <div class="col-12">
-                        <a t-attf-href="/my/construction/#{project.id}/photo/upload"
-                           class="btn btn-info btn-lg w-100 py-3 text-white">
-                            <i class="fa fa-camera me-2"/>
-                            上傳照片
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 功能區塊 -->
-            <div class="row g-3">
-                <!-- 自主檢查 -->
-                <div class="col-12">
-                    <div class="card feature-card">
-                        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-                            <span><i class="fa fa-clipboard-check me-2"/> 自主檢查</span>
-                            <span class="badge bg-light text-dark rounded-pill fs-6" t-out="project.inspection_count"/>
+                    <!-- 工期資訊 -->
+                    <div class="cy-section-title">工期資訊</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">契約開工日</span>
+                            <span class="cy-info-value"><t t-esc="project.contract_start_date or '-'"/></span>
                         </div>
-                        <div class="card-body">
-                            <t t-if="inspections">
-                                <div class="list-group list-group-flush">
-                                    <t t-foreach="inspections[:5]" t-as="insp">
-                                        <a t-attf-href="/my/construction/inspection/#{insp.id}"
-                                           class="list-group-item list-group-item-action py-3">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <span class="fw-bold">
-                                                    <t t-out="insp.name or insp.inspection_type_id.name or '自主檢查'"/>
-                                                </span>
-                                                <small class="text-muted" t-out="insp.inspection_date"/>
-                                            </div>
-                                        </a>
-                                    </t>
-                                </div>
-                            </t>
-                            <t t-else="">
-                                <p class="text-muted text-center py-3 mb-0">尚無檢查記錄</p>
-                            </t>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">契約完工日</span>
+                            <span class="cy-info-value"><t t-esc="project.contract_end_date or '-'"/></span>
                         </div>
-                        <div class="card-footer">
-                            <a t-attf-href="/my/construction/#{project.id}/inspections"
-                               class="btn btn-outline-info w-100">
-                                查看全部檢查
-                            </a>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">契約工期</span>
+                            <span class="cy-info-value">
+                                <t t-if="project.contract_duration"><t t-esc="project.contract_duration"/> 天</t>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">已施工</span>
+                            <span class="cy-info-value" style="color: var(--wb-blue); font-weight: 700;">
+                                <t t-esc="day_count"/> 天
+                            </span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">剩餘工期</span>
+                            <span t-attf-class="cy-info-value" t-attf-style="font-weight: 700; color: #{remaining_days &lt; 90 and 'var(--wb-amber)' or 'var(--wb-green)'};">
+                                <t t-esc="remaining_days"/> 天
+                            </span>
                         </div>
                     </div>
-                </div>
 
-                <!-- 缺失管理 -->
-                <div class="col-12">
-                    <div class="card feature-card">
-                        <div class="card-header bg-warning d-flex justify-content-between align-items-center">
-                            <span><i class="fa fa-exclamation-triangle me-2"/> 待改善缺失</span>
-                            <span class="badge bg-danger rounded-pill fs-6" t-out="project.open_defect_count"/>
+                    <!-- 進度條 -->
+                    <div class="cy-info-section" style="padding: 16px;">
+                        <!-- 工期進度：已過天數 / 總工期 -->
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-size: 0.9rem; color: var(--wb-t2); font-weight: 500;">工期進度</span>
+                            <span style="font-size: 1.2rem; font-weight: 700; color: var(--wb-amber);">
+                                <t t-esc="'%.0f' % schedule_pct"/>%
+                            </span>
                         </div>
-                        <div class="card-body">
-                            <t t-if="defects">
-                                <div class="list-group list-group-flush">
-                                    <t t-foreach="defects[:5]" t-as="defect">
-                                        <a t-attf-href="/my/construction/defect/#{defect.id}"
-                                           class="list-group-item list-group-item-action py-3"
-                                           t-attf-class="list-group-item list-group-item-action py-3 #{defect.state not in ['verified', 'closed'] and 'defect-status-open' or 'defect-status-closed'}">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <span class="fw-bold" t-out="defect.name"/>
-                                                <span class="badge"
-                                                      t-attf-class="badge #{defect.state in ['verified', 'closed'] and 'bg-success' or 'bg-warning text-dark'}">
-                                                    <t t-out="dict(defect._fields['state'].selection).get(defect.state, defect.state)"/>
-                                                </span>
-                                            </div>
-                                        </a>
-                                    </t>
-                                </div>
-                            </t>
-                            <t t-else="">
-                                <p class="text-muted text-center py-3 mb-0">目前沒有缺失</p>
-                            </t>
+                        <div class="cy-progress-bar" style="height: 12px;">
+                            <div class="cy-progress-fill" t-attf-style="width: #{min(schedule_pct, 100)}%; background: var(--wb-amber);"/>
                         </div>
-                        <div class="card-footer">
-                            <a t-attf-href="/my/construction/#{project.id}/defects"
-                               class="btn btn-outline-warning w-100">
-                                查看全部缺失
-                            </a>
+                        <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 0.85rem; color: var(--wb-t3);">
+                            <span><t t-esc="project.contract_start_date or ''"/></span>
+                            <span><t t-esc="project.contract_end_date or ''"/></span>
+                        </div>
+
+                        <!-- 工程進度：從進度表累計實際 -->
+                        <div style="display: flex; justify-content: space-between; margin: 18px 0 10px;">
+                            <span style="font-size: 0.9rem; color: var(--wb-t2); font-weight: 500;">工程進度</span>
+                            <span style="font-size: 1.2rem; font-weight: 700; color: var(--wb-green);">
+                                <t t-esc="'%.0f' % progress_pct"/>%
+                            </span>
+                        </div>
+                        <div class="cy-progress-bar" style="height: 12px;">
+                            <div class="cy-progress-fill" t-attf-style="width: #{min(progress_pct, 100)}%; background: var(--wb-green);"/>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--wb-t3); margin-top: 6px;">
+                            來源：進度表累計實際進度
                         </div>
                     </div>
-                </div>
 
-                <!-- 照片管理 -->
-                <div class="col-12">
-                    <div class="card feature-card">
-                        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-                            <span><i class="fa fa-images me-2"/> 工程照片</span>
-                            <span class="badge bg-light text-dark rounded-pill fs-6" t-out="project.photo_count"/>
+                    <!-- 相關單位 -->
+                    <div class="cy-section-title">相關單位</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">業主機關</span>
+                            <span class="cy-info-value"><t t-esc="project.authority_id.name or '-'"/></span>
                         </div>
-                        <div class="card-body">
-                            <t t-if="photos">
-                                <div class="photo-grid">
-                                    <t t-foreach="photos[:4]" t-as="photo">
-                                        <div class="photo-item">
-                                            <a t-attf-href="/my/construction/photo/#{photo.id}">
-                                                <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image?width=200&amp;height=200&amp;crop=true"
-                                                     alt="工程照片"/>
-                                            </a>
-                                        </div>
-                                    </t>
-                                </div>
-                            </t>
-                            <t t-else="">
-                                <p class="text-muted text-center py-3 mb-0">尚無照片</p>
-                            </t>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">監造單位</span>
+                            <span class="cy-info-value"><t t-esc="project.company_id.name or '-'"/></span>
                         </div>
-                        <div class="card-footer">
-                            <a t-attf-href="/my/construction/#{project.id}/photos"
-                               class="btn btn-outline-secondary w-100">
-                                查看全部照片
-                            </a>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">承包廠商</span>
+                            <span class="cy-info-value">
+                                <t t-if="project.contractor_company_ids">
+                                    <t t-esc="'、'.join(project.contractor_company_ids.mapped('name'))"/>
+                                </t>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 工地人員 -->
+                    <div class="cy-section-title">工地人員</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">監造工程師</span>
+                            <span class="cy-info-value"><t t-esc="project.supervision_engineer_id.name or '-'"/></span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">工地主任</span>
+                            <span class="cy-info-value"><t t-esc="project.site_manager_id.name or '-'"/></span>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 底部返回按鈕 -->
-            <div class="mt-4 mb-3">
-                <a href="/my/construction" class="btn btn-secondary btn-lg w-100">
-                    <i class="fa fa-arrow-left me-2"/> 返回工程列表
-                </a>
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
             </div>
         </t>
     </template>
+
+    <!-- ============================================
+         底部導航 5 tabs（對齊 prototype：emoji + badge）
+         ============================================ -->
+    <!-- ============================================
+         共用 HUD Header（所有子頁面引用）
+         ============================================ -->
+    <template id="portal_v10_header" name="Portal v10 Header">
+        <div class="cy-hud" style="padding-bottom: 0;">
+            <div class="cy-hud-top">
+                <div class="cy-hud-left">
+                    <div class="cy-hud-day">
+                        <div>
+                            <div class="cy-hud-day-num"><t t-esc="day_count"/></div>
+                            <div style="font-size: 0.55rem; color: var(--wb-t3); letter-spacing: 2px; font-weight: 700;">DAY</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="cy-hud-project"><t t-esc="project.name"/></div>
+                <a t-attf-href="/my/construction/settings?from_project=#{project.id}" class="cy-hud-avatar">
+                    <t t-esc="request.env.user.name[:1]"/>
+                </a>
+            </div>
+        </div>
+    </template>
+
+    <template id="portal_bottom_nav_v10" name="Portal v10 Bottom Navigation">
+        <nav class="cy-bottom-nav" t-if="project">
+            <!-- 工程資訊 -->
+            <a t-attf-href="/my/construction/#{project.id}/info"
+               t-attf-class="cy-nav-item #{page_name == 'construction_info' and 'active' or ''}">
+                <span class="cy-nav-emoji">🏗</span>
+                <span>工程資訊</span>
+            </a>
+            <!-- 施工日誌 -->
+            <a t-attf-href="/my/construction/#{project.id}/daily-logs"
+               t-attf-class="cy-nav-item #{page_name in ('construction_daily_logs', 'construction_daily_log_detail', 'construction_daily_log_new') and 'active' or ''}">
+                <span class="cy-nav-emoji">📋</span>
+                <span>施工日誌</span>
+                <t t-if="nav_badges and nav_badges.get('log')">
+                    <span class="cy-nav-badge"><t t-esc="nav_badges['log']"/></span>
+                </t>
+            </a>
+            <!-- 照片中心 -->
+            <a t-attf-href="/my/construction/#{project.id}/photos"
+               t-attf-class="cy-nav-item #{page_name in ('construction_photos', 'construction_photo_upload', 'construction_photo_detail') and 'active' or ''}">
+                <span class="cy-nav-emoji">📷</span>
+                <span>照片中心</span>
+            </a>
+            <!-- 自主檢查 -->
+            <a t-attf-href="/my/construction/#{project.id}/inspections"
+               t-attf-class="cy-nav-item #{page_name in ('construction_inspections', 'construction_inspection_new', 'construction_inspection_detail') and 'active' or ''}">
+                <span class="cy-nav-emoji">🔍</span>
+                <span>自主檢查</span>
+                <t t-if="nav_badges and nav_badges.get('insp')">
+                    <span class="cy-nav-badge"><t t-esc="nav_badges['insp']"/></span>
+                </t>
+            </a>
+            <!-- 缺失改善 -->
+            <a t-attf-href="/my/construction/#{project.id}/defects"
+               t-attf-class="cy-nav-item #{page_name in ('construction_defects', 'construction_defect_detail') and 'active' or ''}">
+                <span class="cy-nav-emoji">⚠</span>
+                <span>缺失改善</span>
+                <t t-if="nav_badges and nav_badges.get('def')">
+                    <span class="cy-nav-badge"><t t-esc="nav_badges['def']"/></span>
+                </t>
+            </a>
+        </nav>
+    </template>
+
+    <!-- 移除舊版 bottom nav -->
+    <template id="portal_bottom_nav" inherit_id="portal.frontend_layout" priority="99" name="Portal Bottom Navigation (disabled)">
+    </template>
+
+    <!-- ============================================
+         新增工程專案 /my/construction/project/new
+         ============================================ -->
+    <template id="portal_construction_project_new" name="New Construction Project">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <div class="cy-breadcrumb">
+                    <a t-att-href="back_url or '/my/construction'" class="cy-breadcrumb-item">
+                        <t t-esc="back_label or '工程列表'"/>
+                    </a>
+                    <span class="cy-breadcrumb-item active">新增專案</span>
+                </div>
+
+                <div class="cy-content">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 1.6rem; font-weight: 900; color: var(--wb-amber);">新增工程專案</div>
+                        <div style="font-size: 0.95rem; color: var(--wb-t2); margin-top: 4px;">填寫工程基本資料</div>
+                    </div>
+
+                    <form action="/my/construction/project/create" method="post">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                        <!-- 基本資訊 -->
+                        <div class="cy-section-title">基本資訊</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">工程名稱 <span style="color: var(--wb-red);">*</span></label>
+                                <input type="text" name="name" class="form-control" placeholder="輸入工程名稱" required="required"/>
+                            </div>
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">工程地點</label>
+                                <input type="text" name="location" id="project_location" class="form-control" placeholder="輸入工程地點"/>
+                            </div>
+                            <button type="button" onclick="getProjectGPS()" class="cy-btn" style="width: 100%; background: rgba(59,141,224,0.06); color: var(--wb-blue); border: 1px solid var(--wb-blue); margin-bottom: 14px; font-weight: 700;">
+                                <i class="fa fa-map-marker"/> 取得目前 GPS 位置
+                            </button>
+                            <input type="hidden" name="latitude" id="project_lat"/>
+                            <input type="hidden" name="longitude" id="project_lng"/>
+                            <span id="gps_status" style="font-size: 0.85rem; color: var(--wb-t3);"></span>
+                            <div style="margin-bottom: 14px; margin-top: 14px;">
+                                <label class="form-label" style="font-weight: 600;">工程類型 <span style="color: var(--wb-red);">*</span></label>
+                                <select name="project_type" class="form-select">
+                                    <option value="general">一般式工程</option>
+                                    <option value="reservation">預約式工程</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 相關單位 -->
+                        <div class="cy-section-title">相關單位</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">業主機關</label>
+                                <input type="text" name="owner_org" class="form-control" placeholder="輸入業主機關名稱"/>
+                            </div>
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">承包廠商</label>
+                                <input type="text" name="contractor" class="form-control" placeholder="輸入承包廠商名稱"/>
+                            </div>
+                        </div>
+
+                        <!-- 工期資訊 -->
+                        <div class="cy-section-title">工期資訊</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">開工日期</label>
+                                <input type="date" name="start_date" class="form-control"/>
+                            </div>
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">預定竣工</label>
+                                <input type="date" name="end_date" class="form-control"/>
+                            </div>
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">契約工期（天）</label>
+                                <input type="number" name="duration" class="form-control" placeholder="天數"/>
+                            </div>
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">契約金額</label>
+                                <input type="number" name="amount" class="form-control" placeholder="金額"/>
+                            </div>
+                        </div>
+
+                        <!-- 建立按鈕 -->
+                        <button type="submit" class="cy-btn-gradient-full" style="margin-top: 16px; padding: 20px; font-size: 1.2rem;">
+                            建立工程
+                        </button>
+                    </form>
+                </div>
+
+                <script>
+                    function getProjectGPS() {
+                        var statusEl = document.getElementById('gps_status');
+                        if (!navigator.geolocation) {
+                            statusEl.textContent = '您的瀏覽器不支援 GPS 定位';
+                            return;
+                        }
+                        statusEl.textContent = '正在取得位置...';
+                        navigator.geolocation.getCurrentPosition(
+                            function(pos) {
+                                document.getElementById('project_lat').value = pos.coords.latitude.toFixed(6);
+                                document.getElementById('project_lng').value = pos.coords.longitude.toFixed(6);
+                                var locInput = document.getElementById('project_location');
+                                if (!locInput.value) {
+                                    locInput.value = '(' + pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6) + ')';
+                                }
+                                statusEl.textContent = 'GPS 位置已取得';
+                                statusEl.style.color = 'var(--wb-green)';
+                            },
+                            function(err) {
+                                statusEl.textContent = '無法取得位置';
+                                statusEl.style.color = 'var(--wb-red)';
+                            },
+                            { enableHighAccuracy: true, timeout: 10000 }
+                        );
+                    }
+                </script>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         編輯工程專案 /my/construction/<pid>/edit
+         （補填/修改既有工程資訊，僅 draft 狀態）
+         ============================================ -->
+    <template id="portal_construction_project_edit" name="Edit Construction Project">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/info" class="cy-breadcrumb-item">工程資訊</a>
+                    <span class="cy-breadcrumb-item active">編輯</span>
+                </div>
+
+                <div class="cy-content">
+                    <!-- 錯誤提示 -->
+                    <t t-if="error == 'date_invalid'">
+                        <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(239,68,68,0.12); color: var(--wb-red); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
+                            <i class="fa fa-exclamation-triangle"/> 契約完工日不得早於開工日
+                        </div>
+                    </t>
+                    <t t-if="error == 'save_failed'">
+                        <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(239,68,68,0.12); color: var(--wb-red); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
+                            <i class="fa fa-exclamation-triangle"/> 儲存失敗，請檢查欄位內容
+                        </div>
+                    </t>
+
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 1.4rem; font-weight: 900; color: var(--wb-amber);">編輯工程資訊</div>
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">補填或修改工程基本資料</div>
+                    </div>
+
+                    <form t-attf-action="/my/construction/#{project.id}/update" method="post">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="_edit_form" value="1"/>
+
+                        <!-- ========== 基本資訊 ========== -->
+                        <div class="cy-section-title">基本資訊</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div class="cy-info-row" style="margin-bottom: 10px;">
+                                <span class="cy-info-label">工程編號</span>
+                                <span class="cy-info-value"><t t-esc="project.code or '-'"/></span>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">工程名稱 <span style="color: var(--wb-red);">*</span></label>
+                                <input type="text" name="name" class="form-control"
+                                       t-att-value="project.name or ''" required="required"/>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">工程類型 <span style="color: var(--wb-red);">*</span></label>
+                                <select name="project_type" class="form-select">
+                                    <option value="general"
+                                            t-att-selected="'selected' if project.project_type == 'general' else None">
+                                        一般式工程
+                                    </option>
+                                    <option value="reservation"
+                                            t-att-selected="'selected' if project.project_type == 'reservation' else None">
+                                        預約式工程
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">年份</label>
+                                <select name="year" class="form-select">
+                                    <option value="">—</option>
+                                    <t t-foreach="year_selection" t-as="y">
+                                        <option t-att-value="y[0]"
+                                                t-att-selected="'selected' if project.year == y[0] else None">
+                                            <t t-esc="y[1]"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">工程地點</label>
+                                <input type="text" name="location" id="project_location"
+                                       class="form-control"
+                                       t-att-value="project.location or ''"/>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">詳細位置說明</label>
+                                <textarea name="location_detail" class="form-control" rows="2"><t t-esc="project.location_detail or ''"/></textarea>
+                            </div>
+
+                            <button type="button" onclick="getProjectGPS()" class="cy-btn"
+                                    style="width: 100%; background: rgba(59,141,224,0.06); color: var(--wb-blue); border: 1px solid var(--wb-blue); margin-bottom: 8px; font-weight: 700;">
+                                <i class="fa fa-map-marker"/> 取得目前 GPS 位置
+                            </button>
+                            <input type="hidden" name="latitude" id="project_lat"
+                                   t-att-value="project.latitude or ''"/>
+                            <input type="hidden" name="longitude" id="project_lng"
+                                   t-att-value="project.longitude or ''"/>
+                            <div style="font-size: 0.8rem; color: var(--wb-t3);">
+                                目前座標：<t t-esc="project.latitude or 0"/>, <t t-esc="project.longitude or 0"/>
+                            </div>
+                            <span id="gps_status" style="font-size: 0.85rem;"></span>
+                        </div>
+
+                        <!-- ========== 契約資訊 ========== -->
+                        <div class="cy-section-title">契約資訊</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">契約編號</label>
+                                <input type="text" name="contract_no" class="form-control"
+                                       t-att-value="project.contract_no or ''"/>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">契約金額</label>
+                                <input type="number" step="0.01" name="contract_amount"
+                                       class="form-control"
+                                       t-att-value="project.contract_amount or ''"
+                                       t-att-disabled="'disabled' if project.task_count else None"/>
+                                <t t-if="project.task_count">
+                                    <small style="color: var(--wb-t3);">已匯入工項，金額由工項自動計算</small>
+                                </t>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">契約開工日</label>
+                                <input type="date" name="contract_start_date" class="form-control"
+                                       t-att-value="project.contract_start_date and project.contract_start_date.strftime('%Y-%m-%d') or ''"/>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">契約完工日</label>
+                                <input type="date" name="contract_end_date" class="form-control"
+                                       t-att-value="project.contract_end_date and project.contract_end_date.strftime('%Y-%m-%d') or ''"/>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">核准展延工期（天）</label>
+                                <input type="number" name="extension_duration" class="form-control"
+                                       t-att-value="project.extension_duration or 0"/>
+                            </div>
+                        </div>
+
+                        <!-- ========== 實際進度 ========== -->
+                        <div class="cy-section-title">實際進度</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">實際開工日</label>
+                                <input type="date" name="actual_start_date" class="form-control"
+                                       t-att-value="project.actual_start_date and project.actual_start_date.strftime('%Y-%m-%d') or ''"/>
+                            </div>
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">實際完工日</label>
+                                <input type="date" name="actual_end_date" class="form-control"
+                                       t-att-value="project.actual_end_date and project.actual_end_date.strftime('%Y-%m-%d') or ''"/>
+                            </div>
+                        </div>
+
+                        <!-- ========== 相關單位 ========== -->
+                        <div class="cy-section-title">相關單位</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">管理公司（監造）<span style="color: var(--wb-red);">*</span></label>
+                                <select name="company_id" class="form-select">
+                                    <t t-foreach="supervision_companies" t-as="c">
+                                        <option t-att-value="c.id"
+                                                t-att-selected="'selected' if project.company_id.id == c.id else None">
+                                            <t t-esc="c.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">業主機關</label>
+                                <select name="authority_id" class="form-select">
+                                    <option value="">—</option>
+                                    <t t-foreach="authorities" t-as="a">
+                                        <option t-att-value="a.id"
+                                                t-att-selected="'selected' if project.authority_id.id == a.id else None">
+                                            <t t-esc="a.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">機關承辦人</label>
+                                <select name="authority_contact_id" class="form-select">
+                                    <option value="">—</option>
+                                    <t t-foreach="authority_contacts" t-as="ac">
+                                        <option t-att-value="ac.id"
+                                                t-att-selected="'selected' if project.authority_contact_id.id == ac.id else None">
+                                            <t t-esc="ac.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                                <small style="color: var(--wb-t3); display: block; margin-top: 4px;">
+                                    更換業主機關後請先儲存，再回來才會看到對應的承辦人選項
+                                </small>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">承包廠商（可複選）</label>
+                                <div style="max-height: 220px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 8px; background: rgba(0,0,0,0.12);">
+                                    <t t-if="contractor_companies">
+                                        <t t-foreach="contractor_companies" t-as="c">
+                                            <label style="display: flex; align-items: center; gap: 8px; padding: 6px 4px; cursor: pointer;">
+                                                <input type="checkbox" name="contractor_company_ids"
+                                                       t-att-value="c.id"
+                                                       t-att-checked="'checked' if c.id in project.contractor_company_ids.ids else None"/>
+                                                <span><t t-esc="c.name"/></span>
+                                            </label>
+                                        </t>
+                                    </t>
+                                    <t t-else="">
+                                        <div style="color: var(--wb-t3); padding: 6px 4px;">尚無可選承包廠商</div>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== 工地人員與活動指派 ========== -->
+                        <div class="cy-section-title">工地人員與活動指派</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">監造工程師</label>
+                                <select name="supervision_engineer_id" class="form-select">
+                                    <option value="">—</option>
+                                    <t t-foreach="supervision_users" t-as="u">
+                                        <option t-att-value="u.id"
+                                                t-att-selected="'selected' if project.supervision_engineer_id.id == u.id else None">
+                                            <t t-esc="u.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">工地主任</label>
+                                <select name="site_manager_id" class="form-select">
+                                    <option value="">—</option>
+                                    <t t-foreach="all_users" t-as="u">
+                                        <option t-att-value="u.id"
+                                                t-att-selected="'selected' if project.site_manager_id.id == u.id else None">
+                                            <t t-esc="u.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">預設活動負責人</label>
+                                <select name="activity_default_user_id" class="form-select">
+                                    <option value="">—</option>
+                                    <t t-foreach="all_users" t-as="u">
+                                        <option t-att-value="u.id"
+                                                t-att-selected="'selected' if project.activity_default_user_id.id == u.id else None">
+                                            <t t-esc="u.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">檢試驗負責人</label>
+                                <select name="activity_test_user_id" class="form-select">
+                                    <option value="">—</option>
+                                    <t t-foreach="all_users" t-as="u">
+                                        <option t-att-value="u.id"
+                                                t-att-selected="'selected' if project.activity_test_user_id.id == u.id else None">
+                                            <t t-esc="u.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">自主檢查負責人</label>
+                                <select name="activity_inspection_user_id" class="form-select">
+                                    <option value="">—</option>
+                                    <t t-foreach="all_users" t-as="u">
+                                        <option t-att-value="u.id"
+                                                t-att-selected="'selected' if project.activity_inspection_user_id.id == u.id else None">
+                                            <t t-esc="u.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- ========== 備註 ========== -->
+                        <div class="cy-section-title">備註</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <textarea name="notes" class="form-control" rows="4" placeholder="補充說明..."><t t-esc="project.notes or ''"/></textarea>
+                        </div>
+
+                        <!-- 按鈕列 -->
+                        <div style="display: flex; gap: 10px; margin-top: 18px; margin-bottom: 16px;">
+                            <a t-attf-href="/my/construction/#{project.id}/info"
+                               class="cy-btn"
+                               style="flex: 1; padding: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 700; border-radius: 10px; text-decoration: none;">
+                                取消
+                            </a>
+                            <button type="submit" class="cy-btn-gradient-full"
+                                    style="flex: 2; padding: 16px; font-size: 1.1rem;">
+                                儲存
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+
+                <script>
+                    function getProjectGPS() {
+                        var statusEl = document.getElementById('gps_status');
+                        if (!navigator.geolocation) {
+                            statusEl.textContent = '您的瀏覽器不支援 GPS 定位';
+                            return;
+                        }
+                        statusEl.textContent = '正在取得位置...';
+                        navigator.geolocation.getCurrentPosition(
+                            function(pos) {
+                                document.getElementById('project_lat').value = pos.coords.latitude.toFixed(6);
+                                document.getElementById('project_lng').value = pos.coords.longitude.toFixed(6);
+                                statusEl.textContent = 'GPS 位置已取得：' + pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6);
+                                statusEl.style.color = 'var(--wb-green)';
+                            },
+                            function(err) {
+                                statusEl.textContent = '無法取得位置';
+                                statusEl.style.color = 'var(--wb-red)';
+                            },
+                            { enableHighAccuracy: true, timeout: 10000 }
+                        );
+                    }
+                </script>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         共用照片區塊
+         供施工日誌/自主檢查 詳情頁 t-call。
+         需要的 context:
+           photos              : recordset of ir.attachment
+           photo_to_supervision: dict {att_id: supervision_photo_id}
+           upload_url          : POST 追加上傳 URL (multipart)
+           delete_url_tpl      : 刪除單張 URL,需含 %s 給 attachment id
+           is_locked           : bool,True 時隱藏上傳/刪除按鈕
+           photo_categories    : list of (key, label) for category select
+         ============================================ -->
+    <template id="portal_construction_photos_block" name="Photos Block">
+        <div class="cy-section-title" style="margin-top: 18px;">
+            施工照片
+            <span style="color: var(--wb-t3); font-weight: 400; font-size: 0.8rem; margin-left: 6px;">
+                (<t t-esc="len(photos)"/> 張)
+            </span>
+        </div>
+
+        <t t-if="photos">
+            <div class="cy-photo-grid">
+                <t t-foreach="photos" t-as="att">
+                    <div style="position: relative;">
+                        <a t-attf-href="/my/construction/photo/#{photo_to_supervision.get(att.id, 0)}"
+                           class="cy-photo-card-with-info"
+                           style="text-decoration: none; color: inherit;">
+                            <div class="cy-photo-card-thumb">
+                                <img t-attf-src="/web/image/ir.attachment/#{att.id}/datas/300x300?crop=true"
+                                     t-att-alt="att.name" loading="lazy"/>
+                            </div>
+                            <div class="cy-photo-card-caption">
+                                <div class="cy-photo-card-name" style="font-size: 0.75rem;">
+                                    <t t-esc="att.name"/>
+                                </div>
+                            </div>
+                        </a>
+                        <t t-if="not is_locked">
+                            <form t-attf-action="#{delete_url_tpl % att.id}" method="post"
+                                  style="position: absolute; top: 4px; right: 4px; margin: 0;"
+                                  onsubmit="return confirm('確定刪除這張照片?');">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit"
+                                        style="background: rgba(0,0,0,0.6); color: #fff; border: none;
+                                               border-radius: 50%; width: 24px; height: 24px;
+                                               cursor: pointer; font-size: 0.75rem; line-height: 1;">
+                                    <i class="fa fa-times"/>
+                                </button>
+                            </form>
+                        </t>
+                    </div>
+                </t>
+            </div>
+        </t>
+        <t t-else="">
+            <div style="font-size: 0.85rem; color: var(--wb-t3); padding: 8px 0;">尚未上傳照片</div>
+        </t>
+
+        <t t-if="not is_locked">
+            <!-- 追加上傳區塊(可摺疊) -->
+            <div style="margin-top: 12px;">
+                <button type="button" class="cy-btn cy-btn-outline cy-btn-block"
+                        data-collapse-toggle="photos_add_block"
+                        style="font-size: 0.85rem;">
+                    <i class="fa fa-plus"/> 上傳照片
+                </button>
+            </div>
+            <div id="photos_add_block" style="display: none; margin-top: 10px;">
+                <form t-att-action="upload_url" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                    <div style="margin-bottom: 10px;">
+                        <input type="file" name="photos" accept="image/*" multiple="multiple"
+                               class="form-control" required="required"/>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <label class="form-label" style="font-size: 0.8rem;">說明(共用)</label>
+                        <input type="text" name="description" class="form-control" placeholder="這批照片的說明"/>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                        <div style="flex: 1;">
+                            <label class="form-label" style="font-size: 0.8rem;">分類</label>
+                            <select name="category" class="form-select">
+                                <option value="">--</option>
+                                <t t-foreach="photo_categories or []" t-as="opt">
+                                    <option t-att-value="opt[0]"><t t-esc="opt[1]"/></option>
+                                </t>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label class="form-label" style="font-size: 0.8rem;">拍攝地點</label>
+                            <input type="text" name="location_description" class="form-control" placeholder="位置說明"/>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                        <div style="flex: 1;">
+                            <label class="form-label" style="font-size: 0.8rem;">緯度</label>
+                            <input type="text" name="latitude" class="form-control cy-photos-lat"/>
+                        </div>
+                        <div style="flex: 1;">
+                            <label class="form-label" style="font-size: 0.8rem;">經度</label>
+                            <input type="text" name="longitude" class="form-control cy-photos-lng"/>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <button type="button" class="cy-btn cy-btn-outline"
+                                style="font-size: 0.8rem; padding: 6px 14px; min-height: 36px;"
+                                onclick="cyGetGeo(this);">
+                            <i class="fa fa-crosshairs"/> 抓取目前位置
+                        </button>
+                    </div>
+                    <button type="submit" class="cy-btn cy-btn-amber cy-btn-block">
+                        <i class="fa fa-upload"/> 上傳
+                    </button>
+                </form>
+            </div>
+        </t>
+    </template>
+
 </odoo>

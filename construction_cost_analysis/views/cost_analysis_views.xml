@@ -1,262 +1,208 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ====================================== -->
-    <!-- 成本分析報表 (cost.analysis.report)   -->
-    <!-- ====================================== -->
-
-    <!-- Tree View -->
-    <record id="view_cost_analysis_report_tree" model="ir.ui.view">
-        <field name="name">cost.analysis.report.tree</field>
-        <field name="model">cost.analysis.report</field>
+    <!-- ========================================== -->
+    <!-- Cost Analysis Line Tree View               -->
+    <!-- ========================================== -->
+    <record id="view_cost_analysis_line_tree" model="ir.ui.view">
+        <field name="name">cost.analysis.line.tree</field>
+        <field name="model">cost.analysis.line</field>
         <field name="arch" type="xml">
-            <list string="成本分析報表" create="false" edit="false" delete="false">
-                <field name="project_id"/>
+            <list string="成本分析明細"
+                  decoration-success="price_variance_level == 'excellent'"
+                  decoration-info="price_variance_level == 'good'"
+                  decoration-warning="price_variance_level == 'warning'"
+                  decoration-bf="price_variance_level == 'alert'"
+                  decoration-danger="price_variance_level == 'critical'">
+                <field name="sequence" widget="handle"/>
                 <field name="item_no"/>
-                <field name="item_name"/>
+                <field name="name"/>
                 <field name="unit"/>
-                <field name="company_id" optional="show"/>
-                <field name="contract_qty" sum="契約數量合計"/>
-                <field name="contract_price"/>
-                <field name="contract_amount" sum="契約金額合計"/>
-                <field name="actual_qty" sum="實際數量合計"/>
-                <field name="actual_amount" sum="實際金額合計"/>
-                <field name="qty_variance" sum="數量差異合計" optional="show"/>
-                <field name="amount_variance" sum="金額差異合計"/>
-                <field name="variance_rate" optional="show"
-                       decoration-danger="variance_rate > 0"
-                       decoration-success="variance_rate &lt; 0"/>
-                <field name="profit_loss" sum="損益合計"
-                       decoration-danger="profit_loss &lt; 0"
-                       decoration-success="profit_loss > 0"/>
-                <field name="profit_loss_rate"
-                       decoration-danger="profit_loss_rate &lt; 0"
-                       decoration-success="profit_loss_rate > 0"/>
+                <field name="quantity" sum="總數量"/>
+                <field name="contract_unit_price"/>
+                <field name="contract_amount" sum="契約總金額"/>
+                <field name="suggested_unit_price"/>
+                <field name="suggested_amount" sum="建議總金額"/>
+                <field name="price_variance_amount" sum="差異總額"/>
+                <field name="price_variance_pct"/>
+                <field name="price_variance_level" invisible="1"/>
+                <field name="has_suggestion"/>
+                <field name="is_summary_item"/>
             </list>
         </field>
     </record>
 
-    <!-- Pivot View -->
-    <record id="view_cost_analysis_report_pivot" model="ir.ui.view">
-        <field name="name">cost.analysis.report.pivot</field>
-        <field name="model">cost.analysis.report</field>
+    <!-- ========================================== -->
+    <!-- Cost Analysis List View                    -->
+    <!-- ========================================== -->
+    <record id="view_cost_analysis_tree" model="ir.ui.view">
+        <field name="name">cost.analysis.tree</field>
+        <field name="model">cost.analysis</field>
         <field name="arch" type="xml">
-            <pivot string="成本分析" display_quantity="true">
-                <field name="project_id" type="row"/>
-                <field name="company_id" type="row"/>
-                <field name="contract_amount" type="measure"/>
-                <field name="actual_amount" type="measure"/>
-                <field name="amount_variance" type="measure"/>
-                <field name="profit_loss" type="measure"/>
-            </pivot>
+            <list string="成本分析"
+                  decoration-muted="state == 'done'"
+                  decoration-success="state == 'confirmed'">
+                <field name="name"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="import_mode"/>
+                <field name="total_budget" sum="招標總計"/>
+                <field name="suggested_total" sum="建議總計"/>
+                <field name="variance_amount" sum="差異總計"/>
+                <field name="variance_percent"/>
+                <field name="line_count"/>
+                <field name="matched_line_count"/>
+                <field name="match_rate"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'confirmed'"
+                       decoration-muted="state == 'done'"/>
+            </list>
         </field>
     </record>
 
-    <!-- Graph View -->
-    <record id="view_cost_analysis_report_graph" model="ir.ui.view">
-        <field name="name">cost.analysis.report.graph</field>
-        <field name="model">cost.analysis.report</field>
+    <!-- ========================================== -->
+    <!-- Cost Analysis Form View                    -->
+    <!-- ========================================== -->
+    <record id="view_cost_analysis_form" model="ir.ui.view">
+        <field name="name">cost.analysis.form</field>
+        <field name="model">cost.analysis</field>
         <field name="arch" type="xml">
-            <graph string="成本分析圖表" type="bar" stacked="True">
-                <field name="project_id"/>
-                <field name="contract_amount" type="measure"/>
-                <field name="actual_amount" type="measure"/>
-            </graph>
+            <form string="成本分析">
+                <header>
+                    <button name="action_import_suggested_prices"
+                            string="導入價格庫"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_confirm"
+                            string="確認"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_done"
+                            string="完成"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'confirmed'"/>
+                    <button name="action_reset_to_draft"
+                            string="重設為草稿"
+                            type="object"
+                            invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="成本分析名稱..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="import_mode"/>
+                            <field name="source_project_id"
+                                   invisible="import_mode != 'project'"/>
+                            <field name="xml_filename"
+                                   invisible="import_mode != 'xml'"/>
+                        </group>
+                        <group>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="total_budget" widget="monetary"/>
+                            <field name="suggested_total" widget="monetary"/>
+                            <field name="variance_amount" widget="monetary"/>
+                            <field name="variance_percent"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group>
+                            <field name="line_count"/>
+                            <field name="matched_line_count"/>
+                        </group>
+                        <group>
+                            <field name="match_rate"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="預算明細" name="lines">
+                            <field name="line_ids" context="{'tree_view_ref': 'construction_cost_analysis.view_cost_analysis_line_tree'}">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="item_no"/>
+                                    <field name="name"/>
+                                    <field name="unit"/>
+                                    <field name="quantity"/>
+                                    <field name="contract_unit_price"/>
+                                    <field name="contract_amount"/>
+                                    <field name="library_item_id"
+                                           domain="[('company_id', '=', parent.company_id)]"/>
+                                    <field name="suggested_unit_price"/>
+                                    <field name="suggested_amount"/>
+                                    <field name="price_variance_pct"/>
+                                    <field name="has_suggestion"/>
+                                    <field name="is_summary_item"/>
+                                </list>
+                            </field>
+                        </page>
+                        <!-- 統計分析頁籤已移除 -->
+                    </notebook>
+                </sheet>
+                <chatter>
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </chatter>
+            </form>
         </field>
     </record>
 
-    <!-- Search View -->
-    <record id="view_cost_analysis_report_search" model="ir.ui.view">
-        <field name="name">cost.analysis.report.search</field>
-        <field name="model">cost.analysis.report</field>
+    <!-- ========================================== -->
+    <!-- Cost Analysis Search View                  -->
+    <!-- ========================================== -->
+    <record id="view_cost_analysis_search" model="ir.ui.view">
+        <field name="name">cost.analysis.search</field>
+        <field name="model">cost.analysis</field>
         <field name="arch" type="xml">
-            <search string="成本分析搜尋">
-                <field name="project_id"/>
-                <field name="item_no"/>
-                <field name="item_name"/>
-                <field name="company_id"/>
+            <search string="搜尋成本分析">
+                <field name="name"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <filter string="草稿" name="filter_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="已確認" name="filter_confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <filter string="已完成" name="filter_done" domain="[('state', '=', 'done')]"/>
                 <separator/>
-                <filter name="has_variance" string="有差異"
-                        domain="[('amount_variance', '!=', 0)]"/>
-                <filter name="over_budget" string="超出預算"
-                        domain="[('profit_loss', '&lt;', 0)]"/>
-                <filter name="under_budget" string="低於預算"
-                        domain="[('profit_loss', '>', 0)]"/>
-                <separator/>
-                <group expand="0" string="群組">
-                    <filter name="group_by_project" string="工程案件"
-                            context="{'group_by': 'project_id'}"/>
-                    <filter name="group_by_company" string="承包廠商"
-                            context="{'group_by': 'company_id'}"/>
+                <filter string="從專案匯入" name="filter_from_project" domain="[('import_mode', '=', 'project')]"/>
+                <filter string="從 XML 匯入" name="filter_from_xml" domain="[('import_mode', '=', 'xml')]"/>
+                <group expand="0" string="分組">
+                    <filter string="狀態" name="group_by_state" context="{'group_by': 'state'}"/>
+                    <filter string="匯入模式" name="group_by_import_mode" context="{'group_by': 'import_mode'}"/>
+                    <filter string="公司" name="group_by_company" context="{'group_by': 'company_id'}"
+                            groups="base.group_multi_company"/>
                 </group>
             </search>
         </field>
     </record>
 
-    <!-- Action -->
-    <record id="action_cost_analysis_report" model="ir.actions.act_window">
-        <field name="name">成本分析報表</field>
-        <field name="res_model">cost.analysis.report</field>
-        <field name="view_mode">list,pivot,graph</field>
-        <field name="search_view_id" ref="view_cost_analysis_report_search"/>
-        <field name="context">{'search_default_group_by_project': 1}</field>
+    <!-- ========================================== -->
+    <!-- Cost Analysis Action                       -->
+    <!-- ========================================== -->
+    <record id="action_cost_analysis" model="ir.actions.act_window">
+        <field name="name">成本分析</field>
+        <field name="res_model">cost.analysis</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_cost_analysis_search"/>
+        <field name="context">{
+            'search_default_group_by_company': True,
+        }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                成本分析報表
+                建立新的成本分析
             </p>
             <p>
-                此報表顯示各工項的契約金額與實際執行金額對比分析。
-            </p>
-        </field>
-    </record>
-
-
-    <!-- ====================================== -->
-    <!-- 成本分析摘要 (cost.analysis.summary)  -->
-    <!-- ====================================== -->
-
-    <!-- Tree View -->
-    <record id="view_cost_analysis_summary_tree" model="ir.ui.view">
-        <field name="name">cost.analysis.summary.tree</field>
-        <field name="model">cost.analysis.summary</field>
-        <field name="arch" type="xml">
-            <list string="成本分析摘要" create="false" edit="false" delete="false">
-                <field name="project_code"/>
-                <field name="project_name"/>
-                <field name="project_state" optional="show"/>
-                <field name="total_contract_amount" sum="契約總額合計"/>
-                <field name="total_change_amount" sum="變更總額合計" optional="show"/>
-                <field name="current_contract_amount" sum="現行契約合計"/>
-                <field name="total_actual_amount" sum="實際執行合計"/>
-                <field name="execution_rate"
-                       decoration-danger="execution_rate > 100"
-                       decoration-warning="execution_rate > 90 and execution_rate &lt;= 100"/>
-                <field name="total_estimate_amount" sum="估驗總額合計" optional="show"/>
-                <field name="estimate_rate" optional="show"/>
-                <field name="profit_loss" sum="損益合計"
-                       decoration-danger="profit_loss &lt; 0"
-                       decoration-success="profit_loss > 0"/>
-                <field name="profit_loss_rate"
-                       decoration-danger="profit_loss_rate &lt; 0"
-                       decoration-success="profit_loss_rate > 0"/>
-                <field name="task_count" optional="show"/>
-                <field name="completed_task_count" optional="show"/>
-            </list>
-        </field>
-    </record>
-
-    <!-- Form View (readonly) -->
-    <record id="view_cost_analysis_summary_form" model="ir.ui.view">
-        <field name="name">cost.analysis.summary.form</field>
-        <field name="model">cost.analysis.summary</field>
-        <field name="arch" type="xml">
-            <form string="成本分析摘要" create="false" edit="false" delete="false">
-                <sheet>
-                    <div class="oe_title">
-                        <h1>
-                            <field name="project_name" readonly="1"/>
-                        </h1>
-                        <h3>
-                            <field name="project_code" readonly="1"/>
-                        </h3>
-                    </div>
-                    <group>
-                        <group string="契約金額">
-                            <field name="total_contract_amount"/>
-                            <field name="total_change_amount"/>
-                            <field name="current_contract_amount"/>
-                        </group>
-                        <group string="執行狀況">
-                            <field name="total_actual_amount"/>
-                            <field name="execution_rate" widget="progressbar"/>
-                            <field name="total_estimate_amount"/>
-                            <field name="estimate_rate" widget="progressbar"/>
-                        </group>
-                    </group>
-                    <group>
-                        <group string="損益分析">
-                            <field name="profit_loss"
-                                   decoration-danger="profit_loss &lt; 0"
-                                   decoration-success="profit_loss > 0"/>
-                            <field name="profit_loss_rate"/>
-                        </group>
-                        <group string="工項統計">
-                            <field name="task_count"/>
-                            <field name="completed_task_count"/>
-                        </group>
-                    </group>
-                </sheet>
-            </form>
-        </field>
-    </record>
-
-    <!-- Pivot View -->
-    <record id="view_cost_analysis_summary_pivot" model="ir.ui.view">
-        <field name="name">cost.analysis.summary.pivot</field>
-        <field name="model">cost.analysis.summary</field>
-        <field name="arch" type="xml">
-            <pivot string="專案成本摘要">
-                <field name="project_name" type="row"/>
-                <field name="current_contract_amount" type="measure"/>
-                <field name="total_actual_amount" type="measure"/>
-                <field name="total_estimate_amount" type="measure"/>
-                <field name="profit_loss" type="measure"/>
-            </pivot>
-        </field>
-    </record>
-
-    <!-- Graph View -->
-    <record id="view_cost_analysis_summary_graph" model="ir.ui.view">
-        <field name="name">cost.analysis.summary.graph</field>
-        <field name="model">cost.analysis.summary</field>
-        <field name="arch" type="xml">
-            <graph string="專案成本對比" type="bar">
-                <field name="project_name"/>
-                <field name="current_contract_amount" type="measure"/>
-                <field name="total_actual_amount" type="measure"/>
-                <field name="profit_loss" type="measure"/>
-            </graph>
-        </field>
-    </record>
-
-    <!-- Search View -->
-    <record id="view_cost_analysis_summary_search" model="ir.ui.view">
-        <field name="name">cost.analysis.summary.search</field>
-        <field name="model">cost.analysis.summary</field>
-        <field name="arch" type="xml">
-            <search string="成本摘要搜尋">
-                <field name="project_name"/>
-                <field name="project_code"/>
-                <separator/>
-                <filter name="has_loss" string="有虧損"
-                        domain="[('profit_loss', '&lt;', 0)]"/>
-                <filter name="has_profit" string="有盈餘"
-                        domain="[('profit_loss', '>', 0)]"/>
-                <filter name="over_execution" string="超出執行"
-                        domain="[('execution_rate', '>', 100)]"/>
-                <separator/>
-                <filter name="state_construction" string="施工中"
-                        domain="[('project_state', '=', 'construction')]"/>
-                <filter name="state_completion" string="已竣工"
-                        domain="[('project_state', '=', 'completion')]"/>
-                <filter name="state_closed" string="已結案"
-                        domain="[('project_state', '=', 'closed')]"/>
-            </search>
-        </field>
-    </record>
-
-    <!-- Action -->
-    <record id="action_cost_analysis_summary" model="ir.actions.act_window">
-        <field name="name">成本分析摘要</field>
-        <field name="res_model">cost.analysis.summary</field>
-        <field name="view_mode">list,form,pivot,graph</field>
-        <field name="search_view_id" ref="view_cost_analysis_summary_search"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                成本分析摘要
-            </p>
-            <p>
-                此報表顯示各工程專案的成本摘要，包含契約金額、執行金額及損益分析。
+                成本分析可幫助您：<br/>
+                • 從既有專案或 XML 標單匯入工項<br/>
+                • 自動比對價格庫，計算差異百分比<br/>
+                • 5 級差異警示<br/>
+                • 計算總預算估價
             </p>
         </field>
     </record>

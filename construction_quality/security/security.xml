@@ -1,27 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data noupdate="0">
-
-        <!-- 品質管理模組安全群組 -->
-
-        <!-- 品質管理 - 使用者 -->
-        <record id="group_quality_user" model="res.groups">
-            <field name="name">品質管理 - 使用者</field>
-            <field name="category_id" ref="construction_supervision_base.module_category_construction_supervision"/>
-            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
-            <field name="comment">可建立與填寫自主檢查記錄、缺失改善記錄</field>
-        </record>
-
-        <!-- 品質管理 - 主管 -->
-        <record id="group_quality_manager" model="res.groups">
-            <field name="name">品質管理 - 主管</field>
-            <field name="category_id" ref="construction_supervision_base.module_category_construction_supervision"/>
-            <field name="implied_ids" eval="[(4, ref('group_quality_user'))]"/>
-            <field name="comment">可管理自主檢查類型、確認檢查結果、結案缺失</field>
-        </record>
-
-    </data>
-
     <data noupdate="1">
 
         <!-- Record Rules -->

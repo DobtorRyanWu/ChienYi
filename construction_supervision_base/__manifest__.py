@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 核心基礎模組',
-    'version': '18.0.1.0.0',
+    'version': '18.0.4.0.0',  # UI 調整：移除未用頁籤/按鈕、新增編號前綴初始化步驟、放大 UI
     'category': 'Construction/Supervision',
     'summary': '工程監造與施工協作管理系統核心模組',
     'description': """
@@ -34,21 +34,36 @@
         'hr_timesheet',
         'contacts',
         'mail',
+        'resource',
     ],
     'data': [
         # Security
+        # 注意：必須先建立群組，才能載入 ir.model.access.csv
         'security/security.xml',
+        'security/portal_groups.xml',  # 包含 group_operator 定義
+        'security/new_portal_groups.xml',  # 新架構：4 個權限等級 + 2 個組織類型
         'security/ir.model.access.csv',
         # Data
         'data/ir_sequence_data.xml',
+        'data/document_category_data.xml',
+        # Wizard
+        'wizard/tender_import_wizard_views.xml',
+        'wizard/document_replace_attachment_wizard_views.xml',
         # Views
         'views/res_company_views.xml',
+        'views/res_users_views.xml',  # 新架構：組織身分欄位
         'views/supervision_project_views.xml',
         'views/project_task_views.xml',
         'views/supervision_document_views.xml',
         'views/menu.xml',
+        'views/supervision_document_category_views.xml',
         'views/hide_official_menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'construction_supervision_base/static/src/css/backend.css',
+        ],
+    },
     'demo': [],
     'installable': True,
     'application': True,

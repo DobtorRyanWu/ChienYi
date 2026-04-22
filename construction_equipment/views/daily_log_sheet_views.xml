@@ -5,82 +5,39 @@
     <!-- 施工日誌表單擴展      -->
     <!-- ==================== -->
 
-    <!-- Extend Daily Log Sheet Form to include Man Machine Records -->
-    <record id="view_daily_log_sheet_form_inherit_equipment" model="ir.ui.view">
-        <field name="name">daily.log.sheet.form.inherit.equipment</field>
+    <!-- 擴展施工日誌表單，加入人機使用頁籤 -->
+    <record id="view_daily_log_sheet_form_inherit_man_machine" model="ir.ui.view">
+        <field name="name">daily.log.sheet.form.inherit.man.machine</field>
         <field name="model">daily.log.sheet</field>
         <field name="inherit_id" ref="construction_daily_log.daily_log_sheet_view_form"/>
         <field name="arch" type="xml">
-            <!-- Add Man Machine tab in notebook -->
-            <xpath expr="//notebook" position="inside">
-                <page string="人機記錄" name="man_machine">
-                    <group>
-                        <group>
-                            <field name="man_machine_personnel_count" readonly="1"/>
-                            <field name="man_machine_total_man_hours" readonly="1"/>
-                        </group>
-                        <group>
-                            <field name="man_machine_equipment_count" readonly="1"/>
-                            <field name="man_machine_total_equipment_hours" readonly="1"/>
-                        </group>
-                    </group>
-                    <field name="man_machine_ids"
-                           context="{'default_daily_log_id': id, 'default_project_id': project_id}">
+            <!-- 在 notebook 中加入人機使用頁籤 -->
+            <xpath expr="//page[@name='material_management']" position="after">
+                <page string="人機使用" name="man_machine_usage">
+                    <!-- 直接內嵌 List View -->
+                    <field name="man_machine_detail_ids">
                         <list editable="bottom">
                             <field name="sequence" widget="handle"/>
-                            <field name="record_type"/>
-                            <field name="personnel_type"
-                                   invisible="record_type != 'personnel'"
-                                   required="record_type == 'personnel'"/>
-                            <field name="personnel_count"
-                                   invisible="record_type != 'personnel'"
-                                   sum="總人數"/>
-                            <field name="work_hours"
-                                   invisible="record_type != 'personnel'"/>
-                            <field name="total_man_hours"
-                                   invisible="record_type != 'personnel'"
-                                   sum="總人時"
-                                   readonly="1"/>
-                            <field name="equipment_id"
-                                   invisible="record_type != 'equipment'"
-                                   domain="[('project_id', '=', parent.project_id)]"
-                                   context="{'default_project_id': parent.project_id}"/>
-                            <field name="equipment_name"
-                                   invisible="record_type != 'equipment' or equipment_id"
-                                   required="record_type == 'equipment' and not equipment_id"/>
-                            <field name="equipment_capacity"
-                                   invisible="record_type != 'equipment'"
-                                   optional="hide"/>
-                            <field name="equipment_count"
-                                   invisible="record_type != 'equipment'"
-                                   sum="總數量"/>
-                            <field name="equipment_hours"
-                                   invisible="record_type != 'equipment'"
-                                   sum="總時數"/>
-                            <field name="total_equipment_hours"
-                                   invisible="record_type != 'equipment'"
-                                   sum="總機時"
-                                   readonly="1"/>
-                            <field name="operator_name"
-                                   invisible="record_type != 'equipment'"
-                                   optional="hide"/>
+                            <field name="personnel_type_id" required="1"/>
+                            <field name="record_type" column_invisible="1"/>
+                            <field name="quantity"/>
+                            <field name="hours" required="1"/>
+                            <field name="employee_name" optional="show"/>
+                            <field name="specific_equipment_name" optional="show"/>
                             <field name="note" optional="hide"/>
                         </list>
                     </field>
+                    <!-- 統計資訊 -->
+                    <group>
+                        <group>
+                            <label for="total_man_machine_hours"/>
+                            <div class="o_row">
+                                <field name="total_man_machine_hours" readonly="1"/>
+                                <span>小時</span>
+                            </div>
+                        </group>
+                    </group>
                 </page>
-            </xpath>
-        </field>
-    </record>
-
-    <!-- Extend Daily Log Sheet List to show Man Machine counts -->
-    <record id="view_daily_log_sheet_list_inherit_equipment" model="ir.ui.view">
-        <field name="name">daily.log.sheet.list.inherit.equipment</field>
-        <field name="model">daily.log.sheet</field>
-        <field name="inherit_id" ref="construction_daily_log.daily_log_sheet_view_list"/>
-        <field name="arch" type="xml">
-            <xpath expr="//field[@name='state']" position="before">
-                <field name="man_machine_personnel_count" optional="show" string="人員數"/>
-                <field name="man_machine_equipment_count" optional="show" string="機具數"/>
             </xpath>
         </field>
     </record>

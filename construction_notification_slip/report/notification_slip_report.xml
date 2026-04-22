@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 通報單 PDF 報表模板 -->
+
+    <!-- 紙張格式：A4 縱向 -->
+    <record id="paperformat_notification_slip" model="report.paperformat">
+        <field name="name">通報單列印格式</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="page_height">0</field>
+        <field name="page_width">0</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">15</field>
+        <field name="margin_bottom">15</field>
+        <field name="margin_left">10</field>
+        <field name="margin_right">10</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">5</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- 報表動作定義 -->
+    <record id="action_report_notification_slip" model="ir.actions.report">
+        <field name="name">通報單</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">construction_notification_slip.report_notification_slip</field>
+        <field name="report_file">construction_notification_slip.report_notification_slip</field>
+        <field name="print_report_name">'通報單_%s_%s' % (object.slip_number or '', object.location or '')</field>
+        <field name="binding_model_id" ref="model_reservation_notification_slip"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_notification_slip"/>
+    </record>
+
+    <!-- QWeb 報表模板 -->
+    <template id="report_notification_slip">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="slip">
+                <t t-call="construction_notification_slip.report_notification_slip_document"/>
+            </t>
+        </t>
+    </template>
+
+    <!-- 單一通報單文件模板 -->
+    <template id="report_notification_slip_document">
+        <t t-call="web.external_layout">
+            <div class="page" style="font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif; font-size: 11pt;">
+
+                <!-- ===== 標題區 ===== -->
+                <div class="text-center mb-4">
+                    <h2 style="font-weight: bold; margin-bottom: 5px;">
+                        <t t-esc="slip.project_id.company_id.name or '監造單位'"/>
+                    </h2>
+                    <h3 style="font-weight: bold; border-bottom: 2px solid #333; padding-bottom: 10px;">
+                        預約式工程通報單
+                    </h3>
+                </div>
+
+                <!-- ===== 基本資訊區 ===== -->
+                <table class="table table-sm table-bordered" style="margin-bottom: 15px;">
+                    <tbody>
+                        <tr>
+                            <td style="width: 15%; background-color: #f5f5f5; font-weight: bold;">通報單編號</td>
+                            <td style="width: 35%;"><t t-esc="slip.slip_number"/></td>
+                            <td style="width: 15%; background-color: #f5f5f5; font-weight: bold;">通報次數</td>
+                            <td style="width: 35%;">第 <t t-esc="slip.slip_no"/> 次</td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">工程名稱</td>
+                            <td colspan="3"><t t-esc="slip.project_id.name"/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">發包機關</td>
+                            <td><t t-esc="slip.project_id.authority_id.name or '-'"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">監造單位</td>
+                            <td><t t-esc="slip.project_id.company_id.name or '-'"/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">工程地點</td>
+                            <td colspan="3">
+                                <t t-esc="slip.location"/>
+                                <t t-if="slip.location_detail">
+                                    <br/><small class="text-muted"><t t-esc="slip.location_detail"/></small>
+                                </t>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">會勘日期</td>
+                            <td><t t-esc="slip.survey_date" t-options='{"widget": "date"}'/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">編製人員</td>
+                            <td><t t-esc="slip.compiler_id.name or '-'"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- ===== 工期資訊區 ===== -->
+                <h5 style="font-weight: bold; border-left: 4px solid #007bff; padding-left: 10px; margin: 20px 0 10px 0;">
+                    工期資訊
+                </h5>
+                <table class="table table-sm table-bordered" style="margin-bottom: 15px;">
+                    <thead style="background-color: #e9ecef;">
+                        <tr>
+                            <th style="width: 25%; text-align: center;">項目</th>
+                            <th style="width: 25%; text-align: center;">開工日期</th>
+                            <th style="width: 25%; text-align: center;">完工日期</th>
+                            <th style="width: 25%; text-align: center;">工期（天）</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold; text-align: center;">預定</td>
+                            <td style="text-align: center;">
+                                <t t-esc="slip.planned_start_date" t-options='{"widget": "date"}'/>
+                            </td>
+                            <td style="text-align: center;">
+                                <t t-esc="slip.planned_end_date" t-options='{"widget": "date"}'/>
+                            </td>
+                            <td style="text-align: center;">
+                                <t t-esc="slip.planned_duration or '-'"/> 天
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold; text-align: center;">實際</td>
+                            <td style="text-align: center;">
+                                <t t-if="slip.actual_start_date">
+                                    <t t-esc="slip.actual_start_date" t-options='{"widget": "date"}'/>
+                                </t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td style="text-align: center;">
+                                <t t-if="slip.actual_end_date">
+                                    <t t-esc="slip.actual_end_date" t-options='{"widget": "date"}'/>
+                                </t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td style="text-align: center;">
+                                <t t-if="slip.actual_duration">
+                                    <t t-esc="slip.actual_duration"/> 天
+                                    <t t-if="slip.overdue_days and slip.overdue_days > 0">
+                                        <span style="color: red;">（逾期 <t t-esc="slip.overdue_days"/> 天）</span>
+                                    </t>
+                                </t>
+                                <t t-else="">-</t>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- ===== 預算資訊區 ===== -->
+                <h5 style="font-weight: bold; border-left: 4px solid #28a745; padding-left: 10px; margin: 20px 0 10px 0;">
+                    預算與結算
+                </h5>
+                <table class="table table-sm table-bordered" style="margin-bottom: 15px;">
+                    <tbody>
+                        <tr>
+                            <td style="width: 25%; background-color: #f5f5f5; font-weight: bold;">預估金額</td>
+                            <td style="width: 25%; text-align: right;">
+                                NT$ <t t-esc="'{:,.0f}'.format(slip.estimated_amount or 0)"/>
+                            </td>
+                            <td style="width: 25%; background-color: #f5f5f5; font-weight: bold;">結算金額</td>
+                            <td style="width: 25%; text-align: right;">
+                                NT$ <t t-esc="'{:,.0f}'.format(slip.settlement_amount or 0)"/>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">預算差異</td>
+                            <td style="text-align: right;">
+                                <t t-set="variance" t-value="slip.budget_variance or 0"/>
+                                <span t-attf-style="color: #{variance >= 0 and '#28a745' or '#dc3545'};">
+                                    NT$ <t t-esc="'{:+,.0f}'.format(variance)"/>
+                                </span>
+                            </td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">差異率</td>
+                            <td style="text-align: right;">
+                                <t t-set="rate" t-value="slip.budget_variance_rate or 0"/>
+                                <span t-attf-style="color: #{rate >= 0 and '#28a745' or '#dc3545'};">
+                                    <t t-esc="'{:+.2f}'.format(rate)"/> %
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- ===== 設計概述區 ===== -->
+                <t t-if="slip.design_summary">
+                    <h5 style="font-weight: bold; border-left: 4px solid #17a2b8; padding-left: 10px; margin: 20px 0 10px 0;">
+                        設計概述
+                    </h5>
+                    <div style="border: 1px solid #dee2e6; padding: 10px; background-color: #fafafa; margin-bottom: 15px; white-space: pre-wrap;">
+                        <t t-esc="slip.design_summary"/>
+                    </div>
+                </t>
+
+                <!-- ===== 完工概述區 ===== -->
+                <t t-if="slip.completion_summary">
+                    <h5 style="font-weight: bold; border-left: 4px solid #ffc107; padding-left: 10px; margin: 20px 0 10px 0;">
+                        完工概述
+                    </h5>
+                    <div style="border: 1px solid #dee2e6; padding: 10px; background-color: #fafafa; margin-bottom: 15px; white-space: pre-wrap;">
+                        <t t-esc="slip.completion_summary"/>
+                    </div>
+                </t>
+
+                <!-- ===== 工項明細表 ===== -->
+                <h5 style="font-weight: bold; border-left: 4px solid #6c757d; padding-left: 10px; margin: 20px 0 10px 0;">
+                    工項明細表（共 <t t-esc="len(slip.detail_line_ids)"/> 項）
+                </h5>
+                <table class="table table-sm table-bordered" style="font-size: 9pt;">
+                    <thead style="background-color: #343a40; color: white;">
+                        <tr>
+                            <th style="width: 6%; text-align: center;">項次</th>
+                            <th style="width: 22%; text-align: center;">項目說明</th>
+                            <th style="width: 8%; text-align: center;">單位</th>
+                            <th style="width: 10%; text-align: center;">單價</th>
+                            <th style="width: 9%; text-align: center;">預估數量</th>
+                            <th style="width: 12%; text-align: center;">預估金額</th>
+                            <th style="width: 9%; text-align: center;">實際數量</th>
+                            <th style="width: 12%; text-align: center;">實際金額</th>
+                            <th style="width: 12%; text-align: center;">完成率</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="slip.detail_line_ids" t-as="line">
+                            <tr>
+                                <td style="text-align: center;"><t t-esc="line.item_no"/></td>
+                                <td>
+                                    <t t-esc="line.description"/>
+                                    <t t-if="line.specification">
+                                        <br/><small class="text-muted"><t t-esc="line.specification"/></small>
+                                    </t>
+                                </td>
+                                <td style="text-align: center;"><t t-esc="line.unit"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.unit_price or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.planned_qty or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.planned_amount or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.actual_qty or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.actual_amount or 0)"/></td>
+                                <td style="text-align: center;">
+                                    <t t-set="completion" t-value="line.completion_rate or 0"/>
+                                    <span t-attf-style="color: #{completion >= 100 and '#28a745' or (completion >= 50 and '#ffc107' or '#dc3545')};">
+                                        <t t-esc="'{:.1f}'.format(completion)"/> %
+                                    </span>
+                                </td>
+                            </tr>
+                        </t>
+                        <!-- 合計列 -->
+                        <tr style="background-color: #e9ecef; font-weight: bold;">
+                            <td colspan="5" style="text-align: right;">合計</td>
+                            <td style="text-align: right;">
+                                NT$ <t t-esc="'{:,.0f}'.format(slip.estimated_amount or 0)"/>
+                            </td>
+                            <td style="text-align: right;"></td>
+                            <td style="text-align: right;">
+                                NT$ <t t-esc="'{:,.0f}'.format(slip.settlement_amount or 0)"/>
+                            </td>
+                            <td style="text-align: center;">
+                                <t t-set="overall_rate" t-value="(slip.settlement_amount / slip.estimated_amount * 100) if slip.estimated_amount else 0"/>
+                                <t t-esc="'{:.1f}'.format(overall_rate)"/> %
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- ===== 備註區 ===== -->
+                <t t-if="slip.notes">
+                    <h5 style="font-weight: bold; border-left: 4px solid #6c757d; padding-left: 10px; margin: 20px 0 10px 0;">
+                        備註說明
+                    </h5>
+                    <div style="border: 1px solid #dee2e6; padding: 10px; background-color: #fafafa; margin-bottom: 15px;">
+                        <t t-raw="slip.notes"/>
+                    </div>
+                </t>
+
+                <!-- ===== 簽核區 ===== -->
+                <div style="margin-top: 40px; page-break-inside: avoid;">
+                    <table class="table table-bordered" style="margin-bottom: 0;">
+                        <tbody>
+                            <tr style="height: 80px;">
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 10px;">
+                                    <div style="font-weight: bold; margin-bottom: 5px;">承包商</div>
+                                    <div style="font-size: 9pt; color: #666;">簽章：</div>
+                                    <div style="font-size: 9pt; color: #666; margin-top: 40px;">日期：</div>
+                                </td>
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 10px;">
+                                    <div style="font-weight: bold; margin-bottom: 5px;">監造確認</div>
+                                    <div style="font-size: 9pt; color: #666;">簽章：</div>
+                                    <div style="font-size: 9pt; color: #666; margin-top: 40px;">日期：</div>
+                                </td>
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 10px;">
+                                    <div style="font-weight: bold; margin-bottom: 5px;">核准</div>
+                                    <div style="font-size: 9pt; color: #666;">簽章：</div>
+                                    <div style="font-size: 9pt; color: #666; margin-top: 40px;">日期：</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ===== 頁尾資訊 ===== -->
+                <div style="margin-top: 20px; font-size: 9pt; color: #666; text-align: center;">
+                    列印日期：<t t-esc="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M')"/>
+                    &#160;&#160;|&#160;&#160;
+                    狀態：<t t-esc="dict(slip._fields['state'].selection).get(slip.state, slip.state)"/>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+</odoo>

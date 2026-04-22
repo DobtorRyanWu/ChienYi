@@ -1,263 +1,424 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- 照片列表 - 手機友善版 -->
-    <template id="portal_construction_photos" name="Construction Photos List">
-        <t t-call="portal.portal_layout">
-            <!-- 成功訊息 -->
-            <t t-if="request.params.get('message') == 'uploaded'">
-                <div class="alert alert-success py-3 text-center" role="alert">
-                    <i class="fa fa-check-circle fa-2x mb-2 d-block"/>
-                    <span class="fs-5 fw-bold">照片已成功上傳！</span>
+    <!-- ============================================
+         照片列表 /my/construction/<pid>/photos
+         ============================================ -->
+    <template id="portal_construction_photos" name="Construction Photos">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <span class="cy-breadcrumb-item active">照片中心</span>
                 </div>
-            </t>
 
-            <!-- 返回按鈕 -->
-            <div class="mb-3">
-                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-secondary">
-                    <i class="fa fa-arrow-left me-1"/> 返回工程
-                </a>
-            </div>
-
-            <!-- 頁面標題 -->
-            <div class="mb-4">
-                <h3 class="mb-1">工程照片</h3>
-                <p class="text-muted mb-0" t-out="project.name"/>
-            </div>
-
-            <!-- 上傳按鈕 -->
-            <div class="mb-4">
-                <a t-attf-href="/my/construction/#{project.id}/photo/upload"
-                   class="btn btn-info btn-lg w-100 py-3 text-white">
-                    <i class="fa fa-camera me-2"/> 拍照上傳
-                </a>
-            </div>
-
-            <t t-if="not photos">
-                <div class="alert alert-info py-4 text-center" role="alert">
-                    <i class="fa fa-images fa-2x mb-2 d-block"/>
-                    <span class="fs-5">尚無照片</span>
-                    <p class="text-muted mt-2 mb-0">點擊上方按鈕上傳第一張照片</p>
-                </div>
-            </t>
-
-            <t t-if="photos">
-                <!-- 照片網格 -->
-                <div class="photo-grid">
-                    <t t-foreach="photos" t-as="photo">
-                        <div class="photo-item">
-                            <a t-attf-href="/my/construction/photo/#{photo.id}">
-                                <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image?width=300&amp;height=300&amp;crop=true"
-                                     t-att-alt="photo.name or '工程照片'"/>
+                <div class="cy-content">
+                    <!-- 標題 + 地圖 + 上傳 -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <div>
+                            <h4 style="font-weight: 700; margin: 0;">照片中心</h4>
+                            <div style="font-size: 0.8rem; color: var(--wb-t2); margin-top: 2px;">
+                                <t t-if="project.year">民國 <t t-esc="project.year"/> 年 · </t>
+                                <t t-esc="project.name"/>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <a t-attf-href="/my/construction/#{project.id}/photos/map"
+                               class="cy-btn cy-btn-outline" style="font-size: 0.85rem; padding: 8px 14px;">
+                                <i class="fa fa-map-marker"/> 地圖
+                            </a>
+                            <a t-attf-href="/my/construction/#{project.id}/photo/upload"
+                               class="cy-btn cy-btn-primary" style="font-size: 0.85rem; padding: 8px 16px;">
+                                <i class="fa fa-upload"/> 上傳
                             </a>
                         </div>
-                    </t>
-                </div>
-            </t>
-
-            <!-- 分頁 -->
-            <div class="d-flex justify-content-center mt-4">
-                <t t-call="portal.pager"/>
-            </div>
-
-            <!-- 底部返回 -->
-            <div class="mt-4">
-                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-secondary w-100 btn-lg">
-                    <i class="fa fa-arrow-left me-2"/> 返回工程案件
-                </a>
-            </div>
-        </t>
-    </template>
-
-    <!-- 照片上傳表單 - 手機友善版 -->
-    <template id="portal_construction_photo_upload" name="Upload Construction Photo">
-        <t t-call="portal.portal_layout">
-            <!-- 錯誤訊息 -->
-            <t t-if="request.params.get('error') == 'no_file'">
-                <div class="alert alert-danger py-3 text-center" role="alert">
-                    <i class="fa fa-exclamation-circle fa-2x mb-2 d-block"/>
-                    <span class="fs-5">請選擇要上傳的照片</span>
-                </div>
-            </t>
-
-            <!-- 返回按鈕 -->
-            <div class="mb-3">
-                <a t-attf-href="/my/construction/#{project.id}/photos" class="btn btn-outline-secondary">
-                    <i class="fa fa-arrow-left me-1"/> 返回照片
-                </a>
-            </div>
-
-            <!-- 頁面標題 -->
-            <div class="mb-4">
-                <h3 class="mb-1">
-                    <i class="fa fa-camera text-info me-2"/>
-                    上傳照片
-                </h3>
-                <p class="text-muted mb-0" t-out="project.name"/>
-            </div>
-
-            <form action="/my/construction/photo/upload" method="post" enctype="multipart/form-data">
-                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-                <input type="hidden" name="project_id" t-att-value="project.id"/>
-
-                <!-- 照片選擇 - 大按鈕樣式 -->
-                <div class="mb-4">
-                    <label for="photo" class="form-label fw-bold fs-5">
-                        選擇照片 <span class="text-danger">*</span>
-                    </label>
-                    <div class="upload-area border border-2 border-dashed rounded-3 p-4 text-center bg-light">
-                        <input type="file" name="photo" id="photo"
-                               class="form-control form-control-lg"
-                               accept="image/*"
-                               capture="environment"
-                               required="required"
-                               style="font-size: 16px;"/>
-                        <p class="text-muted mt-2 mb-0">
-                            <i class="fa fa-info-circle me-1"/>
-                            可直接使用相機拍照
-                        </p>
-                    </div>
-                </div>
-
-                <!-- 圖片預覽 -->
-                <div class="mb-4" id="preview-container" style="display: none;">
-                    <label class="form-label fw-bold">預覽</label>
-                    <div class="text-center">
-                        <img id="image-preview" class="img-fluid rounded shadow" style="max-height: 300px;"/>
-                    </div>
-                </div>
-
-                <!-- 拍攝日期 -->
-                <div class="mb-4">
-                    <label for="photo_date" class="form-label fw-bold fs-5">
-                        拍攝日期
-                    </label>
-                    <input type="date" name="photo_date" id="photo_date"
-                           class="form-control form-control-lg"
-                           t-att-value="datetime.date.today().isoformat()"/>
-                </div>
-
-                <!-- 照片說明 -->
-                <div class="mb-4">
-                    <label for="description" class="form-label fw-bold fs-5">
-                        照片說明
-                    </label>
-                    <textarea name="description" id="description"
-                              class="form-control form-control-lg"
-                              rows="3"
-                              placeholder="簡單描述照片內容（選填）"></textarea>
-                </div>
-
-                <!-- 提交按鈕 -->
-                <div class="d-grid gap-3 mt-4">
-                    <button type="submit" class="btn btn-info btn-lg py-3 text-white">
-                        <i class="fa fa-cloud-upload-alt me-2"/> 上傳照片
-                    </button>
-                    <a t-attf-href="/my/construction/#{project.id}/photos" class="btn btn-secondary btn-lg">
-                        取消
-                    </a>
-                </div>
-            </form>
-
-            <!-- 圖片預覽 JavaScript -->
-            <script>
-                document.getElementById('photo').addEventListener('change', function(e) {
-                    var file = e.target.files[0];
-                    if (file) {
-                        var reader = new FileReader();
-                        reader.onload = function(e) {
-                            document.getElementById('image-preview').src = e.target.result;
-                            document.getElementById('preview-container').style.display = 'block';
-                        }
-                        reader.readAsDataURL(file);
-                    }
-                });
-            </script>
-        </t>
-    </template>
-
-    <!-- 照片詳情 - 手機友善版 -->
-    <template id="portal_construction_photo_detail" name="Construction Photo Detail">
-        <t t-call="portal.portal_layout">
-            <!-- 返回按鈕 -->
-            <div class="mb-3">
-                <a t-attf-href="/my/construction/#{project.id}/photos" class="btn btn-outline-secondary">
-                    <i class="fa fa-arrow-left me-1"/> 返回照片
-                </a>
-            </div>
-
-            <!-- 照片顯示 -->
-            <div class="card mb-4">
-                <div class="card-body p-0">
-                    <img t-attf-src="/web/image/supervision.photo/#{photo.id}/image"
-                         class="img-fluid w-100"
-                         t-att-alt="photo.name or '工程照片'"/>
-                </div>
-            </div>
-
-            <!-- 照片資訊 -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">照片資訊</h5>
-                </div>
-                <div class="card-body">
-                    <!-- 照片說明 -->
-                    <t t-if="photo.name">
-                        <div class="mb-3">
-                            <small class="text-muted d-block">照片說明</small>
-                            <p class="mb-0 fs-5" t-out="photo.name"/>
-                        </div>
-                    </t>
-
-                    <div class="row g-3">
-                        <div class="col-6" t-if="photo.shot_date">
-                            <small class="text-muted d-block">拍攝日期</small>
-                            <strong t-out="photo.shot_date"/>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted d-block">上傳時間</small>
-                            <strong t-out="photo.create_date" t-options='{"widget": "date"}'/>
-                        </div>
                     </div>
 
-                    <!-- Portal 上傳標示 -->
-                    <t t-if="photo.portal_uploader_id">
-                        <div class="border-top pt-3 mt-3">
-                            <small class="text-muted d-block">上傳者</small>
-                            <span class="badge bg-info me-1">Portal</span>
-                            <strong t-out="photo.portal_uploader_id.name"/>
-                        </div>
-                    </t>
-
-                    <!-- 照片標籤 -->
-                    <t t-if="photo.tag_ids">
-                        <div class="border-top pt-3 mt-3">
-                            <small class="text-muted d-block mb-2">照片標籤</small>
-                            <div>
-                                <t t-foreach="photo.tag_ids" t-as="tag">
-                                    <span class="badge bg-secondary me-1 mb-1" t-out="tag.name"/>
-                                </t>
+                    <!-- 成功訊息 -->
+                    <t t-if="request.params.get('message') == 'uploaded'">
+                        <div class="cy-event-card cy-event-info" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-green);"><i class="fa fa-check-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title" style="color: var(--wb-green);">
+                                    <t t-if="request.params.get('count')">
+                                        已上傳 <t t-esc="request.params.get('count')"/> 張照片
+                                    </t>
+                                    <t t-else="">照片上傳成功</t>
+                                </div>
                             </div>
                         </div>
                     </t>
+
+                    <!-- 篩選面板（可摺疊）-->
+                    <div class="cy-section-title" style="cursor: pointer; margin-top: 0;" data-collapse-toggle="photo_filter_panel">
+                        <span>
+                            <i class="fa fa-filter" style="margin-right: 4px;"/>篩選
+                            <t t-if="source_filter or category_filter">
+                                <span class="cy-badge" style="background: var(--wb-blue); color: #fff; margin-left: 6px;">已篩選</span>
+                            </t>
+                        </span>
+                        <i class="fa fa-chevron-down" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                    </div>
+                    <div id="photo_filter_panel" t-att-style="(source_filter or category_filter) and '' or 'display: none;'">
+                        <div class="cy-card" style="margin-bottom: 12px;">
+                            <div class="cy-card-body">
+                                <!-- 來源篩選 -->
+                                <div style="margin-bottom: 10px;">
+                                    <div style="font-size: 0.8rem; font-weight: 600; color: var(--wb-t3); margin-bottom: 4px;">來源</div>
+                                    <div class="cy-filter-pills">
+                                        <a t-attf-href="/my/construction/#{project.id}/photos#{category_filter and '?category=' + category_filter or ''}"
+                                           t-attf-class="cy-filter-pill #{not source_filter and 'active' or ''}">全部</a>
+                                        <t t-foreach="source_options" t-as="opt">
+                                            <a t-attf-href="/my/construction/#{project.id}/photos?source=#{opt[0]}#{category_filter and '&amp;category=' + category_filter or ''}"
+                                               t-attf-class="cy-filter-pill #{source_filter == opt[0] and 'active' or ''}">
+                                                <t t-esc="opt[1]"/>
+                                            </a>
+                                        </t>
+                                    </div>
+                                </div>
+                                <!-- 分類篩選 -->
+                                <div>
+                                    <div style="font-size: 0.8rem; font-weight: 600; color: var(--wb-t3); margin-bottom: 4px;">分類</div>
+                                    <div class="cy-filter-pills">
+                                        <a t-attf-href="/my/construction/#{project.id}/photos#{source_filter and '?source=' + source_filter or ''}"
+                                           t-attf-class="cy-filter-pill #{not category_filter and 'active' or ''}">全部</a>
+                                        <t t-foreach="category_options" t-as="opt">
+                                            <a t-attf-href="/my/construction/#{project.id}/photos?category=#{opt[0]}#{source_filter and '&amp;source=' + source_filter or ''}"
+                                               t-attf-class="cy-filter-pill #{category_filter == opt[0] and 'active' or ''}">
+                                                <t t-esc="opt[1]"/>
+                                            </a>
+                                        </t>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <t t-if="not photos">
+                        <div class="cy-empty">
+                            <i class="fa fa-camera"/>
+                            <div class="cy-empty-text">尚無照片</div>
+                        </div>
+                    </t>
+
+                    <!-- 按日期分群顯示 -->
+                    <t t-foreach="date_groups" t-as="dg">
+                        <div style="font-size: 0.85rem; font-weight: 700; color: var(--wb-t2); margin: 14px 0 8px; padding-left: 2px;">
+                            <t t-if="dg['date']"><t t-esc="dg['date']"/></t>
+                            <t t-else="">未知日期</t>
+                            <span style="color: var(--wb-t3); font-weight: 400; margin-left: 6px;">
+                                (<t t-esc="len(dg['photos'])"/> 張)
+                            </span>
+                        </div>
+                        <div class="cy-photo-grid">
+                            <t t-foreach="dg['photos']" t-as="photo">
+                                <a t-attf-href="/my/construction/photo/#{photo.id}" class="cy-photo-card-with-info" style="text-decoration: none; color: inherit;">
+                                    <div class="cy-photo-card-thumb">
+                                        <img t-attf-src="/web/image/ir.attachment/#{photo.attachment_id.id}/datas/300x300?crop=true"
+                                             t-att-alt="photo.description or 'photo'" loading="lazy"/>
+                                    </div>
+                                    <div class="cy-photo-card-caption">
+                                        <div class="cy-photo-card-name"><t t-esc="photo.description or photo.image_filename or 'photo'"/></div>
+                                        <div style="font-size: 0.7rem; color: var(--wb-t3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                            <t t-if="project.year">民國<t t-esc="project.year"/>年 · </t>
+                                            <t t-esc="project.name"/>
+                                        </div>
+                                        <div class="cy-photo-card-loc" t-if="photo.location_description">📍 <t t-esc="photo.location_description"/></div>
+                                    </div>
+                                </a>
+                            </t>
+                        </div>
+                    </t>
+
+                    <!-- 分頁 -->
+                    <div class="d-flex justify-content-center mt-3">
+                        <t t-call="portal.pager"/>
+                    </div>
                 </div>
-            </div>
 
-            <!-- 下載按鈕 -->
-            <div class="mb-4">
-                <a t-attf-href="/web/content/#{photo.attachment_id.id}?download=true"
-                   class="btn btn-primary btn-lg w-100">
-                    <i class="fa fa-download me-2"/> 下載原圖
-                </a>
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
             </div>
+        </t>
+    </template>
 
-            <!-- 底部按鈕 -->
-            <div class="d-grid gap-3">
-                <a t-attf-href="/my/construction/#{project.id}/photos" class="btn btn-secondary btn-lg">
-                    <i class="fa fa-arrow-left me-2"/> 返回照片列表
-                </a>
-                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-primary btn-lg">
-                    返回工程案件
-                </a>
+    <!-- ============================================
+         照片詳情 /my/construction/photo/<phid>
+         ============================================ -->
+    <template id="portal_construction_photo_detail" name="Photo Detail">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/photos" class="cy-breadcrumb-item">照片</a>
+                    <span class="cy-breadcrumb-item active">詳情</span>
+                </div>
+
+                <div class="cy-content">
+                    <!-- 照片大圖 -->
+                    <div style="border-radius: var(--wb-radius); overflow: hidden; margin-bottom: 14px; background: var(--wb-bg3);">
+                        <img t-attf-src="/web/image/ir.attachment/#{photo.attachment_id.id}/datas"
+                             style="width: 100%; display: block;"
+                             t-att-alt="photo.description or 'photo'"/>
+                    </div>
+
+                    <!-- 說明 -->
+                    <t t-if="photo.description">
+                        <div style="font-size: 0.95rem; font-weight: 600; margin-bottom: 12px;">
+                            <t t-esc="photo.description"/>
+                        </div>
+                    </t>
+
+                    <!-- 基本資訊 -->
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">工程案件</span>
+                            <span class="cy-info-value" style="font-weight: 600;"><t t-esc="project.name"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="project.year">
+                            <span class="cy-info-label">年度</span>
+                            <span class="cy-info-value">民國 <t t-esc="project.year"/> 年</span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.shot_at">
+                            <span class="cy-info-label">拍攝時間</span>
+                            <span class="cy-info-value"><t t-esc="photo.shot_at"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.category">
+                            <span class="cy-info-label">材料分類</span>
+                            <span class="cy-info-value">
+                                <t t-esc="dict(photo._fields['category'].selection).get(photo.category, photo.category)"/>
+                            </span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.construction_phase">
+                            <span class="cy-info-label">施工階段</span>
+                            <span class="cy-info-value">
+                                <t t-esc="dict(photo._fields['construction_phase'].selection).get(photo.construction_phase, photo.construction_phase)"/>
+                            </span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.source_model">
+                            <span class="cy-info-label">來源</span>
+                            <span class="cy-info-value">
+                                <t t-esc="dict(photo._fields['source_model'].selection).get(photo.source_model, photo.source_model)"/>
+                            </span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.location_description">
+                            <span class="cy-info-label">拍攝地點</span>
+                            <span class="cy-info-value"><t t-esc="photo.location_description"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.latitude">
+                            <span class="cy-info-label">GPS</span>
+                            <span class="cy-info-value" style="font-size: 0.8rem;">
+                                <t t-esc="photo.latitude"/>, <t t-esc="photo.longitude"/>
+                            </span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.creator_id">
+                            <span class="cy-info-label">上傳者</span>
+                            <span class="cy-info-value"><t t-esc="photo.creator_id.name"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.upload_date">
+                            <span class="cy-info-label">上傳時間</span>
+                            <span class="cy-info-value"><t t-esc="photo.upload_date"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="photo.image_filename">
+                            <span class="cy-info-label">檔案名稱</span>
+                            <span class="cy-info-value" style="font-size: 0.8rem;"><t t-esc="photo.image_filename"/></span>
+                        </div>
+                    </div>
+
+                    <!-- 下載原圖 -->
+                    <div style="margin-top: 16px;">
+                        <a t-attf-href="/web/content/ir.attachment/#{photo.attachment_id.id}/datas/#{photo.image_filename}?download=true"
+                           class="cy-btn cy-btn-outline cy-btn-block">
+                            <i class="fa fa-download"/> 下載原圖
+                        </a>
+                    </div>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         照片上傳 /my/construction/<pid>/photo/upload
+         ============================================ -->
+    <template id="portal_construction_photo_upload" name="Photo Upload">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/photos" class="cy-breadcrumb-item">照片</a>
+                    <span class="cy-breadcrumb-item active">上傳</span>
+                </div>
+
+                <div class="cy-content">
+                    <h4 style="font-weight: 700; margin-bottom: 16px;">上傳照片</h4>
+
+                    <!-- 錯誤訊息 -->
+                    <t t-if="request.params.get('error') == 'no_file'">
+                        <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-exclamation-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title" style="color: var(--wb-red);">請選擇照片檔案</div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <form id="batch_upload_form" onsubmit="return false;">
+                        <input type="hidden" name="project_id" t-att-value="project.id"/>
+
+                        <!-- 照片選擇區 -->
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.9rem; font-weight: 600;">
+                                選擇照片 <span style="color: var(--wb-red);">*</span>
+                            </label>
+
+                            <!-- 隱藏的 file inputs -->
+                            <input type="file" accept="image/*" capture="environment"
+                                   id="photo_camera_input" style="display: none;"/>
+                            <input type="file" accept="image/*" multiple="multiple"
+                                   id="photo_gallery_input" style="display: none;"/>
+
+                            <!-- 雙模式按鈕 -->
+                            <div class="batch-input-actions">
+                                <button type="button" class="cy-btn cy-btn-outline" id="btn_camera"
+                                        style="flex: 1; text-align: center;">
+                                    <i class="fa fa-camera"/> 拍照
+                                </button>
+                                <button type="button" class="cy-btn cy-btn-outline" id="btn_gallery"
+                                        style="flex: 1; text-align: center;">
+                                    <i class="fa fa-images"/> 從相簿選擇
+                                </button>
+                            </div>
+
+                            <!-- 已選擇計數 -->
+                            <div id="photo_batch_count" style="display: none; margin-bottom: 8px; font-size: 0.85rem; color: var(--wb-t2);">
+                                已選擇 <span id="batch_count_num" style="font-weight: 700; color: var(--wb-blue);">0</span> 張照片
+                                <span style="color: var(--wb-t3);">（上限 50 張）</span>
+                            </div>
+
+                            <!-- 縮圖網格 -->
+                            <div id="photo_batch_grid" class="batch-photo-grid"></div>
+
+                            <!-- 空狀態 -->
+                            <div id="photo_batch_empty" class="batch-empty-state">
+                                <i class="fa fa-image" style="font-size: 2rem; color: var(--wb-t3); margin-bottom: 8px;"/>
+                                <div style="color: var(--wb-t3); font-size: 0.85rem;">點擊上方按鈕選擇照片</div>
+                            </div>
+                        </div>
+
+                        <!-- 說明 -->
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.85rem;">照片說明（共用）</label>
+                            <textarea name="description" class="form-control" placeholder="所有照片共用此說明..."></textarea>
+                        </div>
+
+                        <!-- 分類 + 階段 -->
+                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem;">材料分類</label>
+                                <select name="category" class="form-select">
+                                    <option value="">-- 選擇 --</option>
+                                    <t t-foreach="category_options" t-as="opt">
+                                        <option t-att-value="opt[0]"><t t-esc="opt[1]"/></option>
+                                    </t>
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem;">施工階段</label>
+                                <select name="construction_phase" class="form-select">
+                                    <option value="">-- 選擇 --</option>
+                                    <t t-foreach="phase_options" t-as="opt">
+                                        <option t-att-value="opt[0]"><t t-esc="opt[1]"/></option>
+                                    </t>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 來源 -->
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.85rem;">來源分類</label>
+                            <select name="source_model" class="form-select">
+                                <option value="">-- 選擇 --</option>
+                                <t t-foreach="source_options" t-as="opt">
+                                    <option t-att-value="opt[0]"><t t-esc="opt[1]"/></option>
+                                </t>
+                            </select>
+                        </div>
+
+                        <!-- 地點 + GPS -->
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.85rem;">拍攝地點（選填）</label>
+                            <input type="text" name="location_description" class="form-control"
+                                   placeholder="拍攝位置說明"/>
+                        </div>
+
+                        <div style="display: flex; gap: 12px; margin-bottom: 8px;">
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem;">緯度（選填）</label>
+                                <input type="text" name="latitude" id="photo_latitude" class="form-control"
+                                       placeholder="25.0330"/>
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem;">經度（選填）</label>
+                                <input type="text" name="longitude" id="photo_longitude" class="form-control"
+                                       placeholder="121.5654"/>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 16px;">
+                            <button type="button" class="cy-btn cy-btn-outline"
+                                    style="font-size: 0.8rem; padding: 6px 14px; min-height: 36px;"
+                                    id="btn_get_gps">
+                                <i class="fa fa-crosshairs"/> 抓取目前位置
+                            </button>
+                            <span id="gps_status" style="font-size: 0.8rem; color: var(--wb-t3); margin-left: 8px;">未定位也可直接上傳</span>
+                        </div>
+
+                        <!-- 拍攝日期 -->
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.85rem;">拍攝日期</label>
+                            <input type="date" name="photo_date" class="form-control"/>
+                        </div>
+
+                        <!-- 批次上傳按鈕 -->
+                        <div style="margin-top: 20px; margin-bottom: 20px;">
+                            <button type="button" id="btn_batch_upload" class="cy-btn cy-btn-amber cy-btn-block"
+                                    style="font-size: 1.1rem;" disabled="disabled">
+                                <i class="fa fa-upload"/> 上傳 <span id="upload_btn_count">0</span> 張照片
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- 上傳進度覆蓋層 -->
+                    <div id="upload_progress_overlay" class="upload-progress-overlay" style="display: none;">
+                        <div class="upload-progress-card">
+                            <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">
+                                <i class="fa fa-cloud-upload-alt"/> 上傳中...
+                            </div>
+                            <div class="upload-progress-bar-bg">
+                                <div id="upload_progress_bar" class="upload-progress-bar"></div>
+                            </div>
+                            <div id="upload_progress_text" style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 8px;">
+                                0 / 0
+                            </div>
+                            <div id="upload_progress_file" style="font-size: 0.8rem; color: var(--wb-t3); margin-top: 4px;">
+                                準備中...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
             </div>
         </t>
     </template>

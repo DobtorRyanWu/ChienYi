@@ -102,8 +102,10 @@
                     <group>
                         <group string="工程資訊">
                             <field name="project_id"/>
-                            <field name="task_id"/>
+                            <field name="record_type" invisible="1"/>
                             <field name="company_id" invisible="1"/>
+                            <!-- 編輯模式才顯示 -->
+                            <field name="name" readonly="1" invisible="not id"/>
                         </group>
                         <group string="缺失分類">
                             <field name="source_type"/>
@@ -111,7 +113,8 @@
                                    invisible="source_type != 'self_inspection'"/>
                             <field name="check_type"/>
                             <field name="defect_category"/>
-                            <field name="severity"/>
+                            <!-- 編輯模式才顯示 -->
+                            <field name="severity" invisible="not id"/>
                         </group>
                     </group>
                     <group>
@@ -122,23 +125,36 @@
                         </group>
                         <group string="改善責任">
                             <field name="improvement_unit"/>
-                            <field name="responsible_company_id"/>
                             <field name="responsible_user_id"/>
+                            <!-- 編輯模式才顯示 -->
+                            <field name="responsible_company_id" invisible="not id"/>
                         </group>
                     </group>
                     <group>
                         <group string="日期">
                             <field name="notification_date"/>
                             <field name="deadline"/>
-                            <field name="improvement_date" readonly="1"/>
-                            <field name="closure_date" readonly="1"/>
+                            <!-- 編輯模式才顯示 -->
+                            <field name="improvement_date" readonly="1" invisible="not id"/>
+                            <field name="closure_date" readonly="1" invisible="not id"/>
                         </group>
-                        <group string="逾期狀態">
+                        <!-- 編輯模式才顯示整個區塊 -->
+                        <group string="逾期與罰款狀態" invisible="not id">
                             <field name="is_overdue"/>
                             <field name="overdue_days"/>
+                            <field name="is_fined"/>
+                            <field name="fine_amount" invisible="not is_fined"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <!-- 罰款說明（編輯模式且已罰款時顯示） -->
+                    <group invisible="not id or not is_fined">
+                        <group string="罰款說明">
+                            <field name="fine_note" nolabel="1"/>
                         </group>
                     </group>
                     <notebook>
+                        <!-- 缺失內容 -->
                         <page string="缺失內容" name="defect">
                             <group>
                                 <field name="defect_location"/>
@@ -146,11 +162,14 @@
                             <group string="缺失說明">
                                 <field name="defect_description" nolabel="1"/>
                             </group>
-                            <group string="缺失原因">
+                            <!-- 編輯模式才顯示原因 -->
+                            <group string="缺失原因" invisible="not id">
                                 <field name="defect_cause" nolabel="1"/>
                             </group>
                         </page>
-                        <page string="改善內容" name="improvement">
+
+                        <!-- 改善內容（僅編輯模式） -->
+                        <page string="改善內容" name="improvement" invisible="not id">
                             <group string="矯正措施">
                                 <field name="improvement_action" nolabel="1"/>
                             </group>
@@ -161,7 +180,157 @@
                                 <field name="improvement_result" nolabel="1"/>
                             </group>
                         </page>
-                        <page string="驗證結案" name="verification">
+
+                        <!-- 照片附件 -->
+                        <page string="照片附件" name="attachments">
+                            <!-- 新增模式: 僅矯正前 -->
+                            <group invisible="id">
+                                <group string="缺失照片">
+                                    <field name="before_photo_ids" nolabel="1" context="{'default_photo_stage': 'before'}">
+                                        <kanban>
+                                            <field name="image"/>
+                                            <field name="image_filename"/>
+                                            <field name="upload_time"/>
+                                            <field name="description"/>
+                                            <templates>
+                                                <t t-name="card">
+                                                    <div class="oe_kanban_global_click">
+                                                        <div class="o_kanban_image">
+                                                            <img t-att-src="kanban_image('general.defect.improvement.photo', 'image', record.id.raw_value)" alt="Photo" style="max-width: 150px; max-height: 150px;"/>
+                                                        </div>
+                                                        <div class="oe_kanban_details">
+                                                            <strong><field name="image_filename"/></strong>
+                                                            <div><field name="upload_time"/></div>
+                                                            <div><field name="description"/></div>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </templates>
+                                        </kanban>
+                                        <form>
+                                            <group>
+                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
+                                                <field name="image_filename"/>
+                                                <field name="upload_time"/>
+                                                <field name="description"/>
+                                                <field name="photo_stage" invisible="1"/>
+                                            </group>
+                                        </form>
+                                    </field>
+                                </group>
+                            </group>
+
+                            <!-- 編輯模式: 三階段 -->
+                            <group invisible="not id">
+                                <group string="矯正及預防前">
+                                    <field name="before_photo_ids" nolabel="1" context="{'default_photo_stage': 'before'}">
+                                        <kanban>
+                                            <field name="image"/>
+                                            <field name="image_filename"/>
+                                            <field name="upload_time"/>
+                                            <field name="description"/>
+                                            <templates>
+                                                <t t-name="card">
+                                                    <div class="oe_kanban_global_click">
+                                                        <div class="o_kanban_image">
+                                                            <img t-att-src="kanban_image('general.defect.improvement.photo', 'image', record.id.raw_value)" alt="Photo" style="max-width: 150px; max-height: 150px;"/>
+                                                        </div>
+                                                        <div class="oe_kanban_details">
+                                                            <strong><field name="image_filename"/></strong>
+                                                            <div><field name="upload_time"/></div>
+                                                            <div><field name="description"/></div>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </templates>
+                                        </kanban>
+                                        <form>
+                                            <group>
+                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
+                                                <field name="image_filename"/>
+                                                <field name="upload_time"/>
+                                                <field name="description"/>
+                                                <field name="photo_stage" invisible="1"/>
+                                            </group>
+                                        </form>
+                                    </field>
+                                </group>
+                                <group string="矯正及預防中">
+                                    <field name="during_photo_ids" nolabel="1" context="{'default_photo_stage': 'during'}">
+                                        <kanban>
+                                            <field name="image"/>
+                                            <field name="image_filename"/>
+                                            <field name="upload_time"/>
+                                            <field name="description"/>
+                                            <templates>
+                                                <t t-name="card">
+                                                    <div class="oe_kanban_global_click">
+                                                        <div class="o_kanban_image">
+                                                            <img t-att-src="kanban_image('general.defect.improvement.photo', 'image', record.id.raw_value)" alt="Photo" style="max-width: 150px; max-height: 150px;"/>
+                                                        </div>
+                                                        <div class="oe_kanban_details">
+                                                            <strong><field name="image_filename"/></strong>
+                                                            <div><field name="upload_time"/></div>
+                                                            <div><field name="description"/></div>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </templates>
+                                        </kanban>
+                                        <form>
+                                            <group>
+                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
+                                                <field name="image_filename"/>
+                                                <field name="upload_time"/>
+                                                <field name="description"/>
+                                                <field name="photo_stage" invisible="1"/>
+                                            </group>
+                                        </form>
+                                    </field>
+                                </group>
+                                <group string="矯正及預防後">
+                                    <field name="after_photo_ids" nolabel="1" context="{'default_photo_stage': 'after'}">
+                                        <kanban>
+                                            <field name="image"/>
+                                            <field name="image_filename"/>
+                                            <field name="upload_time"/>
+                                            <field name="description"/>
+                                            <templates>
+                                                <t t-name="card">
+                                                    <div class="oe_kanban_global_click">
+                                                        <div class="o_kanban_image">
+                                                            <img t-att-src="kanban_image('general.defect.improvement.photo', 'image', record.id.raw_value)" alt="Photo" style="max-width: 150px; max-height: 150px;"/>
+                                                        </div>
+                                                        <div class="oe_kanban_details">
+                                                            <strong><field name="image_filename"/></strong>
+                                                            <div><field name="upload_time"/></div>
+                                                            <div><field name="description"/></div>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </templates>
+                                        </kanban>
+                                        <form>
+                                            <group>
+                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
+                                                <field name="image_filename"/>
+                                                <field name="upload_time"/>
+                                                <field name="description"/>
+                                                <field name="photo_stage" invisible="1"/>
+                                            </group>
+                                        </form>
+                                    </field>
+                                </group>
+                            </group>
+
+                            <!-- 其他附件 -->
+                            <group string="相關文件附件">
+                                <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+                            </group>
+                        </page>
+
+                        <!-- 驗證結案（僅編輯模式） -->
+                        <page string="驗證結案" name="verification" invisible="not id">
                             <group>
                                 <group string="驗證資訊">
                                     <field name="verifier_id"/>
@@ -180,20 +349,8 @@
                                 <field name="close_comment" nolabel="1"/>
                             </group>
                         </page>
-                        <page string="照片附件" name="attachments">
-                            <group>
-                                <group string="缺失照片">
-                                    <field name="defect_photo_ids" widget="many2many_binary" nolabel="1"/>
-                                </group>
-                                <group string="改善後照片">
-                                    <field name="improvement_photo_ids" widget="many2many_binary" nolabel="1"/>
-                                </group>
-                            </group>
-                            <group string="相關附件">
-                                <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
-                            </group>
-                        </page>
-                        <page string="關聯與備註" name="relations">
+                        <!-- 關聯與備註（僅編輯模式） -->
+                        <page string="關聯與備註" name="relations" invisible="not id">
                             <group>
                                 <group string="關聯單據">
                                     <field name="self_inspection_id"/>
@@ -203,6 +360,29 @@
                             </group>
                             <group string="備註">
                                 <field name="note" nolabel="1"/>
+                            </group>
+                        </page>
+
+                        <!-- 編號資訊（除錯用） -->
+                        <page string="編號資訊" name="number_info">
+                            <group>
+                                <group>
+                                    <field name="sequence_number"/>
+                                    <field name="found_date"/>
+                                    <field name="check_type"/>
+                                    <field name="record_type" readonly="1"/>
+                                </group>
+                                <group>
+                                    <div class="alert alert-info" role="alert">
+                                        <strong>📌 說明</strong>：<br/>
+                                        • 記錄類型由進入的選單自動決定<br/>
+                                        • 從「監造缺失改善」進入 = 監造<br/>
+                                        • 從「營造缺失改善」進入 = 營造<br/>
+                                        <br/>
+                                        <strong>⚠️ 注意</strong>：修改序號後編號會自動重新計算。<br/>
+                                        請確保不會與其他記錄產生衝突。
+                                    </div>
+                                </group>
                             </group>
                         </page>
                     </notebook>
@@ -250,6 +430,11 @@
                 <filter string="嚴重缺失" name="critical"
                         domain="[('severity', '=', 'critical')]"/>
                 <separator/>
+                <filter string="監造記錄" name="supervision"
+                        domain="[('record_type', '=', 'supervision')]"/>
+                <filter string="營造記錄" name="contractor"
+                        domain="[('record_type', '=', 'contractor')]"/>
+                <separator/>
                 <filter string="本月發現" name="this_month"
                         domain="[('found_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
                 <separator/>
@@ -264,6 +449,8 @@
                             context="{'group_by': 'responsible_company_id'}"/>
                     <filter string="狀態" name="group_state"
                             context="{'group_by': 'state'}"/>
+                    <filter string="記錄類型" name="group_record_type"
+                            context="{'group_by': 'record_type'}"/>
                     <filter string="發現日期" name="group_date"
                             context="{'group_by': 'found_date:month'}"/>
                 </group>
@@ -312,13 +499,93 @@
         </field>
     </record>
 
-    <!-- 一般式缺失改善 Action -->
+    <!-- 監造缺失改善 -->
+    <record id="action_general_defect_improvement_supervision" model="ir.actions.act_window">
+        <field name="name">一般式監造缺失改善</field>
+        <field name="res_model">general.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_general_defect_improvement_search"/>
+        <field name="domain">[('record_type', '=', 'supervision')]</field>
+        <field name="context">{
+            'default_record_type': 'supervision',
+            'search_default_group_project': 1
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆監造缺失改善記錄
+            </p>
+            <p>
+                記錄監造單位發現的缺失及其改善情況。
+            </p>
+        </field>
+    </record>
+
+    <!-- 營造缺失改善 -->
+    <record id="action_general_defect_improvement_contractor" model="ir.actions.act_window">
+        <field name="name">一般式營造缺失改善</field>
+        <field name="res_model">general.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_general_defect_improvement_search"/>
+        <field name="domain">[('record_type', '=', 'contractor')]</field>
+        <field name="context">{
+            'default_record_type': 'contractor',
+            'search_default_group_project': 1
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆營造缺失改善記錄
+            </p>
+            <p>
+                記錄營造廠商發現的缺失及其改善情況。
+            </p>
+        </field>
+    </record>
+
+    <!-- 監造逾期缺失 -->
+    <record id="action_general_defect_improvement_supervision_overdue" model="ir.actions.act_window">
+        <field name="name">一般式監造逾期缺失</field>
+        <field name="res_model">general.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_general_defect_improvement_search"/>
+        <field name="domain">[
+            ('record_type', '=', 'supervision'),
+            ('is_overdue', '=', True),
+            ('state', 'not in', ('verified', 'closed'))
+        ]</field>
+        <field name="context">{'default_record_type': 'supervision'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有逾期的監造缺失改善
+            </p>
+        </field>
+    </record>
+
+    <!-- 營造逾期缺失 -->
+    <record id="action_general_defect_improvement_contractor_overdue" model="ir.actions.act_window">
+        <field name="name">一般式營造逾期缺失</field>
+        <field name="res_model">general.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_general_defect_improvement_search"/>
+        <field name="domain">[
+            ('record_type', '=', 'contractor'),
+            ('is_overdue', '=', True),
+            ('state', 'not in', ('verified', 'closed'))
+        ]</field>
+        <field name="context">{'default_record_type': 'contractor'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有逾期的營造缺失改善
+            </p>
+        </field>
+    </record>
+
+    <!-- 一般式缺失改善 Action (保留舊的通用 action，向後兼容) -->
     <record id="action_general_defect_improvement" model="ir.actions.act_window">
         <field name="name">一般式缺失改善</field>
         <field name="res_model">general.defect.improvement</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="search_view_id" ref="view_general_defect_improvement_search"/>
-        <field name="context">{'search_default_pending': 1}</field>
+        <field name="context">{'search_default_group_project': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一筆缺失改善記錄
@@ -329,7 +596,7 @@
         </field>
     </record>
 
-    <!-- 逾期缺失 Action -->
+    <!-- 逾期缺失 Action (保留舊的通用 action，向後兼容) -->
     <record id="action_general_defect_improvement_overdue" model="ir.actions.act_window">
         <field name="name">逾期缺失</field>
         <field name="res_model">general.defect.improvement</field>

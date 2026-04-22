@@ -51,19 +51,19 @@
                             type="object"
                             class="btn-success"
                             invisible="state != 'submitted'"
-                            groups="construction_supervision_base.group_supervision_manager"/>
+                            groups="base.group_user"/>
                     <button name="action_reject"
                             string="退回"
                             type="object"
                             class="btn-danger"
                             invisible="state != 'submitted'"
-                            groups="construction_supervision_base.group_supervision_manager"/>
+                            groups="base.group_user"/>
                     <button name="action_mark_paid"
                             string="標記已付款"
                             type="object"
                             class="btn-primary"
                             invisible="state != 'approved'"
-                            groups="construction_supervision_base.group_supervision_manager"/>
+                            groups="base.group_user"/>
                     <button name="action_cancel"
                             string="取消"
                             type="object"

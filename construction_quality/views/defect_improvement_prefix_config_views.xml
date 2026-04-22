@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- List View -->
+    <record id="view_defect_improvement_prefix_config_tree" model="ir.ui.view">
+        <field name="name">defect.improvement.prefix.config.tree</field>
+        <field name="model">defect.improvement.prefix.config</field>
+        <field name="arch" type="xml">
+            <list string="編號前綴設定" create="1" edit="1" delete="1">
+                <field name="project_id"/>
+                <field name="supervision_prefix"/>
+                <field name="contractor_prefix"/>
+                <field name="note"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_defect_improvement_prefix_config_form" model="ir.ui.view">
+        <field name="name">defect.improvement.prefix.config.form</field>
+        <field name="model">defect.improvement.prefix.config</field>
+        <field name="arch" type="xml">
+            <form string="編號前綴設定">
+                <sheet>
+                    <group>
+                        <group string="工程資訊">
+                            <field name="project_id" options="{'no_create': True}"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="編號前綴">
+                            <field name="supervision_prefix"/>
+                            <field name="contractor_prefix"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <field name="note" placeholder="輸入備註說明..."/>
+                    </group>
+
+                    <notebook>
+                        <page string="編號格式說明" name="format_info">
+                            <group>
+                                <div class="alert alert-info" role="alert" style="margin: 20px;">
+                                    <h4><strong>📋 編號格式說明</strong></h4>
+                                    <p>編號將自動生成為：<strong>前綴-檢查類型首字+民國年月日_序號</strong></p>
+
+                                    <h5 style="margin-top: 15px;"><strong>範例：</strong>ABC-施1120724_1</h5>
+                                    <ul style="margin-top: 10px; line-height: 1.8;">
+                                        <li><strong>ABC</strong> = 編號前綴（監造或營造）</li>
+                                        <li><strong>施</strong> = 施工檢查（安 = 安衛及環境清潔檢查）</li>
+                                        <li><strong>1120724</strong> = 民國112年07月24日</li>
+                                        <li><strong>_1</strong> = 當天第1筆（可手動修改序號）</li>
+                                    </ul>
+
+                                    <h5 style="margin-top: 15px;"><strong>注意事項：</strong></h5>
+                                    <ul style="line-height: 1.8;">
+                                        <li>前綴限制10個字元以內</li>
+                                        <li>只能包含中文、英文字母和數字</li>
+                                        <li>每個工程只能有一組前綴設定</li>
+                                        <li>監造和營造使用不同的前綴</li>
+                                    </ul>
+                                </div>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_defect_improvement_prefix_config_search" model="ir.ui.view">
+        <field name="name">defect.improvement.prefix.config.search</field>
+        <field name="model">defect.improvement.prefix.config</field>
+        <field name="arch" type="xml">
+            <search string="搜尋編號前綴">
+                <field name="project_id"/>
+                <field name="supervision_prefix"/>
+                <field name="contractor_prefix"/>
+                <separator/>
+                <filter string="依工程分組" name="group_project"
+                        context="{'group_by': 'project_id'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_defect_improvement_prefix_config" model="ir.actions.act_window">
+        <field name="name">編號前綴設定</field>
+        <field name="res_model">defect.improvement.prefix.config</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_defect_improvement_prefix_config_search"/>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆編號前綴設定
+            </p>
+            <p>
+                為工程設定缺失改善的編號前綴，分為監造和營造兩種類型。
+            </p>
+        </field>
+    </record>
+</odoo>

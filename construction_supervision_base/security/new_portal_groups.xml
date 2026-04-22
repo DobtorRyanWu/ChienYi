@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- ============================================== -->
+        <!-- 新架構：權限等級群組（4 個，hierarchical）      -->
+        <!-- ============================================== -->
+
+        <!-- 觀看者（最底層，所有 Portal 用戶的基礎） -->
+        <record id="group_portal_viewer" model="res.groups">
+            <field name="name">Portal - 觀看者</field>
+            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="comment">唯讀角色，所有功能僅可查看</field>
+        </record>
+
+        <!-- 一般使用者（繼承觀看者） -->
+        <record id="group_portal_user" model="res.groups">
+            <field name="name">Portal - 一般使用者</field>
+            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="implied_ids" eval="[(4, ref('group_portal_viewer'))]"/>
+            <field name="comment">現場工程師，大部分功能可修改</field>
+        </record>
+
+        <!-- 專案負責人（繼承一般使用者） -->
+        <record id="group_portal_leader" model="res.groups">
+            <field name="name">Portal - 專案負責人</field>
+            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="implied_ids" eval="[(4, ref('group_portal_user'))]"/>
+            <field name="comment">專案主管，除專案管理、成本分析外可修改其他功能</field>
+        </record>
+
+        <!-- 訂閱者（最高層，繼承專案負責人） -->
+        <record id="group_portal_subscriber" model="res.groups">
+            <field name="name">Portal - 訂閱者（公司負責人）</field>
+            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="implied_ids" eval="[(4, ref('group_portal_leader'))]"/>
+            <field name="comment">公司負責人，擁有最高權限，可管理專案與人員</field>
+        </record>
+
+        <!-- ============================================== -->
+        <!-- 新架構：組織類型群組（2 個，non-hierarchical） -->
+        <!-- ============================================== -->
+
+        <!-- 監造組織標識（內部使用，不顯示在用戶表單中） -->
+        <record id="group_supervision_org" model="res.groups">
+            <field name="name">Portal - 監造組織</field>
+            <!-- category_id 已移除，使群組不顯示在用戶表單中 -->
+            <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="comment">監造方組織標識，用於缺失改善等需要組織區分的功能（由 res.users.is_supervision_org 欄位自動控制）</field>
+        </record>
+
+        <!-- 營造組織標識（內部使用，不顯示在用戶表單中） -->
+        <record id="group_contractor_org" model="res.groups">
+            <field name="name">Portal - 營造組織</field>
+            <!-- category_id 已移除，使群組不顯示在用戶表單中 -->
+            <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="comment">營造方組織標識，用於缺失改善等需要組織區分的功能（由 res.users.is_contractor_org 欄位自動控制）</field>
+        </record>
+
+    </data>
+</odoo>

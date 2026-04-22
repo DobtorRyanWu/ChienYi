@@ -20,145 +20,145 @@ class DailyLogWeather(models.Model):
     # === Relationship ===
     sheet_id = fields.Many2one(
         'daily.log.sheet',
-        string='Daily Log Sheet',
+        string='施工日誌表單',
         required=True,
         ondelete='cascade',
         index=True,
     )
     project_id = fields.Many2one(
         related='sheet_id.project_id',
-        string='Project',
+        string='專案',
         store=True,
         readonly=True,
     )
     company_id = fields.Many2one(
         related='sheet_id.company_id',
-        string='Company',
+        string='公司',
         store=True,
         readonly=True,
     )
 
     # === Date ===
     date = fields.Date(
-        string='Date',
+        string='日期',
         required=True,
         index=True,
     )
     day_week = fields.Selection([
-        ('0', 'Monday'),
-        ('1', 'Tuesday'),
-        ('2', 'Wednesday'),
-        ('3', 'Thursday'),
-        ('4', 'Friday'),
-        ('5', 'Saturday'),
-        ('6', 'Sunday'),
-    ], string='Day of Week', compute='_compute_day_week', store=True)
+        ('0', '星期一'),
+        ('1', '星期二'),
+        ('2', '星期三'),
+        ('3', '星期四'),
+        ('4', '星期五'),
+        ('5', '星期六'),
+        ('6', '星期日'),
+    ], string='星期', compute='_compute_day_week', store=True)
 
     # === Weather Conditions ===
     weather_am = fields.Selection([
-        ('sunny', 'Sunny'),
-        ('cloudy', 'Cloudy'),
-        ('overcast', 'Overcast'),
-        ('rainy', 'Rainy'),
-        ('heavy_rain', 'Heavy Rain'),
-        ('typhoon', 'Typhoon'),
-        ('foggy', 'Foggy'),
-    ], string='Morning Weather')
+        ('sunny', '晴'),
+        ('cloudy', '多雲'),
+        ('overcast', '陰'),
+        ('rainy', '雨'),
+        ('heavy_rain', '大雨'),
+        ('typhoon', '颱風'),
+        ('foggy', '霧'),
+    ], string='上午天氣')
     weather_pm = fields.Selection([
-        ('sunny', 'Sunny'),
-        ('cloudy', 'Cloudy'),
-        ('overcast', 'Overcast'),
-        ('rainy', 'Rainy'),
-        ('heavy_rain', 'Heavy Rain'),
-        ('typhoon', 'Typhoon'),
-        ('foggy', 'Foggy'),
-    ], string='Afternoon Weather')
+        ('sunny', '晴'),
+        ('cloudy', '多雲'),
+        ('overcast', '陰'),
+        ('rainy', '雨'),
+        ('heavy_rain', '大雨'),
+        ('typhoon', '颱風'),
+        ('foggy', '霧'),
+    ], string='下午天氣')
 
     # === Temperature ===
     temperature_high = fields.Float(
-        string='High Temperature',
+        string='最高溫度',
         digits=(4, 1),
-        help='Highest temperature in Celsius',
+        help='最高溫度(攝氏)',
     )
     temperature_low = fields.Float(
-        string='Low Temperature',
+        string='最低溫度',
         digits=(4, 1),
-        help='Lowest temperature in Celsius',
+        help='最低溫度(攝氏)',
     )
 
     # === Work Status ===
     is_workday = fields.Boolean(
-        string='Is Workday',
+        string='是否施工',
         default=True,
-        help='Whether work was performed on this day',
+        help='這一天是否進行施工',
     )
     work_stopped_reason = fields.Selection([
-        ('rain', 'Rain'),
-        ('typhoon', 'Typhoon'),
-        ('holiday', 'Holiday'),
-        ('material', 'Material Shortage'),
-        ('other', 'Other'),
-    ], string='Work Stop Reason', help='Reason if work was stopped')
+        ('rain', '下雨'),
+        ('typhoon', '颱風'),
+        ('holiday', '休假'),
+        ('material', '材料短缺'),
+        ('other', '其他'),
+    ], string='停工原因', help='如果停工的原因')
     work_stop_note = fields.Char(
-        string='Stop Reason Note',
+        string='停工原因說明',
         size=256,
     )
 
     # === Duration Information ===
     approved_duration = fields.Integer(
-        string='Approved Duration (days)',
+        string='核定工期(天)',
         compute='_compute_approved_duration',
         store=True,
-        help='Total approved project duration in days',
+        help='專案核定總工期(天數)',
     )
     cumulative_duration = fields.Integer(
-        string='Cumulative Duration (days)',
+        string='累計工期(天)',
         compute='_compute_duration',
         store=True,
-        help='Cumulative working days up to this date',
+        help='截至此日的累計工作天數',
     )
     remaining_duration = fields.Integer(
-        string='Remaining Duration (days)',
+        string='剩餘工期(天)',
         compute='_compute_duration',
         store=True,
-        help='Remaining working days',
+        help='剩餘工作天數',
     )
 
     # === Progress Information ===
     planned_progress = fields.Float(
-        string='Planned Progress (%)',
+        string='預定進度 (%)',
         digits=(5, 2),
-        help='Planned cumulative progress percentage',
+        help='預定累計進度百分比',
     )
     actual_progress = fields.Float(
-        string='Actual Progress (%)',
+        string='實際進度 (%)',
         digits=(5, 2),
-        help='Actual cumulative progress percentage',
+        help='實際累計進度百分比',
     )
     has_progress_change = fields.Boolean(
-        string='Progress Changed',
+        string='進度有變更',
         default=False,
-        help='Mark if progress was updated on this day',
+        help='標記這一天進度是否有更新',
     )
     progress_variance = fields.Float(
-        string='Progress Variance (%)',
+        string='進度差異 (%)',
         compute='_compute_progress_variance',
         store=True,
         digits=(5, 2),
-        help='Difference between actual and planned progress',
+        help='實際與預定進度的差異',
     )
 
     # === Display Name ===
     display_name = fields.Char(
-        string='Display Name',
+        string='顯示名稱',
         compute='_compute_display_name',
         store=True,
     )
 
     # === Notes ===
     notes = fields.Text(
-        string='Notes',
-        help='Additional weather or work notes',
+        string='備註',
+        help='其他天氣或工作備註',
     )
 
     # -------------------------------------------------------------------------
@@ -210,13 +210,13 @@ class DailyLogWeather(models.Model):
     def _compute_display_name(self):
         """Compute display name"""
         weather_labels = {
-            'sunny': 'Sunny',
-            'cloudy': 'Cloudy',
-            'overcast': 'Overcast',
-            'rainy': 'Rainy',
-            'heavy_rain': 'Heavy Rain',
-            'typhoon': 'Typhoon',
-            'foggy': 'Foggy',
+            'sunny': '晴',
+            'cloudy': '多雲',
+            'overcast': '陰',
+            'rainy': '雨',
+            'heavy_rain': '大雨',
+            'typhoon': '颱風',
+            'foggy': '霧',
         }
         for record in self:
             parts = []
@@ -243,8 +243,8 @@ class DailyLogWeather(models.Model):
                 if (record.date < record.sheet_id.date_start or
                         record.date > record.sheet_id.date_end):
                     raise ValidationError(
-                        f'Weather date {record.date} is outside sheet date range '
-                        f'({record.sheet_id.date_start} - {record.sheet_id.date_end}).'
+                        f'天氣日期 {record.date} 超出表單日期範圍 '
+                        f'({record.sheet_id.date_start} - {record.sheet_id.date_end})。'
                     )
 
     @api.constrains('sheet_id', 'date')
@@ -259,7 +259,7 @@ class DailyLogWeather(models.Model):
                 ])
                 if duplicates:
                     raise ValidationError(
-                        f'Weather record for {record.date} already exists in this sheet.'
+                        f'{record.date} 的天氣記錄已存在於此表單中。'
                     )
 
     @api.constrains('planned_progress', 'actual_progress')
@@ -268,11 +268,11 @@ class DailyLogWeather(models.Model):
         for record in self:
             if record.planned_progress < 0 or record.planned_progress > 100:
                 raise ValidationError(
-                    'Planned progress must be between 0 and 100.'
+                    '預定進度必須介於 0 到 100 之間。'
                 )
             if record.actual_progress < 0 or record.actual_progress > 100:
                 raise ValidationError(
-                    'Actual progress must be between 0 and 100.'
+                    '實際進度必須介於 0 到 100 之間。'
                 )
 
     @api.constrains('temperature_high', 'temperature_low')
@@ -282,7 +282,7 @@ class DailyLogWeather(models.Model):
             if record.temperature_high and record.temperature_low:
                 if record.temperature_low > record.temperature_high:
                     raise ValidationError(
-                        'Low temperature cannot be higher than high temperature.'
+                        '最低溫度不能高於最高溫度。'
                     )
 
     # -------------------------------------------------------------------------

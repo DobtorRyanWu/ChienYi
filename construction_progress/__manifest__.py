@@ -40,10 +40,21 @@
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",
+        "wizard/progress_activate_wizard_views.xml",
         "views/progress_schedule_views.xml",
+        "views/progress_schedule_graph_views.xml",
         "views/supervision_project_views.xml",
+        "views/daily_log_sheet_views.xml",
         "views/menu.xml",
     ],
+    "assets": {
+        "web.assets_backend": [
+            "construction_progress/static/src/components/progress_chart/progress_chart.js",
+            "construction_progress/static/src/components/progress_chart/progress_chart.xml",
+            "construction_progress/static/src/components/progress_dashboard/progress_dashboard.js",
+            "construction_progress/static/src/components/progress_dashboard/progress_dashboard.xml",
+        ],
+    },
     "installable": True,
     "auto_install": False,
     "application": False,

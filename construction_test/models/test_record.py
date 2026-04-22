@@ -46,9 +46,10 @@ class TestRecord(models.Model):
         store=True,
         readonly=True)
 
+    # === 需求2: 調整欄位名稱 ===
     standard_id = fields.Many2one(
         'supervision.test.standard',
-        string='檢試驗項目',
+        string='試驗工項',
         required=True,
         ondelete='restrict',
         index=True,
@@ -56,25 +57,60 @@ class TestRecord(models.Model):
         domain="[('project_id', '=', project_id)]",
         help='舊系統欄位: standard')
 
-    # === 材料關聯 ===
-    material_name = fields.Char(
-        string='材料名稱',
-        related='standard_id.material',
-        store=True,
-        readonly=True)
-
-    # 契約工項關聯（可選）
+    # === 需求2+4: 契約工項關聯改為只能選擇已關聯的工項 ===
     task_id = fields.Many2one(
         'project.task',
-        string='契約工項',
-        domain="[('supervision_project_id', '=', project_id)]",
-        help='舊系統欄位: payItem，此次檢驗對應的契約工項')
+        string='材料名稱',
+        domain="[('id', 'in', available_task_ids)]",
+        help='關聯的契約工項（舊系統欄位: payItem）')
+    
+    available_task_ids = fields.Many2many(
+        'project.task',
+        compute='_compute_available_task_ids',
+        help='可選擇的契約工項清單（來自試驗工項設定的關聯）')
+    
+    # === 需求3+5: 新增欄位用於 list view 和顯示檢試驗設定資料 ===
+    # 不使用 store=True，避免佔用資料庫空間
+    contract_qty = fields.Float(
+        string='契約數量',
+        related='task_id.planned_qty',
+        readonly=True,
+        digits=(16, 4),
+        help='契約工項的預定數量')
+    
+    test_standard_name = fields.Char(
+        string='檢試驗名稱',
+        related='standard_id.name',
+        readonly=True,
+        help='檢試驗項目的名稱')
+    
+    standard_describe = fields.Text(
+        string='依據之方法',
+        related='standard_id.describe',
+        readonly=True,
+        help='檢驗依據的標準方法')
+    
+    standard_norm = fields.Text(
+        string='規範之要求',
+        related='standard_id.norm',
+        readonly=True,
+        help='規範要求的標準值或範圍')
+    
+    standard_frequency = fields.Text(
+        string='規定抽樣頻率',
+        related='standard_id.standard',
+        readonly=True,
+        help='抽樣頻率和最低要求')
+    
+    standard_unit = fields.Char(
+        string='檢查單位',
+        related='standard_id.unit',
+        readonly=True,
+        help='檢驗數量的計量單位')
 
     # === 進場記錄 (舊系統欄位) ===
     in_site_date = fields.Date(
         string='進場日期',
-        required=True,
-        default=fields.Date.context_today,
         tracking=True,
         index=True,
         help='舊系統欄位: inSiteDate')
@@ -92,31 +128,31 @@ class TestRecord(models.Model):
         store=True,
         help='舊系統欄位: inSiteSumQuantity')
 
-    # === 取樣記錄 (舊系統欄位) ===
+    # === 需求6: 抽樣記錄 (舊系統欄位) - 取樣改為抽樣 ===
     sample_date = fields.Date(
-        string='取樣日期',
+        string='抽樣日期',
         tracking=True,
         help='舊系統欄位: sampleDate')
 
     sample_quantity = fields.Float(
-        string='取樣數量',
+        string='抽樣數量',
         digits=(16, 4),
         tracking=True,
         help='舊系統欄位: sampleQuantity')
 
     sample_sum_quantity = fields.Float(
-        string='累計取樣',
+        string='累計抽樣',
         digits=(16, 4),
         compute='_compute_cumulative',
         store=True,
         help='舊系統欄位: sampleSumQuantity')
 
     sample_rate = fields.Float(
-        string='取樣率 (%)',
+        string='抽樣率 (%)',
         digits=(5, 2),
         compute='_compute_sample_rate',
         store=True,
-        help='舊系統欄位: sampleRate，累計取樣/累計進場 x 100')
+        help='舊系統欄位: sampleRate，累計抽樣/累計進場 x 100')
 
     # === 抽驗人員 ===
     member_ids = fields.Many2many(
@@ -170,21 +206,50 @@ class TestRecord(models.Model):
         string='附件數',
         compute='_compute_attachment_count')
 
-    # === 狀態管理 ===
-    state = fields.Selection([
-        ('draft', '草稿'),
-        ('sampled', '已取樣'),
-        ('tested', '已檢驗'),
-        ('archived', '已歸檔'),
-    ], string='狀態',
-       default='draft',
-       tracking=True,
-       index=True)
+    # === 需求7: 狀態管理改為自動判定的處理狀態 ===
+    processing_status = fields.Selection([
+        ('not_started', '尚未檢驗'),
+        ('in_progress', '已開始檢驗'),
+        ('completed', '檢驗完成'),
+    ], string='處理狀態',
+       compute='_compute_processing_status',
+       store=True,
+       index=True,
+       help='根據進場、抽樣、檢驗結果自動判定')
+
+    # === 系統自動建立相關欄位 ===
+    auto_created = fields.Boolean(
+        string='系統自動建立',
+        default=False,
+        readonly=True,
+        help='由檢驗需求檢查功能自動建立')
+    
+    trigger_log_line_id = fields.Many2one(
+        'daily.log.line',
+        string='觸發日誌',
+        readonly=True,
+        help='觸發此檢驗的施工日誌明細')
+    
+    trigger_cumulative_qty = fields.Float(
+        string='觸發時累計數量',
+        digits=(16, 4),
+        readonly=True,
+        help='觸發時的累計完成數量')
 
     # === 備註 ===
     note = fields.Text(string='備註')
 
     # === 計算欄位 ===
+    
+    @api.depends('standard_id', 'standard_id.task_ids')
+    def _compute_available_task_ids(self):
+        """需求4: 計算可選擇的工項（來自試驗工項設定的關聯）"""
+        for record in self:
+            if record.standard_id and record.standard_id.task_ids:
+                record.available_task_ids = record.standard_id.task_ids
+            else:
+                record.available_task_ids = False
+    
     @api.depends('in_site_quantity', 'sample_quantity', 'in_site_date', 'standard_id')
     def _compute_cumulative(self):
         """
@@ -220,7 +285,7 @@ class TestRecord(models.Model):
 
     @api.depends('sample_sum_quantity', 'in_site_sum_quantity')
     def _compute_sample_rate(self):
-        """計算取樣率"""
+        """計算抽樣率"""
         for rec in self:
             if rec.in_site_sum_quantity:
                 rec.sample_rate = (rec.sample_sum_quantity / rec.in_site_sum_quantity) * 100
@@ -233,6 +298,33 @@ class TestRecord(models.Model):
         for rec in self:
             rec.attachment_count = len(rec.attachment_ids)
 
+    @api.depends(
+        'in_site_date', 'in_site_quantity',
+        'sample_date', 'sample_quantity',
+        'result', 'result_date'
+    )
+    def _compute_processing_status(self):
+        """
+        需求7: 自動判定處理狀態
+        
+        判定標準：
+        - 檢驗完成：有檢驗結果（合格或不合格）
+        - 已開始檢驗：進場和抽樣資料都完整
+        - 尚未檢驗：其他情況
+        """
+        for record in self:
+            # 判定邏輯
+            if record.result and record.result != 'pending':
+                # 有檢驗結果 = 檢驗完成
+                record.processing_status = 'completed'
+            elif (record.in_site_date and record.in_site_quantity and
+                  record.sample_date and record.sample_quantity):
+                # 進場和抽樣資料都完整 = 已開始檢驗
+                record.processing_status = 'in_progress'
+            else:
+                # 其他情況 = 尚未檢驗
+                record.processing_status = 'not_started'
+
     # === 約束檢查 ===
     @api.constrains('in_site_quantity')
     def _check_in_site_quantity(self):
@@ -243,55 +335,18 @@ class TestRecord(models.Model):
 
     @api.constrains('sample_quantity')
     def _check_sample_quantity(self):
-        """取樣數量不可為負"""
+        """抽樣數量不可為負"""
         for rec in self:
             if rec.sample_quantity < 0:
-                raise ValidationError('取樣數量不可為負數')
+                raise ValidationError('抽樣數量不可為負數')
 
     @api.constrains('sample_date', 'in_site_date')
     def _check_sample_date(self):
-        """取樣日期不可早於進場日期"""
+        """抽樣日期不可早於進場日期"""
         for rec in self:
             if rec.sample_date and rec.in_site_date:
                 if rec.sample_date < rec.in_site_date:
-                    raise ValidationError('取樣日期不可早於進場日期')
-
-    # === 狀態動作 ===
-    def action_sample(self):
-        """標記為已取樣"""
-        for rec in self:
-            if rec.state != 'draft':
-                raise UserError('只有草稿狀態可以標記為已取樣')
-            if not rec.sample_date:
-                rec.sample_date = fields.Date.today()
-            rec.state = 'sampled'
-
-    def action_test(self):
-        """標記為已檢驗"""
-        for rec in self:
-            if rec.state != 'sampled':
-                raise UserError('只有已取樣狀態可以標記為已檢驗')
-            if rec.result == 'pending':
-                raise UserError('請先填寫檢驗結果')
-            if not rec.result_date:
-                rec.result_date = fields.Date.today()
-            rec.state = 'tested'
-
-    def action_archive(self):
-        """歸檔"""
-        for rec in self:
-            if rec.state != 'tested':
-                raise UserError('只有已檢驗狀態可以歸檔')
-            if not rec.archive_number:
-                raise UserError('請先填寫歸檔編號')
-            rec.state = 'archived'
-
-    def action_reset_draft(self):
-        """重設為草稿"""
-        for rec in self:
-            if rec.state == 'archived':
-                raise UserError('已歸檔的記錄無法重設')
-            rec.state = 'draft'
+                    raise ValidationError('抽樣日期不可早於進場日期')
 
     # === CRUD 覆寫 ===
     @api.model_create_multi
@@ -303,6 +358,10 @@ class TestRecord(models.Model):
         records = super().create(vals_list)
         # 觸發同專案同標準其他記錄的累計重算
         records._trigger_cumulative_recompute()
+        # 自動解決相關的 pending 預警
+        records._auto_resolve_warnings()
+        # 發送建立通知
+        records._notify_record_created()
         return records
 
     def write(self, vals):
@@ -328,11 +387,71 @@ class TestRecord(models.Model):
                 if related_records:
                     related_records._compute_cumulative()
 
-    def unlink(self):
-        """刪除前檢查"""
+    def _notify_record_created(self):
+        """建立檢試驗紀錄時發送通知提醒"""
+        activity_type = self.env.ref(
+            'construction_test.activity_type_test_record_created',
+            raise_if_not_found=False,
+        )
+        if not activity_type:
+            return
+
+        # TODO: 權限設計完成後改回 sup_project._get_activity_user('test')
+        user = self.env.ref('base.user_admin')
+
         for rec in self:
-            if rec.state == 'archived':
-                raise UserError('已歸檔的記錄無法刪除')
+            standard_name = rec.standard_id.name or ''
+            task_name = rec.task_id.name or ''
+            note = (
+                f'<p>已建立檢試驗紀錄 <strong>{rec.name}</strong></p>'
+                f'<ul>'
+                f'<li>試驗工項：{standard_name}</li>'
+                f'<li>材料名稱：{task_name}</li>'
+                f'</ul>'
+            )
+
+            rec.activity_schedule(
+                activity_type_id=activity_type.id,
+                summary=f'檢試驗紀錄已建立 - {rec.name}',
+                note=note,
+                user_id=user.id,
+            )
+
+            rec.message_post(
+                body=note,
+                subject=f'檢試驗紀錄已建立 - {rec.name}',
+                partner_ids=user.partner_id.ids,
+                message_type='notification',
+                subtype_xmlid='mail.mt_note',
+            )
+
+    def _auto_resolve_warnings(self):
+        """當檢驗記錄建立後，自動解決相關的 pending 預警"""
+        TestWarning = self.env['supervision.test.warning']
+        for rec in self:
+            if not rec.project_id or not rec.standard_id or not rec.task_id:
+                continue
+            domain = [
+                ('project_id', '=', rec.project_id.id),
+                ('standard_id', '=', rec.standard_id.id),
+                ('task_id', '=', rec.task_id.id),
+                ('state', '=', 'pending'),
+            ]
+            # 自動建立的記錄有 trigger_cumulative_qty，只解決門檻 <= 該值的預警
+            # 手動建立的記錄沒有此值，解決所有 pending 預警
+            if rec.trigger_cumulative_qty:
+                domain.append(('next_threshold_qty', '<=', rec.trigger_cumulative_qty))
+            pending_warnings = TestWarning.search(domain)
+            if pending_warnings:
+                pending_warnings.write({
+                    'state': 'done',
+                    'handled_by_id': self.env.user.id,
+                    'handled_date': fields.Datetime.now(),
+                    'note': f'系統自動解決：檢驗記錄 {rec.name} 已建立',
+                })
+
+    def unlink(self):
+        """刪除記錄"""
         return super().unlink()
 
     def name_get(self):
@@ -340,8 +459,8 @@ class TestRecord(models.Model):
         result = []
         for rec in self:
             name = rec.name or '/'
-            if rec.material_name:
-                name = f'{name} - {rec.material_name}'
+            if rec.standard_id:
+                name = f'{name} - {rec.standard_id.material}'
             if rec.in_site_date:
                 name = f'{name} ({rec.in_site_date})'
             result.append((rec.id, name))
@@ -349,20 +468,40 @@ class TestRecord(models.Model):
 
     @api.onchange('standard_id')
     def _onchange_standard_id(self):
-        """當選擇檢試驗項目時，自動設定專案"""
-        if self.standard_id and self.standard_id.project_id:
-            self.project_id = self.standard_id.project_id
+        """當選擇試驗工項時，自動設定專案並清空材料名稱"""
+        if self.standard_id:
+            if self.standard_id.project_id:
+                self.project_id = self.standard_id.project_id
+            # 清空材料名稱（task_id），強制使用者重新選擇
+            self.task_id = False
+
+    @api.onchange('task_id')
+    def _onchange_task_id_check_relation(self):
+        """需求4: 檢查選擇的工項是否在關聯清單中"""
+        if self.task_id and self.standard_id:
+            if self.task_id not in self.standard_id.task_ids:
+                self.task_id = False
+                return {
+                    'warning': {
+                        'title': '工項未關聯',
+                        'message': (
+                            f'選擇的工項未在試驗工項設定中建立關聯！\n\n'
+                            f'請先到「檢試驗項目設定」中的「關聯契約工項」頁籤\n'
+                            f'建立試驗工項「{self.standard_id.material}」與契約工項的關聯。'
+                        ),
+                    }
+                }
 
     @api.onchange('project_id')
     def _onchange_project_id(self):
-        """當專案變更時，清空檢試驗項目"""
+        """當專案變更時，清空試驗工項和材料名稱"""
         if self.project_id:
             if self.standard_id and self.standard_id.project_id != self.project_id:
                 self.standard_id = False
+            self.task_id = False
             return {
                 'domain': {
                     'standard_id': [('project_id', '=', self.project_id.id)],
-                    'task_id': [('supervision_project_id', '=', self.project_id.id)],
                 }
             }
 

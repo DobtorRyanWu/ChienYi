@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="construction_geoengine.PhotoMapView">
+        <Layout display="props.display" className="'h-100 o_photo_map_view'">
+            <div t-attf-class="pm-body #{state.panelOpen ? 'pm-panel-shown' : ''}">
+                <!-- 左側可收合面板(附近 / 區域 2 tab) -->
+                <aside t-attf-class="pm-panel #{!state.panelOpen ? 'pm-panel-collapsed' : ''}">
+                    <div class="pm-panel-header">
+                        <span class="pm-panel-title">
+                            <i class="fa fa-camera-retro"/>
+                            <span t-esc="viewTitle"/>
+                        </span>
+                        <button class="pm-panel-close" t-on-click="togglePanel" title="收合面板">
+                            <i class="fa fa-times"/>
+                        </button>
+                    </div>
+
+                    <div class="pm-panel-action">
+                        <button class="pm-panel-add-btn" t-on-click="createPhoto">
+                            <i class="fa fa-plus"/>
+                            <span>新增照片</span>
+                        </button>
+                    </div>
+
+                    <div class="pm-tabs">
+                        <button t-attf-class="pm-tab #{state.activeTab === 'area' ? 'active' : ''}"
+                                t-on-click="() => this.switchTab('area')">
+                            <i class="fa fa-th"/> 區域
+                        </button>
+                        <button t-attf-class="pm-tab #{state.activeTab === 'nearby' ? 'active' : ''}"
+                                t-on-click="() => this.switchTab('nearby')">
+                            <i class="fa fa-crosshairs"/> 附近
+                        </button>
+                        <button t-if="state.locationPhotos.length > 0"
+                                t-attf-class="pm-tab #{state.activeTab === 'location' ? 'active' : ''}"
+                                t-on-click="() => this.switchTab('location')">
+                            <i class="fa fa-map-marker"/> 此地點
+                        </button>
+                    </div>
+
+                    <!-- 區域 Tab (Google Photos 風 gallery) -->
+                    <div class="pm-tab-body pm-tab-body-gallery" t-if="state.activeTab === 'area'">
+                        <div class="pm-area-stats">
+                            <t t-if="state.areaPhotos.length > 0">
+                                此區域共 <strong t-esc="state.areaPhotos.length"/> 張
+                            </t>
+                            <t t-else="">
+                                <i class="fa fa-info-circle"/> 移動地圖顯示範圍內的照片
+                            </t>
+                        </div>
+                        <t t-foreach="groupByDate(state.areaPhotos)" t-as="group" t-key="group.key">
+                            <div class="pm-area-date-group">
+                                <div class="pm-area-date-header">
+                                    <t t-esc="formatDateHeader(group.key)"/>
+                                    <span class="count">(<t t-esc="group.items.length"/>)</span>
+                                </div>
+                                <div class="pm-area-grid">
+                                    <t t-foreach="group.items" t-as="photo" t-key="photo.id">
+                                        <div class="pm-area-thumb"
+                                             t-on-click="() => this.focusPhoto(photo)"
+                                             t-att-title="photo.name">
+                                            <t t-if="getThumbnailUrl(photo)">
+                                                <img t-att-src="getThumbnailUrl(photo)" loading="lazy" alt=""/>
+                                            </t>
+                                            <t t-else="">
+                                                <div class="pm-area-thumb-placeholder">
+                                                    <i class="fa fa-image"/>
+                                                </div>
+                                            </t>
+                                            <div class="pm-area-thumb-bar"
+                                                 t-att-style="'background:' + getSourceColor(photo.source_model)"/>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                        <div t-if="state.areaPhotos.length === 0" class="pm-gallery-empty">
+                            <i class="fa fa-search"/> 此區域沒有照片
+                        </div>
+                    </div>
+
+                    <!-- 此地點 Tab (點 cluster 後,Google Photos 風 gallery) -->
+                    <div class="pm-tab-body pm-tab-body-gallery" t-if="state.activeTab === 'location'">
+                        <div class="pm-area-stats">
+                            此地點共 <strong t-esc="state.locationPhotos.length"/> 張
+                        </div>
+                        <div class="pm-area-grid">
+                            <t t-foreach="state.locationPhotos" t-as="photo" t-key="photo.id">
+                                <div class="pm-area-thumb"
+                                     t-on-click="() => this.openPhoto(photo.id)"
+                                     t-att-title="photo.name">
+                                    <t t-if="getThumbnailUrl(photo)">
+                                        <img t-att-src="getThumbnailUrl(photo)" loading="lazy" alt=""/>
+                                    </t>
+                                    <t t-else="">
+                                        <div class="pm-area-thumb-placeholder"><i class="fa fa-image"/></div>
+                                    </t>
+                                    <div class="pm-area-thumb-bar"
+                                         t-att-style="'background:' + getSourceColor(photo.source_model)"/>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+
+                    <!-- 附近 Tab (列表) -->
+                    <div class="pm-tab-body" t-if="state.activeTab === 'nearby'">
+                        <button class="pm-btn-locate" t-on-click="locateMe">
+                            <i class="fa fa-crosshairs"/> 定位我的位置
+                        </button>
+                        <div class="pm-radius-group">
+                            <label>搜尋半徑</label>
+                            <div class="pm-radius-options">
+                                <button t-attf-class="pm-radius-btn #{state.radius === 0.5 ? 'active' : ''}"
+                                        t-on-click="() => this.setRadius(0.5)">500m</button>
+                                <button t-attf-class="pm-radius-btn #{state.radius === 1 ? 'active' : ''}"
+                                        t-on-click="() => this.setRadius(1)">1km</button>
+                                <button t-attf-class="pm-radius-btn #{state.radius === 3 ? 'active' : ''}"
+                                        t-on-click="() => this.setRadius(3)">3km</button>
+                                <button t-attf-class="pm-radius-btn #{state.radius === 5 ? 'active' : ''}"
+                                        t-on-click="() => this.setRadius(5)">5km</button>
+                            </div>
+                        </div>
+                        <div t-if="state.nearbyStatus" class="pm-nearby-status">
+                            <t t-esc="state.nearbyStatus"/>
+                        </div>
+                        <div class="pm-photo-list">
+                            <t t-foreach="state.nearbyPhotos" t-as="ph" t-key="ph.id">
+                                <div class="pm-photo-item" t-on-click="() => this.focusPhoto(ph)">
+                                    <t t-if="getThumbnailUrl(ph)">
+                                        <img t-att-src="getThumbnailUrl(ph)" loading="lazy" alt=""/>
+                                    </t>
+                                    <t t-else="">
+                                        <div class="pm-photo-item-placeholder"><i class="fa fa-image"/></div>
+                                    </t>
+                                    <div class="pm-photo-item-info">
+                                        <div class="pm-photo-item-name" t-esc="ph.name or '未命名'"/>
+                                        <div class="pm-photo-item-meta">
+                                            <i class="fa fa-location-arrow"/>
+                                            <t t-esc="formatDistance(ph.distance_km)"/>
+                                            <t t-if="ph.shot_date"> · <t t-esc="ph.shot_date"/></t>
+                                        </div>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- 右側地圖 -->
+                <main class="pm-map-pane">
+                    <div class="photo-map-container" t-ref="mapContainer"/>
+
+                    <!-- 正上方置中:SearchBar + chip 列 -->
+                    <div class="pm-search-center">
+                        <div class="pm-searchbar-wrap">
+                            <SearchBar/>
+                        </div>
+
+                        <!-- 篩選 chip 列(Google Maps 類別 chip) -->
+                        <div class="pm-chip-row">
+                            <!-- 工程案件 chip -->
+                            <div class="pm-chip-wrap">
+                                <button t-attf-class="pm-chip #{isChipActive('project_id') ? 'active' : ''}"
+                                        t-on-click="() => this.toggleChip('project_id')">
+                                    <i class="fa fa-building-o"/>
+                                    <span t-esc="getChipLabel('project_id')"/>
+                                    <i t-if="isChipActive('project_id')" class="fa fa-times-circle pm-chip-clear"
+                                       t-on-click="(ev) => this.clearChip('project_id', ev)"/>
+                                    <i t-else="" class="fa fa-caret-down"/>
+                                </button>
+                                <div class="pm-chip-popover" t-if="state.openChip === 'project_id'">
+                                    <div class="pm-chip-option"
+                                         t-on-click="() => this.selectChipValue('project_id', '')">
+                                        全部工程
+                                    </div>
+                                    <t t-foreach="state.projects" t-as="proj" t-key="proj.id">
+                                        <div t-attf-class="pm-chip-option #{state.filters.project_id === proj.id ? 'active' : ''}"
+                                             t-on-click="() => this.selectChipValue('project_id', proj.id)">
+                                            <t t-esc="proj.name"/>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+
+                            <!-- 來源 chip -->
+                            <div class="pm-chip-wrap">
+                                <button t-attf-class="pm-chip #{isChipActive('source_model') ? 'active' : ''}"
+                                        t-on-click="() => this.toggleChip('source_model')">
+                                    <i class="fa fa-tag"/>
+                                    <span t-esc="getChipLabel('source_model')"/>
+                                    <i t-if="isChipActive('source_model')" class="fa fa-times-circle pm-chip-clear"
+                                       t-on-click="(ev) => this.clearChip('source_model', ev)"/>
+                                    <i t-else="" class="fa fa-caret-down"/>
+                                </button>
+                                <div class="pm-chip-popover" t-if="state.openChip === 'source_model'">
+                                    <div class="pm-chip-option"
+                                         t-on-click="() => this.selectChipValue('source_model', '')">
+                                        全部來源
+                                    </div>
+                                    <t t-foreach="state.filterOptions.source_model or []" t-as="opt" t-key="opt[0]">
+                                        <div t-attf-class="pm-chip-option #{state.filters.source_model === opt[0] ? 'active' : ''}"
+                                             t-on-click="() => this.selectChipValue('source_model', opt[0])">
+                                            <span class="pm-chip-dot" t-att-style="'background:' + getSourceColor(opt[0])"/>
+                                            <t t-esc="opt[1]"/>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+
+                            <!-- 標籤 chip(supervision.photo.tag) -->
+                            <div class="pm-chip-wrap" t-if="state.tags.length > 0">
+                                <button t-attf-class="pm-chip #{isChipActive('tag_id') ? 'active' : ''}"
+                                        t-on-click="() => this.toggleChip('tag_id')">
+                                    <i class="fa fa-tags"/>
+                                    <span t-esc="getChipLabel('tag_id')"/>
+                                    <i t-if="isChipActive('tag_id')" class="fa fa-times-circle pm-chip-clear"
+                                       t-on-click="(ev) => this.clearChip('tag_id', ev)"/>
+                                    <i t-else="" class="fa fa-caret-down"/>
+                                </button>
+                                <div class="pm-chip-popover" t-if="state.openChip === 'tag_id'">
+                                    <div class="pm-chip-option"
+                                         t-on-click="() => this.selectChipValue('tag_id', '')">
+                                        全部標籤
+                                    </div>
+                                    <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                                        <div t-attf-class="pm-chip-option #{state.filters.tag_id === tag.id ? 'active' : ''}"
+                                             t-on-click="() => this.selectChipValue('tag_id', tag.id)">
+                                            <t t-esc="tag.name"/>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+
+                            <!-- 材料分類 chip -->
+                            <div class="pm-chip-wrap" t-if="(state.filterOptions.category or []).length > 0">
+                                <button t-attf-class="pm-chip #{isChipActive('category') ? 'active' : ''}"
+                                        t-on-click="() => this.toggleChip('category')">
+                                    <i class="fa fa-cube"/>
+                                    <span t-esc="getChipLabel('category')"/>
+                                    <i t-if="isChipActive('category')" class="fa fa-times-circle pm-chip-clear"
+                                       t-on-click="(ev) => this.clearChip('category', ev)"/>
+                                    <i t-else="" class="fa fa-caret-down"/>
+                                </button>
+                                <div class="pm-chip-popover" t-if="state.openChip === 'category'">
+                                    <div class="pm-chip-option"
+                                         t-on-click="() => this.selectChipValue('category', '')">
+                                        全部分類
+                                    </div>
+                                    <t t-foreach="state.filterOptions.category or []" t-as="opt" t-key="opt[0]">
+                                        <div t-attf-class="pm-chip-option #{state.filters.category === opt[0] ? 'active' : ''}"
+                                             t-on-click="() => this.selectChipValue('category', opt[0])">
+                                            <t t-esc="opt[1]"/>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+
+                            <!-- 施工階段 chip -->
+                            <div class="pm-chip-wrap" t-if="(state.filterOptions.construction_phase or []).length > 0">
+                                <button t-attf-class="pm-chip #{isChipActive('construction_phase') ? 'active' : ''}"
+                                        t-on-click="() => this.toggleChip('construction_phase')">
+                                    <i class="fa fa-wrench"/>
+                                    <span t-esc="getChipLabel('construction_phase')"/>
+                                    <i t-if="isChipActive('construction_phase')" class="fa fa-times-circle pm-chip-clear"
+                                       t-on-click="(ev) => this.clearChip('construction_phase', ev)"/>
+                                    <i t-else="" class="fa fa-caret-down"/>
+                                </button>
+                                <div class="pm-chip-popover" t-if="state.openChip === 'construction_phase'">
+                                    <div class="pm-chip-option"
+                                         t-on-click="() => this.selectChipValue('construction_phase', '')">
+                                        全部階段
+                                    </div>
+                                    <t t-foreach="state.filterOptions.construction_phase or []" t-as="opt" t-key="opt[0]">
+                                        <div t-attf-class="pm-chip-option #{state.filters.construction_phase === opt[0] ? 'active' : ''}"
+                                             t-on-click="() => this.selectChipValue('construction_phase', opt[0])">
+                                            <t t-esc="opt[1]"/>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+
+                            <!-- 日期 chip -->
+                            <div class="pm-chip-wrap">
+                                <button t-attf-class="pm-chip #{isChipActive('date') ? 'active' : ''}"
+                                        t-on-click="() => this.toggleChip('date')">
+                                    <i class="fa fa-calendar"/>
+                                    <span t-esc="getChipLabel('date')"/>
+                                    <i t-if="isChipActive('date')" class="fa fa-times-circle pm-chip-clear"
+                                       t-on-click="(ev) => { this.state.filters.date_from = ''; this.state.filters.date_to = ''; this.clearChip('date', ev); }"/>
+                                    <i t-else="" class="fa fa-caret-down"/>
+                                </button>
+                                <div class="pm-chip-popover pm-chip-popover-date" t-if="state.openChip === 'date'">
+                                    <div class="pm-chip-date-row">
+                                        <label>從</label>
+                                        <input type="date"
+                                               t-att-value="state.filters.date_from"
+                                               t-on-change="(ev) => this.onDateFilterChange('date_from', ev)"/>
+                                    </div>
+                                    <div class="pm-chip-date-row">
+                                        <label>到</label>
+                                        <input type="date"
+                                               t-att-value="state.filters.date_to"
+                                               t-on-change="(ev) => this.onDateFilterChange('date_to', ev)"/>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 清除全部 -->
+                            <button t-if="hasAnyFilter()"
+                                    class="pm-chip pm-chip-clear-all"
+                                    t-on-click="clearAllFilters"
+                                    title="清除全部篩選">
+                                <i class="fa fa-eraser"/> 清除
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 懸浮 View Switcher(右上) -->
+                    <div class="pm-view-switcher">
+                        <t t-foreach="viewSwitcherEntries" t-as="v" t-key="v.type">
+                            <button class="pm-view-btn"
+                                    t-att-title="v.label"
+                                    t-on-click="() => this.switchViewType(v.type)">
+                                <i t-attf-class="fa #{v.icon}"/>
+                            </button>
+                        </t>
+                    </div>
+
+                    <!-- 右下浮動控制(圖例 + 按鈕 column) -->
+                    <div class="pm-controls">
+                        <div class="pm-legend">
+                            <div class="pm-legend-title">來源分類</div>
+                            <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#3b82f6"/><span>施工日誌</span></div>
+                            <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#22c55e"/><span>自主檢查</span></div>
+                            <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#ef4444"/><span>缺失改善</span></div>
+                            <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#f59e0b"/><span>檢試驗</span></div>
+                            <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#8b5cf6"/><span>驗收</span></div>
+                            <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#06b6d4"/><span>通報單</span></div>
+                            <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#6b7280"/><span>其他</span></div>
+                        </div>
+                        <button class="pm-ctrl-btn" title="我的位置" t-on-click="locateMeOnMap">
+                            <i class="fa fa-crosshairs"/>
+                        </button>
+                        <button class="pm-ctrl-btn" title="顯示全部" t-on-click="fitAll">
+                            <i class="fa fa-expand"/>
+                        </button>
+                        <button class="pm-ctrl-btn" title="切換面板" t-on-click="togglePanel">
+                            <i class="fa fa-bars"/>
+                        </button>
+                    </div>
+                </main>
+            </div>
+        </Layout>
+    </t>
+
+</templates>

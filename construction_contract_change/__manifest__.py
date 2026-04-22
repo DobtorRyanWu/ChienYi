@@ -36,16 +36,20 @@
     'website': '',
     'license': 'LGPL-3',
     'depends': [
+        'mail',  # 關鍵！支援 Chatter 功能
         'construction_supervision_base',
     ],
     'data': [
         # Security
-        'security/security.xml',
+        # 注意：ir.model.access.csv 必須先載入，才能刪除舊群組
         'security/ir.model.access.csv',
+        'security/security.xml',
         # Data
         'data/ir_sequence_data.xml',
         # Views
         'views/contract_change_order_views.xml',
+        'views/contract_change_wizard_views.xml',
+        'views/project_task_views.xml',
         'views/menu.xml',
     ],
     'demo': [],

@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Portal 照片地圖頁面（行動端 Google Maps + Google Photos 風格） -->
+    <template id="portal_construction_photos_map" name="Portal 照片地圖">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app cy-photos-map-app"
+                 t-att-data-project-id="project.id"
+                 t-att-data-filter-options-json="filter_options_json"
+                 t-att-data-project-center-json="project_center_json">
+
+                <!-- 頂部 App Bar -->
+                <nav class="cy-map-topbar">
+                    <a t-attf-href="/my/construction/#{project.id}/photos" class="cy-map-back" title="返回照片列表">
+                        <i class="fa fa-arrow-left"></i>
+                    </a>
+                    <h1 class="cy-map-title">
+                        <i class="fa fa-map-marker"></i> 照片地圖
+                    </h1>
+                    <div class="cy-map-topbar-right">
+                        <span class="cy-map-stat">
+                            <strong t-esc="gps_photos"/>
+                        </span>
+                        <a t-attf-href="/my/construction/#{project.id}/photos"
+                           class="cy-map-view-toggle" title="格狀檢視">
+                            <i class="fa fa-th"></i>
+                        </a>
+                    </div>
+                </nav>
+
+                <!-- 頂部 Pill 篩選列（可捲動） -->
+                <div class="cy-map-pillbar" id="photoMapPillbar">
+                    <button type="button" class="cy-pill" data-filter="source">
+                        <span class="cy-pill-label">來源</span>
+                        <i class="fa fa-angle-down"></i>
+                    </button>
+                    <button type="button" class="cy-pill" data-filter="category">
+                        <span class="cy-pill-label">分類</span>
+                        <i class="fa fa-angle-down"></i>
+                    </button>
+                    <button type="button" class="cy-pill" data-filter="phase">
+                        <span class="cy-pill-label">階段</span>
+                        <i class="fa fa-angle-down"></i>
+                    </button>
+                    <button type="button" class="cy-pill" data-filter="date">
+                        <span class="cy-pill-label">日期</span>
+                        <i class="fa fa-angle-down"></i>
+                    </button>
+                    <button type="button" class="cy-pill cy-pill-reset" id="btnResetFilter" title="重設">
+                        <i class="fa fa-refresh"></i>
+                    </button>
+                </div>
+
+                <!-- Leaflet 地圖 -->
+                <div id="portalPhotoMap" class="cy-photo-map"></div>
+
+                <!-- 右下浮動按鈕 FAB -->
+                <div class="cy-map-fab-group">
+                    <button id="btnFitAll" class="cy-map-fab" title="顯示全部">
+                        <i class="fa fa-expand"></i>
+                    </button>
+                    <button id="btnMyLocation" class="cy-map-fab cy-map-fab-primary" title="定位">
+                        <i class="fa fa-crosshairs"></i>
+                    </button>
+                </div>
+
+                <!-- 圖例 chip（可收合） -->
+                <div class="cy-map-legend-chip" id="mapLegendChip">
+                    <button type="button" class="cy-legend-toggle" id="btnToggleLegend" title="圖例">
+                        <i class="fa fa-info-circle"></i>
+                    </button>
+                    <div class="cy-legend-body">
+                        <div class="cy-legend-row"><span class="cy-legend-dot" style="background:#3b82f6;"></span>施工日誌</div>
+                        <div class="cy-legend-row"><span class="cy-legend-dot" style="background:#22c55e;"></span>自主檢查</div>
+                        <div class="cy-legend-row"><span class="cy-legend-dot" style="background:#ef4444;"></span>缺失改善</div>
+                        <div class="cy-legend-row"><span class="cy-legend-dot" style="background:#f59e0b;"></span>檢試驗</div>
+                        <div class="cy-legend-row"><span class="cy-legend-dot" style="background:#8b5cf6;"></span>驗收</div>
+                        <div class="cy-legend-row"><span class="cy-legend-dot" style="background:#06b6d4;"></span>通報單</div>
+                        <div class="cy-legend-row"><span class="cy-legend-dot" style="background:#6b7280;"></span>其他</div>
+                    </div>
+                </div>
+
+                <!-- Bottom Sheet（Google Maps 風） -->
+                <div id="photoMapSheet" class="cy-map-sheet cy-map-sheet-peek">
+                    <div class="cy-sheet-handle" id="sheetHandle">
+                        <div class="cy-sheet-grip"></div>
+                    </div>
+
+                    <!-- Segmented control -->
+                    <div class="cy-sheet-segment">
+                        <button class="cy-seg-btn active" data-tab="area">
+                            <i class="fa fa-square-o"></i> 區域
+                        </button>
+                        <button class="cy-seg-btn" data-tab="nearby">
+                            <i class="fa fa-crosshairs"></i> 附近
+                        </button>
+                        <button class="cy-seg-btn" data-tab="filter">
+                            <i class="fa fa-info"></i> 資訊
+                        </button>
+                    </div>
+
+                    <div class="cy-sheet-scroll">
+                        <!-- 區域 Tab（Google Photos grid） -->
+                        <div class="cy-sheet-tab active" data-tab-content="area">
+                            <div class="cy-sheet-stat">
+                                此區域 <strong id="areaCount">0</strong> 張
+                            </div>
+                            <div id="areaGrid" class="cy-photo-grid"></div>
+                            <button id="btnLoadMore" class="cy-map-btn-load-more" style="display:none;">
+                                <i class="fa fa-angle-down"></i> 載入更多
+                            </button>
+                            <div class="cy-sheet-hint">
+                                <i class="fa fa-info-circle"></i>
+                                移動地圖以更新範圍內照片
+                            </div>
+                        </div>
+
+                        <!-- 附近 Tab -->
+                        <div class="cy-sheet-tab" data-tab-content="nearby">
+                            <div class="cy-radius-row">
+                                <span class="cy-radius-label">半徑</span>
+                                <button class="cy-radius-btn" data-radius="0.5">500m</button>
+                                <button class="cy-radius-btn active" data-radius="1">1km</button>
+                                <button class="cy-radius-btn" data-radius="3">3km</button>
+                                <button class="cy-radius-btn" data-radius="5">5km</button>
+                            </div>
+                            <div id="nearbyStatus" class="cy-sheet-stat"></div>
+                            <div id="nearbyGrid" class="cy-photo-grid"></div>
+                        </div>
+
+                        <!-- 資訊 / 篩選狀態 Tab -->
+                        <div class="cy-sheet-tab" data-tab-content="filter">
+                            <div class="cy-sheet-stat">
+                                總計 <strong id="totalCount">0</strong> /
+                                顯示 <strong id="filteredCount">0</strong> 張
+                            </div>
+                            <div class="cy-filter-summary" id="filterSummary">
+                                <span class="cy-filter-empty">尚未套用任何篩選</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 篩選 Modal Sheet（由頂部 pill 觸發） -->
+                <div id="filterModal" class="cy-filter-modal">
+                    <div class="cy-filter-modal-backdrop"></div>
+                    <div class="cy-filter-modal-body">
+                        <div class="cy-filter-modal-header">
+                            <span id="filterModalTitle">篩選</span>
+                            <button type="button" class="cy-filter-modal-close" id="btnCloseFilterModal">
+                                <i class="fa fa-times"></i>
+                            </button>
+                        </div>
+
+                        <div class="cy-filter-modal-content">
+                            <!-- 來源 -->
+                            <div class="cy-filter-panel" data-panel="source">
+                                <div class="cy-filter-options" id="filterSourceOptions"></div>
+                            </div>
+                            <!-- 分類 -->
+                            <div class="cy-filter-panel" data-panel="category">
+                                <div class="cy-filter-options" id="filterCategoryOptions"></div>
+                            </div>
+                            <!-- 階段 -->
+                            <div class="cy-filter-panel" data-panel="phase">
+                                <div class="cy-filter-options" id="filterPhaseOptions"></div>
+                            </div>
+                            <!-- 日期 -->
+                            <div class="cy-filter-panel" data-panel="date">
+                                <div class="cy-filter-date-row">
+                                    <label>從</label>
+                                    <input type="date" id="filterDateFrom"/>
+                                </div>
+                                <div class="cy-filter-date-row">
+                                    <label>到</label>
+                                    <input type="date" id="filterDateTo"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="cy-filter-modal-footer">
+                            <button type="button" class="cy-filter-btn-secondary" id="btnFilterClear">清除</button>
+                            <button type="button" class="cy-filter-btn-primary" id="btnFilterApply">套用</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lightbox 全螢幕檢視 -->
+                <div id="photoLightbox" class="cy-lightbox">
+                    <div class="cy-lightbox-topbar">
+                        <button type="button" class="cy-lightbox-close" id="lightboxClose">
+                            <i class="fa fa-times"></i>
+                        </button>
+                        <span class="cy-lightbox-counter" id="lightboxCounter">1 / 1</span>
+                        <a class="cy-lightbox-action" id="lightboxSource" href="#" title="查看來源">
+                            <i class="fa fa-external-link"></i>
+                        </a>
+                    </div>
+                    <div class="cy-lightbox-stage" id="lightboxStage">
+                        <button type="button" class="cy-lightbox-nav cy-lightbox-prev" id="lightboxPrev">
+                            <i class="fa fa-angle-left"></i>
+                        </button>
+                        <div class="cy-lightbox-viewport" id="lightboxViewport">
+                            <img class="cy-lightbox-img" id="lightboxImg" alt=""/>
+                        </div>
+                        <button type="button" class="cy-lightbox-nav cy-lightbox-next" id="lightboxNext">
+                            <i class="fa fa-angle-right"></i>
+                        </button>
+                    </div>
+                    <div class="cy-lightbox-caption" id="lightboxCaption"></div>
+                </div>
+
+                <!-- 底部導航 -->
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+</odoo>

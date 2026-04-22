@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 加入工項 Wizard Form View -->
+    <record id="view_add_slip_line_wizard_form" model="ir.ui.view">
+        <field name="name">add.slip.line.wizard.form</field>
+        <field name="model">add.slip.line.wizard</field>
+        <field name="arch" type="xml">
+            <form string="加入工項">
+                <field name="slip_id" invisible="1"/>
+                <field name="project_id" invisible="1"/>
+                <group>
+                    <field name="search_term" placeholder="輸入項目編號或說明搜尋..."/>
+                </group>
+                <field name="line_ids" nolabel="1">
+                    <list editable="bottom" create="false" delete="false">
+                        <field name="selected" nolabel="1" width="40px"/>
+                        <field name="name" string="項目及說明" readonly="1"/>
+                        <field name="parent_name" string="父工項" readonly="1"/>
+                        <field name="item_no" string="項目編號" readonly="1"/>
+                        <field name="unit" string="單位" readonly="1"/>
+                        <field name="unit_price" string="單價" readonly="1"/>
+                        <field name="task_id" column_invisible="1"/>
+                        <field name="sequence" column_invisible="1"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_add_lines" type="object"
+                            string="加入" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

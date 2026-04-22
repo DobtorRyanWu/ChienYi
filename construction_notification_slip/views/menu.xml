@@ -12,40 +12,11 @@
               action="action_reservation_notification_slip"
               sequence="10"/>
 
-    <!-- 待核准通報單 -->
-    <menuitem id="menu_notification_slip_to_approve"
-              name="待核准通報單"
-              parent="construction_supervision_base.menu_notification_slip"
-              action="action_notification_slip_to_approve"
-              sequence="20"
-              groups="construction_supervision_base.group_supervision_manager"/>
-
     <!-- 執行中通報單 -->
     <menuitem id="menu_notification_slip_in_progress"
               name="執行中通報單"
               parent="construction_supervision_base.menu_notification_slip"
               action="action_notification_slip_in_progress"
               sequence="30"/>
-
-    <!-- 通報單驗收 -->
-    <menuitem id="menu_notification_acceptance_management"
-              name="通報單驗收"
-              parent="construction_supervision_base.menu_notification_slip"
-              sequence="50"/>
-
-    <!-- 驗收單 -->
-    <menuitem id="menu_notification_acceptance"
-              name="驗收單"
-              parent="menu_notification_acceptance_management"
-              action="action_notification_acceptance"
-              sequence="10"/>
-
-    <!-- 待處理驗收單 -->
-    <menuitem id="menu_notification_acceptance_draft"
-              name="待處理驗收單"
-              parent="menu_notification_acceptance_management"
-              action="action_notification_acceptance_draft"
-              sequence="20"
-              groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
 
 </odoo>

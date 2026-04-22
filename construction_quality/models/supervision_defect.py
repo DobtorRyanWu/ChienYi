@@ -79,12 +79,6 @@ class SupervisionDefect(models.Model):
         ('documentation', '文件缺失'),
     ], string='缺失類型', required=True, default='quality', tracking=True)
 
-    severity = fields.Selection([
-        ('minor', '輕微'),
-        ('major', '重大'),
-        ('critical', '嚴重'),
-    ], string='嚴重程度', required=True, default='minor', tracking=True)
-
     # === 缺失內容 ===
     description = fields.Text(
         string='缺失說明',

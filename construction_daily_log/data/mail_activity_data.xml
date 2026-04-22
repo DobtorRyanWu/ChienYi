@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo noupdate="1">
+
+    <!-- 自主檢查排程提醒 -->
+    <record id="activity_type_inspection_schedule" model="mail.activity.type">
+        <field name="name">自主檢查排程提醒</field>
+        <field name="summary">排程中有工項需安排自主檢查</field>
+        <field name="res_model">construction.weekly.schedule</field>
+        <field name="delay_count">0</field>
+        <field name="icon">fa-clipboard</field>
+    </record>
+
+</odoo>

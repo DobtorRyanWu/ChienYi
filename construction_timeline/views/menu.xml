@@ -57,6 +57,6 @@
               parent="construction_supervision_base.menu_timesheet_management"
               action="action_running_timesheet"
               sequence="20"
-              groups="construction_supervision_base.group_supervision_manager"/>
+              />
 
 </odoo>

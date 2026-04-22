@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 施工日誌 PDF 報表模板 -->
+
+    <!-- 紙張格式：A4 縱向 -->
+    <record id="paperformat_daily_log" model="report.paperformat">
+        <field name="name">施工日誌列印格式</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="page_height">0</field>
+        <field name="page_width">0</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">12</field>
+        <field name="margin_bottom">12</field>
+        <field name="margin_left">10</field>
+        <field name="margin_right">10</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">5</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- ===== 單一施工日誌報表 ===== -->
+    <record id="action_report_daily_log" model="ir.actions.report">
+        <field name="name">施工日誌</field>
+        <field name="model">daily.log.sheet</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">construction_daily_log.report_daily_log</field>
+        <field name="report_file">construction_daily_log.report_daily_log</field>
+        <field name="print_report_name">'施工日誌_%s_%s' % (object.log_date or '', object.supervision_project_id.name or '')</field>
+        <field name="binding_model_id" ref="model_daily_log_sheet"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_daily_log"/>
+    </record>
+
+    <!-- 單一施工日誌模板 -->
+    <template id="report_daily_log">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="log">
+                <t t-call="construction_daily_log.report_daily_log_document"/>
+            </t>
+        </t>
+    </template>
+
+    <!-- 單一施工日誌文件模板 -->
+    <template id="report_daily_log_document">
+        <t t-call="web.external_layout">
+            <div class="page" style="font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif; font-size: 10pt;">
+
+                <!-- 標題區 -->
+                <div class="text-center mb-3">
+                    <h3 style="font-weight: bold; margin-bottom: 5px;">
+                        <t t-esc="log.supervision_project_id.company_id.name or '監造單位'"/>
+                    </h3>
+                    <h4 style="font-weight: bold; border-bottom: 2px solid #333; padding-bottom: 8px;">
+                        施工日誌
+                    </h4>
+                </div>
+
+                <!-- 基本資訊區 -->
+                <table class="table table-sm table-bordered" style="margin-bottom: 12px;">
+                    <tbody>
+                        <tr>
+                            <td style="width: 15%; background-color: #f5f5f5; font-weight: bold;">工程名稱</td>
+                            <td style="width: 60%;" colspan="3"><t t-esc="log.supervision_project_id.name"/></td>
+                            <td style="width: 10%; background-color: #f5f5f5; font-weight: bold;">日期</td>
+                            <td style="width: 15%;"><t t-esc="log.log_date" t-options='{"widget": "date"}'/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">填表人</td>
+                            <td><t t-esc="log.employee_id.name or '-'"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">累計工期</td>
+                            <td><t t-esc="log.cumulative_duration or 0"/> 天</td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">剩餘工期</td>
+                            <td><t t-esc="log.remaining_duration or 0"/> 天</td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">上午天氣</td>
+                            <td>
+                                <t t-if="log.weather_am == 'sunny'">☀️ 晴</t>
+                                <t t-elif="log.weather_am == 'cloudy'">⛅ 多雲</t>
+                                <t t-elif="log.weather_am == 'overcast'">☁️ 陰</t>
+                                <t t-elif="log.weather_am == 'rainy'">🌧️ 雨</t>
+                                <t t-elif="log.weather_am == 'heavy_rain'">⛈️ 大雨</t>
+                                <t t-elif="log.weather_am == 'typhoon'">🌀 颱風</t>
+                                <t t-elif="log.weather_am == 'foggy'">🌫️ 霧</t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">下午天氣</td>
+                            <td>
+                                <t t-if="log.weather_pm == 'sunny'">☀️ 晴</t>
+                                <t t-elif="log.weather_pm == 'cloudy'">⛅ 多雲</t>
+                                <t t-elif="log.weather_pm == 'overcast'">☁️ 陰</t>
+                                <t t-elif="log.weather_pm == 'rainy'">🌧️ 雨</t>
+                                <t t-elif="log.weather_pm == 'heavy_rain'">⛈️ 大雨</t>
+                                <t t-elif="log.weather_pm == 'typhoon'">🌀 颱風</t>
+                                <t t-elif="log.weather_pm == 'foggy'">🌫️ 霧</t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">實際進度</td>
+                            <td><t t-esc="'{:.1f}'.format(log.actual_progress or 0)"/> %</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- 工作摘要區 -->
+                <t t-if="log.work_summary">
+                    <h5 style="font-weight: bold; border-left: 4px solid #007bff; padding-left: 8px; margin: 15px 0 8px 0;">
+                        工作摘要
+                    </h5>
+                    <div style="border: 1px solid #dee2e6; padding: 10px; background-color: #fafafa; white-space: pre-wrap; min-height: 60px;">
+                        <t t-esc="log.work_summary"/>
+                    </div>
+                </t>
+
+                <!-- 工項明細表 -->
+                <t t-if="log.line_ids">
+                    <h5 style="font-weight: bold; border-left: 4px solid #28a745; padding-left: 8px; margin: 15px 0 8px 0;">
+                        施工工項明細（共 <t t-esc="len(log.line_ids)"/> 項）
+                    </h5>
+                    <table class="table table-sm table-bordered" style="font-size: 9pt;">
+                        <thead style="background-color: #343a40; color: white;">
+                            <tr>
+                                <th style="width: 12%; text-align: center;">工項編號</th>
+                                <th style="width: 28%; text-align: center;">工項名稱</th>
+                                <th style="width: 8%; text-align: center;">單位</th>
+                                <th style="width: 13%; text-align: center;">本日完成</th>
+                                <th style="width: 13%; text-align: center;">累計完成</th>
+                                <th style="width: 13%; text-align: center;">契約數量</th>
+                                <th style="width: 13%; text-align: center;">完成率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="log.line_ids" t-as="line">
+                                <tr>
+                                    <td style="text-align: center;"><t t-esc="line.item_no or '-'"/></td>
+                                    <td><t t-esc="line.item_name or line.work_item_id.name or '-'"/></td>
+                                    <td style="text-align: center;"><t t-esc="line.unit or '-'"/></td>
+                                    <td style="text-align: right; font-weight: bold;"><t t-esc="'{:,.2f}'.format(line.daily_qty or 0)"/></td>
+                                    <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.cumulative_qty or 0)"/></td>
+                                    <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.contract_qty or 0)"/></td>
+                                    <td style="text-align: center;">
+                                        <t t-set="rate" t-value="line.completion_rate or 0"/>
+                                        <span t-attf-style="color: #{rate >= 100 and '#28a745' or (rate >= 50 and '#ffc107' or '#dc3545')};">
+                                            <t t-esc="'{:.1f}'.format(rate)"/>%
+                                        </span>
+                                    </td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                </t>
+
+                <!-- 安全衛生事項 -->
+                <div class="row" style="margin-top: 15px;">
+                    <div class="col-6">
+                        <h5 style="font-weight: bold; border-left: 4px solid #ffc107; padding-left: 8px;">
+                            安全衛生檢查
+                        </h5>
+                        <table class="table table-sm table-bordered" style="font-size: 9pt;">
+                            <tbody>
+                                <tr>
+                                    <td style="width: 60%;">勤前教育實施</td>
+                                    <td style="width: 40%; text-align: center;">
+                                        <t t-if="log.safety_pre_work_education == 'yes'">✅ 有</t>
+                                        <t t-else="">❌ 無</t>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>新進勞工保險確認</td>
+                                    <td style="text-align: center;">
+                                        <t t-if="log.safety_labor_insurance_check == 'yes'">✅ 有</t>
+                                        <t t-else="">❌ 無</t>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>個人防護具檢查</td>
+                                    <td style="text-align: center;">
+                                        <t t-if="log.safety_ppe_check == 'yes'">✅ 有</t>
+                                        <t t-else="">❌ 無</t>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>技術士設置需求</td>
+                                    <td style="text-align: center;">
+                                        <t t-if="log.has_technician_requirement == 'yes'">✅ 有</t>
+                                        <t t-else="">❌ 無</t>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-6">
+                        <t t-if="log.safety_other_matters">
+                            <h5 style="font-weight: bold; border-left: 4px solid #17a2b8; padding-left: 8px;">
+                                安全衛生其他事項
+                            </h5>
+                            <div style="border: 1px solid #dee2e6; padding: 8px; background-color: #fafafa; font-size: 9pt; white-space: pre-wrap; min-height: 80px;">
+                                <t t-esc="log.safety_other_matters"/>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- 其他紀錄區 -->
+                <div class="row" style="margin-top: 10px;">
+                    <t t-if="log.sampling_test_record">
+                        <div class="col-6">
+                            <h5 style="font-weight: bold; border-left: 4px solid #6c757d; padding-left: 8px;">
+                                取樣試驗紀錄
+                            </h5>
+                            <div style="border: 1px solid #dee2e6; padding: 8px; background-color: #fafafa; font-size: 9pt; white-space: pre-wrap; min-height: 50px;">
+                                <t t-esc="log.sampling_test_record"/>
+                            </div>
+                        </div>
+                    </t>
+                    <t t-if="log.subcontractor_notification">
+                        <div class="col-6">
+                            <h5 style="font-weight: bold; border-left: 4px solid #6c757d; padding-left: 8px;">
+                                協力廠商通知
+                            </h5>
+                            <div style="border: 1px solid #dee2e6; padding: 8px; background-color: #fafafa; font-size: 9pt; white-space: pre-wrap; min-height: 50px;">
+                                <t t-esc="log.subcontractor_notification"/>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+
+                <t t-if="log.important_matters">
+                    <h5 style="font-weight: bold; border-left: 4px solid #dc3545; padding-left: 8px; margin-top: 15px;">
+                        重要事項紀錄
+                    </h5>
+                    <div style="border: 1px solid #dee2e6; padding: 8px; background-color: #fff3cd; font-size: 9pt; white-space: pre-wrap;">
+                        <t t-esc="log.important_matters"/>
+                    </div>
+                </t>
+
+                <!-- 簽核區 -->
+                <div style="margin-top: 30px; page-break-inside: avoid;">
+                    <table class="table table-bordered" style="margin-bottom: 0;">
+                        <tbody>
+                            <tr style="height: 60px;">
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">填表人</div>
+                                    <div><t t-esc="log.employee_id.name or '-'"/></div>
+                                </td>
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">監造主管</div>
+                                    <div style="color: #999;">簽章：</div>
+                                </td>
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">狀態</div>
+                                    <div style="font-size: 11pt; font-weight: bold;">
+                                        <t t-if="log.state == 'locked'">已鎖定</t>
+                                        <t t-else="">編輯中</t>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 頁尾資訊 -->
+                <div style="margin-top: 15px; font-size: 8pt; color: #666; text-align: center;">
+                    列印日期：<t t-esc="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M')"/>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+    <!-- ===== 批量施工日誌報表 ===== -->
+    <record id="action_report_daily_log_batch" model="ir.actions.report">
+        <field name="name">施工日誌彙整</field>
+        <field name="model">daily.log.sheet</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">construction_daily_log.report_daily_log_batch</field>
+        <field name="report_file">construction_daily_log.report_daily_log_batch</field>
+        <field name="print_report_name">'施工日誌彙整_%s' % (len(objects))</field>
+        <field name="binding_model_id" ref="model_daily_log_sheet"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_daily_log"/>
+    </record>
+
+    <!-- 批量施工日誌模板 -->
+    <template id="report_daily_log_batch">
+        <t t-call="web.html_container">
+            <t t-set="first_log" t-value="docs[0] if docs else None"/>
+            <div class="page" style="font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif; font-size: 10pt;">
+
+                <!-- 封面標題 -->
+                <div class="text-center mb-4">
+                    <h2 style="font-weight: bold; margin-bottom: 10px;">
+                        <t t-if="first_log">
+                            <t t-esc="first_log.supervision_project_id.name"/>
+                        </t>
+                    </h2>
+                    <h3 style="font-weight: bold; border-bottom: 2px solid #333; padding-bottom: 10px;">
+                        施工日誌彙整表
+                    </h3>
+                    <p style="margin-top: 10px; color: #666;">
+                        共 <t t-esc="len(docs)"/> 份日誌
+                        <t t-if="docs">
+                            ｜ <t t-esc="min(docs.mapped('log_date'))"/> ~ <t t-esc="max(docs.mapped('log_date'))"/>
+                        </t>
+                    </p>
+                </div>
+
+                <!-- 彙整摘要表 -->
+                <table class="table table-sm table-bordered" style="font-size: 9pt;">
+                    <thead style="background-color: #343a40; color: white;">
+                        <tr>
+                            <th style="text-align: center;">日期</th>
+                            <th style="text-align: center;">填表人</th>
+                            <th style="text-align: center;">上午天氣</th>
+                            <th style="text-align: center;">下午天氣</th>
+                            <th style="text-align: center;">累計工期</th>
+                            <th style="text-align: center;">實際進度</th>
+                            <th style="text-align: center;">工項數</th>
+                            <th style="text-align: center;">狀態</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="docs" t-as="log">
+                            <tr>
+                                <td style="text-align: center;"><t t-esc="log.log_date" t-options='{"widget": "date"}'/></td>
+                                <td style="text-align: center;"><t t-esc="log.employee_id.name or '-'"/></td>
+                                <td style="text-align: center;">
+                                    <t t-if="log.weather_am == 'sunny'">☀️</t>
+                                    <t t-elif="log.weather_am == 'cloudy'">⛅</t>
+                                    <t t-elif="log.weather_am == 'overcast'">☁️</t>
+                                    <t t-elif="log.weather_am == 'rainy'">🌧️</t>
+                                    <t t-elif="log.weather_am == 'heavy_rain'">⛈️</t>
+                                    <t t-elif="log.weather_am == 'typhoon'">🌀</t>
+                                    <t t-elif="log.weather_am == 'foggy'">🌫️</t>
+                                    <t t-else="">-</t>
+                                </td>
+                                <td style="text-align: center;">
+                                    <t t-if="log.weather_pm == 'sunny'">☀️</t>
+                                    <t t-elif="log.weather_pm == 'cloudy'">⛅</t>
+                                    <t t-elif="log.weather_pm == 'overcast'">☁️</t>
+                                    <t t-elif="log.weather_pm == 'rainy'">🌧️</t>
+                                    <t t-elif="log.weather_pm == 'heavy_rain'">⛈️</t>
+                                    <t t-elif="log.weather_pm == 'typhoon'">🌀</t>
+                                    <t t-elif="log.weather_pm == 'foggy'">🌫️</t>
+                                    <t t-else="">-</t>
+                                </td>
+                                <td style="text-align: center;"><t t-esc="log.cumulative_duration or 0"/> 天</td>
+                                <td style="text-align: center;"><t t-esc="'{:.1f}'.format(log.actual_progress or 0)"/>%</td>
+                                <td style="text-align: center;"><t t-esc="len(log.line_ids)"/></td>
+                                <td style="text-align: center;">
+                                    <t t-if="log.state == 'locked'">🔒</t>
+                                    <t t-else="">📝</t>
+                                </td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+
+                <!-- 頁尾 -->
+                <div style="margin-top: 20px; font-size: 8pt; color: #666; text-align: center;">
+                    列印日期：<t t-esc="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M')"/>
+                </div>
+
+            </div>
+
+            <!-- 各日誌詳情（分頁） -->
+            <t t-foreach="docs" t-as="log">
+                <div class="page" style="page-break-before: always; font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif; font-size: 10pt;">
+                    <t t-call="construction_daily_log.report_daily_log_document"/>
+                </div>
+            </t>
+        </t>
+    </template>
+
+</odoo>

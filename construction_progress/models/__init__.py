@@ -5,3 +5,4 @@
 from . import progress_schedule
 from . import progress_schedule_line
 from . import supervision_project
+from . import daily_log_sheet

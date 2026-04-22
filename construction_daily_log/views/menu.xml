@@ -15,7 +15,17 @@
         parent="construction_supervision_base.menu_daily_log"
         action="action_daily_log_sheet_my"
         sequence="10"
-        groups="construction_supervision_base.group_contractor_manager,construction_supervision_base.group_contractor_engineer"
+        groups="base.group_user,construction_supervision_base.group_supervisor_admin,base.group_portal"
+    />
+
+    <!-- 施工排程 -->
+    <menuitem
+        id="menu_weekly_schedule"
+        name="施工排程"
+        parent="construction_supervision_base.menu_daily_log"
+        action="action_weekly_schedule"
+        sequence="15"
+        groups="base.group_user,construction_supervision_base.group_supervisor_admin,base.group_portal"
     />
 
     <!-- 所有日誌 (for supervision) -->
@@ -25,17 +35,7 @@
         parent="construction_supervision_base.menu_daily_log"
         action="action_daily_log_sheet_all"
         sequence="20"
-        groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer,construction_supervision_base.group_supervisor_admin"
-    />
-
-    <!-- 待審核 (for supervisors) -->
-    <menuitem
-        id="menu_daily_log_to_review"
-        name="待審核"
-        parent="construction_supervision_base.menu_daily_log"
-        action="action_daily_log_sheet_to_review"
-        sequence="30"
-        groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"
+        groups="base.group_user,construction_supervision_base.group_supervisor_admin,base.group_portal"
     />
 
     <!-- 設定選單 -->
@@ -54,6 +54,7 @@
         parent="menu_daily_log_config"
         action="action_daily_log_line"
         sequence="10"
+        active="0"
     />
 
     <!-- 天氣記錄 (under 設定) -->
@@ -63,6 +64,7 @@
         parent="menu_daily_log_config"
         action="action_daily_log_weather"
         sequence="20"
+        active="0"
     />
 
 </odoo>

@@ -1,338 +1,349 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Copyright 2024-2025 Engineering Supervision System
-    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
--->
 <odoo>
-    <!-- ===================================================================
-         Daily Log Sheet Views
-         =================================================================== -->
 
-    <!-- List View -->
-    <record id="daily_log_sheet_view_list" model="ir.ui.view">
-        <field name="name">daily.log.sheet.list</field>
-        <field name="model">daily.log.sheet</field>
-        <field name="arch" type="xml">
-            <list
-                decoration-info="state in ('new', 'draft')"
-                decoration-warning="state == 'confirm'"
-                decoration-success="state == 'done'"
-                multi_edit="1"
-            >
-                <field name="name" string="Period"/>
-                <field name="project_id"/>
-                <field name="employee_id" widget="many2one_avatar_employee"/>
-                <field name="date_start"/>
-                <field name="date_end"/>
-                <field name="total_worker_count" sum="Total Workers"/>
-                <field name="total_equipment_count" sum="Total Equipment"/>
-                <field name="total_work_hours" widget="float_time" sum="Total Hours"/>
-                <field name="reviewer_id" optional="show"/>
-                <field name="state" widget="badge"
-                    decoration-info="state in ('new', 'draft')"
-                    decoration-warning="state == 'confirm'"
-                    decoration-success="state == 'done'"
-                />
-                <field name="company_id" groups="base.group_multi_company"/>
-            </list>
-        </field>
-    </record>
-
-    <!-- Form View -->
+    <!-- ========================================================================
+         施工日誌表單 - 表單視圖（修改後）
+         ======================================================================== -->
+    
     <record id="daily_log_sheet_view_form" model="ir.ui.view">
         <field name="name">daily.log.sheet.form</field>
         <field name="model">daily.log.sheet</field>
         <field name="arch" type="xml">
-            <form string="Daily Log Sheet">
-                <field name="can_review" invisible="1"/>
-                <field name="user_id" invisible="1"/>
+            <form string="施工日誌">
                 <header>
-                    <button name="action_confirm"
-                        string="Submit for Review"
-                        type="object"
-                        class="oe_highlight"
-                        invisible="state != 'draft'"
-                    />
-                    <button name="action_done"
-                        string="Approve"
-                        type="object"
-                        class="oe_highlight"
-                        invisible="state != 'confirm' or can_review != True"
-                    />
-                    <button name="action_draft"
-                        string="Set to Draft"
-                        type="object"
-                        invisible="state != 'done' or can_review != True"
-                    />
-                    <button name="action_refuse"
-                        string="Refuse"
-                        type="object"
-                        invisible="state != 'confirm' or can_review != True"
-                    />
+                    <!-- 解鎖按鈕（只有高權限且日誌已鎖定時顯示）-->
+                    <!-- 狀態切換按鈕 -->
+                    <button name="action_mark_filled" string="標記已填寫"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'draft' or is_locked"/>
+                    <button name="action_revert_to_draft" string="退回編輯"
+                            type="object"
+                            invisible="state != 'filled' or is_locked"/>
+
+                    <!-- 解鎖按鈕（只有高權限且日誌已鎖定時顯示）-->
+                    <button name="action_unlock" string="申請解鎖"
+                            type="object" class="oe_highlight"
+                            invisible="not is_locked or not can_unlock or is_unlocked"/>
+
+                    <button name="action_relock" string="重新鎖定"
+                            type="object"
+                            invisible="not is_unlocked or not can_unlock"/>
+
+                    <!-- 狀態列 -->
                     <field name="state" widget="statusbar"
-                        statusbar_visible="draft,confirm,done"
-                    />
+                           statusbar_visible="draft,filled,locked"/>
                 </header>
+                
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_lines"
-                            type="object"
-                            class="oe_stat_button"
-                            icon="fa-list"
-                        >
-                            <field name="total_work_hours" widget="statinfo" string="Work Hours"/>
+                        <button name="action_view_lines" type="object"
+                                class="oe_stat_button" icon="fa-list-alt">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">日誌明細</span>
+                            </div>
                         </button>
                     </div>
-                    <div class="oe_title">
-                        <label for="project_id"/>
-                        <h1>
-                            <field name="project_id"
-                                placeholder="Select Project"
-                                readonly="state not in ('new', 'draft')"
-                            />
-                        </h1>
+                    
+                    <!-- 鎖定狀態警告 -->
+                    <div class="alert alert-warning" role="alert" 
+                         invisible="not is_locked or is_unlocked">
+                        <strong>此日誌已鎖定</strong>
+                        <p>日誌日期已超過 <field name="days_since_log" readonly="1"/> 天（超過14天自動鎖定）</p>
+                        <p invisible="not can_unlock">您可以申請解鎖以進行修改</p>
                     </div>
-                    <group>
-                        <group name="basic_info">
-                            <field name="employee_id"
-                                widget="many2one_avatar_employee"
-                                readonly="state not in ('new', 'draft')"
-                            />
-                            <field name="sheet_range"
-                                readonly="state not in ('new', 'draft')"
-                            />
-                            <label for="date_start" string="Period"/>
-                            <div class="o_row">
-                                <field name="date_start"
-                                    readonly="state not in ('new', 'draft')"
-                                />
-                                <span class="mx-2">to</span>
-                                <field name="date_end"
-                                    readonly="state not in ('new', 'draft')"
-                                />
-                            </div>
-                        </group>
-                        <group name="statistics">
-                            <field name="total_worker_count"/>
-                            <field name="total_equipment_count"/>
-                            <field name="company_id"
-                                groups="base.group_multi_company"
-                                readonly="state not in ('new', 'draft')"
-                            />
-                            <field name="notification_slip_id"
-                                invisible="project_type != 'reservation'"
-                                readonly="state not in ('new', 'draft')"
-                            />
+                    
+                    <!-- 解鎖中提示 -->
+                    <div class="alert alert-info" role="alert" 
+                         invisible="not is_unlocked">
+                        <strong>已授權解鎖</strong>
+                        <p>解鎖人：<field name="unlocked_by_id" readonly="1"/></p>
+                        <p>失效時間：<field name="unlock_expires_at" readonly="1"/></p>
+                        <p>原因：<field name="unlock_reason" readonly="1"/></p>
+                    </div>
+                    
+                    <widget name="web_ribbon" title="已鎖定" bg_color="text-bg-danger"
+                            invisible="not is_locked or is_unlocked"/>
+                    <widget name="web_ribbon" title="已解鎖" bg_color="text-bg-info"
+                            invisible="not is_unlocked"/>
+                    
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                        <h2>
+                            <field name="complete_name" readonly="1" invisible="1"/>
+                        </h2>
+                    </div>
+                    
+                    <!-- 基本日誌資料 -->
+                    <group string="基本日誌資料">
+                        <group name="log_basic">
+                            <field name="supervision_project_id" 
+                                   placeholder="選擇工程案件"
+                                   options="{'no_create': True}"
+                                   readonly="is_locked and not is_unlocked"/>
+                            <field name="project_id" invisible="1"/>
+                            <field name="project_type" invisible="1"/>
+                            <field name="employee_id" 
+                                   widget="many2one_avatar_employee" 
+                                   readonly="1"/>
+                            <field name="log_date"
+                                   readonly="is_locked and not is_unlocked"/>
+                            <field name="company_id" 
+                                   groups="base.group_multi_company" 
+                                   readonly="1"/>
                         </group>
                     </group>
-
+                    
+                    <!-- 工期資訊 -->
+                    <group string="工期資訊">
+                        <group name="duration_contract">
+                            <field name="contract_duration" readonly="1"/>
+                            <field name="extension_duration" readonly="1"/>
+                            <field name="total_approved_duration" readonly="1"/>
+                        </group>
+                        <group name="duration_status">
+                            <field name="cumulative_duration" readonly="1"/>
+                            <field name="remaining_duration" readonly="1"/>
+                        </group>
+                    </group>
+                    
+                    <!-- 天氣記錄 -->
+                    <group string="天氣記錄">
+                        <group>
+                            <field name="weather_am" 
+                                   widget="radio"
+                                   readonly="is_locked and not is_unlocked"/>
+                        </group>
+                        <group>
+                            <field name="weather_pm" 
+                                   widget="radio"
+                                   readonly="is_locked and not is_unlocked"/>
+                        </group>
+                    </group>
+                    
+                    <!-- 頁籤 -->
                     <notebook>
-                        <page string="Daily Log Lines" name="lines">
-                            <field name="line_ids"
-                                readonly="state not in ('new', 'draft')"
-                                context="{
-                                    'default_sheet_id': id,
-                                    'default_project_id': project_id,
-                                    'default_employee_id': employee_id,
-                                }"
-                            >
-                                <list editable="bottom">
-                                    <field name="date"/>
-                                    <field name="day_week" readonly="1"/>
+                        <!-- 進度狀況頁籤會由 construction_progress 模組新增 (sequence=10) -->
+                        
+                        <!-- 施工日誌明細 -->
+                        <page string="施工日誌明細" name="daily_log_lines" sequence="20">
+                            <!-- 批次新增按鈕 -->
+                            <div class="oe_button_box" name="line_buttons">
+                                <button name="action_add_items_wizard" 
+                                        type="object"
+                                        string="新增工項"
+                                        class="oe_highlight"
+                                        icon="fa-plus-square"
+                                        invisible="is_locked and not is_unlocked"/>
+                            </div>
+                            
+                            <field name="line_ids" 
+                                   context="{'default_sheet_id': id, 'default_project_id': project_id}"
+                                   readonly="is_locked and not is_unlocked">
+                                <list editable="bottom" create="false"
+                                      default_order="work_item_sequence"
+                                      decoration-danger="is_over_contract"
+                                      decoration-warning="completion_rate >= 90 and completion_rate &lt; 100 and not is_over_contract">
                                     <field name="work_item_id"
-                                        domain="[('project_id', '=', parent.project_id)]"
-                                    />
-                                    <field name="work_description"/>
-                                    <field name="location"/>
-                                    <field name="worker_count"/>
-                                    <field name="equipment_count"/>
-                                    <field name="completion_qty"/>
-                                    <field name="completion_unit"/>
-                                    <field name="unit_amount" widget="float_time" string="Hours"/>
-                                    <field name="has_issue"/>
+                                           domain="[('project_id', '=', parent.project_id), ('is_summary_item', '=', False), ('active', '=', True)]"
+                                           options="{'no_create': True, 'no_open': True}"
+                                           placeholder="選擇施工項目..."/>
+                                    <field name="parent_item_name" string="父工項" readonly="1"/>
+                                    <field name="item_no" optional="show"/>
+                                    <field name="unit" readonly="1"/>
+                                    <field name="contract_qty" readonly="1"/>
+                                    <field name="daily_qty" sum="本日完成總計"/>
+                                    <field name="cumulative_qty" readonly="1"/>
+                                    <field name="completion_rate" widget="progressbar" optional="hide"/>
+                                    <field name="work_description" optional="show"/>
+                                    <!-- 隱藏欄位 -->
+                                    <field name="date" column_invisible="1"/>
+                                    <field name="project_id" column_invisible="1"/>
+                                    <field name="is_over_contract" column_invisible="1"/>
+                                    <field name="task_id" column_invisible="1"/>
                                 </list>
                             </field>
                         </page>
-
-                        <page string="Weather Records" name="weather">
-                            <button name="action_add_weather"
-                                string="Add Weather Records"
-                                type="object"
-                                class="btn-secondary mb-3"
-                                invisible="state not in ('new', 'draft')"
-                            />
-                            <field name="weather_ids"
-                                readonly="state not in ('new', 'draft')"
-                            >
+                        
+                        <!-- 工地材料管理 -->
+                        <page string="工地材料管理" name="material_management" sequence="25">
+                            <div class="text-muted mb-2">
+                                含約定之重要材料使用狀況及數量等
+                            </div>
+                            <field name="material_ids" readonly="is_locked and not is_unlocked">
                                 <list editable="bottom">
-                                    <field name="date"/>
-                                    <field name="day_week" readonly="1"/>
-                                    <field name="weather_am"/>
-                                    <field name="weather_pm"/>
-                                    <field name="temperature_high"/>
-                                    <field name="temperature_low"/>
-                                    <field name="is_workday"/>
-                                    <field name="work_stopped_reason"
-                                        invisible="is_workday"
-                                    />
-                                    <field name="actual_progress"/>
-                                    <field name="has_progress_change"/>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name" placeholder="施工項目名稱"/>
+                                    <field name="unit"/>
+                                    <field name="contract_qty"/>
+                                    <field name="daily_qty"/>
+                                    <field name="cumulative_qty"/>
+                                    <field name="note"/>
                                 </list>
                             </field>
                         </page>
 
-                        <page string="Progress &amp; Notes" name="progress">
+                        <!-- 人機使用頁籤會由 construction_equipment 模組新增 (sequence=30) -->
+
+                        <!-- 其餘日誌事項 -->
+                        <page string="其餘日誌事項" name="other_matters" sequence="40">
                             <group>
-                                <group name="progress_info">
-                                    <field name="has_progress_change"/>
-                                    <field name="actual_progress"
-                                        widget="progressbar"
-                                    />
-                                </group>
-                                <group name="review_info">
-                                    <field name="reviewer_id" readonly="1"/>
-                                    <field name="review_date" readonly="1"/>
-                                    <field name="review_policy"/>
+                                <!-- (1) 技術士設置要求 -->
+                                <group string="一、設置要求">
+                                    <field name="has_technician_requirement" 
+                                           widget="radio"
+                                           readonly="is_locked and not is_unlocked"/>
                                 </group>
                             </group>
-                            <separator string="Work Summary"/>
-                            <field name="work_summary"
-                                placeholder="Enter summary of work done..."
-                                readonly="state not in ('new', 'draft')"
-                            />
-                            <separator string="Notes"/>
-                            <field name="notes"
-                                placeholder="Enter additional notes..."
-                                readonly="state not in ('new', 'draft')"
-                            />
+                            
+                            <group string="二、工地職業安全衛生事項">
+                                <!-- (1) 施工前檢查事項 -->
+                                <group string="(1) 施工前檢查事項" colspan="2">
+                                    <field name="safety_pre_work_education" 
+                                           widget="radio"
+                                           readonly="is_locked and not is_unlocked"/>
+                                    <field name="safety_labor_insurance_check" 
+                                           widget="radio"
+                                           readonly="is_locked and not is_unlocked"/>
+                                    <field name="safety_ppe_check" 
+                                           widget="radio"
+                                           readonly="is_locked and not is_unlocked"/>
+                                </group>
+                                
+                                <!-- (2) 其他事項 -->
+                                <group string="(2) 其他事項" colspan="2">
+                                    <field name="safety_other_matters" 
+                                           nolabel="1"
+                                           placeholder="請輸入工地職業安全衛生其他事項..."
+                                           readonly="is_locked and not is_unlocked"/>
+                                </group>
+                            </group>
+                            
+                            <!-- (3) 施工取樣試驗紀錄 -->
+                            <group string="三、施工取樣試驗紀錄">
+                                <field name="sampling_test_record" 
+                                       nolabel="1"
+                                       placeholder="請輸入施工取樣試驗紀錄..."
+                                       readonly="is_locked and not is_unlocked"/>
+                            </group>
+                            
+                            <!-- (4) 通知協力廠商辦理事項 -->
+                            <group string="四、通知協力廠商辦理事項">
+                                <field name="subcontractor_notification" 
+                                       nolabel="1"
+                                       placeholder="請輸入需通知協力廠商辦理的事項..."
+                                       readonly="is_locked and not is_unlocked"/>
+                            </group>
+                            
+                            <!-- (5) 重要事項紀錄 -->
+                            <group string="五、重要事項紀錄">
+                                <field name="important_matters" 
+                                       nolabel="1"
+                                       placeholder="請輸入重要事項或特殊狀況..."
+                                       readonly="is_locked and not is_unlocked"/>
+                            </group>
+                        </page>
+                        
+                        <!-- 備註 -->
+                        <page string="備註" name="notes" sequence="50">
+                            <group>
+                                <field name="work_summary"
+                                       placeholder="本日工作摘要..."
+                                       readonly="is_locked and not is_unlocked"/>
+                                <field name="notes"
+                                       placeholder="其他附註說明..."
+                                       readonly="is_locked and not is_unlocked"/>
+                            </group>
+                        </page>
+
+                        <!-- 施工照片 -->
+                        <page string="照片" name="photos" sequence="60">
+                            <field name="photo_ids"
+                                   widget="many2many_binary"
+                                   string="施工照片"
+                                   readonly="is_locked and not is_unlocked"/>
                         </page>
                     </notebook>
+                    
+                    <!-- 隱藏欄位 -->
+                    <field name="is_locked" invisible="1"/>
+                    <field name="can_unlock" invisible="1"/>
+                    <field name="lock_date" invisible="1"/>
+                    <field name="user_id" invisible="1"/>
+                    <field name="department_id" invisible="1"/>
+                    <field name="task_ids" invisible="1"/>
+                    <field name="notification_slip_id" invisible="1"/>
+                    <field name="has_progress_change" invisible="1"/>
+                    <field name="actual_progress" invisible="1"/>
+                    <field name="weather_ids" invisible="1"/>
                 </sheet>
+                
+                <!-- Chatter -->
                 <chatter/>
             </form>
         </field>
     </record>
 
-    <!-- Search View -->
-    <record id="daily_log_sheet_view_search" model="ir.ui.view">
-        <field name="name">daily.log.sheet.search</field>
+    <!-- ========================================================================
+         施工日誌表單 - 列表視圖
+         ======================================================================== -->
+    
+    <record id="daily_log_sheet_view_tree" model="ir.ui.view">
+        <field name="name">daily.log.sheet.tree</field>
         <field name="model">daily.log.sheet</field>
         <field name="arch" type="xml">
-            <search string="Search Daily Log">
-                <field name="name"/>
-                <field name="project_id"/>
-                <field name="employee_id"/>
-                <field name="date_start"/>
-                <separator/>
-                <filter name="filter_my_sheets" string="My Sheets"
-                    domain="[('employee_id.user_id', '=', uid)]"
-                />
-                <separator/>
-                <filter name="filter_new" string="New"
-                    domain="[('state', '=', 'new')]"
-                />
-                <filter name="filter_draft" string="Draft"
-                    domain="[('state', '=', 'draft')]"
-                />
-                <filter name="filter_confirm" string="Pending Review"
-                    domain="[('state', '=', 'confirm')]"
-                />
-                <filter name="filter_done" string="Approved"
-                    domain="[('state', '=', 'done')]"
-                />
-                <separator/>
-                <filter name="filter_this_week" string="This Week"
-                    domain="[
-                        ('date_start', '>=', (context_today() - relativedelta(days=context_today().weekday())).strftime('%Y-%m-%d')),
-                        ('date_start', '&lt;', (context_today() + relativedelta(days=7-context_today().weekday())).strftime('%Y-%m-%d'))
-                    ]"
-                />
-                <filter name="filter_this_month" string="This Month"
-                    domain="[
-                        ('date_start', '>=', context_today().strftime('%Y-%m-01')),
-                        ('date_start', '&lt;', (context_today() + relativedelta(months=1)).strftime('%Y-%m-01'))
-                    ]"
-                />
-                <separator/>
-                <group expand="0" string="Group By">
-                    <filter name="groupby_project" string="Project"
-                        context="{'group_by': 'project_id'}"
-                    />
-                    <filter name="groupby_employee" string="Employee"
-                        context="{'group_by': 'employee_id'}"
-                    />
-                    <filter name="groupby_state" string="Status"
-                        context="{'group_by': 'state'}"
-                    />
-                    <filter name="groupby_month" string="Month"
-                        context="{'group_by': 'date_start:month'}"
-                    />
-                    <filter name="groupby_company" string="Company"
-                        context="{'group_by': 'company_id'}"
-                        groups="base.group_multi_company"
-                    />
-                </group>
-            </search>
+            <list string="施工日誌" 
+                  default_order="supervision_project_id, log_date desc"
+                  decoration-info="state in ('draft', 'filled') and not is_locked"
+                  decoration-danger="is_locked and not is_unlocked"
+                  decoration-success="is_unlocked">
+                <field name="log_date"/>
+                <field name="supervision_project_id"/>
+                <field name="employee_id" widget="many2one_avatar_employee"/>
+                <field name="is_locked" optional="show" widget="boolean_toggle"/>
+                <field name="days_since_log" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'filled'"
+                       decoration-muted="state == 'auto_locked'"
+                       decoration-danger="state == 'locked'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
         </field>
     </record>
 
-    <!-- Kanban View -->
+    <!-- ========================================================================
+         施工日誌表單 - 看板視圖
+         ======================================================================== -->
+    
     <record id="daily_log_sheet_view_kanban" model="ir.ui.view">
         <field name="name">daily.log.sheet.kanban</field>
         <field name="model">daily.log.sheet</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile" default_group_by="state">
-                <field name="name"/>
-                <field name="project_id"/>
+            <kanban default_group_by="state" class="o_kanban_small_column">
+                <field name="log_date"/>
+                <field name="supervision_project_id"/>
                 <field name="employee_id"/>
-                <field name="date_start"/>
-                <field name="date_end"/>
                 <field name="state"/>
-                <field name="total_work_hours"/>
-                <field name="can_review"/>
                 <templates>
-                    <t t-name="menu">
-                        <a t-if="widget.editable" role="menuitem" type="open" class="dropdown-item">Edit</a>
-                        <a t-if="widget.deletable" role="menuitem" type="delete" class="dropdown-item">Delete</a>
-                        <a t-if="record.state.raw_value == 'draft'" role="menuitem"
-                            name="action_confirm" type="object" class="dropdown-item">
-                            Submit for Review
-                        </a>
-                        <a t-if="record.state.raw_value == 'confirm' and record.can_review.value"
-                            role="menuitem" name="action_done" type="object" class="dropdown-item">
-                            Approve
-                        </a>
-                        <a t-if="record.state.raw_value == 'confirm' and record.can_review.value"
-                            role="menuitem" name="action_refuse" type="object" class="dropdown-item">
-                            Refuse
-                        </a>
-                    </t>
                     <t t-name="card">
-                        <div class="ribbon ribbon-top-right" t-if="record.state.raw_value == 'confirm'">
-                            <span class="text-bg-warning">Pending</span>
-                        </div>
-                        <div class="ribbon ribbon-top-right" t-if="record.state.raw_value == 'done'">
-                            <span class="text-bg-success">Approved</span>
-                        </div>
-                        <div class="o_kanban_record_top mb-2">
-                            <div class="o_kanban_record_headings">
-                                <strong class="o_kanban_record_title">
-                                    <field name="name"/>
-                                </strong>
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top mb-0">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="log_date"/>
+                                    </strong>
+                                </div>
+                                <span class="float-end">
+                                    <field name="state" widget="badge"/>
+                                </span>
                             </div>
-                        </div>
-                        <div class="o_kanban_record_body">
-                            <field name="project_id"/>
-                            <div class="d-flex align-items-center mt-2">
-                                <field name="employee_id" widget="many2one_avatar_employee"/>
-                            </div>
-                        </div>
-                        <div class="o_kanban_record_bottom">
-                            <div class="oe_kanban_bottom_left">
-                                <field name="total_work_hours" widget="float_time"/>
-                            </div>
-                            <div class="oe_kanban_bottom_right">
-                                <field name="date_start"/> - <field name="date_end"/>
+                            <div class="o_kanban_record_body">
+                                <field name="supervision_project_id"/>
+                                <div class="mt-2">
+                                    <field name="employee_id" widget="many2one_avatar_employee"/>
+                                </div>
                             </div>
                         </div>
                     </t>
@@ -341,241 +352,187 @@
         </field>
     </record>
 
-    <!-- Calendar View -->
-    <record id="daily_log_sheet_view_calendar" model="ir.ui.view">
-        <field name="name">daily.log.sheet.calendar</field>
+    <!-- ========================================================================
+         施工日誌表單 - 搜尋視圖
+         ======================================================================== -->
+    
+    <record id="daily_log_sheet_view_search" model="ir.ui.view">
+        <field name="name">daily.log.sheet.search</field>
         <field name="model">daily.log.sheet</field>
         <field name="arch" type="xml">
-            <calendar string="Daily Log Sheets"
-                date_start="date_start"
-                date_stop="date_end"
-                color="state"
-                mode="month"
-            >
-                <field name="name"/>
-                <field name="project_id"/>
+            <search string="搜尋施工日誌">
+                <field name="supervision_project_id"/>
                 <field name="employee_id"/>
-                <field name="state"/>
-            </calendar>
+                <field name="log_date"/>
+                <field name="name"/>
+                
+                <separator/>
+                <filter string="編輯中" name="draft" 
+                        domain="[('state', '=', 'draft'), ('is_locked', '=', False)]"/>
+                <filter string="已鎖定" name="locked" 
+                        domain="[('is_locked', '=', True), ('is_unlocked', '=', False)]"/>
+                <filter string="已解鎖" name="unlocked" 
+                        domain="[('is_unlocked', '=', True)]"/>
+                
+                <separator/>
+                <filter string="本週" name="this_week"
+                        domain="[('log_date', '&gt;=', context_today().strftime('%Y-%m-%d')),
+                                ('log_date', '&lt;=', (context_today() + relativedelta(weeks=1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="本月" name="this_month"
+                        domain="[('log_date', '&gt;=', context_today().strftime('%Y-%m-01')),
+                                ('log_date', '&lt;=', (context_today() + relativedelta(months=1, day=1, days=-1)).strftime('%Y-%m-%d'))]"/>
+                
+                <separator/>
+                <filter string="我的日誌" name="my_logs"
+                        domain="[('employee_id.user_id', '=', uid)]"/>
+                
+                <group expand="0" string="群組" name="groupby">
+                    <filter string="專案" name="group_project" 
+                            context="{'group_by': 'supervision_project_id'}"/>
+                    <filter string="員工" name="group_employee" 
+                            context="{'group_by': 'employee_id'}"/>
+                    <filter string="狀態" name="group_state" 
+                            context="{'group_by': 'state'}"/>
+                    <filter string="日期" name="group_date" 
+                            context="{'group_by': 'log_date:month'}"/>
+                </group>
+            </search>
         </field>
     </record>
 
-    <!-- ===================================================================
-         Daily Log Line Views
-         =================================================================== -->
+    <!-- ========================================================================
+         施工日誌表單 - 動作
+         ======================================================================== -->
+    
+    <record id="action_daily_log_sheet" model="ir.actions.act_window">
+        <field name="name">施工日誌</field>
+        <field name="res_model">daily.log.sheet</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="daily_log_sheet_view_search"/>
+        <field name="context">{
+            'search_default_my_logs': 1,
+            'search_default_group_project': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一份施工日誌
+            </p>
+            <p>
+                施工日誌用於記錄每日的施工情況、工作內容、人力配置等資訊。
+            </p>
+        </field>
+    </record>
 
+    <!-- ========================================================================
+         我的日誌 - 動作（承包商專用）
+         ======================================================================== -->
+    
+    <record id="action_daily_log_sheet_my" model="ir.actions.act_window">
+        <field name="name">我的日誌</field>
+        <field name="res_model">daily.log.sheet</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="daily_log_sheet_view_search"/>
+        <field name="domain">[('employee_id.user_id', '=', uid)]</field>
+        <field name="context">{
+            'search_default_group_project': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立您的第一份施工日誌
+            </p>
+            <p>
+                在此記錄您負責的施工日誌。
+            </p>
+        </field>
+    </record>
+
+    <!-- ========================================================================
+         所有日誌 - 動作（監造專用）
+         ======================================================================== -->
+    
+    <record id="action_daily_log_sheet_all" model="ir.actions.act_window">
+        <field name="name">所有日誌</field>
+        <field name="res_model">daily.log.sheet</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="daily_log_sheet_view_search"/>
+        <field name="context">{
+            'search_default_group_project': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無施工日誌
+            </p>
+            <p>
+                系統中所有的施工日誌都會顯示在這裡。
+            </p>
+        </field>
+    </record>
+
+    <!-- ========================================================================
+         日誌明細 - 列表視圖
+         ======================================================================== -->
+    
     <record id="daily_log_line_view_list" model="ir.ui.view">
         <field name="name">daily.log.line.list</field>
         <field name="model">daily.log.line</field>
         <field name="arch" type="xml">
-            <list editable="bottom">
+            <list string="施工日誌明細" create="false"
+                  decoration-danger="is_over_contract"
+                  decoration-warning="completion_rate >= 90 and completion_rate &lt; 100 and not is_over_contract">
+                <field name="sequence" widget="handle"/>
                 <field name="date"/>
-                <field name="day_week" readonly="1"/>
-                <field name="project_id"/>
-                <field name="work_item_id"/>
-                <field name="work_description"/>
-                <field name="location"/>
-                <field name="worker_count" sum="Workers"/>
-                <field name="equipment_count" sum="Equipment"/>
-                <field name="completion_qty"/>
-                <field name="completion_unit"/>
-                <field name="unit_amount" widget="float_time" sum="Hours"/>
-                <field name="sheet_state" optional="hide"/>
+                <field name="work_item_id" 
+                       options="{'no_create': True, 'no_open': True}"/>
+                <field name="item_no" optional="show"/>
+                <field name="unit" readonly="1"/>
+                <field name="contract_qty" readonly="1"/>
+                <field name="daily_qty" sum="本日完成總計"/>
+                <field name="cumulative_qty" readonly="1"/>
+                <field name="completion_rate" widget="progressbar" optional="hide"/>
+                <field name="work_description" optional="show"/>
+                <!-- 隱藏欄位 -->
+                <field name="sheet_id" column_invisible="1"/>
+                <field name="project_id" column_invisible="1"/>
+                <field name="is_over_contract" column_invisible="1"/>
+                <field name="task_id" column_invisible="1"/>
             </list>
         </field>
     </record>
 
-    <record id="daily_log_line_view_form" model="ir.ui.view">
-        <field name="name">daily.log.line.form</field>
-        <field name="model">daily.log.line</field>
-        <field name="arch" type="xml">
-            <form string="Daily Log Line">
-                <sheet>
-                    <group>
-                        <group name="basic">
-                            <field name="sheet_id"/>
-                            <field name="date"/>
-                            <field name="day_week" readonly="1"/>
-                            <field name="project_id"/>
-                            <field name="work_item_id"/>
-                        </group>
-                        <group name="work">
-                            <field name="location"/>
-                            <field name="worker_count"/>
-                            <field name="equipment_count"/>
-                            <field name="unit_amount" widget="float_time"/>
-                        </group>
-                    </group>
-                    <group>
-                        <group name="completion">
-                            <field name="completion_qty"/>
-                            <field name="completion_unit"/>
-                            <field name="completion_percentage" widget="progressbar"/>
-                        </group>
-                        <group name="issues">
-                            <field name="has_issue"/>
-                            <field name="issue_description"
-                                invisible="not has_issue"
-                            />
-                        </group>
-                    </group>
-                    <separator string="Work Description"/>
-                    <field name="work_description"/>
-                    <separator string="Material Notes"/>
-                    <field name="material_note"/>
-                </sheet>
-            </form>
-        </field>
-    </record>
-
-    <!-- ===================================================================
-         Daily Log Weather Views
-         =================================================================== -->
-
-    <record id="daily_log_weather_view_list" model="ir.ui.view">
-        <field name="name">daily.log.weather.list</field>
-        <field name="model">daily.log.weather</field>
-        <field name="arch" type="xml">
-            <list editable="bottom">
-                <field name="date"/>
-                <field name="day_week" readonly="1"/>
-                <field name="weather_am"/>
-                <field name="weather_pm"/>
-                <field name="temperature_high"/>
-                <field name="temperature_low"/>
-                <field name="is_workday"/>
-                <field name="work_stopped_reason" invisible="is_workday"/>
-                <field name="cumulative_duration"/>
-                <field name="remaining_duration"/>
-                <field name="planned_progress"/>
-                <field name="actual_progress"/>
-                <field name="progress_variance"/>
-            </list>
-        </field>
-    </record>
-
-    <record id="daily_log_weather_view_form" model="ir.ui.view">
-        <field name="name">daily.log.weather.form</field>
-        <field name="model">daily.log.weather</field>
-        <field name="arch" type="xml">
-            <form string="Weather Record">
-                <sheet>
-                    <group>
-                        <group name="date_info">
-                            <field name="sheet_id"/>
-                            <field name="date"/>
-                            <field name="day_week" readonly="1"/>
-                        </group>
-                        <group name="weather">
-                            <field name="weather_am"/>
-                            <field name="weather_pm"/>
-                            <field name="temperature_high"/>
-                            <field name="temperature_low"/>
-                        </group>
-                    </group>
-                    <group>
-                        <group name="work_status">
-                            <field name="is_workday"/>
-                            <field name="work_stopped_reason"
-                                invisible="is_workday"
-                            />
-                            <field name="work_stop_note"
-                                invisible="is_workday or not work_stopped_reason"
-                            />
-                        </group>
-                        <group name="duration">
-                            <field name="approved_duration"/>
-                            <field name="cumulative_duration"/>
-                            <field name="remaining_duration"/>
-                        </group>
-                    </group>
-                    <group>
-                        <group name="progress">
-                            <field name="planned_progress"/>
-                            <field name="actual_progress"/>
-                            <field name="has_progress_change"/>
-                            <field name="progress_variance"/>
-                        </group>
-                    </group>
-                    <separator string="Notes"/>
-                    <field name="notes"/>
-                </sheet>
-            </form>
-        </field>
-    </record>
-
-    <!-- ===================================================================
-         Actions
-         =================================================================== -->
-
-    <!-- My Daily Logs Action -->
-    <record id="action_daily_log_sheet_my" model="ir.actions.act_window">
-        <field name="name">My Daily Logs</field>
-        <field name="res_model">daily.log.sheet</field>
-        <field name="view_mode">list,kanban,form,calendar</field>
-        <field name="domain">[('employee_id.user_id', '=', uid)]</field>
-        <field name="context">{
-            'search_default_filter_my_sheets': 1,
-            'default_employee_id': False,
-        }</field>
-        <field name="search_view_id" ref="daily_log_sheet_view_search"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                Create your first daily log sheet
-            </p>
-            <p>
-                Record your daily construction activities, worker counts,
-                equipment usage, and work progress here.
-            </p>
-        </field>
-    </record>
-
-    <!-- All Daily Logs Action -->
-    <record id="action_daily_log_sheet_all" model="ir.actions.act_window">
-        <field name="name">All Daily Logs</field>
-        <field name="res_model">daily.log.sheet</field>
-        <field name="view_mode">list,kanban,form,calendar</field>
-        <field name="search_view_id" ref="daily_log_sheet_view_search"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                No daily log sheets found
-            </p>
-            <p>
-                View all daily log sheets from all employees.
-            </p>
-        </field>
-    </record>
-
-    <!-- To Review Action -->
-    <record id="action_daily_log_sheet_to_review" model="ir.actions.act_window">
-        <field name="name">Daily Logs to Review</field>
-        <field name="res_model">daily.log.sheet</field>
-        <field name="view_mode">list,kanban,form</field>
-        <field name="domain">[('state', '=', 'confirm'), ('can_review', '=', True)]</field>
-        <field name="context">{'search_default_filter_confirm': 1}</field>
-        <field name="search_view_id" ref="daily_log_sheet_view_search"/>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                No daily logs pending review
-            </p>
-            <p>
-                Daily log sheets submitted for your review will appear here.
-            </p>
-        </field>
-    </record>
-
-    <!-- Daily Log Lines Action -->
+    <!-- ========================================================================
+         日誌明細 - 動作
+         ======================================================================== -->
+    
     <record id="action_daily_log_line" model="ir.actions.act_window">
-        <field name="name">Daily Log Lines</field>
+        <field name="name">日誌明細</field>
         <field name="res_model">daily.log.line</field>
         <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無日誌明細
+            </p>
+            <p>
+                所有施工日誌的明細記錄都會顯示在這裡。
+            </p>
+        </field>
     </record>
 
-    <!-- Weather Records Action -->
+    <!-- ========================================================================
+         天氣記錄 - 動作
+         ======================================================================== -->
+    
     <record id="action_daily_log_weather" model="ir.actions.act_window">
-        <field name="name">Weather Records</field>
+        <field name="name">天氣記錄</field>
         <field name="res_model">daily.log.weather</field>
         <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無天氣記錄
+            </p>
+            <p>
+                歷史天氣記錄都會顯示在這裡。
+            </p>
+        </field>
     </record>
 
 </odoo>

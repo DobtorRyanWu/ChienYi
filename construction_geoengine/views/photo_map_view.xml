@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 自訂 view type: photo_map（Leaflet 互動地圖） -->
+    <record id="supervision_photo_view_photo_map" model="ir.ui.view">
+        <field name="name">supervision.photo.view.photo_map</field>
+        <field name="model">supervision.photo</field>
+        <field name="type">photo_map</field>
+        <field name="arch" type="xml">
+            <photo_map/>
+        </field>
+    </record>
+
+    <!-- 覆寫 Action：用 photo_map 取代 geoengine -->
+    <record id="construction_photo.supervision_photo_action" model="ir.actions.act_window">
+        <field name="view_mode">kanban,list,form,calendar,photo_map</field>
+    </record>
+
+    <record id="construction_photo.supervision_photo_action_by_project" model="ir.actions.act_window">
+        <field name="view_mode">kanban,list,form,calendar,photo_map</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,129 @@
+/**
+ * Construction Supervision Base - 後台佈局修復
+ * 修復 Odoo 18 在全螢幕時的側邊面板跑版問題
+ */
+
+/* ============================================== */
+/* 隱藏或修復 Odoo 18 左側導航面板                  */
+/* ============================================== */
+
+/* 隱藏左側的 action 面板（造成跑版的主因） */
+.o_web_client .o_main_navbar ~ .o_action_manager .o_cp_action_menus,
+.o_web_client .o_action_manager .o_control_panel .o_cp_action_menus {
+    position: static;
+    width: auto;
+}
+
+/* 修復左側導航面板寬度 */
+.o_web_client .o_action_manager .o_form_view_container,
+.o_web_client .o_action_manager .o_list_view,
+.o_web_client .o_action_manager .o_kanban_view {
+    width: 100%;
+    min-width: 0;
+}
+
+/* 確保主要內容區域佔滿寬度 */
+.o_action_manager {
+    min-width: 0;
+    width: 100%;
+}
+
+.o_action_manager > .o_action {
+    min-width: 0;
+    width: 100%;
+}
+
+/* ============================================== */
+/* 修復表單視圖佈局                                */
+/* ============================================== */
+
+.o_form_view {
+    min-width: 0;
+    width: 100%;
+}
+
+.o_form_view .o_form_sheet_bg {
+    min-width: 0;
+    width: 100%;
+}
+
+.o_form_view .o_form_sheet {
+    min-width: 0;
+    max-width: none;
+}
+
+/* 修復按鈕區域的 flex 佈局 */
+.o_form_view .o_form_statusbar {
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.o_form_view .o_form_statusbar > .o_statusbar_buttons {
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+/* 修復 notebook/tab 區域 */
+.o_notebook {
+    min-width: 0;
+}
+
+/* 修復統計按鈕區域 */
+.o_form_view .oe_button_box {
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+/* ============================================== */
+/* 修復 Odoo 18 Studio 側邊欄問題                  */
+/* ============================================== */
+
+/* 如果有 Studio 側邊欄，確保它不會壓縮內容 */
+.o_web_client .o_action_manager .o_studio_sidebar,
+.o_web_client .o_web_studio_sidebar {
+    flex-shrink: 0;
+}
+
+/* ============================================== */
+/* 大螢幕響應式修復                                */
+/* ============================================== */
+
+@media (min-width: 1400px) {
+    .o_action_manager .o_action {
+        min-width: 0;
+        flex: 1 1 auto;
+        width: 100%;
+    }
+
+    .o_content {
+        min-width: 0;
+        overflow-x: auto;
+        width: 100%;
+    }
+
+    /* 確保 view container 不會被壓縮 */
+    .o_view_controller {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .o_view_controller > .o_content {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
+/* ============================================== */
+/* 修復所有可能的 flex 子元素壓縮問題               */
+/* ============================================== */
+
+.o_web_client .o_action_manager,
+.o_web_client .o_action_manager .o_action,
+.o_web_client .o_action_manager .o_view_controller,
+.o_web_client .o_action_manager .o_content,
+.o_web_client .o_action_manager .o_form_view,
+.o_web_client .o_action_manager .o_list_view,
+.o_web_client .o_action_manager .o_kanban_view {
+    flex-shrink: 1;
+    min-width: 0;
+}

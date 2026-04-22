@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 施工日誌自動鎖定排程（每日凌晨 2:00 執行）-->
+    <record id="ir_cron_auto_lock_daily_logs" model="ir.cron">
+        <field name="name">施工日誌 - 自動鎖定（14天規則）</field>
+        <field name="model_id" search="[('model', '=', 'daily.log.sheet')]"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_auto_lock()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+    </record>
+
+</odoo>

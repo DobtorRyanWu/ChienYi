@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="construction_general.ProfitLossDashboard">
+        <div class="o_action o_profit_loss_dashboard" style="padding: 20px; background: #f8f9fa; min-height: 100%; overflow-y: auto;">
+
+            <!-- 標題與工程選擇器 -->
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+                    <h2 style="margin: 0; font-weight: bold; color: #333;">
+                        <i class="fa fa-line-chart" style="color: #3b82f6; margin-right: 8px;"/>
+                        即時損益分析
+                    </h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="font-weight: 600; color: #555; white-space: nowrap;">選擇工程：</label>
+                        <select class="form-select" style="min-width: 300px; max-width: 500px;"
+                                t-on-change="onProjectChange">
+                            <option value="">-- 請選擇工程案件 --</option>
+                            <t t-foreach="state.projects" t-as="project" t-key="project.id">
+                                <option t-att-value="project.id"
+                                        t-att-selected="state.selectedProjectId === project.id">
+                                    <t t-esc="project.name"/>
+                                </option>
+                            </t>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 載入中 -->
+            <div t-if="state.loading" class="text-center" style="padding: 60px;">
+                <i class="fa fa-spinner fa-spin fa-2x" style="color: #3b82f6;"/>
+                <p style="margin-top: 10px; color: #666;">載入資料中...</p>
+            </div>
+
+            <!-- 錯誤訊息 -->
+            <div t-if="state.error" class="alert alert-danger" style="margin: 20px 0;">
+                <i class="fa fa-exclamation-triangle"/> <t t-esc="state.error"/>
+            </div>
+
+            <!-- 未選擇工程的提示 -->
+            <div t-if="!state.selectedProjectId and !state.loading"
+                 style="background: white; padding: 60px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+                <i class="fa fa-line-chart" style="font-size: 48px; color: #ccc; margin-bottom: 15px; display: block;"/>
+                <p style="font-size: 16px; color: #888;">請從上方選擇工程案件以檢視即時損益分析</p>
+            </div>
+
+            <!-- 估驗資料表格 -->
+            <t t-if="state.data and state.data.estimates and state.data.estimates.length > 0 and !state.loading">
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                    <h5 style="font-weight: bold; color: #333; margin-bottom: 15px;">
+                        <i class="fa fa-table" style="color: #3b82f6; margin-right: 6px;"/>
+                        估驗資料
+                        <t t-if="state.saving">
+                            <i class="fa fa-spinner fa-spin ms-2" style="color: #3b82f6; font-size: 14px;"/>
+                        </t>
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-bordered text-center mb-0" style="table-layout: auto;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="min-width: 80px; background: #f1f5f9; font-weight: 600;"></th>
+                                    <t t-foreach="state.data.estimates" t-as="est" t-key="est.estimate_id">
+                                        <th style="min-width: 120px;">
+                                            第<t t-esc="est.estimate_no"/>次
+                                        </th>
+                                    </t>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Row 1: 估驗日期 -->
+                                <tr>
+                                    <td style="background: #f1f5f9; font-weight: 600;">估驗日期</td>
+                                    <t t-foreach="state.data.estimates" t-as="est" t-key="est.estimate_id">
+                                        <td><t t-esc="est.estimate_date"/></td>
+                                    </t>
+                                </tr>
+                                <!-- Row 2: 收入 -->
+                                <tr>
+                                    <td style="background: #eff6ff; font-weight: 600; color: #3b82f6;">收入</td>
+                                    <t t-foreach="state.data.estimates" t-as="est" t-key="est.estimate_id">
+                                        <td style="color: #3b82f6; font-weight: 500;">
+                                            <t t-esc="formatCurrency(est.income)"/>
+                                        </td>
+                                    </t>
+                                </tr>
+                                <!-- Row 3: 支出（可編輯） -->
+                                <tr>
+                                    <td style="background: #fef2f2; font-weight: 600; color: #ef4444;">支出</td>
+                                    <t t-foreach="state.data.estimates" t-as="est" t-key="est.estimate_id">
+                                        <td style="padding: 4px 8px;">
+                                            <input type="number"
+                                                   class="form-control form-control-sm text-end"
+                                                   style="min-width: 100px;"
+                                                   t-att-value="est.expense"
+                                                   t-on-change="(ev) => this.onExpenseChange(est.estimate_id, ev)"/>
+                                        </td>
+                                    </t>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </t>
+
+            <!-- 無估驗資料提示 -->
+            <div t-if="state.data and (!state.data.estimates or state.data.estimates.length === 0) and state.selectedProjectId and !state.loading"
+                 style="background: white; padding: 40px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+                <div class="alert alert-info" style="display: inline-block;">
+                    <i class="fa fa-info-circle"/> 該工程尚無估驗計價資料
+                </div>
+            </div>
+
+            <!-- Chart.js 圖表 -->
+            <div t-att-style="'background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;' + (state.data and state.data.estimates and state.data.estimates.length > 0 and !state.loading ? '' : ' display: none;')">
+                <canvas t-ref="chart" style="max-height: 500px;"/>
+
+                <!-- 圖例說明 -->
+                <div style="margin-top: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px; font-size: 12px;">
+                    <div style="display: flex; gap: 25px; flex-wrap: wrap; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 3px; background: #3b82f6;"></div>
+                            <span style="color: #666;">收入（本次估驗總金額）</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 3px; background: #ef4444;"></div>
+                            <span style="color: #666;">支出（使用者輸入）</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 2px; background: #9ca3af; border-top: 2px dashed #9ca3af;"></div>
+                            <span style="color: #666;">估驗日期標記</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </t>
+</templates>

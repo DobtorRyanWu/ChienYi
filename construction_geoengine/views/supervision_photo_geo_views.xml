@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 工程照片 GeoEngine 地圖視圖                      -->
+    <!-- ============================================== -->
+    <record id="supervision_photo_view_geoengine" model="ir.ui.view">
+        <field name="name">supervision.photo.view.geoengine</field>
+        <field name="model">supervision.photo</field>
+        <field name="type">geoengine</field>
+        <!-- 台灣範圍 EPSG:3857 -->
+        <field name="default_extent">13247019, 2452577, 13636308, 2939339</field>
+        <field name="default_zoom">8</field>
+        <field name="arch" type="xml">
+            <geoengine editable="0">
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="source_model"/>
+                <field name="shot_at"/>
+                <field name="gps_location"/>
+                <field name="description"/>
+                <field name="creator_id"/>
+
+                <!-- 點擊 marker 彈出資訊框 -->
+                <t t-name="info_box">
+                    <div class="o_geoengine_popup">
+                        <h5><field name="name"/></h5>
+                        <table class="table table-sm table-borderless mb-1">
+                            <tr>
+                                <th style="width:35%">工程案件</th>
+                                <td><field name="project_id"/></td>
+                            </tr>
+                            <tr>
+                                <th>來源分類</th>
+                                <td><field name="source_model"/></td>
+                            </tr>
+                            <tr>
+                                <th>拍攝時間</th>
+                                <td><field name="shot_at"/></td>
+                            </tr>
+                            <tr>
+                                <th>GPS 座標</th>
+                                <td><field name="gps_location"/></td>
+                            </tr>
+                            <tr>
+                                <th>說明</th>
+                                <td><field name="description"/></td>
+                            </tr>
+                            <tr>
+                                <th>上傳者</th>
+                                <td><field name="creator_id"/></td>
+                            </tr>
+                        </table>
+                    </div>
+                </t>
+            </geoengine>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 覆寫 Action：加入 geoengine 視圖模式             -->
+    <!-- ============================================== -->
+    <record id="construction_photo.supervision_photo_action" model="ir.actions.act_window">
+        <field name="view_mode">kanban,list,form,calendar,geoengine</field>
+    </record>
+
+    <record id="construction_photo.supervision_photo_action_by_project" model="ir.actions.act_window">
+        <field name="view_mode">kanban,list,form,calendar,geoengine</field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 圖層設定（僅安裝時建立）                          -->
+    <!-- ============================================== -->
+    <data noupdate="1">
+
+        <!-- 背景圖層：OpenStreetMap -->
+        <record id="raster_layer_osm_photo" model="geoengine.raster.layer">
+            <field name="name">OpenStreetMap</field>
+            <field name="view_id" ref="supervision_photo_view_geoengine"/>
+            <field name="raster_type">osm</field>
+            <field name="sequence">1</field>
+            <field name="overlay" eval="False"/>
+            <field name="opacity">1.0</field>
+        </record>
+
+        <!-- 向量圖層：照片位置（按來源分類著色） -->
+        <record id="vector_layer_photo_by_source" model="geoengine.vector.layer">
+            <field name="name">照片位置（按來源分類）</field>
+            <field name="view_id" ref="supervision_photo_view_geoengine"/>
+            <field name="geo_field_id" ref="field_supervision_photo__geo_point"/>
+            <field name="attribute_field_id" ref="construction_photo.field_supervision_photo__source_model"/>
+            <field name="geo_repr">colored</field>
+            <field name="classification">unique</field>
+            <field name="begin_color">#3B82F6</field>
+            <field name="end_color">#EF4444</field>
+            <field name="nb_class">7</field>
+            <field name="sequence">10</field>
+            <field name="active_on_startup" eval="True"/>
+            <field name="layer_opacity">0.9</field>
+        </record>
+
+    </data>
+
+</odoo>

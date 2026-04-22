@@ -32,8 +32,9 @@
     ],
     'data': [
         # Security
-        'security/security.xml',
+        # 注意：ir.model.access.csv 必須先載入，才能刪除舊群組
         'security/ir.model.access.csv',
+        'security/security.xml',
         # Views - item views must load before category (action reference)
         'views/price_library_item_views.xml',
         'views/price_library_category_views.xml',
@@ -45,4 +46,5 @@
     'application': False,
     'auto_install': False,
     'sequence': 30,
+    'post_init_hook': 'post_init_hook',
 }

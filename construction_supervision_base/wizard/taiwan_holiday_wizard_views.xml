@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 台灣假日精靈 - 表單視圖 -->
+    <record id="view_taiwan_holiday_wizard_form" model="ir.ui.view">
+        <field name="name">taiwan.holiday.wizard.form</field>
+        <field name="model">taiwan.holiday.wizard</field>
+        <field name="arch" type="xml">
+            <form string="建立台灣國定假日">
+                <group invisible="state != 'draft'">
+                    <group>
+                        <field name="year"/>
+                        <field name="calendar_id"/>
+                    </group>
+                    <group>
+                        <div class="text-muted">
+                            <p><strong>將自動建立以下固定假日：</strong></p>
+                            <ul>
+                                <li>1/1 元旦</li>
+                                <li>2/28 和平紀念日</li>
+                                <li>4/4 兒童節</li>
+                                <li>5/1 勞動節</li>
+                                <li>10/10 國慶日</li>
+                            </ul>
+                            <p>農曆節日（春節、端午、中秋）與清明節日期每年不同，請依行政院公告手動新增。</p>
+                        </div>
+                    </group>
+                </group>
+                <group invisible="state != 'done'">
+                    <group>
+                        <field name="created_count"/>
+                        <field name="skipped_count"/>
+                    </group>
+                    <group>
+                        <div class="text-muted">
+                            <p>如需新增農曆假日或補班日調整，請至：</p>
+                            <p><strong>設定 → 技術 → 資源 → 工作時間</strong></p>
+                            <p>在對應行事曆的「全域休假」頁籤操作。</p>
+                        </div>
+                    </group>
+                </group>
+                <field name="state" invisible="1"/>
+                <footer>
+                    <button name="action_generate_holidays" type="object"
+                            string="建立假日" class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button string="關閉" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 台灣假日精靈 - 動作 -->
+    <record id="action_taiwan_holiday_wizard" model="ir.actions.act_window">
+        <field name="name">建立台灣國定假日</field>
+        <field name="res_model">taiwan.holiday.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

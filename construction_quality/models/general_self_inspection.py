@@ -15,7 +15,7 @@ class GeneralSelfInspection(models.Model):
     """
     _name = 'general.self.inspection'
     _description = '一般式自主檢查'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin', 'photo.sync.mixin']
     _order = 'inspection_date desc, id desc'
 
     # === 基本資料 ===
@@ -55,6 +55,7 @@ class GeneralSelfInspection(models.Model):
 
     sub_project_name = fields.Char(
         string='分項工程名稱',
+        required=True,
         help='施作項目名稱')
 
     inspection_date = fields.Date(
@@ -207,6 +208,12 @@ class GeneralSelfInspection(models.Model):
                 raise UserError('只有草稿或已檢查狀態可以重設')
             record.state = 'draft'
 
+    @api.onchange('inspection_type_id')
+    def _onchange_inspection_type_id(self):
+        """自動帶入分項工程名稱"""
+        if self.inspection_type_id:
+            self.sub_project_name = self.inspection_type_id.name
+
     def action_load_default_items(self):
         """載入預設檢查項目"""
         self.ensure_one()
@@ -220,6 +227,7 @@ class GeneralSelfInspection(models.Model):
         for item in self.inspection_type_id.default_item_ids:
             items_vals.append(Command.create({
                 'sequence': item.sequence,
+                'type_item_id': item.id,
                 'check_item': item.name,
                 'design_standard': item.check_standard,
                 'stage': item.stage,
@@ -238,6 +246,19 @@ class GeneralSelfInspection(models.Model):
             if vals.get('name', '/') == '/':
                 vals['name'] = self.env['ir.sequence'].next_by_code('general.self.inspection') or '/'
         return super().create(vals_list)
+    
+    # === 照片自動同步配置 ===
+    def _get_photo_sync_config(self):
+        """配置照片同步規則"""
+        return {
+            'photo_ids': {
+                'source_model': 'inspection',
+                'name_prefix': '檢查照片',
+                'description_template': '檢查類型：{record.inspection_type_id.name}\n檢查地點：{record.inspection_location}',
+                'location_field': 'inspection_location',
+                'auto_tag': '自主檢查',
+            },
+        }
 
 
 class GeneralSelfInspectionItem(models.Model):
@@ -261,9 +282,9 @@ class GeneralSelfInspectionItem(models.Model):
 
     # === 階段 ===
     stage = fields.Selection([
-        ('stage1', '第一查驗階段'),
-        ('stage2', '第二查驗階段'),
-        ('stage3', '第三查驗階段'),
+        ('stage1', '施工前'),
+        ('stage2', '施工中'),
+        ('stage3', '施工後'),
     ], string='查驗階段', default='stage1')
 
     sequence = fields.Integer(
@@ -271,6 +292,12 @@ class GeneralSelfInspectionItem(models.Model):
         default=10)
 
     # === 檢查內容 ===
+    type_item_id = fields.Many2one(
+        'self.inspection.type.item',
+        string='檢查項目',
+        domain="[('type_id', '=', parent.inspection_type_id), ('stage', '=', stage)]",
+        help='從自主檢查類型的對應查驗階段中選擇')
+
     check_item = fields.Char(
         string='檢查項目',
         required=True)
@@ -296,3 +323,16 @@ class GeneralSelfInspectionItem(models.Model):
 
     # === 備註 ===
     note = fields.Text(string='備註')
+
+    @api.onchange('type_item_id')
+    def _onchange_type_item_id(self):
+        """選擇檢查項目後自動帶入項目名稱與設計圖說"""
+        if self.type_item_id:
+            self.check_item = self.type_item_id.name
+            self.design_standard = self.type_item_id.check_standard
+
+    @api.onchange('stage')
+    def _onchange_stage(self):
+        """查驗階段變更時，若已選的項目不屬於新階段則清除"""
+        if self.type_item_id and self.type_item_id.stage != self.stage:
+            self.type_item_id = False

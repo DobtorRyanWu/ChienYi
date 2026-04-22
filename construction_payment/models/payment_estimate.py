@@ -8,10 +8,10 @@ class PaymentEstimate(models.Model):
     """
     估驗計價
 
-    設計說明 (v5.0): 不依賴 purchase 模組，獨立設計
-    - 分期估驗計畫與累計追蹤
-    - 施工廠商提交，監造審查
-    - 支援預算 vs 實際對比分析
+    重構版本：
+    - 以「匯入工程案件」為核心操作流程
+    - 簡化狀態為 草稿→待核定→已核定→已歸檔
+    - 移除多公司架構、驗收單關聯、保留款等
     """
     _name = 'payment.estimate'
     _description = '估驗計價'
@@ -20,63 +20,69 @@ class PaymentEstimate(models.Model):
 
     # === 基本資訊 ===
     name = fields.Char(
-        '估驗期次',
-        required=True,
-        tracking=True,
-        help='例如：第一期估驗、第二期估驗'
+        '估驗名稱',
+        readonly=True,
+        copy=False,
+        help='自動產生，格式：第N次估驗計價'
     )
+    estimate_no = fields.Integer(
+        '次數',
+        readonly=True,
+        copy=False,
+        help='同一工程中自動遞增'
+    )
+
+    # === 工程資訊區塊（全部 readonly，由匯入帶入）===
     project_id = fields.Many2one(
         'supervision.project',
         '所屬工程',
-        required=True,
-        tracking=True,
         readonly=True,
+        tracking=True,
         index=True
     )
-
-    # === 多公司架構 (v5.0) ===
-    company_id = fields.Many2one(
-        'res.company',
-        '提送公司',
-        required=True,
-        default=lambda self: self.env.company,
-        domain="[('company_type', '=', 'contractor')]",
+    slip_id = fields.Many2one(
+        'reservation.notification.slip',
+        '通報單',
+        readonly=True,
         tracking=True,
-        help='提送此估驗的施工廠商',
+        help='預約式工程的關聯通報單'
+    )
+    contract_no = fields.Char(
+        '契約編號',
+        related='project_id.contract_no',
+        store=True,
+        readonly=True
+    )
+    contract_amount = fields.Monetary(
+        '契約金額',
+        related='project_id.contract_amount',
+        store=True,
         readonly=True
     )
 
-    # === 估驗期間 ===
-    period_start = fields.Date(
-        '起始日期',
-        tracking=True
-    )
-    period_end = fields.Date(
-        '截止日期',
-        tracking=True
-    )
-    estimate_no = fields.Integer(
-        '期次',
-        required=True,
-        default=1,
-        tracking=True
-    )
-    is_final = fields.Boolean(
-        '是否為尾款',
-        default=False,
+    # === 估驗資訊區塊 ===
+    estimate_date = fields.Date(
+        '估驗日期',
         tracking=True,
-        help='勾選表示此為最後一期尾款結算'
+        help='估驗截止日期，施工日誌累計以此日期為節點'
     )
-
-    # === 關聯驗收單 ===
-    acceptance_ids = fields.Many2many(
-        'work.acceptance',
-        'estimate_acceptance_rel',
-        'estimate_id',
-        'acceptance_id',
-        string='關聯驗收單',
-        domain="[('contractor_company_id', '=', company_id), ('state', '=', 'accepted')]",
-        help='此次估驗涵蓋的驗收單'
+    submitted_date = fields.Datetime(
+        '提出日期',
+        readonly=True
+    )
+    submitted_by_id = fields.Many2one(
+        'res.users',
+        '提出人',
+        readonly=True
+    )
+    approved_by_id = fields.Many2one(
+        'res.users',
+        '核定人',
+        readonly=True
+    )
+    approved_date = fields.Datetime(
+        '核定日期',
+        readonly=True
     )
 
     # === 金額 ===
@@ -84,309 +90,120 @@ class PaymentEstimate(models.Model):
         'res.currency',
         default=lambda self: self.env.company.currency_id
     )
+    subtotal = fields.Monetary(
+        '本次估驗總金額',
+        compute='_compute_subtotal',
+        store=True,
+        tracking=True
+    )
 
-    # 計價項目
+    # === 計價明細 ===
     line_ids = fields.One2many(
         'payment.estimate.line',
         'estimate_id',
-        '計價明細',
+        '估驗計價表',
         copy=True
-    )
-
-    # === 合計 (參考 invoice_plan 累計設計) ===
-    subtotal = fields.Monetary(
-        '本期估驗金額',
-        compute='_compute_totals',
-        store=True,
-        tracking=True
-    )
-    cumulative_amount = fields.Monetary(
-        '累計估驗金額',
-        compute='_compute_totals',
-        store=True,
-        tracking=True
-    )
-    contract_total = fields.Monetary(
-        '契約總價',
-        related='project_id.contract_amount',
-        store=True
-    )
-    completion_rate = fields.Float(
-        '估驗進度 (%)',
-        compute='_compute_totals',
-        store=True,
-        digits=(5, 2),
-        help='累計估驗金額 / 契約總價'
-    )
-    retention_rate = fields.Float(
-        '保留款比例 (%)',
-        default=5.0,
-        tracking=True
-    )
-    retention = fields.Monetary(
-        '保留款',
-        compute='_compute_totals',
-        store=True
-    )
-    payable_amount = fields.Monetary(
-        '應付金額',
-        compute='_compute_totals',
-        store=True,
-        help='本期估驗金額 - 保留款'
-    )
-
-    # === 附件 ===
-    attachment_ids = fields.Many2many(
-        'ir.attachment',
-        'payment_estimate_attachment_rel',
-        'estimate_id',
-        'attachment_id',
-        string='佐證資料'
-    )
-
-    # === 簽核 ===
-    submitter_id = fields.Many2one(
-        'res.users',
-        '提送者',
-        readonly=True
-    )
-    submit_date = fields.Datetime(
-        '提送日期',
-        readonly=True
-    )
-    reviewer_id = fields.Many2one(
-        'res.users',
-        '審查者',
-        readonly=True
-    )
-    review_date = fields.Datetime(
-        '審查日期',
-        readonly=True
-    )
-    review_comment = fields.Text('審查意見')
-    approver_id = fields.Many2one(
-        'res.users',
-        '核定者',
-        readonly=True
-    )
-    approve_date = fields.Datetime(
-        '核定日期',
-        readonly=True
     )
 
     # === 狀態 ===
     state = fields.Selection([
         ('draft', '草稿'),
-        ('submitted', '已提送'),
-        ('reviewing', '審查中'),
-        ('revision', '補正'),
-        ('recommended', '建議核定'),
+        ('pending_approval', '待核定'),
         ('approved', '已核定'),
-        ('paid', '已撥付'),
+        ('archived', '已歸檔'),
     ], default='draft', tracking=True, string='狀態')
 
     # === 計算欄位 ===
-    @api.depends('line_ids.current_amount', 'line_ids.cumulative_amount',
-                 'retention_rate', 'contract_total')
-    def _compute_totals(self):
-        """計算合計 (參考 invoice_plan)"""
+    @api.depends('line_ids.estimate_amount')
+    def _compute_subtotal(self):
+        """計算本次估驗總金額"""
         for rec in self:
-            rec.subtotal = sum(rec.line_ids.mapped('current_amount'))
-            rec.cumulative_amount = sum(rec.line_ids.mapped('cumulative_amount'))
-            rec.retention = rec.subtotal * (rec.retention_rate / 100)
-            rec.payable_amount = rec.subtotal - rec.retention
-            if rec.contract_total:
-                rec.completion_rate = (rec.cumulative_amount / rec.contract_total) * 100
-            else:
-                rec.completion_rate = 0.0
+            rec.subtotal = sum(rec.line_ids.mapped('estimate_amount'))
 
-    # === 約束檢查 ===
-    @api.constrains('estimate_no', 'project_id', 'company_id')
-    def _check_estimate_no(self):
-        """驗證期次連續性與唯一性"""
-        for rec in self:
-            # 檢查同一專案同一公司的期次唯一性
-            domain = [
-                ('project_id', '=', rec.project_id.id),
-                ('company_id', '=', rec.company_id.id),
-                ('estimate_no', '=', rec.estimate_no),
-                ('id', '!=', rec.id),
-            ]
-            if self.search_count(domain) > 0:
-                raise ValidationError(
-                    f'估驗期次 {rec.estimate_no} 已存在，請使用其他期次'
-                )
-
-            # 檢查期次連續性
-            if rec.estimate_no > 1:
-                prev_domain = [
-                    ('project_id', '=', rec.project_id.id),
-                    ('company_id', '=', rec.company_id.id),
-                    ('estimate_no', '=', rec.estimate_no - 1),
-                    ('state', 'not in', ['draft', 'revision']),
-                ]
-                if self.search_count(prev_domain) == 0:
-                    raise ValidationError(
-                        f'請先完成第 {rec.estimate_no - 1} 期估驗後，才能提送第 {rec.estimate_no} 期'
-                    )
-
-    @api.constrains('period_start', 'period_end')
-    def _check_period(self):
-        """驗證期間合理性"""
-        for rec in self:
-            if rec.period_start and rec.period_end:
-                if rec.period_start > rec.period_end:
-                    raise ValidationError('起始日期不可晚於截止日期')
+    # === CRUD 覆寫 ===
+    @api.model_create_multi
+    def create(self, vals_list):
+        """建立時自動計算次數和名稱"""
+        for vals in vals_list:
+            project_id = vals.get('project_id')
+            if project_id and not vals.get('estimate_no'):
+                count = self.search_count([
+                    ('project_id', '=', project_id)
+                ])
+                vals['estimate_no'] = count + 1
+            estimate_no = vals.get('estimate_no', 1)
+            vals['name'] = f'第{estimate_no}次估驗計價'
+        return super().create(vals_list)
 
     # === 動作方法 ===
-    def action_submit(self):
-        """提送估驗"""
+    def action_open_import_wizard(self):
+        """開啟匯入工程案件 Wizard"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '匯入工程案件',
+            'res_model': 'estimate.import.wizard',
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {
+                'default_estimate_id': self.id,
+            },
+        }
+
+    def action_submit_estimate(self):
+        """提出估驗"""
         for rec in self:
             if not rec.line_ids:
-                raise UserError('請先新增計價明細')
+                raise UserError('請先匯入工程案件')
             rec.write({
-                'state': 'submitted',
-                'submitter_id': self.env.uid,
-                'submit_date': fields.Datetime.now(),
+                'state': 'pending_approval',
+                'submitted_by_id': self.env.uid,
+                'submitted_date': fields.Datetime.now(),
             })
-        return True
-
-    def action_start_review(self):
-        """開始審查"""
-        self.write({
-            'state': 'reviewing',
-            'reviewer_id': self.env.uid,
-        })
-        return True
-
-    def action_request_revision(self):
-        """要求補正"""
-        self.write({'state': 'revision'})
-        return True
-
-    def action_recommend(self):
-        """建議核定"""
-        self.write({
-            'state': 'recommended',
-            'review_date': fields.Datetime.now(),
-        })
         return True
 
     def action_approve(self):
         """核定"""
-        for rec in self:
-            rec.write({
-                'state': 'approved',
-                'approver_id': self.env.uid,
-                'approve_date': fields.Datetime.now(),
-            })
-            # 更新工項的實際完成數量
-            rec._update_task_actual_qty()
+        self.write({
+            'state': 'approved',
+            'approved_by_id': self.env.uid,
+            'approved_date': fields.Datetime.now(),
+        })
         return True
 
-    def _update_task_actual_qty(self):
-        """核定後更新工項的實際完成數量"""
-        self.ensure_one()
-        for line in self.line_ids:
-            if hasattr(line.task_id, 'actual_qty'):
-                # 累加本期完成數量到工項
-                line.task_id.actual_qty = line.cumulative_qty
-
-    def action_mark_paid(self):
-        """標記已撥付"""
-        self.write({'state': 'paid'})
+    def action_archive_estimate(self):
+        """歸檔"""
+        self.write({'state': 'archived'})
         return True
 
     def action_reset_to_draft(self):
-        """重設為草稿"""
+        """退回草稿"""
         for rec in self:
-            if rec.state in ('approved', 'paid'):
-                raise UserError('已核定或已撥付的估驗單不可重設')
+            if rec.state != 'pending_approval':
+                raise UserError('只有「待核定」狀態才能退回草稿')
+            # 清空明細與工程資訊，讓使用者可重新匯入
+            rec.line_ids.unlink()
             rec.write({
                 'state': 'draft',
-                'submitter_id': False,
-                'submit_date': False,
-                'reviewer_id': False,
-                'review_date': False,
-                'approver_id': False,
-                'approve_date': False,
+                'project_id': False,
+                'submitted_by_id': False,
+                'submitted_date': False,
+                'approved_by_id': False,
+                'approved_date': False,
             })
         return True
-
-    # === 從驗收單帶入明細 ===
-    def action_load_from_acceptance(self):
-        """從關聯驗收單載入明細"""
-        self.ensure_one()
-        if not self.acceptance_ids:
-            raise UserError('請先選擇關聯驗收單')
-
-        # 收集驗收單中的工項
-        existing_tasks = self.line_ids.mapped('task_id')
-        new_lines = []
-
-        for acceptance in self.acceptance_ids:
-            for acc_line in acceptance.line_ids:
-                if acc_line.task_id not in existing_tasks:
-                    # 計算前期累計
-                    previous_qty = self._get_previous_qty(acc_line.task_id)
-
-                    new_lines.append(Command.create({
-                        'task_id': acc_line.task_id.id,
-                        'previous_qty': previous_qty,
-                        'current_qty': acc_line.accepted_qty,
-                    }))
-                    existing_tasks |= acc_line.task_id
-
-        if new_lines:
-            self.write({'line_ids': new_lines})
-        else:
-            raise UserError('所有驗收工項已存在於計價明細中')
-
-        return True
-
-    def _get_previous_qty(self, task):
-        """取得工項的前期累計數量"""
-        domain = [
-            ('task_id', '=', task.id),
-            ('estimate_id.project_id', '=', self.project_id.id),
-            ('estimate_id.company_id', '=', self.company_id.id),
-            ('estimate_id.state', '=', 'approved'),
-            ('estimate_id.estimate_no', '<', self.estimate_no),
-        ]
-        previous_lines = self.env['payment.estimate.line'].search(domain)
-        return sum(previous_lines.mapped('current_qty'))
-
-    # === 建立請款單 ===
-    def action_create_claim(self):
-        """建立請款單"""
-        self.ensure_one()
-        if self.state != 'approved':
-            raise UserError('只有已核定的估驗單才能建立請款單')
-
-        return {
-            'type': 'ir.actions.act_window',
-            'name': '建立請款單',
-            'res_model': 'payment.claim',
-            'view_mode': 'form',
-            'context': {
-                'default_project_id': self.project_id.id,
-                'default_company_id': self.company_id.id,
-                'default_estimate_ids': [Command.set([self.id])],
-                'default_claim_amount': self.payable_amount,
-                'default_claim_period': self.estimate_no,
-            },
-            'target': 'current',
-        }
 
 
 class PaymentEstimateLine(models.Model):
     """
     估驗計價明細
 
-    設計說明 (v5.1):
-    - 關聯契約工項 (task_id) 用於預算追蹤
-    - 實際完成數量用於計算 task 的 actual_qty
-    - 契約數量/單價來自工項的預算欄位
+    欄位說明：
+    - contract_qty: 原始契約數量（變更前）
+    - approved_qty: 變更後核定數量（現行 planned_qty）
+    - available_qty: 本次可估驗數量（施工日誌截至估驗日期的累計）
+    - estimate_qty: 本次估驗數量（唯一可編輯欄位）
+    - cumulative_estimate_qty: 累計估驗數量（歷次已核定 + 本次）
     """
     _name = 'payment.estimate.line'
     _description = '估驗計價明細'
@@ -402,24 +219,30 @@ class PaymentEstimateLine(models.Model):
     )
     sequence = fields.Integer('序號', default=10)
 
-    # === 工項關聯 (v5.1) ===
+    # === 工項關聯 ===
     task_id = fields.Many2one(
         'project.task',
-        '契約工項',
+        '工項',
         required=True,
-        help='關聯契約工項，用於預算 vs 實際追蹤'
+        readonly=True
     )
 
-    # === 從工項帶出 (預算資料) ===
-    item_no = fields.Char(
-        '項次',
-        related='task_id.item_no',
+    # === 工項資訊（readonly）===
+    description = fields.Char(
+        '項目及說明',
+        related='task_id.name',
         store=True,
         readonly=True
     )
-    description = fields.Char(
-        '項目說明',
-        related='task_id.name',
+    parent_item_name = fields.Char(
+        '父項次',
+        compute='_compute_parent_item_name',
+        store=True,
+        readonly=True
+    )
+    item_no = fields.Char(
+        '項目編號',
+        related='task_id.item_no',
         store=True,
         readonly=True
     )
@@ -430,124 +253,113 @@ class PaymentEstimateLine(models.Model):
         readonly=True
     )
 
-    # === 預算欄位 (從工項帶出) ===
-    planned_qty = fields.Float(
+    # === 數量與單價（readonly，由匯入帶入）===
+    contract_qty = fields.Float(
         '契約數量',
-        digits='Product Unit of Measure',
-        help='契約預算數量'
+        digits=(16, 4),
+        readonly=True,
+        help='原始契約數量（變更前）'
+    )
+    approved_qty = fields.Float(
+        '變更後核定數量',
+        digits=(16, 4),
+        readonly=True,
+        help='經契約變更後的現行數量'
     )
     unit_price = fields.Float(
-        '契約單價',
-        digits='Product Price'
-    )
-    planned_amount = fields.Float(
-        '契約金額',
-        compute='_compute_planned_amount',
-        store=True,
-        digits='Product Price',
-        help='契約預算金額 (上限)'
+        '單價',
+        digits=(16, 2),
+        readonly=True
     )
 
-    # === 實際完成欄位 ===
-    previous_qty = fields.Float(
-        '前期累計數量',
-        digits='Product Unit of Measure'
+    # === 估驗數量（唯一可編輯）===
+    estimate_qty = fields.Float(
+        '本次估驗數量',
+        digits=(16, 4),
+        help='本次估驗的數量（唯一可編輯欄位）'
     )
-    current_qty = fields.Float(
-        '本期完成數量',
-        digits='Product Unit of Measure',
-        required=True,
-        help='本期實際完成數量'
-    )
-    cumulative_qty = fields.Float(
-        '累計完成數量',
-        compute='_compute_amounts',
-        store=True,
-        digits='Product Unit of Measure'
-    )
-
-    current_amount = fields.Float(
-        '本期金額',
-        compute='_compute_amounts',
-        store=True,
-        digits='Product Price'
-    )
-    cumulative_amount = fields.Float(
-        '累計金額',
-        compute='_compute_amounts',
-        store=True,
-        digits='Product Price'
-    )
-
-    # === 對比分析 ===
-    completion_rate = fields.Float(
-        '完成率 (%)',
-        compute='_compute_amounts',
-        store=True,
-        digits=(5, 2),
-        help='累計金額 / 契約金額 x 100'
-    )
-    over_budget = fields.Boolean(
-        '超出預算',
-        compute='_compute_amounts',
-        store=True
-    )
-
-    note = fields.Text('備註')
 
     # === 計算欄位 ===
-    @api.depends('planned_qty', 'unit_price')
-    def _compute_planned_amount(self):
-        """計算契約金額"""
-        for line in self:
-            line.planned_amount = line.planned_qty * line.unit_price
+    available_qty = fields.Float(
+        '本次可估驗數量',
+        digits=(16, 4),
+        compute='_compute_available_qty',
+        readonly=True,
+        help='施工日誌截至估驗日期的累計完成數量（即時計算，日誌更新後自動反映）'
+    )
+    cumulative_estimate_qty = fields.Float(
+        '累計估驗數量',
+        digits=(16, 4),
+        compute='_compute_cumulative',
+        store=True,
+        readonly=True,
+        help='歷次已核定估驗的數量合計 + 本次'
+    )
+    estimate_amount = fields.Float(
+        '本次估驗金額',
+        digits=(16, 2),
+        compute='_compute_amounts',
+        store=True,
+        readonly=True,
+        help='單價 × 本次估驗數量'
+    )
+    cumulative_estimate_amount = fields.Float(
+        '累計估驗金額',
+        digits=(16, 2),
+        compute='_compute_cumulative',
+        store=True,
+        readonly=True,
+        help='單價 × 累計估驗數量'
+    )
 
-    @api.depends('previous_qty', 'current_qty', 'unit_price', 'planned_amount')
-    def _compute_amounts(self):
-        """計算金額與完成率"""
-        for line in self:
-            line.cumulative_qty = line.previous_qty + line.current_qty
-            line.current_amount = line.current_qty * line.unit_price
-            line.cumulative_amount = line.cumulative_qty * line.unit_price
+    # === 備註 ===
+    note = fields.Text('備註', readonly=True)
 
-            if line.planned_amount:
-                line.completion_rate = (line.cumulative_amount / line.planned_amount) * 100
-                line.over_budget = line.cumulative_amount > line.planned_amount
+    # === 計算方法 ===
+    @api.depends('task_id.parent_id', 'task_id.parent_id.item_no')
+    def _compute_parent_item_name(self):
+        """計算父項次"""
+        for line in self:
+            if line.task_id and line.task_id.parent_id:
+                line.parent_item_name = line.task_id.parent_id.item_no or ''
             else:
-                line.completion_rate = 0.0
-                line.over_budget = False
+                line.parent_item_name = ''
 
-    # === onchange ===
-    @api.onchange('task_id')
-    def _onchange_task_id(self):
-        """工項變更時帶入契約資訊"""
-        if self.task_id:
-            # 從工項帶入契約數量和單價
-            if hasattr(self.task_id, 'planned_qty'):
-                self.planned_qty = self.task_id.planned_qty
-            if hasattr(self.task_id, 'unit_price'):
-                self.unit_price = self.task_id.unit_price
-
-            # 計算前期累計
-            if self.estimate_id and self.estimate_id.project_id:
-                self.previous_qty = self.estimate_id._get_previous_qty(self.task_id)
-
-    # === 約束檢查 ===
-    @api.constrains('current_qty')
-    def _check_current_qty(self):
-        """驗證本期數量"""
+    @api.depends('task_id', 'estimate_id.estimate_date')
+    def _compute_available_qty(self):
+        """計算本次可估驗數量（施工日誌截至估驗日期的累計）"""
+        DailyLogLine = self.env['daily.log.line']
         for line in self:
-            if line.current_qty < 0:
-                raise ValidationError('本期完成數量不可為負數')
+            if not line.task_id or not line.estimate_id.estimate_date:
+                line.available_qty = 0.0
+                continue
+            last_log = DailyLogLine.search([
+                ('work_item_id', '=', line.task_id.id),
+                ('date', '<=', line.estimate_id.estimate_date),
+            ], order='date desc, id desc', limit=1)
+            line.available_qty = last_log.cumulative_qty if last_log else 0.0
 
-    @api.constrains('cumulative_qty', 'planned_qty')
-    def _check_over_estimate(self):
-        """警告：累計數量超過契約數量"""
+    @api.depends('estimate_qty', 'unit_price')
+    def _compute_amounts(self):
+        """計算本次估驗金額"""
         for line in self:
-            if line.cumulative_qty > line.planned_qty and line.planned_qty > 0:
-                # 超估警告 (不阻擋，但記錄)
-                if line.estimate_id:
-                    line.estimate_id.message_post(
-                        body=f'警告：項目 {line.item_no or line.task_id.name} '
-                             f'累計估驗數量 ({line.cumulative_qty}) 超過契約數量 ({line.planned_qty})'
-                    )
+            line.estimate_amount = line.unit_price * line.estimate_qty
+
+    @api.depends('estimate_qty', 'task_id', 'estimate_id.project_id')
+    def _compute_cumulative(self):
+        """計算累計估驗數量與金額"""
+        for line in self:
+            if not line.task_id or not line.estimate_id.project_id:
+                line.cumulative_estimate_qty = line.estimate_qty
+                line.cumulative_estimate_amount = line.unit_price * line.estimate_qty
+                continue
+            # 查詢同工程同工項已核定估驗的 estimate_qty 總和
+            prev_lines = self.search([
+                ('task_id', '=', line.task_id.id),
+                ('estimate_id.project_id', '=', line.estimate_id.project_id.id),
+                ('estimate_id.state', '=', 'approved'),
+                ('estimate_id', '!=', line.estimate_id.id),
+            ])
+            prev_total = sum(prev_lines.mapped('estimate_qty'))
+            line.cumulative_estimate_qty = prev_total + line.estimate_qty
+            line.cumulative_estimate_amount = line.unit_price * line.cumulative_estimate_qty

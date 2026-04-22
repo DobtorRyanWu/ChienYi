@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="construction_progress.ProgressChartWidget">
+        <div class="o_progress_chart_widget" style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <!-- 操作按鈕區 -->
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                <button class="btn btn-sm btn-secondary" t-on-click="resetZoom">
+                    <i class="fa fa-refresh"/> 重置縮放
+                </button>
+            </div>
+
+            <canvas t-ref="chart" style="max-height: 600px;"/>
+
+            <!-- 圖例說明 -->
+            <div style="margin-top: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px; font-size: 12px;">
+                <div style="display: flex; gap: 25px; flex-wrap: wrap; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 30px; height: 3px; background: #00A7E1;"></div>
+                        <span style="color: #666;">累計預定進度</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 30px; height: 3px; background: #E74C3C;"></div>
+                        <span style="color: #666;">累計實際進度</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 30px; height: 2px; background: #F39C12; border-style: dashed;"></div>
+                        <span style="color: #666;">今日</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 30px; height: 2px; background: #9B59B6; border-style: dashed;"></div>
+                        <span style="color: #666;">契約變更點</span>
+                    </div>
+                </div>
+                <div style="margin-top: 8px; color: #888; font-size: 11px;">
+                    💡 提示：將滑鼠移到圖表上可查看詳細資訊，契約變更點標記為紫色虛線
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

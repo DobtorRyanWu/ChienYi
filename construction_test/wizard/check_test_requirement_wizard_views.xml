@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 檢查檢驗需求精靈 Form View -->
+    <record id="view_check_test_requirement_wizard_form" model="ir.ui.view">
+        <field name="name">check.test.requirement.wizard.form</field>
+        <field name="model">check.test.requirement.wizard</field>
+        <field name="arch" type="xml">
+            <form string="檢查檢驗需求">
+                <group>
+                    <group>
+                        <field name="project_id" 
+                               options="{'no_create': True, 'no_open': True}"/>
+                        <field name="check_date"/>
+                    </group>
+                    <group string="統計資訊">
+                        <field name="standard_count" readonly="1"/>
+                        <field name="task_count" readonly="1"/>
+                    </group>
+                </group>
+                
+                <div class="alert alert-info" role="alert">
+                    <strong>說明：</strong>
+                    <p>此功能會根據施工日誌的累計完成數量，檢查是否需要建立新的檢驗記錄。</p>
+                    <ul>
+                        <li>系統會檢查所選工程的所有檢驗項目</li>
+                        <li>根據設定的檢驗頻率條件計算應有的檢驗次數</li>
+                        <li>自動建立缺少的檢驗記錄（標記為「系統自動建立」）</li>
+                    </ul>
+                </div>
+                
+                <footer>
+                    <button name="action_check_requirements" 
+                            string="開始檢查" 
+                            type="object" 
+                            class="btn-primary"/>
+                    <button string="取消" 
+                            special="cancel" 
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 檢查檢驗需求精靈 Action -->
+    <record id="action_check_test_requirement_wizard" model="ir.actions.act_window">
+        <field name="name">檢查檢驗需求</field>
+        <field name="res_model">check.test.requirement.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_supervision_test_record"/>
+        <field name="binding_view_types">list</field>
+    </record>
+
+</odoo>

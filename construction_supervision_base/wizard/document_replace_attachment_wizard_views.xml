@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 替換附件精靈 - 表單視圖 -->
+    <record id="view_document_replace_attachment_wizard_form" model="ir.ui.view">
+        <field name="name">document.replace.attachment.wizard.form</field>
+        <field name="model">document.replace.attachment.wizard</field>
+        <field name="arch" type="xml">
+            <form string="替換附件">
+                <group>
+                    <field name="document_id" invisible="1"/>
+                    <group string="目前的附件（將被替換）" colspan="2">
+                        <field name="current_attachment_ids" nolabel="1" readonly="1" 
+                               widget="many2many_tags"/>
+                    </group>
+                </group>
+                <group>
+                    <group string="上傳新附件">
+                        <field name="new_attachment_ids" widget="many2many_binary" nolabel="1"/>
+                    </group>
+                    <group string="版本資訊">
+                        <field name="version_note" placeholder="例如：更新第3條款內容..."/>
+                        <field name="keep_old_attachments"/>
+                    </group>
+                </group>
+                <footer>
+                    <button string="替換" name="action_replace" type="object" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

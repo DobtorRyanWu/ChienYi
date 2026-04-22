@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo>
+    <!-- 擴展 res.users 表單視圖，新增組織身分欄位 -->
+    <record id="view_users_form_construction" model="ir.ui.view">
+        <field name="name">res.users.form.construction</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <!-- 在 Access Rights 頁面的末尾插入組織身分欄位 -->
+            <xpath expr="//page[@name='access_rights']" position="inside">
+                <group string="組織身分" name="org_identity">
+                    <field name="is_supervision_org"/>
+                    <field name="is_contractor_org"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

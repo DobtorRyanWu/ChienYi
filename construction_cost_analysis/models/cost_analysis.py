@@ -1,345 +1,278 @@
 # -*- coding: utf-8 -*-
 
-from odoo import models, fields, tools
+from odoo import models, fields, api
+from odoo.exceptions import UserError, ValidationError
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
-class CostAnalysisReport(models.Model):
-    """
-    成本分析報表
+class CostAnalysis(models.Model):
+    """成本分析"""
+    _name = 'cost.analysis'
+    _description = '成本分析'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _order = 'create_date desc'
 
-    對應舊系統：成本分析
-    業務說明：
-    - 分析契約金額 vs 實際執行金額
-    - 計算各工項損益
-    - 支援多維度分析 (按工項/按廠商/按月份)
-
-    技術說明：
-    - 使用資料庫視圖 (_auto = False)
-    - 即時從 project.task 計算
-    - 支援 group_operator 彙總
-    """
-    _name = 'cost.analysis.report'
-    _description = '成本分析報表'
-    _auto = False
-    _order = 'project_id, item_no'
-
-    # === 基本資訊 ===
-    project_id = fields.Many2one(
-        'supervision.project',
-        string='工程案件',
-        readonly=True)
-
-    task_id = fields.Many2one(
-        'project.task',
-        string='契約工項',
-        readonly=True)
-
-    item_no = fields.Char(
-        string='工項編號',
-        readonly=True)
-
-    item_name = fields.Char(
-        string='工項名稱',
-        readonly=True)
-
-    unit = fields.Char(
-        string='單位',
-        readonly=True)
+    # ========================================
+    # 基本資訊
+    # ========================================
+    name = fields.Char(
+        string='名稱',
+        required=True,
+        tracking=True,
+        help='成本分析名稱'
+    )
 
     company_id = fields.Many2one(
         'res.company',
-        string='承包廠商',
-        readonly=True)
+        string='公司',
+        required=True,
+        default=lambda self: self.env.company,
+        tracking=True
+    )
 
-    # === 契約金額 (預算) ===
-    contract_qty = fields.Float(
-        string='契約數量',
-        readonly=True,
-        group_operator='sum')
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='幣別',
+        related='company_id.currency_id',
+        store=True,
+        readonly=True
+    )
 
-    contract_price = fields.Float(
-        string='契約單價',
-        readonly=True)
+    # ========================================
+    # 匯入模式
+    # ========================================
+    import_mode = fields.Selection(
+        [
+            ('project', '從專案匯入'),
+            ('xml', '從 XML 匯入'),
+        ],
+        string='匯入模式',
+        required=True,
+        default='project',
+        tracking=True,
+        help='選擇從既有專案或 XML 標單匯入工項'
+    )
 
-    contract_amount = fields.Float(
-        string='契約金額',
-        readonly=True,
-        group_operator='sum')
-
-    # === 實際執行 ===
-    actual_qty = fields.Float(
-        string='實際數量',
-        readonly=True,
-        group_operator='sum')
-
-    actual_amount = fields.Float(
-        string='實際金額',
-        readonly=True,
-        group_operator='sum')
-
-    # === 差異分析 ===
-    qty_variance = fields.Float(
-        string='數量差異',
-        readonly=True,
-        group_operator='sum',
-        help='實際數量 - 契約數量')
-
-    amount_variance = fields.Float(
-        string='金額差異',
-        readonly=True,
-        group_operator='sum',
-        help='實際金額 - 契約金額')
-
-    variance_rate = fields.Float(
-        string='差異率 (%)',
-        readonly=True,
-        help='(實際金額 - 契約金額) / 契約金額 * 100')
-
-    # === 損益分析 ===
-    profit_loss = fields.Float(
-        string='損益',
-        readonly=True,
-        group_operator='sum',
-        help='契約金額 - 實際金額 (正值為盈餘)')
-
-    profit_loss_rate = fields.Float(
-        string='損益率 (%)',
-        readonly=True,
-        help='(契約金額 - 實際金額) / 契約金額 * 100')
-
-    def init(self):
-        """建立資料庫視圖"""
-        tools.drop_view_if_exists(self.env.cr, self._table)
-        self.env.cr.execute("""
-            CREATE OR REPLACE VIEW %s AS (
-                SELECT
-                    t.id AS id,
-                    t.id AS task_id,
-                    sp.id AS project_id,
-                    t.assigned_company_id AS company_id,
-                    t.item_no,
-                    t.name AS item_name,
-                    t.unit,
-
-                    -- 契約金額
-                    COALESCE(t.planned_qty, 0) AS contract_qty,
-                    COALESCE(t.unit_price, 0) AS contract_price,
-                    COALESCE(t.planned_amount, 0) AS contract_amount,
-
-                    -- 實際執行
-                    COALESCE(t.actual_qty, 0) AS actual_qty,
-                    COALESCE(t.actual_amount, 0) AS actual_amount,
-
-                    -- 差異分析
-                    (COALESCE(t.actual_qty, 0) - COALESCE(t.planned_qty, 0)) AS qty_variance,
-                    (COALESCE(t.actual_amount, 0) - COALESCE(t.planned_amount, 0)) AS amount_variance,
-                    CASE
-                        WHEN COALESCE(t.planned_amount, 0) > 0
-                        THEN ((COALESCE(t.actual_amount, 0) - COALESCE(t.planned_amount, 0))
-                              / t.planned_amount * 100)
-                        ELSE 0
-                    END AS variance_rate,
-
-                    -- 損益分析 (契約金額 - 實際成本)
-                    (COALESCE(t.planned_amount, 0) - COALESCE(t.actual_amount, 0)) AS profit_loss,
-                    CASE
-                        WHEN COALESCE(t.planned_amount, 0) > 0
-                        THEN ((COALESCE(t.planned_amount, 0) - COALESCE(t.actual_amount, 0))
-                              / t.planned_amount * 100)
-                        ELSE 0
-                    END AS profit_loss_rate
-
-                FROM project_task t
-                LEFT JOIN project_project pp ON t.project_id = pp.id
-                LEFT JOIN supervision_project sp ON sp.project_id = pp.id
-                WHERE (COALESCE(t.planned_amount, 0) > 0 OR COALESCE(t.actual_amount, 0) > 0)
-                  AND sp.id IS NOT NULL
-            )
-        """ % self._table)
-
-
-class CostAnalysisSummary(models.Model):
-    """
-    成本分析摘要
-
-    按專案彙總的成本分析
-    業務說明：
-    - 顯示契約總金額、變更金額、現行契約金額
-    - 追蹤實際執行金額與執行率
-    - 追蹤估驗金額與估驗率
-    - 計算預估損益
-
-    技術說明：
-    - 使用資料庫視圖 (_auto = False)
-    - 整合 contract_change 模組的變更欄位
-    - 整合 payment_estimate 的估驗資料
-    """
-    _name = 'cost.analysis.summary'
-    _description = '成本分析摘要'
-    _auto = False
-    _order = 'project_id'
-
-    # === 基本資訊 ===
-    project_id = fields.Many2one(
+    source_project_id = fields.Many2one(
         'supervision.project',
-        string='工程案件',
-        readonly=True)
+        string='來源專案',
+        tracking=True,
+        help='從此專案匯入契約工項'
+    )
 
-    project_name = fields.Char(
-        string='工程名稱',
-        readonly=True)
+    xml_file = fields.Binary(
+        string='XML 檔案',
+        attachment=True,
+        help='上傳政府採購網 XML 標單'
+    )
 
-    project_code = fields.Char(
-        string='工程編號',
-        readonly=True)
+    xml_filename = fields.Char(
+        string='檔案名稱'
+    )
 
-    project_state = fields.Char(
-        string='工程狀態',
-        readonly=True)
+    # ========================================
+    # 狀態
+    # ========================================
+    state = fields.Selection(
+        [
+            ('draft', '草稿'),
+            ('confirmed', '已確認'),
+            ('done', '完成'),
+        ],
+        string='狀態',
+        default='draft',
+        required=True,
+        tracking=True
+    )
 
-    # === 契約總金額 ===
-    total_contract_amount = fields.Float(
-        string='契約總金額',
-        readonly=True,
-        help='原始契約金額')
+    # ========================================
+    # 預算明細
+    # ========================================
+    line_ids = fields.One2many(
+        'cost.analysis.line',
+        'planning_id',
+        string='預算明細',
+        copy=True
+    )
 
-    # === 變更金額 ===
-    total_change_amount = fields.Float(
-        string='變更金額',
-        readonly=True,
-        help='累計變更金額')
+    line_count = fields.Integer(
+        string='明細數量',
+        compute='_compute_line_statistics',
+        store=True
+    )
 
-    # === 現行契約金額 ===
-    current_contract_amount = fields.Float(
-        string='現行契約金額',
-        readonly=True,
-        help='原始契約金額 + 累計變更金額')
+    # ========================================
+    # 金額統計
+    # ========================================
+    total_budget = fields.Monetary(
+        string='招標總價',
+        compute='_compute_budget_totals',
+        store=True,
+        currency_field='currency_id',
+        help='所有明細的契約金額總和'
+    )
 
-    # === 實際執行 ===
-    total_actual_amount = fields.Float(
-        string='實際執行金額',
-        readonly=True,
-        help='所有工項的實際完成金額彙總')
+    suggested_total = fields.Monetary(
+        string='建議總價',
+        compute='_compute_budget_totals',
+        store=True,
+        currency_field='currency_id',
+        help='所有有建議單價的明細，其建議金額總和'
+    )
 
-    execution_rate = fields.Float(
-        string='執行率 (%)',
-        readonly=True,
-        help='實際執行金額 / 現行契約金額 * 100')
+    variance_amount = fields.Monetary(
+        string='差異金額',
+        compute='_compute_variance',
+        store=True,
+        currency_field='currency_id',
+        help='建議總價 - 預算總價'
+    )
 
-    # === 估驗金額 ===
-    total_estimate_amount = fields.Float(
-        string='估驗金額',
-        readonly=True,
-        help='已核定估驗金額彙總')
+    variance_percent = fields.Float(
+        string='差異百分比',
+        compute='_compute_variance',
+        store=True,
+        digits=(16, 2),
+        help='(差異金額 / 預算總價) × 100%'
+    )
 
-    estimate_rate = fields.Float(
-        string='估驗率 (%)',
-        readonly=True,
-        help='估驗金額 / 現行契約金額 * 100')
+    # ========================================
+    # 匹配統計
+    # ========================================
+    matched_line_count = fields.Integer(
+        string='已匹配明細數',
+        compute='_compute_line_statistics',
+        store=True,
+        help='有建議單價的明細數量'
+    )
 
-    # === 損益 ===
-    profit_loss = fields.Float(
-        string='預估損益',
-        readonly=True,
-        help='現行契約金額 - 實際執行金額')
+    match_rate = fields.Float(
+        string='匹配率',
+        compute='_compute_line_statistics',
+        store=True,
+        digits=(16, 2),
+        help='(已匹配明細數 / 明細總數) × 100%'
+    )
 
-    profit_loss_rate = fields.Float(
-        string='損益率 (%)',
-        readonly=True,
-        help='預估損益 / 現行契約金額 * 100')
-
-    # === 統計欄位 ===
-    task_count = fields.Integer(
-        string='工項數',
-        readonly=True)
-
-    completed_task_count = fields.Integer(
-        string='已完成工項',
-        readonly=True)
-
-    def init(self):
-        """建立資料庫視圖"""
-        tools.drop_view_if_exists(self.env.cr, self._table)
-        self.env.cr.execute("""
-            CREATE OR REPLACE VIEW %s AS (
-                SELECT
-                    sp.id AS id,
-                    sp.id AS project_id,
-                    pp.name AS project_name,
-                    sp.code AS project_code,
-                    sp.state AS project_state,
-
-                    -- 契約金額 (優先使用 original_contract_amount，否則用 contract_amount)
-                    COALESCE(sp.original_contract_amount, sp.contract_amount, 0) AS total_contract_amount,
-
-                    -- 變更金額
-                    COALESCE(sp.total_change_amount, 0) AS total_change_amount,
-
-                    -- 現行契約金額 (優先使用 current_contract_amount，否則用 contract_amount)
-                    COALESCE(sp.current_contract_amount, sp.contract_amount, 0) AS current_contract_amount,
-
-                    -- 實際執行金額 (彙總工項的 actual_amount)
-                    COALESCE(task_summary.total_actual, 0) AS total_actual_amount,
-
-                    -- 執行率
-                    CASE
-                        WHEN COALESCE(sp.current_contract_amount, sp.contract_amount, 0) > 0
-                        THEN (COALESCE(task_summary.total_actual, 0) /
-                              COALESCE(sp.current_contract_amount, sp.contract_amount) * 100)
-                        ELSE 0
-                    END AS execution_rate,
-
-                    -- 估驗金額 (彙總已核定的估驗單)
-                    COALESCE(estimate_summary.total_estimate, 0) AS total_estimate_amount,
-
-                    -- 估驗率
-                    CASE
-                        WHEN COALESCE(sp.current_contract_amount, sp.contract_amount, 0) > 0
-                        THEN (COALESCE(estimate_summary.total_estimate, 0) /
-                              COALESCE(sp.current_contract_amount, sp.contract_amount) * 100)
-                        ELSE 0
-                    END AS estimate_rate,
-
-                    -- 損益
-                    (COALESCE(sp.current_contract_amount, sp.contract_amount, 0) -
-                     COALESCE(task_summary.total_actual, 0)) AS profit_loss,
-
-                    -- 損益率
-                    CASE
-                        WHEN COALESCE(sp.current_contract_amount, sp.contract_amount, 0) > 0
-                        THEN ((COALESCE(sp.current_contract_amount, sp.contract_amount, 0) -
-                               COALESCE(task_summary.total_actual, 0)) /
-                              COALESCE(sp.current_contract_amount, sp.contract_amount) * 100)
-                        ELSE 0
-                    END AS profit_loss_rate,
-
-                    -- 工項統計
-                    COALESCE(task_summary.task_count, 0) AS task_count,
-                    COALESCE(task_summary.completed_count, 0) AS completed_task_count
-
-                FROM supervision_project sp
-                LEFT JOIN project_project pp ON sp.project_id = pp.id
-
-                -- 工項彙總子查詢
-                LEFT JOIN (
-                    SELECT
-                        t.project_id,
-                        SUM(COALESCE(t.actual_amount, 0)) AS total_actual,
-                        COUNT(t.id) AS task_count,
-                        COUNT(CASE WHEN t.actual_date_end IS NOT NULL THEN 1 END) AS completed_count
-                    FROM project_task t
-                    WHERE t.active = true
-                    GROUP BY t.project_id
-                ) task_summary ON task_summary.project_id = pp.id
-
-                -- 估驗彙總子查詢
-                LEFT JOIN (
-                    SELECT
-                        pe.project_id,
-                        SUM(COALESCE(pe.subtotal, 0)) AS total_estimate
-                    FROM payment_estimate pe
-                    WHERE pe.state = 'approved'
-                    GROUP BY pe.project_id
-                ) estimate_summary ON estimate_summary.project_id = sp.id
+    # ========================================
+    # Compute Methods
+    # ========================================
+    @api.depends('line_ids', 'line_ids.has_suggestion')
+    def _compute_line_statistics(self):
+        """計算明細統計"""
+        for record in self:
+            lines = record.line_ids.filtered(lambda l: not l.is_summary_item)
+            record.line_count = len(lines)
+            record.matched_line_count = len(lines.filtered(lambda l: l.has_suggestion))
+            record.match_rate = (
+                (record.matched_line_count / record.line_count * 100.0)
+                if record.line_count > 0 else 0.0
             )
-        """ % self._table)
+
+    @api.depends('line_ids', 'line_ids.contract_amount', 'line_ids.suggested_amount')
+    def _compute_budget_totals(self):
+        """計算預算總計"""
+        for record in self:
+            lines = record.line_ids.filtered(lambda l: not l.is_summary_item)
+            record.total_budget = sum(lines.mapped('contract_amount'))
+            # 只加總有建議單價的明細
+            suggested_lines = lines.filtered(lambda l: l.has_suggestion)
+            record.suggested_total = sum(suggested_lines.mapped('suggested_amount'))
+
+    @api.depends('total_budget', 'suggested_total')
+    def _compute_variance(self):
+        """計算差異"""
+        for record in self:
+            record.variance_amount = record.suggested_total - record.total_budget
+            record.variance_percent = (
+                (record.variance_amount / record.total_budget * 100.0)
+                if record.total_budget > 0 else 0.0
+            )
+
+    # ========================================
+    # 狀態切換方法
+    # ========================================
+    def action_confirm(self):
+        """確認"""
+        for record in self:
+            if record.state != 'draft':
+                raise UserError('只有草稿狀態可以確認！')
+            record.state = 'confirmed'
+
+    def action_done(self):
+        """完成"""
+        for record in self:
+            if record.state != 'confirmed':
+                raise UserError('只有已確認狀態可以完成！')
+            record.state = 'done'
+
+    def action_reset_to_draft(self):
+        """重設為草稿"""
+        for record in self:
+            record.state = 'draft'
+
+    # ========================================
+    # 價格庫匯入方法
+    # ========================================
+    def action_import_suggested_prices(self):
+        """從價格庫導入建議單價"""
+        self.ensure_one()
+
+        if not self.line_ids:
+            raise UserError('沒有可匹配的明細！')
+
+        PriceLibraryItem = self.env['price.library.item']
+        matched_count = 0
+
+        for line in self.line_ids.filtered(lambda l: not l.is_summary_item):
+            # 匹配策略 1：精確匹配 ref_item_code（如果有）
+            library_item = False
+            if line.ref_item_code:
+                library_item = PriceLibraryItem.search([
+                    ('company_id', '=', self.company_id.id),
+                    ('item_no', '=', line.ref_item_code),
+                    ('active', '=', True),
+                ], limit=1)
+
+            # 匹配策略 2：組合匹配 name + unit
+            if not library_item:
+                library_item = PriceLibraryItem.search([
+                    ('company_id', '=', self.company_id.id),
+                    ('name', 'ilike', line.name),
+                    ('unit', '=', line.unit),
+                    ('active', '=', True),
+                ], limit=1)
+
+            # 如果找到匹配項，填入建議單價
+            if library_item:
+                line.library_item_id = library_item.id
+                matched_count += 1
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '價格庫匯入完成',
+                'message': f'成功匹配 {matched_count} 筆明細',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
+    # ========================================
+    # 統計分析方法
+    # ========================================
+    def action_view_statistics(self):
+        """查看統計分析"""
+        self.ensure_one()
+        return {
+            'name': f'{self.name} - 統計分析',
+            'type': 'ir.actions.act_window',
+            'res_model': 'cost.analysis',
+            'view_mode': 'form',
+            'res_id': self.id,
+            'target': 'current',
+            'context': {'form_view_initial_mode': 'readonly'},
+        }

@@ -66,18 +66,6 @@ class SupervisionReviewApplication(models.Model):
         digits='Product Unit of Measure',
         help='舊系統欄位: number')
 
-    amount = fields.Monetary(
-        string='金額',
-        currency_field='currency_id',
-        help='舊系統欄位: amount')
-
-    currency_id = fields.Many2one(
-        'res.currency',
-        string='幣別',
-        related='project_id.currency_id',
-        store=True,
-        readonly=True)
-
     # === 送審日期 (舊系統欄位) ===
     expected_review_date = fields.Date(
         string='送審-預定日期',
@@ -129,9 +117,14 @@ class SupervisionReviewApplication(models.Model):
         tracking=True,
         help='舊系統欄位: hasSubcontractor')
 
+    has_others = fields.Boolean(
+        string='其他',
+        default=False,
+        tracking=True)
+
     others = fields.Text(
-        string='其他送審資料',
-        help='舊系統欄位: others')
+        string='其他資料說明',
+        help='當選擇其他送審資料時，請填寫說明')
 
     # === 送審資料摘要 ===
     review_materials_summary = fields.Char(
@@ -139,7 +132,7 @@ class SupervisionReviewApplication(models.Model):
         compute='_compute_review_materials_summary',
         store=True)
 
-    @api.depends('has_catalog', 'has_demo', 'has_related_test_report', 'has_subcontractor', 'others')
+    @api.depends('has_catalog', 'has_demo', 'has_related_test_report', 'has_subcontractor', 'has_others')
     def _compute_review_materials_summary(self):
         for record in self:
             materials = []
@@ -151,7 +144,7 @@ class SupervisionReviewApplication(models.Model):
                 materials.append('測試報告')
             if record.has_subcontractor:
                 materials.append('協力廠商')
-            if record.others:
+            if record.has_others:
                 materials.append('其他')
             record.review_materials_summary = ', '.join(materials) if materials else '-'
 
@@ -173,12 +166,6 @@ class SupervisionReviewApplication(models.Model):
         string='審查意見',
         help='審查人員的意見與備註')
 
-    reviewer_id = fields.Many2one(
-        'res.users',
-        string='審查人員',
-        tracking=True,
-        domain="[('company_id', '=', company_id)]")
-
     # === 廠驗 (舊系統欄位) ===
     is_factory_inspection = fields.Boolean(
         string='是否廠驗',
@@ -190,13 +177,6 @@ class SupervisionReviewApplication(models.Model):
         string='廠驗日期',
         tracking=True,
         help='舊系統欄位: factoryInspectionDate')
-
-    factory_inspection_result = fields.Selection([
-        ('pass', '合格'),
-        ('fail', '不合格'),
-        ('pending', '待定'),
-    ], string='廠驗結果',
-       tracking=True)
 
     factory_inspection_note = fields.Text(
         string='廠驗備註')
@@ -213,33 +193,20 @@ class SupervisionReviewApplication(models.Model):
         tracking=True,
         help='舊系統欄位: testUnit')
 
-    test_date = fields.Date(
-        string='試驗日期',
-        tracking=True)
-
-    test_result = fields.Selection([
-        ('pass', '合格'),
-        ('fail', '不合格'),
-        ('pending', '待定'),
-    ], string='試驗結果',
-       tracking=True)
-
-    test_report_no = fields.Char(
-        string='試驗報告編號')
-
     # === 歸檔 (舊系統欄位) ===
     archive_number = fields.Char(
         string='歸檔編號',
         tracking=True,
         help='舊系統欄位: archiveNumber')
 
+    archive_note = fields.Text(
+        string='備註',
+        help='備註')
+
     # === 狀態 ===
     state = fields.Selection([
-        ('draft', '草稿'),
-        ('submitted', '已送審'),
-        ('reviewing', '審查中'),
-        ('approved', '已核定'),
-        ('rejected', '退件'),
+        ('draft', '編輯中'),
+        ('done', '已完成'),
     ], string='狀態',
        default='draft',
        required=True,
@@ -264,22 +231,13 @@ class SupervisionReviewApplication(models.Model):
             record.attachment_count = len(record.attachment_ids)
 
     # === 追蹤欄位 ===
-    submitted_date = fields.Datetime(
-        string='送審時間',
+    done_date = fields.Datetime(
+        string='完成時間',
         readonly=True)
 
-    submitted_by = fields.Many2one(
+    done_by = fields.Many2one(
         'res.users',
-        string='送審人',
-        readonly=True)
-
-    approved_date = fields.Datetime(
-        string='核定時間',
-        readonly=True)
-
-    approved_by = fields.Many2one(
-        'res.users',
-        string='核定人',
+        string='完成人',
         readonly=True)
 
     # === 計算欄位 ===
@@ -300,39 +258,14 @@ class SupervisionReviewApplication(models.Model):
                     # 允許提前送審，只做提醒
                     pass
 
-    @api.constrains('has_catalog', 'has_demo', 'has_related_test_report', 'has_subcontractor', 'others')
-    def _check_review_materials(self):
-        """確保至少選擇一項送審資料"""
-        for record in self:
-            if record.state not in ('draft',):
-                if not any([
-                    record.has_catalog,
-                    record.has_demo,
-                    record.has_related_test_report,
-                    record.has_subcontractor,
-                    record.others
-                ]):
-                    raise ValidationError('請至少選擇一項送審資料類型')
+
 
     # === 狀態動作 ===
-    def action_submit(self):
-        """送審"""
+    def action_done(self):
+        """完成記錄"""
         for record in self:
             if record.state != 'draft':
-                raise UserError('只有草稿狀態可以送審')
-
-            # 驗證必要欄位
-            if not record.expected_review_date:
-                raise ValidationError('請填寫預定送審日期')
-
-            if not any([
-                record.has_catalog,
-                record.has_demo,
-                record.has_related_test_report,
-                record.has_subcontractor,
-                record.others
-            ]):
-                raise ValidationError('請至少選擇一項送審資料類型')
+                raise UserError('只有編輯中的記錄可以完成')
 
             # 產生送審編號
             if record.sequence_code == '/':
@@ -340,75 +273,20 @@ class SupervisionReviewApplication(models.Model):
                     'supervision.review.application') or '/'
 
             record.write({
-                'state': 'submitted',
-                'submitted_date': fields.Datetime.now(),
-                'submitted_by': self.env.uid,
-                'final_review_date': fields.Date.today(),
-            })
-
-    def action_start_review(self):
-        """開始審查"""
-        for record in self:
-            if record.state != 'submitted':
-                raise UserError('只有已送審狀態可以開始審查')
-            record.state = 'reviewing'
-
-    def action_approve(self):
-        """核定"""
-        for record in self:
-            if record.state != 'reviewing':
-                raise UserError('只有審查中狀態可以核定')
-
-            if not record.final_review_result:
-                raise ValidationError('請選擇審查結果')
-
-            record.write({
-                'state': 'approved',
-                'review_date': fields.Date.today(),
-                'approved_date': fields.Datetime.now(),
-                'approved_by': self.env.uid,
-                'reviewer_id': self.env.uid,
-            })
-
-    def action_reject(self):
-        """退件"""
-        for record in self:
-            if record.state != 'reviewing':
-                raise UserError('只有審查中狀態可以退件')
-
-            if not record.review_comment:
-                raise ValidationError('退件時請填寫審查意見')
-
-            record.write({
-                'state': 'rejected',
-                'final_review_result': 'fail',
-                'review_date': fields.Date.today(),
-                'reviewer_id': self.env.uid,
+                'state': 'done',
+                'done_date': fields.Datetime.now(),
+                'done_by': self.env.uid,
             })
 
     def action_reset_draft(self):
-        """重設為草稿"""
+        """重設為編輯中"""
         for record in self:
-            if record.state not in ('submitted', 'rejected'):
-                raise UserError('只有已送審或退件狀態可以重設為草稿')
+            if record.state != 'done':
+                raise UserError('只有已完成的記錄可以重設為編輯中')
             record.write({
                 'state': 'draft',
-                'submitted_date': False,
-                'submitted_by': False,
-            })
-
-    def action_resubmit(self):
-        """重新送審 (退件後)"""
-        for record in self:
-            if record.state != 'rejected':
-                raise UserError('只有退件狀態可以重新送審')
-            record.write({
-                'state': 'submitted',
-                'submitted_date': fields.Datetime.now(),
-                'submitted_by': self.env.uid,
-                'final_review_date': fields.Date.today(),
-                'final_review_result': False,
-                'review_comment': False,
+                'done_date': False,
+                'done_by': False,
             })
 
     # === 檢視動作 ===
@@ -438,8 +316,8 @@ class SupervisionReviewApplication(models.Model):
 
     def unlink(self):
         for record in self:
-            if record.state not in ('draft', 'rejected'):
-                raise UserError('只有草稿或退件狀態的送審記錄可以刪除')
+            if record.state == 'done':
+                raise UserError('已完成的送審記錄不可刪除，請先重設為編輯中')
         return super().unlink()
 
     def copy(self, default=None):
@@ -447,15 +325,12 @@ class SupervisionReviewApplication(models.Model):
         default.update({
             'sequence_code': '/',
             'state': 'draft',
-            'submitted_date': False,
-            'submitted_by': False,
-            'approved_date': False,
-            'approved_by': False,
+            'done_date': False,
+            'done_by': False,
             'final_review_date': False,
             'review_date': False,
             'final_review_result': False,
             'review_comment': False,
-            'reviewer_id': False,
         })
         return super().copy(default)
 

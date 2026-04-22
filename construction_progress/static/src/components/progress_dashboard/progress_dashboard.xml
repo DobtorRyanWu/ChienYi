@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="construction_progress.ProgressDashboard">
+        <div class="o_action o_progress_dashboard" style="padding: 20px; background: #f8f9fa; min-height: 100%; overflow-y: auto;">
+            <!-- 標題與工程選擇器 -->
+            <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+                    <h2 style="margin: 0; font-weight: bold; color: #333;">
+                        <i class="fa fa-dashboard" style="color: #00A7E1; margin-right: 8px;"/>
+                        工程進度儀表板
+                    </h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label style="font-weight: 600; color: #555; white-space: nowrap;">選擇工程：</label>
+                        <select class="form-select" style="min-width: 300px; max-width: 500px;"
+                                t-on-change="onProjectChange">
+                            <option value="">-- 請選擇工程案件 --</option>
+                            <t t-foreach="state.projects" t-as="project" t-key="project.id">
+                                <option t-att-value="project.id"
+                                        t-att-selected="state.selectedProjectId === project.id">
+                                    <t t-esc="project.name"/>
+                                </option>
+                            </t>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 載入工程列表中 -->
+            <div t-if="state.loading" class="text-center" style="padding: 60px;">
+                <i class="fa fa-spinner fa-spin fa-2x" style="color: #00A7E1;"/>
+                <p style="margin-top: 10px; color: #666;">載入工程列表中...</p>
+            </div>
+
+            <!-- 錯誤訊息 -->
+            <div t-if="state.error" class="alert alert-danger" style="margin: 20px 0;">
+                <i class="fa fa-exclamation-triangle"/> <t t-esc="state.error"/>
+            </div>
+
+            <!-- 未選擇工程的提示 -->
+            <div t-if="!state.selectedProjectId and !state.loading"
+                 style="background: white; padding: 60px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+                <i class="fa fa-bar-chart" style="font-size: 48px; color: #ccc; margin-bottom: 15px; display: block;"/>
+                <p style="font-size: 16px; color: #888;">請從上方選擇工程案件以檢視工程進度儀表板</p>
+            </div>
+
+            <!-- ================================================================
+                 第一層：KPI 卡片（選定案件後顯示）
+                 排序：基本資訊 → 工期資訊 → 進度狀態 → 契約變更
+                 ================================================================ -->
+            <t t-if="state.dashboardData and state.selectedProjectId and !state.dashboardLoading">
+                <div class="row g-3 mb-3">
+                    <!-- 卡片1：基本資訊 -->
+                    <div class="col-md-3">
+                        <div class="card h-100 border-top border-3 border-info">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fa fa-building me-2" style="color: #0891b2; font-size: 18px;"/>
+                                    <h6 class="card-title mb-0 fw-bold">基本資訊</h6>
+                                </div>
+                                <t t-if="state.dashboardData.basic_info">
+                                    <div class="mb-1">
+                                        <small class="text-muted">工程類型</small>
+                                        <span class="float-end fw-bold"><t t-esc="state.dashboardData.basic_info.project_type_label"/></span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">契約編號</small>
+                                        <span class="float-end fw-bold"><t t-esc="state.dashboardData.basic_info.code"/></span>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">契約金額</small>
+                                        <span class="float-end fw-bold"><t t-esc="formatCurrency(state.dashboardData.basic_info.contract_amount)"/></span>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 卡片2：工期資訊 -->
+                    <div class="col-md-3">
+                        <div class="card h-100 border-top border-3 border-primary">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fa fa-calendar me-2" style="color: #3b82f6; font-size: 18px;"/>
+                                    <h6 class="card-title mb-0 fw-bold">工期資訊</h6>
+                                </div>
+                                <t t-if="state.dashboardData.duration_info">
+                                    <div class="mb-1">
+                                        <small class="text-muted">契約開工日</small>
+                                        <span class="float-end fw-bold"><t t-esc="state.dashboardData.duration_info.contract_start_date or '-'"/></span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">契約完工日</small>
+                                        <span class="float-end fw-bold"><t t-esc="state.dashboardData.duration_info.contract_end_date or '-'"/></span>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">核定工期</small>
+                                        <span class="float-end fw-bold"><t t-esc="state.dashboardData.duration_info.total_approved_duration"/> 天</span>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 卡片3：進度狀態 -->
+                    <div class="col-md-3">
+                        <div class="card h-100" t-att-class="'card h-100 border-top border-3 ' + (state.dashboardData.progress_summary ? getVarianceBorderClass() : 'border-secondary')">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fa fa-line-chart me-2" style="color: #00A7E1; font-size: 18px;"/>
+                                    <h6 class="card-title mb-0 fw-bold">進度狀態</h6>
+                                </div>
+                                <t t-if="state.dashboardData.progress_summary">
+                                    <div class="mb-1">
+                                        <small class="text-muted">累計預定</small>
+                                        <span class="float-end fw-bold"><t t-esc="formatPercent(state.dashboardData.progress_summary.cumulative_planned)"/></span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">累計實際</small>
+                                        <span class="float-end fw-bold"><t t-esc="formatPercent(state.dashboardData.progress_summary.cumulative_actual)"/></span>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">差異</small>
+                                        <span t-att-class="'float-end fw-bold ' + getVarianceClass()">
+                                            <t t-esc="formatPercent(state.dashboardData.progress_summary.variance)"/>
+                                            <small class="ms-1"><t t-esc="state.dashboardData.progress_summary.variance_status_label"/></small>
+                                        </span>
+                                    </div>
+                                </t>
+                                <t t-else="">
+                                    <p class="text-muted mb-0" style="font-size: 13px;">尚無使用中進度表</p>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 卡片4：契約變更 -->
+                    <div class="col-md-3">
+                        <div class="card h-100 border-top border-3 border-warning">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fa fa-exchange me-2" style="color: #d97706; font-size: 18px;"/>
+                                    <h6 class="card-title mb-0 fw-bold">契約變更</h6>
+                                </div>
+                                <t t-if="state.dashboardData.change_order_summary">
+                                    <div class="mb-1">
+                                        <small class="text-muted">變更次數</small>
+                                        <span class="float-end fw-bold"><t t-esc="state.dashboardData.change_order_summary.total_count"/> 次</span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">目前使用</small>
+                                        <span class="float-end fw-bold">
+                                            <t t-if="state.dashboardData.change_order_summary.current_sequence > 0">
+                                                第 <t t-esc="state.dashboardData.change_order_summary.current_sequence"/> 次
+                                            </t>
+                                            <t t-else="">-</t>
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">累計變更金額</small>
+                                        <span class="float-end fw-bold"><t t-esc="formatCurrency(state.dashboardData.change_order_summary.cumulative_change_amount)"/></span>
+                                    </div>
+                                </t>
+                                <t t-else="">
+                                    <p class="text-muted mb-0" style="font-size: 13px;">模組未安裝</p>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 第二排：可選模組統計卡片（3 張） -->
+                <div class="row g-3 mb-3">
+                    <!-- 缺失改善 -->
+                    <t t-if="state.dashboardData.defect_summary">
+                        <div class="col-md-4">
+                            <div class="card h-100 border-top border-3 border-danger">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fa fa-search me-2" style="color: #ef4444; font-size: 18px;"/>
+                                        <h6 class="card-title mb-0 fw-bold">缺失改善</h6>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">缺失總數量</small>
+                                        <span class="float-end fw-bold"><t t-esc="state.dashboardData.defect_summary.total_count"/></span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">已改善數量</small>
+                                        <span class="float-end fw-bold text-success"><t t-esc="state.dashboardData.defect_summary.improved_count"/></span>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">未改善數量</small>
+                                        <span t-att-class="'float-end fw-bold ' + (state.dashboardData.defect_summary.unimproved_count > 0 ? 'text-danger' : '')">
+                                            <t t-esc="state.dashboardData.defect_summary.unimproved_count"/>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 檢試驗 -->
+                    <t t-if="state.dashboardData.test_summary">
+                        <div class="col-md-4">
+                            <div class="card h-100 border-top border-3" style="border-color: #8b5cf6 !important;">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fa fa-flask me-2" style="color: #8b5cf6; font-size: 18px;"/>
+                                        <h6 class="card-title mb-0 fw-bold">檢試驗</h6>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">待檢驗量</small>
+                                        <span class="float-end fw-bold"><t t-esc="state.dashboardData.test_summary.pending_count"/></span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">未處理預警數</small>
+                                        <span t-att-class="'float-end fw-bold ' + (state.dashboardData.test_summary.pending_warning_count > 0 ? 'text-warning' : '')">
+                                            <t t-esc="state.dashboardData.test_summary.pending_warning_count"/>
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">未達標工項數</small>
+                                        <span t-att-class="'float-end fw-bold ' + (state.dashboardData.test_summary.fail_count > 0 ? 'text-danger' : '')">
+                                            <t t-esc="state.dashboardData.test_summary.fail_count"/>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 送審管制 -->
+                    <t t-if="state.dashboardData.review_summary">
+                        <div class="col-md-4">
+                            <div class="card h-100 border-top border-3 border-info">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <i class="fa fa-file-text-o me-2" style="color: #0891b2; font-size: 18px;"/>
+                                        <h6 class="card-title mb-0 fw-bold">送審管制</h6>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">待送審</small>
+                                        <span class="float-end badge bg-primary rounded-pill">
+                                            <t t-esc="state.dashboardData.review_summary.pending_count"/>
+                                        </span>
+                                    </div>
+                                    <div class="mb-1">
+                                        <small class="text-muted">逾期未送</small>
+                                        <span t-att-class="'float-end badge rounded-pill ' + (state.dashboardData.review_summary.overdue_count > 0 ? 'bg-warning text-dark' : 'bg-secondary')">
+                                            <t t-esc="state.dashboardData.review_summary.overdue_count"/>
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">已完成</small>
+                                        <span class="float-end badge bg-success rounded-pill">
+                                            <t t-esc="state.dashboardData.review_summary.done_count"/>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </t>
+
+            <!-- 儀表板載入中 -->
+            <div t-if="state.dashboardLoading and state.selectedProjectId" class="text-center mb-3">
+                <i class="fa fa-spinner fa-spin" style="color: #00A7E1;"/>
+                <span class="ms-2 text-muted">載入儀表板資料中...</span>
+            </div>
+
+            <!-- ================================================================
+                 第二層：圖表載入中 / 無資料提示
+                 ================================================================ -->
+            <div t-if="state.chartLoading" class="text-center" style="padding: 60px;">
+                <i class="fa fa-spinner fa-spin fa-2x" style="color: #00A7E1;"/>
+                <p style="margin-top: 10px; color: #666;">載入圖表資料中...</p>
+            </div>
+
+            <div t-if="state.noData and state.selectedProjectId and !state.chartLoading"
+                 style="background: white; padding: 40px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;">
+                <div class="alert alert-info" style="display: inline-block;">
+                    <i class="fa fa-info-circle"/> 該工程尚無進度表資料
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 第二層：S 曲線圖表（保留原有功能）
+                 ================================================================ -->
+            <div t-att-style="'background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px;' + (state.selectedProjectId and !state.chartLoading and !state.noData and !state.error ? '' : ' display: none;')">
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                    <button class="btn btn-sm btn-secondary" t-on-click="resetZoom">
+                        <i class="fa fa-refresh"/> 重置縮放
+                    </button>
+                </div>
+
+                <canvas t-ref="chart" style="max-height: 600px;"/>
+
+                <div style="margin-top: 15px; padding: 12px; background: #f8f9fa; border-radius: 6px; font-size: 12px;">
+                    <div style="display: flex; gap: 25px; flex-wrap: wrap; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 3px; background: #00A7E1;"></div>
+                            <span style="color: #666;">累計預定進度</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 3px; background: #E74C3C;"></div>
+                            <span style="color: #666;">累計實際進度</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 2px; background: #F39C12; border-style: dashed;"></div>
+                            <span style="color: #666;">今日</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 30px; height: 2px; background: #9B59B6; border-style: dashed;"></div>
+                            <span style="color: #666;">契約變更點</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 8px; color: #888; font-size: 11px;">
+                        提示：滑鼠滾輪可縮放，拖曳可平移，將滑鼠移到圖表上可查看詳細資訊
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </t>
+</templates>

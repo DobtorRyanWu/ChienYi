@@ -32,6 +32,6 @@
               parent="construction_supervision_base.menu_project_overview"
               action="action_price_library_import_wizard"
               sequence="90"
-              groups="group_price_library_editor"/>
+              groups="construction_supervision_base.group_supervisor_admin"/>
 
 </odoo>

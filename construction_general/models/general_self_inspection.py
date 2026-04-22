@@ -48,55 +48,28 @@ class GeneralSelfInspectionExtend(models.Model):
         }
 
     def action_create_defect_improvement(self):
-        """從檢查缺失項目建立缺失改善單"""
+        """開啟建立缺失改善 Wizard，讓使用者選擇記錄類型"""
         self.ensure_one()
         if not self.has_defect:
             raise UserError('此檢查無缺失項目')
 
-        # 找出尚未建立缺失改善的缺失項目
         defect_items = self.checklist_ids.filtered(
             lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
 
         if not defect_items:
             raise UserError('所有缺失項目皆已建立缺失改善單')
 
-        created_improvements = self.env['general.defect.improvement']
-
-        for item in defect_items:
-            improvement = self.env['general.defect.improvement'].create({
-                'project_id': self.project_id.id,
-                'task_id': self.task_id.id if self.task_id else False,
-                'source_type': 'self_inspection',
-                'self_inspection_id': self.id,
-                'self_inspection_item_id': item.id,
-                'check_type': 'quality',
-                'defect_category': 'quality',
-                'defect_location': self.inspection_location,
-                'defect_description': f"[{item.check_item}] {item.actual_result or ''}",
-                'discovery_user_id': self.inspector_id.id if self.inspector_id else self.env.uid,
-                'found_date': self.inspection_date,
-                'responsible_company_id': self.contractor_company_id.id if self.contractor_company_id else False,
-            })
-            item.defect_improvement_id = improvement.id
-            created_improvements |= improvement
-
-        # 返回建立的缺失改善單
-        if len(created_improvements) == 1:
-            return {
-                'type': 'ir.actions.act_window',
-                'name': '缺失改善',
-                'res_model': 'general.defect.improvement',
-                'view_mode': 'form',
-                'res_id': created_improvements.id,
-            }
-        else:
-            return {
-                'type': 'ir.actions.act_window',
-                'name': '已建立的缺失改善',
-                'res_model': 'general.defect.improvement',
-                'view_mode': 'list,form',
-                'domain': [('id', 'in', created_improvements.ids)],
-            }
+        wizard = self.env['create.defect.improvement.wizard'].create({
+            'inspection_id': self.id,
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '建立缺失改善',
+            'res_model': 'create.defect.improvement.wizard',
+            'view_mode': 'form',
+            'res_id': wizard.id,
+            'target': 'new',
+        }
 
 
 class GeneralSelfInspectionItemExtend(models.Model):

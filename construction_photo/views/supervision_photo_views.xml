@@ -33,15 +33,14 @@
             <form string="工程照片">
                 <sheet>
                     <widget name="web_ribbon" title="已歸檔" bg_color="text-bg-danger" invisible="active"/>
-                    <div class="oe_title">
-                        <label for="name" string="照片說明"/>
-                        <h1>
-                            <field name="name" placeholder="輸入照片說明..."/>
-                        </h1>
-                    </div>
+                    
+                    <!-- 隱藏name欄位，僅供系統使用 -->
+                    <field name="name" invisible="1"/>
+                    
                     <group>
                         <group string="基本資訊">
                             <field name="project_id" options="{'no_create': True}"/>
+                            <field name="project_location" readonly="1"/>
                             <field name="shot_at"/>
                             <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
                         </group>
@@ -52,15 +51,35 @@
                             <field name="file_size" readonly="1" widget="integer"/>
                         </group>
                     </group>
+                    
+                    <!-- 照片說明獨立區塊，作為最重要的欄位 -->
+                    <group string="照片說明">
+                        <field name="description" 
+                               placeholder="請詳細說明此照片的內容、拍攝目的、相關資訊等..."
+                               nolabel="1"/>
+                    </group>
 
                     <notebook>
                         <page string="照片預覽" name="preview">
                             <group>
-                                <field name="image" widget="image" class="oe_avatar" readonly="1" options="{'size': [800, 600]}"/>
+                                <field name="image" 
+                                       widget="image" 
+                                       readonly="1" 
+                                       options="{'size': [1200, 900], 'zoom': true, 'zoom_delay': 1000}"
+                                       class="o_field_image_large"/>
                             </group>
                         </page>
 
                         <page string="GPS 位置" name="gps">
+                            <group string="工程案件位置（唯讀）">
+                                <group>
+                                    <field name="project_location" readonly="1"/>
+                                    <field name="project_latitude" readonly="1"/>
+                                    <field name="project_longitude" readonly="1"/>
+                                </group>
+                            </group>
+                            
+                            <separator string="此照片拍攝位置"/>
                             <group>
                                 <group>
                                     <field name="gps_location" placeholder="25.0330,121.5654"/>
@@ -188,7 +207,15 @@
         <field name="model">supervision.photo</field>
         <field name="arch" type="xml">
             <search string="搜尋工程照片">
-                <field name="name"/>
+                <!-- 主要搜尋:打字同時比對多個欄位(name/description/location/project.name/filename) -->
+                <field name="name" string="照片"
+                       filter_domain="['|','|','|','|',
+                                       ('name','ilike',self),
+                                       ('description','ilike',self),
+                                       ('location_description','ilike',self),
+                                       ('project_id.name','ilike',self),
+                                       ('attachment_id.name','ilike',self)]"/>
+                <field name="description"/>
                 <field name="project_id"/>
                 <field name="tag_ids"/>
                 <field name="gps_location"/>

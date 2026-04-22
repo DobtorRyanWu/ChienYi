@@ -39,11 +39,12 @@
         # Views (photo_views first for action reference)
         'views/supervision_photo_views.xml',
         'views/supervision_photo_tag_views.xml',
+        'views/supervision_project_views.xml',
         'views/menu.xml',
     ],
     'demo': [],
     'installable': True,
     'application': False,
     'auto_install': False,
-    'sequence': 15,
+    'sequence': 25,
 }

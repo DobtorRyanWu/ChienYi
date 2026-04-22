@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo noupdate="1">
+
+    <!-- ===================================================================
+         預建公式範本（根據材料設備檢試驗一覽表）
+         =================================================================== -->
+
+    <!-- 範本 1：鋼筋取樣（質量階梯） -->
+    <record id="formula_template_rebar_sampling" model="supervision.test.formula.template">
+        <field name="name">鋼筋取樣（質量階梯）</field>
+        <field name="category">鋼筋</field>
+        <field name="sequence">10</field>
+        <field name="description">以同一爐號質量計算：≤50t 取 1 支，50~100t 取 2 支，>100t 每增 50t 加 1 支。注意：實際依爐號批次判定，此公式以累計數量簡化。</field>
+        <field name="custom_formula">1 if cumulative_qty &lt;= threshold_1 else (2 if cumulative_qty &lt;= threshold_2 else 2 + int((cumulative_qty - threshold_2 + step - 1) / step))</field>
+        <field name="custom_warning_formula">(int(cumulative_qty / step) + 1) * step</field>
+        <field name="is_global" eval="True"/>
+    </record>
+    <record id="formula_template_rebar_var_1" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_rebar_sampling"/>
+        <field name="name">threshold_1</field>
+        <field name="value">50</field>
+        <field name="description">第一門檻 (t)</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="formula_template_rebar_var_2" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_rebar_sampling"/>
+        <field name="name">threshold_2</field>
+        <field name="value">100</field>
+        <field name="description">第二門檻 (t)</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="formula_template_rebar_var_3" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_rebar_sampling"/>
+        <field name="name">step</field>
+        <field name="value">50</field>
+        <field name="description">每增加量 (t)</field>
+        <field name="sequence">30</field>
+    </record>
+
+    <!-- 範本 2：預拌混凝土抗壓（每 N 量一批+餘數規則） -->
+    <record id="formula_template_concrete_compression" model="supervision.test.formula.template">
+        <field name="name">預拌混凝土抗壓（每N量一批+餘數規則）</field>
+        <field name="category">混凝土</field>
+        <field name="sequence">20</field>
+        <field name="description">每 batch_size 為一批檢驗 1 次，餘數超過 remainder_threshold 加 1 次，總量 ≤ exempt_qty 免檢。</field>
+        <field name="custom_formula">0 if cumulative_qty &lt;= exempt_qty else int(cumulative_qty / batch_size) + (1 if cumulative_qty % batch_size > remainder_threshold else 0)</field>
+        <field name="custom_warning_formula">(int(cumulative_qty / batch_size) + 1) * batch_size</field>
+        <field name="is_global" eval="True"/>
+    </record>
+    <record id="formula_template_concrete_var_1" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_concrete_compression"/>
+        <field name="name">batch_size</field>
+        <field name="value">120</field>
+        <field name="description">每批數量 (M³)</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="formula_template_concrete_var_2" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_concrete_compression"/>
+        <field name="name">remainder_threshold</field>
+        <field name="value">40</field>
+        <field name="description">餘數門檻 (M³)</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="formula_template_concrete_var_3" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_concrete_compression"/>
+        <field name="name">exempt_qty</field>
+        <field name="value">40</field>
+        <field name="description">免檢數量 (M³)</field>
+        <field name="sequence">30</field>
+    </record>
+
+    <!-- 範本 3：CLSM（階梯免檢+加驗） -->
+    <record id="formula_template_clsm" model="supervision.test.formula.template">
+        <field name="name">CLSM（階梯免檢+加驗）</field>
+        <field name="category">混凝土</field>
+        <field name="sequence">30</field>
+        <field name="description">&lt; exempt_qty 免檢，exempt_qty ~ first_range_end 檢 1 次，> first_range_end 每 interval 加 1 次。</field>
+        <field name="custom_formula">0 if cumulative_qty &lt; exempt_qty else (1 if cumulative_qty &lt;= first_range_end else 1 + int((cumulative_qty - first_range_end + interval - 1) / interval))</field>
+        <field name="is_global" eval="True"/>
+    </record>
+    <record id="formula_template_clsm_var_1" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_clsm"/>
+        <field name="name">exempt_qty</field>
+        <field name="value">20</field>
+        <field name="description">免檢數量</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="formula_template_clsm_var_2" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_clsm"/>
+        <field name="name">first_range_end</field>
+        <field name="value">50</field>
+        <field name="description">第一區間上限</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="formula_template_clsm_var_3" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_clsm"/>
+        <field name="name">interval</field>
+        <field name="value">50</field>
+        <field name="description">加驗間隔</field>
+        <field name="sequence">30</field>
+    </record>
+
+    <!-- 範本 4：瀝青含量篩分析（每批免驗+雙重抽驗） -->
+    <record id="formula_template_asphalt_analysis" model="supervision.test.formula.template">
+        <field name="name">瀝青含量篩分析（每批免驗+雙重抽驗）</field>
+        <field name="category">瀝青</field>
+        <field name="sequence">40</field>
+        <field name="description">契約數量 &lt; exempt_qty 免驗。每批(同日同廠同種)至少 2 次，&lt; double_threshold 得 1 次。注意：實際依每日批次判定，此公式以累計量簡化。</field>
+        <field name="custom_formula">0 if cumulative_qty &lt; exempt_qty else max(1, int(cumulative_qty / double_threshold) * 2 + (1 if cumulative_qty % double_threshold >= exempt_qty else 0))</field>
+        <field name="is_global" eval="True"/>
+    </record>
+    <record id="formula_template_asphalt_var_1" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_asphalt_analysis"/>
+        <field name="name">exempt_qty</field>
+        <field name="value">100</field>
+        <field name="description">免驗數量 (t)</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="formula_template_asphalt_var_2" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_asphalt_analysis"/>
+        <field name="name">double_threshold</field>
+        <field name="value">200</field>
+        <field name="description">雙重抽驗門檻 (t)</field>
+        <field name="sequence">20</field>
+    </record>
+
+    <!-- 範本 5：面積階梯（每 N 面積最少 1 次） -->
+    <record id="formula_template_area_interval" model="supervision.test.formula.template">
+        <field name="name">面積階梯（每N面積最少1次）</field>
+        <field name="category">瀝青</field>
+        <field name="sequence">50</field>
+        <field name="description">有施工即至少 1 次，每 interval 面積加 1 次。適用：瀝青厚度、壓實度等以面積計算的項目。</field>
+        <field name="custom_formula">0 if cumulative_qty &lt;= 0 else max(1, int((cumulative_qty + interval - 1) / interval))</field>
+        <field name="custom_warning_formula">(int(cumulative_qty / interval) + 1) * interval</field>
+        <field name="is_global" eval="True"/>
+    </record>
+    <record id="formula_template_area_var_1" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_area_interval"/>
+        <field name="name">interval</field>
+        <field name="value">1000</field>
+        <field name="description">面積間隔 (M²)</field>
+        <field name="sequence">10</field>
+    </record>
+
+    <!-- 範本 6：銲接鋼線網（階梯+餘數獨立組） -->
+    <record id="formula_template_welded_wire_mesh" model="supervision.test.formula.template">
+        <field name="name">銲接鋼線網（階梯+餘數獨立組）</field>
+        <field name="category">鋼筋</field>
+        <field name="sequence">60</field>
+        <field name="description">&lt; exempt_qty 免檢，exempt_qty ~ first_range_end 檢 1 組，> first_range_end 每 interval 加 1 組，餘數 ≥ remainder_threshold 為獨立 1 組。</field>
+        <field name="custom_formula">0 if cumulative_qty &lt; exempt_qty else (1 if cumulative_qty &lt;= first_range_end else 1 + int((cumulative_qty - first_range_end) / interval) + (1 if (cumulative_qty - first_range_end) % interval >= remainder_threshold else 0))</field>
+        <field name="is_global" eval="True"/>
+    </record>
+    <record id="formula_template_wire_mesh_var_1" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_welded_wire_mesh"/>
+        <field name="name">exempt_qty</field>
+        <field name="value">500</field>
+        <field name="description">免檢數量 (M²)</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="formula_template_wire_mesh_var_2" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_welded_wire_mesh"/>
+        <field name="name">first_range_end</field>
+        <field name="value">1000</field>
+        <field name="description">第一區間上限 (M²)</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="formula_template_wire_mesh_var_3" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_welded_wire_mesh"/>
+        <field name="name">interval</field>
+        <field name="value">1000</field>
+        <field name="description">加驗間隔 (M²)</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="formula_template_wire_mesh_var_4" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_welded_wire_mesh"/>
+        <field name="name">remainder_threshold</field>
+        <field name="value">500</field>
+        <field name="description">餘數獨立組門檻 (M²)</field>
+        <field name="sequence">40</field>
+    </record>
+
+    <!-- 範本 7：標線（三階段累計） -->
+    <record id="formula_template_road_marking" model="supervision.test.formula.template">
+        <field name="name">標線（三階段累計）</field>
+        <field name="category">標線</field>
+        <field name="sequence">70</field>
+        <field name="description">&lt; stage1_end 抽 1 次，stage1_end ~ stage2_end 再抽 1 次（共 2 次），> stage2_end 每 stage3_interval 再加 1 次。</field>
+        <field name="custom_formula">0 if cumulative_qty &lt;= 0 else (1 if cumulative_qty &lt; stage1_end else (2 if cumulative_qty &lt;= stage2_end else 2 + int((cumulative_qty - stage2_end + stage3_interval - 1) / stage3_interval)))</field>
+        <field name="is_global" eval="True"/>
+    </record>
+    <record id="formula_template_marking_var_1" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_road_marking"/>
+        <field name="name">stage1_end</field>
+        <field name="value">1000</field>
+        <field name="description">第一階段上限 (M)</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="formula_template_marking_var_2" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_road_marking"/>
+        <field name="name">stage2_end</field>
+        <field name="value">3000</field>
+        <field name="description">第二階段上限 (M)</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="formula_template_marking_var_3" model="supervision.test.formula.template.variable">
+        <field name="template_id" ref="formula_template_road_marking"/>
+        <field name="name">stage3_interval</field>
+        <field name="value">3000</field>
+        <field name="description">第三階段間隔 (M)</field>
+        <field name="sequence">30</field>
+    </record>
+
+</odoo>

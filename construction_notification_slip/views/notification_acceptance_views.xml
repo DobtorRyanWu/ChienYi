@@ -12,17 +12,14 @@
                 <header>
                     <button name="action_accept" string="確認驗收" type="object"
                             class="oe_highlight"
-                            invisible="state != 'draft'"
-                            groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
+                            invisible="state != 'draft'"/>
                     <button name="action_load_pending_lines" string="載入待驗收項目" type="object"
                             class="btn-secondary"
                             invisible="state != 'draft'"/>
                     <button name="action_cancel" string="取消" type="object"
-                            invisible="state == 'cancel'"
-                            groups="construction_supervision_base.group_supervision_manager"/>
+                            invisible="state == 'cancel'"/>
                     <button name="action_reset_to_draft" string="重設為草稿" type="object"
-                            invisible="state != 'cancel'"
-                            groups="construction_supervision_base.group_supervision_manager"/>
+                            invisible="state != 'cancel'"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,accept"/>
                 </header>
@@ -125,11 +122,11 @@
                         </page>
                     </notebook>
                 </sheet>
-                <div class="oe_chatter">
+                <chatter>
                     <field name="message_follower_ids"/>
                     <field name="activity_ids"/>
                     <field name="message_ids"/>
-                </div>
+                </chatter>
             </form>
         </field>
     </record>

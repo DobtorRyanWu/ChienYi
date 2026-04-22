@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+    View extensions for daily.log.sheet to add progress schedule integration.
+-->
+<odoo>
+
+    <!-- ===================================================================
+         Extend Daily Log Sheet Form View - Add Progress Status Tab
+         =================================================================== -->
+
+    <record id="view_daily_log_sheet_form_inherit_progress" model="ir.ui.view">
+        <field name="name">daily.log.sheet.form.inherit.progress</field>
+        <field name="model">daily.log.sheet</field>
+        <field name="inherit_id" ref="construction_daily_log.daily_log_sheet_view_form"/>
+        <field name="arch" type="xml">
+            <!-- 在 notebook 之前加入警告橫幅 -->
+            <xpath expr="//notebook" position="before">
+                <div invisible="not has_outdated_schedule">
+                    <field name="outdated_warning_message" nolabel="1" readonly="1"/>
+                    <group>
+                        <button name="action_view_progress_schedule" type="object"
+                                string="立即前往更新進度表" class="btn-warning"
+                                icon="fa-line-chart"/>
+                    </group>
+                </div>
+                <!-- 隱藏欄位 -->
+                <field name="has_outdated_schedule" invisible="1"/>
+            </xpath>
+            
+            <!-- 在 notebook 中加入進度狀況頁籤 -->
+            <xpath expr="//page[@name='daily_log_lines']" position="before">
+                <page string="進度狀況" name="progress_status">
+                    <group>
+                        <group name="progress_info">
+                            <!-- 隱藏的輔助欄位 -->
+                            <field name="active_progress_schedule_id" invisible="1"/>
+                            <field name="progress_line_id" invisible="1"/>
+                            
+                            <!-- 進度資訊 -->
+                            <field name="daily_planned_progress" 
+                                string="本日預定進度(%)"
+                                readonly="1"/>
+                            <field name="daily_actual_progress" 
+                                string="本日實際進度(%)"
+                                readonly="state not in ('new', 'draft')"/>
+                            
+                            <!-- 有無進度變更 -->
+                            <field name="has_progress_change" 
+                                string="有無進度變更"
+                                readonly="state not in ('new', 'draft')"/>
+                            
+                            <!-- 變更後的預定進度（當有進度變更時顯示） -->
+                            <field name="changed_planned_progress"
+                                string="變更後的預定進度(%)"
+                                invisible="not has_progress_change"
+                                readonly="state not in ('new', 'draft')"/>
+                        </group>
+                    </group>
+                    
+                    <!-- 操作按鈕 -->
+                    <group>
+                        <group>
+                            <button name="action_view_progress_schedule"
+                                string="查看進度表"
+                                type="object"
+                                class="btn-secondary"
+                                icon="fa-line-chart"
+                                invisible="not active_progress_schedule_id"/>
+                        </group>
+                    </group>
+                    
+                    <!-- 提示訊息 -->
+                    <div class="alert alert-info" role="alert" 
+                        invisible="active_progress_schedule_id">
+                        <strong>提示：</strong> 該工程尚未建立進度表，
+                        請先至「進度管理 > 進度表」建立並啟用進度表。
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -5,43 +5,66 @@
          品質安全選單 (歸屬於 品質安全)
          =================================================================== -->
 
-    <!-- 自主檢查 -->
-    <menuitem id="menu_general_self_inspection"
-              name="一般式自主檢查"
-              parent="construction_supervision_base.menu_self_inspection"
-              action="action_general_self_inspection"
-              sequence="10"/>
+    <!-- ========== 缺失管理選單 ========== -->
 
-    <menuitem id="menu_reservation_self_inspection"
-              name="預約式自主檢查"
-              parent="construction_supervision_base.menu_self_inspection"
-              action="action_reservation_self_inspection"
-              sequence="20"/>
+    <!-- 編號前綴設定（排第一個） -->
+    <menuitem id="menu_defect_improvement_prefix_config"
+              name="編號前綴設定"
+              parent="construction_supervision_base.menu_defect_management"
+              action="action_defect_improvement_prefix_config"
+              sequence="1"/>
 
-    <!-- 缺失管理 -->
+    <!-- 一般式缺失改善（由 construction_general 提供，sequence 10, 11, 35, 36） -->
+
+    <!-- 預約式監造缺失改善 -->
+    <menuitem id="menu_reservation_defect_improvement_supervision"
+              name="預約式監造缺失改善"
+              parent="construction_supervision_base.menu_defect_management"
+              action="action_reservation_defect_improvement_supervision"
+              sequence="15"/>
+
+    <!-- 預約式營造缺失改善 -->
+    <menuitem id="menu_reservation_defect_improvement_contractor"
+              name="預約式營造缺失改善"
+              parent="construction_supervision_base.menu_defect_management"
+              action="action_reservation_defect_improvement_contractor"
+              sequence="16"/>
+
+    <!-- NCR 缺失管理（隱藏，目前用不到） -->
     <menuitem id="menu_supervision_defect"
               name="缺失管理 (NCR)"
               parent="construction_supervision_base.menu_defect_management"
               action="action_supervision_defect"
-              sequence="10"/>
+              sequence="20"
+              active="0"/>
 
     <menuitem id="menu_supervision_defect_overdue"
               name="逾期缺失"
               parent="construction_supervision_base.menu_defect_management"
               action="action_supervision_defect_overdue"
-              sequence="15"/>
+              sequence="25"/>
 
-    <menuitem id="menu_reservation_defect_improvement"
-              name="預約式缺失改善"
-              parent="construction_supervision_base.menu_defect_management"
-              action="action_reservation_defect_improvement"
-              sequence="20"/>
+    <!-- ========== 自主檢查選單 ========== -->
 
-    <!-- 自主檢查類型設定 (歸屬於 系統設定 > 基礎設定) -->
+    <!-- 自主檢查類型設定 -->
     <menuitem id="menu_self_inspection_type"
-              name="自主檢查類型"
-              parent="construction_supervision_base.menu_basic_config"
+              name="自主檢查類型設定"
+              parent="construction_supervision_base.menu_self_inspection"
               action="action_self_inspection_type"
               sequence="10"/>
+
+    <!-- 一般式自主檢查 -->
+    <menuitem id="menu_general_self_inspection"
+              name="一般式自主檢查"
+              parent="construction_supervision_base.menu_self_inspection"
+              action="action_general_self_inspection"
+              sequence="20"/>
+
+    <!-- 預約式自主檢查 -->
+    <menuitem id="menu_reservation_self_inspection"
+              name="預約式自主檢查"
+              parent="construction_supervision_base.menu_self_inspection"
+              action="action_reservation_self_inspection"
+              sequence="30"/>
 
 </odoo>

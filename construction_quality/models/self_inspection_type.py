@@ -48,6 +48,22 @@ class SelfInspectionType(models.Model):
         ('other', '其他'),
     ], string='工程類別', default='structure')
 
+    # === 所屬工程 ===
+    project_id = fields.Many2one(
+        'supervision.project',
+        string='所屬工程',
+        help='將此檢查類型設定綁定於特定工程案件')
+
+    # === 關聯契約工項 ===
+    task_ids = fields.Many2many(
+        'project.task',
+        'inspection_type_task_rel',
+        'type_id',
+        'task_id',
+        string='關聯契約工項',
+        domain="[('supervision_project_id', '=', project_id), ('is_summary_item', '=', False)]",
+        help='此檢查類型適用的契約工項')
+
     # === 說明 ===
     description = fields.Text(string='類型說明')
 
@@ -79,6 +95,18 @@ class SelfInspectionType(models.Model):
                     ('inspection_type_id', '=', record.id)
                 ])
             record.inspection_count = count
+
+    @api.onchange('project_id')
+    def _onchange_project_id(self):
+        """所屬工程變更時，清空已關聯的契約工項"""
+        if self.task_ids:
+            self.task_ids = [(5, 0, 0)]
+            return {
+                'warning': {
+                    'title': '注意',
+                    'message': '所屬工程已變更，關聯契約工項已清空，請重新選擇。',
+                }
+            }
 
     # === SQL 約束 ===
     _sql_constraints = [
@@ -129,18 +157,69 @@ class SelfInspectionTypeItem(models.Model):
         required=True)
 
     check_standard = fields.Text(
-        string='檢查標準',
-        help='設計圖說、規範之管理標準(定性定量)')
-
-    check_method = fields.Text(
-        string='檢查方法',
-        help='檢驗方式說明')
+        string='設計圖說、規範之管理標準(定性/定量)',
+        help='設計圖說、規範之管理標準(定性/定量)')
 
     stage = fields.Selection([
-        ('stage1', '第一查驗階段'),
-        ('stage2', '第二查驗階段'),
-        ('stage3', '第三查驗階段'),
+        ('stage1', '施工前'),
+        ('stage2', '施工中'),
+        ('stage3', '施工後'),
     ], string='查驗階段', default='stage1')
 
     # === 備註 ===
     note = fields.Text(string='備註')
+
+
+class SelfInspectionTypeCopyWizard(models.TransientModel):
+    """
+    複製自主檢查類型到其他工程
+
+    設計說明：
+    - 將選擇的檢查類型複製到指定工程
+    - 複製時清空類型代碼以避免唯一約束冲突
+    - 預設檢查項目隨主記錄一起複製
+    """
+    _name = 'self.inspection.type.copy.wizard'
+    _description = '複製自主檢查類型到其他工程'
+
+    project_id = fields.Many2one(
+        'supervision.project',
+        string='目標工程',
+        required=True,
+        help='將選擇的檢查類型複製到此工程')
+
+    type_ids = fields.Many2many(
+        'self.inspection.type',
+        string='複製項目',
+        readonly=True)
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        if 'type_ids' in fields_list:
+            active_ids = self.env.context.get('active_ids', [])
+            res['type_ids'] = [(6, 0, active_ids)]
+        return res
+
+    def action_copy(self):
+        """執行複製操作"""
+        if not self.type_ids:
+            raise UserError('請先選擇要複製的檢查類型')
+
+        for type_record in self.type_ids:
+            # 複製主記錄，清空 code 避免唯一約束冲突
+            # default_item_ids (One2many) 由 copy() 自動複製
+            type_record.copy({
+                'code': False,
+                'project_id': self.project_id.id,
+            })
+
+        # 跳轉至目標工程的檢查類型列表
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '自主檢查類型',
+            'res_model': 'self.inspection.type',
+            'view_mode': 'list,form',
+            'domain': [('project_id', '=', self.project_id.id)],
+            'context': {'search_default_group_project': 1},
+        }

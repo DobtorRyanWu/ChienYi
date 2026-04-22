@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 工項檢試驗統計 Tree View -->
+    <record id="view_test_task_statistics_tree" model="ir.ui.view">
+        <field name="name">supervision.test.task.statistics.tree</field>
+        <field name="model">supervision.test.task.statistics</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false">
+                <field name="project_id"/>
+                <field name="item_no"/>
+                <field name="task_name"/>
+                <field name="standard_name"/>
+                <field name="test_record_count" sum="檢驗總數"/>
+                <field name="total_in_site_quantity" sum="總進場"/>
+                <field name="total_sample_quantity" sum="總抽樣"/>
+                <field name="pass_count" sum="總合格"/>
+                <field name="fail_count" sum="總不合格"/>
+                <field name="pending_count" sum="總待判定"/>
+                <field name="pass_rate" avg="平均合格率" widget="progressbar"
+                       decoration-success="pass_rate >= 95"
+                       decoration-warning="pass_rate >= 80 and pass_rate &lt; 95"
+                       decoration-danger="pass_rate &lt; 80"/>
+                <field name="required_count" string="需合格次數"/>
+                <field name="shortage" string="尚需合格"
+                       decoration-danger="shortage > 0"/>
+                <field name="is_qualified" string="是否達標" widget="boolean"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 工項檢試驗統計 Pivot View -->
+    <record id="view_test_task_statistics_pivot" model="ir.ui.view">
+        <field name="name">supervision.test.task.statistics.pivot</field>
+        <field name="model">supervision.test.task.statistics</field>
+        <field name="arch" type="xml">
+            <pivot string="工項檢試驗統計分析">
+                <field name="project_id" type="row"/>
+                <field name="task_name" type="row"/>
+                <field name="standard_name" type="row"/>
+                <field name="test_record_count" type="measure"/>
+                <field name="total_in_site_quantity" type="measure"/>
+                <field name="total_sample_quantity" type="measure"/>
+                <field name="pass_count" type="measure"/>
+                <field name="fail_count" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- 工項檢試驗統計 Graph View -->
+    <record id="view_test_task_statistics_graph" model="ir.ui.view">
+        <field name="name">supervision.test.task.statistics.graph</field>
+        <field name="model">supervision.test.task.statistics</field>
+        <field name="arch" type="xml">
+            <graph string="工項檢試驗統計圖表" type="bar">
+                <field name="task_name"/>
+                <field name="pass_count" type="measure"/>
+                <field name="fail_count" type="measure"/>
+                <field name="pending_count" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- 工項檢試驗統計 Search View -->
+    <record id="view_test_task_statistics_search" model="ir.ui.view">
+        <field name="name">supervision.test.task.statistics.search</field>
+        <field name="model">supervision.test.task.statistics</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="project_id"/>
+                <field name="task_name"/>
+                <field name="item_no"/>
+                <field name="standard_name"/>
+
+                <separator/>
+                <filter string="有檢驗記錄" name="has_records"
+                        domain="[('test_record_count', '>', 0)]"/>
+                <filter string="無檢驗記錄" name="no_records"
+                        domain="[('test_record_count', '=', 0)]"/>
+
+                <separator/>
+                <filter string="有不合格" name="has_fail"
+                        domain="[('fail_count', '>', 0)]"/>
+                <filter string="全部合格" name="all_pass"
+                        domain="[('fail_count', '=', 0), ('test_record_count', '>', 0)]"/>
+
+                <separator/>
+                <filter string="未達標" name="not_qualified"
+                        domain="[('is_qualified', '=', False)]"/>
+                <filter string="已達標" name="qualified"
+                        domain="[('is_qualified', '=', True)]"/>
+
+                <separator/>
+                <filter string="合格率 &gt;= 95%" name="high_pass_rate"
+                        domain="[('pass_rate', '>=', 95)]"/>
+                <filter string="合格率 80-95%" name="medium_pass_rate"
+                        domain="[('pass_rate', '>=', 80), ('pass_rate', '&lt;', 95)]"/>
+                <filter string="合格率 &lt; 80%" name="low_pass_rate"
+                        domain="[('pass_rate', '&lt;', 80)]"/>
+
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="檢試驗項目" name="group_standard"
+                            context="{'group_by': 'standard_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 工項檢試驗統計 Action -->
+    <record id="action_test_task_statistics" model="ir.actions.act_window">
+        <field name="name">工項檢試驗統計</field>
+        <field name="res_model">supervision.test.task.statistics</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="search_view_id" ref="view_test_task_statistics_search"/>
+        <field name="context">{
+            'search_default_group_project': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無統計資料
+            </p>
+            <p>
+                工項檢試驗統計功能以「契約工項 × 檢試驗項目」為分析維度，<br/>
+                提供每個工項的檢驗次數、進場/抽樣數量及合格率統計。
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu -->
+    <menuitem id="menu_test_task_statistics"
+              name="工項檢試驗統計"
+              parent="menu_test_management_root"
+              action="action_test_task_statistics"
+              sequence="25"/>
+
+</odoo>

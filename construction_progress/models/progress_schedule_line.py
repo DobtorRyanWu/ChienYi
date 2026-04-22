@@ -49,6 +49,12 @@ class ProgressScheduleLine(models.Model):
         store=True,
         readonly=True,
     )
+    schedule_is_latest = fields.Boolean(
+        string='所屬進度表是最新版本',
+        related='schedule_id.is_latest_version',
+        store=True,
+        help='該明細所屬的進度表是否為該工程的最新版本',
+    )
 
     # === 序號 ===
     sequence = fields.Integer(
@@ -115,7 +121,7 @@ class ProgressScheduleLine(models.Model):
         digits=(5, 2),
     )
 
-    @api.depends('schedule_id.line_ids.planned_progress', 'sequence')
+    @api.depends('schedule_id.line_ids.planned_progress', 'sequence', 'planned_progress')
     def _compute_cumulative_planned(self):
         """計算累計預定進度"""
         for line in self:
@@ -127,6 +133,13 @@ class ProgressScheduleLine(models.Model):
                 lambda l: l.sequence <= line.sequence
             )
             line.cumulative_planned = sum(prev_lines.mapped('planned_progress'))
+
+    @api.onchange('planned_progress')
+    def _onchange_planned_progress(self):
+        """當預定進度改變時，重新計算自己和後續行的累計值"""
+        if self.schedule_id and self.schedule_id.line_ids:
+            # 強制重新計算所有行（會觸發連鎖更新）
+            self.schedule_id.line_ids._compute_cumulative_planned()
 
     # === 實際進度 ===
     actual_progress = fields.Float(
@@ -152,7 +165,7 @@ class ProgressScheduleLine(models.Model):
         readonly=True,
     )
 
-    @api.depends('schedule_id.line_ids.actual_progress', 'sequence')
+    @api.depends('schedule_id.line_ids.actual_progress', 'sequence', 'actual_progress')
     def _compute_cumulative_actual(self):
         """計算累計實際進度"""
         for line in self:
@@ -164,6 +177,13 @@ class ProgressScheduleLine(models.Model):
                 lambda l: l.sequence <= line.sequence
             )
             line.cumulative_actual = sum(prev_lines.mapped('actual_progress'))
+
+    @api.onchange('actual_progress')
+    def _onchange_actual_progress(self):
+        """當實際進度改變時，重新計算自己和後續行的累計值"""
+        if self.schedule_id and self.schedule_id.line_ids:
+            # 強制重新計算所有行（會觸發連鎖更新）
+            self.schedule_id.line_ids._compute_cumulative_actual()
 
     # === 差異分析 ===
     variance = fields.Float(
@@ -254,41 +274,35 @@ class ProgressScheduleLine(models.Model):
     # =========================================================================
 
     def action_sync_from_daily_log(self):
-        """從施工日誌同步實際進度"""
+        """從施工日誌同步實際進度（累加該區間所有日誌）"""
         synced = False
         for line in self:
             if not line.date_start or not line.date_end:
                 continue
-            if not line.project_id:
+            if not line.schedule_id.project_id:
                 continue
-
-            # 查找該區間內有進度變更的施工日誌
-            # 注意：這裡使用 supervision_project_id 來關聯
+            
+            # 查找該區間內所有已核准的日誌
             DailyLogSheet = self.env['daily.log.sheet']
-
-            # 先找到關聯的 project.project
-            supervision_project = line.project_id
-            if not supervision_project.project_id:
-                continue
-
             logs = DailyLogSheet.search([
-                ('project_id', '=', supervision_project.project_id.id),
-                ('date_start', '<=', line.date_end),
-                ('date_end', '>=', line.date_start),
-                ('has_progress_change', '=', True),
+                ('supervision_project_id', '=', line.schedule_id.project_id.id),
+                ('log_date', '>=', line.date_start),
+                ('log_date', '<=', line.date_end),
                 ('state', '=', 'done'),  # 只取已核准的日誌
-            ], order='date_end desc')
-
+            ])
+            
             if logs:
-                # 取最後一筆的進度值
-                latest_log = logs[0]
-                line.write({
-                    'actual_progress': latest_log.actual_progress,
+                # 累加該區間所有日誌的進度增量
+                total_progress = sum(logs.mapped('daily_actual_progress'))
+                
+                # 使用 context 允許更新
+                line.with_context(allow_sync_progress=True).write({
+                    'actual_progress': total_progress,
                     'synced_from_log': True,
                     'last_sync_date': fields.Datetime.now(),
                 })
                 synced = True
-
+        
         return synced
 
     def action_clear_actual_progress(self):
@@ -322,14 +336,17 @@ class ProgressScheduleLine(models.Model):
 
     def write(self, vals):
         """寫入時檢查狀態"""
+        # 禁止直接修改 actual_progress
+        if 'actual_progress' in vals and not self.env.context.get('allow_sync_progress'):
+            raise UserError('實際進度只能透過「從日誌同步進度」功能更新，不可手動修改。')
+        
         # 如果是修改進度資料，檢查進度表狀態
-        progress_fields = {'planned_progress', 'actual_progress', 'date_start', 'date_end'}
+        progress_fields = {'planned_progress', 'date_start', 'date_end'}
         if progress_fields & set(vals.keys()):
             for line in self:
-                # 使用中的進度表只能修改實際進度
+                # 使用中的進度表不能修改預定進度和日期
                 if line.schedule_state == 'active':
-                    if progress_fields - {'actual_progress'} & set(vals.keys()):
-                        raise UserError('使用中的進度表只能修改實際進度')
+                    raise UserError('使用中的進度表不可修改預定進度和日期')
                 elif line.schedule_state == 'archived':
                     raise UserError('已歸檔的進度表不可修改')
 

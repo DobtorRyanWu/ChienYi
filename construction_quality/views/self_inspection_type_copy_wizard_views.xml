@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 複製自主檢查類型到其他工程 Wizard Form -->
+    <record id="view_self_inspection_type_copy_wizard_form" model="ir.ui.view">
+        <field name="name">self.inspection.type.copy.wizard.form</field>
+        <field name="model">self.inspection.type.copy.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="project_id"
+                           required="1"
+                           options="{'no_create': True, 'no_open': True}"/>
+                </group>
+                <group string="即將複製的檢查類型">
+                    <field name="type_ids" nolabel="1" readonly="1" widget="many2many_tags"/>
+                </group>
+                <footer>
+                    <button name="action_copy"
+                            string="確認複製"
+                            type="object"
+                            class="btn-primary"/>
+                    <button string="取消"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 複製自主檢查類型到其他工程 Action -->
+    <record id="action_self_inspection_type_copy_wizard" model="ir.actions.act_window">
+        <field name="name">複製到其他工程</field>
+        <field name="res_model">self.inspection.type.copy.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_self_inspection_type"/>
+        <field name="binding_view_types">list</field>
+    </record>
+
+</odoo>

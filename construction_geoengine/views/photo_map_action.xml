@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Client Action：Leaflet 互動式照片地圖 -->
+    <record id="action_photo_map" model="ir.actions.client">
+        <field name="name">進階照片地圖</field>
+        <field name="tag">photo_map_action</field>
+    </record>
+
+    <!-- Server Action：從 ⚙️ Action 選單開啟 Leaflet 地圖 -->
+    <record id="action_open_photo_map_server" model="ir.actions.server">
+        <field name="name">進階照片地圖</field>
+        <field name="model_id" ref="construction_photo.model_supervision_photo"/>
+        <field name="binding_model_id" ref="construction_photo.model_supervision_photo"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+action = {
+    'type': 'ir.actions.client',
+    'tag': 'photo_map_action',
+    'name': '進階照片地圖',
+}
+        </field>
+    </record>
+
+    <!-- 還原選單：工程照片 → 原始 action-355 -->
+    <record id="construction_photo.menu_supervision_photo" model="ir.ui.menu">
+        <field name="action" ref="construction_photo.supervision_photo_action"/>
+    </record>
+
+</odoo>

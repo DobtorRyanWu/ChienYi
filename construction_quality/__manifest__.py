@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 品質管理模組',
-    'version': '18.0.1.0.0',
+    'version': '18.0.2.0.0',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """
@@ -30,16 +30,20 @@
     'license': 'LGPL-3',
     'depends': [
         'construction_supervision_base',
+        'construction_photo',
         'mail',
     ],
     'data': [
         # Security
-        'security/security.xml',
+        # 注意：ir.model.access.csv 必須先載入，才能刪除舊群組
         'security/ir.model.access.csv',
+        'security/security.xml',
         # Data
         'data/ir_sequence_data.xml',
         # Views
+        'views/defect_improvement_prefix_config_views.xml',
         'views/self_inspection_type_views.xml',
+        'views/self_inspection_type_copy_wizard_views.xml',
         'views/general_self_inspection_views.xml',
         'views/reservation_self_inspection_views.xml',
         'views/reservation_defect_improvement_views.xml',

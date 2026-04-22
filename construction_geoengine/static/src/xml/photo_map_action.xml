@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="construction_geoengine.PhotoMapAction">
+        <div class="pm-page">
+
+            <!-- Topbar -->
+            <div class="pm-topbar">
+                <span class="pm-topbar-title">
+                    <i class="fa fa-map-marker"/> 工程照片
+                </span>
+
+                <!-- 視圖切換按鈕 -->
+                <div class="pm-view-switcher">
+                    <button class="pm-view-btn active" title="地圖">
+                        <i class="fa fa-map"/>
+                    </button>
+                    <button class="pm-view-btn" title="看板" t-on-click="() => this.switchView('kanban')">
+                        <i class="fa fa-th-large"/>
+                    </button>
+                    <button class="pm-view-btn" title="列表" t-on-click="() => this.switchView('list')">
+                        <i class="fa fa-list"/>
+                    </button>
+                    <button class="pm-view-btn" title="日曆" t-on-click="() => this.switchView('calendar')">
+                        <i class="fa fa-calendar"/>
+                    </button>
+                </div>
+
+                <div class="pm-topbar-stats">
+                    <span class="pm-stat">
+                        <i class="fa fa-image"/> 共 <strong t-esc="state.totalPhotos"/> 張
+                    </span>
+                    <span class="pm-stat">
+                        <i class="fa fa-map-marker"/> <strong t-esc="state.gpsPhotos"/> 張有定位
+                    </span>
+                    <t t-if="state.filteredCount !== state.gpsPhotos">
+                        <span class="pm-stat pm-stat-filtered">
+                            <i class="fa fa-filter"/> 顯示 <strong t-esc="state.filteredCount"/> 張
+                        </span>
+                    </t>
+                </div>
+            </div>
+
+            <!-- 地圖容器 -->
+            <div class="photo-map-container"/>
+
+            <!-- 控制按鈕（左下） -->
+            <div class="pm-controls">
+                <button class="pm-ctrl-btn" title="我的位置" t-on-click="locateMe">
+                    <i class="fa fa-crosshairs"/>
+                </button>
+                <button class="pm-ctrl-btn" title="顯示全部" t-on-click="fitAll">
+                    <i class="fa fa-expand"/>
+                </button>
+                <button class="pm-ctrl-btn" title="切換面板" t-on-click="togglePanel">
+                    <i class="fa fa-bars"/>
+                </button>
+            </div>
+
+            <!-- 圖例 -->
+            <div class="pm-legend">
+                <div class="pm-legend-title">來源分類</div>
+                <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#3b82f6"/><span>施工日誌</span></div>
+                <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#22c55e"/><span>自主檢查</span></div>
+                <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#ef4444"/><span>缺失改善</span></div>
+                <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#f59e0b"/><span>檢試驗</span></div>
+                <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#8b5cf6"/><span>驗收</span></div>
+                <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#06b6d4"/><span>通報單</span></div>
+                <div class="pm-legend-item"><span class="pm-legend-dot" style="background:#6b7280"/><span>其他</span></div>
+            </div>
+
+            <!-- 右側面板 -->
+            <div t-attf-class="pm-panel #{state.panelOpen ? '' : 'pm-panel-collapsed'}">
+                <div class="pm-panel-header">
+                    <span class="pm-panel-title">照片探索</span>
+                    <button class="pm-panel-close" t-on-click="togglePanel">
+                        <i class="fa fa-times"/>
+                    </button>
+                </div>
+
+                <!-- Tab -->
+                <div class="pm-tabs">
+                    <button t-attf-class="pm-tab #{state.activeTab === 'filter' ? 'active' : ''}"
+                            t-on-click="() => this.switchTab('filter')">
+                        <i class="fa fa-filter"/> 篩選
+                    </button>
+                    <button t-attf-class="pm-tab #{state.activeTab === 'nearby' ? 'active' : ''}"
+                            t-on-click="() => this.switchTab('nearby')">
+                        <i class="fa fa-crosshairs"/> 附近
+                    </button>
+                    <button t-attf-class="pm-tab #{state.activeTab === 'area' ? 'active' : ''}"
+                            t-on-click="() => this.switchTab('area')">
+                        <i class="fa fa-square-o"/> 區域
+                    </button>
+                </div>
+
+                <!-- 篩選 Tab -->
+                <div t-attf-class="pm-tab-body #{state.activeTab === 'filter' ? 'active' : ''}">
+                    <div class="pm-filter-group">
+                        <label>工程案件</label>
+                        <select t-on-change="(ev) => this.onFilterChange('project_id', ev)">
+                            <option value="">全部工程</option>
+                            <t t-foreach="state.projects" t-as="proj" t-key="proj.id">
+                                <option t-att-value="proj.id"
+                                        t-att-selected="state.filters.project_id === proj.id">
+                                    <t t-esc="proj.name"/>
+                                </option>
+                            </t>
+                        </select>
+                    </div>
+                    <div class="pm-filter-group">
+                        <label>來源分類</label>
+                        <select t-on-change="(ev) => this.onFilterChange('source_model', ev)">
+                            <option value="">全部來源</option>
+                            <t t-foreach="state.filterOptions.source_model || []" t-as="opt" t-key="opt[0]">
+                                <option t-att-value="opt[0]" t-att-selected="state.filters.source_model === opt[0]">
+                                    <t t-esc="opt[1]"/>
+                                </option>
+                            </t>
+                        </select>
+                    </div>
+                    <div class="pm-filter-group">
+                        <label>材料分類</label>
+                        <select t-on-change="(ev) => this.onFilterChange('category', ev)">
+                            <option value="">全部分類</option>
+                            <t t-foreach="state.filterOptions.category || []" t-as="opt" t-key="opt[0]">
+                                <option t-att-value="opt[0]" t-att-selected="state.filters.category === opt[0]">
+                                    <t t-esc="opt[1]"/>
+                                </option>
+                            </t>
+                        </select>
+                    </div>
+                    <div class="pm-filter-group">
+                        <label>施工階段</label>
+                        <select t-on-change="(ev) => this.onFilterChange('construction_phase', ev)">
+                            <option value="">全部階段</option>
+                            <t t-foreach="state.filterOptions.construction_phase || []" t-as="opt" t-key="opt[0]">
+                                <option t-att-value="opt[0]" t-att-selected="state.filters.construction_phase === opt[0]">
+                                    <t t-esc="opt[1]"/>
+                                </option>
+                            </t>
+                        </select>
+                    </div>
+                    <div class="pm-filter-group">
+                        <label>拍攝日期</label>
+                        <div class="pm-date-row">
+                            <input type="date" t-on-change="(ev) => this.onFilterChange('date_from', ev)"
+                                   t-att-value="state.filters.date_from"/>
+                            <span>~</span>
+                            <input type="date" t-on-change="(ev) => this.onFilterChange('date_to', ev)"
+                                   t-att-value="state.filters.date_to"/>
+                        </div>
+                    </div>
+                    <div class="pm-filter-actions">
+                        <button class="pm-btn-primary" t-on-click="applyFilters">
+                            <i class="fa fa-check"/> 套用
+                        </button>
+                        <button class="pm-btn-secondary" t-on-click="resetFilters">
+                            <i class="fa fa-refresh"/> 重設
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 附近 Tab -->
+                <div t-attf-class="pm-tab-body #{state.activeTab === 'nearby' ? 'active' : ''}">
+                    <button class="pm-btn-locate" t-on-click="locateMe" t-att-disabled="state.locating">
+                        <i t-attf-class="fa #{state.locating ? 'fa-spinner fa-spin' : 'fa-crosshairs'}"/>
+                        <t t-if="state.locating"> 定位中...</t>
+                        <t t-else=""> 定位我的位置</t>
+                    </button>
+
+                    <div class="pm-radius-group">
+                        <label>搜尋半徑</label>
+                        <div class="pm-radius-options">
+                            <t t-foreach="[0.5, 1, 3, 5]" t-as="r" t-key="r">
+                                <button t-attf-class="pm-radius-btn #{state.nearbyRadius === r ? 'active' : ''}"
+                                        t-on-click="() => this.setRadius(r)">
+                                    <t t-if="r &lt; 1"><t t-esc="r * 1000"/>m</t>
+                                    <t t-else=""><t t-esc="r"/>km</t>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+
+                    <div class="pm-nearby-status">
+                        <t t-if="state.nearbyStatus === 'locating'">
+                            <span class="text-info"><i class="fa fa-spinner fa-spin"/> 正在取得位置...</span>
+                        </t>
+                        <t t-if="state.nearbyStatus === 'searching'">
+                            <span class="text-info"><i class="fa fa-spinner fa-spin"/> 搜尋附近照片...</span>
+                        </t>
+                        <t t-if="state.nearbyStatus === 'found'">
+                            <span class="text-success"><i class="fa fa-check-circle"/> 找到 <t t-esc="state.nearbyPhotos.length"/> 張照片</span>
+                        </t>
+                        <t t-if="state.nearbyStatus === 'empty'">
+                            <span class="text-muted"><i class="fa fa-info-circle"/> 附近沒有照片</span>
+                        </t>
+                        <t t-if="state.nearbyStatus === 'denied'">
+                            <span class="text-danger"><i class="fa fa-ban"/> 使用者拒絕了位置存取</span>
+                        </t>
+                        <t t-if="state.nearbyStatus === 'unavailable'">
+                            <span class="text-danger"><i class="fa fa-exclamation-circle"/> 無法取得位置</span>
+                        </t>
+                        <t t-if="state.nearbyStatus === 'unsupported'">
+                            <span class="text-danger"><i class="fa fa-exclamation-circle"/> 瀏覽器不支援 GPS 定位</span>
+                        </t>
+                    </div>
+
+                    <div class="pm-photo-list">
+                        <t t-foreach="state.nearbyPhotos" t-as="photo" t-key="photo.id">
+                            <div class="pm-photo-card" t-on-click="() => this.flyToPhoto(photo)">
+                                <t t-if="getThumbnailUrl(photo)">
+                                    <img t-att-src="getThumbnailUrl(photo)" class="pm-card-img" loading="lazy"/>
+                                </t>
+                                <t t-else="">
+                                    <div class="pm-card-img pm-card-placeholder"><i class="fa fa-image"/></div>
+                                </t>
+                                <div class="pm-card-info">
+                                    <div class="pm-card-name" t-esc="photo.name || '未命名'"/>
+                                    <div class="pm-card-project" t-esc="getProjectName(photo)"/>
+                                    <div class="pm-card-distance">
+                                        <i class="fa fa-map-marker"/> <t t-esc="photo._distanceLabel"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- 區域 Tab -->
+                <div t-attf-class="pm-tab-body #{state.activeTab === 'area' ? 'active' : ''}">
+                    <t t-if="state.areaTotal > 0">
+                        <div class="pm-area-stats">
+                            此區域共 <strong t-esc="state.areaTotal"/> 張照片
+                        </div>
+                    </t>
+                    <t t-elif="state.activeTab === 'area'">
+                        <p class="pm-area-hint">
+                            <i class="fa fa-info-circle"/> 移動地圖後，此處會顯示目前範圍內的照片
+                        </p>
+                    </t>
+
+                    <div class="pm-photo-list">
+                        <t t-foreach="state.areaPhotos" t-as="photo" t-key="photo.id">
+                            <div class="pm-photo-card" t-on-click="() => this.flyToPhoto(photo)">
+                                <t t-if="getThumbnailUrl(photo)">
+                                    <img t-att-src="getThumbnailUrl(photo)" class="pm-card-img" loading="lazy"/>
+                                </t>
+                                <t t-else="">
+                                    <div class="pm-card-img pm-card-placeholder"><i class="fa fa-image"/></div>
+                                </t>
+                                <div class="pm-card-info">
+                                    <div class="pm-card-name" t-esc="photo.name || '未命名'"/>
+                                    <div class="pm-card-project" t-esc="getProjectName(photo)"/>
+                                    <div class="pm-card-meta">
+                                        <span class="pm-source-badge-sm"
+                                              t-att-style="'background:' + getSourceColor(photo.source_model)">
+                                            <t t-esc="getSourceLabel(photo.source_model)"/>
+                                        </span>
+                                        <span class="pm-card-date" t-esc="photo.shot_date || ''"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+
+                    <t t-if="state.areaPhotos.length &lt; state.areaTotal">
+                        <button class="pm-btn-load-more" t-on-click="loadMoreArea">
+                            <i class="fa fa-angle-down"/> 載入更多
+                        </button>
+                    </t>
+                </div>
+
+            </div>
+        </div>
+    </t>
+
+</templates>

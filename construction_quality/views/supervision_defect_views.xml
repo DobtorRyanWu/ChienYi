@@ -15,10 +15,6 @@
                        decoration-danger="defect_type == 'safety'"
                        decoration-warning="defect_type == 'quality'"
                        widget="badge"/>
-                <field name="severity"
-                       decoration-danger="severity == 'critical'"
-                       decoration-warning="severity == 'major'"
-                       widget="badge"/>
                 <field name="source"/>
                 <field name="description" widget="text"/>
                 <field name="location"/>
@@ -85,8 +81,6 @@
                 <sheet>
                     <widget name="web_ribbon" title="已逾期" bg_color="text-bg-danger"
                             invisible="not is_overdue"/>
-                    <widget name="web_ribbon" title="嚴重缺失" bg_color="text-bg-warning"
-                            invisible="severity != 'critical' or is_overdue"/>
                     <div class="oe_title">
                         <h1>
                             <field name="name" readonly="1"/>
@@ -100,7 +94,6 @@
                         </group>
                         <group string="缺失分類">
                             <field name="defect_type"/>
-                            <field name="severity"/>
                             <field name="source"/>
                             <field name="source_reference"/>
                             <field name="source_description"/>
@@ -236,13 +229,6 @@
                 <filter string="環境缺失" name="environmental"
                         domain="[('defect_type', '=', 'environmental')]"/>
                 <separator/>
-                <filter string="輕微" name="minor"
-                        domain="[('severity', '=', 'minor')]"/>
-                <filter string="重大" name="major"
-                        domain="[('severity', '=', 'major')]"/>
-                <filter string="嚴重" name="critical"
-                        domain="[('severity', '=', 'critical')]"/>
-                <separator/>
                 <filter string="本月發現" name="this_month"
                         domain="[('found_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
                 <separator/>
@@ -251,8 +237,6 @@
                             context="{'group_by': 'project_id'}"/>
                     <filter string="缺失類型" name="group_type"
                             context="{'group_by': 'defect_type'}"/>
-                    <filter string="嚴重程度" name="group_severity"
-                            context="{'group_by': 'severity'}"/>
                     <filter string="狀態" name="group_state"
                             context="{'group_by': 'state'}"/>
                     <filter string="負責人" name="group_responsible"
@@ -273,7 +257,6 @@
                 <field name="name"/>
                 <field name="project_id"/>
                 <field name="defect_type"/>
-                <field name="severity"/>
                 <field name="description"/>
                 <field name="deadline"/>
                 <field name="is_overdue"/>
@@ -293,9 +276,6 @@
                                 <div>
                                     <field name="defect_type" widget="badge"
                                            decoration-danger="defect_type == 'safety'"/>
-                                    <field name="severity" widget="badge"
-                                           decoration-danger="severity == 'critical'"
-                                           decoration-warning="severity == 'major'"/>
                                 </div>
                                 <div class="text-truncate"><field name="description"/></div>
                                 <div>期限: <field name="deadline"/></div>
@@ -315,7 +295,7 @@
         <field name="name">supervision.defect.calendar</field>
         <field name="model">supervision.defect</field>
         <field name="arch" type="xml">
-            <calendar string="缺失改善期限" date_start="deadline" color="severity" mode="month">
+            <calendar string="缺失改善期限" date_start="deadline" color="defect_type" mode="month">
                 <field name="name"/>
                 <field name="project_id"/>
                 <field name="defect_type"/>

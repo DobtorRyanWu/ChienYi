@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===================================================================
+         照片管理選單 (歸屬於 施工執行 > 照片管理)
+         =================================================================== -->
+
+    <!-- 工程照片 -->
+    <menuitem id="menu_supervision_photo"
+              name="工程照片"
+              action="supervision_photo_action"
+              parent="construction_supervision_base.menu_photo_management"
+              sequence="10"/>
+
+    <!-- 照片標籤 -->
+    <menuitem id="menu_photo_tag"
+              name="照片標籤"
+              action="supervision_photo_tag_action"
+              parent="construction_supervision_base.menu_photo_management"
+              sequence="20"
+              groups="construction_supervision_base.group_supervisor_admin,construction_supervision_base.group_supervision_manager"/>
+
+</odoo>

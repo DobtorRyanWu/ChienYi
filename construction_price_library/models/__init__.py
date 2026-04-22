@@ -3,3 +3,5 @@
 from . import price_library_category
 from . import price_library_item
 from . import price_library_item_history
+from . import price_library_item_source
+from . import supervision_project

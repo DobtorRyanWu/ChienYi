@@ -43,6 +43,14 @@ class ContractChangeOrderLine(models.Model):
         related='change_order_id.currency_id',
         store=True)
 
+    # === 輔助欄位：用於 domain 過濾 ===
+    project_project_id = fields.Many2one(
+        'project.project',
+        string='專案(Odoo)',
+        related='project_id.project_id',
+        store=True,
+        help='關聯的 project.project，用於工項過濾')
+
     sequence = fields.Integer(
         string='序號',
         default=10)
@@ -61,8 +69,19 @@ class ContractChangeOrderLine(models.Model):
     task_id = fields.Many2one(
         'project.task',
         string='原工項',
-        domain="[('supervision_project_id', '=', project_id), ('active', '=', True)]",
+        domain="[('project_id', '=', project_project_id), ('active', '=', True)]",
         help='選擇要修改或刪除的既有工項')
+
+    parent_task_id = fields.Many2one(
+        'project.task',
+        string='父工項',
+        domain="[('project_id', '=', project_project_id), ('active', '=', True)]",
+        help='新增工項時，指定此工項的父項次（用於階層結構）')
+
+    item_level = fields.Integer(
+        string='層級',
+        compute='_compute_item_level',
+        help='0=大項次, 1=次項次, 2=小項次... (從 parent_task_id 或 task_id 獲取)')
 
     # === 工項資訊 (新增或顯示用) ===
     item_no = fields.Char(
@@ -152,6 +171,20 @@ class ContractChangeOrderLine(models.Model):
         help='此項變更的詳細說明')
 
     # === 計算欄位 ===
+    @api.depends('parent_task_id', 'task_id')
+    def _compute_item_level(self):
+        """計算工項層級"""
+        for line in self:
+            if line.change_type == 'add' and line.parent_task_id:
+                # 新增工項：父工項層級 + 1
+                line.item_level = line.parent_task_id.item_level + 1
+            elif line.task_id:
+                # 修改/刪除：使用原工項層級
+                line.item_level = line.task_id.item_level
+            else:
+                # 頂層工項
+                line.item_level = 0
+
     @api.depends('original_qty', 'original_unit_price')
     def _compute_original_amount(self):
         for line in self:
@@ -207,12 +240,132 @@ class ContractChangeOrderLine(models.Model):
                 self.new_qty = self.task_id.planned_qty
                 self.new_unit_price = self.task_id.unit_price
 
+    @api.onchange('parent_task_id')
+    def _onchange_parent_task_id(self):
+        """選擇父工項時，自動填入單位和產生工項編號"""
+        if self.parent_task_id and self.change_type == 'add':
+            # 繼承父工項的單位
+            if self.parent_task_id.unit:
+                self.unit = self.parent_task_id.unit
+            
+            # 自動產生工項編號
+            if self.project_id and self.project_id.project_id:
+                self.item_no = self._generate_next_item_no()
+    
+    def _generate_next_item_no(self):
+        """自動產生下一個工項編號"""
+        if not self.parent_task_id or not self.project_id:
+            return ''
+        
+        # 搜尋同父工項下的所有子工項
+        ProjectTask = self.env['project.task']
+        siblings = ProjectTask.search([
+            ('project_id', '=', self.project_id.project_id.id),
+            ('parent_id', '=', self.parent_task_id.id),
+            ('active', '=', True)
+        ], order='sequence desc, id desc', limit=1)
+        
+        if not siblings:
+            # 沒有兄弟工項，從1開始
+            next_number = 1
+        else:
+            # 從最後一個工項的編號解析並+1
+            last_item_no = siblings[0].item_no or ''
+            next_number = self._parse_and_increment_item_no(last_item_no)
+        
+        # 根據層級決定編號格式
+        level = self.parent_task_id.item_level + 1
+        return self._number_to_chinese(next_number, level)
+    
+    def _parse_and_increment_item_no(self, item_no):
+        """從工項編號解析數字並遞增"""
+        if not item_no:
+            return 1
+        
+        # 嘗試轉換中文數字
+        num = self._chinese_to_number(item_no)
+        if num > 0:
+            return num + 1
+        
+        # 嘗試解析阿拉伯數字
+        import re
+        match = re.search(r'\d+', item_no)
+        if match:
+            return int(match.group()) + 1
+        
+        return 1
+    
+    def _number_to_chinese(self, num, level):
+        """數字轉中文編號（根據層級）"""
+        if level == 0:
+            # 第一層：壹貳參...
+            chinese_upper = ['', '壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖', '拾']
+            if num <= 10:
+                return chinese_upper[num]
+            else:
+                if num < 20:
+                    return '拾' + (chinese_upper[num - 10] if num > 10 else '')
+                else:
+                    tens = num // 10
+                    ones = num % 10
+                    return chinese_upper[tens] + '拾' + (chinese_upper[ones] if ones else '')
+        elif level == 1:
+            # 第二層：一二三...
+            chinese_lower = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
+            if num <= 10:
+                return chinese_lower[num]
+            else:
+                if num < 20:
+                    return '十' + (chinese_lower[num - 10] if num > 10 else '')
+                else:
+                    tens = num // 10
+                    ones = num % 10
+                    return chinese_lower[tens] + '十' + (chinese_lower[ones] if ones else '')
+        else:
+            # 第三層及以下：1, 2, 3...
+            return str(num)
+    
+    def _chinese_to_number(self, chinese_str):
+        """中文轉數字"""
+        if not chinese_str:
+            return 0
+        
+        # 大寫數字對應
+        upper_map = {
+            '壹': 1, '貳': 2, '參': 3, '肆': 4, '伍': 5,
+            '陸': 6, '柒': 7, '捌': 8, '玖': 9, '拾': 10
+        }
+        # 小寫數字對應
+        lower_map = {
+            '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+            '六': 6, '七': 7, '八': 8, '九': 9, '十': 10
+        }
+        
+        # 嘗試直接對應
+        if chinese_str in upper_map:
+            return upper_map[chinese_str]
+        if chinese_str in lower_map:
+            return lower_map[chinese_str]
+        
+        # 嘗試解析組合（如：拾壹、十一）
+        result = 0
+        if '拾' in chinese_str or '十' in chinese_str:
+            parts = chinese_str.replace('拾', '|').replace('十', '|').split('|')
+            if len(parts) == 2:
+                tens_str, ones_str = parts
+                tens = upper_map.get(tens_str, lower_map.get(tens_str, 1 if not tens_str else 0))
+                ones = upper_map.get(ones_str, lower_map.get(ones_str, 0))
+                result = tens * 10 + ones
+        
+        return result
+
     @api.onchange('change_type')
     def _onchange_change_type(self):
         """變更類型改變時，清空或重設欄位"""
         if self.change_type == 'add':
             # 新增：清空原工項關聯與原值
             self.task_id = False
+            self.parent_task_id = False
             self.original_qty = 0.0
             self.original_unit_price = 0.0
         elif self.change_type == 'delete' and self.task_id:

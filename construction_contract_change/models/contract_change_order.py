@@ -41,11 +41,10 @@ class ContractChangeOrder(models.Model):
     project_id = fields.Many2one(
         'supervision.project',
         string='工程案件',
-        required=True,
         ondelete='cascade',
         tracking=True,
         domain="[('state', 'in', ['construction', 'completion', 'acceptance'])]",
-        help='關聯的工程案件')
+        help='關聯的工程案件（透過「匯入工程案件」設定）')
 
     company_id = fields.Many2one(
         'res.company',
@@ -77,6 +76,11 @@ class ContractChangeOrder(models.Model):
         string='變更說明',
         tracking=True,
         help='詳細說明變更原因與內容')
+
+    other_reason_detail = fields.Char(
+        string='其他原因說明',
+        tracking=True,
+        help='當變更原因選擇「其他」時，請說明具體原因')
 
     change_date = fields.Date(
         string='變更日期',
@@ -265,6 +269,8 @@ class ContractChangeOrder(models.Model):
         self.ensure_one()
         if self.state != 'draft':
             raise UserError('只有草稿狀態可以提送！')
+        if not self.project_id:
+            raise UserError('請先透過「匯入工程案件」設定所屬工程！')
         if not self.line_ids:
             raise UserError('請先新增變更明細！')
 
@@ -388,7 +394,7 @@ class ContractChangeOrder(models.Model):
         for line in self.line_ids:
             if line.change_type == 'add':
                 # 新增工項
-                ProjectTask.create({
+                vals = {
                     'project_id': self.project_id.project_id.id,
                     'name': line.item_name,
                     'item_no': line.item_no,
@@ -396,19 +402,37 @@ class ContractChangeOrder(models.Model):
                     'unit': line.unit,
                     'unit_price': line.new_unit_price,
                     'change_order_id': self.id,
-                })
+                    'specification': line.specification or '',
+                }
+                # 處理階層關係
+                if line.parent_task_id:
+                    vals['parent_id'] = line.parent_task_id.id
+                    vals['item_level'] = line.parent_task_id.item_level + 1
+                else:
+                    vals['item_level'] = 0
+                
+                task = ProjectTask.create(vals)
+                # 更新 Many2many 關聯
+                task.write({'change_order_ids': [(4, self.id)]})
+                
             elif line.change_type == 'modify' and line.task_id:
+                # 凍結原始契約數量（僅第一次變更時）
+                if not line.task_id.original_planned_qty:
+                    line.task_id.original_planned_qty = line.task_id.planned_qty
                 # 修改工項
                 line.task_id.write({
                     'planned_qty': line.new_qty,
                     'unit_price': line.new_unit_price,
                     'change_order_id': self.id,
+                    'change_order_ids': [(4, self.id)],  # 新增到 Many2many
                 })
+                
             elif line.change_type == 'delete' and line.task_id:
                 # 標記刪除 (不實際刪除，保留歷史)
                 line.task_id.write({
                     'active': False,
                     'change_order_id': self.id,
+                    'change_order_ids': [(4, self.id)],  # 新增到 Many2many
                 })
 
     def _update_project_contract(self):
@@ -416,17 +440,19 @@ class ContractChangeOrder(models.Model):
         self.ensure_one()
         project = self.project_id
 
-        # 更新契約金額
-        vals = {
-            'contract_amount': self.new_contract_amount,
-        }
-
         # 更新契約完工日 (如有工期變更)
+        vals = {}
         if self.change_duration and project.contract_end_date:
             new_end = project.contract_end_date + timedelta(days=self.change_duration)
             vals['contract_end_date'] = new_end
 
-        project.write(vals)
+        if vals:
+            project.write(vals)
+        
+        # 觸發 contract_amount 重算（從工項自動計算）
+        # 因為已經透過 _apply_changes_to_tasks 更新工項
+        # contract_amount 會自動重算
+        project._compute_contract_amount()
 
     # === CRUD 覆寫 ===
     @api.model_create_multi
@@ -459,6 +485,22 @@ class ContractChangeOrder(models.Model):
             'rejection_reason': False,
         })
         return super().copy(default)
+
+    # === 匯入工程案件 ===
+    def action_open_import_wizard(self):
+        """開啟匯入工程案件精靈"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '匯入工程案件',
+            'res_model': 'contract.change.wizard',
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {
+                'default_change_order_id': self.id,
+                'default_project_id': self.project_id.id if self.project_id else False,
+            },
+        }
 
     # === 檢視動作 ===
     def action_view_lines(self):

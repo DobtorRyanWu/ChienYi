@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 通報單 - 表單視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_reservation_notification_slip_form" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.form</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="arch" type="xml">
+            <form string="通報單">
+                <header>
+                    <button name="action_submit" string="提交" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_approve" string="核准" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'submitted'"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <button name="action_start" string="開始執行" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'approved'"/>
+                    <button name="action_complete" string="完成" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'in_progress'"/>
+                    <button name="action_create_acceptance" string="建立驗收單" type="object"
+                            class="btn-secondary"
+                            invisible="state not in ['approved', 'in_progress']"/>
+                    <button name="action_return_to_draft" string="退回" type="object"
+                            invisible="state != 'submitted'"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <button name="action_cancel" string="取消" type="object"
+                            invisible="state in ['completed', 'cancel']"/>
+                    <button name="action_reset_to_draft" string="重設為草稿" type="object"
+                            invisible="state != 'cancel'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,submitted,approved,in_progress,completed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_acceptances" type="object"
+                                class="oe_stat_button" icon="fa-check-square-o">
+                            <field name="acceptance_count" widget="statinfo" string="驗收單"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="slip_number" readonly="1"/>
+                        </h1>
+                        <h2>
+                            <field name="name" placeholder="通報單名稱"/>
+                        </h2>
+                    </div>
+                    <group>
+                        <group string="基本資料">
+                            <field name="project_id"
+                                   readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="slip_no" readonly="state != 'draft'"/>
+                            <field name="location" readonly="state not in ['draft', 'submitted']"/>
+                            <field name="compiler_id"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="施工狀態">
+                            <field name="work_status" widget="badge"
+                                   decoration-info="work_status == 'pending'"
+                                   decoration-warning="work_status == 'working'"
+                                   decoration-success="work_status in ['completed', 'accepted']"/>
+                            <field name="survey_date"/>
+                            <field name="acceptance_id" readonly="1"
+                                   invisible="not acceptance_id"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="預定工期">
+                            <field name="planned_start_date"/>
+                            <field name="planned_duration"/>
+                            <field name="planned_end_date"/>
+                        </group>
+                        <group string="實際工期">
+                            <field name="actual_start_date"/>
+                            <field name="actual_end_date"/>
+                            <field name="actual_duration"/>
+                            <field name="overdue_days"
+                                   decoration-danger="overdue_days > 0"/>
+                            <field name="proposal_countdown"
+                                   invisible="state not in ['approved', 'in_progress']"/>
+                        </group>
+                    </group>
+                    <group string="預算與結算">
+                        <group>
+                            <field name="estimated_amount"/>
+                            <field name="settlement_amount"/>
+                        </group>
+                        <group>
+                            <field name="budget_variance"
+                                   decoration-danger="budget_variance > 0"
+                                   decoration-success="budget_variance &lt;= 0"/>
+                            <field name="budget_variance_rate" widget="percentage"
+                                   decoration-danger="budget_variance_rate > 5"
+                                   decoration-warning="budget_variance_rate > 0 and budget_variance_rate &lt;= 5"
+                                   decoration-success="budget_variance_rate &lt;= 0"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="詳細表項目" name="detail_lines">
+                            <field name="detail_line_ids"
+                                   readonly="state in ['completed', 'cancel']">
+                                <list string="詳細表項目" editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="scope_item_id"
+                                           domain="[('supervision_project_id', '=', parent.project_id)]"
+                                           optional="show"/>
+                                    <field name="item_no"/>
+                                    <field name="description"/>
+                                    <field name="unit"/>
+                                    <field name="unit_price"/>
+                                    <field name="planned_qty"/>
+                                    <field name="planned_amount" sum="預估總金額"/>
+                                    <field name="actual_qty"/>
+                                    <field name="actual_amount" sum="實際總金額"/>
+                                    <field name="completion_rate" widget="progressbar" optional="hide"/>
+                                    <field name="qty_accepted" optional="hide"/>
+                                    <field name="qty_remaining" optional="show"/>
+                                    <field name="note" optional="hide"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                                <form string="詳細表項目">
+                                    <group>
+                                        <group>
+                                            <field name="scope_item_id"/>
+                                            <field name="item_no"/>
+                                            <field name="description"/>
+                                            <field name="specification"/>
+                                        </group>
+                                        <group>
+                                            <field name="unit"/>
+                                            <field name="unit_price"/>
+                                            <field name="currency_id" invisible="1"/>
+                                        </group>
+                                    </group>
+                                    <group>
+                                        <group string="預算">
+                                            <field name="planned_qty"/>
+                                            <field name="planned_amount"/>
+                                        </group>
+                                        <group string="實際">
+                                            <field name="actual_qty"/>
+                                            <field name="actual_amount"/>
+                                        </group>
+                                    </group>
+                                    <group>
+                                        <group string="對比分析">
+                                            <field name="qty_variance"/>
+                                            <field name="variance"/>
+                                            <field name="completion_rate" widget="progressbar"/>
+                                        </group>
+                                        <group string="驗收追蹤">
+                                            <field name="qty_accepted"/>
+                                            <field name="qty_remaining"/>
+                                            <field name="acceptance_rate" widget="progressbar"/>
+                                        </group>
+                                    </group>
+                                    <group>
+                                        <field name="note"/>
+                                    </group>
+                                </form>
+                            </field>
+                        </page>
+                        <page string="設計與施工概述" name="summary">
+                            <group>
+                                <field name="location_detail" placeholder="詳細位置說明"/>
+                            </group>
+                            <group>
+                                <field name="design_summary" placeholder="設計概述"/>
+                            </group>
+                            <group>
+                                <field name="completion_summary" placeholder="完工概述"
+                                       invisible="state not in ['in_progress', 'completed']"/>
+                            </group>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="notes"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter>
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </chatter>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 通報單 - 列表視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_reservation_notification_slip_tree" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.tree</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="arch" type="xml">
+            <list string="通報單列表" decoration-muted="state == 'cancel'"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state == 'submitted'"
+                  decoration-success="state == 'completed'">
+                <field name="slip_number"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="slip_no"/>
+                <field name="location"/>
+                <field name="planned_start_date"/>
+                <field name="planned_end_date"/>
+                <field name="estimated_amount" sum="預估總金額"/>
+                <field name="settlement_amount" sum="結算總金額"/>
+                <field name="budget_variance_rate" widget="badge"
+                       decoration-danger="budget_variance_rate > 5"
+                       decoration-warning="budget_variance_rate > 0 and budget_variance_rate &lt;= 5"
+                       decoration-success="budget_variance_rate &lt;= 0"/>
+                <field name="work_status" widget="badge"
+                       decoration-info="work_status == 'pending'"
+                       decoration-warning="work_status == 'working'"
+                       decoration-success="work_status in ['completed', 'accepted']"
+                       optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state in ['submitted', 'approved']"
+                       decoration-primary="state == 'in_progress'"
+                       decoration-success="state == 'completed'"
+                       decoration-muted="state == 'cancel'"/>
+                <field name="company_id" optional="hide"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 通報單 - 搜尋視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_reservation_notification_slip_search" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.search</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="arch" type="xml">
+            <search string="搜尋通報單">
+                <field name="slip_number"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="location"/>
+                <field name="compiler_id"/>
+                <separator/>
+                <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="已送出" name="submitted" domain="[('state', '=', 'submitted')]"/>
+                <filter string="已核准" name="approved" domain="[('state', '=', 'approved')]"/>
+                <filter string="執行中" name="in_progress" domain="[('state', '=', 'in_progress')]"/>
+                <filter string="已完成" name="completed" domain="[('state', '=', 'completed')]"/>
+                <filter string="取消" name="cancel" domain="[('state', '=', 'cancel')]"/>
+                <separator/>
+                <filter string="待施工" name="pending" domain="[('work_status', '=', 'pending')]"/>
+                <filter string="施工中" name="working" domain="[('work_status', '=', 'working')]"/>
+                <filter string="已竣工" name="work_completed" domain="[('work_status', '=', 'completed')]"/>
+                <filter string="已驗收" name="accepted" domain="[('work_status', '=', 'accepted')]"/>
+                <separator/>
+                <filter string="超支" name="over_budget"
+                        domain="[('budget_variance', '>', 0)]"/>
+                <filter string="逾期" name="overdue"
+                        domain="[('overdue_days', '>', 0)]"/>
+                <separator/>
+                <filter string="我建立的" name="my_slips"
+                        domain="[('compiler_id', '=', uid)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_by_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="狀態" name="group_by_state" context="{'group_by': 'state'}"/>
+                    <filter string="施作狀態" name="group_by_work_status" context="{'group_by': 'work_status'}"/>
+                    <filter string="編製人員" name="group_by_compiler" context="{'group_by': 'compiler_id'}"/>
+                    <filter string="預定開工月" name="group_by_start_month" context="{'group_by': 'planned_start_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 通報單 - 看板視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_reservation_notification_slip_kanban" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.kanban</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile" default_group_by="state">
+                <field name="slip_number"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="location"/>
+                <field name="state"/>
+                <field name="work_status"/>
+                <field name="estimated_amount"/>
+                <field name="settlement_amount"/>
+                <field name="currency_id"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <div class="oe_kanban_details">
+                                <div class="o_kanban_record_top">
+                                    <div class="o_kanban_record_headings">
+                                        <strong class="o_kanban_record_title">
+                                            <field name="slip_number"/>
+                                        </strong>
+                                    </div>
+                                    <field name="state" widget="label_selection"
+                                           options="{'classes': {'draft': 'info', 'submitted': 'warning', 'approved': 'warning', 'in_progress': 'primary', 'completed': 'success', 'cancel': 'muted'}}"/>
+                                </div>
+                                <div class="o_kanban_record_body">
+                                    <field name="name"/>
+                                    <div>
+                                        <i class="fa fa-map-marker" title="位置"/> <field name="location"/>
+                                    </div>
+                                </div>
+                                <div class="o_kanban_record_bottom">
+                                    <div class="oe_kanban_bottom_left">
+                                        <span title="預估金額">
+                                            <field name="estimated_amount" widget="monetary"/>
+                                        </span>
+                                    </div>
+                                    <div class="oe_kanban_bottom_right">
+                                        <field name="work_status" widget="label_selection"
+                                               options="{'classes': {'pending': 'info', 'working': 'warning', 'completed': 'success', 'accepted': 'success'}}"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 通報單 - 動作                                    -->
+    <!-- ============================================== -->
+    <record id="action_reservation_notification_slip" model="ir.actions.act_window">
+        <field name="name">通報單</field>
+        <field name="res_model">reservation.notification.slip</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_reservation_notification_slip_search"/>
+        <field name="context">{'search_default_group_by_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一張通報單
+            </p>
+            <p>
+                通報單是預約式工程的核心管理單位，
+                每張通報單代表一個施工地點或批次。
+            </p>
+        </field>
+    </record>
+
+    <!-- 待核准通報單 -->
+    <record id="action_notification_slip_to_approve" model="ir.actions.act_window">
+        <field name="name">待核准通報單</field>
+        <field name="res_model">reservation.notification.slip</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'submitted')]</field>
+        <field name="context">{}</field>
+    </record>
+
+    <!-- 執行中通報單 -->
+    <record id="action_notification_slip_in_progress" model="ir.actions.act_window">
+        <field name="name">執行中通報單</field>
+        <field name="res_model">reservation.notification.slip</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="domain">[('state', '=', 'in_progress')]</field>
+        <field name="context">{}</field>
+    </record>
+
+</odoo>

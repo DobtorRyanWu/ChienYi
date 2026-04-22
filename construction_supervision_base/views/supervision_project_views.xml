@@ -11,16 +11,9 @@
             <form string="工程案件">
                 <header>
                     <!-- 狀態按鈕 -->
-                    <button name="action_prepare" string="開始籌備"
+                    <button name="action_approve" string="開始施工"
                             type="object" class="oe_highlight"
-                            invisible="state != 'draft'"/>
-                    <button name="action_submit_approval" string="提交核定"
-                            type="object" class="oe_highlight"
-                            invisible="state != 'preparing'"/>
-                    <button name="action_approve" string="核定開工"
-                            type="object" class="oe_highlight"
-                            invisible="state != 'pending_approval'"
-                            groups="construction_supervision_base.group_supervision_manager"/>
+                            invisible="state != 'draft' or not all_init_done"/>
                     <button name="action_complete" string="竣工"
                             type="object" class="oe_highlight"
                             invisible="state != 'construction'"/>
@@ -29,35 +22,176 @@
                             invisible="state != 'completion'"/>
                     <button name="action_close" string="結案"
                             type="object" class="oe_highlight"
-                            invisible="state != 'acceptance'"
-                            groups="construction_supervision_base.group_supervision_manager"/>
+                            invisible="state != 'acceptance'"/>
                     <button name="action_suspend" string="停工"
                             type="object"
-                            invisible="state not in ('construction', 'completion')"
-                            groups="construction_supervision_base.group_supervision_manager"/>
+                            invisible="state not in ('construction', 'completion')"/>
                     <button name="action_resume" string="復工"
                             type="object" class="oe_highlight"
                             invisible="state != 'suspended'"/>
-                    <button name="action_reset_draft" string="重設草稿"
-                            type="object"
-                            invisible="state not in ('preparing', 'pending_approval')"/>
                     <button name="action_terminate" string="終止"
                             type="object"
                             invisible="state in ('closed', 'terminated')"
-                            groups="construction_supervision_base.group_supervisor_admin"
                             confirm="確定要終止此專案嗎？此操作無法復原。"/>
-                    <field name="state" widget="statusbar"
-                           statusbar_visible="draft,preparing,construction,completion,acceptance,closed"/>
+                    <!-- 匯入標單按鈕 -->
+                    <button name="action_import_tender"
+                            string="匯入契約標單"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-upload"
+                            invisible="state != 'draft'"
+                            groups="construction_supervision_base.group_supervisor_admin"
+                            help="匯入政府採購標單 XML 檔案"/>
+                    <!-- 初始化循序確認按鈕（僅 draft 狀態，依序顯示）-->
+                    <!-- 步驟 1: 人機管理 -->
+                    <button name="action_init_done_equipment" type="object"
+                            string="✓ 確認人機項目設定完成"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or init_current_step != 'equipment'"/>
+                    <button name="action_init_skip_equipment" type="object"
+                            string="此項不適用"
+                            invisible="state != 'draft' or init_current_step != 'equipment'"/>
+                    <!-- 步驟 2: 自主檢查 -->
+                    <button name="action_init_done_inspection" type="object"
+                            string="✓ 確認自主檢查設定完成"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or init_current_step != 'inspection'"/>
+                    <button name="action_init_skip_inspection" type="object"
+                            string="此項不適用"
+                            invisible="state != 'draft' or init_current_step != 'inspection'"/>
+                    <!-- 步驟 2-B: 編號前綴設定 -->
+                    <button name="action_init_done_prefix" type="object"
+                            string="✓ 確認編號前綴設定完成"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or init_current_step != 'prefix'"/>
+                    <button name="action_init_skip_prefix" type="object"
+                            string="此項不適用"
+                            invisible="state != 'draft' or init_current_step != 'prefix'"/>
+                    <!-- 步驟 3: 檢試驗 -->
+                    <button name="action_init_done_test" type="object"
+                            string="✓ 確認檢試驗設定完成"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or init_current_step != 'test'"/>
+                    <button name="action_init_skip_test" type="object"
+                            string="此項不適用"
+                            invisible="state != 'draft' or init_current_step != 'test'"/>
+                    <!-- 步驟 4: 樣板 -->
+                    <button name="action_init_done_template" type="object"
+                            string="✓ 確認樣板上傳完成"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or init_current_step != 'template'"/>
+                    <button name="action_init_skip_template" type="object"
+                            string="此項不適用"
+                            invisible="state != 'draft' or init_current_step != 'template'"/>
+                    <!-- 步驟 5: 進度表 -->
+                    <button name="action_init_done_schedule" type="object"
+                            string="✓ 確認進度表設定完成"
+                            class="btn-secondary"
+                            invisible="state != 'draft' or init_current_step != 'schedule'"/>
+                    <button name="action_init_skip_schedule" type="object"
+                            string="此項不適用"
+                            invisible="state != 'draft' or init_current_step != 'schedule'"/>
+                    <!-- 回上一步（第一步時隱藏）-->
+                    <button name="action_init_go_back" type="object"
+                            string="↩ 回上一步"
+                            invisible="state != 'draft' or init_current_step in ('equipment', 'done', False)"
+                            confirm="確定要回到上一步？該步驟將需要重新確認。"/>
                 </header>
                 <sheet>
+                    <!-- 狀態標籤（右上角） -->
+                    <div class="float-end">
+                        <field name="state" widget="badge"
+                               decoration-info="state == 'draft'"
+                               decoration-primary="state == 'construction'"
+                               decoration-warning="state in ('completion', 'suspended')"
+                               decoration-danger="state in ('acceptance', 'terminated')"
+                               decoration-success="state == 'closed'"/>
+                    </div>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_documents" type="object"
                                 class="oe_stat_button" icon="fa-file-text-o">
                             <field name="document_count" string="文件" widget="statinfo"/>
                         </button>
-                        <button name="action_view_tasks" type="object"
-                                class="oe_stat_button" icon="fa-tasks">
-                            <field name="task_count" string="工項" widget="statinfo"/>
+                        <!-- 初始化 Smart Buttons（僅 draft 狀態顯示，點擊前往設定頁面）-->
+                        <button name="action_init_goto_equipment" type="object"
+                                class="oe_stat_button" icon="fa-wrench"
+                                invisible="state != 'draft'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <i class="fa fa-circle-o text-muted" title="待設定"
+                                       invisible="init_equipment_status != 'pending'"/>
+                                    <i class="fa fa-check-circle text-success" title="已完成"
+                                       invisible="init_equipment_status != 'done'"/>
+                                    <i class="fa fa-minus-circle text-muted" title="不適用"
+                                       invisible="init_equipment_status != 'not_required'"/>
+                                    <field name="init_equipment_count"/>
+                                </span>
+                                <span class="o_stat_text">人機管理</span>
+                            </div>
+                        </button>
+                        <button name="action_init_goto_inspection" type="object"
+                                class="oe_stat_button" icon="fa-check-square-o"
+                                invisible="state != 'draft'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <i class="fa fa-circle-o text-muted" title="待設定"
+                                       invisible="init_inspection_status != 'pending'"/>
+                                    <i class="fa fa-check-circle text-success" title="已完成"
+                                       invisible="init_inspection_status != 'done'"/>
+                                    <i class="fa fa-minus-circle text-muted" title="不適用"
+                                       invisible="init_inspection_status != 'not_required'"/>
+                                    <field name="init_inspection_count"/>
+                                </span>
+                                <span class="o_stat_text">自主檢查</span>
+                            </div>
+                        </button>
+                        <button name="action_init_goto_prefix" type="object"
+                                class="oe_stat_button" icon="fa-tag"
+                                invisible="state != 'draft'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <i class="fa fa-circle-o text-muted" title="待設定"
+                                       invisible="init_prefix_status != 'pending'"/>
+                                    <i class="fa fa-check-circle text-success" title="已完成"
+                                       invisible="init_prefix_status != 'done'"/>
+                                    <i class="fa fa-minus-circle text-muted" title="不適用"
+                                       invisible="init_prefix_status != 'not_required'"/>
+                                    <field name="init_prefix_count"/>
+                                </span>
+                                <span class="o_stat_text">編號前綴</span>
+                            </div>
+                        </button>
+                        <button name="action_init_goto_test" type="object"
+                                class="oe_stat_button" icon="fa-flask"
+                                invisible="state != 'draft'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <i class="fa fa-circle-o text-muted" title="待設定"
+                                       invisible="init_test_status != 'pending'"/>
+                                    <i class="fa fa-check-circle text-success" title="已完成"
+                                       invisible="init_test_status != 'done'"/>
+                                    <i class="fa fa-minus-circle text-muted" title="不適用"
+                                       invisible="init_test_status != 'not_required'"/>
+                                    <field name="init_test_count"/>
+                                </span>
+                                <span class="o_stat_text">檢試驗</span>
+                            </div>
+                        </button>
+                        <button name="action_init_goto_template" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="state != 'draft'">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <i class="fa fa-circle-o text-muted" title="待設定"
+                                       invisible="init_template_status != 'pending'"/>
+                                    <i class="fa fa-check-circle text-success" title="已完成"
+                                       invisible="init_template_status != 'done'"/>
+                                    <i class="fa fa-minus-circle text-muted" title="不適用"
+                                       invisible="init_template_status != 'not_required'"/>
+                                    <field name="init_template_count"/>
+                                </span>
+                                <span class="o_stat_text">樣板</span>
+                            </div>
                         </button>
                     </div>
                     <widget name="web_ribbon" title="已結案" bg_color="text-bg-success"
@@ -73,84 +207,95 @@
                         </h1>
                         <label for="name"/>
                         <h2>
-                            <field name="name" placeholder="輸入工程名稱"/>
+                            <field name="name" placeholder="輸入工程名稱"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                         </h2>
                     </div>
                     <group>
                         <group string="基本資訊" name="basic_info">
-                            <field name="project_type" widget="radio"/>
+                            <field name="project_type" widget="radio"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="year"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="authority_id"
                                    options="{'no_create': True}"
-                                   context="{'default_partner_type': 'authority'}"/>
+                                   context="{'default_partner_type': 'authority'}"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="authority_contact_id"
                                    options="{'no_create': True}"/>
+                            <field name="location"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="company_id"
                                    options="{'no_create': True}"
-                                   groups="base.group_multi_company"/>
+                                   groups="base.group_multi_company"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="supervision_engineer_id"/>
                         </group>
                         <group string="契約資訊" name="contract_info">
-                            <field name="contract_no"/>
-                            <field name="contract_amount"/>
+                            <field name="contract_no"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="contract_amount"
+                                   readonly="state != 'draft'"
+                                   placeholder="未匯入工項前可手動輸入"/>
                             <field name="currency_id" invisible="1"/>
-                            <field name="contract_start_date"/>
-                            <field name="contract_end_date"/>
-                            <field name="contract_duration"/>
+                            <field name="contract_start_date"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="contract_end_date"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="contract_duration"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="extension_duration"/>
+                            <field name="total_approved_duration" readonly="1"/>
                         </group>
                     </group>
                     <group>
                         <group string="實際日期" name="actual_dates">
-                            <field name="actual_start_date"/>
-                            <field name="actual_end_date"/>
+                            <field name="actual_start_date"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="actual_end_date"
+                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="actual_duration"/>
-                        </group>
-                        <group string="進度狀態" name="progress_status_info">
-                            <field name="planned_progress" widget="progressbar"/>
-                            <field name="actual_progress" widget="progressbar"/>
-                            <field name="progress_status" widget="badge"
-                                   decoration-success="progress_status == 'ahead'"
-                                   decoration-warning="progress_status == 'on_track'"
-                                   decoration-danger="progress_status == 'delayed'"/>
                         </group>
                     </group>
                     <notebook>
-                        <page string="承包廠商" name="contractors">
-                            <field name="contractor_company_ids" widget="many2many_tags"
-                                   options="{'no_create': True}"
-                                   context="{'default_company_type': 'contractor'}"/>
-                            <group string="工項分配統計">
-                                <group>
-                                    <field name="task_count"/>
-                                    <field name="assigned_task_count"/>
-                                    <field name="completed_task_count"/>
-                                </group>
-                            </group>
-                        </page>
+                        <!-- 頁籤 1: 工程位置 -->
                         <page string="工程位置" name="location">
                             <group>
                                 <group>
-                                    <field name="location"/>
-                                    <field name="location_detail"/>
+                                    <field name="location_detail"
+                                           readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                                 </group>
                                 <group>
-                                    <field name="latitude"/>
-                                    <field name="longitude"/>
+                                    <field name="latitude"
+                                           readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                                    <field name="longitude"
+                                           readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                                 </group>
                             </group>
                         </page>
-                        <page string="預算與成本" name="budget">
+                        
+                        <!-- 頁籤 3: 活動指派設定 -->
+                        <page string="活動指派設定" name="activity_assignment">
                             <group>
-                                <group>
-                                    <field name="budget_amount"/>
-                                    <field name="actual_cost"/>
+                                <group string="負責人設定">
+                                    <field name="activity_default_user_id"/>
+                                    <field name="activity_test_user_id"/>
+                                    <field name="activity_inspection_user_id"/>
                                 </group>
-                                <group>
-                                    <field name="budget_usage_rate" widget="progressbar"/>
+                                <group string="說明">
+                                    <div class="text-muted">
+                                        <p>指派優先順序：專屬負責人 → 預設負責人 → 監造工程師 → 專案負責人</p>
+                                        <p>檢試驗預警、完工提醒等自動活動將依此設定指派。</p>
+                                    </div>
                                 </group>
                             </group>
                         </page>
+
+                        <!-- 頁籤 4: 備註 (例外可編輯) -->
                         <page string="備註" name="notes">
-                            <field name="notes"/>
+                            <group>
+                                <field name="notes"/>
+                            </group>
                         </page>
                     </notebook>
                     <field name="project_id" invisible="1"/>
@@ -173,16 +318,12 @@
                   decoration-info="state == 'acceptance'">
                 <field name="code"/>
                 <field name="name"/>
+                <field name="year"/>
                 <field name="project_type" widget="badge"/>
                 <field name="authority_id"/>
                 <field name="contract_amount" sum="契約金額合計"/>
                 <field name="contract_start_date"/>
                 <field name="contract_end_date"/>
-                <field name="actual_progress" widget="progressbar"/>
-                <field name="progress_status" widget="badge"
-                       decoration-success="progress_status == 'ahead'"
-                       decoration-warning="progress_status == 'on_track'"
-                       decoration-danger="progress_status == 'delayed'"/>
                 <field name="state" widget="badge"
                        decoration-success="state == 'closed'"
                        decoration-warning="state in ('suspended', 'acceptance')"
@@ -206,11 +347,9 @@
                 <field name="state"/>
                 <field name="project_type"/>
                 <field name="authority_id"/>
-                <field name="actual_progress"/>
-                <field name="progress_status"/>
                 <field name="contract_amount"/>
-                <progressbar field="progress_status"
-                             colors='{"ahead": "success", "on_track": "warning", "delayed": "danger"}'/>
+                <progressbar field="state"
+                             colors='{"construction": "info", "acceptance": "warning", "closed": "success"}'/>
                 <templates>
                     <t t-name="card">
                         <div class="oe_kanban_global_click">
@@ -231,10 +370,6 @@
                                 </div>
                             </div>
                             <div class="o_kanban_record_bottom">
-                                <div class="oe_kanban_bottom_left">
-                                    <field name="actual_progress" widget="progressbar"
-                                           title="實際進度"/>
-                                </div>
                                 <div class="oe_kanban_bottom_right">
                                     <field name="contract_amount" widget="monetary"/>
                                 </div>
@@ -256,12 +391,12 @@
             <search string="搜尋工程案件">
                 <field name="code"/>
                 <field name="name"/>
+                <field name="year"/>
                 <field name="contract_no"/>
                 <field name="authority_id"/>
                 <field name="supervision_engineer_id"/>
                 <separator/>
-                <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
-                <filter string="籌備中" name="preparing" domain="[('state', '=', 'preparing')]"/>
+                <filter string="未開始" name="draft" domain="[('state', '=', 'draft')]"/>
                 <filter string="施工中" name="construction" domain="[('state', '=', 'construction')]"/>
                 <filter string="驗收中" name="acceptance" domain="[('state', '=', 'acceptance')]"/>
                 <filter string="已結案" name="closed" domain="[('state', '=', 'closed')]"/>
@@ -269,17 +404,13 @@
                 <filter string="一般式" name="general" domain="[('project_type', '=', 'general')]"/>
                 <filter string="預約式" name="reservation" domain="[('project_type', '=', 'reservation')]"/>
                 <separator/>
-                <filter string="進度超前" name="ahead" domain="[('progress_status', '=', 'ahead')]"/>
-                <filter string="進度正常" name="on_track" domain="[('progress_status', '=', 'on_track')]"/>
-                <filter string="進度落後" name="delayed" domain="[('progress_status', '=', 'delayed')]"/>
-                <separator/>
                 <filter string="我的專案" name="my_projects"
                         domain="[('supervision_engineer_id', '=', uid)]"/>
                 <group expand="0" string="群組" name="groupby">
+                    <filter string="年份" name="group_year" context="{'group_by': 'year'}"/>
                     <filter string="狀態" name="group_state" context="{'group_by': 'state'}"/>
                     <filter string="工程類型" name="group_type" context="{'group_by': 'project_type'}"/>
                     <filter string="業主" name="group_authority" context="{'group_by': 'authority_id'}"/>
-                    <filter string="進度狀態" name="group_progress" context="{'group_by': 'progress_status'}"/>
                     <filter string="開工月份" name="group_start_month" context="{'group_by': 'contract_start_date:month'}"/>
                 </group>
             </search>
@@ -294,7 +425,7 @@
         <field name="res_model">supervision.project</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="search_view_id" ref="view_supervision_project_search"/>
-        <field name="context">{'search_default_construction': 1}</field>
+        <field name="context">{}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一個工程案件

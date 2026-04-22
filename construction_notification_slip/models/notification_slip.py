@@ -9,10 +9,7 @@ class ReservationNotificationSlip(models.Model):
     """
     通報單 (預約式專用)
 
-    設計特點:
-    - 狀態機制: draft -> submitted -> approved -> in_progress -> completed
-    - 預算追蹤: estimated_amount (預算) vs settlement_amount (實際)
-    - 驗收流程整合
+    狀態流程: draft → not_started → in_progress → closed
     """
     _name = 'reservation.notification.slip'
     _description = '通報單 (預約式專用)'
@@ -85,11 +82,11 @@ class ReservationNotificationSlip(models.Model):
         string='逾期天數',
         compute='_compute_overdue_days', store=True)
 
-    proposal_countdown = fields.Integer(
-        string='提案結束天數倒數',
-        compute='_compute_countdown')
+    overdue_display = fields.Char(
+        string='逾期狀態',
+        compute='_compute_overdue_display')
 
-    # === 預算與結算 (v5.1) ===
+    # === 預算與結算 ===
     currency_id = fields.Many2one(
         'res.currency', string='幣別',
         related='project_id.currency_id', store=True)
@@ -130,32 +127,15 @@ class ReservationNotificationSlip(models.Model):
     # === 狀態管理 ===
     state = fields.Selection([
         ('draft', '草稿'),
-        ('submitted', '已送出'),
-        ('approved', '已核准'),
-        ('in_progress', '執行中'),
-        ('completed', '已完成'),
-        ('cancel', '取消'),
-    ], string='通報單狀態', default='draft', tracking=True, index=True,
-       help='通報單生命週期: draft -> submitted -> approved -> in_progress -> completed')
+        ('not_started', '未開始'),
+        ('in_progress', '施工中'),
+        ('closed', '已結案'),
+    ], string='施作狀態', default='draft', tracking=True, index=True,
+       help='通報單生命週期: draft → not_started → in_progress → closed')
 
-    work_status = fields.Selection([
-        ('pending', '待施工'),
-        ('working', '施工中'),
-        ('completed', '已竣工'),
-        ('accepted', '已驗收'),
-    ], string='施作狀態', compute='_compute_work_status', store=True)
-
-    # === 驗收關聯 ===
-    acceptance_id = fields.Many2one(
-        'notification.acceptance', string='驗收單',
-        help='關聯的驗收單據')
-
-    acceptance_ids = fields.One2many(
-        'notification.acceptance', 'slip_id', string='驗收紀錄')
-
-    acceptance_count = fields.Integer(
-        string='驗收次數',
-        compute='_compute_acceptance_count')
+    # === 估驗計價次數（佔位欄位，由 construction_payment 覆寫） ===
+    valuation_count = fields.Integer(
+        string='已估驗次數', default=0, readonly=True)
 
     # === 明細關聯 ===
     detail_line_ids = fields.One2many(
@@ -212,14 +192,13 @@ class ReservationNotificationSlip(models.Model):
             else:
                 rec.overdue_days = 0
 
-    def _compute_countdown(self):
-        today = fields.Date.today()
+    @api.depends('overdue_days', 'planned_end_date', 'actual_end_date')
+    def _compute_overdue_display(self):
         for rec in self:
-            if rec.planned_end_date and rec.state in ('approved', 'in_progress'):
-                delta = rec.planned_end_date - today
-                rec.proposal_countdown = delta.days
+            if rec.overdue_days > 0:
+                rec.overdue_display = f'逾期 {rec.overdue_days} 天'
             else:
-                rec.proposal_countdown = 0
+                rec.overdue_display = '未逾期'
 
     @api.depends('detail_line_ids.actual_amount')
     def _compute_settlement_amount(self):
@@ -230,23 +209,6 @@ class ReservationNotificationSlip(models.Model):
                 slip.budget_variance_rate = ((slip.settlement_amount / slip.estimated_amount) - 1) * 100
             else:
                 slip.budget_variance_rate = 0.0
-
-    @api.depends('state', 'actual_start_date', 'actual_end_date', 'acceptance_id')
-    def _compute_work_status(self):
-        for rec in self:
-            if rec.acceptance_id and rec.acceptance_id.state == 'accept':
-                rec.work_status = 'accepted'
-            elif rec.actual_end_date:
-                rec.work_status = 'completed'
-            elif rec.actual_start_date:
-                rec.work_status = 'working'
-            else:
-                rec.work_status = 'pending'
-
-    @api.depends('acceptance_ids')
-    def _compute_acceptance_count(self):
-        for rec in self:
-            rec.acceptance_count = len(rec.acceptance_ids)
 
     @api.depends('detail_line_ids')
     def _compute_line_count(self):
@@ -284,103 +246,62 @@ class ReservationNotificationSlip(models.Model):
                 raise ValidationError('通報單僅適用於預約式工程')
 
     # === 狀態動作方法 ===
-    def action_submit(self):
-        """提交通報單"""
+    def action_confirm(self):
+        """確認通報單: draft → not_started"""
         for rec in self:
             if rec.state != 'draft':
-                raise UserError('只有草稿狀態可以提交')
+                raise UserError('只有草稿狀態可以確認')
             if not rec.detail_line_ids:
                 raise ValidationError('請先填寫詳細表項目')
-            if not rec.location:
-                raise ValidationError('請填寫工程地點')
-            rec.write({'state': 'submitted'})
-
-    def action_approve(self):
-        """核准通報單"""
-        for rec in self:
-            if rec.state != 'submitted':
-                raise UserError('只有已送出狀態可以核准')
-            rec.write({'state': 'approved'})
+            rec.write({'state': 'not_started'})
 
     def action_start(self):
-        """開始執行"""
+        """開始施工: not_started → in_progress"""
         for rec in self:
-            if rec.state != 'approved':
-                raise UserError('只有已核准狀態可以開始執行')
+            if rec.state != 'not_started':
+                raise UserError('只有未開始狀態可以開始施工')
             vals = {'state': 'in_progress'}
             if not rec.actual_start_date:
                 vals['actual_start_date'] = fields.Date.today()
             rec.write(vals)
 
-    def action_complete(self):
-        """完成通報單"""
+    def action_close(self):
+        """結案: in_progress → closed"""
         for rec in self:
             if rec.state != 'in_progress':
-                raise UserError('只有執行中狀態可以標記完成')
-            # 檢查是否所有項目都已完成
-            if any(line.qty_remaining > 0 for line in rec.detail_line_ids):
-                raise ValidationError('尚有未完成驗收的工作項目')
-            vals = {'state': 'completed'}
+                raise UserError('只有施工中狀態可以結案')
+            # 驗證：施工詳細表的實際數量與金額不能全為 0
+            total_actual_qty = sum(rec.detail_line_ids.mapped('actual_qty'))
+            total_actual_amount = sum(rec.detail_line_ids.mapped('actual_amount'))
+            if total_actual_qty == 0 and total_actual_amount == 0:
+                raise UserError(
+                    '施工詳細表中尚未填寫任何實際完成數量或實際金額，無法結案。\n'
+                    '請至「施工詳細表」頁籤填寫實際完成資料。'
+                )
+            vals = {'state': 'closed'}
             if not rec.actual_end_date:
                 vals['actual_end_date'] = fields.Date.today()
             rec.write(vals)
 
-    def action_cancel(self):
-        """取消通報單"""
-        for rec in self:
-            if rec.state == 'completed':
-                raise ValidationError('已完成的通報單無法取消')
-            if rec.acceptance_ids.filtered(lambda a: a.state == 'accept'):
-                raise ValidationError('已有驗收紀錄的通報單無法取消')
-            rec.write({'state': 'cancel'})
-
-    def action_reset_to_draft(self):
-        """重設為草稿 (僅限取消狀態)"""
-        for rec in self:
-            if rec.state != 'cancel':
-                raise ValidationError('僅取消狀態可重設為草稿')
-            rec.write({'state': 'draft'})
-
     def action_return_to_draft(self):
-        """退回草稿 (用於已送出狀態)"""
+        """退回草稿: not_started/in_progress → draft"""
         for rec in self:
-            if rec.state != 'submitted':
-                raise UserError('只有已送出狀態可以退回草稿')
+            if rec.state not in ('not_started', 'in_progress'):
+                raise UserError('只有未開始或施工中狀態可以退回草稿')
             rec.write({'state': 'draft'})
 
-    # === 視圖動作 ===
-    def action_view_acceptances(self):
-        """查看驗收紀錄"""
+    # === Wizard 動作 ===
+    def action_open_add_lines_wizard(self):
+        """開啟加入工項 Wizard"""
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': '驗收紀錄',
-            'res_model': 'notification.acceptance',
-            'view_mode': 'list,form',
-            'domain': [('slip_id', '=', self.id)],
-            'context': {'default_slip_id': self.id},
-        }
-
-    def action_create_acceptance(self):
-        """建立驗收單"""
-        self.ensure_one()
-        if self.state not in ('in_progress', 'approved'):
-            raise UserError('只有核准或執行中狀態可以建立驗收單')
-
-        # 檢查是否還有待驗收項目
-        lines_to_accept = self.detail_line_ids.filtered(lambda l: l.qty_remaining > 0)
-        if not lines_to_accept:
-            raise UserError('沒有待驗收的項目')
-
-        return {
-            'type': 'ir.actions.act_window',
-            'name': '新增驗收單',
-            'res_model': 'notification.acceptance',
+            'name': '加入工項',
+            'res_model': 'add.slip.line.wizard',
             'view_mode': 'form',
-            'target': 'current',
+            'target': 'new',
             'context': {
                 'default_slip_id': self.id,
-                'default_project_id': self.project_id.id,
             },
         }
 
@@ -395,8 +316,8 @@ class ReservationNotificationSlip(models.Model):
 
     def unlink(self):
         for rec in self:
-            if rec.state not in ('draft', 'cancel'):
-                raise UserError('只有草稿或取消狀態的通報單可以刪除')
+            if rec.state != 'draft':
+                raise UserError('只有草稿狀態的通報單可以刪除')
         return super().unlink()
 
     def copy(self, default=None):
@@ -406,7 +327,6 @@ class ReservationNotificationSlip(models.Model):
             'state': 'draft',
             'actual_start_date': False,
             'actual_end_date': False,
-            'acceptance_id': False,
         })
         # 計算新的 slip_no
         if self.project_id:

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+    Standard Odoo Graph View for Progress Schedule
+    注意：此視圖保留供內部使用，選單入口已移至獨立儀表板
+-->
+<odoo>
+
+    <!-- ===================================================================
+         進度表明細 Graph View (標準 Odoo 方式，保留視圖定義供內部使用)
+         =================================================================== -->
+
+    <!-- Graph View: 進度曲線圖 -->
+    <record id="view_progress_schedule_line_graph" model="ir.ui.view">
+        <field name="name">progress.schedule.line.graph</field>
+        <field name="model">progress.schedule.line</field>
+        <field name="arch" type="xml">
+            <graph string="進度曲線圖" type="line" sample="1">
+                <!-- X軸：日期 -->
+                <field name="date_end" type="row" interval="day"/>
+
+                <!-- Y軸：進度數據 (type="measure" 表示為度量值) -->
+                <field name="cumulative_planned" type="measure" string="累計預定進度 (%)"/>
+                <field name="cumulative_actual" type="measure" string="累計實際進度 (%)"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- Action: 進度曲線圖 (保留定義，選單已隱藏) -->
+    <record id="action_progress_chart_graph" model="ir.actions.act_window">
+        <field name="name">進度曲線圖</field>
+        <field name="res_model">progress.schedule.line</field>
+        <field name="view_mode">graph,list,form</field>
+        <field name="view_id" ref="view_progress_schedule_line_graph"/>
+        <field name="context">{
+            'search_default_filter_active_schedule': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無進度資料
+            </p>
+            <p>
+                進度曲線圖會顯示預定進度與實際進度的趨勢。
+            </p>
+        </field>
+    </record>
+
+    <!-- 選單已移至 menu.xml 的獨立儀表板，此處隱藏舊選單 -->
+    <menuitem id="menu_progress_chart_graph"
+              name="進度曲線圖 (標準)"
+              parent="construction_supervision_base.menu_schedule_management"
+              action="action_progress_chart_graph"
+              sequence="999"
+              groups="base.group_no_one"/>
+
+</odoo>

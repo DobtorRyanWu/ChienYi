@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================
+         檔案管理 /my/construction/<pid>/documents
+         ============================================ -->
+    <template id="portal_construction_documents" name="Construction Documents">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <span class="cy-breadcrumb-item active">檔案管理</span>
+                </div>
+
+                <div class="cy-content">
+                    <h4 style="font-weight: 700; margin-bottom: 12px;">檔案管理</h4>
+
+                    <!-- 成功/錯誤訊息 -->
+                    <t t-if="request.params.get('message') == 'uploaded'">
+                        <div class="cy-event-card cy-event-info" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-green);"><i class="fa fa-check-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title" style="color: var(--wb-green);">文件上傳成功</div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 分類篩選 -->
+                    <div class="cy-filter-pills" style="margin-bottom: 12px;">
+                        <a t-attf-href="/my/construction/#{project.id}/documents"
+                           t-attf-class="cy-filter-pill #{not cat_filter and 'active' or ''}">全部</a>
+                        <t t-foreach="categories" t-as="cat">
+                            <a t-attf-href="/my/construction/#{project.id}/documents?category=#{cat.id}"
+                               t-attf-class="cy-filter-pill #{cat_filter == cat.id and 'active' or ''}">
+                                <t t-esc="cat.name"/>
+                            </a>
+                        </t>
+                    </div>
+
+                    <!-- 上傳表單（可摺疊）-->
+                    <div class="cy-section-title" style="cursor: pointer; margin-top: 0;" data-collapse-toggle="doc_upload_form">
+                        <span><i class="fa fa-upload" style="margin-right: 4px;"/> 上傳文件</span>
+                        <i class="fa fa-chevron-down" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                    </div>
+                    <div id="doc_upload_form" style="display: none;">
+                        <div class="cy-card" style="margin-bottom: 14px;">
+                            <div class="cy-card-body">
+                                <form t-attf-action="/my/construction/#{project.id}/document/upload" method="post" enctype="multipart/form-data">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                    <div style="margin-bottom: 10px;">
+                                        <label class="form-label" style="font-size: 0.85rem;">文件名稱</label>
+                                        <input type="text" name="name" class="form-control" placeholder="文件名稱（留空則使用檔名）"/>
+                                    </div>
+                                    <div style="margin-bottom: 10px;">
+                                        <label class="form-label" style="font-size: 0.85rem;">分類</label>
+                                        <select name="document_category_id" class="form-select">
+                                            <option value="">-- 選擇分類 --</option>
+                                            <t t-foreach="categories" t-as="cat">
+                                                <option t-att-value="cat.id"><t t-esc="cat.name"/></option>
+                                            </t>
+                                        </select>
+                                    </div>
+                                    <div style="margin-bottom: 10px;">
+                                        <label class="form-label" style="font-size: 0.85rem;">
+                                            選擇檔案 <span style="color: var(--wb-red);">*</span>
+                                        </label>
+                                        <input type="file" name="file" class="form-control" required="required"/>
+                                    </div>
+                                    <button type="submit" class="cy-btn cy-btn-primary cy-btn-block">
+                                        <i class="fa fa-upload"/> 上傳
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <t t-if="not documents">
+                        <div class="cy-empty">
+                            <i class="fa fa-folder-open-o"/>
+                            <div class="cy-empty-text">尚無文件</div>
+                        </div>
+                    </t>
+
+                    <!-- 文件列表 -->
+                    <t t-foreach="documents" t-as="doc">
+                        <div class="cy-task-row" style="cursor: default;">
+                            <div t-attf-class="cy-task-icon #{doc.state == 'uploaded' and 'green' or doc.is_overdue and 'red' or 'blue'}">
+                                <i class="fa fa-file-o"/>
+                            </div>
+                            <div class="cy-task-info">
+                                <div class="cy-task-name"><t t-esc="doc.name"/></div>
+                                <div class="cy-task-sub">
+                                    <t t-if="doc.document_category_id">
+                                        <t t-esc="doc.document_category_id.name"/>
+                                    </t>
+                                    <t t-if="doc.upload_date">
+                                        · <t t-esc="doc.upload_date.strftime('%Y-%m-%d') if doc.upload_date else ''"/>
+                                    </t>
+                                    <t t-if="doc.is_overdue">
+                                        <span style="color: var(--wb-red); font-weight: 700;"> · 逾期</span>
+                                    </t>
+                                </div>
+                            </div>
+                            <!-- 下載 -->
+                            <t t-if="doc.upload_attachment_ids">
+                                <a t-attf-href="/web/content/ir.attachment/#{doc.upload_attachment_ids[0].id}/datas/#{doc.upload_attachment_ids[0].name}?download=true"
+                                   class="cy-btn cy-btn-outline" style="font-size: 0.75rem; padding: 4px 10px; min-height: 30px;">
+                                    <i class="fa fa-download"/>
+                                </a>
+                            </t>
+                            <t t-else="">
+                                <span class="cy-badge cy-badge-draft">
+                                    <t t-esc="dict(doc._fields['state'].selection).get(doc.state, doc.state)"/>
+                                </span>
+                            </t>
+                        </div>
+                    </t>
+
+                    <div class="d-flex justify-content-center mt-3">
+                        <t t-call="portal.pager"/>
+                    </div>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+</odoo>

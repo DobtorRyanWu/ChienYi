@@ -75,13 +75,21 @@
         <field name="model">supervision.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//div[@name='button_box']" position="inside">
+            <!-- 在 header 的「匯入契約標單」按鈕後加入「從價格庫匯入工項」-->
+            <xpath expr="//button[@name='action_import_tender']" position="after">
                 <button name="%(action_price_library_import_wizard)d"
                         type="action"
-                        class="oe_stat_button"
+                        class="btn-secondary"
                         icon="fa-database"
-                        context="{'default_project_id': id}">
-                    <span class="o_stat_text">匯入價格庫</span>
+                        string="從價格庫匯入工項"
+                        invisible="state != 'draft'"
+                        context="{'default_project_id': id}"/>
+            </xpath>
+            <!-- 以「契約工項」stat button 取代原本的「匯入價格庫」stat button -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_tasks" type="object"
+                        class="oe_stat_button" icon="fa-list">
+                    <field name="task_count" string="契約工項" widget="statinfo"/>
                 </button>
             </xpath>
         </field>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 套用公式範本精靈 Form View -->
+    <record id="view_apply_formula_template_wizard_form" model="ir.ui.view">
+        <field name="name">apply.formula.template.wizard.form</field>
+        <field name="model">apply.formula.template.wizard</field>
+        <field name="arch" type="xml">
+            <form string="套用公式範本">
+                <group>
+                    <field name="standard_id" readonly="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <field name="template_id"
+                           options="{'no_create': True}"/>
+                </group>
+                <group string="範本預覽" invisible="not template_id">
+                    <field name="preview_description" readonly="1"/>
+                    <field name="preview_formula" readonly="1"/>
+                    <field name="preview_warning_formula" readonly="1"/>
+                </group>
+                <div class="alert alert-warning" role="alert"
+                     invisible="not template_id">
+                    <strong>注意：</strong>套用後將覆蓋現有的自訂公式、預警公式與所有自定義變數。套用後仍可在檢試驗項目中微調。
+                </div>
+                <footer>
+                    <button name="action_apply" string="套用" type="object"
+                            class="btn-primary" icon="fa-check"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_apply_formula_template_wizard" model="ir.actions.act_window">
+        <field name="name">套用公式範本</field>
+        <field name="res_model">apply.formula.template.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

@@ -1,285 +1,783 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- 缺失列表 - 手機友善版 -->
-    <template id="portal_construction_defects" name="Construction Defects List">
-        <t t-call="portal.portal_layout">
-            <!-- 返回按鈕 -->
-            <div class="mb-3">
-                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-secondary">
-                    <i class="fa fa-arrow-left me-1"/> 返回工程
-                </a>
-            </div>
+    <!-- ============================================
+         缺失列表 /my/construction/<pid>/defects
+         ============================================ -->
+    <template id="portal_construction_defects" name="Construction Defects">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
 
-            <!-- 頁面標題 -->
-            <div class="mb-4">
-                <h3 class="mb-1">缺失管理</h3>
-                <p class="text-muted mb-0" t-out="project.name"/>
-            </div>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <span class="cy-breadcrumb-item active">缺失改善</span>
+                </div>
 
-            <!-- 篩選按鈕 - 大按鈕 -->
-            <div class="mb-4">
-                <div class="btn-group w-100" role="group">
-                    <t t-foreach="searchbar_filters" t-as="filter_key">
-                        <a t-attf-href="/my/construction/#{project.id}/defects?filterby=#{filter_key}"
-                           t-attf-class="btn btn-lg py-2 #{filterby == filter_key and 'btn-primary' or 'btn-outline-primary'}">
-                            <t t-out="searchbar_filters[filter_key]['label']"/>
-                        </a>
+                <div class="cy-content">
+                    <div class="cy-sec-divider"><span>缺失改善</span></div>
+
+                    <!-- 全寬提報按鈕 -->
+                    <a t-attf-href="/my/construction/#{project.id}/defect/new"
+                       class="cy-btn-gradient-full red" style="text-decoration: none; display: block;">
+                        + 提報缺失
+                    </a>
+
+                    <!-- 批次匯入入口 -->
+                    <a t-attf-href="/my/construction/#{project.id}/defects/import"
+                       class="cy-btn"
+                       style="display: block; margin-top: 8px; padding: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 600; border-radius: 10px; text-decoration: none;">
+                        <i class="fa fa-upload"/> 批次匯入總表單
+                    </a>
+
+                    <!-- 補充改善明細入口 -->
+                    <a t-attf-href="/my/construction/#{project.id}/defects/enrich"
+                       class="cy-btn"
+                       style="display: block; margin-top: 8px; padding: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 600; border-radius: 10px; text-decoration: none;">
+                        <i class="fa fa-file-word-o"/> 補充改善明細 (zip)
+                    </a>
+
+                    <!-- 從 docx zip 直接建立（沒有彙總表時用） -->
+                    <a t-attf-href="/my/construction/#{project.id}/defects/import-docx"
+                       class="cy-btn"
+                       style="display: block; margin-top: 8px; padding: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 600; border-radius: 10px; text-decoration: none;">
+                        <i class="fa fa-file-word-o"/> 從 docx zip 建立
+                    </a>
+
+                    <!-- 總筆數 -->
+                    <div class="cy-total-count">共 <t t-esc="defect_count"/> 筆</div>
+
+                    <!-- 篩選 pills -->
+                    <div class="cy-filter-pills" style="margin-bottom: 12px;">
+                        <t t-foreach="searchbar_filters.items()" t-as="f">
+                            <a t-attf-href="/my/construction/#{project.id}/defects?filterby=#{f[0]}"
+                               t-attf-class="cy-filter-pill #{filterby == f[0] and 'active' or ''}">
+                                <t t-esc="f[1]['label']"/>
+                            </a>
+                        </t>
+                    </div>
+
+                    <t t-if="not defects">
+                        <div class="cy-empty">
+                            <i class="fa fa-exclamation-triangle"/>
+                            <div class="cy-empty-text">尚無缺失紀錄</div>
+                        </div>
                     </t>
-                </div>
-            </div>
 
-            <t t-if="not defects">
-                <div class="alert alert-info py-4 text-center" role="alert">
-                    <i class="fa fa-check-circle fa-2x mb-2 d-block"/>
-                    <span class="fs-5">目前沒有缺失記錄</span>
-                </div>
-            </t>
-
-            <t t-if="defects">
-                <!-- 缺失卡片列表 -->
-                <div class="list-group">
-                    <t t-foreach="defects" t-as="defect">
-                        <a t-attf-href="/my/construction/defect/#{defect.id}"
-                           t-attf-class="list-group-item list-group-item-action py-3 #{defect.state not in ['verified', 'closed'] and 'defect-status-open' or 'defect-status-closed'}">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="mb-0 fw-bold" t-out="defect.name"/>
-                                <span class="badge ms-2"
-                                      t-attf-class="badge #{defect.state in ['verified', 'closed'] and 'bg-success' or 'bg-warning text-dark'}">
-                                    <t t-out="dict(defect._fields['state'].selection).get(defect.state, defect.state)"/>
+                    <t t-foreach="defects" t-as="d">
+                        <a t-attf-href="/my/construction/defect/#{d.id}" class="cy-defect-card"
+                           t-att-data-state="d.state">
+                            <div class="cy-defect-card-header">
+                                <div class="cy-defect-card-title">
+                                    <t t-esc="d.name"/>
+                                </div>
+                                <span t-attf-class="cy-badge cy-badge-#{d.state}">
+                                    <t t-esc="dict(d._fields['state'].selection).get(d.state, d.state)"/>
                                 </span>
                             </div>
-
-                            <!-- 缺失類型 -->
-                            <p class="mb-1 text-muted" t-if="defect.defect_type">
-                                <i class="fa fa-tag me-1"/>
-                                <t t-out="dict(defect._fields['defect_type'].selection).get(defect.defect_type, defect.defect_type)"/>
-                            </p>
-
-                            <!-- 改善期限 -->
-                            <div t-if="defect.deadline" class="d-flex align-items-center">
-                                <small class="text-muted me-2">
-                                    <i class="fa fa-clock me-1"/>
-                                    期限: <t t-out="defect.deadline"/>
-                                </small>
-                                <t t-if="defect.state not in ['verified', 'closed']">
-                                    <span t-if="defect.deadline &lt; datetime.date.today()" class="badge bg-danger">
-                                        已逾期
-                                    </span>
+                            <div class="cy-defect-card-desc">
+                                <t t-esc="d.description or ''"/>
+                            </div>
+                            <div class="cy-defect-card-meta">
+                                <t t-if="d.location">📍 <t t-esc="d.location"/></t>
+                                <t t-if="d.found_date"> · <t t-esc="d.found_date"/></t>
+                                <t t-if="d.is_overdue">
+                                    <span style="color: var(--wb-red); font-weight: 700;"> · ⚠ 逾期 <t t-esc="d.overdue_days"/> 天</span>
                                 </t>
                             </div>
-
-                            <div class="mt-2 text-end">
-                                <span class="text-primary">
-                                    <t t-if="defect.state not in ['verified', 'closed']">
-                                        點擊填寫改善 <i class="fa fa-chevron-right"/>
-                                    </t>
-                                    <t t-else="">
-                                        查看詳情 <i class="fa fa-chevron-right"/>
-                                    </t>
-                                </span>
-                            </div>
                         </a>
                     </t>
+
+                    <div class="d-flex justify-content-center mt-3">
+                        <t t-call="portal.pager"/>
+                    </div>
                 </div>
-            </t>
 
-            <!-- 分頁 -->
-            <div class="d-flex justify-content-center mt-4">
-                <t t-call="portal.pager"/>
-            </div>
-
-            <!-- 底部返回 -->
-            <div class="mt-4">
-                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-secondary w-100 btn-lg">
-                    <i class="fa fa-arrow-left me-2"/> 返回工程案件
-                </a>
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
             </div>
         </t>
     </template>
 
-    <!-- 缺失詳情 - 手機友善版 -->
-    <template id="portal_construction_defect_detail" name="Construction Defect Detail">
-        <t t-call="portal.portal_layout">
-            <!-- 成功訊息 -->
-            <t t-if="request.params.get('message') == 'success'">
-                <div class="alert alert-success py-3 text-center" role="alert">
-                    <i class="fa fa-check-circle fa-2x mb-2 d-block"/>
-                    <span class="fs-5 fw-bold">改善說明已成功提交！</span>
-                </div>
-            </t>
+    <!-- ============================================
+         缺失詳情 /my/construction/defect/<did>
+         ============================================ -->
+    <template id="portal_construction_defect_detail" name="Defect Detail">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
 
-            <!-- 返回按鈕 -->
-            <div class="mb-3">
-                <a t-attf-href="/my/construction/#{project.id}/defects" class="btn btn-outline-secondary">
-                    <i class="fa fa-arrow-left me-1"/> 返回列表
-                </a>
-            </div>
-
-            <!-- 標題卡片 -->
-            <div class="card mb-4"
-                 t-attf-class="card mb-4 #{defect.state not in ['verified', 'closed'] and 'defect-status-open' or 'defect-status-closed'}">
-                <div t-attf-class="card-header #{defect.state in ['verified', 'closed'] and 'bg-success text-white' or 'bg-warning'}">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0">
-                            <i class="fa fa-exclamation-triangle me-2"/>
-                            <t t-out="defect.name"/>
-                        </h4>
-                    </div>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/defects" class="cy-breadcrumb-item">缺失</a>
+                    <span class="cy-breadcrumb-item active"><t t-esc="defect.name"/></span>
                 </div>
-                <div class="card-body">
-                    <!-- 狀態 -->
-                    <div class="text-center mb-4">
-                        <span class="badge fs-5 px-4 py-2"
-                              t-attf-class="badge #{defect.state in ['verified', 'closed'] and 'bg-success' or 'bg-warning text-dark'}">
-                            <t t-out="dict(defect._fields['state'].selection).get(defect.state, defect.state)"/>
+
+                <div class="cy-content">
+                    <!-- 改善成功訊息 -->
+                    <t t-if="request.params.get('message') == 'success'">
+                        <div class="cy-event-card cy-event-info" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-green);"><i class="fa fa-check-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title" style="color: var(--wb-green);">改善已提交</div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 逾期警告 -->
+                    <t t-if="defect.is_overdue and defect.state == 'open'">
+                        <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-exclamation-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title" style="color: var(--wb-red);">已逾期 <t t-esc="defect.overdue_days"/> 天</div>
+                                <div class="cy-event-desc">改善期限：<t t-esc="defect.deadline"/></div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 標題 + 狀態 -->
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <div style="min-width: 0; flex: 1;">
+                            <h4 style="font-weight: 700; margin: 0;"><t t-esc="defect.name"/></h4>
+                        </div>
+                        <span t-attf-class="cy-badge cy-badge-#{defect.state}" style="flex-shrink: 0; margin-left: 8px;">
+                            <t t-esc="state_selection.get(defect.state, defect.state)"/>
                         </span>
                     </div>
 
-                    <!-- 基本資訊 -->
-                    <div class="row g-3">
-                        <div class="col-6" t-if="defect.defect_type">
-                            <small class="text-muted d-block">缺失類型</small>
-                            <strong t-out="dict(defect._fields['defect_type'].selection).get(defect.defect_type, defect.defect_type)"/>
+                    <!-- 缺失資訊 -->
+                    <div class="cy-section-title">缺失資訊</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">缺失類型</span>
+                            <span class="cy-info-value"><t t-esc="type_selection.get(defect.defect_type, '-')"/></span>
                         </div>
-                        <div class="col-6" t-if="defect.found_date">
-                            <small class="text-muted d-block">發現日期</small>
-                            <strong t-out="defect.found_date"/>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">缺失來源</span>
+                            <span class="cy-info-value"><t t-esc="source_selection.get(defect.source, '-')"/></span>
                         </div>
-                        <div class="col-6" t-if="defect.deadline">
-                            <small class="text-muted d-block">改善期限</small>
-                            <strong t-out="defect.deadline"/>
-                            <t t-if="defect.state not in ['verified', 'closed']">
-                                <span t-if="defect.deadline &lt; datetime.date.today()"
-                                      class="badge bg-danger ms-1">已逾期</span>
-                            </t>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">發現日期</span>
+                            <span class="cy-info-value"><t t-esc="defect.found_date or '-'"/></span>
                         </div>
-                        <div class="col-6" t-if="defect.location">
-                            <small class="text-muted d-block">缺失位置</small>
-                            <strong t-out="defect.location"/>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">改善期限</span>
+                            <span t-attf-class="cy-info-value #{defect.is_overdue and 'accent' or ''}">
+                                <t t-esc="defect.deadline or '-'"/>
+                            </span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">發生位置</span>
+                            <span class="cy-info-value"><t t-esc="defect.location or '-'"/></span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">開立天數</span>
+                            <span class="cy-info-value"><t t-esc="defect.days_open"/> 天</span>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- 缺失說明 -->
-            <t t-if="defect.description">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">缺失說明</h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="mb-0 fs-5" t-out="defect.description"/>
-                    </div>
-                </div>
-            </t>
+                    <!-- 缺失說明 -->
+                    <t t-if="defect.description">
+                        <div class="cy-section-title">缺失說明</div>
+                        <div class="cy-info-section" style="padding: 12px 16px;">
+                            <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="defect.description"/></div>
+                        </div>
+                    </t>
 
-            <!-- 缺失照片 -->
-            <t t-if="defect.before_photo_ids">
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="fa fa-camera me-2"/>
-                            缺失照片
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="photo-grid">
-                            <t t-foreach="defect.before_photo_ids" t-as="attachment">
-                                <div class="photo-item">
-                                    <img t-attf-src="/web/image/ir.attachment/#{attachment.id}?width=300&amp;height=300&amp;crop=true"
-                                         alt="缺失照片"/>
-                                </div>
-                            </t>
+                    <!-- 責任與改善 -->
+                    <div class="cy-section-title">責任與改善</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row" t-if="defect.responsible_company_id">
+                            <span class="cy-info-label">責任廠商</span>
+                            <span class="cy-info-value"><t t-esc="defect.responsible_company_id.name"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="defect.responsible_party">
+                            <span class="cy-info-label">責任方</span>
+                            <span class="cy-info-value"><t t-esc="party_selection.get(defect.responsible_party, '-')"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="defect.responsible_user_id">
+                            <span class="cy-info-label">負責人</span>
+                            <span class="cy-info-value"><t t-esc="defect.responsible_user_id.name"/></span>
                         </div>
                     </div>
-                </div>
-            </t>
 
-            <!-- 已提交的改善說明 -->
-            <t t-if="defect.improvement_description or defect.portal_improvement_note">
-                <div class="card mb-4 border-success">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">
-                            <i class="fa fa-check-circle me-2"/>
-                            改善說明
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="mb-0 fs-5" t-out="defect.improvement_description or defect.portal_improvement_note"/>
+                    <!-- 根本原因 -->
+                    <t t-if="defect.root_cause">
+                        <div class="cy-section-title">根本原因</div>
+                        <div class="cy-info-section" style="padding: 12px 16px;">
+                            <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="defect.root_cause"/></div>
+                        </div>
+                    </t>
 
-                        <t t-if="defect.portal_improver_id">
-                            <div class="border-top pt-3 mt-3">
-                                <small class="text-muted">提交者：</small>
-                                <span class="badge bg-info">Portal</span>
-                                <strong t-out="defect.portal_improver_id.name"/>
+                    <!-- 改善紀錄 -->
+                    <t t-if="defect.improvement_description or defect.corrective_action or defect.preventive_action">
+                        <div class="cy-section-title">改善紀錄</div>
+                        <t t-if="defect.improvement_description">
+                            <div class="cy-info-section" style="padding: 12px 16px; margin-bottom: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--wb-t3); margin-bottom: 4px;">改善說明</div>
+                                <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="defect.improvement_description"/></div>
                             </div>
                         </t>
-                    </div>
-                </div>
-            </t>
+                        <t t-if="defect.corrective_action">
+                            <div class="cy-info-section" style="padding: 12px 16px; margin-bottom: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--wb-t3); margin-bottom: 4px;">矯正措施</div>
+                                <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="defect.corrective_action"/></div>
+                            </div>
+                        </t>
+                        <t t-if="defect.preventive_action">
+                            <div class="cy-info-section" style="padding: 12px 16px; margin-bottom: 8px;">
+                                <div style="font-size: 0.8rem; color: var(--wb-t3); margin-bottom: 4px;">預防措施</div>
+                                <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="defect.preventive_action"/></div>
+                            </div>
+                        </t>
+                    </t>
 
-            <!-- 改善後照片 -->
-            <t t-if="defect.after_photo_ids">
-                <div class="card mb-4">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">
-                            <i class="fa fa-check me-2"/>
-                            改善後照片
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="photo-grid">
-                            <t t-foreach="defect.after_photo_ids" t-as="attachment">
-                                <div class="photo-item">
-                                    <img t-attf-src="/web/image/ir.attachment/#{attachment.id}?width=300&amp;height=300&amp;crop=true"
-                                         alt="改善後照片"/>
+                    <!-- 驗證 -->
+                    <t t-if="defect.verifier_id">
+                        <div class="cy-section-title">驗證</div>
+                        <div class="cy-info-section">
+                            <div class="cy-info-row">
+                                <span class="cy-info-label">驗證者</span>
+                                <span class="cy-info-value"><t t-esc="defect.verifier_id.name"/></span>
+                            </div>
+                            <div class="cy-info-row" t-if="defect.verify_date">
+                                <span class="cy-info-label">驗證時間</span>
+                                <span class="cy-info-value"><t t-esc="defect.verify_date"/></span>
+                            </div>
+                            <div class="cy-info-row" t-if="defect.verify_result">
+                                <span class="cy-info-label">驗證結果</span>
+                                <span class="cy-info-value">
+                                    <t t-if="defect.verify_result == 'pass'" t-esc="'✓ 通過'"/>
+                                    <t t-elif="defect.verify_result == 'fail'" t-esc="'✗ 不通過'"/>
+                                    <t t-elif="defect.verify_result == 'reopen'" t-esc="'↩ 重新改善'"/>
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 改善前照片 -->
+                    <t t-if="defect.before_photo_ids">
+                        <div class="cy-section-title">改善前照片</div>
+                        <div class="cy-photo-grid" style="margin-bottom: 14px;">
+                            <t t-foreach="defect.before_photo_ids" t-as="photo">
+                                <div class="cy-photo-item">
+                                    <img t-attf-src="/web/image/ir.attachment/#{photo.id}/datas/300x300?crop=true" alt="改善前"/>
                                 </div>
                             </t>
                         </div>
-                    </div>
-                </div>
-            </t>
+                    </t>
 
-            <!-- 改善表單 (僅在未結案時顯示) -->
-            <t t-if="defect.state not in ['verified', 'closed']">
-                <div class="card mb-4 border-primary">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">
-                            <i class="fa fa-edit me-2"/>
-                            填寫改善說明
-                        </h5>
-                    </div>
-                    <div class="card-body">
+                    <!-- 改善後照片 -->
+                    <t t-if="defect.after_photo_ids">
+                        <div class="cy-section-title">改善後照片</div>
+                        <div class="cy-photo-grid" style="margin-bottom: 14px;">
+                            <t t-foreach="defect.after_photo_ids" t-as="photo">
+                                <div class="cy-photo-item">
+                                    <img t-attf-src="/web/image/ir.attachment/#{photo.id}/datas/300x300?crop=true" alt="改善後"/>
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+
+                    <!-- Portal 改善表單（開立/調查中狀態才顯示）-->
+                    <t t-if="defect.state in ('open', 'investigating')">
+                        <div class="cy-section-title">提交改善</div>
                         <form t-attf-action="/my/construction/defect/#{defect.id}/improve" method="post">
                             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
 
-                            <div class="mb-4">
-                                <label for="improvement_description" class="form-label fw-bold fs-5">
-                                    改善說明 <span class="text-danger">*</span>
-                                </label>
-                                <textarea name="improvement_description" id="improvement_description"
-                                          class="form-control form-control-lg"
-                                          rows="6"
-                                          required="required"
-                                          placeholder="請詳細說明改善措施及處理情況..."><t t-out="defect.portal_improvement_note or ''"/></textarea>
+                            <!-- 改善說明（defaultOpen）-->
+                            <div class="cy-section-title" style="cursor: pointer; margin-top: 0;" data-collapse-toggle="sec_improve_desc">
+                                <span>改善說明（你來填）</span>
+                                <i class="fa fa-chevron-up" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                            </div>
+                            <div id="sec_improve_desc">
+                                <textarea name="improvement_description" class="form-control"
+                                          placeholder="描述你做了什麼改善..."
+                                          required="required" style="min-height: 100px; margin-bottom: 12px;"></textarea>
                             </div>
 
-                            <button type="submit" class="btn btn-success btn-lg w-100 py-3">
-                                <i class="fa fa-paper-plane me-2"/> 提交改善說明
+                            <!-- 矯正措施（defaultOpen）-->
+                            <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_corrective">
+                                <span>矯正措施</span>
+                                <i class="fa fa-chevron-up" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                            </div>
+                            <div id="sec_corrective">
+                                <textarea name="corrective_action" class="form-control"
+                                          placeholder="針對缺失的改善行動..."
+                                          style="min-height: 90px; margin-bottom: 12px;"></textarea>
+                            </div>
+
+                            <!-- 預防措施（defaultOpen=false）-->
+                            <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_preventive">
+                                <span>預防措施</span>
+                                <i class="fa fa-chevron-down" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                            </div>
+                            <div id="sec_preventive" style="display: none;">
+                                <textarea name="preventive_action" class="form-control"
+                                          placeholder="避免再次發生的措施..."
+                                          style="min-height: 90px; margin-bottom: 12px;"></textarea>
+                            </div>
+
+                            <!-- 改善後照片（defaultOpen）-->
+                            <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_after_photo">
+                                <span>改善後照片（你來拍）</span>
+                                <i class="fa fa-chevron-up" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                            </div>
+                            <div id="sec_after_photo">
+                                <div style="margin-bottom: 12px;">
+                                    <input type="file" name="after_photo" accept="image/*" capture="environment"
+                                           class="form-control"/>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="cy-btn cy-btn-amber cy-btn-block"
+                                    style="font-size: 1.2rem; min-height: 64px; font-weight: 900; border-radius: 14px; margin-top: 12px; background: linear-gradient(135deg, var(--wb-green), #1a9648); box-shadow: 0 4px 20px rgba(34,179,87,0.2);">
+                                提交改善結果
                             </button>
                         </form>
+                    </t>
+
+                    <!-- 訊息紀錄（Odoo 原生 Portal chatter）-->
+                    <div class="cy-section-title" style="margin-top: 24px;">訊息</div>
+                    <div style="background: var(--wb-bg2); border-radius: var(--wb-radius); border: 1px solid var(--wb-bdr); padding: 12px; margin-bottom: 14px;">
+                        <t t-call="portal.message_thread">
+                            <t t-set="object" t-value="defect"/>
+                        </t>
                     </div>
                 </div>
-            </t>
 
-            <!-- 底部按鈕 -->
-            <div class="d-grid gap-3 mt-4">
-                <a t-attf-href="/my/construction/#{project.id}/defects" class="btn btn-secondary btn-lg">
-                    <i class="fa fa-arrow-left me-2"/> 返回缺失列表
-                </a>
-                <a t-attf-href="/my/construction/#{project.id}" class="btn btn-outline-primary btn-lg">
-                    返回工程案件
-                </a>
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         新增缺失表單 /my/construction/<pid>/defect/new
+         ============================================ -->
+    <template id="portal_construction_defect_form" name="Defect Form (New)">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/defects" class="cy-breadcrumb-item">缺失</a>
+                    <span class="cy-breadcrumb-item active">提報缺失</span>
+                </div>
+
+                <div class="cy-content">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 1.5rem; font-weight: 900; color: var(--wb-amber);">提報新缺失</div>
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">填寫缺失資訊並上傳照片</div>
+                    </div>
+
+                    <form action="/my/construction/defect/create" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="project_id" t-att-value="project.id"/>
+
+                        <div class="cy-card" style="margin-bottom: 14px;">
+                            <div class="cy-card-body">
+                                <!-- 缺失說明 -->
+                                <div style="margin-bottom: 14px;">
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px;">
+                                        缺失說明 <span style="color: var(--wb-red);">*</span>
+                                    </div>
+                                    <textarea name="description" class="form-control" required="required"
+                                              placeholder="描述缺失具體情形..." style="min-height: 80px;"></textarea>
+                                </div>
+
+                                <!-- 發生位置 -->
+                                <div style="margin-bottom: 14px;">
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px;">發生位置</div>
+                                    <input type="text" name="location" class="form-control" placeholder="例：B區基礎 K0+150"/>
+                                </div>
+
+                                <!-- 缺失類型（按鈕組）-->
+                                <div style="margin-bottom: 14px;">
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px;">缺失類型</div>
+                                    <input type="hidden" name="defect_type" id="defect_type_hidden" value="quality"/>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;" id="defect_type_btns">
+                                        <t t-foreach="type_options" t-as="opt">
+                                            <button type="button" class="cy-type-btn"
+                                                    t-att-data-value="opt[0]"
+                                                    t-attf-style="padding: 10px 16px; border-radius: 10px; border: none; cursor: pointer; min-height: 44px; font-size: 0.9rem; font-weight: 600; background: #{opt[0] == 'quality' and 'var(--wb-amber)' or 'var(--wb-bg3)'}; color: #{opt[0] == 'quality' and '#fff' or 'var(--wb-t2)'};">
+                                                <t t-esc="opt[1]"/>
+                                            </button>
+                                        </t>
+                                    </div>
+                                </div>
+
+                                <!-- 發現日期 + 改善期限 -->
+                                <div style="display: flex; gap: 12px;">
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px;">發現日期</div>
+                                        <input type="date" name="found_date" class="form-control" t-att-value="today"/>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <div style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px;">改善期限</div>
+                                        <input type="date" name="deadline" class="form-control"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 缺失現場照片 -->
+                        <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_defect_photo">
+                            <span>缺失現場照片</span>
+                            <i class="fa fa-chevron-up" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                        </div>
+                        <div id="sec_defect_photo">
+                            <div style="margin-bottom: 14px;">
+                                <input type="file" name="photo" accept="image/*" capture="environment"
+                                       class="form-control" id="defect_photo_input"/>
+                                <div id="defect_photo_preview" style="display: none; margin-top: 10px;">
+                                    <img id="defect_photo_preview_img" style="max-width: 100%; border-radius: var(--wb-radius-sm); border: 1px solid var(--wb-bdr);" alt="預覽"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 提交 -->
+                        <button type="submit" class="cy-btn cy-btn-amber cy-btn-block"
+                                style="font-size: 1.2rem; min-height: 64px; font-weight: 900; border-radius: 14px; margin-top: 16px; background: linear-gradient(135deg, var(--wb-red), #c0292b); box-shadow: 0 4px 20px rgba(232,54,79,0.2);">
+                            提報缺失
+                        </button>
+                    </form>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         缺失批次匯入 /my/construction/<pid>/defects/import
+         ============================================ -->
+    <template id="portal_construction_defect_import" name="Defect Batch Import">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/defects" class="cy-breadcrumb-item">缺失改善</a>
+                    <span class="cy-breadcrumb-item active">批次匯入</span>
+                </div>
+
+                <div class="cy-content">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 1.4rem; font-weight: 900; color: var(--wb-amber);">批次匯入缺失改善</div>
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">
+                            上傳「不合格品改善追蹤一覽表」XLSX 彙總檔
+                        </div>
+                    </div>
+
+                    <t t-if="imported or skipped or failed">
+                        <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(59,141,224,0.10); border-radius: 8px; font-size: 0.95rem; line-height: 1.7;">
+                            <div style="font-weight: 700; margin-bottom: 6px;">
+                                <i class="fa fa-info-circle"/> 匯入結果
+                            </div>
+                            <div style="color: var(--wb-green); font-weight: 700;">
+                                <i class="fa fa-check-circle"/> 成功：<t t-esc="imported"/> 筆
+                            </div>
+                            <t t-if="skipped">
+                                <div style="color: var(--wb-amber); font-weight: 700;">
+                                    <i class="fa fa-forward"/> 跳過（重複）：<t t-esc="skipped"/> 筆
+                                </div>
+                            </t>
+                            <t t-if="failed">
+                                <div style="color: var(--wb-red); font-weight: 700;">
+                                    <i class="fa fa-times-circle"/> 失敗：<t t-esc="failed"/> 筆
+                                </div>
+                            </t>
+                        </div>
+
+                        <t t-if="failed_details">
+                            <div style="margin-bottom: 14px;">
+                                <div class="cy-section-title">處理明細</div>
+                                <div class="cy-info-section" style="padding: 12px 14px; font-size: 0.85rem; line-height: 1.6; max-height: 280px; overflow-y: auto;">
+                                    <t t-foreach="failed_details" t-as="d">
+                                        <div style="padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                                            <div style="color: var(--wb-t2); word-break: break-all;">
+                                                <t t-esc="d.get('filename', '')"/>
+                                            </div>
+                                            <div style="color: var(--wb-red);">
+                                                <t t-esc="d.get('error', '')"/>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+
+                    <form t-attf-action="/my/construction/#{project.id}/defects/import"
+                          method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                        <div class="cy-section-title">選擇檔案</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">XLSX 檔案（單檔）</label>
+                                <input type="file" name="files" class="form-control"
+                                       accept=".xlsx,.xlsm" required="required"/>
+                                <small style="color: var(--wb-t3); display: block; margin-top: 6px;">
+                                    來源：<code>12-文書資料-A標/06-缺失改善/不合格品改善追蹤一覽表*.xlsx</code>
+                                </small>
+                            </div>
+
+                            <div style="font-size: 0.85rem; color: var(--wb-t2); line-height: 1.6; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.12); border-radius: 6px;">
+                                <div style="font-weight: 700; margin-bottom: 4px;">解析規則</div>
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    <li>找名稱含「不合格品」或「缺失」的 sheet</li>
+                                    <li>從 R3 起抽取：編號 / 登錄編號 / 改正單位 / 改正事項 / 通知改正日期 / 限定完成改善日期 / 確認完成改善日期</li>
+                                    <li>ROC 日期格式（<code>112.10.07</code>）自動轉換</li>
+                                    <li>改正單位對應 defect_type：職安→safety、施工→quality、環境→environmental</li>
+                                    <li>同登錄編號或同日期+描述已有紀錄則 skip</li>
+                                    <li>有「確認完成改善日期」→ state=closed；否則 state=open</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 18px; margin-bottom: 16px;">
+                            <a t-attf-href="/my/construction/#{project.id}/defects"
+                               class="cy-btn"
+                               style="flex: 1; padding: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 700; border-radius: 10px; text-decoration: none;">
+                                取消
+                            </a>
+                            <button type="submit" class="cy-btn-gradient-full"
+                                    style="flex: 2; padding: 16px; font-size: 1.1rem;">
+                                開始匯入
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         缺失改善明細補充 /my/construction/<pid>/defects/enrich
+         ============================================ -->
+    <template id="portal_construction_defect_enrich" name="Defect Enrich">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/defects" class="cy-breadcrumb-item">缺失改善</a>
+                    <span class="cy-breadcrumb-item active">補充改善明細</span>
+                </div>
+
+                <div class="cy-content">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 1.4rem; font-weight: 900; color: var(--wb-amber);">補充改善明細</div>
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">
+                            上傳個別缺失改善 docx 的 zip 包，回填改善說明與結案說明
+                        </div>
+                    </div>
+
+                    <t t-if="updated or unmatched or failed">
+                        <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(59,141,224,0.10); border-radius: 8px; font-size: 0.95rem; line-height: 1.7;">
+                            <div style="font-weight: 700; margin-bottom: 6px;">
+                                <i class="fa fa-info-circle"/> 處理結果
+                            </div>
+                            <div style="color: var(--wb-green); font-weight: 700;">
+                                <i class="fa fa-check-circle"/> 更新：<t t-esc="updated"/> 筆
+                            </div>
+                            <t t-if="unmatched">
+                                <div style="color: var(--wb-amber); font-weight: 700;">
+                                    <i class="fa fa-forward"/> 未對應：<t t-esc="unmatched"/> 筆
+                                </div>
+                            </t>
+                            <t t-if="failed">
+                                <div style="color: var(--wb-red); font-weight: 700;">
+                                    <i class="fa fa-times-circle"/> 失敗：<t t-esc="failed"/> 筆
+                                </div>
+                            </t>
+                        </div>
+
+                        <t t-if="failed_details">
+                            <div style="margin-bottom: 14px;">
+                                <div class="cy-section-title">處理明細</div>
+                                <div class="cy-info-section" style="padding: 12px 14px; font-size: 0.85rem; line-height: 1.6; max-height: 280px; overflow-y: auto;">
+                                    <t t-foreach="failed_details" t-as="d">
+                                        <div style="padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                                            <div style="color: var(--wb-t2); word-break: break-all;">
+                                                <t t-esc="d.get('filename', '')"/>
+                                            </div>
+                                            <div style="color: var(--wb-red);">
+                                                <t t-esc="d.get('error', '')"/>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+
+                    <form t-attf-action="/my/construction/#{project.id}/defects/enrich"
+                          method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                        <div class="cy-section-title">選擇檔案</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">ZIP 檔案（含 docx）</label>
+                                <input type="file" name="files" class="form-control"
+                                       accept=".zip" required="required"/>
+                                <small style="color: var(--wb-t3); display: block; margin-top: 6px;">
+                                    需先 host 端將 .doc 轉成 .docx 再打包：<code>libreoffice --headless --convert-to docx *.doc</code>
+                                </small>
+                            </div>
+
+                            <div style="font-size: 0.85rem; color: var(--wb-t2); line-height: 1.6; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.12); border-radius: 6px;">
+                                <div style="font-weight: 700; margin-bottom: 4px;">解析規則</div>
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    <li>zip 內非 .docx 項目會跳過（__MACOSX 也排除）</li>
+                                    <li>檔名格式：legacy <code>1121025-xxx.docx</code> / standardized <code>QA-11312201-xxx.docx</code></li>
+                                    <li>從檔名推導 <code>Q01-YYYMMDD</code> 對應 DB 的 <code>source_description</code></li>
+                                    <li>抽取 缺失事項 / 改善中 / 改善後，覆寫 <code>improvement_description</code> 和 <code>close_comment</code></li>
+                                    <li>對應不到的 register_no 會列入 unmatched</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 18px; margin-bottom: 16px;">
+                            <a t-attf-href="/my/construction/#{project.id}/defects"
+                               class="cy-btn"
+                               style="flex: 1; padding: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 700; border-radius: 10px; text-decoration: none;">
+                                取消
+                            </a>
+                            <button type="submit" class="cy-btn-gradient-full"
+                                    style="flex: 2; padding: 16px; font-size: 1.1rem;">
+                                開始補充
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         從 docx zip 直接建立缺失紀錄
+         /my/construction/<pid>/defects/import-docx
+         ============================================ -->
+    <template id="portal_construction_defect_import_docx" name="Defect Create from docx">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/defects" class="cy-breadcrumb-item">缺失改善</a>
+                    <span class="cy-breadcrumb-item active">從 docx 批次建立</span>
+                </div>
+
+                <div class="cy-content">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 1.4rem; font-weight: 900; color: var(--wb-amber);">從 docx zip 批次建立缺失</div>
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">
+                            每份 docx 建立一筆缺失紀錄（適用沒有彙總表的案場）
+                        </div>
+                    </div>
+
+                    <t t-if="imported or skipped or failed">
+                        <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(59,141,224,0.10); border-radius: 8px; font-size: 0.95rem; line-height: 1.7;">
+                            <div style="font-weight: 700; margin-bottom: 6px;">
+                                <i class="fa fa-info-circle"/> 匯入結果
+                            </div>
+                            <div style="color: var(--wb-green); font-weight: 700;">
+                                <i class="fa fa-check-circle"/> 成功建立：<t t-esc="imported"/> 筆
+                            </div>
+                            <t t-if="skipped">
+                                <div style="color: var(--wb-amber); font-weight: 700;">
+                                    <i class="fa fa-forward"/> 跳過（重複）：<t t-esc="skipped"/> 筆
+                                </div>
+                            </t>
+                            <t t-if="failed">
+                                <div style="color: var(--wb-red); font-weight: 700;">
+                                    <i class="fa fa-times-circle"/> 失敗：<t t-esc="failed"/> 筆
+                                </div>
+                            </t>
+                        </div>
+
+                        <t t-if="failed_details">
+                            <div style="margin-bottom: 14px;">
+                                <div class="cy-section-title">處理明細</div>
+                                <div class="cy-info-section" style="padding: 12px 14px; font-size: 0.85rem; line-height: 1.6; max-height: 280px; overflow-y: auto;">
+                                    <t t-foreach="failed_details" t-as="d">
+                                        <div style="padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                                            <div style="color: var(--wb-t2); word-break: break-all;">
+                                                <t t-esc="d.get('filename', '')"/>
+                                            </div>
+                                            <div style="color: var(--wb-red);">
+                                                <t t-esc="d.get('error', '')"/>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+
+                    <form t-attf-action="/my/construction/#{project.id}/defects/import-docx"
+                          method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                        <div class="cy-section-title">選擇檔案</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">ZIP 檔案（含 docx）</label>
+                                <input type="file" name="files" class="form-control"
+                                       accept=".zip" required="required"/>
+                                <small style="color: var(--wb-t3); display: block; margin-top: 6px;">
+                                    host 先 <code>libreoffice --convert-to docx</code> 轉 .doc，再剝 image、打包 zip
+                                </small>
+                            </div>
+
+                            <div style="font-size: 0.85rem; color: var(--wb-t2); line-height: 1.6; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.12); border-radius: 6px;">
+                                <div style="font-weight: 700; margin-bottom: 4px;">解析規則</div>
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    <li>從檔名推導 <code>found_date</code>（ROC 民國年 <code>YYYMMDD</code>）</li>
+                                    <li>從檔名 QA/QR 前綴或括號類別（品質/職安/環境）推導 <code>defect_type</code></li>
+                                    <li>從 docx 抽取 缺失事項 / 改善中 / 改善後 內容</li>
+                                    <li>有 close_comment → state=closed；有 improvement → action_taken；否則 open</li>
+                                    <li>同專案 (found_date + description) 或 (register_no + description) 已存在則 skip</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 18px; margin-bottom: 16px;">
+                            <a t-attf-href="/my/construction/#{project.id}/defects"
+                               class="cy-btn"
+                               style="flex: 1; padding: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 700; border-radius: 10px; text-decoration: none;">
+                                取消
+                            </a>
+                            <button type="submit" class="cy-btn-gradient-full"
+                                    style="flex: 2; padding: 16px; font-size: 1.1rem;">
+                                開始建立
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
             </div>
         </t>
     </template>

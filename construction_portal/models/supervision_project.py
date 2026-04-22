@@ -48,16 +48,52 @@ class SupervisionProjectPortal(models.Model):
         取得 Portal 用戶可存取的工程案件 domain
 
         邏輯：
-        1. 找出 partner 所屬的公司 (透過 parent_id 或 commercial_partner_id)
-        2. 找出該公司作為承包廠商的工程案件
+        - 內部用戶（監造工程師等）：顯示所屬公司管理的案件，
+          或自己為監造工程師的案件。僅排除「終止」狀態。
+        - Portal 用戶（承包廠商）：顯示公司為承包廠商的案件，
+          排除「未開始」和「終止」狀態。
         """
-        # 取得 partner 的公司 (parent or self)
+        user = self.env.user
+
+        # 系統管理者：與後台 Rule 143「管理者: 工程案件完整存取」對齊，
+        # 不做公司過濾，只排除「終止」狀態（必須先於 group_user 判斷，
+        # 因為 group_system 是 group_user 的超集）
+        if user.has_group('base.group_system'):
+            return [('state', '!=', 'terminated')]
+
+        # 內部用戶：監造單位人員
+        # 注意：company_id 用 env.companies.ids（跟隨 Odoo 右上角多公司切換器），
+        # 不用 user.company_id.id（那個只會拿到使用者的主要公司,無法跨公司切換）
+        if user.has_group('base.group_user'):
+            return [
+                '|',
+                ('supervision_engineer_id', '=', user.id),
+                ('company_id', 'in', self.env.companies.ids),
+                ('state', '!=', 'terminated'),
+            ]
+
+        # Portal 用戶：承包廠商（維持原邏輯）
         company_partner = partner.commercial_partner_id or partner
 
         return [
             ('contractor_partner_ids', 'in', [company_partner.id]),
             ('state', 'not in', ['draft', 'terminated']),
         ]
+
+    # === 進度欄位（供 Portal 模板使用）===
+    actual_progress = fields.Float(
+        string='實際進度(%)',
+        compute='_compute_actual_progress',
+        digits=(5, 2),
+        help='從使用中進度表取得累計實際進度')
+
+    def _compute_actual_progress(self):
+        """從 construction_progress 的累計實際進度取得"""
+        for project in self:
+            if 'schedule_cumulative_actual' in project._fields:
+                project.actual_progress = project.schedule_cumulative_actual
+            else:
+                project.actual_progress = 0.0
 
     # === Portal 統計欄位 ===
     inspection_count = fields.Integer(

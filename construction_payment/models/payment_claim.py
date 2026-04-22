@@ -81,7 +81,7 @@ class PaymentClaim(models.Model):
         'claim_id',
         'estimate_id',
         string='關聯估驗單',
-        domain="[('company_id', '=', company_id), ('state', '=', 'approved')]",
+        domain="[('state', '=', 'approved')]",
         help='此請款單基於哪些已核定的估驗單'
     )
 
@@ -200,17 +200,10 @@ class PaymentClaim(models.Model):
     def _onchange_estimate_ids(self):
         """估驗單變更時計算請款金額"""
         if self.estimate_ids:
-            self.claim_amount = sum(self.estimate_ids.mapped('payable_amount'))
+            self.claim_amount = sum(self.estimate_ids.mapped('subtotal'))
             # 取得最大期次
             if self.estimate_ids:
                 self.claim_period = max(self.estimate_ids.mapped('estimate_no'))
-                # 取得期間
-                period_starts = self.estimate_ids.mapped('period_start')
-                period_ends = self.estimate_ids.mapped('period_end')
-                if any(period_starts):
-                    self.period_start = min(d for d in period_starts if d)
-                if any(period_ends):
-                    self.period_end = max(d for d in period_ends if d)
 
     # === 約束檢查 ===
     @api.constrains('claim_amount')
@@ -219,16 +212,6 @@ class PaymentClaim(models.Model):
         for claim in self:
             if claim.claim_amount <= 0:
                 raise ValidationError('請款金額必須大於零')
-
-    @api.constrains('estimate_ids', 'company_id')
-    def _check_estimate_company(self):
-        """驗證估驗單歸屬公司"""
-        for claim in self:
-            for estimate in claim.estimate_ids:
-                if estimate.company_id != claim.company_id:
-                    raise ValidationError(
-                        f'估驗單 {estimate.name} 不屬於 {claim.company_id.name}'
-                    )
 
     @api.constrains('acceptance_ids', 'company_id')
     def _check_acceptance_company(self):

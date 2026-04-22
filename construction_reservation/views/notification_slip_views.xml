@@ -37,19 +37,19 @@
             </xpath>
 
             <!-- 在表頭新增快速建立按鈕 -->
-            <xpath expr="//button[@name='action_create_acceptance']" position="after">
+            <xpath expr="//button[@name='action_return_to_draft']" position="after">
                 <button name="action_create_self_inspection"
                         string="新增自主檢查" type="object"
                         class="btn-secondary"
-                        invisible="state not in ['approved', 'in_progress']"/>
+                        invisible="state not in ['not_started', 'in_progress']"/>
                 <button name="action_create_defect_improvement"
                         string="新增缺失改善" type="object"
                         class="btn-secondary"
-                        invisible="state not in ['approved', 'in_progress']"/>
+                        invisible="state not in ['not_started', 'in_progress']"/>
                 <button name="action_create_defect_from_inspection"
                         string="從檢查建立缺失" type="object"
                         class="btn-warning"
-                        invisible="state not in ['approved', 'in_progress'] or self_inspection_defect_count == 0"/>
+                        invisible="state not in ['not_started', 'in_progress'] or self_inspection_defect_count == 0"/>
             </xpath>
 
             <!-- 在 notebook 中新增品質管理頁籤 -->
@@ -126,7 +126,7 @@
         <field name="model">reservation.notification.slip</field>
         <field name="inherit_id" ref="construction_notification_slip.view_reservation_notification_slip_tree"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='work_status']" position="before">
+            <xpath expr="//field[@name='state']" position="before">
                 <field name="self_inspection_count" optional="hide"/>
                 <field name="defect_uncorrected_count" optional="show"
                        decoration-danger="defect_uncorrected_count > 0"

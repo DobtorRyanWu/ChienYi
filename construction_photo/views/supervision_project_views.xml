@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 工程案件 - 表單視圖擴展（工程告示牌）          -->
+    <!-- ============================================== -->
+    <record id="view_supervision_project_form_signboard" model="ir.ui.view">
+        <field name="name">supervision.project.form.signboard</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
+        <field name="arch" type="xml">
+            <!-- 在 notebook 最後插入「工程告示牌」頁籤 -->
+            <xpath expr="//notebook" position="inside">
+                <page string="工程告示牌" name="signboard">
+                    <group>
+                        <field name="signboard_photo_ids" widget="many2many_binary"
+                               options="{'accepted_file_extensions': 'image/*'}"
+                               nolabel="1"/>
+                    </group>
+                    <div class="alert alert-info mt-3" role="alert">
+                        <i class="fa fa-info-circle"/>
+                        上傳的工程告示牌照片將自動同步至「照片管理」模組，便於統一管理與查詢。
+                    </div>
+                </page>
+                <page string="工程照片" name="project_photos">
+                    <field name="photo_ids" nolabel="1">
+                        <list>
+                            <field name="shot_date"/>
+                            <field name="description"/>
+                            <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
+                            <field name="latitude" optional="hide"/>
+                            <field name="longitude" optional="hide"/>
+                            <field name="creator_id" optional="hide"/>
+                        </list>
+                    </field>
+                    <div class="alert alert-info mt-3" role="alert">
+                        <i class="fa fa-info-circle"/>
+                        此頁顯示所有關聯到本工程案件的照片（透過 supervision.photo.project_id）。
+                    </div>
+                </page>
+            </xpath>
+            <!-- 在 sheet 底部加「照片數量」smart button -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_photos" type="object"
+                        class="oe_stat_button" icon="fa-camera">
+                    <field name="photo_count" widget="statinfo" string="照片"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

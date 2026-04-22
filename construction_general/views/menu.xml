@@ -5,31 +5,46 @@
          一般式工程選單 (整合至品質安全及計價請款)
          =================================================================== -->
 
-    <!-- 一般式缺失改善 (歸屬於 品質安全 > 缺失管理) -->
-    <menuitem id="menu_general_defect_improvement"
-              name="一般式缺失改善"
+    <!-- 一般式監造缺失改善 (歸屬於 品質安全 > 缺失管理) -->
+    <menuitem id="menu_general_defect_improvement_supervision"
+              name="一般式監造缺失改善"
               parent="construction_supervision_base.menu_defect_management"
-              action="action_general_defect_improvement"
-              sequence="30"/>
+              action="action_general_defect_improvement_supervision"
+              sequence="10"/>
 
-    <menuitem id="menu_general_defect_improvement_overdue"
-              name="一般式逾期缺失"
+    <!-- 一般式營造缺失改善 (歸屬於 品質安全 > 缺失管理) -->
+    <menuitem id="menu_general_defect_improvement_contractor"
+              name="一般式營造缺失改善"
               parent="construction_supervision_base.menu_defect_management"
-              action="action_general_defect_improvement_overdue"
+              action="action_general_defect_improvement_contractor"
+              sequence="11"/>
+
+    <!-- 一般式監造逾期缺失 (歸屬於 品質安全 > 缺失管理) -->
+    <menuitem id="menu_general_defect_improvement_supervision_overdue"
+              name="一般式監造逾期缺失"
+              parent="construction_supervision_base.menu_defect_management"
+              action="action_general_defect_improvement_supervision_overdue"
               sequence="35"/>
+
+    <!-- 一般式營造逾期缺失 (歸屬於 品質安全 > 缺失管理) -->
+    <menuitem id="menu_general_defect_improvement_contractor_overdue"
+              name="一般式營造逾期缺失"
+              parent="construction_supervision_base.menu_defect_management"
+              action="action_general_defect_improvement_contractor_overdue"
+              sequence="36"/>
 
     <!-- 一般式進度報告 (歸屬於 工程管理 > 進度管理) -->
     <menuitem id="menu_general_progress_report"
               name="進度報告"
               parent="construction_supervision_base.menu_schedule_management"
               action="action_general_progress_report"
-              sequence="50"/>
+              sequence="40"/>
 
-    <!-- 即時損益 (歸屬於 計價請款 > 成本分析) -->
+    <!-- 即時損益 Dashboard (歸屬於 計價請款) -->
     <menuitem id="menu_general_realtime_profit"
               name="即時損益"
-              parent="construction_supervision_base.menu_cost_analysis"
-              action="action_general_realtime_profit"
-              sequence="30"/>
+              parent="construction_supervision_base.menu_payment_root"
+              action="action_profit_loss_dashboard"
+              sequence="35"/>
 
 </odoo>

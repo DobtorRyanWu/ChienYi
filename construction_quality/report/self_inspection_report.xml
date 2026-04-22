@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 自主檢查 PDF 報表模板 -->
+
+    <!-- 紙張格式：A4 縱向 -->
+    <record id="paperformat_self_inspection" model="report.paperformat">
+        <field name="name">自主檢查列印格式</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="page_height">0</field>
+        <field name="page_width">0</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">12</field>
+        <field name="margin_bottom">12</field>
+        <field name="margin_left">10</field>
+        <field name="margin_right">10</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">5</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- ===== 一般式自主檢查報表 ===== -->
+    <record id="action_report_general_self_inspection" model="ir.actions.report">
+        <field name="name">一般式自主檢查表</field>
+        <field name="model">general.self.inspection</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">construction_quality.report_general_self_inspection</field>
+        <field name="report_file">construction_quality.report_general_self_inspection</field>
+        <field name="print_report_name">'自主檢查_%s_%s' % (object.name or '', object.inspection_date or '')</field>
+        <field name="binding_model_id" ref="model_general_self_inspection"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_self_inspection"/>
+    </record>
+
+    <!-- 一般式自主檢查模板 -->
+    <template id="report_general_self_inspection">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="inspection">
+                <t t-call="construction_quality.report_general_self_inspection_document"/>
+            </t>
+        </t>
+    </template>
+
+    <!-- 一般式自主檢查文件模板 -->
+    <template id="report_general_self_inspection_document">
+        <t t-call="web.external_layout">
+            <div class="page" style="font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif; font-size: 10pt;">
+
+                <!-- 標題區 -->
+                <div class="text-center mb-3">
+                    <h3 style="font-weight: bold; margin-bottom: 5px;">
+                        <t t-esc="inspection.project_id.company_id.name or '監造單位'"/>
+                    </h3>
+                    <h4 style="font-weight: bold; border-bottom: 2px solid #333; padding-bottom: 8px;">
+                        施工自主檢查表（一般式）
+                    </h4>
+                </div>
+
+                <!-- 基本資訊區 -->
+                <table class="table table-sm table-bordered" style="margin-bottom: 12px;">
+                    <tbody>
+                        <tr>
+                            <td style="width: 15%; background-color: #f5f5f5; font-weight: bold;">檢查編號</td>
+                            <td style="width: 35%;"><t t-esc="inspection.name"/></td>
+                            <td style="width: 15%; background-color: #f5f5f5; font-weight: bold;">檢查日期</td>
+                            <td style="width: 35%;"><t t-esc="inspection.inspection_date" t-options='{"widget": "date"}'/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">工程名稱</td>
+                            <td colspan="3"><t t-esc="inspection.project_id.name"/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">分項工程</td>
+                            <td><t t-esc="inspection.sub_project_name"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">檢查位置</td>
+                            <td><t t-esc="inspection.inspection_location or '-'"/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">檢查類型</td>
+                            <td><t t-esc="inspection.inspection_type_id.name or '-'"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">查驗時機</td>
+                            <td>
+                                <t t-if="inspection.inspection_timing == 'hold_point'">停留點</t>
+                                <t t-elif="inspection.inspection_timing == 'before'">施工前</t>
+                                <t t-elif="inspection.inspection_timing == 'during'">施工中</t>
+                                <t t-elif="inspection.inspection_timing == 'after'">施工後</t>
+                                <t t-else="">-</t>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">承攬廠商</td>
+                            <td><t t-esc="inspection.contractor_name or inspection.contractor_company_id.name or '-'"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">協力廠商</td>
+                            <td><t t-esc="inspection.subcontractor_name or '-'"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- 檢查結果摘要 -->
+                <div class="row mb-3">
+                    <div class="col-4">
+                        <div style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">
+                            <div class="small text-muted">整體結果</div>
+                            <div style="font-size: 14pt; font-weight: bold;">
+                                <t t-if="inspection.overall_result == 'pass'">
+                                    <span style="color: #28a745;">✓ 合格</span>
+                                </t>
+                                <t t-elif="inspection.overall_result == 'conditional_pass'">
+                                    <span style="color: #ffc107;">△ 有條件合格</span>
+                                </t>
+                                <t t-elif="inspection.overall_result == 'fail'">
+                                    <span style="color: #dc3545;">✗ 不合格</span>
+                                </t>
+                                <t t-else="">-</t>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">
+                            <div class="small text-muted">是否有缺失</div>
+                            <div style="font-size: 14pt; font-weight: bold;">
+                                <t t-if="inspection.has_defect">
+                                    <span style="color: #dc3545;">是（<t t-esc="inspection.defect_count"/>項）</span>
+                                </t>
+                                <t t-else="">
+                                    <span style="color: #28a745;">否</span>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">
+                            <div class="small text-muted">檢查狀態</div>
+                            <div style="font-size: 14pt; font-weight: bold;">
+                                <t t-if="inspection.state == 'draft'">草稿</t>
+                                <t t-elif="inspection.state == 'inspected'">已檢查</t>
+                                <t t-elif="inspection.state == 'confirmed'">已確認</t>
+                                <t t-elif="inspection.state == 'closed'">結案</t>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 檢查項目明細 -->
+                <h5 style="font-weight: bold; border-left: 4px solid #007bff; padding-left: 8px; margin: 15px 0 8px 0;">
+                    檢查項目明細（共 <t t-esc="len(inspection.checklist_ids)"/> 項）
+                </h5>
+                <table class="table table-sm table-bordered" style="font-size: 9pt;">
+                    <thead style="background-color: #343a40; color: white;">
+                        <tr>
+                            <th style="width: 5%; text-align: center;">序號</th>
+                            <th style="width: 8%; text-align: center;">階段</th>
+                            <th style="width: 20%; text-align: center;">檢查項目</th>
+                            <th style="width: 22%; text-align: center;">設計標準</th>
+                            <th style="width: 22%; text-align: center;">實際情形</th>
+                            <th style="width: 8%; text-align: center;">成果</th>
+                            <th style="width: 15%; text-align: center;">備註</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="inspection.checklist_ids" t-as="item">
+                            <tr t-att-style="item.check_result == 'defect' and 'background-color: #fff3cd;' or ''">
+                                <td style="text-align: center;"><t t-esc="item.sequence"/></td>
+                                <td style="text-align: center;">
+                                    <t t-if="item.stage == 'stage1'">階段1</t>
+                                    <t t-elif="item.stage == 'stage2'">階段2</t>
+                                    <t t-elif="item.stage == 'stage3'">階段3</t>
+                                    <t t-else="">-</t>
+                                </td>
+                                <td><t t-esc="item.check_item"/></td>
+                                <td style="font-size: 8pt;"><t t-esc="item.design_standard or '-'"/></td>
+                                <td style="font-size: 8pt;"><t t-esc="item.actual_result or '-'"/></td>
+                                <td style="text-align: center;">
+                                    <t t-if="item.check_result == 'pass'">
+                                        <span style="color: #28a745;">✓</span>
+                                    </t>
+                                    <t t-elif="item.check_result == 'defect'">
+                                        <span style="color: #dc3545;">✗</span>
+                                    </t>
+                                    <t t-elif="item.check_result == 'na'">
+                                        <span style="color: #6c757d;">-</span>
+                                    </t>
+                                </td>
+                                <td style="font-size: 8pt;">
+                                    <t t-esc="item.note or ''"/>
+                                    <t t-if="item.defect_id">
+                                        <br/><span class="text-danger">缺失#<t t-esc="item.defect_id.name"/></span>
+                                    </t>
+                                </td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+
+                <!-- 備註區 -->
+                <t t-if="inspection.note">
+                    <h5 style="font-weight: bold; border-left: 4px solid #6c757d; padding-left: 8px; margin: 15px 0 8px 0;">
+                        備註說明
+                    </h5>
+                    <div style="border: 1px solid #dee2e6; padding: 10px; background-color: #fafafa; white-space: pre-wrap;">
+                        <t t-esc="inspection.note"/>
+                    </div>
+                </t>
+
+                <!-- 簽核區 -->
+                <div style="margin-top: 30px; page-break-inside: avoid;">
+                    <table class="table table-bordered" style="margin-bottom: 0;">
+                        <tbody>
+                            <tr style="height: 60px;">
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">填表人（廠商）</div>
+                                    <div><t t-esc="inspection.inspector_id.name or '-'"/></div>
+                                    <div class="small text-muted">日期：<t t-esc="inspection.inspection_date" t-options='{"widget": "date"}'/></div>
+                                </td>
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">監造人員</div>
+                                    <t t-if="inspection.supervisor_id">
+                                        <div><t t-esc="inspection.supervisor_id.name"/></div>
+                                    </t>
+                                    <t t-else="">
+                                        <div style="color: #999;">簽章：</div>
+                                    </t>
+                                </td>
+                                <td style="width: 33%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">狀態</div>
+                                    <div style="font-size: 11pt; font-weight: bold;">
+                                        <t t-if="inspection.state == 'draft'">草稿</t>
+                                        <t t-elif="inspection.state == 'inspected'">已檢查</t>
+                                        <t t-elif="inspection.state == 'confirmed'">已確認</t>
+                                        <t t-elif="inspection.state == 'closed'">結案</t>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 頁尾資訊 -->
+                <div style="margin-top: 15px; font-size: 8pt; color: #666; text-align: center;">
+                    列印日期：<t t-esc="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M')"/>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+    <!-- ===== 預約式自主檢查報表 ===== -->
+    <record id="action_report_reservation_self_inspection" model="ir.actions.report">
+        <field name="name">預約式自主檢查表</field>
+        <field name="model">reservation.self.inspection</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">construction_quality.report_reservation_self_inspection</field>
+        <field name="report_file">construction_quality.report_reservation_self_inspection</field>
+        <field name="print_report_name">'自主檢查_%s_%s' % (object.inspection_no or '', object.inspection_date or '')</field>
+        <field name="binding_model_id" ref="model_reservation_self_inspection"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_self_inspection"/>
+    </record>
+
+    <!-- 預約式自主檢查模板 -->
+    <template id="report_reservation_self_inspection">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="inspection">
+                <t t-call="construction_quality.report_reservation_self_inspection_document"/>
+            </t>
+        </t>
+    </template>
+
+    <!-- 預約式自主檢查文件模板 -->
+    <template id="report_reservation_self_inspection_document">
+        <t t-call="web.external_layout">
+            <div class="page" style="font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif; font-size: 10pt;">
+
+                <!-- 標題區 -->
+                <div class="text-center mb-3">
+                    <h3 style="font-weight: bold; margin-bottom: 5px;">
+                        <t t-esc="inspection.project_id.company_id.name or '監造單位'"/>
+                    </h3>
+                    <h4 style="font-weight: bold; border-bottom: 2px solid #333; padding-bottom: 8px;">
+                        施工自主檢查表（預約式）
+                    </h4>
+                </div>
+
+                <!-- 基本資訊區 -->
+                <table class="table table-sm table-bordered" style="margin-bottom: 12px;">
+                    <tbody>
+                        <tr>
+                            <td style="width: 15%; background-color: #f5f5f5; font-weight: bold;">檢查編號</td>
+                            <td style="width: 35%;"><t t-esc="inspection.inspection_no"/></td>
+                            <td style="width: 15%; background-color: #f5f5f5; font-weight: bold;">檢查日期</td>
+                            <td style="width: 35%;"><t t-esc="inspection.inspection_date" t-options='{"widget": "date"}'/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">工程名稱</td>
+                            <td colspan="3"><t t-esc="inspection.project_id.name"/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">通報單</td>
+                            <td colspan="3">
+                                <t t-esc="inspection.slip_id.name"/> (<t t-esc="inspection.slip_id.slip_number"/>)
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">分項工程</td>
+                            <td><t t-esc="inspection.sub_project_name"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">檢查位置</td>
+                            <td><t t-esc="inspection.inspection_location or '-'"/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">檢查類型</td>
+                            <td><t t-esc="inspection.inspection_type_id.name or '-'"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">查驗時機</td>
+                            <td>
+                                <t t-if="inspection.inspection_timing == 'hold_point'">停留點</t>
+                                <t t-elif="inspection.inspection_timing == 'before'">施工前</t>
+                                <t t-elif="inspection.inspection_timing == 'during'">施工中</t>
+                                <t t-elif="inspection.inspection_timing == 'after'">施工後</t>
+                                <t t-else="">-</t>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">承攬廠商</td>
+                            <td><t t-esc="inspection.contractor_name or '-'"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">協力廠商</td>
+                            <td><t t-esc="inspection.subcontractor_name or '-'"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- 檢查結果摘要 -->
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <div style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">
+                            <div class="small text-muted">是否有缺失</div>
+                            <div style="font-size: 14pt; font-weight: bold;">
+                                <t t-if="inspection.has_defect">
+                                    <span style="color: #dc3545;">是（<t t-esc="inspection.defect_count"/>項）</span>
+                                </t>
+                                <t t-else="">
+                                    <span style="color: #28a745;">否</span>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div style="border: 1px solid #dee2e6; padding: 10px; text-align: center;">
+                            <div class="small text-muted">檢查狀態</div>
+                            <div style="font-size: 14pt; font-weight: bold;">
+                                <t t-if="inspection.state == 'draft'">草稿</t>
+                                <t t-elif="inspection.state == 'inspected'">已檢查</t>
+                                <t t-elif="inspection.state == 'confirmed'">已確認</t>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 檢查項目明細 -->
+                <h5 style="font-weight: bold; border-left: 4px solid #007bff; padding-left: 8px; margin: 15px 0 8px 0;">
+                    檢查項目明細（共 <t t-esc="len(inspection.checklist_ids)"/> 項）
+                </h5>
+                <table class="table table-sm table-bordered" style="font-size: 9pt;">
+                    <thead style="background-color: #343a40; color: white;">
+                        <tr>
+                            <th style="width: 5%; text-align: center;">序號</th>
+                            <th style="width: 8%; text-align: center;">階段</th>
+                            <th style="width: 22%; text-align: center;">檢查項目</th>
+                            <th style="width: 22%; text-align: center;">設計標準</th>
+                            <th style="width: 22%; text-align: center;">實際情形</th>
+                            <th style="width: 8%; text-align: center;">成果</th>
+                            <th style="width: 13%; text-align: center;">備註</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="inspection.checklist_ids" t-as="item">
+                            <tr t-att-style="item.check_result == 'defect' and 'background-color: #fff3cd;' or ''">
+                                <td style="text-align: center;"><t t-esc="item.sequence"/></td>
+                                <td style="text-align: center;">
+                                    <t t-if="item.stage == 'stage1'">階段1</t>
+                                    <t t-elif="item.stage == 'stage2'">階段2</t>
+                                    <t t-elif="item.stage == 'stage3'">階段3</t>
+                                    <t t-else="">-</t>
+                                </td>
+                                <td><t t-esc="item.check_item"/></td>
+                                <td style="font-size: 8pt;"><t t-esc="item.design_standard or '-'"/></td>
+                                <td style="font-size: 8pt;"><t t-esc="item.actual_result or '-'"/></td>
+                                <td style="text-align: center;">
+                                    <t t-if="item.check_result == 'pass'">
+                                        <span style="color: #28a745;">✓</span>
+                                    </t>
+                                    <t t-elif="item.check_result == 'defect'">
+                                        <span style="color: #dc3545;">✗</span>
+                                    </t>
+                                    <t t-elif="item.check_result == 'na'">
+                                        <span style="color: #6c757d;">-</span>
+                                    </t>
+                                </td>
+                                <td style="font-size: 8pt;"><t t-esc="item.note or '-'"/></td>
+                            </tr>
+                        </t>
+                    </tbody>
+                </table>
+
+                <!-- 備註區 -->
+                <t t-if="inspection.note">
+                    <h5 style="font-weight: bold; border-left: 4px solid #6c757d; padding-left: 8px; margin: 15px 0 8px 0;">
+                        備註說明
+                    </h5>
+                    <div style="border: 1px solid #dee2e6; padding: 10px; background-color: #fafafa; white-space: pre-wrap;">
+                        <t t-esc="inspection.note"/>
+                    </div>
+                </t>
+
+                <!-- 簽核區 -->
+                <div style="margin-top: 30px; page-break-inside: avoid;">
+                    <table class="table table-bordered" style="margin-bottom: 0;">
+                        <tbody>
+                            <tr style="height: 60px;">
+                                <td style="width: 50%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">填表人（廠商）</div>
+                                    <div><t t-esc="inspection.inspector_id.name or '-'"/></div>
+                                    <div class="small text-muted">日期：<t t-esc="inspection.inspection_date" t-options='{"widget": "date"}'/></div>
+                                </td>
+                                <td style="width: 50%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">狀態</div>
+                                    <div style="font-size: 11pt; font-weight: bold;">
+                                        <t t-if="inspection.state == 'draft'">草稿</t>
+                                        <t t-elif="inspection.state == 'inspected'">已檢查</t>
+                                        <t t-elif="inspection.state == 'confirmed'">已確認</t>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 頁尾資訊 -->
+                <div style="margin-top: 15px; font-size: 8pt; color: #666; text-align: center;">
+                    列印日期：<t t-esc="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M')"/>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+</odoo>

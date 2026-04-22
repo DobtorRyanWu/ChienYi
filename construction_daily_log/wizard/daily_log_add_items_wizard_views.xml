@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo>
+
+    <!-- ===================================================================
+         新增施工項目 Wizard
+         =================================================================== -->
+
+    <record id="daily_log_add_items_wizard_form" model="ir.ui.view">
+        <field name="name">daily.log.add.items.wizard.form</field>
+        <field name="model">daily.log.add.items.wizard</field>
+        <field name="arch" type="xml">
+            <form string="新增施工項目">
+                <!-- 基本資訊 -->
+                <group>
+                    <group>
+                        <field name="sheet_id" invisible="1"/>
+                        <field name="project_id" readonly="1"/>
+                        <field name="log_date" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="available_item_count" readonly="1"/>
+                    </group>
+                </group>
+
+                <!-- 分頁 -->
+                <notebook>
+                    <page string="選擇工項" name="select_items">
+                        <!-- 工項列表（可勾選） -->
+                        <field name="line_ids" nolabel="1">
+                            <list editable="bottom" create="false" delete="false">
+                                <field name="selected" nolabel="1" width="40px"/>
+                                <field name="name" string="施工項目" readonly="1"/>
+                                <field name="parent_id" string="父工項" readonly="1" optional="show"/>
+                                <field name="item_no" string="工項編號" readonly="1"/>
+                                <field name="unit" string="單位" readonly="1"/>
+                                <field name="planned_qty" string="契約數量" readonly="1" digits="[16, 4]"/>
+                                <field name="construction_notes" string="備註" readonly="1" optional="show"/>
+                                <field name="task_id" column_invisible="1" force_save="1"/>
+                            </list>
+                        </field>
+                    </page>
+
+                    <page string="已有工項" name="existing_items">
+                        <field name="existing_line_ids" nolabel="1">
+                            <list create="false" edit="false" default_order="work_item_sequence">
+                                <field name="item_name" string="施工項目"/>
+                                <field name="parent_item_name" string="父工項"/>
+                                <field name="item_no" string="工項編號"/>
+                                <field name="unit" string="單位"/>
+                                <field name="contract_qty" string="契約數量" digits="[16, 4]"/>
+                                <field name="daily_qty" string="本日完成數量" digits="[16, 4]"/>
+                                <button name="action_remove_from_sheet"
+                                        type="object"
+                                        string="移除"
+                                        class="btn-link text-danger"
+                                        icon="fa-trash"
+                                        confirm="確定要移除此工項嗎？"/>
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+
+                <!-- 底部按鈕 -->
+                <footer>
+                    <button string="新增選取工項" type="object"
+                            name="action_add_selected"
+                            class="btn-primary"
+                            invisible="available_item_count == 0"/>
+                    <button string="全部新增" type="object"
+                            name="action_add_all"
+                            class="btn-secondary"
+                            invisible="available_item_count == 0"/>
+                    <button string="關閉" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 移除工項後重新開啟用（預設顯示「已有工項」分頁） -->
+    <record id="daily_log_add_items_wizard_form_existing" model="ir.ui.view">
+        <field name="name">daily.log.add.items.wizard.form.existing</field>
+        <field name="model">daily.log.add.items.wizard</field>
+        <field name="arch" type="xml">
+            <form string="新增施工項目">
+                <group>
+                    <group>
+                        <field name="sheet_id" invisible="1"/>
+                        <field name="project_id" readonly="1"/>
+                        <field name="log_date" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="available_item_count" readonly="1"/>
+                    </group>
+                </group>
+
+                <notebook>
+                    <page string="選擇工項" name="select_items">
+                        <field name="line_ids" nolabel="1">
+                            <list editable="bottom" create="false" delete="false">
+                                <field name="selected" nolabel="1" width="40px"/>
+                                <field name="name" string="施工項目" readonly="1"/>
+                                <field name="parent_id" string="父工項" readonly="1" optional="show"/>
+                                <field name="item_no" string="工項編號" readonly="1"/>
+                                <field name="unit" string="單位" readonly="1"/>
+                                <field name="planned_qty" string="契約數量" readonly="1" digits="[16, 4]"/>
+                                <field name="construction_notes" string="備註" readonly="1" optional="show"/>
+                                <field name="task_id" column_invisible="1" force_save="1"/>
+                            </list>
+                        </field>
+                    </page>
+
+                    <page string="已有工項" name="existing_items" autofocus="autofocus">
+                        <field name="existing_line_ids" nolabel="1">
+                            <list create="false" edit="false" default_order="work_item_sequence">
+                                <field name="item_name" string="施工項目"/>
+                                <field name="parent_item_name" string="父工項"/>
+                                <field name="item_no" string="工項編號"/>
+                                <field name="unit" string="單位"/>
+                                <field name="contract_qty" string="契約數量" digits="[16, 4]"/>
+                                <field name="daily_qty" string="本日完成數量" digits="[16, 4]"/>
+                                <button name="action_remove_from_sheet"
+                                        type="object"
+                                        string="移除"
+                                        class="btn-link text-danger"
+                                        icon="fa-trash"
+                                        confirm="確定要移除此工項嗎？"/>
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+
+                <footer>
+                    <button string="新增選取工項" type="object"
+                            name="action_add_selected"
+                            class="btn-primary"
+                            invisible="available_item_count == 0"/>
+                    <button string="全部新增" type="object"
+                            name="action_add_all"
+                            class="btn-secondary"
+                            invisible="available_item_count == 0"/>
+                    <button string="關閉" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

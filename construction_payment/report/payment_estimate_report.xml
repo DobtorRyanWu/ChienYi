@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 估驗計價 PDF 報表模板 -->
+
+    <!-- 紙張格式：A4 橫向（明細較多適合橫式） -->
+    <record id="paperformat_payment_estimate" model="report.paperformat">
+        <field name="name">估驗計價列印格式</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="page_height">0</field>
+        <field name="page_width">0</field>
+        <field name="orientation">Landscape</field>
+        <field name="margin_top">12</field>
+        <field name="margin_bottom">12</field>
+        <field name="margin_left">8</field>
+        <field name="margin_right">8</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">5</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- 報表動作定義 -->
+    <record id="action_report_payment_estimate" model="ir.actions.report">
+        <field name="name">估驗計價表</field>
+        <field name="model">payment.estimate</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">construction_payment.report_payment_estimate</field>
+        <field name="report_file">construction_payment.report_payment_estimate</field>
+        <field name="print_report_name">'估驗計價_%s_第%s期' % (object.project_id.name or '', object.estimate_no or '')</field>
+        <field name="binding_model_id" ref="model_payment_estimate"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="paperformat_payment_estimate"/>
+    </record>
+
+    <!-- QWeb 報表模板 -->
+    <template id="report_payment_estimate">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="estimate">
+                <t t-call="construction_payment.report_payment_estimate_document"/>
+            </t>
+        </t>
+    </template>
+
+    <!-- 單一估驗計價文件模板 -->
+    <template id="report_payment_estimate_document">
+        <t t-call="web.external_layout">
+            <div class="page" style="font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif; font-size: 10pt;">
+
+                <!-- ===== 標題區 ===== -->
+                <div class="text-center mb-3">
+                    <h3 style="font-weight: bold; margin-bottom: 5px;">
+                        <t t-esc="estimate.project_id.company_id.name or '監造單位'"/>
+                    </h3>
+                    <h4 style="font-weight: bold; border-bottom: 2px solid #333; padding-bottom: 8px;">
+                        工程估驗計價表 - 第 <t t-esc="estimate.estimate_no"/> 期
+                        <t t-if="estimate.is_final">
+                            <span style="color: #dc3545;">（尾款）</span>
+                        </t>
+                    </h4>
+                </div>
+
+                <!-- ===== 基本資訊區 ===== -->
+                <table class="table table-sm table-bordered" style="margin-bottom: 12px; font-size: 9pt;">
+                    <tbody>
+                        <tr>
+                            <td style="width: 12%; background-color: #f5f5f5; font-weight: bold;">工程名稱</td>
+                            <td style="width: 38%;" colspan="2"><t t-esc="estimate.project_id.name"/></td>
+                            <td style="width: 12%; background-color: #f5f5f5; font-weight: bold;">計價期次</td>
+                            <td style="width: 38%;">第 <t t-esc="estimate.estimate_no"/> 期</td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">業主機關</td>
+                            <td><t t-esc="estimate.project_id.authority_id.name or '-'"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">監造單位</td>
+                            <td colspan="2"><t t-esc="estimate.project_id.company_id.name or '-'"/></td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">承包廠商</td>
+                            <td><t t-esc="estimate.company_id.name or '-'"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">計價期間</td>
+                            <td colspan="2">
+                                <t t-if="estimate.period_start">
+                                    <t t-esc="estimate.period_start" t-options='{"widget": "date"}'/>
+                                </t>
+                                <t t-else="">-</t>
+                                &#160;~&#160;
+                                <t t-if="estimate.period_end">
+                                    <t t-esc="estimate.period_end" t-options='{"widget": "date"}'/>
+                                </t>
+                                <t t-else="">-</t>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">契約總價</td>
+                            <td>NT$ <t t-esc="'{:,.0f}'.format(estimate.contract_total or 0)"/></td>
+                            <td style="background-color: #f5f5f5; font-weight: bold;">估驗進度</td>
+                            <td colspan="2">
+                                <t t-esc="'{:.2f}'.format(estimate.completion_rate or 0)"/> %
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- ===== 工項明細表 ===== -->
+                <h5 style="font-weight: bold; border-left: 4px solid #007bff; padding-left: 8px; margin: 15px 0 8px 0; font-size: 10pt;">
+                    估驗明細（共 <t t-esc="len(estimate.line_ids)"/> 項）
+                </h5>
+                <table class="table table-sm table-bordered" style="font-size: 8pt;">
+                    <thead style="background-color: #343a40; color: white;">
+                        <tr>
+                            <th rowspan="2" style="width: 5%; text-align: center; vertical-align: middle;">項次</th>
+                            <th rowspan="2" style="width: 18%; text-align: center; vertical-align: middle;">工項名稱</th>
+                            <th rowspan="2" style="width: 5%; text-align: center; vertical-align: middle;">單位</th>
+                            <th colspan="3" style="text-align: center; background-color: #495057;">契約</th>
+                            <th colspan="3" style="text-align: center; background-color: #17a2b8;">數量完成</th>
+                            <th colspan="2" style="text-align: center; background-color: #28a745;">金額</th>
+                            <th rowspan="2" style="width: 6%; text-align: center; vertical-align: middle;">進度%</th>
+                        </tr>
+                        <tr>
+                            <th style="width: 7%; text-align: center;">數量</th>
+                            <th style="width: 7%; text-align: center;">單價</th>
+                            <th style="width: 8%; text-align: center;">金額</th>
+                            <th style="width: 6%; text-align: center;">前期</th>
+                            <th style="width: 6%; text-align: center;">本期</th>
+                            <th style="width: 6%; text-align: center;">累計</th>
+                            <th style="width: 8%; text-align: center;">本期</th>
+                            <th style="width: 8%; text-align: center;">累計</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="estimate.line_ids" t-as="line">
+                            <tr t-att-style="line.over_budget and 'background-color: #fff3cd;' or ''">
+                                <td style="text-align: center;"><t t-esc="line.item_no or '-'"/></td>
+                                <td>
+                                    <t t-esc="line.description or line.task_id.name"/>
+                                    <t t-if="line.over_budget">
+                                        <span style="color: #dc3545; font-size: 7pt;">&#160;(超出)</span>
+                                    </t>
+                                </td>
+                                <td style="text-align: center;"><t t-esc="line.unit or '-'"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.planned_qty or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.unit_price or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.planned_amount or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.previous_qty or 0)"/></td>
+                                <td style="text-align: right; font-weight: bold;"><t t-esc="'{:,.2f}'.format(line.current_qty or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.cumulative_qty or 0)"/></td>
+                                <td style="text-align: right; font-weight: bold;"><t t-esc="'{:,.0f}'.format(line.current_amount or 0)"/></td>
+                                <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.cumulative_amount or 0)"/></td>
+                                <td style="text-align: center;">
+                                    <t t-set="rate" t-value="line.completion_rate or 0"/>
+                                    <span t-attf-style="color: #{rate >= 100 and '#28a745' or (rate >= 50 and '#ffc107' or '#dc3545')};">
+                                        <t t-esc="'{:.1f}'.format(rate)"/>%
+                                    </span>
+                                </td>
+                            </tr>
+                        </t>
+                        <!-- 合計列 -->
+                        <tr style="background-color: #e9ecef; font-weight: bold;">
+                            <td colspan="5" style="text-align: right;">合計</td>
+                            <td style="text-align: right;">
+                                <t t-esc="'{:,.0f}'.format(sum(estimate.line_ids.mapped('planned_amount')))"/>
+                            </td>
+                            <td colspan="2"></td>
+                            <td></td>
+                            <td style="text-align: right;">
+                                NT$ <t t-esc="'{:,.0f}'.format(estimate.subtotal or 0)"/>
+                            </td>
+                            <td style="text-align: right;">
+                                NT$ <t t-esc="'{:,.0f}'.format(estimate.cumulative_amount or 0)"/>
+                            </td>
+                            <td style="text-align: center;">
+                                <t t-esc="'{:.1f}'.format(estimate.completion_rate or 0)"/>%
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- ===== 金額彙總區 ===== -->
+                <div class="row" style="margin-top: 15px;">
+                    <div class="col-6">
+                        <h5 style="font-weight: bold; border-left: 4px solid #28a745; padding-left: 8px; font-size: 10pt;">
+                            本期金額彙總
+                        </h5>
+                        <table class="table table-sm table-bordered" style="font-size: 9pt;">
+                            <tbody>
+                                <tr>
+                                    <td style="width: 50%; background-color: #f5f5f5;">本期估驗金額</td>
+                                    <td style="text-align: right; font-weight: bold;">
+                                        NT$ <t t-esc="'{:,.0f}'.format(estimate.subtotal or 0)"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="background-color: #f5f5f5;">
+                                        保留款（<t t-esc="'{:.1f}'.format(estimate.retention_rate or 0)"/>%）
+                                    </td>
+                                    <td style="text-align: right; color: #dc3545;">
+                                        -NT$ <t t-esc="'{:,.0f}'.format(estimate.retention or 0)"/>
+                                    </td>
+                                </tr>
+                                <tr style="background-color: #d4edda;">
+                                    <td style="font-weight: bold;">應付金額</td>
+                                    <td style="text-align: right; font-weight: bold; font-size: 11pt;">
+                                        NT$ <t t-esc="'{:,.0f}'.format(estimate.payable_amount or 0)"/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-6">
+                        <h5 style="font-weight: bold; border-left: 4px solid #17a2b8; padding-left: 8px; font-size: 10pt;">
+                            累計進度
+                        </h5>
+                        <table class="table table-sm table-bordered" style="font-size: 9pt;">
+                            <tbody>
+                                <tr>
+                                    <td style="width: 50%; background-color: #f5f5f5;">契約總價</td>
+                                    <td style="text-align: right;">
+                                        NT$ <t t-esc="'{:,.0f}'.format(estimate.contract_total or 0)"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="background-color: #f5f5f5;">累計估驗金額</td>
+                                    <td style="text-align: right;">
+                                        NT$ <t t-esc="'{:,.0f}'.format(estimate.cumulative_amount or 0)"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="background-color: #f5f5f5;">剩餘額度</td>
+                                    <td style="text-align: right;">
+                                        <t t-set="remaining" t-value="(estimate.contract_total or 0) - (estimate.cumulative_amount or 0)"/>
+                                        NT$ <t t-esc="'{:,.0f}'.format(remaining)"/>
+                                    </td>
+                                </tr>
+                                <tr style="background-color: #cce5ff;">
+                                    <td style="font-weight: bold;">估驗進度</td>
+                                    <td style="text-align: right; font-weight: bold; font-size: 11pt;">
+                                        <t t-esc="'{:.2f}'.format(estimate.completion_rate or 0)"/> %
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ===== 審查意見區 ===== -->
+                <t t-if="estimate.review_comment">
+                    <h5 style="font-weight: bold; border-left: 4px solid #ffc107; padding-left: 8px; margin-top: 15px; font-size: 10pt;">
+                        審查意見
+                    </h5>
+                    <div style="border: 1px solid #dee2e6; padding: 10px; background-color: #fafafa; white-space: pre-wrap; font-size: 9pt;">
+                        <t t-esc="estimate.review_comment"/>
+                    </div>
+                </t>
+
+                <!-- ===== 簽核區 ===== -->
+                <div style="margin-top: 30px; page-break-inside: avoid;">
+                    <table class="table table-bordered" style="margin-bottom: 0; font-size: 9pt;">
+                        <tbody>
+                            <tr style="height: 70px;">
+                                <td style="width: 25%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">提送（廠商）</div>
+                                    <t t-if="estimate.submitter_id">
+                                        <div><t t-esc="estimate.submitter_id.name"/></div>
+                                        <div class="text-muted">
+                                            <t t-esc="estimate.submit_date" t-options='{"widget": "date"}'/>
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                        <div style="color: #999;">簽章：</div>
+                                        <div style="color: #999; margin-top: 25px;">日期：</div>
+                                    </t>
+                                </td>
+                                <td style="width: 25%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">審查（監造）</div>
+                                    <t t-if="estimate.reviewer_id">
+                                        <div><t t-esc="estimate.reviewer_id.name"/></div>
+                                        <div class="text-muted">
+                                            <t t-esc="estimate.review_date" t-options='{"widget": "date"}'/>
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                        <div style="color: #999;">簽章：</div>
+                                        <div style="color: #999; margin-top: 25px;">日期：</div>
+                                    </t>
+                                </td>
+                                <td style="width: 25%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">核定（業主）</div>
+                                    <t t-if="estimate.approver_id">
+                                        <div><t t-esc="estimate.approver_id.name"/></div>
+                                        <div class="text-muted">
+                                            <t t-esc="estimate.approve_date" t-options='{"widget": "date"}'/>
+                                        </div>
+                                    </t>
+                                    <t t-else="">
+                                        <div style="color: #999;">簽章：</div>
+                                        <div style="color: #999; margin-top: 25px;">日期：</div>
+                                    </t>
+                                </td>
+                                <td style="width: 25%; background-color: #f5f5f5; vertical-align: top; padding: 8px;">
+                                    <div style="font-weight: bold; margin-bottom: 3px;">狀態</div>
+                                    <div style="font-size: 12pt; font-weight: bold;">
+                                        <t t-esc="dict(estimate._fields['state'].selection).get(estimate.state, estimate.state)"/>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ===== 頁尾資訊 ===== -->
+                <div style="margin-top: 15px; font-size: 8pt; color: #666; text-align: center;">
+                    列印日期：<t t-esc="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d %H:%M')"/>
+                    &#160;&#160;|&#160;&#160;
+                    估驗單號：<t t-esc="estimate.name"/>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+</odoo>

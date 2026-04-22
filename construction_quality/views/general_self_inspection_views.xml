@@ -73,13 +73,14 @@
                     </div>
                     <group>
                         <group string="工程資訊">
-                            <field name="project_id"/>
-                            <field name="task_id"/>
+                            <field name="project_id" options="{'no_create': True, 'no_open': True}"/>
                             <field name="company_id" invisible="1"/>
                         </group>
                         <group string="檢查資訊">
-                            <field name="inspection_type_id"/>
-                            <field name="sub_project_name"/>
+                            <field name="inspection_type_id"
+                                   options="{'no_create': True, 'no_open': True}"
+                                   domain="[('project_id', '=', project_id)]"/>
+                            <field name="sub_project_name" required="1"/>
                             <field name="inspection_date"/>
                             <field name="inspection_timing"/>
                             <field name="inspection_location"/>
@@ -93,7 +94,6 @@
                         </group>
                         <group string="人員資訊">
                             <field name="inspector_id"/>
-                            <field name="supervisor_id"/>
                         </group>
                     </group>
                     <notebook>
@@ -101,18 +101,19 @@
                             <field name="checklist_ids">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="stage"/>
-                                    <field name="check_item"/>
-                                    <field name="design_standard"/>
-                                    <field name="actual_result"/>
+                                    <field name="stage" optional="show"/>
+                                    <field name="type_item_id" optional="show"/>
+                                    <field name="design_standard" optional="show"/>
+                                    <field name="actual_result" optional="show"/>
                                     <field name="check_result"
+                                           required="1"
                                            decoration-success="check_result == 'pass'"
                                            decoration-danger="check_result == 'defect'"
-                                           decoration-muted="check_result == 'na'"
-                                           widget="badge"/>
+                                           decoration-muted="check_result == 'na'"/>
                                     <field name="defect_id"
-                                           invisible="check_result != 'defect'"/>
-                                    <field name="note"/>
+                                           optional="hide"
+                                           column_invisible="parent.state == 'closed'"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                         </page>
@@ -129,7 +130,7 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="附件" name="attachments">
+                        <page string="照片與附件" name="attachments">
                             <group>
                                 <field name="photo_ids" widget="many2many_binary"
                                        string="檢查照片"/>

@@ -44,18 +44,29 @@
     'license': 'LGPL-3',
     'depends': [
         'construction_supervision_base',
+        'construction_daily_log',
         'mail',
     ],
     'data': [
         # Security
-        'security/security.xml',
+        # 注意：ir.model.access.csv 必須先載入，才能刪除舊群組
         'security/ir.model.access.csv',
+        'security/security.xml',
         # Data
         'data/ir_sequence_data.xml',
+        'data/ir_cron_data.xml',  # 定期任務
+        'data/mail_activity_data.xml',  # 活動類型
+        'data/formula_template_data.xml',  # 公式範本預建資料
+        # Wizard
+        'wizard/check_test_requirement_wizard_views.xml',
+        'wizard/apply_formula_template_wizard_views.xml',
         # Views
-        'views/test_standard_views.xml',
-        'views/test_record_views.xml',
-        'views/menu.xml',
+        'views/test_formula_template_views.xml',  # 公式範本庫
+        'views/test_standard_views.xml',  # 定義 action_test_standard
+        'views/test_record_views.xml',    # 定義 action_test_record
+        'views/test_warning_views.xml',   # 定義 action_test_warning（預警通知）
+        'views/menu.xml',                 # 定義 menu_test_management_root，參照上述 actions
+        'views/test_task_statistics_views.xml',  # 參照 menu_test_management_root
     ],
     'demo': [],
     'installable': True,

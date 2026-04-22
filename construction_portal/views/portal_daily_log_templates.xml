@@ -1,0 +1,793 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================
+         施工日誌列表 /my/construction/<pid>/daily-logs
+         ============================================ -->
+    <template id="portal_construction_daily_logs" name="Construction Daily Logs">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <span class="cy-breadcrumb-item active">施工日誌</span>
+                </div>
+
+                <div class="cy-content">
+                    <!-- 批次匯入入口 -->
+                    <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+                        <a t-attf-href="/my/construction/#{project.id}/daily-logs/import"
+                           class="cy-btn"
+                           style="padding: 6px 14px; border: 1px solid var(--wb-blue); color: var(--wb-blue); font-weight: 700; font-size: 0.85rem; border-radius: 8px; text-decoration: none;">
+                            <i class="fa fa-upload"/> 批次匯入 XLSM
+                        </a>
+                    </div>
+
+                    <!-- Alert：本週目標（藍，預設收合）-->
+                    <t t-if="week_target">
+                        <div class="cy-alert-box blue">
+                            <div class="cy-alert-box-title blue"
+                                 style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;"
+                                 data-collapse-toggle="alert_weekly_goal">
+                                <span>📋 本週施工目標</span>
+                                <i class="fa fa-chevron-down" style="font-size: 0.8rem;"/>
+                            </div>
+                            <div id="alert_weekly_goal" style="display: none;">
+                                <div style="font-size: 0.9rem; color: var(--wb-t1); line-height: 1.6;">
+                                    <t t-esc="week_target"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- Alert：待處理缺失（紅，預設收合）-->
+                    <t t-if="open_defects">
+                        <div class="cy-alert-box red">
+                            <div class="cy-alert-box-title red"
+                                 style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;"
+                                 data-collapse-toggle="alert_open_defects">
+                                <span>⚠ 待處理缺失 <t t-esc="len(open_defects)"/> 件</span>
+                                <i class="fa fa-chevron-down" style="font-size: 0.8rem;"/>
+                            </div>
+                            <div id="alert_open_defects" style="display: none;">
+                                <t t-foreach="open_defects" t-as="od">
+                                    <div style="font-size: 0.9rem; color: var(--wb-t1); padding: 8px 0; border-bottom: 1px solid var(--wb-bdr);">
+                                        <t t-esc="od.name"/> <t t-esc="od.description or ''"/>
+                                        — <t t-if="od.is_overdue">逾期<t t-esc="od.overdue_days"/>天</t>
+                                        <t t-else="">期限<t t-esc="od.deadline or ''"/></t>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- Alert：待完成檢查（琥珀，預設收合）-->
+                    <t t-if="draft_inspections">
+                        <div class="cy-alert-box amber">
+                            <div class="cy-alert-box-title amber"
+                                 style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;"
+                                 data-collapse-toggle="alert_draft_inspections">
+                                <span>🔍 待完成檢查 <t t-esc="len(draft_inspections)"/> 件</span>
+                                <i class="fa fa-chevron-down" style="font-size: 0.8rem;"/>
+                            </div>
+                            <div id="alert_draft_inspections" style="display: none;">
+                                <t t-foreach="draft_inspections" t-as="di">
+                                    <div style="font-size: 0.9rem; color: var(--wb-t1); padding: 8px 0;">
+                                        <t t-esc="di.inspection_type_id.name or di.name"/> — <t t-esc="di.inspection_location or ''"/>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 本週施工日誌標題 -->
+                    <div class="cy-sec-divider"><span>本週施工日誌</span></div>
+                    <div style="text-align: center; font-size: 0.9rem; color: var(--wb-t2); margin-bottom: 14px;">
+                        <t t-esc="week_range"/>
+                    </div>
+
+                    <!-- 日曆式日卡（本週 7 天）-->
+                    <t t-if="log_days">
+                        <t t-foreach="log_days" t-as="day">
+                            <a t-attf-href="#{day['status'] != 'off' and '/my/construction/' + str(project.id) + '/daily-log/new?date=' + day['date_full'] or '#'}"
+                               class="cy-log-day-card" t-att-data-status="day['status']"
+                               style="text-decoration: none; color: inherit; display: block;">
+                                <div class="cy-log-day-card-header">
+                                    <div class="cy-log-day-card-date">
+                                        <strong><t t-esc="day['date']"/></strong>
+                                        <span>(<t t-esc="day['weekday']"/>)</span>
+                                    </div>
+                                    <t t-if="day['status'] == 'filled'">
+                                        <span class="cy-log-day-badge filled">✓ 已填 · <t t-esc="day['weather']"/></span>
+                                    </t>
+                                    <t t-elif="day['status'] == 'empty'">
+                                        <span class="cy-log-day-badge empty">待填寫</span>
+                                    </t>
+                                    <t t-elif="day['status'] == 'today'">
+                                        <span class="cy-log-day-badge today">今天</span>
+                                    </t>
+                                    <t t-elif="day['status'] == 'off'">
+                                        <span class="cy-log-day-badge off">休息日</span>
+                                    </t>
+                                </div>
+                            </a>
+                        </t>
+                    </t>
+
+                    <!-- 歷史日誌列表（分頁）-->
+                    <t t-if="logs">
+                        <div class="cy-sec-divider"><span>歷史日誌</span></div>
+                        <t t-foreach="logs" t-as="log">
+                            <a t-attf-href="/my/construction/#{project.id}/daily-log/#{log.id}"
+                               class="cy-task-row" style="text-decoration: none; color: inherit;">
+                                <div style="min-width: 50px; text-align: center;">
+                                    <div style="font-size: 1.5rem; font-weight: 800; color: var(--wb-t1); line-height: 1;">
+                                        <t t-esc="log.log_date.day"/>
+                                    </div>
+                                    <div style="font-size: 0.7rem; color: var(--wb-t3);">
+                                        <t t-esc="'%02d/%02d' % (log.log_date.month, log.log_date.year % 100)"/>
+                                    </div>
+                                </div>
+                                <div class="cy-task-info">
+                                    <div class="cy-task-name">
+                                        <t t-esc="log.name or ('日誌 ' + str(log.log_date))"/>
+                                    </div>
+                                    <div class="cy-task-sub">
+                                        <t t-if="log.weather_am">
+                                            <t t-esc="dict(log._fields['weather_am'].selection).get(log.weather_am, '')"/>
+                                        </t>
+                                        <t t-if="log.line_ids">
+                                            · <t t-esc="len(log.line_ids)"/> 項工項
+                                        </t>
+                                    </div>
+                                </div>
+                                <span t-attf-class="cy-badge cy-badge-#{log.state == 'draft' and 'draft' or log.state == 'filled' and 'construction' or 'closed'}">
+                                    <t t-esc="dict(log._fields['state'].selection).get(log.state, log.state)"/>
+                                </span>
+                            </a>
+                        </t>
+
+                        <div class="d-flex justify-content-center mt-3">
+                            <t t-call="portal.pager"/>
+                        </div>
+                    </t>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         施工日誌詳情 /my/construction/<pid>/daily-log/<lid>
+         ============================================ -->
+    <template id="portal_construction_daily_log_detail" name="Daily Log Detail">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">日誌</a>
+                    <span class="cy-breadcrumb-item active"><t t-esc="log.log_date"/></span>
+                </div>
+
+                <div class="cy-content">
+                    <t t-if="request.params.get('message') == 'created'">
+                        <div class="cy-event-card cy-event-info" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-green);"><i class="fa fa-check-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title" style="color: var(--wb-green);">日誌建立成功</div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <t t-if="log.is_locked">
+                        <div class="cy-event-card cy-event-warn" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-amber);"><i class="fa fa-lock"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title" style="color: var(--wb-amber);">此日誌已鎖定</div>
+                                <div class="cy-event-desc">超過 14 天自動鎖定，無法編輯</div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <div>
+                            <h4 style="font-weight: 700; margin: 0;"><t t-esc="log.log_date"/></h4>
+                            <div style="font-size: 0.85rem; color: var(--wb-t3);"><t t-esc="log.name or ''"/></div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <a t-if="not log.is_locked"
+                               t-attf-href="/my/construction/#{project.id}/daily-log/#{log.id}/edit"
+                               class="cy-btn cy-btn-outline"
+                               style="font-size: 0.8rem; padding: 6px 12px; min-height: 32px;">
+                                <i class="fa fa-pen"/> 編輯
+                            </a>
+                            <span t-attf-class="cy-badge cy-badge-#{log.state == 'draft' and 'draft' or log.state == 'filled' and 'construction' or 'closed'}">
+                                <t t-esc="dict(log._fields['state'].selection).get(log.state, log.state)"/>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="cy-section-title">天氣</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">上午</span>
+                            <span class="cy-info-value"><t t-esc="weather_selection.get(log.weather_am, '-')"/></span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">下午</span>
+                            <span class="cy-info-value"><t t-esc="weather_selection.get(log.weather_pm, '-')"/></span>
+                        </div>
+                    </div>
+
+                    <div class="cy-section-title">工期</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">累計工期</span>
+                            <span class="cy-info-value"><t t-esc="log.cumulative_duration"/> 日</span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">剩餘工期</span>
+                            <span class="cy-info-value"><t t-esc="log.remaining_duration"/> 日</span>
+                        </div>
+                    </div>
+
+                    <t t-if="log.line_ids">
+                        <div class="cy-section-title">施工項目</div>
+                        <t t-foreach="log.line_ids" t-as="line">
+                            <div class="cy-card">
+                                <div class="cy-card-body">
+                                    <div style="font-weight: 700; margin-bottom: 6px;">
+                                        <t t-if="line.item_no"><span style="color: var(--wb-t3); font-size: 0.8rem;">[<t t-esc="line.item_no"/>] </span></t>
+                                        <t t-esc="line.item_name or line.work_item_id.name"/>
+                                    </div>
+                                    <div style="display: flex; gap: 16px; font-size: 0.85rem; margin-bottom: 6px; flex-wrap: wrap;">
+                                        <span>今日：<strong><t t-esc="line.daily_qty"/> <t t-esc="line.unit or ''"/></strong></span>
+                                        <span>累計：<strong><t t-esc="line.cumulative_qty"/></strong></span>
+                                        <span>契約：<strong><t t-esc="line.contract_qty"/></strong></span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                        <div class="cy-progress-bar" style="flex: 1;">
+                                            <div class="cy-progress-fill" t-attf-style="width: #{min(line.completion_rate, 100)}%;"/>
+                                        </div>
+                                        <span style="font-size: 0.85rem; font-weight: 700; color: var(--wb-amber); min-width: 45px; text-align: right;">
+                                            <t t-esc="'%.1f' % line.completion_rate"/>%
+                                        </span>
+                                    </div>
+                                    <t t-if="line.is_over_contract">
+                                        <div style="background: rgba(232,54,79,0.08); border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; color: var(--wb-red); font-weight: 600;">
+                                            ⚠️ 超出契約數量
+                                        </div>
+                                    </t>
+                                    <t t-if="line.location">
+                                        <div style="font-size: 0.85rem; color: var(--wb-t2); margin-top: 4px;">📍 <t t-esc="line.location"/></div>
+                                    </t>
+                                    <t t-if="line.work_description">
+                                        <div style="font-size: 0.85rem; color: var(--wb-t2); margin-top: 4px;"><t t-esc="line.work_description"/></div>
+                                    </t>
+                                    <t t-if="line.has_issue">
+                                        <div style="background: rgba(232,54,79,0.08); border-radius: 6px; padding: 8px 10px; margin-top: 6px;">
+                                            <div style="font-size: 0.8rem; font-weight: 700; color: var(--wb-red); margin-bottom: 2px;">🚨 問題回報</div>
+                                            <div style="font-size: 0.85rem; color: var(--wb-t1);"><t t-esc="line.issue_description or '無說明'"/></div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+
+                    <t t-if="log.material_ids">
+                        <div class="cy-section-title">工地材料</div>
+                        <t t-foreach="log.material_ids" t-as="mat">
+                            <div class="cy-card">
+                                <div class="cy-card-body">
+                                    <div style="font-weight: 700; margin-bottom: 6px;">
+                                        <t t-esc="mat.name"/>
+                                    </div>
+                                    <div style="display: flex; gap: 16px; font-size: 0.85rem; flex-wrap: wrap;">
+                                        <span>本日：<strong><t t-esc="mat.daily_qty"/> <t t-esc="mat.unit or ''"/></strong></span>
+                                        <span>累計：<strong><t t-esc="mat.cumulative_qty"/></strong></span>
+                                        <span>契約：<strong><t t-esc="mat.contract_qty"/></strong></span>
+                                    </div>
+                                    <t t-if="mat.note">
+                                        <div style="font-size: 0.85rem; color: var(--wb-t2); margin-top: 4px;"><t t-esc="mat.note"/></div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+
+                    <t t-if="log.work_summary">
+                        <div class="cy-section-title">工作摘要</div>
+                        <div class="cy-info-section" style="padding: 12px 16px;">
+                            <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="log.work_summary"/></div>
+                        </div>
+                    </t>
+
+                    <div class="cy-section-title">安全衛生</div>
+                    <div class="cy-info-section">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">勤前教育</span>
+                            <span class="cy-info-value">
+                                <t t-if="log.safety_pre_work_education == 'yes'">✓ 有</t>
+                                <t t-elif="log.safety_pre_work_education == 'no'">✗ 無</t>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">勞保確認</span>
+                            <span class="cy-info-value">
+                                <t t-if="log.safety_labor_insurance_check == 'yes'">✓ 有</t>
+                                <t t-elif="log.safety_labor_insurance_check == 'no'">✗ 無</t>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">防護具檢查</span>
+                            <span class="cy-info-value">
+                                <t t-if="log.safety_ppe_check == 'yes'">✓ 有</t>
+                                <t t-elif="log.safety_ppe_check == 'no'">✗ 無</t>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">需設技術士</span>
+                            <span class="cy-info-value">
+                                <t t-if="log.has_technician_requirement == 'yes'">✓ 有</t>
+                                <t t-elif="log.has_technician_requirement == 'no'">✗ 無</t>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
+                    </div>
+                    <t t-if="log.safety_other_matters">
+                        <div class="cy-info-section" style="padding: 12px 16px;">
+                            <div style="font-size: 0.8rem; color: var(--wb-t3); margin-bottom: 4px;">安全衛生其他事項</div>
+                            <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="log.safety_other_matters"/></div>
+                        </div>
+                    </t>
+
+                    <t t-if="log.sampling_test_record">
+                        <div class="cy-section-title">取樣試驗紀錄</div>
+                        <div class="cy-info-section" style="padding: 12px 16px;"><div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="log.sampling_test_record"/></div></div>
+                    </t>
+                    <t t-if="log.subcontractor_notification">
+                        <div class="cy-section-title">通知協力廠商辦理事項</div>
+                        <div class="cy-info-section" style="padding: 12px 16px;"><div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="log.subcontractor_notification"/></div></div>
+                    </t>
+                    <t t-if="log.important_matters">
+                        <div class="cy-section-title">重要事項紀錄</div>
+                        <div class="cy-info-section" style="padding: 12px 16px;"><div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="log.important_matters"/></div></div>
+                    </t>
+                    <t t-if="log.notes">
+                        <div class="cy-section-title">備註</div>
+                        <div class="cy-info-section" style="padding: 12px 16px;"><div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="log.notes"/></div></div>
+                    </t>
+
+                    <t t-call="construction_portal.portal_construction_photos_block"/>
+
+                    <!-- 訊息紀錄 -->
+                    <div class="cy-section-title" style="margin-top: 24px;">訊息</div>
+                    <div style="background: var(--wb-bg2); border-radius: var(--wb-radius); border: 1px solid var(--wb-bdr); padding: 12px; margin-bottom: 14px;">
+                        <t t-call="portal.message_thread">
+                            <t t-set="object" t-value="log"/>
+                        </t>
+                    </div>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         施工日誌新增表單 /my/construction/<pid>/daily-log/new
+         ============================================ -->
+    <template id="portal_construction_daily_log_form" name="Daily Log Form">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">日誌</a>
+                    <span class="cy-breadcrumb-item active">
+                        <t t-if="is_edit">編輯</t>
+                        <t t-else="">新增</t>
+                    </span>
+                </div>
+
+                <div class="cy-content">
+                    <div style="text-align: center; margin-bottom: 14px;">
+                        <div style="font-size: 1.5rem; font-weight: 900; color: var(--wb-amber);"><t t-esc="today"/></div>
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 6px;">
+                            <t t-if="is_edit">編輯施工日誌</t>
+                            <t t-else="">施工日誌</t>
+                        </div>
+                    </div>
+
+                    <form t-att-action="form_action" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="project_id" t-att-value="project.id"/>
+
+                        <!-- 日期 -->
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2);">
+                                日誌日期 <span style="color: var(--wb-red);">*</span>
+                            </label>
+                            <input type="date" name="log_date" class="form-control"
+                                   t-att-value="(log and log.log_date.isoformat()) or today" required="required"/>
+                        </div>
+
+                        <!-- 天氣（加 emoji）-->
+                        <div class="cy-section-title">天氣紀錄</div>
+                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem; color: var(--wb-t3);">上午天氣</label>
+                                <select name="weather_am" class="form-select">
+                                    <option value="">請選擇天氣</option>
+                                    <t t-foreach="weather_options" t-as="opt">
+                                        <option t-att-value="opt[0]" t-att-selected="log and log.weather_am == opt[0] or None">
+                                            <t t-esc="weather_emoji.get(opt[0], '')"/> <t t-esc="opt[1]"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem; color: var(--wb-t3);">下午天氣</label>
+                                <select name="weather_pm" class="form-select">
+                                    <option value="">請選擇天氣</option>
+                                    <t t-foreach="weather_options" t-as="opt">
+                                        <option t-att-value="opt[0]" t-att-selected="log and log.weather_pm == opt[0] or None">
+                                            <t t-esc="weather_emoji.get(opt[0], '')"/> <t t-esc="opt[1]"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+                        </div>
+
+                        <t t-if="is_edit">
+                            <div class="cy-event-card cy-event-info" style="margin-bottom: 12px;">
+                                <span class="cy-event-icon"><i class="fa fa-info-circle"/></span>
+                                <div class="cy-event-body">
+                                    <div class="cy-event-title">編輯模式</div>
+                                    <div class="cy-event-desc">
+                                        施工項目編輯請至後台操作。本頁可修改文字欄位、追加照片。
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+
+                        <!-- 施工項目（新增模式才顯示）-->
+                        <div t-if="not is_edit" class="cy-section-title" style="margin-bottom: 8px;">
+                            <span>施工項目</span>
+                            <button type="button" class="cy-btn cy-btn-outline" style="font-size: 0.8rem; padding: 4px 12px; min-height: 32px;" id="btn_add_line">
+                                <i class="fa fa-plus"/> 新增工項
+                            </button>
+                        </div>
+
+                        <div t-if="not is_edit" id="work_lines_container">
+                            <div class="cy-card work-line-item" data-index="0" style="margin-bottom: 10px;">
+                                <div class="cy-card-body">
+                                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                        <span style="font-weight: 700; font-size: 0.9rem; color: var(--wb-amber);">項目 1</span>
+                                        <button type="button" class="btn-remove-line" style="background: none; border: none; color: var(--wb-red); font-size: 1.1rem; cursor: pointer; padding: 4px;">
+                                            <i class="fa fa-trash"/>
+                                        </button>
+                                    </div>
+                                    <div style="margin-bottom: 8px;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                                            <label class="form-label" style="margin: 0; font-size: 0.85rem;">工項名稱</label>
+                                            <button type="button" class="toggle-input-mode" style="font-size: 0.75rem; color: var(--wb-blue); background: none; border: none; cursor: pointer; padding: 0;">
+                                                切換自行輸入
+                                            </button>
+                                        </div>
+                                        <select name="line_work_item_id_0" class="form-select work-item-select">
+                                            <option value="">選擇或新增工項</option>
+                                            <t t-foreach="tasks" t-as="task">
+                                                <option t-att-value="task.id">
+                                                    <t t-if="task.item_no">[<t t-esc="task.item_no"/>] </t><t t-esc="task.name"/>
+                                                    <t t-if="task.unit"> (<t t-esc="task.unit"/>)</t>
+                                                </option>
+                                            </t>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                                        <div style="flex: 1;">
+                                            <label class="form-label" style="font-size: 0.85rem;">今日數量</label>
+                                            <input type="number" name="line_daily_qty_0" class="form-control" step="0.01" min="0" placeholder="0"/>
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <label class="form-label" style="font-size: 0.85rem;">單位</label>
+                                            <input type="text" name="line_unit_0" class="form-control" placeholder="M" readonly="readonly"/>
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <label class="form-label" style="font-size: 0.85rem;">施作位置</label>
+                                            <input type="text" name="line_location_0" class="form-control" placeholder="K0+150"/>
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 8px;">
+                                        <label class="form-label" style="font-size: 0.85rem;">施工說明</label>
+                                        <textarea name="line_work_description_0" class="form-control" style="min-height: 60px;" placeholder="簡述今日該工項施作內容"></textarea>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                                        <input type="checkbox" name="line_has_issue_0" id="line_has_issue_0" class="issue-checkbox" style="width: 20px; height: 20px;"/>
+                                        <label for="line_has_issue_0" style="font-size: 0.85rem; font-weight: 600; color: var(--wb-red); margin: 0;">標記問題</label>
+                                    </div>
+                                    <div class="issue-desc-wrap" style="display: none;">
+                                        <textarea name="line_issue_description_0" class="form-control" style="min-height: 60px; border-color: var(--wb-red);" placeholder="問題說明..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 工作摘要（CollapseSection defaultOpen）-->
+                        <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_summary">
+                            <span>工作摘要</span>
+                            <i class="fa fa-chevron-up" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                        </div>
+                        <div id="sec_summary">
+                            <textarea name="work_summary" class="form-control" placeholder="今日施工重點摘要..." style="margin-bottom: 16px;"><t t-esc="log and log.work_summary or ''"/></textarea>
+                        </div>
+
+                        <!-- 安全衛生（CollapseSection defaultOpen=false）-->
+                        <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_safety">
+                            <span>安全衛生檢查</span>
+                            <i class="fa fa-chevron-down" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                        </div>
+                        <div id="sec_safety" style="display: none;">
+                            <div class="cy-card" style="margin-bottom: 16px;">
+                                <div class="cy-card-body">
+                                    <div style="margin-bottom: 12px;">
+                                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 6px;">實施勤前教育</div>
+                                        <div class="cy-yesno-group" data-field="safety_pre_work_education">
+                                            <input type="hidden" name="safety_pre_work_education" t-att-value="(log and log.safety_pre_work_education) or ''"/>
+                                            <button type="button" class="cy-yesno-btn" data-value="yes">有</button>
+                                            <button type="button" class="cy-yesno-btn" data-value="no">無</button>
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 12px;">
+                                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 6px;">確認勞工保險及訓練紀錄</div>
+                                        <div class="cy-yesno-group" data-field="safety_labor_insurance_check">
+                                            <input type="hidden" name="safety_labor_insurance_check" t-att-value="(log and log.safety_labor_insurance_check) or ''"/>
+                                            <button type="button" class="cy-yesno-btn" data-value="yes">有</button>
+                                            <button type="button" class="cy-yesno-btn" data-value="no">無</button>
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 12px;">
+                                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 6px;">檢查勞工個人防護具</div>
+                                        <div class="cy-yesno-group" data-field="safety_ppe_check">
+                                            <input type="hidden" name="safety_ppe_check" t-att-value="(log and log.safety_ppe_check) or ''"/>
+                                            <button type="button" class="cy-yesno-btn" data-value="yes">有</button>
+                                            <button type="button" class="cy-yesno-btn" data-value="no">無</button>
+                                        </div>
+                                    </div>
+                                    <div style="margin-bottom: 12px;">
+                                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 6px;">施工項目是否需設置技術士</div>
+                                        <div class="cy-yesno-group" data-field="has_technician_requirement">
+                                            <input type="hidden" name="has_technician_requirement" t-att-value="(log and log.has_technician_requirement) or ''"/>
+                                            <button type="button" class="cy-yesno-btn" data-value="yes">有</button>
+                                            <button type="button" class="cy-yesno-btn" data-value="no">無</button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 0.85rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 6px;">其他事項</div>
+                                        <textarea name="safety_other_matters" class="form-control" style="min-height: 60px;" placeholder="安全衛生其他事項..."><t t-esc="log and log.safety_other_matters or ''"/></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 其他記錄（CollapseSection defaultOpen=false）-->
+                        <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_other">
+                            <span>其他紀錄</span>
+                            <i class="fa fa-chevron-down" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                        </div>
+                        <div id="sec_other" style="display: none;">
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;">抽查試驗紀錄</label>
+                                <textarea name="sampling_test_record" class="form-control" style="min-height: 60px;" placeholder="今日抽查項目..."><t t-esc="log and log.sampling_test_record or ''"/></textarea>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;">分包商通知事項</label>
+                                <textarea name="subcontractor_notification" class="form-control" style="min-height: 60px;" placeholder="需要通知分包商的事項..."><t t-esc="log and log.subcontractor_notification or ''"/></textarea>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;">重要事項</label>
+                                <textarea name="important_matters" class="form-control" style="min-height: 60px;" placeholder="其他需要記錄的重要事項..."><t t-esc="log and log.important_matters or ''"/></textarea>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;">備註</label>
+                                <textarea name="notes" class="form-control" style="min-height: 60px;" placeholder="備註..."><t t-esc="log and log.notes or ''"/></textarea>
+                            </div>
+                        </div>
+
+                        <!-- 施工照片 -->
+                        <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_photos">
+                            <span><i class="fa fa-camera" style="margin-right: 6px;"/>
+                                <t t-if="is_edit">追加施工照片</t>
+                                <t t-else="">施工照片</t>
+                            </span>
+                            <i class="fa fa-chevron-up" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                        </div>
+                        <div id="sec_photos" style="margin-bottom: 16px;">
+                            <div style="margin-bottom: 10px;">
+                                <input type="file" name="photos" accept="image/*" multiple="multiple"
+                                       class="form-control" style="padding: 10px;"/>
+                                <div style="font-size: 0.75rem; color: var(--wb-t3); margin-top: 6px;">
+                                    可一次選擇多張,儲存後自動同步到照片中心
+                                </div>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label class="form-label" style="font-size: 0.85rem;">說明(共用)</label>
+                                <input type="text" name="photo_description" class="form-control"
+                                       placeholder="這批照片的說明"/>
+                            </div>
+                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                                <div style="flex: 1;">
+                                    <label class="form-label" style="font-size: 0.85rem;">分類</label>
+                                    <select name="photo_category" class="form-select">
+                                        <option value="">--</option>
+                                        <t t-foreach="photo_categories or []" t-as="opt">
+                                            <option t-att-value="opt[0]"><t t-esc="opt[1]"/></option>
+                                        </t>
+                                    </select>
+                                </div>
+                                <div style="flex: 1;">
+                                    <label class="form-label" style="font-size: 0.85rem;">拍攝地點</label>
+                                    <input type="text" name="photo_location_description" class="form-control"
+                                           placeholder="位置說明"/>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                                <div style="flex: 1;">
+                                    <label class="form-label" style="font-size: 0.85rem;">緯度</label>
+                                    <input type="text" name="photo_latitude" class="form-control cy-photos-lat"/>
+                                </div>
+                                <div style="flex: 1;">
+                                    <label class="form-label" style="font-size: 0.85rem;">經度</label>
+                                    <input type="text" name="photo_longitude" class="form-control cy-photos-lng"/>
+                                </div>
+                            </div>
+                            <button type="button" class="cy-btn cy-btn-outline"
+                                    style="font-size: 0.8rem; padding: 6px 14px; min-height: 36px;"
+                                    onclick="cyGetGeo(this);">
+                                <i class="fa fa-crosshairs"/> 抓取目前位置
+                            </button>
+                        </div>
+
+                        <!-- 提交 -->
+                        <div style="margin-top: 20px; margin-bottom: 20px;">
+                            <button type="submit" class="cy-btn cy-btn-amber cy-btn-block" style="font-size: 1.2rem; min-height: 64px; font-weight: 900; border-radius: 14px; box-shadow: 0 4px 20px rgba(230,160,32,0.2);">
+                                <t t-if="is_edit">更新日誌</t>
+                                <t t-else="">儲存日誌</t>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         施工日誌批次匯入 /my/construction/<pid>/daily-logs/import
+         ============================================ -->
+    <template id="portal_construction_daily_log_import" name="Daily Log Batch Import">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/my/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">施工日誌</a>
+                    <span class="cy-breadcrumb-item active">批次匯入</span>
+                </div>
+
+                <div class="cy-content">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 1.4rem; font-weight: 900; color: var(--wb-amber);">批次匯入施工日誌</div>
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">
+                            上傳上溢營造「公共工程施工日誌」XLSM 檔案（可多選）
+                        </div>
+                    </div>
+
+                    <!-- 結果 banner -->
+                    <t t-if="imported or skipped or failed">
+                        <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(59,141,224,0.10); border-radius: 8px; font-size: 0.95rem; line-height: 1.7;">
+                            <div style="font-weight: 700; margin-bottom: 6px;">
+                                <i class="fa fa-info-circle"/> 匯入結果
+                            </div>
+                            <div style="color: var(--wb-green); font-weight: 700;">
+                                <i class="fa fa-check-circle"/> 成功：<t t-esc="imported"/> 筆
+                            </div>
+                            <t t-if="skipped">
+                                <div style="color: var(--wb-amber); font-weight: 700;">
+                                    <i class="fa fa-forward"/> 跳過（重複日期）：<t t-esc="skipped"/> 筆
+                                </div>
+                            </t>
+                            <t t-if="failed">
+                                <div style="color: var(--wb-red); font-weight: 700;">
+                                    <i class="fa fa-times-circle"/> 失敗：<t t-esc="failed"/> 筆
+                                </div>
+                            </t>
+                        </div>
+
+                        <!-- 失敗 / 跳過明細 -->
+                        <t t-if="failed_details">
+                            <div style="margin-bottom: 14px;">
+                                <div class="cy-section-title">處理明細</div>
+                                <div class="cy-info-section" style="padding: 12px 14px; font-size: 0.85rem; line-height: 1.6; max-height: 280px; overflow-y: auto;">
+                                    <t t-foreach="failed_details" t-as="d">
+                                        <div style="padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                                            <div style="color: var(--wb-t2); word-break: break-all;">
+                                                <t t-esc="d.get('filename', '')"/>
+                                            </div>
+                                            <div style="color: var(--wb-red);">
+                                                <t t-esc="d.get('error', '')"/>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+
+                    <form t-attf-action="/my/construction/#{project.id}/daily-logs/import"
+                          method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+
+                        <div class="cy-section-title">選擇檔案</div>
+                        <div class="cy-info-section" style="padding: 14px 16px;">
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">XLSM 檔案（可多選）</label>
+                                <input type="file" name="files" class="form-control"
+                                       multiple="multiple" accept=".xlsm,.xlsx" required="required"/>
+                                <small style="color: var(--wb-t3); display: block; margin-top: 6px;">
+                                    來源：<code>12-文書資料-A標/01-監造會議/…/施工日誌*.xlsm</code>
+                                </small>
+                            </div>
+
+                            <div style="font-size: 0.85rem; color: var(--wb-t2); line-height: 1.6; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.12); border-radius: 6px;">
+                                <div style="font-weight: 700; margin-bottom: 4px;">解析規則</div>
+                                <ul style="margin: 0; padding-left: 20px;">
+                                    <li>sheet 必須叫「施工日誌」</li>
+                                    <li>日期取自 R5 c14（填報日期）</li>
+                                    <li>工項進度取自「一、」段落下的 data rows（R12+）</li>
+                                    <li>材料管理取自「二、」段落</li>
+                                    <li>日誌的工項名稱若找不到對應契約工項，會自動建 stub project.task</li>
+                                    <li>同日期已有日誌會 skip</li>
+                                    <li><strong style="color: var(--wb-amber);">log_date 超過 14 天的日誌建立後會自動鎖定</strong></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 18px; margin-bottom: 16px;">
+                            <a t-attf-href="/my/construction/#{project.id}/daily-logs"
+                               class="cy-btn"
+                               style="flex: 1; padding: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 700; border-radius: 10px; text-decoration: none;">
+                                取消
+                            </a>
+                            <button type="submit" class="cy-btn-gradient-full"
+                                    style="flex: 2; padding: 16px; font-size: 1.1rem;">
+                                開始匯入
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+</odoo>

@@ -15,11 +15,17 @@
 
 主要功能
 --------
+* 人機項目主檔 (daily.log.man.machine)
+* 施工日誌人機使用明細 (daily.log.man.machine.detail)
+* 人機項目批次複製精靈
+* 工程級人機項目管理與使用量自動累計
+
+進階功能（付費版）
+------------------
 * 機具設備分類 (supervision.equipment.category)
 * 機具設備主檔管理 (supervision.equipment)
 * MTBF/MTTR 效能指標自動計算
 * 設備維護請求與看板工作流 (supervision.equipment.request)
-* 施工日誌人機記錄 (daily.log.man.machine)
 
 技術特點
 --------
@@ -39,17 +45,23 @@
     ],
     "data": [
         # Security
-        "security/security.xml",
+        # 注意：ir.model.access.csv 必須先載入，才能刪除舊群組
         "security/ir.model.access.csv",
-        # Data
+        "security/security.xml",
+        # Data - 人員類型預設資料必須在視圖之前載入
+        "data/personnel_type_data.xml",
         "data/ir_sequence_data.xml",
         "data/equipment_request_stage_data.xml",
-        # Views
-        "views/equipment_category_views.xml",
-        "views/equipment_views.xml",
-        "views/equipment_request_views.xml",
+        # Views - 基礎功能
+        "views/personnel_type_views.xml",
         "views/daily_log_man_machine_views.xml",
         "views/daily_log_sheet_views.xml",
+        "views/wizard_copy_man_machine_views.xml",
+        # Views - 進階功能（暫時註解，保留作為未來付費功能）
+        # "views/equipment_category_views.xml",
+        # "views/equipment_views.xml",
+        # "views/equipment_request_views.xml",
+        # Menu
         "views/menu.xml",
     ],
     "demo": [],

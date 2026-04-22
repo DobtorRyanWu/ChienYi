@@ -355,4 +355,10 @@
         </field>
     </record>
 
+    <!-- 即時損益 Dashboard (Client Action) -->
+    <record id="action_profit_loss_dashboard" model="ir.actions.client">
+        <field name="name">即時損益</field>
+        <field name="tag">profit_loss_dashboard</field>
+    </record>
+
 </odoo>

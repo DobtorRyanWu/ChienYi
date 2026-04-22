@@ -18,6 +18,6 @@
               action="supervision_photo_tag_action"
               parent="construction_supervision_base.menu_photo_management"
               sequence="20"
-              groups="construction_supervision_base.group_supervisor_admin,construction_supervision_base.group_supervision_manager"/>
+              groups="base.group_user,construction_supervision_base.group_supervisor_admin,base.group_portal"/>
 
 </odoo>

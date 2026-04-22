@@ -12,15 +12,13 @@
                 <field name="item_no"/>
                 <field name="name"/>
                 <field name="category_id"/>
-                <field name="specification"/>
                 <field name="unit"/>
+                <field name="company_id" groups="construction_supervision_base.group_supervisor_admin"/>
                 <field name="unit_price" sum="總計"/>
+                <field name="suggested_unit_price" optional="show"/>
+                <field name="price_cv" widget="percentage" optional="show"/>
+                <field name="source_count" optional="show"/>
                 <field name="price_date"/>
-                <field name="price_source" optional="hide"/>
-                <field name="material_cost" optional="hide"/>
-                <field name="labor_cost" optional="hide"/>
-                <field name="equipment_cost" optional="hide"/>
-                <field name="overhead_cost" optional="hide"/>
                 <field name="active" column_invisible="1"/>
             </list>
         </field>
@@ -36,6 +34,12 @@
             <form string="價格庫項目">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
+                        <button name="action_view_sources"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-database">
+                            <field name="source_count" widget="statinfo" string="價格來源"/>
+                        </button>
                         <button name="action_view_history"
                                 type="object"
                                 class="oe_stat_button"
@@ -88,9 +92,39 @@
                                 </group>
                             </group>
                         </page>
-                        <page string="說明" name="description">
-                            <field name="description" nolabel="1"
-                                   placeholder="輸入項目詳細說明..."/>
+                        <page string="價格統計" name="price_statistics">
+                            <group>
+                                <group string="統計指標">
+                                    <field name="suggested_unit_price" widget="monetary"/>
+                                    <field name="price_cv" widget="percentage"/>
+                                    <field name="price_std_dev"/>
+                                    <field name="source_count"/>
+                                </group>
+                                <group string="價格範圍">
+                                    <field name="min_source_price" widget="monetary"/>
+                                    <field name="max_source_price" widget="monetary"/>
+                                </group>
+                            </group>
+                            <group string="自動建立資訊">
+                                <group>
+                                    <field name="is_auto_created"/>
+                                    <field name="auto_created_date"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="價格來源" name="price_sources">
+                            <field name="source_ids">
+                                <list editable="bottom" create="false" delete="false" limit="20">
+                                    <field name="project_name"/>
+                                    <field name="project_code"/>
+                                    <field name="task_id"/>
+                                    <field name="unit_price" widget="monetary"/>
+                                    <field name="planned_qty"/>
+                                    <field name="planned_amount" widget="monetary"/>
+                                    <field name="created_date"/>
+                                    <field name="created_by_id"/>
+                                </list>
+                            </field>
                         </page>
                         <page string="價格歷史" name="history">
                             <field name="history_ids">
@@ -104,6 +138,10 @@
                                     <field name="user_id"/>
                                 </list>
                             </field>
+                        </page>
+                        <page string="說明" name="description">
+                            <field name="description" nolabel="1"
+                                   placeholder="輸入項目詳細說明..."/>
                         </page>
                     </notebook>
                 </sheet>
@@ -136,10 +174,17 @@
                 <filter name="filter_no_cost_breakdown" string="無成本組成"
                         domain="[('has_cost_breakdown', '=', False)]"/>
                 <separator/>
+                <filter name="filter_has_sources" string="有價格來源" domain="[('source_count', '>', 0)]"/>
+                <filter name="filter_no_sources" string="無價格來源" domain="[('source_count', '=', 0)]"/>
+                <filter name="filter_high_cv" string="高變異性 (CV>20%)" domain="[('price_cv', '>', 20)]"/>
+                <filter name="filter_auto_created" string="自動建立" domain="[('is_auto_created', '=', True)]"/>
+                <separator/>
                 <filter name="filter_price_updated_this_month" string="本月更新"
                         domain="[('price_date', '&gt;=', (context_today()-relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
                 <separator/>
                 <group expand="0" string="群組">
+                    <filter name="group_by_company" string="公司" context="{'group_by': 'company_id'}"
+                            groups="construction_supervision_base.group_supervisor_admin"/>
                     <filter name="group_by_category" string="分類"
                             context="{'group_by': 'category_id'}"/>
                     <filter name="group_by_unit" string="單位"
@@ -206,7 +251,7 @@
         <field name="search_view_id" ref="view_price_library_item_search"/>
         <field name="context">{
             'search_default_filter_active': 1,
-            'search_default_group_by_category': 1
+            'search_default_group_by_company': 1
         }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">

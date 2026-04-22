@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+    Menu configuration for Construction Progress module.
+-->
+<odoo>
+
+    <!-- ===================================================================
+         進度管理選單 (歸屬於 工程管理 > 進度管理)
+         =================================================================== -->
+
+    <!-- 進度表 -->
+    <menuitem id="menu_progress_schedule"
+              name="進度表"
+              parent="construction_supervision_base.menu_schedule_management"
+              action="action_progress_schedule"
+              sequence="30"/>
+
+    <!-- 進度明細 (供進階查詢使用) -->
+    <menuitem id="menu_progress_schedule_line"
+              name="進度明細"
+              parent="construction_supervision_base.menu_schedule_management"
+              action="action_progress_schedule_line"
+              sequence="40"
+              groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervisor_admin"/>
+
+</odoo>

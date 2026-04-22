@@ -36,32 +36,32 @@
     <!-- ====================== -->
     <!-- 契約變更單 Form View -->
     <!-- ====================== -->
-    <record id="contract_change_order_view_form" model="ir.ui.view">
-        <field name="name">contract.change.order.form</field>
+    <record id="contract_change_order_view_form_v2" model="ir.ui.view">
+        <field name="name">contract.change.order.form.v2</field>
         <field name="model">contract.change.order</field>
         <field name="arch" type="xml">
             <form string="契約變更單">
                 <header>
+                    <button name="action_open_import_wizard" type="object"
+                            string="匯入工程案件" class="btn-secondary"
+                            icon="fa-download"
+                            invisible="state != 'draft'"/>
                     <button name="action_submit" type="object" string="提送審查"
                             class="oe_highlight"
                             invisible="state != 'draft'"/>
                     <button name="action_review" type="object" string="開始審查"
                             class="oe_highlight"
-                            invisible="state != 'submitted'"
-                            groups="construction_contract_change.group_contract_change_manager"/>
+                            invisible="state != 'submitted'"/>
                     <button name="action_approve" type="object" string="核定通過"
                             class="oe_highlight"
-                            invisible="state != 'reviewing'"
-                            groups="construction_contract_change.group_contract_change_manager"/>
+                            invisible="state != 'reviewing'"/>
                     <button name="action_apply" type="object" string="套用變更"
                             class="oe_highlight"
                             invisible="state != 'approved'"
-                            groups="construction_contract_change.group_contract_change_manager"
                             confirm="確定要套用此變更？套用後將更新工項與專案契約資訊。"/>
                     <button name="action_reject" type="object" string="駁回"
                             class="btn-danger"
-                            invisible="state not in ('submitted', 'reviewing')"
-                            groups="construction_contract_change.group_contract_change_manager"/>
+                            invisible="state not in ('submitted', 'reviewing')"/>
                     <button name="action_reset_draft" type="object" string="重設為草稿"
                             invisible="state not in ('submitted', 'rejected')"/>
                     <field name="state" widget="statusbar"
@@ -82,12 +82,18 @@
                     <group>
                         <group string="基本資訊">
                             <field name="project_id"
-                                   readonly="state != 'draft'"
+                                   readonly="1"
                                    options="{'no_create': True}"/>
                             <field name="change_date"
                                    readonly="state != 'draft'"/>
                             <field name="change_reason"
                                    readonly="state != 'draft'"/>
+                            <!-- 新增：其他原因說明 -->
+                            <field name="other_reason_detail"
+                                   readonly="state != 'draft'"
+                                   invisible="change_reason != 'other'"
+                                   required="change_reason == 'other'"
+                                   placeholder="請說明其他變更原因..."/>
                             <field name="company_id" groups="base.group_multi_company"/>
                             <field name="currency_id" invisible="1"/>
                         </group>
@@ -97,7 +103,8 @@
                             <label for="change_duration"/>
                             <div class="o_row">
                                 <field name="change_duration"
-                                       readonly="state not in ('draft', 'submitted')"/>
+                                       readonly="state not in ('draft', 'submitted')"
+                                       class="oe_inline" style="width: 100px;"/>
                                 <span>日</span>
                             </div>
                         </group>
@@ -114,29 +121,59 @@
                     </group>
                     <notebook>
                         <page string="變更明細" name="lines">
-                            <field name="line_ids"
-                                   readonly="state not in ('draft', 'submitted')">
-                                <list editable="bottom">
-                                    <field name="sequence" widget="handle"/>
-                                    <field name="change_type"/>
+                            <field name="line_ids" nolabel="1">
+                                <list string="變更明細"
+                                      editable="bottom"
+                                      decoration-success="change_type == 'add'"
+                                      decoration-info="change_type == 'modify'"
+                                      decoration-danger="change_type == 'delete'">
+                                    <!-- 1. 變更類型 -->
+                                    <field name="change_type" required="1"/>
+                                    <!-- 2. 原工項 -->
                                     <field name="task_id"
                                            invisible="change_type == 'add'"
-                                           required="change_type != 'add'"/>
-                                    <field name="item_no"/>
-                                    <field name="item_name"/>
+                                           required="change_type in ('modify', 'delete')"
+                                           domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True)]"
+                                           options="{'no_create': True}"/>
+                                    <!-- 3. 父工項 -->
+                                    <field name="parent_task_id"
+                                           invisible="change_type != 'add'"
+                                           domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True), ('is_summary_item', '=', True)]"
+                                           options="{'no_create': True}"/>
+                                    <!-- 4. 工項編號 -->
+                                    <field name="item_no"
+                                           required="change_type == 'add'"
+                                           readonly="change_type != 'add'"/>
+                                    <!-- 5. 單位 -->
                                     <field name="unit"/>
-                                    <field name="original_qty"/>
-                                    <field name="original_unit_price"/>
-                                    <field name="original_amount"/>
+                                    <!-- 6. 原數量 -->
+                                    <field name="original_qty" readonly="1"
+                                           invisible="change_type == 'add'"/>
+                                    <!-- 7. 原單價 -->
+                                    <field name="original_unit_price" readonly="1"
+                                           invisible="change_type == 'add'"/>
+                                    <!-- 8. 原金額 -->
+                                    <field name="original_amount" readonly="1"
+                                           invisible="change_type == 'add'"
+                                           widget="monetary"/>
+                                    <!-- 9. 新數量 -->
                                     <field name="new_qty"
-                                           invisible="change_type == 'delete'"/>
+                                           invisible="change_type == 'delete'"
+                                           required="change_type in ('add', 'modify')"/>
+                                    <!-- 10. 新單價 -->
                                     <field name="new_unit_price"
-                                           invisible="change_type == 'delete'"/>
-                                    <field name="new_amount"
-                                           invisible="change_type == 'delete'"/>
-                                    <field name="change_amount" sum="Total"/>
-                                    <field name="notes" optional="hide"/>
+                                           invisible="change_type == 'delete'"
+                                           required="change_type in ('add', 'modify')"/>
+                                    <!-- 11. 新金額 -->
+                                    <field name="new_amount" readonly="1"
+                                           invisible="change_type == 'delete'"
+                                           widget="monetary"/>
+                                    <!-- 12. 金額增減 -->
+                                    <field name="change_amount" readonly="1"
+                                           sum="合計" widget="monetary"/>
+                                    <!-- 隱藏欄位 -->
                                     <field name="project_id" column_invisible="1"/>
+                                    <field name="change_order_id" column_invisible="1"/>
                                     <field name="currency_id" column_invisible="1"/>
                                 </list>
                             </field>
@@ -181,11 +218,11 @@
                         </page>
                     </notebook>
                 </sheet>
-                <div class="oe_chatter">
+                <chatter>
                     <field name="message_follower_ids"/>
                     <field name="activity_ids"/>
                     <field name="message_ids"/>
-                </div>
+                </chatter>
             </form>
         </field>
     </record>
@@ -234,6 +271,112 @@
                             context="{'group_by': 'change_date:month'}"/>
                 </group>
             </search>
+        </field>
+    </record>
+
+    <!-- ====================== -->
+    <!-- 管理視窗專用 - Tree View -->
+    <!-- ====================== -->
+    <record id="contract_change_order_line_view_tree_manager" model="ir.ui.view">
+        <field name="name">contract.change.order.line.tree.manager</field>
+        <field name="model">contract.change.order.line</field>
+        <field name="arch" type="xml">
+            <list string="變更明細" 
+                  decoration-success="change_type == 'add'"
+                  decoration-info="change_type == 'modify'"
+                  decoration-danger="change_type == 'delete'"
+                  editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="change_type" required="1"/>
+                <field name="task_id"
+                       invisible="change_type == 'add'"
+                       required="change_type != 'add'"
+                       options="{'no_create': True}"
+                       force_save="1"/>
+                <field name="parent_task_id"
+                       invisible="change_type != 'add'"
+                       options="{'no_create': True}"/>
+                <field name="item_level" readonly="1" optional="show"/>
+                <field name="item_no" 
+                       required="change_type == 'add'"
+                       readonly="change_type != 'add'"/>
+                <field name="item_name" required="1"
+                       readonly="change_type != 'add'"/>
+                <field name="unit"/>
+                <field name="original_qty" readonly="1"/>
+                <field name="original_unit_price" readonly="1"/>
+                <field name="original_amount" readonly="1" optional="hide"/>
+                <field name="new_qty"
+                       invisible="change_type == 'delete'"
+                       required="change_type != 'delete'"/>
+                <field name="new_unit_price"
+                       invisible="change_type == 'delete'"
+                       required="change_type != 'delete'"/>
+                <field name="new_amount" readonly="1" optional="hide"/>
+                <field name="change_amount" readonly="1" sum="合計"/>
+                <field name="project_id" column_invisible="1"/>
+                <field name="change_order_id" column_invisible="1"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ====================== -->
+    <!-- 管理視窗專用 - Form View -->
+    <!-- ====================== -->
+    <record id="contract_change_order_line_view_form_manager" model="ir.ui.view">
+        <field name="name">contract.change.order.line.form.manager</field>
+        <field name="model">contract.change.order.line</field>
+        <field name="arch" type="xml">
+            <form string="變更明細">
+                <sheet>
+                    <group>
+                        <group string="變更類型">
+                            <field name="change_type" required="1"/>
+                            <field name="task_id"
+                                   invisible="change_type == 'add'"
+                                   required="change_type != 'add'"
+                                   options="{'no_create': True}"/>
+                            <field name="parent_task_id"
+                                   invisible="change_type != 'add'"
+                                   options="{'no_create': True}"/>
+                            <field name="item_level" readonly="1"/>
+                        </group>
+                        <group string="工項資訊">
+                            <field name="item_no" required="change_type == 'add'"/>
+                            <field name="item_name" required="1"/>
+                            <field name="unit"/>
+                            <field name="specification" placeholder="請輸入規格說明..."/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="原值" invisible="change_type == 'add'">
+                            <field name="original_qty" readonly="1"/>
+                            <field name="original_unit_price" readonly="1"/>
+                            <field name="original_amount" readonly="1"/>
+                        </group>
+                        <group string="新值" invisible="change_type == 'delete'">
+                            <field name="new_qty" required="change_type != 'delete'"/>
+                            <field name="new_unit_price" required="change_type != 'delete'"/>
+                            <field name="new_amount" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="差異">
+                            <field name="qty_change" readonly="1"/>
+                            <field name="price_change" readonly="1"/>
+                            <field name="change_amount" readonly="1"/>
+                            <field name="change_amount_rate" readonly="1" widget="percentage"/>
+                        </group>
+                    </group>
+                    <group string="備註">
+                        <field name="notes" nolabel="1" placeholder="請輸入變更說明..."/>
+                    </group>
+                    <field name="project_id" invisible="1"/>
+                    <field name="change_order_id" invisible="1"/>
+                    <field name="currency_id" invisible="1"/>
+                </sheet>
+            </form>
         </field>
     </record>
 
@@ -385,13 +528,13 @@
                 <field name="change_order_count" invisible="1"/>
             </xpath>
             <xpath expr="//notebook" position="before">
-                <group invisible="change_order_count == 0">
-                    <group string="契約變更資訊" name="change_info">
+                <group string="契約變更資訊" invisible="change_order_count == 0">
+                    <group string="原始契約" name="change_info">
                         <field name="original_contract_amount"/>
                         <field name="original_duration"/>
                         <field name="approved_change_count"/>
                     </group>
-                    <group string="變更後金額">
+                    <group string="累計變更">
                         <field name="total_change_amount"/>
                         <field name="total_duration_change"/>
                         <field name="change_rate" widget="percentage"/>
@@ -421,6 +564,34 @@
                        decoration-info="change_type == 'added'"
                        decoration-warning="change_type == 'modified'"
                        invisible="not change_order_id"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 工項列表視圖 - 添加變更紀錄欄位                  -->
+    <!-- ============================================== -->
+    
+    <!-- 第二種方式：工程案件內的工項列表 -->
+    <record id="view_task_tree_project_specific_change" model="ir.ui.view">
+        <field name="name">project.task.tree.project.specific.change</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_task_tree_project_specific"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='construction_notes']" position="after">
+                <field name="change_history_display" string="變更紀錄" optional="show" readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 第一種方式：全局工項列表 -->
+    <record id="view_task_tree_supervision_full_change" model="ir.ui.view">
+        <field name="name">project.task.tree.supervision.full.change</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_task_tree_supervision_full"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='construction_notes']" position="after">
+                <field name="change_history_display" string="變更紀錄" optional="show" readonly="1"/>
             </xpath>
         </field>
     </record>

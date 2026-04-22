@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo>
+
+    <!-- ===================================================================
+         施工排程 - 表單視圖
+         =================================================================== -->
+    <record id="construction_weekly_schedule_form" model="ir.ui.view">
+        <field name="name">construction.weekly.schedule.form</field>
+        <field name="model">construction.weekly.schedule</field>
+        <field name="arch" type="xml">
+            <form string="施工排程">
+                <header>
+                    <button name="action_confirm" string="確認"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_reset_draft" string="退回草稿"
+                            type="object"
+                            invisible="state != 'confirmed'"/>
+                    <button name="action_prev_week" type="object"
+                            string="◀ 上一周" class="btn-secondary"/>
+                    <button name="action_next_week" type="object"
+                            string="下一周 ▶" class="btn-secondary"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="week_display" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="supervision_project_id"
+                                   readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="week_start" readonly="state != 'draft'"/>
+                            <field name="week_end" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="week_mode"/>
+                        </group>
+                    </group>
+
+                    <!-- 新增工項按鈕 -->
+                    <div invisible="state != 'draft'" class="mb-2">
+                        <button name="action_add_items_wizard" type="object"
+                                string="新增工項" class="btn-primary"
+                                icon="fa-plus"/>
+                    </div>
+
+                    <!-- 排程明細 -->
+                    <field name="line_ids" nolabel="1">
+                        <list editable="bottom" create="false">
+                            <field name="sequence" widget="handle"/>
+                            <field name="task_id" column_invisible="1"/>
+                            <field name="task_name" string="施工項目" readonly="1"/>
+                            <field name="parent_id" string="父工項" readonly="1" optional="show"/>
+                            <field name="item_no" string="工項編號" readonly="1" width="80px"/>
+                            <field name="unit" string="單位" readonly="1" width="50px"/>
+                            <field name="planned_qty" string="契約數量" readonly="1"
+                                   digits="[16, 4]" width="90px"/>
+                            <field name="actual_qty" string="累計完成數量" readonly="1"
+                                   digits="[16, 4]" width="110px"/>
+                            <field name="has_inspection_type" string="自主檢查工項"
+                                   widget="boolean" readonly="1" width="120px"/>
+                            <field name="need_inspection" string="本周安排自主檢查" width="140px"
+                                   readonly="not has_inspection_type"/>
+                        </list>
+                    </field>
+
+                    <field name="company_id" invisible="1"/>
+                    <field name="project_id" invisible="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ===================================================================
+         施工排程 - 列表視圖
+         =================================================================== -->
+    <record id="construction_weekly_schedule_tree" model="ir.ui.view">
+        <field name="name">construction.weekly.schedule.tree</field>
+        <field name="model">construction.weekly.schedule</field>
+        <field name="arch" type="xml">
+            <list string="施工排程" default_order="week_start desc">
+                <field name="supervision_project_id"/>
+                <field name="week_display" string="周次"/>
+                <field name="week_start"/>
+                <field name="week_end"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'confirmed'"/>
+                <field name="activity_ids" widget="list_activity"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ===================================================================
+         施工排程 - 搜尋視圖
+         =================================================================== -->
+    <record id="construction_weekly_schedule_search" model="ir.ui.view">
+        <field name="name">construction.weekly.schedule.search</field>
+        <field name="model">construction.weekly.schedule</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="supervision_project_id"/>
+                <field name="week_display"/>
+                <separator/>
+                <filter string="草稿" name="draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已確認" name="confirmed"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程案件" name="group_project"
+                            context="{'group_by': 'supervision_project_id'}"/>
+                    <filter string="周起始日" name="group_week"
+                            context="{'group_by': 'week_start:week'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ===================================================================
+         施工排程 - Action
+         =================================================================== -->
+    <record id="action_weekly_schedule" model="ir.actions.act_window">
+        <field name="name">施工排程</field>
+        <field name="res_model">construction.weekly.schedule</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="search_view_id" ref="construction_weekly_schedule_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一份施工排程
+            </p>
+            <p>
+                施工排程用於規劃每周的施工項目、預定施工日期與數量。
+            </p>
+        </field>
+    </record>
+
+</odoo>

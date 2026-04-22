@@ -10,26 +10,60 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="project_id"/>
-                <field name="material"/>
+                <field name="material" string="試驗工項"/>
                 <field name="unit"/>
                 <field name="standard"/>
                 <field name="test_record_count"/>
-                <field name="total_in_site_quantity" sum="總進場"/>
-                <field name="total_sample_quantity" sum="總取樣"/>
-                <field name="overall_sample_rate"
-                       decoration-success="overall_sample_rate >= 100"
-                       decoration-warning="overall_sample_rate >= 80 and overall_sample_rate &lt; 100"
-                       decoration-danger="overall_sample_rate &lt; 80"
-                       widget="progressbar"/>
-                <field name="pass_rate"
-                       decoration-success="pass_rate >= 95"
-                       decoration-warning="pass_rate >= 80 and pass_rate &lt; 95"
-                       decoration-danger="pass_rate &lt; 80"/>
             </list>
         </field>
     </record>
 
-    <!-- 檢試驗項目 Form View -->
+    <!-- 檢驗頻率條件 Tree View (獨立定義) -->
+    <record id="view_test_frequency_condition_tree" model="ir.ui.view">
+        <field name="name">supervision.test.frequency.condition.tree</field>
+        <field name="model">supervision.test.frequency.condition</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="condition_type"/>
+                <field name="threshold_qty" 
+                       invisible="condition_type not in ('exempt_below')"
+                       optional="show"/>
+                <field name="range_start" 
+                       invisible="condition_type not in ('range_once')"
+                       optional="show"/>
+                <field name="range_end" 
+                       invisible="condition_type not in ('range_once')"
+                       optional="show"/>
+                <field name="exceed_qty" 
+                       invisible="condition_type not in ('exceed_interval')"
+                       optional="show"/>
+                <field name="interval_qty"
+                       invisible="condition_type not in ('exceed_interval', 'every_n')"
+                       optional="show"/>
+                <field name="condition_summary" optional="show"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 契約工項選擇用 Tree View（Many2many 彈出視窗用） -->
+    <record id="view_project_task_test_selection_tree" model="ir.ui.view">
+        <field name="name">project.task.test.selection.tree</field>
+        <field name="model">project.task</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name" string="項目及說明"/>
+                <field name="parent_id" string="父工項"/>
+                <field name="item_no" string="工項編號"/>
+                <field name="unit" string="單位"/>
+                <field name="planned_qty" string="契約數量"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 需求2+6: 檢試驗項目 Form View -->
     <record id="view_test_standard_form" model="ir.ui.view">
         <field name="name">supervision.test.standard.form</field>
         <field name="model">supervision.test.standard</field>
@@ -43,6 +77,15 @@
                                 icon="fa-flask">
                             <field name="test_record_count" widget="statinfo" string="檢驗記錄"/>
                         </button>
+                        <button name="action_view_statistics"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-bar-chart"
+                                help="查看檢試驗統計分析">
+                            <div class="o_field_widget o_stat_info">
+                                <span class="o_stat_text">統計分析</span>
+                            </div>
+                        </button>
                     </div>
                     <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger"
                             invisible="active"/>
@@ -52,11 +95,11 @@
                         </h1>
                     </div>
                     <group>
-                        <group string="基本資訊">
+                        <group string="基本資料">
                             <field name="project_id"/>
-                            <field name="material"/>
+                            <field name="material" string="試驗工項"/>
                             <field name="unit"/>
-                            <field name="sequence"/>
+                            <field name="sequence" invisible="1"/>
                             <field name="active" invisible="1"/>
                             <field name="company_id" invisible="1"/>
                         </group>
@@ -64,31 +107,70 @@
                             <field name="describe" placeholder="依據之方法..."/>
                             <field name="norm" placeholder="規範之要求..."/>
                             <field name="standard" placeholder="頻率及下限..."/>
-                        </group>
-                    </group>
-                    <group>
-                        <group string="取樣規則">
-                            <field name="sampling_size"/>
-                            <field name="sampling_conditions" placeholder="檢驗頻率條件..."/>
-                        </group>
-                        <group string="統計資訊">
-                            <field name="total_in_site_quantity"/>
-                            <field name="total_sample_quantity"/>
-                            <field name="overall_sample_rate" widget="progressbar"/>
-                            <field name="pass_count"/>
-                            <field name="fail_count"/>
-                            <field name="pass_rate" widget="progressbar"/>
+                            <field name="sampling_size" invisible="1"/>
                         </group>
                     </group>
                     <notebook>
+                        <page string="檢驗頻率條件" name="frequency_conditions">
+                            <field name="frequency_condition_ids"/>
+                        </page>
+                        <page string="自訂公式" name="custom_formula">
+                            <group>
+                                <field name="use_custom_formula" widget="boolean_toggle"/>
+                            </group>
+                            <button name="action_open_formula_template_wizard"
+                                    string="套用公式範本" type="object"
+                                    class="btn-secondary" icon="fa-magic"
+                                    invisible="not use_custom_formula"/>
+                            <div class="alert alert-info" role="alert"
+                                 invisible="not use_custom_formula">
+                                <strong>公式計算結果會與「檢驗頻率條件」的結果相加。</strong><br/>
+                                系統內建變數 <code>cumulative_qty</code>（累計施工數量），可在下方自定義更多變數。
+                            </div>
+                            <group invisible="not use_custom_formula">
+                                <field name="custom_formula_description"
+                                       placeholder="例如：同一爐號質量超過50t取2支，超過100t每50t加1支"/>
+                            </group>
+                            <group string="自定義變數" invisible="not use_custom_formula">
+                                <field name="custom_formula_variable_ids" nolabel="1">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="name" placeholder="threshold_1"/>
+                                        <field name="value"/>
+                                        <field name="description" placeholder="第一門檻 (t)"/>
+                                    </list>
+                                </field>
+                            </group>
+                            <group string="計算公式" invisible="not use_custom_formula">
+                                <div class="text-muted mb-2" colspan="2">
+                                    <p>回傳值：應檢驗次數（整數）。可用函數：<code>int()</code> <code>max()</code> <code>min()</code> <code>round()</code></p>
+                                    <p><strong>常用範例：</strong></p>
+                                    <ul class="mb-1">
+                                        <li>每 N 一批：<code>int(cumulative_qty / N)</code></li>
+                                        <li>每 N 一批，餘數超過 R 追加：<code>int(cumulative_qty / N) + (1 if cumulative_qty % N > R else 0)</code></li>
+                                        <li>階梯取樣：<code>1 if cumulative_qty &lt;= A else (C if cumulative_qty &lt;= B else C + int((cumulative_qty - B + step - 1) / step) * G)</code></li>
+                                    </ul>
+                                </div>
+                                <field name="custom_formula" nolabel="1" colspan="2"
+                                       placeholder="int(cumulative_qty / 120)"/>
+                            </group>
+                            <group string="預警公式（選填）" invisible="not use_custom_formula">
+                                <div class="text-muted mb-2" colspan="2">
+                                    回傳值：下一個預警門檻數量。系統在累計達此數量的 95% 時發出預警。不填則不產生預警。
+                                </div>
+                                <field name="custom_warning_formula" nolabel="1" colspan="2"
+                                       placeholder="(int(cumulative_qty / 120) + 1) * 120"/>
+                            </group>
+                        </page>
                         <page string="關聯契約工項" name="tasks">
-                            <field name="task_ids">
+                            <field name="task_ids"
+                                   context="{'list_view_ref': 'construction_test.view_project_task_test_selection_tree'}">
                                 <list>
-                                    <field name="item_no"/>
-                                    <field name="name"/>
-                                    <field name="unit"/>
-                                    <field name="planned_qty"/>
-                                    <field name="actual_qty"/>
+                                    <field name="name" string="項目及說明"/>
+                                    <field name="parent_id" string="父工項"/>
+                                    <field name="item_no" string="工項編號"/>
+                                    <field name="unit" string="單位"/>
+                                    <field name="planned_qty" string="契約數量"/>
                                 </list>
                             </field>
                         </page>
@@ -108,10 +190,10 @@
                                            decoration-danger="result == 'fail'"
                                            decoration-warning="result == 'pending'"
                                            widget="badge"/>
-                                    <field name="state"
-                                           decoration-info="state == 'draft'"
-                                           decoration-primary="state == 'sampled'"
-                                           decoration-success="state in ('tested', 'archived')"
+                                    <field name="processing_status"
+                                           decoration-warning="processing_status == 'not_started'"
+                                           decoration-info="processing_status == 'in_progress'"
+                                           decoration-success="processing_status == 'completed'"
                                            widget="badge"/>
                                 </list>
                             </field>
@@ -141,18 +223,13 @@
                 <filter string="無檢驗記錄" name="no_records"
                         domain="[('test_record_count', '=', 0)]"/>
                 <separator/>
-                <filter string="取樣率不足" name="low_sample_rate"
-                        domain="[('overall_sample_rate', '&lt;', 100)]"/>
-                <filter string="有不合格" name="has_fail"
-                        domain="[('fail_count', '>', 0)]"/>
-                <separator/>
                 <filter string="已停用" name="inactive"
                         domain="[('active', '=', False)]"/>
                 <separator/>
                 <group expand="0" string="群組">
                     <filter string="工程" name="group_project"
                             context="{'group_by': 'project_id'}"/>
-                    <filter string="材料" name="group_material"
+                    <filter string="試驗工項" name="group_material"
                             context="{'group_by': 'material'}"/>
                 </group>
             </search>
@@ -168,9 +245,6 @@
                 <field name="name"/>
                 <field name="project_id"/>
                 <field name="material"/>
-                <field name="test_record_count"/>
-                <field name="overall_sample_rate"/>
-                <field name="pass_rate"/>
                 <templates>
                     <t t-name="card">
                         <div class="oe_kanban_content">
@@ -181,12 +255,8 @@
                                 <field name="project_id"/>
                             </div>
                             <div class="o_kanban_record_body">
-                                <div><strong>材料:</strong> <field name="material"/></div>
+                                <div><strong>試驗工項:</strong> <field name="material"/></div>
                                 <div><strong>檢驗次數:</strong> <field name="test_record_count"/></div>
-                                <div>
-                                    <strong>取樣率:</strong>
-                                    <field name="overall_sample_rate" widget="progressbar"/>
-                                </div>
                             </div>
                         </div>
                     </t>
@@ -207,7 +277,7 @@
                 建立第一個檢試驗項目
             </p>
             <p>
-                檢試驗項目用於定義工程材料的檢驗標準、規範和取樣規則。
+                檢試驗項目用於定義工程材料的檢驗標準、規範和抽樣規則。
             </p>
         </field>
     </record>

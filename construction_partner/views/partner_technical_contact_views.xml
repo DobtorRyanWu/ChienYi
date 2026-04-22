@@ -99,7 +99,7 @@
                                     <field name="code"/>
                                     <field name="name"/>
                                     <field name="state" widget="badge"/>
-                                    <field name="actual_progress" widget="progressbar"/>
+                                    <!-- actual_progress 已從 supervision.project 移除 -->
                                 </list>
                             </field>
                         </page>

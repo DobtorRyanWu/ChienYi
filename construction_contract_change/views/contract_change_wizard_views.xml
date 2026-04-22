@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ====================== -->
+    <!-- 匯入工程案件精靈 Form   -->
+    <!-- ====================== -->
+    <record id="contract_change_wizard_view_form" model="ir.ui.view">
+        <field name="name">contract.change.wizard.form</field>
+        <field name="model">contract.change.wizard</field>
+        <field name="arch" type="xml">
+            <form string="匯入工程案件">
+                <header>
+                    <button name="action_confirm" type="object"
+                            string="確認並儲存變更明細"
+                            class="oe_highlight"/>
+                    <button name="action_cancel" type="object"
+                            string="取消返回"
+                            class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <!-- 工程選擇區 -->
+                    <group>
+                        <group string="選擇工程">
+                            <field name="change_order_id" readonly="1" invisible="1"/>
+                            <field name="project_id"
+                                   options="{'no_create': True}"
+                                   placeholder="請選擇工程案件..."/>
+                        </group>
+                        <group string="批次單價調整">
+                            <label for="adjust_rate"/>
+                            <div class="o_row">
+                                <field name="adjust_rate" class="oe_inline" style="width: 80px;"/>
+                                <span class="ms-1">%</span>
+                                <button name="action_apply_rate" type="object"
+                                        string="套用比例調整"
+                                        class="btn-primary ms-3"
+                                        icon="fa-check"
+                                        help="一次調整所有工項：新單價 = 原單價 × 比例%"/>
+                            </div>
+                            <div class="text-muted small">
+                                新單價 = 原單價 × 比例%（如輸入 80 = 原單價打八折）
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- 變更統計 -->
+                    <group>
+                        <group string="變更統計">
+                            <div class="o_row">
+                                <span>修改: </span><field name="modify_count" class="oe_inline"/><span> 項</span>
+                                <span class="mx-2">|</span>
+                                <span>刪除: </span><field name="delete_count" class="oe_inline"/><span> 項</span>
+                                <span class="mx-2">|</span>
+                                <span>新增: </span><field name="add_count" class="oe_inline"/><span> 項</span>
+                            </div>
+                            <field name="total_change_amount" string="總變更金額"/>
+                        </group>
+                        <group>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <!-- 新增工項按鈕 -->
+                    <div style="margin: 10px 0;">
+                        <button name="action_add_new_line" type="object"
+                                string="新增工項"
+                                class="btn-primary"
+                                icon="fa-plus"/>
+                    </div>
+
+                    <!-- 工項列表 -->
+                    <field name="wizard_line_ids" nolabel="1">
+                        <list string="工項列表" editable="bottom"
+                              decoration-success="change_type == 'add'"
+                              decoration-info="change_type == 'modify'"
+                              decoration-danger="change_type == 'delete'">
+                            <!-- 1. 變更類型 -->
+                            <field name="change_type"/>
+                            <!-- 2. 原工項 -->
+                            <field name="task_id"
+                                   domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True)]"
+                                   options="{'no_create': True}"/>
+                            <!-- 3. 父工項 -->
+                            <field name="parent_task_id"
+                                   domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True)]"
+                                   options="{'no_create': True}"/>
+                            <!-- 4. 工項編號 -->
+                            <field name="item_no"
+                                   readonly="change_type != 'add'"/>
+                            <!-- 5. 單位 -->
+                            <field name="unit" readonly="1"/>
+                            <!-- 6. 原數量 -->
+                            <field name="original_qty" readonly="1"/>
+                            <!-- 7. 原單價 -->
+                            <field name="original_unit_price" readonly="1"/>
+                            <!-- 8. 原金額 -->
+                            <field name="original_amount" readonly="1"/>
+                            <!-- 9. 新數量 -->
+                            <field name="new_qty"/>
+                            <!-- 10. 新單價 -->
+                            <field name="new_unit_price"/>
+                            <!-- 11. 新金額 -->
+                            <field name="new_amount" readonly="1"/>
+                            <!-- 12. 金額增減 -->
+                            <field name="change_amount" readonly="1" sum="合計"/>
+                            <!-- 隱藏欄位 -->
+                            <field name="sequence" column_invisible="1"/>
+                            <field name="item_name" column_invisible="1"/>
+                            <field name="currency_id" column_invisible="1"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Wizard Action -->
+    <record id="action_contract_change_wizard" model="ir.actions.act_window">
+        <field name="name">匯入工程案件</field>
+        <field name="res_model">contract.change.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+
+</odoo>

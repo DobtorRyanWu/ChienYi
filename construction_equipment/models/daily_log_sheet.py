@@ -10,70 +10,73 @@ class DailyLogSheet(models.Model):
     施工日誌表單擴展
 
     擴展 construction_daily_log 模組的 daily.log.sheet
-    新增人機記錄關聯欄位
+    新增人機使用明細關聯欄位
     """
     _inherit = 'daily.log.sheet'
 
-    # === 人機記錄關聯 ===
-    man_machine_ids = fields.One2many(
-        'daily.log.man.machine',
+    # === 人機使用明細關聯 ===
+    man_machine_detail_ids = fields.One2many(
+        'daily.log.man.machine.detail',
         'daily_log_id',
-        string='人機記錄',
-        help='施工日誌的人員與機具使用記錄')
+        string='人機使用記錄',
+        help='選擇人機項目並登記當日使用量')
 
     # === 人機統計 ===
-    man_machine_personnel_count = fields.Integer(
-        string='人員總數',
+    total_man_machine_hours = fields.Float(
+        string='人機總時數',
         compute='_compute_man_machine_totals',
         store=True,
-        help='所有人員類型的總人數')
+        help='當日所有人機使用的總時數')
+
+    # === 舊版欄位（向後兼容，已廢棄） ===
+    # 這些欄位保留以避免升級錯誤，但已不再使用
+    man_machine_ids = fields.One2many(
+        'daily.log.man.machine',
+        compute='_compute_legacy_man_machine',
+        string='人機記錄（已廢棄）',
+        help='此欄位已廢棄，請使用 man_machine_detail_ids')
+
+    man_machine_personnel_count = fields.Integer(
+        string='人員總數（已廢棄）',
+        compute='_compute_legacy_stats',
+        help='此欄位已廢棄')
 
     man_machine_equipment_count = fields.Integer(
-        string='機具總數',
-        compute='_compute_man_machine_totals',
-        store=True,
-        help='所有機具的總數量')
+        string='機具總數（已廢棄）',
+        compute='_compute_legacy_stats',
+        help='此欄位已廢棄')
 
     man_machine_total_man_hours = fields.Float(
-        string='總人時',
-        compute='_compute_man_machine_totals',
-        store=True,
-        help='所有人員的總工時')
+        string='總人時（已廢棄）',
+        compute='_compute_legacy_stats',
+        help='此欄位已廢棄')
 
     man_machine_total_equipment_hours = fields.Float(
-        string='總機時',
-        compute='_compute_man_machine_totals',
-        store=True,
-        help='所有機具的總使用時數')
+        string='總機時（已廢棄）',
+        compute='_compute_legacy_stats',
+        help='此欄位已廢棄')
 
     # -------------------------------------------------------------------------
     # Compute Methods
     # -------------------------------------------------------------------------
 
-    @api.depends('man_machine_ids.record_type',
-                 'man_machine_ids.personnel_count',
-                 'man_machine_ids.total_man_hours',
-                 'man_machine_ids.equipment_count',
-                 'man_machine_ids.total_equipment_hours')
+    @api.depends('man_machine_detail_ids.hours')
     def _compute_man_machine_totals(self):
-        """計算人機記錄統計"""
+        """計算人機使用統計"""
         for sheet in self:
-            personnel_records = sheet.man_machine_ids.filtered(
-                lambda r: r.record_type == 'personnel'
-            )
-            equipment_records = sheet.man_machine_ids.filtered(
-                lambda r: r.record_type == 'equipment'
+            sheet.total_man_machine_hours = sum(
+                sheet.man_machine_detail_ids.mapped('hours')
             )
 
-            sheet.man_machine_personnel_count = sum(
-                personnel_records.mapped('personnel_count')
-            )
-            sheet.man_machine_total_man_hours = sum(
-                personnel_records.mapped('total_man_hours')
-            )
-            sheet.man_machine_equipment_count = sum(
-                equipment_records.mapped('equipment_count')
-            )
-            sheet.man_machine_total_equipment_hours = sum(
-                equipment_records.mapped('total_equipment_hours')
-            )
+    def _compute_legacy_man_machine(self):
+        """舊版相容：提供空的 man_machine_ids"""
+        for sheet in self:
+            sheet.man_machine_ids = False
+
+    def _compute_legacy_stats(self):
+        """舊版相容：提供零值統計"""
+        for sheet in self:
+            sheet.man_machine_personnel_count = 0
+            sheet.man_machine_equipment_count = 0
+            sheet.man_machine_total_man_hours = 0.0
+            sheet.man_machine_total_equipment_hours = 0.0

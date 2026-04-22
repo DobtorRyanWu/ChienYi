@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 驗收單 - 表單視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_notification_acceptance_form" model="ir.ui.view">
+        <field name="name">notification.acceptance.form</field>
+        <field name="model">notification.acceptance</field>
+        <field name="arch" type="xml">
+            <form string="通報單驗收">
+                <header>
+                    <button name="action_accept" string="確認驗收" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"
+                            groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
+                    <button name="action_load_pending_lines" string="載入待驗收項目" type="object"
+                            class="btn-secondary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_cancel" string="取消" type="object"
+                            invisible="state == 'cancel'"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <button name="action_reset_to_draft" string="重設為草稿" type="object"
+                            invisible="state != 'cancel'"
+                            groups="construction_supervision_base.group_supervision_manager"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,accept"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="驗收資訊">
+                            <field name="slip_id"
+                                   readonly="state != 'draft'"
+                                   options="{'no_create': True}"/>
+                            <field name="project_id"/>
+                            <field name="acceptance_date"/>
+                            <field name="acceptance_type"/>
+                            <field name="acceptance_no"/>
+                        </group>
+                        <group string="驗收人員">
+                            <field name="acceptor_id"/>
+                            <field name="witness_ids" widget="many2many_tags"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="驗收明細" name="lines">
+                            <field name="line_ids" readonly="state != 'draft'">
+                                <list string="驗收明細" editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="slip_line_id"
+                                           domain="[('slip_id', '=', parent.slip_id), ('qty_remaining', '>', 0)]"
+                                           options="{'no_create': True}"/>
+                                    <field name="item_no"/>
+                                    <field name="description"/>
+                                    <field name="unit"/>
+                                    <field name="unit_price"/>
+                                    <field name="actual_qty"/>
+                                    <field name="qty_previously_accepted"/>
+                                    <field name="qty_to_accept"/>
+                                    <field name="qty_accepted"/>
+                                    <field name="accepted_amount" sum="驗收總金額"/>
+                                    <field name="acceptance_result"/>
+                                    <field name="note" optional="hide"/>
+                                    <field name="slip_id" column_invisible="1"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                                <form string="驗收明細">
+                                    <group>
+                                        <group>
+                                            <field name="slip_line_id"/>
+                                            <field name="item_no"/>
+                                            <field name="description"/>
+                                            <field name="unit"/>
+                                            <field name="unit_price"/>
+                                            <field name="currency_id" invisible="1"/>
+                                            <field name="slip_id" invisible="1"/>
+                                        </group>
+                                        <group>
+                                            <field name="actual_qty"/>
+                                            <field name="qty_previously_accepted"/>
+                                            <field name="qty_to_accept"/>
+                                            <field name="qty_accepted"/>
+                                            <field name="accepted_amount"/>
+                                        </group>
+                                    </group>
+                                    <group>
+                                        <field name="acceptance_result"/>
+                                        <field name="note"/>
+                                    </group>
+                                </form>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="total_qty_accepted"/>
+                                <field name="total_accepted_amount" class="oe_subtotal_footer_separator"/>
+                            </group>
+                        </page>
+                        <page string="驗收結果" name="result">
+                            <group>
+                                <group>
+                                    <field name="has_defect"/>
+                                    <field name="defect_description"
+                                           invisible="not has_defect"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="附件" name="attachments">
+                            <group>
+                                <field name="attachment_ids" widget="many2many_binary"
+                                       string="驗收資料"/>
+                            </group>
+                            <group>
+                                <field name="photo_ids" widget="many2many_binary"
+                                       string="驗收照片"/>
+                            </group>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="notes"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 驗收單 - 列表視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_notification_acceptance_tree" model="ir.ui.view">
+        <field name="name">notification.acceptance.tree</field>
+        <field name="model">notification.acceptance</field>
+        <field name="arch" type="xml">
+            <list string="驗收單列表"
+                  decoration-muted="state == 'cancel'"
+                  decoration-success="state == 'accept'">
+                <field name="name"/>
+                <field name="slip_id"/>
+                <field name="project_id" optional="show"/>
+                <field name="acceptance_date"/>
+                <field name="acceptance_type"/>
+                <field name="acceptance_no"/>
+                <field name="acceptor_id"/>
+                <field name="total_qty_accepted" sum="總驗收數量"/>
+                <field name="total_accepted_amount" sum="總驗收金額"/>
+                <field name="has_defect"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'accept'"
+                       decoration-muted="state == 'cancel'"/>
+                <field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 驗收單 - 搜尋視圖                                -->
+    <!-- ============================================== -->
+    <record id="view_notification_acceptance_search" model="ir.ui.view">
+        <field name="name">notification.acceptance.search</field>
+        <field name="model">notification.acceptance</field>
+        <field name="arch" type="xml">
+            <search string="搜尋驗收單">
+                <field name="name"/>
+                <field name="slip_id"/>
+                <field name="project_id"/>
+                <field name="acceptor_id"/>
+                <separator/>
+                <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="已驗收" name="accepted" domain="[('state', '=', 'accept')]"/>
+                <filter string="取消" name="cancel" domain="[('state', '=', 'cancel')]"/>
+                <separator/>
+                <filter string="初驗" name="preliminary" domain="[('acceptance_type', '=', 'preliminary')]"/>
+                <filter string="部分驗收" name="partial" domain="[('acceptance_type', '=', 'partial')]"/>
+                <filter string="正驗" name="final" domain="[('acceptance_type', '=', 'final')]"/>
+                <separator/>
+                <filter string="有缺失" name="has_defect" domain="[('has_defect', '=', True)]"/>
+                <separator/>
+                <filter string="我驗收的" name="my_acceptances"
+                        domain="[('acceptor_id', '=', uid)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="通報單" name="group_by_slip" context="{'group_by': 'slip_id'}"/>
+                    <filter string="工程" name="group_by_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="驗收類型" name="group_by_type" context="{'group_by': 'acceptance_type'}"/>
+                    <filter string="狀態" name="group_by_state" context="{'group_by': 'state'}"/>
+                    <filter string="驗收人員" name="group_by_acceptor" context="{'group_by': 'acceptor_id'}"/>
+                    <filter string="驗收月份" name="group_by_month" context="{'group_by': 'acceptance_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 驗收單 - 動作                                    -->
+    <!-- ============================================== -->
+    <record id="action_notification_acceptance" model="ir.actions.act_window">
+        <field name="name">通報單驗收</field>
+        <field name="res_model">notification.acceptance</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_notification_acceptance_search"/>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一張驗收單
+            </p>
+            <p>
+                驗收單用於記錄通報單工項的驗收情況，
+                可支援部分驗收與分次驗收。
+            </p>
+        </field>
+    </record>
+
+    <!-- 待處理驗收單 -->
+    <record id="action_notification_acceptance_draft" model="ir.actions.act_window">
+        <field name="name">待處理驗收單</field>
+        <field name="res_model">notification.acceptance</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'draft')]</field>
+        <field name="context">{}</field>
+    </record>
+
+</odoo>

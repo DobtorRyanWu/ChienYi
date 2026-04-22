@@ -22,7 +22,7 @@ class ReservationDefectImprovementReservation(models.Model):
         store=True)
 
     slip_work_status = fields.Selection(
-        related='slip_id.work_status',
+        related='slip_id.state',
         string='施作狀態',
         store=True)
 

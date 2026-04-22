@@ -9,21 +9,28 @@
 
     <!-- ===================================================================
          進度管理選單 (歸屬於 工程管理 > 進度管理)
+         順序：進度表(10) / 進度明細(20) / 進度表圖表(30) / 進度報告(40) / 工項時程(90) / 時程分析(91)
          =================================================================== -->
 
-    <!-- 進度表 -->
+    <!-- 1. 進度表 -->
     <menuitem id="menu_progress_schedule"
               name="進度表"
               parent="construction_supervision_base.menu_schedule_management"
               action="action_progress_schedule"
-              sequence="30"/>
+              sequence="10"/>
 
-    <!-- 進度明細 (供進階查詢使用) -->
+    <!-- 2. 進度明細 -->
     <menuitem id="menu_progress_schedule_line"
               name="進度明細"
               parent="construction_supervision_base.menu_schedule_management"
               action="action_progress_schedule_line"
-              sequence="40"
-              groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervisor_admin"/>
+              sequence="20"/>
+
+    <!-- 3. 進度表圖表 (獨立儀表板) -->
+    <menuitem id="menu_progress_chart_dashboard"
+              name="進度表圖表"
+              parent="construction_supervision_base.menu_schedule_management"
+              action="action_progress_chart_dashboard"
+              sequence="30"/>
 
 </odoo>

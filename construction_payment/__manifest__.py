@@ -38,6 +38,10 @@
     'license': 'LGPL-3',
     'depends': [
         'construction_supervision_base',
+        'construction_daily_log',
+        'construction_contract_change',
+        'construction_notification_slip',
+        'construction_progress',
         'mail',
     ],
     'data': [
@@ -45,10 +49,14 @@
         'security/ir.model.access.csv',
         # Data
         'data/ir_sequence_data.xml',
+        # Wizard
+        'wizard/progress_activate_wizard_views.xml',
         # Views
+        'views/estimate_import_wizard_views.xml',
         'views/payment_estimate_views.xml',
         'views/work_acceptance_views.xml',
         'views/payment_claim_views.xml',
+        'views/supervision_project_views.xml',
         'views/menu.xml',
     ],
     'demo': [],

@@ -11,9 +11,9 @@
               parent="construction_supervision_base.menu_quality_safety_root"
               sequence="30"/>
 
-    <!-- 檢試驗項目管理 -->
+    <!-- 檢試驗項目設定 -->
     <menuitem id="menu_test_standard"
-              name="檢試驗項目管理"
+              name="檢試驗項目設定"
               parent="menu_test_management_root"
               action="action_test_standard"
               sequence="10"/>
@@ -25,11 +25,25 @@
               action="action_test_record"
               sequence="20"/>
 
+    <!-- 檢驗預警通知 -->
+    <menuitem id="menu_test_warning"
+              name="檢驗預警通知"
+              parent="menu_test_management_root"
+              action="action_test_warning"
+              sequence="30"/>
+
     <!-- 設定子選單 -->
     <menuitem id="menu_test_config"
               name="設定"
               parent="menu_test_management_root"
               sequence="100"
-              groups="group_test_manager"/>
+              groups="construction_supervision_base.group_supervisor_admin"/>
+
+    <!-- 公式範本庫 -->
+    <menuitem id="menu_test_formula_template"
+              name="公式範本庫"
+              parent="menu_test_config"
+              action="action_test_formula_template"
+              sequence="10"/>
 
 </odoo>

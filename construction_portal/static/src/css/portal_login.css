@@ -1,0 +1,212 @@
+/* ============================================
+   EAGLE 風格登入頁樣式
+   設計參考：jttku.synology.me EAGLE 系統
+   ============================================ */
+
+/* ============ 登入頁主體樣式 ============ */
+
+/* === 全螢幕背景 === */
+body:has(.oe_login_form) {
+    background-image: url('/construction_portal/static/src/img/login_bg.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    background-color: #1a2a4a;
+    min-height: 100vh !important;
+}
+
+/* === 隱藏 website header + footer === */
+body:has(.oe_login_form) header#top,
+body:has(.oe_login_form) header,
+body:has(.oe_login_form) footer,
+body:has(.oe_login_form) #footer {
+    display: none !important;
+}
+
+/* === main 容器置中 === */
+body:has(.oe_login_form) main {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-height: 100vh !important;
+    padding: 1rem !important;
+    margin: 0 !important;
+    overflow-y: auto !important;
+}
+
+/* === 登入容器 → 漸層玻璃卡片 === */
+body:has(.oe_login_form) .oe_website_login_container {
+    max-width: 460px !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    padding: 2rem 2.5rem 1.5rem !important;
+    background: linear-gradient(
+        155deg,
+        rgba(255, 255, 255, 0.95) 0%,
+        rgba(186, 230, 253, 0.78) 40%,
+        rgba(96, 165, 250, 0.55) 100%
+    ) !important;
+    backdrop-filter: blur(24px) saturate(180%) !important;
+    -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.6) !important;
+    border-radius: 24px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+}
+
+/* === EAGLE 主視覺（大尺寸） === */
+.cy-login-brand {
+    margin-bottom: 1rem;
+}
+.cy-login-eagle-img {
+    height: 170px;
+    width: auto;
+    max-width: 100%;
+    filter: drop-shadow(0 6px 18px rgba(30, 64, 175, 0.25));
+}
+
+/* === 合作公司 Logo 列（置中等距） === */
+.cy-login-partners {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 12px;
+    padding: 10px 4px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+.cy-login-partners img {
+    height: 34px;
+    width: auto;
+    max-width: 30%;
+    object-fit: contain;
+    opacity: 0.85;
+    transition: opacity 0.2s ease;
+}
+.cy-login-partners img:hover {
+    opacity: 1;
+}
+
+/* === Input 帶圖示 === */
+.cy-input-group {
+    position: relative;
+}
+.cy-input-group .cy-input-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #a0aec0;
+    font-size: 16px;
+    z-index: 2;
+    pointer-events: none;
+}
+.cy-input-group input.form-control {
+    padding-left: 44px !important;
+    border-radius: 10px !important;
+    height: 44px !important;
+    font-size: 16px !important;
+    background: rgba(240, 242, 245, 0.8) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    transition: all 0.2s ease;
+}
+.cy-input-group input.form-control::placeholder {
+    color: #b0b8c4;
+    font-size: 15px;
+}
+.cy-input-group input.form-control:focus {
+    border-color: #4285f4 !important;
+    box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.15) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* === 藍色登入按鈕 === */
+.cy-login-btn,
+body:has(.oe_login_form) .btn-primary {
+    background: #4285f4 !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    letter-spacing: 6px !important;
+    padding: 14px !important;
+    transition: all 0.2s ease;
+    text-indent: 6px;
+}
+body:has(.oe_login_form) .btn-primary:hover {
+    background: #3b78e7 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(66, 133, 244, 0.35);
+}
+body:has(.oe_login_form) .btn-primary:active {
+    transform: translateY(0);
+}
+
+/* === 登入按鈕區塊 === */
+body:has(.oe_login_form) .oe_login_buttons {
+    padding-top: 0.5rem !important;
+    margin-top: 0.5rem !important;
+    border-top: none !important;
+}
+
+/* === 錯誤/成功訊息 === */
+body:has(.oe_login_form) .alert {
+    border-radius: 10px !important;
+    font-size: 14px;
+}
+
+/* === 底部 Copyright === */
+.cy-login-footer {
+    padding-top: 8px;
+    border-top: 1px solid rgba(30, 58, 138, 0.2);
+    margin-top: 0.5rem !important;
+}
+.cy-login-copyright {
+    font-size: 12px;
+    color: #1e3a8a;
+    letter-spacing: 0.5px;
+    line-height: 1.6;
+    font-weight: 600;
+}
+.cy-login-copyright-en b {
+    color: #0b2545;
+    font-weight: 900;
+}
+
+/* === 隱藏 Odoo 原生元素 === */
+body:has(.oe_login_form) .text-center.small.mt-4.pt-3.border-top {
+    display: none !important;
+}
+
+/* === 保留 Odoo 原生 user_switch 動畫 === */
+
+/* === RWD 響應式 === */
+@media (max-width: 576px) {
+    body:has(.oe_login_form) {
+        overflow-y: auto !important;
+        height: auto !important;
+    }
+    body:has(.oe_login_form) main {
+        height: auto !important;
+        min-height: 100vh !important;
+        overflow: visible !important;
+        align-items: center !important;
+        padding: 1rem !important;
+    }
+    body:has(.oe_login_form) .oe_website_login_container {
+        margin: 1rem auto !important;
+        padding: 1.2rem 1.5rem !important;
+        border-radius: 20px !important;
+    }
+    .cy-login-eagle-img {
+        height: 130px;
+    }
+    .cy-login-partners {
+        gap: 8px;
+    }
+    .cy-login-partners img {
+        height: 28px;
+        max-width: 28%;
+    }
+}

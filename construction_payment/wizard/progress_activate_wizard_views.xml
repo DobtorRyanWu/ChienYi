@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 擴展進度表啟用精靈：加入估驗計價選項 -->
+    <record id="progress_activate_wizard_form_payment" model="ir.ui.view">
+        <field name="name">progress.activate.wizard.form.payment</field>
+        <field name="model">progress.activate.wizard</field>
+        <field name="inherit_id" ref="construction_progress.progress_activate_wizard_form"/>
+        <field name="arch" type="xml">
+            <!-- 在「日誌統計」group 後面加入估驗計價區塊 -->
+            <xpath expr="//group[@name='log_stats']" position="after">
+                <group string="估驗計價" invisible="not valuation_cycle">
+                    <group>
+                        <field name="generate_estimates"/>
+                        <field name="valuation_cycle" readonly="1"/>
+                        <field name="valuation_cycle_days" readonly="1"
+                               invisible="valuation_cycle != 'custom'"/>
+                        <field name="estimate_count_preview" readonly="1"
+                               invisible="not generate_estimates"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

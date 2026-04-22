@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- ============================================== -->
+        <!-- 開發商內部群組                                  -->
+        <!-- ============================================== -->
+
+        <!-- 代操作員 -->
+        <record id="group_operator" model="res.groups">
+            <field name="name">代操作員</field>
+            <field name="category_id" ref="construction_supervision_base.module_category_supervision_special"/>
+            <field name="implied_ids" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+            <field name="comment">開發商代操作人員，可跨公司存取所有客戶資料，操作會記錄審計追蹤</field>
+        </record>
+
+        <!-- ============================================== -->
+        <!-- 舊的 Portal 群組定義已遷移至 new_portal_groups.xml -->
+        <!-- ============================================== -->
+
+    </data>
+</odoo>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 擴展工程案件表單：加入估驗週期欄位與 smart button -->
+    <record id="view_supervision_project_form_payment" model="ir.ui.view">
+        <field name="name">supervision.project.form.payment</field>
+        <field name="model">supervision.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
+        <field name="arch" type="xml">
+            <!-- 估驗計價 smart button 已移除 -->
+
+            <!-- 在契約資訊 group 中加入估驗週期欄位 -->
+            <xpath expr="//field[@name='total_approved_duration']" position="after">
+                <field name="valuation_cycle"
+                       readonly="state in ('closed', 'terminated')"/>
+                <field name="valuation_cycle_days"
+                       readonly="state in ('closed', 'terminated')"
+                       invisible="valuation_cycle != 'custom'"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

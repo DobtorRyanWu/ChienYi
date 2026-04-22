@@ -32,6 +32,15 @@ class PriceLibraryCategory(models.Model):
         default=10,
         help='排序順序，數字越小越前面')
 
+    # === 多公司支援 ===
+    company_id = fields.Many2one(
+        'res.company',
+        string='公司',
+        required=True,
+        default=lambda self: self.env.company,
+        index=True,
+        help='所屬公司，每個公司有獨立的價格庫分類')
+
     # === 樹狀結構 ===
     parent_id = fields.Many2one(
         'price.library.category',
@@ -112,10 +121,8 @@ class PriceLibraryCategory(models.Model):
             raise ValidationError('分類不能設定自己或子分類為上層分類！')
 
     # === SQL 約束 ===
-    _sql_constraints = [
-        ('code_unique', 'UNIQUE(code)',
-         '分類編號必須唯一！'),
-    ]
+    # 註：分類編號（code）不強制唯一，因為不同公司可能使用相同編號
+    _sql_constraints = []
 
     # === 動作方法 ===
     def action_view_items(self):

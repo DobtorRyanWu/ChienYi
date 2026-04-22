@@ -2,25 +2,13 @@
 <odoo>
 
     <!-- ===================================================================
-         送審管制選單 (歸屬於 工程管理 > 文件管理)
+         送審管制選單 (歸屬於 工程管理)
          =================================================================== -->
 
     <menuitem id="menu_review_application_all"
               name="送審管制表"
-              parent="construction_supervision_base.menu_document_management"
+              parent="construction_supervision_base.menu_project_management_root"
               action="action_review_application"
               sequence="30"/>
-
-    <menuitem id="menu_review_application_pending"
-              name="待審查送審"
-              parent="construction_supervision_base.menu_document_management"
-              action="action_review_application_pending"
-              sequence="40"/>
-
-    <menuitem id="menu_review_application_approved"
-              name="已核定送審"
-              parent="construction_supervision_base.menu_document_management"
-              action="action_review_application_approved"
-              sequence="50"/>
 
 </odoo>

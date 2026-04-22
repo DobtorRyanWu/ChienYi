@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 定期任務：檢查檢驗需求 -->
+        <record id="ir_cron_check_test_requirements" model="ir.cron">
+            <field name="name">檢查檢驗需求（每日）</field>
+            <field name="model_id" ref="model_check_test_requirement_cron"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_check_test_requirements()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="False"/>  <!-- 預設關閉，由管理員啟用 -->
+            <field name="priority">10</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
+    </data>
+</odoo>

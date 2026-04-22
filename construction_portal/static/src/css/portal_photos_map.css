@@ -1,0 +1,666 @@
+/* =============================================
+   Portal 照片地圖（行動端 Google Maps + Photos 風格）
+   ============================================= */
+
+:root {
+    --map-topbar-h: 52px;
+    --map-pillbar-h: 48px;
+    --map-nav-h: var(--wb-nav-h, 76px);
+    --map-sheet-peek: 72px;
+    --map-sheet-half: 48vh;
+    --map-sheet-full: calc(100vh - var(--map-topbar-h) - var(--map-pillbar-h) - 8px);
+}
+
+.cy-photos-map-app {
+    padding-bottom: 0 !important;
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+}
+
+/* === 頂部 App Bar === */
+.cy-map-topbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: var(--map-topbar-h); z-index: 700;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 12px;
+    background: var(--wb-bg2, #fff);
+    border-bottom: 1px solid var(--wb-bdr, #e0e3eb);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.cy-map-back, .cy-map-view-toggle {
+    width: 38px; height: 38px; display: flex;
+    align-items: center; justify-content: center;
+    border-radius: 10px; color: var(--wb-t2, #5a6070);
+    text-decoration: none; font-size: 16px;
+    background: transparent;
+}
+.cy-map-back:hover, .cy-map-view-toggle:hover {
+    background: var(--wb-bg3, #f0f1f5);
+    color: var(--wb-blue, #3b8de0);
+}
+.cy-map-title {
+    font-size: 16px; font-weight: 700; margin: 0;
+    color: var(--wb-t1, #1a1d26); white-space: nowrap;
+}
+.cy-map-title i { color: var(--wb-blue, #3b8de0); margin-right: 4px; }
+.cy-map-topbar-right {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+}
+.cy-map-stat {
+    font-size: 13px; color: var(--wb-t3, #8b90a0);
+    background: var(--wb-bg3, #f0f1f5);
+    padding: 4px 10px; border-radius: 999px;
+}
+.cy-map-stat strong { color: var(--wb-t1, #1a1d26); font-size: 14px; }
+
+/* === Pill 篩選列 === */
+.cy-map-pillbar {
+    position: fixed; top: var(--map-topbar-h); left: 0; right: 0;
+    height: var(--map-pillbar-h); z-index: 690;
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    background: var(--wb-bg2, #fff);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 1px solid var(--wb-bdr, #e0e3eb);
+    scrollbar-width: none;
+}
+.cy-map-pillbar::-webkit-scrollbar { display: none; }
+
+.cy-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 14px;
+    border: 1px solid var(--wb-bdr, #e0e3eb);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 13px; font-weight: 500;
+    color: var(--wb-t2, #5a6070);
+    white-space: nowrap; cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+.cy-pill:hover { background: var(--wb-bg3, #f0f1f5); }
+.cy-pill.active {
+    background: var(--wb-blue, #3b8de0);
+    color: #fff;
+    border-color: var(--wb-blue, #3b8de0);
+}
+.cy-pill i { font-size: 11px; }
+.cy-pill-reset {
+    width: 36px; padding: 7px 0;
+    justify-content: center;
+    color: var(--wb-t3, #8b90a0);
+}
+
+/* === 地圖容器 === */
+.cy-photo-map {
+    position: fixed;
+    top: calc(var(--map-topbar-h) + var(--map-pillbar-h));
+    left: 0; right: 0;
+    bottom: var(--map-nav-h);
+    z-index: 1;
+}
+
+/* === 右下浮動按鈕 FAB === */
+.cy-map-fab-group {
+    position: fixed;
+    right: 14px;
+    bottom: calc(var(--map-nav-h) + var(--map-sheet-peek) + 14px);
+    z-index: 550;
+    display: flex; flex-direction: column; gap: 10px;
+    transition: bottom 0.3s ease;
+}
+.cy-map-fab {
+    width: 48px; height: 48px;
+    border: none; border-radius: 50%;
+    background: #fff;
+    color: var(--wb-t2, #5a6070);
+    font-size: 18px; cursor: pointer;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.18);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+}
+.cy-map-fab:hover { transform: scale(1.05); color: var(--wb-blue, #3b8de0); }
+.cy-map-fab-primary {
+    background: var(--wb-blue, #3b8de0);
+    color: #fff;
+}
+.cy-map-fab-primary:hover { color: #fff; background: #2d7dcc; }
+
+/* 當 sheet 展開時把 FAB 往上推 */
+.cy-photos-map-app:has(.cy-map-sheet-half) .cy-map-fab-group {
+    bottom: calc(var(--map-nav-h) + var(--map-sheet-half) + 14px);
+}
+.cy-photos-map-app:has(.cy-map-sheet-full) .cy-map-fab-group {
+    bottom: calc(var(--map-nav-h) + var(--map-sheet-full) + 14px);
+}
+
+/* === 圖例 chip === */
+.cy-map-legend-chip {
+    position: fixed;
+    right: 14px;
+    top: calc(var(--map-topbar-h) + var(--map-pillbar-h) + 12px);
+    z-index: 540;
+}
+.cy-legend-toggle {
+    width: 38px; height: 38px;
+    border: none; border-radius: 50%;
+    background: #fff; color: var(--wb-t2, #5a6070);
+    font-size: 15px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.cy-legend-body {
+    display: none;
+    margin-top: 6px;
+    background: rgba(255,255,255,0.97);
+    backdrop-filter: blur(8px);
+    border-radius: 12px;
+    padding: 10px 14px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.15);
+    font-size: 12px;
+    min-width: 110px;
+}
+.cy-map-legend-chip.open .cy-legend-body { display: block; }
+.cy-legend-row {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--wb-t2, #5a6070);
+    line-height: 1.9;
+}
+.cy-legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* === Bottom Sheet === */
+.cy-map-sheet {
+    position: fixed;
+    left: 0; right: 0;
+    bottom: var(--map-nav-h);
+    height: var(--map-sheet-peek);
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+    z-index: 560;
+    transition: height 0.3s ease;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+}
+.cy-map-sheet-peek { height: var(--map-sheet-peek); }
+.cy-map-sheet-half { height: var(--map-sheet-half); }
+.cy-map-sheet-full { height: var(--map-sheet-full); }
+
+.cy-sheet-handle {
+    padding: 10px 0 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    touch-action: pan-y;
+}
+.cy-sheet-grip {
+    width: 40px; height: 4px; border-radius: 2px;
+    background: var(--wb-t3, #8b90a0);
+    opacity: 0.4;
+    margin: 0 auto;
+}
+
+/* Segmented control */
+.cy-sheet-segment {
+    display: flex; gap: 4px;
+    margin: 4px 12px 8px;
+    padding: 4px;
+    background: var(--wb-bg3, #f0f1f5);
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.cy-seg-btn {
+    flex: 1;
+    padding: 8px 4px;
+    border: none; background: transparent;
+    border-radius: 8px;
+    font-size: 13px; font-weight: 600;
+    color: var(--wb-t3, #8b90a0);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+.cy-seg-btn i { margin-right: 3px; }
+.cy-seg-btn.active {
+    background: #fff;
+    color: var(--wb-blue, #3b8de0);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.cy-sheet-scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 12px 20px;
+}
+
+.cy-sheet-tab { display: none; }
+.cy-sheet-tab.active { display: block; }
+
+.cy-sheet-stat {
+    font-size: 13px;
+    color: var(--wb-t2, #5a6070);
+    padding: 6px 10px;
+    background: var(--wb-bg3, #f0f1f5);
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+.cy-sheet-stat strong { color: var(--wb-t1, #1a1d26); font-size: 15px; }
+
+.cy-sheet-hint {
+    font-size: 12px;
+    color: var(--wb-t3, #8b90a0);
+    margin-top: 12px;
+    text-align: center;
+}
+
+/* === Google Photos 風 Grid === */
+.cy-photo-grid {
+    display: flex; flex-direction: column;
+    gap: 12px;
+}
+.cy-photo-group-title {
+    font-size: 13px; font-weight: 700;
+    color: var(--wb-t1, #1a1d26);
+    margin-bottom: 6px;
+    padding-left: 2px;
+}
+.cy-photo-group-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
+}
+@media (max-width: 380px) {
+    .cy-photo-group-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.cy-photo-grid-item {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border: none;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--wb-bg3, #f0f1f5);
+    cursor: pointer;
+    transition: transform 0.12s;
+}
+.cy-photo-grid-item:active { transform: scale(0.96); }
+.cy-photo-grid-item img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.cy-grid-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--wb-t3, #8b90a0); font-size: 22px;
+}
+.cy-grid-badge {
+    position: absolute;
+    top: 5px; left: 5px;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid #fff;
+    box-shadow: 0 0 2px rgba(0,0,0,0.3);
+}
+.cy-grid-distance {
+    position: absolute;
+    bottom: 4px; left: 4px; right: 4px;
+    font-size: 10px;
+    color: #fff;
+    background: rgba(0,0,0,0.55);
+    padding: 2px 4px;
+    border-radius: 3px;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cy-map-btn-load-more {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--wb-bdr, #e0e3eb);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--wb-blue, #3b8de0);
+    font-size: 14px; font-weight: 500;
+    cursor: pointer;
+    margin-top: 12px;
+}
+.cy-map-btn-load-more:hover { background: var(--wb-bg3, #f0f1f5); }
+
+/* === 附近 tab === */
+.cy-radius-row {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+.cy-radius-label {
+    font-size: 12px; font-weight: 600;
+    color: var(--wb-t2, #5a6070);
+    margin-right: 2px;
+}
+.cy-radius-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--wb-bdr, #e0e3eb);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 12px; font-weight: 500;
+    color: var(--wb-t2, #5a6070);
+    cursor: pointer;
+}
+.cy-radius-btn.active {
+    background: var(--wb-blue, #3b8de0);
+    color: #fff;
+    border-color: var(--wb-blue, #3b8de0);
+}
+
+/* === 篩選摘要 === */
+.cy-filter-summary {
+    display: flex; flex-wrap: wrap; gap: 6px;
+}
+.cy-filter-chip {
+    display: inline-block;
+    padding: 5px 12px;
+    background: rgba(59,141,224,0.1);
+    color: var(--wb-blue, #3b8de0);
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.cy-filter-empty {
+    color: var(--wb-t3, #8b90a0);
+    font-size: 13px;
+}
+
+/* === 篩選 Modal === */
+.cy-filter-modal {
+    position: fixed; inset: 0;
+    z-index: 900;
+    display: none;
+}
+.cy-filter-modal.open { display: block; }
+.cy-filter-modal-backdrop {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.45);
+    animation: fadeIn 0.2s ease;
+}
+.cy-filter-modal-body {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    max-height: 80vh;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    display: flex; flex-direction: column;
+    animation: slideUp 0.25s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+.cy-filter-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--wb-bdr, #e0e3eb);
+    font-size: 16px; font-weight: 700;
+    color: var(--wb-t1, #1a1d26);
+}
+.cy-filter-modal-close {
+    width: 32px; height: 32px;
+    border: none; background: var(--wb-bg3, #f0f1f5);
+    border-radius: 50%;
+    color: var(--wb-t2, #5a6070);
+    font-size: 14px; cursor: pointer;
+}
+
+.cy-filter-modal-content {
+    flex: 1; overflow-y: auto;
+    padding: 12px 16px;
+}
+.cy-filter-panel {
+    margin-bottom: 20px;
+}
+.cy-filter-panel::before {
+    content: attr(data-panel);
+    display: block;
+    font-size: 12px; font-weight: 700;
+    color: var(--wb-t3, #8b90a0);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+.cy-filter-panel[data-panel="source"]::before { content: "來源"; }
+.cy-filter-panel[data-panel="category"]::before { content: "分類"; }
+.cy-filter-panel[data-panel="phase"]::before { content: "階段"; }
+.cy-filter-panel[data-panel="date"]::before { content: "日期"; }
+
+.cy-filter-options {
+    display: flex; flex-wrap: wrap; gap: 6px;
+}
+.cy-filter-opt {
+    padding: 7px 14px;
+    border: 1px solid var(--wb-bdr, #e0e3eb);
+    border-radius: 999px;
+    background: #fff;
+    font-size: 13px;
+    color: var(--wb-t2, #5a6070);
+    cursor: pointer;
+}
+.cy-filter-opt.active {
+    background: var(--wb-blue, #3b8de0);
+    color: #fff;
+    border-color: var(--wb-blue, #3b8de0);
+}
+.cy-filter-date-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 8px;
+}
+.cy-filter-date-row label {
+    min-width: 28px;
+    font-size: 13px;
+    color: var(--wb-t2, #5a6070);
+    margin: 0;
+}
+.cy-filter-date-row input {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1px solid var(--wb-bdr, #e0e3eb);
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.cy-filter-modal-footer {
+    display: flex; gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--wb-bdr, #e0e3eb);
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0));
+}
+.cy-filter-btn-primary, .cy-filter-btn-secondary {
+    flex: 1;
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer;
+}
+.cy-filter-btn-primary {
+    border: none;
+    background: var(--wb-blue, #3b8de0);
+    color: #fff;
+}
+.cy-filter-btn-secondary {
+    border: 1px solid var(--wb-bdr, #e0e3eb);
+    background: #fff;
+    color: var(--wb-t2, #5a6070);
+}
+
+/* === Lightbox === */
+.cy-lightbox {
+    position: fixed; inset: 0;
+    z-index: 1000;
+    background: rgba(0,0,0,0.96);
+    display: none;
+    flex-direction: column;
+    animation: fadeIn 0.2s ease;
+}
+.cy-lightbox.open { display: flex; }
+body.lightbox-open { overflow: hidden; }
+
+.cy-lightbox-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top, 0));
+    color: #fff;
+    flex-shrink: 0;
+}
+.cy-lightbox-close, .cy-lightbox-action {
+    width: 40px; height: 40px;
+    border: none; background: rgba(255,255,255,0.12);
+    border-radius: 50%;
+    color: #fff; font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    text-decoration: none;
+}
+.cy-lightbox-counter {
+    color: #fff; font-size: 14px; font-weight: 500;
+}
+
+.cy-lightbox-stage {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+.cy-lightbox-viewport {
+    flex: 1;
+    height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+}
+.cy-lightbox-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    transform-origin: center center;
+    transition: transform 0.18s ease;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+.cy-lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px; height: 44px;
+    border: none; border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+}
+.cy-lightbox-prev { left: 12px; }
+.cy-lightbox-next { right: 12px; }
+@media (max-width: 640px) {
+    .cy-lightbox-nav { display: none; }  /* 行動端用 swipe */
+}
+
+.cy-lightbox-caption {
+    padding: 14px 20px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0));
+    color: #fff;
+    flex-shrink: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+}
+.cy-lightbox-cap-title {
+    font-size: 15px; font-weight: 600;
+    margin-bottom: 4px;
+    color: #fff;
+}
+.cy-lightbox-cap-meta {
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+    display: flex; flex-wrap: wrap; gap: 4px 10px;
+    align-items: center;
+}
+.cy-lightbox-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    color: #fff;
+    font-weight: 500;
+}
+
+/* === Marker / Cluster 樣式 === */
+.photo-marker-wrapper { background: transparent; border: none; }
+.photo-marker-dot {
+    width: 30px; height: 38px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    border: 2px solid #fff;
+}
+.photo-marker-dot i {
+    transform: rotate(45deg);
+    color: #fff; font-size: 13px;
+}
+.photo-cluster-wrapper { background: transparent; border: none; }
+.photo-cluster {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 14px;
+    border: 3px solid #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.photo-cluster.cluster-small { background: #3b82f6; }
+.photo-cluster.cluster-medium { background: #f59e0b; font-size: 15px; }
+.photo-cluster.cluster-large { background: #ef4444; font-size: 16px; }
+
+/* 使用者定位 */
+.user-location-wrapper { background: transparent; border: none; }
+.user-location-dot {
+    width: 16px; height: 16px;
+    background: #3b82f6;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(59,130,246,0.5);
+    position: relative; z-index: 2;
+}
+.user-location-pulse {
+    position: absolute; top: 50%; left: 50%;
+    width: 16px; height: 16px;
+    transform: translate(-50%, -50%);
+    background: rgba(59,130,246,0.3);
+    border-radius: 50%;
+    animation: userPulse 2s ease-out infinite;
+}
+@keyframes userPulse {
+    0% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
+    100% { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+}
+
+/* Leaflet 調整 */
+.leaflet-control-zoom {
+    margin-top: 12px !important;
+    margin-left: 12px !important;
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+}
+.leaflet-control-zoom a {
+    background: #fff !important;
+    color: var(--wb-t2, #5a6070) !important;
+    border: none !important;
+    width: 36px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    font-size: 18px !important;
+}
+.leaflet-control-zoom a:hover { color: var(--wb-blue, #3b8de0) !important; }

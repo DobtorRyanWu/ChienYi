@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="progress_activate_wizard_form" model="ir.ui.view">
+        <field name="name">progress.activate.wizard.form</field>
+        <field name="model">progress.activate.wizard</field>
+        <field name="arch" type="xml">
+            <form string="啟用進度表">
+                <group>
+                    <group string="基本資訊">
+                        <field name="schedule_id" invisible="1"/>
+                        <field name="project_id" readonly="1"/>
+                        <field name="start_date" readonly="1"/>
+                        <field name="end_date" readonly="1"/>
+                    </group>
+                    <group string="建立設定">
+                        <field name="employee_id"/>
+                    </group>
+                </group>
+                <group string="日誌統計" name="log_stats">
+                    <group>
+                        <field name="existing_log_count" readonly="1"/>
+                        <field name="new_log_count_preview" readonly="1"/>
+                    </group>
+                </group>
+                <div class="alert alert-info" role="alert"
+                     invisible="existing_log_count == 0">
+                    <strong>提示：</strong>
+                    此工程已存在
+                    <field name="existing_log_count" readonly="1" class="d-inline fw-bold" nolabel="1"/>
+                    筆日誌，本次將補建
+                    <field name="new_log_count_preview" readonly="1" class="d-inline fw-bold" nolabel="1"/>
+                    筆新日誌（已存在的日期不會重複建立）。
+                </div>
+                <div class="alert alert-info" role="alert"
+                     invisible="existing_log_count != 0">
+                    <strong>說明：</strong>
+                    啟用進度表後，將自動建立日期範圍內每天的施工日誌。
+                </div>
+                <footer>
+                    <button string="確認啟用" type="object"
+                            name="action_confirm"
+                            class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

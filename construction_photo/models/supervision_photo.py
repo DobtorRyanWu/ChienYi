@@ -24,10 +24,15 @@ class SupervisionPhoto(models.Model):
 
     # === 基本資訊 ===
     name = fields.Char(
-        string='照片說明',
-        required=True,
+        string='照片摘要',
+        compute='_compute_name',
+        store=True,
         tracking=True,
-        help='舊系統欄位: description')
+        help='自動從詳細說明或檔案名稱產生的簡短摘要')
+    
+    description = fields.Text(
+        string='照片說明',
+        help='詳細說明此照片的內容、拍攝目的、相關資訊等')
 
     project_id = fields.Many2one(
         'supervision.project',
@@ -115,11 +120,53 @@ class SupervisionPhoto(models.Model):
                 photo.shot_date = photo.shot_at.date()
             else:
                 photo.shot_date = False
+    
+    @api.depends('description', 'attachment_id.name')
+    def _compute_name(self):
+        """自動產生照片摘要"""
+        for photo in self:
+            if photo.description:
+                # 從說明中擷取前50字作為摘要
+                desc_text = photo.description.strip()
+                if len(desc_text) > 50:
+                    photo.name = desc_text[:50] + '...'
+                else:
+                    photo.name = desc_text
+            elif photo.attachment_id and photo.attachment_id.name:
+                # 如果沒有說明，使用檔案名稱
+                photo.name = photo.attachment_id.name
+            else:
+                # 都沒有就用預設名稱
+                photo.name = '未命名照片'
 
-    # === GPS 位置資訊 (舊系統欄位) ===
+    # === 工程案件位置資訊 (唯讀) ===
+    project_location = fields.Char(
+        string='工程地點',
+        related='project_id.location',
+        store=True,
+        readonly=True,
+        help='此照片所屬工程案件的地點')
+
+    project_latitude = fields.Float(
+        string='工程緯度',
+        related='project_id.latitude',
+        store=True,
+        readonly=True,
+        digits=(10, 7),
+        help='工程案件的GPS緯度座標')
+
+    project_longitude = fields.Float(
+        string='工程經度',
+        related='project_id.longitude',
+        store=True,
+        readonly=True,
+        digits=(10, 7),
+        help='工程案件的GPS經度座標')
+
+    # === 照片拍攝位置資訊 (舊系統欄位) ===
     gps_location = fields.Char(
-        string='GPS位置',
-        help='舊系統欄位: gpsLocation，格式: 緯度,經度')
+        string='拍攝GPS位置',
+        help='舊系統欄位: gpsLocation，格式: 緯度,經度\n此為照片實際拍攝位置，與工程案件位置可能不同')
 
     latitude = fields.Float(
         string='緯度',
@@ -164,6 +211,28 @@ class SupervisionPhoto(models.Model):
                 photo.gps_location = f"{photo.latitude},{photo.longitude}"
             else:
                 photo.gps_location = False
+
+    # === 照片分類 ===
+    category = fields.Selection([
+        ('STL', '鋼筋'), ('CON', '混凝土'), ('FRM', '模板'),
+        ('PIP', '管線'), ('ELC', '電氣'), ('DEF', '缺失'),
+        ('EXC', '開挖'), ('BKF', '回填'), ('PAV', '鋪面'),
+        ('DRN', '排水'), ('OTH', '其他'),
+    ], string='材料分類',
+       help='照片的材料/工項分類')
+
+    construction_phase = fields.Selection([
+        ('before', '施工前'),
+        ('during', '施工中'),
+        ('after', '施工後'),
+        ('defect', '缺失'),
+        ('acceptance', '驗收'),
+    ], string='施工階段',
+       help='照片對應的施工階段')
+
+    location_code = fields.Char(
+        string='位置編碼',
+        help='照片拍攝位置的編碼（如樁號、座標代碼）')
 
     # === 來源追蹤 (舊系統欄位) ===
     source_model = fields.Selection([
@@ -247,12 +316,25 @@ class SupervisionPhoto(models.Model):
     # === 業務方法 ===
     @api.model_create_multi
     def create(self, vals_list):
-        """建立照片記錄"""
+        """建立照片記錄；若有 description，建立後自動打標籤。"""
         for vals in vals_list:
             # 確保上傳時間
             if 'upload_date' not in vals:
                 vals['upload_date'] = fields.Datetime.now()
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        # 自動打標籤（只對有 description 的）
+        to_tag = records.filtered(lambda r: r.description)
+        if to_tag:
+            to_tag.action_auto_tag_from_description()
+        return records
+
+    def write(self, vals):
+        """寫入照片；若 description 改動，重新跑 auto-tag。"""
+        res = super().write(vals)
+        if 'description' in vals:
+            # 注意：不清空已有 tag，只 append 命中的新 tag
+            self.filtered(lambda r: r.description).action_auto_tag_from_description()
+        return res
 
     def unlink(self):
         """刪除照片記錄"""
@@ -262,6 +344,108 @@ class SupervisionPhoto(models.Model):
         # 刪除沒有其他關聯的附件
         attachments.unlink()
         return result
+
+    # === 自動打標籤規則 ===
+    # 每條規則：(canonical_tag_name, [keywords_that_hit_it], color_key)
+    # 長詞優先（避免「雙孔箱涵-基礎鋼筋綁紮」只抓到「箱涵」）
+    # canonical_tag_name 就是實際建立的 supervision.photo.tag 名稱；
+    # keywords 中任一命中 description 就產生這個 tag
+    _AUTO_TAG_RULES = [
+        # ── 地點（color_loc = 顏色 index 2 橙）────────────────────
+        ('雙孔箱涵',   ['雙孔箱涵'], 'color_loc'),
+        ('三合橋',     ['三合橋'], 'color_loc'),
+        ('磺港路',     ['磺港路'], 'color_loc'),
+        ('人行道',     ['人行道'], 'color_loc'),
+        ('既有河道',   ['既有河道'], 'color_loc'),
+        ('臨路側',     ['臨路側'], 'color_loc'),
+        ('木棧橋',     ['木棧橋'], 'color_loc'),
+        ('木棧道',     ['木棧道'], 'color_loc'),
+        ('座台',       ['座台'], 'color_loc'),
+        ('伸縮縫',     ['伸縮縫'], 'color_loc'),
+        ('側溝',       ['側溝'], 'color_loc'),
+        ('橋面板',     ['橋面板'], 'color_loc'),
+        # ── 工項（color_task = 顏色 index 10 綠）──────────────────
+        ('混凝土澆置', ['混凝土澆置'], 'color_task'),
+        ('鋼筋綁紮',   ['鋼筋綁紮'], 'color_task'),
+        ('模板作業',   ['模板組立', '模板施作'], 'color_task'),
+        ('緣石作業',   ['緣石施作', '路緣石施作', '路緣石擺設', '緣石擺設'], 'color_task'),
+        ('透水紙模鋪設', ['透水紙模鋪設', '透水紙膜鋪設', '紙模鋪設']
+         , 'color_task'),  # 第三項為錯字常見寫法
+        ('透水磚鋪設', ['透水磚鋪設'], 'color_task'),
+        ('破碎篩分',   ['破碎篩分', '破碎'], 'color_task'),
+        ('地坪作業',   ['地坪施作', '地坪泥作', '石材地坪'], 'color_task'),
+        ('AC鋪設',     ['AC鋪設'], 'color_task'),
+        ('鋼線網鋪設', ['鋼線網鋪設'], 'color_task'),
+        ('頂板澆置',   ['頂板澆置'], 'color_task'),
+        ('界石施作',   ['界石施作'], 'color_task'),
+        ('陰井施作',   ['陰井施作'], 'color_task'),
+        ('扶手安裝',   ['扶手安裝'], 'color_task'),
+        ('欄杆施作',   ['欄杆施作'], 'color_task'),
+        ('座台泥作',   ['座台泥作'], 'color_task'),
+        ('碎石回填',   ['碎石回填'], 'color_task'),
+        ('花土回填',   ['花土回填'], 'color_task'),
+        ('植筋',       ['植筋'], 'color_task'),
+        ('砌石',       ['砌石'], 'color_task'),
+        ('植栽',       ['植栽'], 'color_task'),
+        ('固床工',     ['固床工'], 'color_task'),
+        ('木棧道修復', ['木棧道修復'], 'color_task'),
+        ('淺溝格柵',   ['淺溝格柵'], 'color_task'),
+    ]
+    # 顏色索引：2=橙(地點), 10=綠(工項)
+    _AUTO_TAG_COLORS = {'color_loc': 2, 'color_task': 10}
+
+    def _get_or_create_photo_tag(self, tag_name, color_key):
+        """取得或建立指定名稱的 supervision.photo.tag。"""
+        Tag = self.env['supervision.photo.tag'].sudo()
+        tag = Tag.search([('name', '=', tag_name)], limit=1)
+        if not tag:
+            tag = Tag.create({
+                'name': tag_name,
+                'color': self._AUTO_TAG_COLORS.get(color_key, 0),
+            })
+        return tag
+
+    def action_auto_tag_from_description(self):
+        """掃 description 自動打地點/工項標籤（Many2many tag_ids）。
+
+        規則：
+        - 遍歷 _AUTO_TAG_RULES 的每條 (tag_name, keywords, color)
+        - 只要 keywords 任一命中 description 就 get-or-create tag_name
+        - 已經在 tag_ids 的不重複加入
+
+        Returns:
+            dict: {str(photo_id): [added_tag_names]}
+        """
+        added = {}
+        for photo in self:
+            desc = photo.description or ''
+            if not desc:
+                continue
+            new_tags = self.env['supervision.photo.tag']
+            for tag_name, keywords, color_key in self._AUTO_TAG_RULES:
+                if any(kw in desc for kw in keywords):
+                    tag = self._get_or_create_photo_tag(tag_name, color_key)
+                    if tag.id not in photo.tag_ids.ids:
+                        new_tags |= tag
+            if new_tags:
+                photo.tag_ids = [(4, t.id) for t in new_tags]
+                added[str(photo.id)] = new_tags.mapped('name')
+        return added
+
+    @api.model
+    def action_auto_tag_all(self):
+        """對所有 active 照片跑 auto-tag（Odoo UI 按鈕用）。"""
+        photos = self.search([('active', '=', True), ('description', '!=', False)])
+        result = photos.action_auto_tag_from_description()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '自動打標籤完成',
+                'message': f'掃描 {len(photos)} 張照片，新增標籤到 {len(result)} 張',
+                'sticky': False,
+            }
+        }
 
     def action_view_on_map(self):
         """在地圖上查看照片位置"""
@@ -308,3 +492,15 @@ class SupervisionPhoto(models.Model):
         for photo in self:
             if photo.shot_at and photo.shot_at > now:
                 raise ValidationError('拍攝日期不能在未來！')
+    
+    # === 搜尋功能增強 ===
+    @api.model
+    def _name_search(self, name, domain=None, operator='ilike', limit=None, order=None):
+        """支援搜尋 name、description 和 image_filename 欄位"""
+        domain = domain or []
+        if name:
+            domain = ['|', '|', 
+                      ('name', operator, name), 
+                      ('description', operator, name),
+                      ('image_filename', operator, name)] + domain
+        return self._search(domain, limit=limit, order=order)

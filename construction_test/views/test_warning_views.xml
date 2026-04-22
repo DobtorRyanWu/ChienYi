@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 檢試驗預警通知 List View -->
+    <record id="view_test_warning_tree" model="ir.ui.view">
+        <field name="name">supervision.test.warning.tree</field>
+        <field name="model">supervision.test.warning</field>
+        <field name="arch" type="xml">
+            <list decoration-warning="state == 'pending'"
+                  decoration-success="state == 'done'"
+                  decoration-muted="state == 'dismissed'">
+                <field name="warning_type" widget="badge"
+                       decoration-info="warning_type == 'frequency'"
+                       decoration-warning="warning_type == 'completion'"/>
+                <field name="warning_date"/>
+                <field name="project_id"/>
+                <field name="standard_material" string="試驗工項"
+                       optional="show"/>
+                <field name="task_name" string="契約工項"/>
+                <field name="condition_summary" string="觸發條件"/>
+                <field name="current_cumulative_qty" string="當前累計"/>
+                <field name="next_threshold_qty" string="檢驗門檻"/>
+                <field name="achievement_rate" string="達成率 (%)"/>
+                <field name="state" widget="badge"
+                       decoration-warning="state == 'pending'"
+                       decoration-success="state == 'done'"
+                       decoration-muted="state == 'dismissed'"/>
+                <field name="handled_by_id" optional="hide"/>
+                <field name="company_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 檢試驗預警通知 Form View -->
+    <record id="view_test_warning_form" model="ir.ui.view">
+        <field name="name">supervision.test.warning.form</field>
+        <field name="model">supervision.test.warning</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_mark_done" string="標記已處理"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'pending'"/>
+                    <button name="action_dismiss" string="忽略"
+                            type="object"
+                            invisible="state != 'pending'"/>
+                    <button name="action_reset_pending" string="重設為未處理"
+                            type="object"
+                            invisible="state == 'pending'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="pending,done"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="state != 'pending' or warning_type != 'frequency'">
+                        <strong>頻率預警：</strong>
+                        此工項的累計完成數量即將達到檢驗門檻，請提早準備取樣以進行檢驗。
+                    </div>
+                    <div class="alert alert-info" role="alert"
+                         invisible="state != 'pending' or warning_type != 'completion'">
+                        <strong>完工提醒：</strong>
+                        此工項累計數量已達契約數量 95%，請確認該項目的檢試驗項目是否都完成紀錄。
+                    </div>
+                    <group>
+                        <group string="預警資訊">
+                            <field name="warning_type" readonly="1"/>
+                            <field name="project_id" readonly="1"/>
+                            <field name="standard_id" readonly="1"
+                                   invisible="warning_type == 'completion'"/>
+                            <field name="task_id" readonly="1"/>
+                            <field name="condition_id" readonly="1"/>
+                            <field name="condition_summary" readonly="1"/>
+                            <field name="warning_date" readonly="1"/>
+                        </group>
+                        <group string="數量資訊">
+                            <field name="current_cumulative_qty" readonly="1"/>
+                            <field name="next_threshold_qty" readonly="1"/>
+                            <field name="achievement_rate" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="處理資訊"
+                           invisible="state == 'pending'">
+                        <group>
+                            <field name="handled_by_id" readonly="1"/>
+                            <field name="handled_date" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="備註">
+                        <field name="note" placeholder="填寫處理備註..."
+                               nolabel="1" colspan="2"/>
+                    </group>
+                    <group string="觸發來源" invisible="not trigger_log_line_id">
+                        <field name="trigger_log_line_id" readonly="1"/>
+                    </group>
+                    <field name="company_id" invisible="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 檢試驗預警通知 Search View -->
+    <record id="view_test_warning_search" model="ir.ui.view">
+        <field name="name">supervision.test.warning.search</field>
+        <field name="model">supervision.test.warning</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="project_id"/>
+                <field name="standard_id"/>
+                <field name="task_id"/>
+                <separator/>
+                <filter string="頻率預警" name="frequency"
+                        domain="[('warning_type', '=', 'frequency')]"/>
+                <filter string="完工提醒" name="completion"
+                        domain="[('warning_type', '=', 'completion')]"/>
+                <separator/>
+                <filter string="未處理" name="pending"
+                        domain="[('state', '=', 'pending')]"/>
+                <filter string="已處理" name="done"
+                        domain="[('state', '=', 'done')]"/>
+                <filter string="已忽略" name="dismissed"
+                        domain="[('state', '=', 'dismissed')]"/>
+                <separator/>
+                <filter string="本週" name="this_week"
+                        domain="[('warning_date', '>=', (context_today() - datetime.timedelta(days=context_today().weekday())).strftime('%Y-%m-%d'))]"/>
+                <filter string="本月" name="this_month"
+                        domain="[('warning_date', '>=', time.strftime('%Y-%m-01'))]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="檢試驗項目" name="group_standard"
+                            context="{'group_by': 'standard_id'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="預警日期" name="group_date"
+                            context="{'group_by': 'warning_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 檢試驗預警通知 Action -->
+    <record id="action_test_warning" model="ir.actions.act_window">
+        <field name="name">檢驗預警通知</field>
+        <field name="res_model">supervision.test.warning</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_test_warning_search"/>
+        <field name="context">{'search_default_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有預警通知
+            </p>
+            <p>
+                當施工日誌的累計完成數量達到檢驗頻率條件的 95% 時，系統會自動建立預警通知。
+            </p>
+        </field>
+    </record>
+
+</odoo>

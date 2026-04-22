@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+    Security configuration for Construction Progress module.
+    Uses groups defined in construction_supervision_base module.
+-->
+<odoo>
+    <data noupdate="1">
+
+        <!-- ===================================================================
+             Record Rules - Multi-Company Isolation for Progress Schedule
+             =================================================================== -->
+
+        <!-- Progress Schedule: Supervision can manage all schedules -->
+        <record id="rule_progress_schedule_supervision" model="ir.rule">
+            <field name="name">進度表: 監造單位完整存取</field>
+            <field name="model_id" ref="model_progress_schedule"/>
+            <field name="domain_force">[('company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- Progress Schedule: Contractor can only view -->
+        <record id="rule_progress_schedule_contractor" model="ir.rule">
+            <field name="name">進度表: 廠商只能檢視</field>
+            <field name="model_id" ref="model_progress_schedule"/>
+            <field name="domain_force">[('project_id.contractor_company_ids', 'in', [user.company_id.id])]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Progress Schedule: Admin full access -->
+        <record id="rule_progress_schedule_admin" model="ir.rule">
+            <field name="name">進度表: 管理者完整存取</field>
+            <field name="model_id" ref="model_progress_schedule"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+        </record>
+
+        <!-- Progress Schedule Line: Supervision full access -->
+        <record id="rule_progress_schedule_line_supervision" model="ir.rule">
+            <field name="name">進度表明細: 監造單位完整存取</field>
+            <field name="model_id" ref="model_progress_schedule_line"/>
+            <field name="domain_force">[('company_id', '=', user.company_id.id)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervision_manager')), (4, ref('construction_supervision_base.group_supervision_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <!-- Progress Schedule Line: Contractor can only view -->
+        <record id="rule_progress_schedule_line_contractor" model="ir.rule">
+            <field name="name">進度表明細: 廠商只能檢視</field>
+            <field name="model_id" ref="model_progress_schedule_line"/>
+            <field name="domain_force">[('project_id.contractor_company_ids', 'in', [user.company_id.id])]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_contractor_manager')), (4, ref('construction_supervision_base.group_contractor_engineer'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- Progress Schedule Line: Admin full access -->
+        <record id="rule_progress_schedule_line_admin" model="ir.rule">
+            <field name="name">進度表明細: 管理者完整存取</field>
+            <field name="model_id" ref="model_progress_schedule_line"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
+        </record>
+
+    </data>
+</odoo>

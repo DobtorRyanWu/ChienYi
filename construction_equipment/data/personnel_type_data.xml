@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- 預設人員類型：技工 -->
+        <record id="personnel_type_skilled" model="personnel.type">
+            <field name="name">技工</field>
+            <field name="record_type">personnel</field>
+            <field name="sequence">10</field>
+            <field name="code">SKILLED</field>
+            <field name="description">具備專業技術的工人</field>
+        </record>
+
+        <!-- 預設人員類型：大工 -->
+        <record id="personnel_type_senior_worker" model="personnel.type">
+            <field name="name">大工</field>
+            <field name="record_type">personnel</field>
+            <field name="sequence">20</field>
+            <field name="code">SENIOR</field>
+            <field name="description">資深工人</field>
+        </record>
+
+        <!-- 預設人員類型：小工 -->
+        <record id="personnel_type_junior_worker" model="personnel.type">
+            <field name="name">小工</field>
+            <field name="record_type">personnel</field>
+            <field name="sequence">30</field>
+            <field name="code">JUNIOR</field>
+            <field name="description">初階工人或助手</field>
+        </record>
+
+        <!-- 預設人員類型：作業 -->
+        <record id="personnel_type_operator" model="personnel.type">
+            <field name="name">作業</field>
+            <field name="record_type">personnel</field>
+            <field name="sequence">40</field>
+            <field name="code">OPERATOR</field>
+            <field name="description">作業人員</field>
+        </record>
+
+        <!-- 預設人員類型：司機 -->
+        <record id="personnel_type_driver" model="personnel.type">
+            <field name="name">司機</field>
+            <field name="record_type">personnel</field>
+            <field name="sequence">50</field>
+            <field name="code">DRIVER</field>
+            <field name="description">車輛駕駛人員</field>
+        </record>
+
+    </data>
+</odoo>

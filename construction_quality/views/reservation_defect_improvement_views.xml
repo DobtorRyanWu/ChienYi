@@ -31,103 +31,303 @@
         <field name="name">reservation.defect.improvement.form</field>
         <field name="model">reservation.defect.improvement</field>
         <field name="arch" type="xml">
-            <form>
+            <form string="預約式缺失改善">
                 <header>
-                    <button name="action_mark_corrected"
-                            string="標記已矯正"
-                            type="object"
-                            class="btn-primary"
-                            invisible="state not in ('uncorrected', 'overdue')"/>
-                    <button name="action_mark_conform"
-                            string="標記符合要求"
-                            type="object"
-                            class="btn-secondary"
-                            invisible="state in ('conform', 'corrected')"/>
-                    <button name="action_mark_overdue"
-                            string="標記逾時"
-                            type="object"
-                            class="btn-warning"
-                            invisible="state != 'uncorrected'"/>
-                    <button name="action_reopen"
-                            string="重新開啟"
-                            type="object"
-                            class="btn-secondary"
-                            invisible="state not in ('corrected', 'conform')"/>
+                    <!-- 保留原有的按鈕 -->
+                    <button name="action_mark_corrected" string="標記已矯正" type="object"
+                            invisible="state in ('corrected', 'conform')"
+                            groups="construction_quality.group_quality_user"/>
+                    <button name="action_mark_conform" string="確認符合" type="object"
+                            invisible="state == 'conform'"
+                            groups="construction_quality.group_quality_manager"/>
+                    <button name="action_reopen" string="重新開啟" type="object"
+                            invisible="state not in ('corrected', 'conform')"
+                            groups="construction_quality.group_quality_manager"/>
+                    <button name="action_mark_overdue" string="標記逾期" type="object"
+                            invisible="state in ('conform', 'overdue')"
+                            groups="construction_quality.group_quality_user"/>
+
                     <field name="state" widget="statusbar"
                            statusbar_visible="uncorrected,corrected,conform"/>
                 </header>
+
                 <sheet>
-                    <widget name="web_ribbon" title="已逾期" bg_color="text-bg-danger"
-                            invisible="not is_overdue"/>
-                    <div class="oe_title">
-                        <h1>
-                            <field name="record_no" readonly="1"/>
-                        </h1>
-                    </div>
                     <group>
+                        <!-- 通報單資訊 -->
                         <group string="通報單資訊">
-                            <field name="slip_id"/>
+                            <field name="slip_id" required="1"/>
                             <field name="project_id"/>
-                            <field name="acceptance_id"/>
-                            <field name="company_id" invisible="1"/>
+                            <field name="record_type" invisible="1"/>
+                            <!-- 編輯模式才顯示 -->
+                            <field name="record_no" readonly="1" invisible="not id"/>
                         </group>
+
+                        <!-- 檢查資訊 -->
                         <group string="檢查資訊">
                             <field name="check_type"/>
-                            <field name="discovery_unit"/>
-                            <field name="improvement_unit"/>
                         </group>
                     </group>
+
                     <group>
-                        <group string="日期資訊" name="date_info">
+                        <!-- 發現資訊 -->
+                        <group string="發現資訊">
+                            <field name="discovery_unit"/>
+                            <field name="discovery_user_id"/>
+                            <field name="found_date"/>
+                        </group>
+
+                        <!-- 改善責任 -->
+                        <group string="改善責任">
+                            <field name="improvement_unit"/>
+                            <field name="responsible_user_id"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <!-- 日期 -->
+                        <group string="日期" name="date_info">
                             <field name="notification_date"/>
                             <field name="deadline"/>
-                            <field name="closure_date"/>
-                            <field name="is_overdue"/>
-                            <field name="overdue_days" invisible="not is_overdue"/>
+                            <!-- 編輯模式才顯示 -->
+                            <field name="improvement_date" readonly="1" invisible="not id"/>
                         </group>
-                        <group string="編號設定">
-                            <field name="supervision_prefix"/>
-                            <field name="contractor_prefix"/>
+
+                        <!-- 編輯模式才顯示整個區塊 -->
+                        <group string="逾期與罰款狀態" invisible="not id">
+                            <field name="is_overdue"/>
+                            <field name="overdue_days"/>
+                            <field name="is_fined"/>
+                            <field name="fine_amount" invisible="not is_fined"/>
+                            <field name="currency_id" invisible="1"/>
                         </group>
                     </group>
+
+                    <!-- 罰款說明（編輯模式且已罰款時顯示） -->
+                    <group invisible="not id or not is_fined">
+                        <group string="罰款說明">
+                            <field name="fine_note" nolabel="1"/>
+                        </group>
+                    </group>
+
+                    <!-- 隱藏但保留於資料庫的欄位 -->
+                    <field name="supervision_prefix" invisible="1"/>
+                    <field name="contractor_prefix" invisible="1"/>
+
                     <notebook>
+                        <!-- 缺失內容 -->
                         <page string="缺失內容" name="defect">
                             <group>
-                                <field name="defect_description"/>
                                 <field name="defect_location"/>
-                                <field name="defect_cause"/>
+                            </group>
+                            <group string="缺失具體情形">
+                                <field name="defect_description" nolabel="1"/>
+                            </group>
+                            <!-- 編輯模式才顯示 -->
+                            <group string="缺失發生原因" invisible="not id">
+                                <field name="defect_cause" nolabel="1"/>
+                            </group>
+                            <group string="採取改善措施與預防措施" invisible="not id">
+                                <field name="improvement_action" nolabel="1"/>
+                                <field name="prevention_action" nolabel="1"/>
                             </group>
                         </page>
-                        <page string="改善措施" name="improvement">
-                            <group>
-                                <field name="improvement_action"/>
-                                <field name="prevention_action"/>
+
+                        <!-- 照片附件 -->
+                        <page string="照片附件" name="photos">
+                            <!-- 新增模式: 僅矯正前 -->
+                            <group invisible="id">
+                                <group string="缺失照片">
+                                    <field name="before_photo_ids" nolabel="1" context="{'default_photo_stage': 'before'}">
+                                        <kanban>
+                                            <field name="image"/>
+                                            <field name="image_filename"/>
+                                            <field name="upload_time"/>
+                                            <field name="description"/>
+                                            <templates>
+                                                <t t-name="card">
+                                                    <div class="oe_kanban_global_click">
+                                                        <div class="o_kanban_image">
+                                                            <img t-att-src="kanban_image('reservation.defect.improvement.photo', 'image', record.id.raw_value)"
+                                                                 alt="Photo" style="max-width: 150px; max-height: 150px;"/>
+                                                        </div>
+                                                        <div class="oe_kanban_details">
+                                                            <strong><field name="image_filename"/></strong>
+                                                            <div><field name="upload_time"/></div>
+                                                            <div><field name="description"/></div>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </templates>
+                                        </kanban>
+                                        <form>
+                                            <group>
+                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
+                                                <field name="image_filename"/>
+                                                <field name="upload_time"/>
+                                                <field name="description"/>
+                                                <field name="photo_stage" invisible="1"/>
+                                            </group>
+                                        </form>
+                                    </field>
+                                </group>
+                            </group>
+
+                            <!-- 編輯模式: 三階段 -->
+                            <group invisible="not id">
+                                <group string="矯正及預防前">
+                                    <field name="before_photo_ids" nolabel="1" context="{'default_photo_stage': 'before'}">
+                                        <kanban>
+                                            <field name="image"/>
+                                            <field name="image_filename"/>
+                                            <field name="upload_time"/>
+                                            <field name="description"/>
+                                            <templates>
+                                                <t t-name="card">
+                                                    <div class="oe_kanban_global_click">
+                                                        <div class="o_kanban_image">
+                                                            <img t-att-src="kanban_image('reservation.defect.improvement.photo', 'image', record.id.raw_value)"
+                                                                 alt="Photo" style="max-width: 150px; max-height: 150px;"/>
+                                                        </div>
+                                                        <div class="oe_kanban_details">
+                                                            <strong><field name="image_filename"/></strong>
+                                                            <div><field name="upload_time"/></div>
+                                                            <div><field name="description"/></div>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </templates>
+                                        </kanban>
+                                        <form>
+                                            <group>
+                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
+                                                <field name="image_filename"/>
+                                                <field name="upload_time"/>
+                                                <field name="description"/>
+                                                <field name="photo_stage" invisible="1"/>
+                                            </group>
+                                        </form>
+                                    </field>
+                                </group>
+
+                                <group string="矯正及預防中">
+                                    <field name="during_photo_ids" nolabel="1" context="{'default_photo_stage': 'during'}">
+                                        <kanban>
+                                            <field name="image"/>
+                                            <field name="image_filename"/>
+                                            <field name="upload_time"/>
+                                            <field name="description"/>
+                                            <templates>
+                                                <t t-name="card">
+                                                    <div class="oe_kanban_global_click">
+                                                        <div class="o_kanban_image">
+                                                            <img t-att-src="kanban_image('reservation.defect.improvement.photo', 'image', record.id.raw_value)"
+                                                                 alt="Photo" style="max-width: 150px; max-height: 150px;"/>
+                                                        </div>
+                                                        <div class="oe_kanban_details">
+                                                            <strong><field name="image_filename"/></strong>
+                                                            <div><field name="upload_time"/></div>
+                                                            <div><field name="description"/></div>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </templates>
+                                        </kanban>
+                                        <form>
+                                            <group>
+                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
+                                                <field name="image_filename"/>
+                                                <field name="upload_time"/>
+                                                <field name="description"/>
+                                                <field name="photo_stage" invisible="1"/>
+                                            </group>
+                                        </form>
+                                    </field>
+                                </group>
+
+                                <group string="矯正及預防後">
+                                    <field name="after_photo_ids" nolabel="1" context="{'default_photo_stage': 'after'}">
+                                        <kanban>
+                                            <field name="image"/>
+                                            <field name="image_filename"/>
+                                            <field name="upload_time"/>
+                                            <field name="description"/>
+                                            <templates>
+                                                <t t-name="card">
+                                                    <div class="oe_kanban_global_click">
+                                                        <div class="o_kanban_image">
+                                                            <img t-att-src="kanban_image('reservation.defect.improvement.photo', 'image', record.id.raw_value)"
+                                                                 alt="Photo" style="max-width: 150px; max-height: 150px;"/>
+                                                        </div>
+                                                        <div class="oe_kanban_details">
+                                                            <strong><field name="image_filename"/></strong>
+                                                            <div><field name="upload_time"/></div>
+                                                            <div><field name="description"/></div>
+                                                        </div>
+                                                    </div>
+                                                </t>
+                                            </templates>
+                                        </kanban>
+                                        <form>
+                                            <group>
+                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
+                                                <field name="image_filename"/>
+                                                <field name="upload_time"/>
+                                                <field name="description"/>
+                                                <field name="photo_stage" invisible="1"/>
+                                            </group>
+                                        </form>
+                                    </field>
+                                </group>
+                            </group>
+
+                            <!-- 其他附件 -->
+                            <group string="相關文件附件">
+                                <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
                             </group>
                         </page>
-                        <page string="確認資訊" name="confirmation">
+
+                        <!-- 其他頁籤（編輯模式才顯示） -->
+                        <page string="確認資訊" name="confirmation" invisible="not id">
                             <group>
-                                <group>
+                                <group string="確認資訊">
                                     <field name="confirmer_id"/>
                                     <field name="confirm_date"/>
                                 </group>
-                                <group>
-                                    <field name="confirm_comment"/>
-                                </group>
+                            </group>
+                            <group string="確認意見">
+                                <field name="confirm_comment" nolabel="1"/>
                             </group>
                         </page>
-                        <page string="照片" name="photos">
+
+                        <!-- 編號資訊（除錯用） -->
+                        <page string="編號資訊" name="number_info">
                             <group>
-                                <group string="缺失照片">
-                                    <field name="defect_photo_ids" widget="many2many_binary" nolabel="1"/>
+                                <group>
+                                    <field name="sequence_number"/>
+                                    <field name="found_date"/>
+                                    <field name="check_type"/>
+                                    <field name="record_type" readonly="1"/>
                                 </group>
-                                <group string="改善後照片">
-                                    <field name="improvement_photo_ids" widget="many2many_binary" nolabel="1"/>
+                                <group>
+                                    <div class="alert alert-info" role="alert">
+                                        <strong>📌 說明</strong>：<br/>
+                                        • 記錄類型由進入的選單自動決定<br/>
+                                        • 從「監造缺失改善」進入 = 監造<br/>
+                                        • 從「營造缺失改善」進入 = 營造<br/>
+                                        <br/>
+                                        <strong>⚠️ 注意</strong>：修改序號後編號會自動重新計算。<br/>
+                                        請確保不會與其他記錄產生衝突。
+                                    </div>
                                 </group>
                             </group>
                         </page>
                     </notebook>
                 </sheet>
-                <chatter/>
+
+                <chatter>
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </chatter>
             </form>
         </field>
     </record>
@@ -160,6 +360,11 @@
                 <filter string="安衛環境" name="safety_env"
                         domain="[('check_type', '=', 'safety_env')]"/>
                 <separator/>
+                <filter string="監造記錄" name="supervision"
+                        domain="[('record_type', '=', 'supervision')]"/>
+                <filter string="營造記錄" name="contractor"
+                        domain="[('record_type', '=', 'contractor')]"/>
+                <separator/>
                 <group expand="0" string="群組" name="groupby">
                     <filter string="通報單" name="group_slip"
                             context="{'group_by': 'slip_id'}"/>
@@ -169,6 +374,8 @@
                             context="{'group_by': 'state'}"/>
                     <filter string="檢查類型" name="group_check_type"
                             context="{'group_by': 'check_type'}"/>
+                    <filter string="記錄類型" name="group_record_type"
+                            context="{'group_by': 'record_type'}"/>
                 </group>
             </search>
         </field>
@@ -209,13 +416,95 @@
         </field>
     </record>
 
-    <!-- 預約式缺失改善 Action -->
+    <!-- 監造缺失改善 -->
+    <record id="action_reservation_defect_improvement_supervision" model="ir.actions.act_window">
+        <field name="name">預約式監造缺失改善</field>
+        <field name="res_model">reservation.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_reservation_defect_improvement_search"/>
+        <field name="domain">[('record_type', '=', 'supervision')]</field>
+        <field name="context">{
+            'default_record_type': 'supervision',
+            'search_default_group_project': 1,
+            'search_default_group_slip': 1
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆監造缺失改善記錄
+            </p>
+            <p>
+                記錄監造單位發現的缺失及其改善情況。
+            </p>
+        </field>
+    </record>
+
+    <!-- 營造缺失改善 -->
+    <record id="action_reservation_defect_improvement_contractor" model="ir.actions.act_window">
+        <field name="name">預約式營造缺失改善</field>
+        <field name="res_model">reservation.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_reservation_defect_improvement_search"/>
+        <field name="domain">[('record_type', '=', 'contractor')]</field>
+        <field name="context">{
+            'default_record_type': 'contractor',
+            'search_default_group_project': 1,
+            'search_default_group_slip': 1
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆營造缺失改善記錄
+            </p>
+            <p>
+                記錄營造廠商發現的缺失及其改善情況。
+            </p>
+        </field>
+    </record>
+
+    <!-- 監造逾期缺失 -->
+    <record id="action_reservation_defect_improvement_supervision_overdue" model="ir.actions.act_window">
+        <field name="name">預約式監造逾期缺失</field>
+        <field name="res_model">reservation.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_reservation_defect_improvement_search"/>
+        <field name="domain">[
+            ('record_type', '=', 'supervision'),
+            ('is_overdue', '=', True),
+            ('state', 'not in', ('conform',))
+        ]</field>
+        <field name="context">{'default_record_type': 'supervision'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有逾期的監造缺失改善
+            </p>
+        </field>
+    </record>
+
+    <!-- 營造逾期缺失 -->
+    <record id="action_reservation_defect_improvement_contractor_overdue" model="ir.actions.act_window">
+        <field name="name">預約式營造逾期缺失</field>
+        <field name="res_model">reservation.defect.improvement</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="search_view_id" ref="view_reservation_defect_improvement_search"/>
+        <field name="domain">[
+            ('record_type', '=', 'contractor'),
+            ('is_overdue', '=', True),
+            ('state', 'not in', ('conform',))
+        ]</field>
+        <field name="context">{'default_record_type': 'contractor'}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                目前沒有逾期的營造缺失改善
+            </p>
+        </field>
+    </record>
+
+    <!-- 預約式缺失改善 Action (保留舊的通用 action，向後兼容) -->
     <record id="action_reservation_defect_improvement" model="ir.actions.act_window">
         <field name="name">預約式缺失改善</field>
         <field name="res_model">reservation.defect.improvement</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="search_view_id" ref="view_reservation_defect_improvement_search"/>
-        <field name="context">{'search_default_uncorrected': 1}</field>
+        <field name="context">{'search_default_group_project': 1, 'search_default_group_slip': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一筆缺失改善記錄

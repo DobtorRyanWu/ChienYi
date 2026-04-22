@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo>
+    <!-- ===================================================================
+         施工日誌選單 (歸屬於 施工執行 > 施工日誌)
+         =================================================================== -->
+
+    <!-- 我的日誌 - for contractors -->
+    <menuitem
+        id="menu_daily_log_my"
+        name="我的日誌"
+        parent="construction_supervision_base.menu_daily_log"
+        action="action_daily_log_sheet_my"
+        sequence="10"
+        groups="construction_supervision_base.group_contractor_manager,construction_supervision_base.group_contractor_engineer"
+    />
+
+    <!-- 所有日誌 (for supervision) -->
+    <menuitem
+        id="menu_daily_log_all"
+        name="所有日誌"
+        parent="construction_supervision_base.menu_daily_log"
+        action="action_daily_log_sheet_all"
+        sequence="20"
+        groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer,construction_supervision_base.group_supervisor_admin"
+    />
+
+    <!-- 設定選單 -->
+    <menuitem
+        id="menu_daily_log_config"
+        name="設定"
+        parent="construction_supervision_base.menu_daily_log"
+        sequence="100"
+        groups="construction_supervision_base.group_supervisor_admin"
+    />
+
+    <!-- 日誌明細 (under 設定) -->
+    <menuitem
+        id="menu_daily_log_lines"
+        name="日誌明細"
+        parent="menu_daily_log_config"
+        action="action_daily_log_line"
+        sequence="10"
+    />
+
+    <!-- 天氣記錄 (under 設定) -->
+    <menuitem
+        id="menu_daily_log_weather"
+        name="天氣記錄"
+        parent="menu_daily_log_config"
+        action="action_daily_log_weather"
+        sequence="20"
+    />
+
+</odoo>

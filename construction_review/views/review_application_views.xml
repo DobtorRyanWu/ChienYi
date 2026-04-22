@@ -8,20 +8,23 @@
         <field name="name">supervision.review.application.tree</field>
         <field name="model">supervision.review.application</field>
         <field name="arch" type="xml">
-            <list string="送審管制" decoration-warning="state == 'submitted'" decoration-info="state == 'reviewing'" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'">
-                <field name="sequence_code" optional="show"/>
-                <field name="name"/>
+            <list string="送審管制" decoration-success="state == 'done'">
                 <field name="project_id"/>
-                <field name="no" optional="show"/>
+                <field name="no"/>
+                <field name="name"/>
+                <field name="number"/>
                 <field name="expected_review_date"/>
-                <field name="final_review_date" optional="show"/>
-                <field name="review_delay_days" optional="hide"/>
-                <field name="review_materials_summary" optional="show"/>
-                <field name="final_review_result" optional="show"/>
-                <field name="is_factory_inspection" optional="hide"/>
-                <field name="is_test" optional="hide"/>
-                <field name="archive_number" optional="hide"/>
-                <field name="state" widget="badge" decoration-warning="state == 'submitted'" decoration-info="state == 'reviewing'" decoration-success="state == 'approved'" decoration-danger="state == 'rejected'"/>
+                <field name="final_review_date"/>
+                <field name="is_test"/>
+                <field name="test_unit"/>
+                <field name="is_factory_inspection"/>
+                <field name="factory_inspection_date"/>
+                <field name="review_materials_summary"/>
+                <field name="final_review_result"/>
+                <field name="review_date"/>
+                <field name="archive_number"/>
+                <field name="state" widget="badge" decoration-success="state == 'done'"/>
+                <field name="sequence_code" optional="hide"/>
                 <field name="company_id" column_invisible="True"/>
             </list>
         </field>
@@ -36,41 +39,17 @@
         <field name="arch" type="xml">
             <form string="送審管制">
                 <header>
-                    <!-- 狀態動作按鈕 -->
-                    <button name="action_submit"
-                            string="送審"
+                    <button name="action_done"
+                            string="完成"
                             type="object"
                             class="btn-primary"
                             invisible="state != 'draft'"/>
-                    <button name="action_start_review"
-                            string="開始審查"
-                            type="object"
-                            class="btn-primary"
-                            invisible="state != 'submitted'"
-                            groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
-                    <button name="action_approve"
-                            string="核定"
-                            type="object"
-                            class="btn-primary"
-                            invisible="state != 'reviewing'"
-                            groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
-                    <button name="action_reject"
-                            string="退件"
-                            type="object"
-                            class="btn-danger"
-                            invisible="state != 'reviewing'"
-                            groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervision_engineer"/>
-                    <button name="action_resubmit"
-                            string="重新送審"
-                            type="object"
-                            class="btn-secondary"
-                            invisible="state != 'rejected'"/>
                     <button name="action_reset_draft"
-                            string="重設為草稿"
+                            string="重設為編輯中"
                             type="object"
-                            invisible="state not in ('submitted', 'rejected')"
-                            groups="construction_supervision_base.group_supervision_manager,construction_supervision_base.group_supervisor_admin"/>
-                    <field name="state" widget="statusbar" statusbar_visible="draft,submitted,reviewing,approved"/>
+                            invisible="state != 'done'"
+                            groups="base.group_user"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -96,8 +75,6 @@
                             <field name="project_id" readonly="state != 'draft'"/>
                             <field name="no"/>
                             <field name="number"/>
-                            <field name="amount"/>
-                            <field name="currency_id" invisible="1"/>
                         </group>
                         <group string="送審日期">
                             <field name="expected_review_date"/>
@@ -113,14 +90,15 @@
                                 <group>
                                     <field name="has_catalog" widget="boolean_toggle"/>
                                     <field name="has_demo" widget="boolean_toggle"/>
+                                    <field name="has_others" widget="boolean_toggle"/>
                                 </group>
                                 <group>
                                     <field name="has_related_test_report" widget="boolean_toggle"/>
                                     <field name="has_subcontractor" widget="boolean_toggle"/>
                                 </group>
                             </group>
-                            <group>
-                                <field name="others" placeholder="如有其他送審資料請填寫說明..."/>
+                            <group invisible="not has_others">
+                                <field name="others" placeholder="請填寫其他送審資料說明..." nolabel="1"/>
                             </group>
                             <group string="送審文件">
                                 <field name="attachment_ids" widget="many2many_binary" nolabel="1" colspan="2"/>
@@ -131,83 +109,46 @@
                         <page string="審查資訊" name="review_info">
                             <group string="審查結果">
                                 <group>
-                                    <field name="review_date" readonly="state not in ('reviewing', 'approved')"/>
-                                    <field name="reviewer_id" readonly="state not in ('reviewing', 'approved')"/>
-                                </group>
-                                <group>
-                                    <field name="final_review_result" readonly="state not in ('reviewing',)"/>
+                                    <field name="review_date"/>
+                                    <field name="final_review_result"/>
                                 </group>
                             </group>
                             <group>
-                                <field name="review_comment" placeholder="審查意見..." readonly="state not in ('reviewing',)"/>
+                                <field name="review_comment" placeholder="審查意見..."/>
                             </group>
                         </page>
 
                         <!-- 廠驗資訊頁籤 -->
                         <page string="廠驗資訊" name="factory_inspection">
-                            <group>
-                                <group string="廠驗設定">
-                                    <field name="is_factory_inspection" widget="boolean_toggle"/>
-                                </group>
-                            </group>
-                            <group invisible="not is_factory_inspection">
-                                <group string="廠驗資訊">
-                                    <field name="factory_inspection_date"/>
-                                    <field name="factory_inspection_result"/>
-                                </group>
-                                <group string="廠驗備註">
-                                    <field name="factory_inspection_note" nolabel="1"/>
-                                </group>
+                            <group string="廠驗資訊">
+                                <field name="is_factory_inspection" widget="boolean_toggle"/>
+                                <field name="factory_inspection_date"/>
+                                <field name="factory_inspection_note"/>
                             </group>
                         </page>
 
                         <!-- 取樣試驗頁籤 -->
                         <page string="取樣試驗" name="sampling_test">
-                            <group>
-                                <group string="試驗設定">
-                                    <field name="is_test" widget="boolean_toggle"/>
-                                </group>
-                            </group>
-                            <group invisible="not is_test">
-                                <group string="試驗資訊">
-                                    <field name="test_unit"/>
-                                    <field name="test_date"/>
-                                </group>
-                                <group string="試驗結果">
-                                    <field name="test_result"/>
-                                    <field name="test_report_no"/>
-                                </group>
+                            <group string="取樣試驗資訊">
+                                <field name="is_test" widget="boolean_toggle"/>
+                                <field name="test_unit"/>
                             </group>
                         </page>
 
-                        <!-- 歸檔與追蹤頁籤 -->
-                        <page string="歸檔與追蹤" name="archive_tracking">
+                        <!-- 歸檔紀錄頁籤 -->
+                        <page string="歸檔紀錄" name="archive_record">
                             <group>
-                                <group string="歸檔資訊">
-                                    <field name="archive_number"/>
-                                </group>
-                                <group string="公司資訊">
-                                    <field name="company_id" readonly="1"/>
-                                </group>
-                            </group>
-                            <group string="送審追蹤">
-                                <group>
-                                    <field name="submitted_date" readonly="1"/>
-                                    <field name="submitted_by" readonly="1"/>
-                                </group>
-                                <group>
-                                    <field name="approved_date" readonly="1"/>
-                                    <field name="approved_by" readonly="1"/>
-                                </group>
+                                <field name="archive_number"/>
+                                <field name="archive_note" placeholder="備註..."/>
                             </group>
                         </page>
                     </notebook>
                 </sheet>
-                <div class="oe_chatter">
+                <chatter>
                     <field name="message_follower_ids"/>
                     <field name="activity_ids"/>
                     <field name="message_ids"/>
-                </div>
+                </chatter>
             </form>
         </field>
     </record>
@@ -226,11 +167,8 @@
                 <field name="no" string="契約項次"/>
                 <field name="archive_number" string="歸檔編號"/>
                 <separator/>
-                <filter name="filter_draft" string="草稿" domain="[('state', '=', 'draft')]"/>
-                <filter name="filter_submitted" string="已送審" domain="[('state', '=', 'submitted')]"/>
-                <filter name="filter_reviewing" string="審查中" domain="[('state', '=', 'reviewing')]"/>
-                <filter name="filter_approved" string="已核定" domain="[('state', '=', 'approved')]"/>
-                <filter name="filter_rejected" string="退件" domain="[('state', '=', 'rejected')]"/>
+                <filter name="filter_draft" string="編輯中" domain="[('state', '=', 'draft')]"/>
+                <filter name="filter_done" string="已完成" domain="[('state', '=', 'done')]"/>
                 <separator/>
                 <filter name="filter_has_catalog" string="含型錄" domain="[('has_catalog', '=', True)]"/>
                 <filter name="filter_has_demo" string="含樣品" domain="[('has_demo', '=', True)]"/>
@@ -240,8 +178,6 @@
                 <filter name="filter_pass" string="審查合格" domain="[('final_review_result', '=', 'pass')]"/>
                 <filter name="filter_conditional" string="條件式通過" domain="[('final_review_result', '=', 'conditional')]"/>
                 <filter name="filter_fail" string="審查不合格" domain="[('final_review_result', '=', 'fail')]"/>
-                <separator/>
-                <filter name="filter_delayed" string="送審延遲" domain="[('review_delay_days', '>', 0)]"/>
                 <separator/>
                 <group expand="0" string="群組">
                     <filter name="group_by_project" string="所屬工程" context="{'group_by': 'project_id'}"/>
@@ -301,6 +237,7 @@
                                     <div class="mt-2">
                                         <span t-if="record.is_factory_inspection.raw_value" class="badge text-bg-warning me-1">廠驗</span>
                                         <span t-if="record.is_test.raw_value" class="badge text-bg-info me-1">試驗</span>
+                                        <span t-if="record.state.raw_value == 'done'" class="badge text-bg-success me-1">已完成</span>
                                         <span t-if="record.final_review_result.raw_value == 'pass'" class="badge text-bg-success">合格</span>
                                         <span t-if="record.final_review_result.raw_value == 'conditional'" class="badge text-bg-warning">條件通過</span>
                                         <span t-if="record.final_review_result.raw_value == 'fail'" class="badge text-bg-danger">不合格</span>
@@ -336,7 +273,7 @@
         <field name="name">送審管制</field>
         <field name="res_model">supervision.review.application</field>
         <field name="view_mode">list,kanban,form,calendar</field>
-        <field name="context">{}</field>
+        <field name="context">{'search_default_group_by_project': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一筆送審管制記錄
@@ -345,23 +282,6 @@
                 送審管制用於追蹤工程材料的送審流程，包含型錄、樣品、測試報告等資料的審查進度。
             </p>
         </field>
-    </record>
-
-    <!-- 待審查送審項目 -->
-    <record id="action_review_application_pending" model="ir.actions.act_window">
-        <field name="name">待審查送審</field>
-        <field name="res_model">supervision.review.application</field>
-        <field name="view_mode">list,kanban,form</field>
-        <field name="domain">[('state', 'in', ['submitted', 'reviewing'])]</field>
-        <field name="context">{'search_default_filter_submitted': 1}</field>
-    </record>
-
-    <!-- 已核定送審項目 -->
-    <record id="action_review_application_approved" model="ir.actions.act_window">
-        <field name="name">已核定送審</field>
-        <field name="res_model">supervision.review.application</field>
-        <field name="view_mode">list,form</field>
-        <field name="domain">[('state', '=', 'approved')]</field>
     </record>
 
 </odoo>

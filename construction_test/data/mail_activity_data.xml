@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo noupdate="1">
+
+    <!-- ===================================================================
+         檢試驗相關活動類型
+         =================================================================== -->
+
+    <!-- 檢試驗預警通知 -->
+    <record id="activity_type_test_warning" model="mail.activity.type">
+        <field name="name">檢試驗預警通知</field>
+        <field name="summary">檢試驗頻率預警</field>
+        <field name="res_model">supervision.test.warning</field>
+        <field name="delay_count">0</field>
+        <field name="icon">fa-exclamation-triangle</field>
+    </record>
+
+    <!-- 工項完工提醒 -->
+    <record id="activity_type_completion_reminder" model="mail.activity.type">
+        <field name="name">工項完工提醒</field>
+        <field name="summary">請確認檢試驗是否完成</field>
+        <field name="res_model">supervision.test.warning</field>
+        <field name="delay_count">0</field>
+        <field name="icon">fa-check-circle</field>
+    </record>
+
+    <!-- 檢試驗紀錄建立通知 -->
+    <record id="activity_type_test_record_created" model="mail.activity.type">
+        <field name="name">檢試驗紀錄建立通知</field>
+        <field name="summary">已建立檢試驗紀錄，請確認</field>
+        <field name="res_model">supervision.test.record</field>
+        <field name="delay_count">0</field>
+        <field name="icon">fa-clipboard</field>
+    </record>
+
+    <!-- 檢試驗流程鏈：通知業主會勘 → 現場取樣 → 送實驗室 → 報告簽章 → 送市府核定 → 核定通過 -->
+
+    <!-- 核定通過（鏈尾，先建立） -->
+    <record id="activity_type_test_approved" model="mail.activity.type">
+        <field name="name">核定通過</field>
+        <field name="summary">檢試驗核定通過</field>
+        <field name="res_model">supervision.test.record</field>
+        <field name="delay_count">0</field>
+        <field name="icon">fa-thumbs-up</field>
+    </record>
+
+    <!-- 送市府核定 → 核定通過 -->
+    <record id="activity_type_test_submit_gov" model="mail.activity.type">
+        <field name="name">送市府核定</field>
+        <field name="summary">送交市府核定</field>
+        <field name="res_model">supervision.test.record</field>
+        <field name="delay_count">3</field>
+        <field name="icon">fa-institution</field>
+        <field name="chaining_type">trigger</field>
+        <field name="triggered_next_type_id" ref="activity_type_test_approved"/>
+    </record>
+
+    <!-- 報告簽章 → 送市府核定 -->
+    <record id="activity_type_test_report_sign" model="mail.activity.type">
+        <field name="name">報告簽章</field>
+        <field name="summary">檢驗報告簽章</field>
+        <field name="res_model">supervision.test.record</field>
+        <field name="delay_count">3</field>
+        <field name="icon">fa-pencil-square-o</field>
+        <field name="chaining_type">trigger</field>
+        <field name="triggered_next_type_id" ref="activity_type_test_submit_gov"/>
+    </record>
+
+    <!-- 送實驗室 → 報告簽章 -->
+    <record id="activity_type_test_send_lab" model="mail.activity.type">
+        <field name="name">送實驗室</field>
+        <field name="summary">送交實驗室檢驗</field>
+        <field name="res_model">supervision.test.record</field>
+        <field name="delay_count">7</field>
+        <field name="icon">fa-flask</field>
+        <field name="chaining_type">trigger</field>
+        <field name="triggered_next_type_id" ref="activity_type_test_report_sign"/>
+    </record>
+
+    <!-- 現場取樣 → 送實驗室 -->
+    <record id="activity_type_test_sampling" model="mail.activity.type">
+        <field name="name">現場取樣</field>
+        <field name="summary">現場取樣作業</field>
+        <field name="res_model">supervision.test.record</field>
+        <field name="delay_count">1</field>
+        <field name="icon">fa-eyedropper</field>
+        <field name="chaining_type">trigger</field>
+        <field name="triggered_next_type_id" ref="activity_type_test_send_lab"/>
+    </record>
+
+    <!-- 自訂公式施工提醒 -->
+    <record id="activity_type_custom_formula_reminder" model="mail.activity.type">
+        <field name="name">自訂公式施工提醒</field>
+        <field name="summary">今日有施工，請確認是否需要檢試驗</field>
+        <field name="res_model">supervision.test.standard</field>
+        <field name="delay_count">0</field>
+        <field name="icon">fa-calculator</field>
+    </record>
+
+    <!-- 通知業主會勘 → 現場取樣 -->
+    <record id="activity_type_test_notify_owner" model="mail.activity.type">
+        <field name="name">通知業主會勘</field>
+        <field name="summary">通知業主進行會勘</field>
+        <field name="res_model">supervision.test.record</field>
+        <field name="delay_count">2</field>
+        <field name="icon">fa-bullhorn</field>
+        <field name="chaining_type">trigger</field>
+        <field name="triggered_next_type_id" ref="activity_type_test_sampling"/>
+    </record>
+
+</odoo>

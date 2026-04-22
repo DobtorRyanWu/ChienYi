@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+-->
+<odoo>
+    <!-- ===================================================================
+         解鎖日誌 Wizard
+         =================================================================== -->
+    
+    <record id="daily_log_unlock_wizard_form" model="ir.ui.view">
+        <field name="name">daily.log.unlock.wizard.form</field>
+        <field name="model">daily.log.unlock.wizard</field>
+        <field name="arch" type="xml">
+            <form string="解鎖日誌">
+                <group>
+                    <group>
+                        <field name="sheet_id" invisible="1"/>
+                        <field name="log_date" readonly="1"/>
+                        <field name="days_since_log" readonly="1"/>
+                    </group>
+                </group>
+                
+                <group>
+                    <field name="unlock_duration" widget="radio"/>
+                </group>
+                
+                <group>
+                    <field name="unlock_reason" nolabel="1" 
+                           placeholder="請說明解鎖原因（例如：需要補充當日施工照片、修正數量記錄錯誤等）"/>
+                </group>
+                
+                <footer>
+                    <button string="確認解鎖" type="object"
+                            name="action_confirm_unlock"
+                            class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

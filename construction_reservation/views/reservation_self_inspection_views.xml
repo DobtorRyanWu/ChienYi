@@ -27,9 +27,10 @@
             <xpath expr="//field[@name='company_id']" position="after">
                 <field name="slip_state" invisible="1"/>
                 <field name="slip_work_status" widget="badge"
-                       decoration-info="slip_work_status == 'pending'"
-                       decoration-warning="slip_work_status == 'working'"
-                       decoration-success="slip_work_status in ('completed', 'accepted')"/>
+                       decoration-info="slip_work_status == 'draft'"
+                       decoration-warning="slip_work_status == 'not_started'"
+                       decoration-primary="slip_work_status == 'in_progress'"
+                       decoration-success="slip_work_status == 'closed'"/>
                 <field name="slip_location"/>
             </xpath>
 

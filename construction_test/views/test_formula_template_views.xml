@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 公式範本 List View -->
+    <record id="view_test_formula_template_tree" model="ir.ui.view">
+        <field name="name">supervision.test.formula.template.tree</field>
+        <field name="model">supervision.test.formula.template</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="category"/>
+                <field name="name"/>
+                <field name="description" optional="show"/>
+                <field name="usage_count"/>
+                <field name="is_global" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 公式範本 Form View -->
+    <record id="view_test_formula_template_form" model="ir.ui.view">
+        <field name="name">supervision.test.formula.template.form</field>
+        <field name="model">supervision.test.formula.template</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="輸入範本名稱..."/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資料">
+                            <field name="category" placeholder="鋼筋、混凝土、瀝青..."/>
+                            <field name="is_global"/>
+                            <field name="company_id"
+                                   invisible="is_global"/>
+                            <field name="sequence" invisible="1"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group string="使用統計">
+                            <field name="usage_count"/>
+                            <field name="last_used_date"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="公式設定" name="formula">
+                            <group>
+                                <field name="description"
+                                       placeholder="人類可讀的公式邏輯說明..."/>
+                            </group>
+                            <group string="自定義變數">
+                                <field name="variable_ids" nolabel="1">
+                                    <list editable="bottom">
+                                        <field name="sequence" widget="handle"/>
+                                        <field name="name" placeholder="threshold_1"/>
+                                        <field name="value"/>
+                                        <field name="description" placeholder="第一門檻 (t)"/>
+                                    </list>
+                                </field>
+                            </group>
+                            <group string="計算公式">
+                                <div class="text-muted mb-2" colspan="2">
+                                    <p>回傳值：應檢驗次數（整數）。系統內建變數 <code>cumulative_qty</code>（累計施工數量）。</p>
+                                    <p>可用函數：<code>int()</code> <code>max()</code> <code>min()</code> <code>round()</code></p>
+                                </div>
+                                <field name="custom_formula" nolabel="1" colspan="2"
+                                       placeholder="int(cumulative_qty / 120)"/>
+                            </group>
+                            <group string="預警公式（選填）">
+                                <div class="text-muted mb-2" colspan="2">
+                                    回傳值：下一個預警門檻數量。系統在累計達此數量的 95% 時發出預警。不填則不產生預警。
+                                </div>
+                                <field name="custom_warning_formula" nolabel="1" colspan="2"
+                                       placeholder="(int(cumulative_qty / 120) + 1) * 120"/>
+                            </group>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="note" placeholder="輸入備註說明..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- 公式範本 Search View -->
+    <record id="view_test_formula_template_search" model="ir.ui.view">
+        <field name="name">supervision.test.formula.template.search</field>
+        <field name="model">supervision.test.formula.template</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="category"/>
+                <field name="description"/>
+                <separator/>
+                <filter string="全域可用" name="global_only"
+                        domain="[('is_global', '=', True)]"/>
+                <filter string="已停用" name="inactive"
+                        domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter string="分類" name="group_category"
+                            context="{'group_by': 'category'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 公式範本 Action -->
+    <record id="action_test_formula_template" model="ir.actions.act_window">
+        <field name="name">公式範本庫</field>
+        <field name="res_model">supervision.test.formula.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_test_formula_template_search"/>
+        <field name="context">{'search_default_group_category': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一個公式範本
+            </p>
+            <p>
+                公式範本庫可儲存常用的自訂公式，供不同專案的檢試驗項目快速套用。
+            </p>
+        </field>
+    </record>
+
+</odoo>

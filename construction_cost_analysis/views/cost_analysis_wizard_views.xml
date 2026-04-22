@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================ -->
+    <!-- 從專案匯入成本分析精靈                            -->
+    <!-- ============================================ -->
+    <record id="view_cost_analysis_import_project_wizard_form" model="ir.ui.view">
+        <field name="name">cost.analysis.import.project.wizard.form</field>
+        <field name="model">cost.analysis.import.project.wizard</field>
+        <field name="arch" type="xml">
+            <form string="從專案匯入成本分析">
+                <group>
+                    <group>
+                        <field name="company_id" groups="base.group_multi_company"/>
+                        <field name="source_project_id"/>
+                        <field name="task_count"/>
+                        <field name="currency_id" invisible="1"/>
+                        <field name="estimated_amount" widget="monetary"/>
+                    </group>
+                    <group>
+                        <field name="planning_name"/>
+                        <field name="total_budget" widget="monetary"/>
+                    </group>
+                </group>
+                <footer>
+                    <button name="action_import"
+                            string="開始匯入"
+                            type="object"
+                            class="btn-primary"/>
+                    <button string="取消"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_cost_analysis_import_project_wizard" model="ir.actions.act_window">
+        <field name="name">從專案匯入</field>
+        <field name="res_model">cost.analysis.import.project.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_cost_analysis"/>
+        <field name="binding_view_types">form,list</field>
+    </record>
+
+    <!-- ============================================ -->
+    <!-- 從 XML 匯入成本分析精靈                          -->
+    <!-- ============================================ -->
+    <record id="view_cost_analysis_import_xml_wizard_form" model="ir.ui.view">
+        <field name="name">cost.analysis.import.xml.wizard.form</field>
+        <field name="model">cost.analysis.import.xml.wizard</field>
+        <field name="arch" type="xml">
+            <form string="從 XML 匯入成本分析">
+                <group>
+                    <field name="state" invisible="1"/>
+                    <field name="company_id" groups="base.group_multi_company"/>
+                    <field name="xml_file" filename="xml_filename"
+                           invisible="state == 'preview'"/>
+                    <field name="xml_filename" invisible="state == 'preview'"/>
+                </group>
+                <group invisible="state != 'preview'">
+                    <group>
+                        <field name="planning_name"/>
+                        <field name="total_items"/>
+                        <field name="estimated_amount"/>
+                    </group>
+                    <group>
+                        <field name="currency_id" invisible="1"/>
+                        <field name="total_budget" widget="monetary"/>
+                    </group>
+                </group>
+                <notebook invisible="state != 'preview'">
+                    <page string="預覽（前 20 筆）">
+                        <field name="preview_html"/>
+                    </page>
+                </notebook>
+                <field name="parsed_data" invisible="1"/>
+                <footer>
+                    <button name="action_parse_xml"
+                            string="解析 XML"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state == 'preview'"/>
+                    <button name="action_import"
+                            string="開始匯入"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'preview'"/>
+                    <button string="取消"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_cost_analysis_import_xml_wizard" model="ir.actions.act_window">
+        <field name="name">從 XML 匯入</field>
+        <field name="res_model">cost.analysis.import.xml.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" ref="model_cost_analysis"/>
+        <field name="binding_view_types">form,list</field>
+    </record>
+
+</odoo>

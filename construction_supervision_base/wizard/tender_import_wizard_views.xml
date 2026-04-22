@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 契約標單匯入精靈 - 表單視圖                      -->
+    <!-- ============================================== -->
+    <record id="view_tender_import_wizard_form" model="ir.ui.view">
+        <field name="name">tender.import.wizard.form</field>
+        <field name="model">tender.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="匯入契約標單">
+                <header>
+                    <button name="action_import"
+                            string="確認匯入"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'upload'"
+                            confirm="確定要匯入這些工項嗎？"/>
+
+                    <button string="關閉"
+                            class="btn-primary"
+                            special="cancel"
+                            invisible="state != 'done'"/>
+
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="upload,done"/>
+                </header>
+
+                <sheet>
+                    <!-- 工程資訊 -->
+                    <group>
+                        <group>
+                            <field name="project_id" invisible="1"/>
+                            <field name="project_name"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <!-- 上傳檔案頁 -->
+                        <page string="上傳檔案" name="upload"
+                              invisible="state != 'upload'">
+                            <group>
+                                <group>
+                                    <field name="xml_file" widget="binary"
+                                           filename="xml_filename"/>
+                                    <field name="xml_filename" invisible="1"/>
+                                </group>
+                            </group>
+
+                            <div class="alert alert-info mt-3" role="status">
+                                <h5>📋 檔案格式說明</h5>
+                                <ul>
+                                    <li>請上傳政府採購標單 XML 檔案（ETenderSheet 格式）</li>
+                                    <li>系統將自動解析工項資料並建立契約工項</li>
+                                    <li>支援階層結構（大項次/小項次）</li>
+                                </ul>
+                            </div>
+                        </page>
+
+                        <!-- 匯入完成頁 -->
+                        <page string="匯入完成" name="done"
+                              invisible="state != 'done'">
+                            <group>
+                                <group>
+                                    <field name="imported_count"/>
+                                </group>
+                            </group>
+
+                            <div class="alert alert-success mt-3" role="status">
+                                <h5>✅ 匯入成功！</h5>
+                                <p>已成功匯入 <strong><field name="imported_count"/></strong> 個契約工項。</p>
+                                <p>點擊「關閉」返回工程案件，或從智慧按鈕查看工項。</p>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

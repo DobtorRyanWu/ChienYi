@@ -1,0 +1,78 @@
+# -*- coding: utf-8 -*-
+
+from odoo import models, fields, api, Command
+from odoo.exceptions import UserError
+
+
+class CreateDefectImprovementWizard(models.TransientModel):
+    """
+    建立缺失改善 Wizard
+
+    設計說明：
+    - 讓使用者在建立缺失改善前選擇記錄類型（監造 / 營造）
+    - 由自主檢查的「建立缺失改善」按鈕觸發
+    """
+    _name = 'create.defect.improvement.wizard'
+    _description = '建立缺失改善 - 選擇記錄類型'
+
+    inspection_id = fields.Many2one(
+        'general.self.inspection',
+        string='自主檢查',
+        required=True,
+        ondelete='cascade')
+
+    record_type = fields.Selection([
+        ('supervision', '監造'),
+        ('contractor', '營造'),
+    ], string='記錄類型', required=True, default='supervision')
+
+    def action_confirm(self):
+        """確認並建立缺失改善單"""
+        self.ensure_one()
+        inspection = self.inspection_id
+
+        # 找出尚未建立缺失改善的缺失項目
+        defect_items = inspection.checklist_ids.filtered(
+            lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
+
+        if not defect_items:
+            raise UserError('所有缺失項目皆已建立缺失改善單')
+
+        created_improvements = self.env['general.defect.improvement']
+
+        for item in defect_items:
+            improvement = self.env['general.defect.improvement'].create({
+                'project_id': inspection.project_id.id,
+                'task_id': inspection.task_id.id if inspection.task_id else False,
+                'source_type': 'self_inspection',
+                'self_inspection_id': inspection.id,
+                'self_inspection_item_id': item.id,
+                'record_type': self.record_type,
+                'check_type': 'construction',
+                'defect_category': 'quality',
+                'defect_location': inspection.inspection_location,
+                'defect_description': f"[{item.check_item}] {item.actual_result or ''}",
+                'discovery_user_id': inspection.inspector_id.id if inspection.inspector_id else self.env.uid,
+                'found_date': inspection.inspection_date,
+                'responsible_company_id': inspection.contractor_company_id.id if inspection.contractor_company_id else False,
+            })
+            item.defect_improvement_id = improvement.id
+            created_improvements |= improvement
+
+        # 返回建立的缺失改善單
+        if len(created_improvements) == 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': '缺失改善',
+                'res_model': 'general.defect.improvement',
+                'view_mode': 'form',
+                'res_id': created_improvements.id,
+            }
+        else:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': '已建立的缺失改善',
+                'res_model': 'general.defect.improvement',
+                'view_mode': 'list,form',
+                'domain': [('id', 'in', created_improvements.ids)],
+            }

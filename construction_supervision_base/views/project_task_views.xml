@@ -9,99 +9,135 @@
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.view_task_form2"/>
         <field name="arch" type="xml">
+            <!-- 添加隱藏欄位供狀態判斷 -->
+            <xpath expr="//form" position="inside">
+                <field name="is_project_approved" invisible="1"/>
+                <field name="project_state" invisible="1"/>
+            </xpath>
+            
+            <!-- 修改必填欄位 -->
+            <xpath expr="//field[@name='name']" position="attributes">
+                <attribute name="required">1</attribute>
+                <attribute name="placeholder">輸入工項名稱...</attribute>
+                <attribute name="readonly">is_project_approved</attribute>
+            </xpath>
+            
             <!-- 新增工程相關欄位到主要區塊 -->
             <xpath expr="//field[@name='user_ids']" position="after">
-                <field name="item_no"/>
-                <field name="assigned_company_id"
-                       options="{'no_create': True}"/>
-                <field name="assignment_state" widget="badge"
-                       decoration-muted="assignment_state == 'unassigned'"
-                       decoration-info="assignment_state == 'assigned'"
-                       decoration-warning="assignment_state == 'in_progress'"
-                       decoration-success="assignment_state in ('completed', 'accepted')"/>
+                <field name="parent_id" 
+                       placeholder="選擇父工項（根節點請留空）"
+                       domain="[('project_id', '=', project_id), ('id', '!=', id), ('item_level', '&lt;', 2)]"
+                       options="{'no_create': True}"
+                       readonly="is_project_approved"
+                       help="最細項（阿拉伯數字編號）不可作為父工項"/>
+                <field name="item_no" required="1" placeholder="自動產生" readonly="is_project_approved"/>
+                <field name="item_level" readonly="1"/>
             </xpath>
 
-            <!-- 新增分頁 -->
-            <xpath expr="//notebook" position="inside">
-                <!-- 預算與成本分頁 -->
-                <page string="預算與成本" name="budget_cost">
-                    <group>
-                        <group string="契約價量 (預算)">
-                            <field name="planned_qty"/>
-                            <field name="unit"/>
-                            <field name="unit_price"/>
-                            <field name="planned_amount" class="oe_inline"/>
+            <!-- 移除原有的分頁，重新設計 -->
+            <xpath expr="//notebook" position="replace">
+                <notebook>
+                    <!-- 第1頁：契約價量 -->
+                    <page string="契約價量" name="contract_price_qty">
+                        <group>
+                            <group string="價量資訊">
+                                <field name="unit" required="1" placeholder="M, M2, M3, 式..." readonly="is_project_approved"/>
+                                <field name="planned_qty" required="1" readonly="is_project_approved"/>
+                                <field name="unit_price" required="1" readonly="is_project_approved"/>
+                                <field name="planned_amount" class="oe_inline" readonly="1"/>
+                            </group>
+                            <group string="實際執行">
+                                <field name="actual_qty" readonly="1"/>
+                                <field name="actual_amount" readonly="1"/>
+                                <field name="qty_remaining"/>
+                                <field name="completion_rate" widget="progressbar"/>
+                            </group>
                         </group>
-                        <group string="實際執行">
-                            <field name="actual_qty"/>
-                            <field name="actual_amount"/>
-                            <field name="qty_remaining"/>
-                            <field name="completion_rate" widget="progressbar"/>
-                            <field name="budget_status" widget="badge"
-                                   decoration-success="budget_status == 'under'"
-                                   decoration-warning="budget_status == 'on_budget'"
-                                   decoration-danger="budget_status == 'over'"/>
+                        <group>
+                            <group string="預算狀態">
+                                <field name="budget_status" widget="badge"
+                                       decoration-success="budget_status == 'under'"
+                                       decoration-warning="budget_status == 'on_budget'"
+                                       decoration-danger="budget_status == 'over'"/>
+                            </group>
                         </group>
-                    </group>
-                </page>
+                    </page>
 
-                <!-- 時程管理分頁 -->
-                <page string="時程管理" name="schedule">
-                    <group>
-                        <group string="預定時程" name="planned_schedule">
-                            <field name="planned_date_start"/>
-                            <field name="planned_date_end"/>
-                            <field name="planned_duration"/>
+                    <!-- 第2頁：備註 -->
+                    <page string="備註" name="notes">
+                        <group>
+                            <field name="construction_notes" 
+                                   placeholder="輸入施工注意事項、備註說明..."
+                                   readonly="is_project_approved"
+                                   nolabel="1"/>
                         </group>
-                        <group string="實際時程" name="actual_schedule">
-                            <field name="actual_date_start"/>
-                            <field name="actual_date_end"/>
-                            <field name="actual_duration"/>
+                        <group>
+                            <field name="specification" 
+                                   placeholder="輸入規格說明..."
+                                   readonly="is_project_approved"
+                                   nolabel="1"/>
                         </group>
-                    </group>
-                    <group>
-                        <group string="時程分析" name="schedule_analysis">
-                            <field name="schedule_variance"/>
-                            <field name="schedule_status" widget="badge"
-                                   decoration-success="schedule_status == 'ahead'"
-                                   decoration-warning="schedule_status == 'on_schedule'"
-                                   decoration-danger="schedule_status == 'delayed'"/>
-                        </group>
-                    </group>
-                </page>
+                    </page>
 
-                <!-- 廠商分配分頁 -->
-                <page string="廠商分配" name="contractor"
-                      groups="construction_supervision_base.group_supervision_manager">
-                    <group>
-                        <group string="分配資訊">
-                            <field name="assigned_company_id"
-                                   options="{'no_create': True}"/>
-                            <field name="assignment_date"/>
-                            <field name="assigned_by_id"/>
+                    <!-- 第3頁：時程管理 -->
+                    <page string="時程管理" name="schedule">
+                        <group>
+                            <group string="預定時程" name="planned_schedule">
+                                <field name="planned_date_start" readonly="is_project_approved"/>
+                                <field name="planned_date_end" readonly="is_project_approved"/>
+                                <field name="planned_duration"/>
+                            </group>
+                            <group string="實際時程" name="actual_schedule">
+                                <field name="actual_date_start"/>
+                                <field name="actual_date_end"/>
+                                <field name="actual_duration"/>
+                            </group>
                         </group>
-                        <group string="分配狀態">
-                            <field name="assignment_state" widget="badge"/>
+                        <group>
+                            <group string="時程分析" name="schedule_analysis">
+                                <field name="schedule_variance"/>
+                                <field name="schedule_status" widget="badge"
+                                       decoration-success="schedule_status == 'ahead'"
+                                       decoration-warning="schedule_status == 'on_schedule'"
+                                       decoration-danger="schedule_status == 'delayed'"/>
+                            </group>
                         </group>
-                    </group>
-                    <group>
-                        <button name="action_assign_to_contractor"
-                                string="分配/變更廠商"
-                                type="object"
-                                class="btn-primary"
-                                invisible="not supervision_project_id"/>
-                    </group>
-                </page>
+                    </page>
 
-                <!-- 施工說明分頁 -->
-                <page string="施工說明" name="construction_info">
-                    <group>
-                        <field name="construction_notes" placeholder="輸入施工注意事項..."/>
-                    </group>
-                    <group>
-                        <field name="specification" placeholder="輸入規格說明..."/>
-                    </group>
-                </page>
+                    <!-- 第4頁：廠商分配 -->
+                    <page string="廠商分配" name="contractor"
+                          groups="construction_supervision_base.group_supervisor_admin">
+                        <group>
+                            <group string="分配資訊">
+                                <field name="assigned_company_id"
+                                       options="{'no_create': True}"/>
+                                <field name="assignment_date"/>
+                                <field name="assigned_by_id"/>
+                            </group>
+                            <group string="分配狀態">
+                                <field name="assignment_state" widget="badge"
+                                       decoration-muted="assignment_state == 'unassigned'"
+                                       decoration-info="assignment_state == 'assigned'"
+                                       decoration-warning="assignment_state == 'in_progress'"
+                                       decoration-success="assignment_state in ('completed', 'accepted')"/>
+                            </group>
+                        </group>
+                        <group>
+                            <button name="action_assign_to_contractor"
+                                    string="分配/變更廠商"
+                                    type="object"
+                                    class="btn-primary"
+                                    invisible="not supervision_project_id"/>
+                        </group>
+                    </page>
+
+                    <!-- 第5頁：描述（原生） -->
+                    <page string="描述" name="description">
+                        <field name="description" placeholder="工項詳細說明..." readonly="is_project_approved"/>
+                    </page>
+
+                    <!-- 其他原生頁籤（附加檔案、檢核清單等）會自動繼承-->
+                </notebook>
             </xpath>
 
             <!-- 隱藏欄位 -->
@@ -133,6 +169,7 @@
                 <field name="unit" optional="hide"/>
                 <field name="unit_price" optional="hide"/>
                 <field name="planned_amount" optional="show" sum="金額合計"/>
+                <field name="construction_notes" string="備註" optional="hide"/>
                 <field name="completion_rate" widget="progressbar" optional="show"/>
                 <field name="schedule_status" widget="badge" optional="hide"
                        decoration-success="schedule_status == 'ahead'"
@@ -171,6 +208,8 @@
                         domain="[('budget_status', '=', 'over')]"/>
             </xpath>
             <xpath expr="//group" position="inside">
+                <filter string="工程案件" name="group_by_project"
+                        context="{'group_by': 'project_id'}"/>
                 <filter string="承包廠商" name="group_by_assigned_company"
                         context="{'group_by': 'assigned_company_id'}"/>
                 <filter string="分配狀態" name="group_by_assignment_state"
@@ -184,41 +223,118 @@
     </record>
 
     <!-- ============================================== -->
-    <!-- 契約工項 - 專用列表視圖                          -->
+    <!-- 契約工項 - 專案專屬列表視圖                      -->
+    <!-- ============================================== -->
+    <record id="view_task_tree_project_specific" model="ir.ui.view">
+        <field name="name">project.task.tree.project.specific</field>
+        <field name="model">project.task</field>
+        <field name="priority">25</field>
+        <field name="arch" type="xml">
+            <list string="契約工項" 
+                  default_order="sequence,item_no"
+                  decoration-warning="schedule_status == 'delayed'"
+                  decoration-success="assignment_state == 'accepted'"
+                  decoration-muted="is_summary_item"
+                  editable="bottom">
+                <!-- 排序控制 -->
+                <field name="sequence" widget="handle"/>
+                
+                <!-- 父工項 (可選擇顯示，排除最細項 item_level >= 2) -->
+                <field name="parent_id" 
+                       string="父工項" 
+                       optional="show"
+                       column_invisible="0"
+                       readonly="is_project_approved"
+                       domain="[('project_id', '=', project_id), ('id', '!=', id), ('item_level', '&lt;', 2)]"
+                       options="{'no_create': True}"/>
+                
+                <!-- 工項編號 -->
+                <field name="item_no" string="工項編號" readonly="is_project_approved"/>
+                
+                <!-- 項目及說明 -->
+                <field name="name" string="項目及說明" readonly="is_project_approved"/>
+                
+                <!-- 單位 -->
+                <field name="unit" string="單位" readonly="is_project_approved"/>
+                
+                <!-- 契約數量 -->
+                <field name="planned_qty" string="契約數量" readonly="is_project_approved"/>
+                
+                <!-- 契約單價 -->
+                <field name="unit_price" string="契約單價" readonly="is_project_approved"/>
+                
+                <!-- 契約複價 -->
+                <field name="planned_amount" string="契約複價" sum="契約複價合計" readonly="1"/>
+                
+                <!-- 備註 -->
+                <field name="construction_notes" string="備註" optional="show" readonly="is_project_approved"/>
+                
+                <!-- 廠商分配 (例外可編輯) -->
+                <field name="assigned_company_id" 
+                       string="承包廠商" 
+                       optional="hide"
+                       options="{'no_create': True}"/>
+                
+                <!-- 隱藏欄位 -->
+                <field name="item_level" column_invisible="1"/>
+                <field name="is_summary_item" column_invisible="1"/>
+                <field name="ref_item_code" column_invisible="1"/>
+                <field name="project_id" column_invisible="1"/>
+                <field name="assignment_state" column_invisible="1"/>
+                <field name="schedule_status" column_invisible="1"/>
+                <field name="is_project_approved" column_invisible="1"/>
+                <field name="project_state" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 契約工項 - 專用列表視圖（取消editable）              -->
     <!-- ============================================== -->
     <record id="view_task_tree_supervision_full" model="ir.ui.view">
         <field name="name">project.task.tree.supervision.full</field>
         <field name="model">project.task</field>
         <field name="priority">20</field>
         <field name="arch" type="xml">
-            <list string="契約工項" default_order="item_no"
+            <list string="契約工項" 
+                  default_order="sequence,item_no"
                   decoration-muted="assignment_state == 'accepted'"
                   decoration-info="assignment_state == 'assigned'"
                   decoration-warning="assignment_state == 'in_progress'"
-                  decoration-danger="schedule_status == 'delayed'"
-                  editable="bottom">
-                <field name="item_no"/>
-                <field name="name"/>
-                <field name="project_id" optional="hide"/>
-                <field name="assigned_company_id" options="{'no_create': True}"/>
-                <field name="planned_qty"/>
-                <field name="unit"/>
-                <field name="unit_price"/>
-                <field name="planned_amount" sum="契約金額合計"/>
-                <field name="actual_qty"/>
-                <field name="actual_amount" sum="實際金額合計"/>
-                <field name="completion_rate" widget="progressbar"/>
-                <field name="assignment_state" widget="badge"
-                       decoration-muted="assignment_state == 'unassigned'"
-                       decoration-info="assignment_state == 'assigned'"
-                       decoration-warning="assignment_state == 'in_progress'"
-                       decoration-success="assignment_state in ('completed', 'accepted')"/>
-                <field name="planned_date_start" optional="hide"/>
-                <field name="planned_date_end" optional="hide"/>
-                <field name="schedule_status" widget="badge" optional="hide"
-                       decoration-success="schedule_status == 'ahead'"
-                       decoration-warning="schedule_status == 'on_schedule'"
-                       decoration-danger="schedule_status == 'delayed'"/>
+                  decoration-danger="schedule_status == 'delayed'">
+                <!-- 排序控制 -->
+                <field name="sequence" widget="handle"/>
+                
+                <!-- 工程案件 -->
+                <field name="project_id" string="工程案件"/>
+                
+                <!-- 工項編號 -->
+                <field name="item_no" string="工項編號"/>
+                
+                <!-- 項目及說明 -->
+                <field name="name" string="項目及說明"/>
+                
+                <!-- 單位 -->
+                <field name="unit" string="單位"/>
+                
+                <!-- 契約數量 -->
+                <field name="planned_qty" string="契約數量"/>
+                
+                <!-- 契約單價 -->
+                <field name="unit_price" string="契約單價"/>
+                
+                <!-- 契約複價 -->
+                <field name="planned_amount" string="契約複價" sum="契約複價合計"/>
+                
+                <!-- 備註 -->
+                <field name="construction_notes" string="備註" optional="show"/>
+                
+                <!-- 隱藏欄位 -->
+                <field name="parent_id" column_invisible="1"/>
+                <field name="item_level" column_invisible="1"/>
+                <field name="is_summary_item" column_invisible="1"/>
+                <field name="assignment_state" column_invisible="1"/>
+                <field name="schedule_status" column_invisible="1"/>
             </list>
         </field>
     </record>
@@ -233,7 +349,7 @@
         <field name="view_id" ref="view_task_tree_supervision_full"/>
         <field name="search_view_id" ref="project.view_task_search_form"/>
         <field name="context">{
-            'search_default_group_by_assigned_company': 1,
+            'search_default_group_by_project': 1,
         }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">

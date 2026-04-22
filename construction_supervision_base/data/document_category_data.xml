@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================== -->
+        <!-- 系統預設文件分類                                -->
+        <!-- ============================================== -->
+
+        <!-- 第一層：大分類 -->
+        <record id="category_pre_construction" model="supervision.document.category">
+            <field name="name">開工文件</field>
+            <field name="code">pre_construction</field>
+            <field name="sequence">10</field>
+            <field name="is_system" eval="True"/>
+            <field name="description">工程開工前應備妥之文件</field>
+        </record>
+
+        <record id="category_construction" model="supervision.document.category">
+            <field name="name">施工文件</field>
+            <field name="code">construction</field>
+            <field name="sequence">20</field>
+            <field name="is_system" eval="True"/>
+            <field name="description">施工期間產生之各類文件</field>
+        </record>
+
+        <record id="category_completion" model="supervision.document.category">
+            <field name="name">竣工文件</field>
+            <field name="code">completion</field>
+            <field name="sequence">30</field>
+            <field name="is_system" eval="True"/>
+            <field name="description">工程竣工時應提送之文件</field>
+        </record>
+
+        <record id="category_acceptance" model="supervision.document.category">
+            <field name="name">驗收文件</field>
+            <field name="code">acceptance</field>
+            <field name="sequence">40</field>
+            <field name="is_system" eval="True"/>
+            <field name="description">驗收階段相關文件</field>
+        </record>
+
+        <record id="category_other" model="supervision.document.category">
+            <field name="name">其他文件</field>
+            <field name="code">other</field>
+            <field name="sequence">90</field>
+            <field name="is_system" eval="True"/>
+            <field name="description">其他未分類文件</field>
+        </record>
+
+        <!-- 第二層：開工文件細分類 -->
+        <record id="category_personnel_list" model="supervision.document.category">
+            <field name="name">工地人員名冊</field>
+            <field name="code">personnel_list</field>
+            <field name="sequence">11</field>
+            <field name="parent_id" ref="category_pre_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_schedule" model="supervision.document.category">
+            <field name="name">工程預定進度表</field>
+            <field name="code">schedule</field>
+            <field name="sequence">12</field>
+            <field name="parent_id" ref="category_pre_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_construction_plan" model="supervision.document.category">
+            <field name="name">施工計畫書</field>
+            <field name="code">construction_plan</field>
+            <field name="sequence">13</field>
+            <field name="parent_id" ref="category_pre_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_quality_plan" model="supervision.document.category">
+            <field name="name">品質計畫書</field>
+            <field name="code">quality_plan</field>
+            <field name="sequence">14</field>
+            <field name="parent_id" ref="category_pre_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_safety_plan" model="supervision.document.category">
+            <field name="name">職業安全衛生管理計畫書</field>
+            <field name="code">safety_plan</field>
+            <field name="sequence">15</field>
+            <field name="parent_id" ref="category_pre_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_insurance" model="supervision.document.category">
+            <field name="name">工程保險</field>
+            <field name="code">insurance</field>
+            <field name="sequence">16</field>
+            <field name="parent_id" ref="category_pre_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <!-- 第二層：施工文件細分類 -->
+        <record id="category_daily_log" model="supervision.document.category">
+            <field name="name">施工日誌</field>
+            <field name="code">daily_log</field>
+            <field name="sequence">21</field>
+            <field name="parent_id" ref="category_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_supervision_report" model="supervision.document.category">
+            <field name="name">監造報表</field>
+            <field name="code">supervision_report</field>
+            <field name="sequence">22</field>
+            <field name="parent_id" ref="category_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_test_report" model="supervision.document.category">
+            <field name="name">試驗報告</field>
+            <field name="code">test_report</field>
+            <field name="sequence">23</field>
+            <field name="parent_id" ref="category_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_inspection_record" model="supervision.document.category">
+            <field name="name">檢驗紀錄</field>
+            <field name="code">inspection_record</field>
+            <field name="sequence">24</field>
+            <field name="parent_id" ref="category_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_photo" model="supervision.document.category">
+            <field name="name">工程照片</field>
+            <field name="code">photo</field>
+            <field name="sequence">25</field>
+            <field name="parent_id" ref="category_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_meeting_minutes" model="supervision.document.category">
+            <field name="name">會議紀錄</field>
+            <field name="code">meeting_minutes</field>
+            <field name="sequence">26</field>
+            <field name="parent_id" ref="category_construction"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <!-- 第二層：竣工文件細分類 -->
+        <record id="category_completion_drawing" model="supervision.document.category">
+            <field name="name">竣工圖</field>
+            <field name="code">completion_drawing</field>
+            <field name="sequence">31</field>
+            <field name="parent_id" ref="category_completion"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_completion_settlement" model="supervision.document.category">
+            <field name="name">竣工結算</field>
+            <field name="code">completion_settlement</field>
+            <field name="sequence">32</field>
+            <field name="parent_id" ref="category_completion"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_supervision_final_report" model="supervision.document.category">
+            <field name="name">監造報告書</field>
+            <field name="code">supervision_final_report</field>
+            <field name="sequence">33</field>
+            <field name="parent_id" ref="category_completion"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_quality_certificate" model="supervision.document.category">
+            <field name="name">品質證明</field>
+            <field name="code">quality_certificate</field>
+            <field name="sequence">34</field>
+            <field name="parent_id" ref="category_completion"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_warranty_certificate" model="supervision.document.category">
+            <field name="name">保固書</field>
+            <field name="code">warranty_certificate</field>
+            <field name="sequence">35</field>
+            <field name="parent_id" ref="category_completion"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <!-- 第二層：其他文件細分類 -->
+        <record id="category_correspondence" model="supervision.document.category">
+            <field name="name">往來函文</field>
+            <field name="code">correspondence</field>
+            <field name="sequence">91</field>
+            <field name="parent_id" ref="category_other"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+        <record id="category_change_order" model="supervision.document.category">
+            <field name="name">變更設計</field>
+            <field name="code">change_order</field>
+            <field name="sequence">92</field>
+            <field name="parent_id" ref="category_other"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
+    </data>
+</odoo>
