@@ -3172,6 +3172,11 @@ class ConstructionPortal(CustomerPortal):
             'location': post.get('location', ''),
         }
 
+        # 管理公司（自由輸入）
+        management_company_name = post.get('management_company_name', '').strip()
+        if management_company_name:
+            vals['management_company_name'] = management_company_name
+
         # 契約金額
         amount = post.get('amount', '').strip()
         if amount:
@@ -3502,3 +3507,71 @@ class ConstructionPortal(CustomerPortal):
             photos_data.append(detail)
 
         return {'photos': photos_data}
+
+    # ==================== 工期展延（action_extend_lines）====================
+    @http.route(['/my/construction/<int:project_id>/schedule/extend'],
+                type='http', auth='user', website=True)
+    def portal_schedule_extend_page(self, project_id, **kw):
+        """工期展延頁面：顯示 draft 進度表並提供展延輸入"""
+        try:
+            project = request.env['supervision.project'].browse(project_id)
+            project.check_access_rule('read')
+            project.check_access_rights('read')
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+
+        Schedule = request.env['progress.schedule'].sudo()
+        draft_schedule = Schedule.search([
+            ('project_id', '=', project.id),
+            ('state', '=', 'draft'),
+        ], order='id desc', limit=1)
+
+        values = {
+            'project': project,
+            'schedule': draft_schedule,
+            'page_name': 'construction_schedule_extend',
+            'day_count': self._get_project_day_count(project),
+            'nav_badges': self._get_nav_badges(project),
+            'error': kw.get('error'),
+            'success': kw.get('success'),
+        }
+        return request.render('construction_portal.portal_schedule_extend', values)
+
+    @http.route(['/my/construction/<int:project_id>/schedule/<int:schedule_id>/extend'],
+                type='http', auth='user', website=True, methods=['POST'], csrf=True)
+    def portal_schedule_extend_submit(self, project_id, schedule_id, **post):
+        """提交工期展延：寫入 current_extension 並呼叫 action_extend_lines"""
+        try:
+            project = request.env['supervision.project'].browse(project_id)
+            project.check_access_rule('write')
+            project.check_access_rights('write')
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+
+        schedule = request.env['progress.schedule'].sudo().browse(schedule_id)
+        if not schedule.exists() or schedule.project_id.id != project.id:
+            return request.redirect(
+                f'/my/construction/{project_id}/schedule/extend?error=not_found')
+        if schedule.state != 'draft':
+            return request.redirect(
+                f'/my/construction/{project_id}/schedule/extend?error=not_draft')
+
+        try:
+            current_extension = int(post.get('current_extension') or 0)
+        except (TypeError, ValueError):
+            return request.redirect(
+                f'/my/construction/{project_id}/schedule/extend?error=invalid_value')
+        if current_extension < 0:
+            return request.redirect(
+                f'/my/construction/{project_id}/schedule/extend?error=negative')
+
+        try:
+            schedule.write({'current_extension': current_extension})
+            schedule.action_extend_lines()
+        except (UserError, ValidationError) as e:
+            _logger.warning('schedule extend failed: %s', e)
+            return request.redirect(
+                f'/my/construction/{project_id}/schedule/extend?error=action_failed')
+
+        return request.redirect(
+            f'/my/construction/{project_id}/schedule/extend?success=1')

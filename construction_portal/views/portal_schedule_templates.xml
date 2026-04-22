@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 工期展延頁 -->
+    <template id="portal_schedule_extend" name="Schedule Extension">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">
+                        <t t-esc="project.code or project.name"/>
+                    </a>
+                    <span class="cy-breadcrumb-item active">工期展延</span>
+                </div>
+
+                <div class="cy-content" style="padding: 16px;">
+                    <h2 style="margin-bottom: 16px;">工期展延設定</h2>
+
+                    <!-- 訊息區 -->
+                    <t t-if="success">
+                        <div class="cy-alert" style="background: rgba(34,179,87,0.12); color: var(--wb-green); padding: 12px; border-radius: var(--wb-radius); margin-bottom: 16px;">
+                            工期展延已送出，進度區間已補充完成。
+                        </div>
+                    </t>
+                    <t t-if="error">
+                        <div class="cy-alert" style="background: rgba(232,54,79,0.12); color: var(--wb-red); padding: 12px; border-radius: var(--wb-radius); margin-bottom: 16px;">
+                            <t t-if="error == 'not_found'">找不到可展延的進度表。</t>
+                            <t t-elif="error == 'not_draft'">只有草稿狀態的進度表可展延。</t>
+                            <t t-elif="error == 'invalid_value'">請輸入有效的展延天數。</t>
+                            <t t-elif="error == 'negative'">展延天數不可為負數。</t>
+                            <t t-elif="error == 'action_failed'">補充進度區間失敗，請確認計算模式與完工日設定。</t>
+                            <t t-else="">操作失敗。</t>
+                        </div>
+                    </t>
+
+                    <!-- 無草稿進度表 -->
+                    <t t-if="not schedule">
+                        <div class="cy-card">
+                            <div class="cy-card-body">
+                                <p style="color: var(--wb-t2);">
+                                    本工程目前沒有草稿狀態的進度表，無法進行展延。
+                                </p>
+                                <p style="color: var(--wb-t3); font-size: 0.9rem; margin-top: 8px;">
+                                    工期展延僅能在尚未啟用的草稿版本上設定。如需建立新版本，請至後台操作。
+                                </p>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 有草稿進度表 -->
+                    <t t-else="">
+                        <div class="cy-card" style="margin-bottom: 16px;">
+                            <div class="cy-card-body">
+                                <h3 style="margin-bottom: 12px; font-size: 1rem;">
+                                    <t t-esc="schedule.name or ('進度表 #' + str(schedule.id))"/>
+                                </h3>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.9rem;">
+                                    <div>
+                                        <div style="color: var(--wb-t3);">原核定工期</div>
+                                        <div style="font-weight: 600;">
+                                            <t t-esc="schedule.approved_duration or 0"/> 日
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--wb-t3);">展延基準值</div>
+                                        <div style="font-weight: 600;">
+                                            <t t-esc="schedule.base_extension_duration or 0"/> 日
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--wb-t3);">本次核准展延</div>
+                                        <div style="font-weight: 600; color: var(--wb-amber);">
+                                            <t t-esc="schedule.current_extension or 0"/> 日
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--wb-t3);">累計工期展延</div>
+                                        <div style="font-weight: 600;">
+                                            <t t-esc="schedule.duration_extension or 0"/> 日
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--wb-t3);">原始完工日</div>
+                                        <div style="font-weight: 600;">
+                                            <t t-esc="schedule.original_end_date or '-'"/>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style="color: var(--wb-t3);">調整後完工日</div>
+                                        <div style="font-weight: 600;">
+                                            <t t-esc="schedule.adjusted_end_date or '-'"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 展延輸入表單 -->
+                        <form t-attf-action="/my/construction/#{project.id}/schedule/#{schedule.id}/extend"
+                              method="post" class="cy-card">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <div class="cy-card-body">
+                                <label for="current_extension" style="display: block; margin-bottom: 8px; font-weight: 600;">
+                                    本次核准展延工期（日）
+                                </label>
+                                <input type="number" name="current_extension" id="current_extension"
+                                       t-att-value="schedule.current_extension or 0"
+                                       min="0" step="1" required="required"
+                                       class="cy-input" style="width: 100%; padding: 10px; border: 1px solid var(--wb-bdr); border-radius: var(--wb-radius-sm); font-size: 1rem;"/>
+                                <div style="color: var(--wb-t3); font-size: 0.85rem; margin-top: 6px;">
+                                    提交後將自動補充缺少的進度區間（僅對草稿進度表有效）。
+                                </div>
+                                <button type="submit" class="cy-btn" style="margin-top: 16px; width: 100%; padding: 12px; background: var(--wb-amber); color: #fff; font-weight: 700; border-radius: var(--wb-radius-sm); border: none; cursor: pointer;">
+                                    送出展延並補充區間
+                                </button>
+                            </div>
+                        </form>
+                    </t>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

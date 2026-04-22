@@ -493,7 +493,7 @@
                                             <option value="">選擇或新增工項</option>
                                             <t t-foreach="tasks" t-as="task">
                                                 <option t-att-value="task.id">
-                                                    <t t-if="task.item_no">[<t t-esc="task.item_no"/>] </t><t t-esc="task.name"/>
+                                                    <t t-if="task.item_no">[<t t-esc="task.display_item_no or task.item_no"/>] </t><t t-esc="task.name"/>
                                                     <t t-if="task.unit"> (<t t-esc="task.unit"/>)</t>
                                                 </option>
                                             </t>

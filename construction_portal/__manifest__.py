@@ -53,6 +53,7 @@ v2.0.0 (Portal v10)
         'views/portal_slip_templates.xml',
         'views/portal_document_templates.xml',
         'views/portal_settings_templates.xml',
+        'views/portal_schedule_templates.xml',
         # 登入頁品牌化（EAGLE 風格）
         'views/login_templates.xml',
     ],

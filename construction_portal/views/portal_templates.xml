@@ -179,6 +179,9 @@
                                 <a t-attf-href="/my/construction/#{project.id}/documents" class="cy-quick-add-item">
                                     <span>📂</span><span>檔案管理</span>
                                 </a>
+                                <a t-attf-href="/my/construction/#{project.id}/schedule/extend" class="cy-quick-add-item">
+                                    <span>📅</span><span>工期展延</span>
+                                </a>
                             </div>
                         </div>
                         <!-- 待改缺失 -->
@@ -699,6 +702,10 @@
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">承包廠商</label>
                                 <input type="text" name="contractor" class="form-control" placeholder="輸入承包廠商名稱"/>
+                            </div>
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">管理公司</label>
+                                <input type="text" name="management_company_name" class="form-control" placeholder="設計監造單位名稱（選填）"/>
                             </div>
                         </div>
 
