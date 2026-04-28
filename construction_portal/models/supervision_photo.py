@@ -17,7 +17,7 @@ class SupervisionPhotoPortal(models.Model):
     def _compute_access_url(self):
         super()._compute_access_url()
         for photo in self:
-            photo.access_url = f'/my/construction/photo/{photo.id}'
+            photo.access_url = f'/construction/photo/{photo.id}'
 
     # === Portal 專用欄位 ===
     portal_uploader_id = fields.Many2one(
@@ -53,12 +53,13 @@ class SupervisionPhotoPortal(models.Model):
         Returns:
             新建立的照片記錄
         """
-        # 建立附件
+        # 建立附件(public=True 讓 portal user 能透過 /web/image 看圖)
         attachment = self.env['ir.attachment'].sudo().create({
             'name': vals.get('filename', 'photo.jpg'),
             'datas': attachment_data,
             'res_model': 'supervision.photo',
             'type': 'binary',
+            'public': True,
         })
 
         # 移除 filename，使用 name 作為照片說明

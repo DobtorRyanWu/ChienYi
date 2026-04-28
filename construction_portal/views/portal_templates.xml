@@ -10,7 +10,7 @@
             <t t-call="portal.portal_docs_entry">
                 <t t-set="icon" t-value="'/construction_portal/static/src/img/construction.svg'"/>
                 <t t-set="title">工程案件</t>
-                <t t-set="url" t-value="'/my/construction'"/>
+                <t t-set="url" t-value="'/construction'"/>
                 <t t-set="text">查看工程進度、自主檢查與缺失改善</t>
                 <t t-set="placeholder_count" t-value="'construction_count'"/>
                 <t t-set="config_card" t-value="True"/>
@@ -24,7 +24,7 @@
         <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
             <li t-if="page_name == 'construction' or page_name == 'construction_detail'"
                 t-attf-class="breadcrumb-item #{'active' if page_name == 'construction' else ''}">
-                <a t-if="page_name != 'construction'" t-attf-href="/my/construction">工程案件</a>
+                <a t-if="page_name != 'construction'" t-attf-href="/construction">工程案件</a>
                 <t t-else="">工程案件</t>
             </li>
         </xpath>
@@ -32,7 +32,7 @@
 
     <!-- ============================================
          工程案件 GPS 定位中介頁(splash)
-         由 /my/construction 在「使用者有多個可見專案」時 render
+         由 /construction 在「使用者有多個可見專案」時 render
          ============================================ -->
     <template id="portal_construction_locator" name="Construction Locator Splash">
         <t t-call="portal.portal_layout">
@@ -45,7 +45,7 @@
                     請允許瀏覽器存取您的位置
                 </p>
                 <div style="margin-top: 32px;">
-                    <a href="/my/construction?view=list"
+                    <a href="/construction?view=list"
                        id="cy-locator-skip"
                        class="btn btn-outline-secondary">
                         <i class="fa fa-list"/> 改用列表檢視
@@ -56,7 +56,39 @@
     </template>
 
     <!-- ============================================
-         工程案件列表 /my/construction
+         Splash 最終定格預覽 /construction/splash-preview
+         ============================================ -->
+    <template id="portal_construction_splash_preview" name="Splash Preview (Static)">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div t-attf-class="cy-splash #{'cy-splash-preview' if not play_animation else 'cy-splash-preview-play'}">
+                <div class="cy-splash-glow"/>
+                <div class="cy-splash-stage">
+                    <svg class="cy-splash-draw" viewBox="0 0 53.74 51.81" xmlns="http://www.w3.org/2000/svg">
+                        <path class="cy-line cy-line-1" d="M 26.9,0 L 0,46.36 L 4.3,46.36 L 28.98,3.61 Z"/>
+                        <path class="cy-line cy-line-2" d="M 29.5,4.51 L 5.22,46.36 L 9.52,46.36 L 31.59,8.14 Z"/>
+                        <path class="cy-line cy-line-3" d="M 32.1,9.03 L 10.44,46.36 L 14.74,46.36 L 34.19,12.67 Z"/>
+                        <path class="cy-line cy-line-4" d="M 34.7,13.55 L 15.66,46.36 L 19.96,46.36 L 36.8,17.2 Z"/>
+                        <path class="cy-col cy-col-1" d="M 20.66,46.36 L 23.39,46.36 L 23.39,41.64 Z"/>
+                        <path class="cy-col cy-col-2" d="M 24.99,38.87 L 24.99,46.36 L 27.72,46.36 L 27.72,34.13 Z"/>
+                        <path class="cy-col cy-col-3" d="M 29.32,31.36 L 29.32,46.36 L 32.06,46.36 L 32.06,26.62 Z"/>
+                        <path class="cy-col cy-col-4" d="M 33.66,23.84 L 33.66,46.36 L 36.4,46.36 L 36.4,19.11 Z"/>
+                        <path class="cy-col cy-col-5" d="M 38,19.18 L 38,46.36 L 40.73,46.36 L 40.73,23.9 Z"/>
+                        <path class="cy-col cy-col-6" d="M 42.34,26.67 L 42.34,46.36 L 45.07,46.36 L 45.07,31.39 Z"/>
+                        <path class="cy-col cy-col-7" d="M 46.67,34.16 L 46.67,46.36 L 49.41,46.36 L 49.41,38.89 Z"/>
+                        <path class="cy-col cy-col-8" d="M 53.74,46.36 L 51.01,41.65 L 51.01,46.36 Z"/>
+                    </svg>
+                </div>
+                <div class="cy-splash-brand">ChienYi</div>
+                <div class="cy-splash-name">QIAN YI TECHNOLOGY</div>
+                <div class="cy-splash-sub">千溢科技 · 工程監造系統</div>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         工程案件列表 /construction
          ============================================ -->
     <template id="portal_my_construction_projects" name="My Construction Projects">
         <t t-call="portal.portal_layout">
@@ -68,7 +100,7 @@
                     <div class="cy-empty"><i class="fa fa-hard-hat"/><div class="cy-empty-text">目前沒有工程案件</div></div>
                 </t>
                 <t t-foreach="projects" t-as="proj">
-                    <a t-attf-href="/my/construction/#{proj.id}" class="cy-project-list-card">
+                    <a t-attf-href="/construction/#{proj.id}" class="cy-project-list-card">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
                             <span class="cy-project-list-name"><t t-esc="proj.name"/></span>
                             <span t-attf-class="cy-badge cy-badge-#{proj.state}">
@@ -119,11 +151,9 @@
                             <path class="cy-col cy-col-8" d="M 53.74,46.36 L 51.01,41.65 L 51.01,46.36 Z"/>
                         </svg>
                     </div>
+                    <div class="cy-splash-brand">ChienYi</div>
                     <div class="cy-splash-name">QIAN YI TECHNOLOGY</div>
                     <div class="cy-splash-sub">千溢科技 · 工程監造系統</div>
-                    <div class="cy-splash-dots">
-                        <span class="cy-splash-dot"/><span class="cy-splash-dot"/><span class="cy-splash-dot"/>
-                    </div>
                 </div>
 
                 <!-- ===== HUD 固定頂部 ===== -->
@@ -138,7 +168,7 @@
                             </div>
                         </div>
                         <div class="cy-hud-project"><t t-esc="project.name"/></div>
-                        <a t-attf-href="/my/construction/settings?from_project=#{project.id}" class="cy-hud-avatar">
+                        <a t-attf-href="/construction/settings?from_project=#{project.id}" class="cy-hud-avatar">
                             <t t-esc="request.env.user.name[:1]"/>
                         </a>
                     </div>
@@ -146,7 +176,7 @@
                     <!-- 資源列（3 等寬方塊）：進度% / ＋快速新增 / 待改缺失 -->
                     <div class="cy-hud-resbar">
                         <!-- 工程進度 -->
-                        <a t-attf-href="/my/construction/#{project.id}/info" class="cy-hud-resbox"
+                        <a t-attf-href="/construction/#{project.id}/info" class="cy-hud-resbox"
                            style="cursor: pointer; text-decoration: none; color: inherit;">
                             <div class="cy-hud-resbox-val" style="color: #1a9e94;">
                                 <t t-esc="'%.0f' % progress_pct"/>%
@@ -155,37 +185,37 @@
                         </a>
                         <!-- ＋ 快速新增（下拉） -->
                         <div class="cy-hud-resbox cy-quick-add-trigger" id="quickAddTrigger">
-                            <div class="cy-hud-resbox-val" style="color: #d4940a;">＋</div>
+                            <div class="cy-hud-resbox-val" style="color: var(--wb-brand-dark);">＋</div>
                             <div class="cy-hud-resbox-label">快速新增</div>
                             <!-- 下拉選單 -->
                             <div class="cy-quick-add-menu" id="quickAddMenu" style="display: none;">
-                                <a t-attf-href="/my/construction/project/new?from_project=#{project.id}" class="cy-quick-add-item">
+                                <a t-attf-href="/construction/project/new?from_project=#{project.id}" class="cy-quick-add-item">
                                     <span>➕</span><span>新增專案</span>
                                 </a>
                                 <t t-if="project.project_type == 'reservation'">
-                                    <a t-attf-href="/my/construction/#{project.id}/slips" class="cy-quick-add-item">
+                                    <a t-attf-href="/construction/#{project.id}/slips" class="cy-quick-add-item">
                                         <span>📄</span><span>通報單</span>
                                     </a>
                                 </t>
-                                <a t-attf-href="/my/construction/#{project.id}/daily-log/new" class="cy-quick-add-item">
+                                <a t-attf-href="/construction/#{project.id}/daily-log/new" class="cy-quick-add-item">
                                     <span>📋</span><span>施工日誌</span>
                                 </a>
-                                <a t-attf-href="/my/construction/#{project.id}/inspection/new" class="cy-quick-add-item">
+                                <a t-attf-href="/construction/#{project.id}/inspection/new" class="cy-quick-add-item">
                                     <span>🔍</span><span>自主檢查</span>
                                 </a>
-                                <a t-attf-href="/my/construction/#{project.id}/defect/new" class="cy-quick-add-item">
+                                <a t-attf-href="/construction/#{project.id}/defect/new" class="cy-quick-add-item">
                                     <span>⚠</span><span>缺失改善</span>
                                 </a>
-                                <a t-attf-href="/my/construction/#{project.id}/documents" class="cy-quick-add-item">
+                                <a t-attf-href="/construction/#{project.id}/documents" class="cy-quick-add-item">
                                     <span>📂</span><span>檔案管理</span>
                                 </a>
-                                <a t-attf-href="/my/construction/#{project.id}/schedule/extend" class="cy-quick-add-item">
+                                <a t-attf-href="/construction/#{project.id}/schedule/extend" class="cy-quick-add-item">
                                     <span>📅</span><span>工期展延</span>
                                 </a>
                             </div>
                         </div>
                         <!-- 待改缺失 -->
-                        <a t-attf-href="/my/construction/#{project.id}/defects?filterby=open" class="cy-hud-resbox"
+                        <a t-attf-href="/construction/#{project.id}/defects?filterby=open" class="cy-hud-resbox"
                            t-attf-style="border: 1px solid #{open_defect_count and 'rgba(232,54,79,0.25)' or 'var(--wb-bdr)'};">
                             <div class="cy-hud-resbox-val" style="color: var(--wb-red);">
                                 <t t-esc="open_defect_count"/>件
@@ -208,7 +238,7 @@
                                         <t t-esc="od.name"/> <t t-esc="od.description or ''"/> 逾期 <t t-esc="od.overdue_days"/> 天
                                     </div>
                                 </div>
-                                <a t-attf-href="/my/construction/defect/#{od.id}"
+                                <a t-attf-href="/construction/defect/#{od.id}"
                                    style="padding: 10px 16px; border-radius: 10px; border: none; background: var(--wb-red); color: #fff; font-size: 0.9rem; font-weight: 700; text-decoration: none; min-height: 44px; white-space: nowrap; display: flex; align-items: center;">
                                     立即處理 →
                                 </a>
@@ -224,7 +254,7 @@
                                         <t t-esc="di.inspection_type_id.name or di.name"/> 已指派給你
                                     </div>
                                 </div>
-                                <a t-attf-href="/my/construction/inspection/#{di.id}"
+                                <a t-attf-href="/construction/inspection/#{di.id}"
                                    style="padding: 10px 16px; border-radius: 10px; border: none; background: var(--wb-amber); color: #fff; font-size: 0.9rem; font-weight: 700; text-decoration: none; min-height: 44px; white-space: nowrap; display: flex; align-items: center;">
                                     前往檢查 →
                                 </a>
@@ -234,7 +264,7 @@
 
                     <!-- 本週進度（大卡：預定%/實際%/差異%）-->
                     <div class="cy-sec-divider"><span>本週進度</span></div>
-                    <a t-attf-href="/my/construction/#{project.id}/daily-log/new"
+                    <a t-attf-href="/construction/#{project.id}/daily-log/new"
                        class="cy-week-progress-card" style="text-decoration: none; color: inherit; display: block;">
                         <div style="font-size: 0.9rem; color: var(--wb-t2); margin-bottom: 8px;">
                             <t t-esc="week_display or ''"/>
@@ -273,7 +303,7 @@
                     <!-- 每日任務 -->
                     <div class="cy-sec-divider"><span>每日任務</span></div>
                     <div class="cy-card" style="overflow: hidden;">
-                        <div style="padding: 16px; background: linear-gradient(135deg, rgba(230,160,32,0.05), transparent); border-bottom: 1px solid var(--wb-bdr);">
+                        <div style="padding: 16px; background: linear-gradient(135deg, rgba(118,159,205,0.08), transparent); border-bottom: 1px solid var(--wb-bdr);">
                             <div style="padding: 10px 10px 4px; font-size: 0.85rem; font-weight: 700; color: var(--wb-t3);">例行任務</div>
 
                             <!-- 登入系統 -->
@@ -295,7 +325,7 @@
                                     </div>
                                 </div>
                                 <t t-if="today_photo_count &lt; 3">
-                                    <a t-attf-href="/my/construction/#{project.id}/photo/upload" class="cy-taskrow-action">前往 →</a>
+                                    <a t-attf-href="/construction/#{project.id}/photo/upload" class="cy-taskrow-action">前往 →</a>
                                 </t>
                             </div>
 
@@ -310,7 +340,7 @@
                                     </div>
                                 </div>
                                 <t t-if="today_photo_count &lt; 5">
-                                    <a t-attf-href="/my/construction/#{project.id}/photo/upload" class="cy-taskrow-action">前往 →</a>
+                                    <a t-attf-href="/construction/#{project.id}/photo/upload" class="cy-taskrow-action">前往 →</a>
                                 </t>
                             </div>
 
@@ -325,7 +355,7 @@
                                     </div>
                                 </div>
                                 <t t-if="not today_log">
-                                    <a t-attf-href="/my/construction/#{project.id}/daily-log/new" class="cy-taskrow-action">前往 →</a>
+                                    <a t-attf-href="/construction/#{project.id}/daily-log/new" class="cy-taskrow-action">前往 →</a>
                                 </t>
                             </div>
                         </div>
@@ -336,7 +366,7 @@
                         <div class="cy-sec-divider"><span>通報單</span></div>
                         <t t-if="recent_slips">
                             <t t-foreach="recent_slips" t-as="slip">
-                                <a t-attf-href="/my/construction/#{project.id}/slip/#{slip.id}" class="cy-slip-home-card"
+                                <a t-attf-href="/construction/#{project.id}/slip/#{slip.id}" class="cy-slip-home-card"
                                    t-att-data-state="slip.state">
                                     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
                                         <div>
@@ -387,7 +417,7 @@
     </template>
 
     <!-- ============================================
-         工程資訊頁 /my/construction/<pid>/info
+         工程資訊頁 /construction/<pid>/info
          （底部導航第一 tab → InfoPage）
          ============================================ -->
     <template id="portal_construction_project_info" name="Construction Project Info">
@@ -398,7 +428,7 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
                     <span class="cy-breadcrumb-item active">工程資訊</span>
                 </div>
 
@@ -409,7 +439,7 @@
                             <t t-esc="dict(project._fields['state'].selection).get(project.state, project.state)"/>
                         </span>
                         <t t-if="project.state == 'draft'">
-                            <a t-attf-href="/my/construction/#{project.id}/edit"
+                            <a t-attf-href="/construction/#{project.id}/edit"
                                class="cy-btn"
                                style="padding: 6px 14px; border: 1px solid var(--wb-blue); color: var(--wb-blue); font-weight: 700; font-size: 0.9rem; border-radius: 8px; text-decoration: none;">
                                 <i class="fa fa-pencil"/> 編輯
@@ -586,7 +616,7 @@
                     </div>
                 </div>
                 <div class="cy-hud-project"><t t-esc="project.name"/></div>
-                <a t-attf-href="/my/construction/settings?from_project=#{project.id}" class="cy-hud-avatar">
+                <a t-attf-href="/construction/settings?from_project=#{project.id}" class="cy-hud-avatar">
                     <t t-esc="request.env.user.name[:1]"/>
                 </a>
             </div>
@@ -596,13 +626,13 @@
     <template id="portal_bottom_nav_v10" name="Portal v10 Bottom Navigation">
         <nav class="cy-bottom-nav" t-if="project">
             <!-- 工程資訊 -->
-            <a t-attf-href="/my/construction/#{project.id}/info"
+            <a t-attf-href="/construction/#{project.id}/info"
                t-attf-class="cy-nav-item #{page_name == 'construction_info' and 'active' or ''}">
                 <span class="cy-nav-emoji">🏗</span>
                 <span>工程資訊</span>
             </a>
             <!-- 施工日誌 -->
-            <a t-attf-href="/my/construction/#{project.id}/daily-logs"
+            <a t-attf-href="/construction/#{project.id}/daily-logs"
                t-attf-class="cy-nav-item #{page_name in ('construction_daily_logs', 'construction_daily_log_detail', 'construction_daily_log_new') and 'active' or ''}">
                 <span class="cy-nav-emoji">📋</span>
                 <span>施工日誌</span>
@@ -611,13 +641,13 @@
                 </t>
             </a>
             <!-- 照片中心 -->
-            <a t-attf-href="/my/construction/#{project.id}/photos"
+            <a t-attf-href="/construction/#{project.id}/photos"
                t-attf-class="cy-nav-item #{page_name in ('construction_photos', 'construction_photo_upload', 'construction_photo_detail') and 'active' or ''}">
                 <span class="cy-nav-emoji">📷</span>
                 <span>照片中心</span>
             </a>
             <!-- 自主檢查 -->
-            <a t-attf-href="/my/construction/#{project.id}/inspections"
+            <a t-attf-href="/construction/#{project.id}/inspections"
                t-attf-class="cy-nav-item #{page_name in ('construction_inspections', 'construction_inspection_new', 'construction_inspection_detail') and 'active' or ''}">
                 <span class="cy-nav-emoji">🔍</span>
                 <span>自主檢查</span>
@@ -626,7 +656,7 @@
                 </t>
             </a>
             <!-- 缺失改善 -->
-            <a t-attf-href="/my/construction/#{project.id}/defects"
+            <a t-attf-href="/construction/#{project.id}/defects"
                t-attf-class="cy-nav-item #{page_name in ('construction_defects', 'construction_defect_detail') and 'active' or ''}">
                 <span class="cy-nav-emoji">⚠</span>
                 <span>缺失改善</span>
@@ -642,7 +672,7 @@
     </template>
 
     <!-- ============================================
-         新增工程專案 /my/construction/project/new
+         新增工程專案 /construction/project/new
          ============================================ -->
     <template id="portal_construction_project_new" name="New Construction Project">
         <t t-call="web.frontend_layout">
@@ -651,7 +681,7 @@
 
             <div class="cy-v10-app">
                 <div class="cy-breadcrumb">
-                    <a t-att-href="back_url or '/my/construction'" class="cy-breadcrumb-item">
+                    <a t-att-href="back_url or '/construction'" class="cy-breadcrumb-item">
                         <t t-esc="back_label or '工程列表'"/>
                     </a>
                     <span class="cy-breadcrumb-item active">新增專案</span>
@@ -663,7 +693,7 @@
                         <div style="font-size: 0.95rem; color: var(--wb-t2); margin-top: 4px;">填寫工程基本資料</div>
                     </div>
 
-                    <form action="/my/construction/project/create" method="post">
+                    <form action="/construction/project/create" method="post">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
 
                         <!-- 基本資訊 -->
@@ -769,7 +799,7 @@
     </template>
 
     <!-- ============================================
-         編輯工程專案 /my/construction/<pid>/edit
+         編輯工程專案 /construction/<pid>/edit
          （補填/修改既有工程資訊，僅 draft 狀態）
          ============================================ -->
     <template id="portal_construction_project_edit" name="Edit Construction Project">
@@ -780,8 +810,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/info" class="cy-breadcrumb-item">工程資訊</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/info" class="cy-breadcrumb-item">工程資訊</a>
                     <span class="cy-breadcrumb-item active">編輯</span>
                 </div>
 
@@ -803,7 +833,7 @@
                         <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">補填或修改工程基本資料</div>
                     </div>
 
-                    <form t-attf-action="/my/construction/#{project.id}/update" method="post">
+                    <form t-attf-action="/construction/#{project.id}/update" method="post">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                         <input type="hidden" name="_edit_form" value="1"/>
 
@@ -1069,7 +1099,7 @@
 
                         <!-- 按鈕列 -->
                         <div style="display: flex; gap: 10px; margin-top: 18px; margin-bottom: 16px;">
-                            <a t-attf-href="/my/construction/#{project.id}/info"
+                            <a t-attf-href="/construction/#{project.id}/info"
                                class="cy-btn"
                                style="flex: 1; padding: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 700; border-radius: 10px; text-decoration: none;">
                                 取消
@@ -1134,7 +1164,7 @@
             <div class="cy-photo-grid">
                 <t t-foreach="photos" t-as="att">
                     <div style="position: relative;">
-                        <a t-attf-href="/my/construction/photo/#{photo_to_supervision.get(att.id, 0)}"
+                        <a t-attf-href="/construction/photo/#{photo_to_supervision.get(att.id, 0)}"
                            class="cy-photo-card-with-info"
                            style="text-decoration: none; color: inherit;">
                             <div class="cy-photo-card-thumb">

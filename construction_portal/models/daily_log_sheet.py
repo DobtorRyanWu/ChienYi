@@ -11,4 +11,4 @@ class DailyLogSheetPortal(models.Model):
     def _compute_access_url(self):
         super()._compute_access_url()
         for record in self:
-            record.access_url = f'/my/construction/{record.supervision_project_id.id}/daily-log/{record.id}'
+            record.access_url = f'/construction/{record.supervision_project_id.id}/daily-log/{record.id}'

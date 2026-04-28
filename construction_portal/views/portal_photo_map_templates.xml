@@ -12,19 +12,27 @@
                  t-att-data-filter-options-json="filter_options_json"
                  t-att-data-project-center-json="project_center_json">
 
-                <!-- 頂部 App Bar -->
+                <!-- 頂部 App Bar (Google Maps 風搜尋列) -->
                 <nav class="cy-map-topbar">
-                    <a t-attf-href="/my/construction/#{project.id}/photos" class="cy-map-back" title="返回照片列表">
+                    <a t-attf-href="/construction/#{project.id}/photos" class="cy-map-back" title="返回照片列表">
                         <i class="fa fa-arrow-left"></i>
                     </a>
-                    <h1 class="cy-map-title">
-                        <i class="fa fa-map-marker"></i> 照片地圖
-                    </h1>
+                    <div class="cy-map-search">
+                        <i class="fa fa-search cy-map-search-icon"></i>
+                        <input type="search" id="photoMapSearch"
+                               class="cy-map-search-input"
+                               placeholder="搜尋照片、檔名、位置"
+                               autocomplete="off"
+                               aria-label="搜尋照片"/>
+                        <button type="button" class="cy-map-search-clear" id="photoMapSearchClear" hidden="hidden" title="清除">
+                            <i class="fa fa-times-circle"></i>
+                        </button>
+                    </div>
                     <div class="cy-map-topbar-right">
-                        <span class="cy-map-stat">
+                        <span class="cy-map-stat" title="GPS 照片數">
                             <strong t-esc="gps_photos"/>
                         </span>
-                        <a t-attf-href="/my/construction/#{project.id}/photos"
+                        <a t-attf-href="/construction/#{project.id}/photos"
                            class="cy-map-view-toggle" title="格狀檢視">
                             <i class="fa fa-th"></i>
                         </a>

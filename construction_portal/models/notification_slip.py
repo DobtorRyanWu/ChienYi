@@ -11,4 +11,4 @@ class NotificationSlipPortal(models.Model):
     def _compute_access_url(self):
         super()._compute_access_url()
         for record in self:
-            record.access_url = f'/my/construction/{record.project_id.id}/slip/{record.id}'
+            record.access_url = f'/construction/{record.project_id.id}/slip/{record.id}'

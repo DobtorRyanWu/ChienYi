@@ -35,7 +35,7 @@ class SupervisionProjectPortal(models.Model):
     def _compute_access_url(self):
         super()._compute_access_url()
         for project in self:
-            project.access_url = f'/my/construction/{project.id}'
+            project.access_url = f'/construction/{project.id}'
 
     def _get_portal_return_action(self):
         """Portal 返回動作"""

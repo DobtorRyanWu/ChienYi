@@ -8,7 +8,7 @@
 
             <div class="cy-v10-app">
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">
                         <t t-esc="project.code or project.name"/>
                     </a>
                     <span class="cy-breadcrumb-item active">工期展延</span>
@@ -97,7 +97,7 @@
                         </div>
 
                         <!-- 展延輸入表單 -->
-                        <form t-attf-action="/my/construction/#{project.id}/schedule/#{schedule.id}/extend"
+                        <form t-attf-action="/construction/#{project.id}/schedule/#{schedule.id}/extend"
                               method="post" class="cy-card">
                             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                             <div class="cy-card-body">

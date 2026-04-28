@@ -1,11 +1,11 @@
 /**
- * /my/construction 定位中介頁
+ * /construction 定位中介頁
  *
  * 流程:
  * 1. 若 localStorage.cy_skip_locator === '1' → 直接跳列表
  * 2. 取得瀏覽器 GPS 座標
- * 3. POST /my/construction/nearest → 拿到 project_id
- * 4. 跳轉到 /my/construction/<id>(找不到則跳列表)
+ * 3. POST /construction/nearest → 拿到 project_id
+ * 4. 跳轉到 /construction/<id>(找不到則跳列表)
  * 5. 任何錯誤 / timeout / 拒絕授權 → 跳列表
  */
 (function () {
@@ -16,7 +16,7 @@
     }
 
     function gotoList() {
-        go('/my/construction?view=list');
+        go('/construction?view=list');
     }
 
     function setStatus(title, hint) {
@@ -28,7 +28,7 @@
 
     function fetchNearest(lat, lng) {
         // Odoo type='json' route 走 JSON-RPC 2.0 包裝
-        return fetch('/my/construction/nearest', {
+        return fetch('/construction/nearest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'same-origin',
@@ -42,7 +42,7 @@
         }).then(function (data) {
             var result = data && data.result;
             if (result && result.project_id) {
-                go('/my/construction/' + result.project_id);
+                go('/construction/' + result.project_id);
             } else {
                 gotoList();
             }

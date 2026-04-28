@@ -12,6 +12,29 @@
         // 只在 v10 app 頁面執行
         if (!document.querySelector('.cy-v10-app')) return;
 
+    // === Splash 顯示控制 ===
+    // 只在「首次進入 session（新開分頁）」或「刷新」時顯示 splash，
+    // 從其他頁面點連結回首頁時不再顯示。
+    var splash = document.querySelector('.cy-splash');
+    if (splash) {
+        var navType = 'navigate';
+        try {
+            var navEntry = performance.getEntriesByType('navigation')[0];
+            if (navEntry && navEntry.type) { navType = navEntry.type; }
+        } catch (e) { /* 不支援就當作 navigate */ }
+
+        var splashSeen = false;
+        try { splashSeen = sessionStorage.getItem('cy_splash_shown') === '1'; } catch (e) {}
+
+        if (navType === 'reload' || !splashSeen) {
+            // 顯示 splash，並標記本 session 已看過
+            try { sessionStorage.setItem('cy_splash_shown', '1'); } catch (e) {}
+        } else {
+            // 從其他頁面回首頁 → 直接隱藏 splash
+            splash.style.display = 'none';
+        }
+    }
+
     // === 快速新增下拉 toggle ===
     var quickTrigger = document.getElementById('quickAddTrigger');
     var quickMenu = document.getElementById('quickAddMenu');
@@ -29,8 +52,8 @@
             e.stopPropagation();
             var isOpen = quickMenu.style.display !== 'none';
             quickMenu.style.display = isOpen ? 'none' : '';
-            quickTrigger.style.background = isOpen ? '' : 'rgba(230,160,32,0.12)';
-            quickTrigger.style.borderColor = isOpen ? '' : 'var(--wb-amber)';
+            quickTrigger.style.background = isOpen ? '' : 'rgba(118,159,205,0.15)';
+            quickTrigger.style.borderColor = isOpen ? '' : 'var(--wb-brand)';
         });
         // 點擊其他地方關閉
         document.addEventListener('click', function (e) {
@@ -69,7 +92,7 @@
                 // 找到 project id（從 URL 解析）
                 var m = window.location.pathname.match(/\/my\/construction\/(\d+)/);
                 if (m) {
-                    window.location.href = '/my/construction/' + m[1] + '/photo/upload';
+                    window.location.href = '/construction/' + m[1] + '/photo/upload';
                 }
             }
         });
@@ -647,7 +670,7 @@
                         params.photo_data = b64;
                         params.filename = item.file.name;
 
-                        return fetch('/my/construction/photo/upload/ajax', {
+                        return fetch('/construction/photo/upload/ajax', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -678,7 +701,7 @@
 
                 if (failedFiles.length === 0) {
                     // 全部成功 → 跳轉
-                    window.location.href = '/my/construction/' + metadata.project_id + '/photos?message=uploaded&count=' + successCount;
+                    window.location.href = '/construction/' + metadata.project_id + '/photos?message=uploaded&count=' + successCount;
                 } else {
                     // 部分失敗
                     if (overlay) overlay.style.display = 'none';
@@ -823,7 +846,7 @@
 
             checklistContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--wb-t3);">載入中...</div>';
 
-            fetch('/my/construction/inspection/get-items', {
+            fetch('/construction/inspection/get-items', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -938,6 +961,92 @@
                 el.style.opacity = '0.6';
             });
         }
+    }
+
+    // === Lightbox（縮圖點擊 → 全螢幕看圖，支援左右滑動 / 鍵盤 / touch swipe）===
+    var thumbRows = document.querySelectorAll('.cy-thumb-row');
+    if (thumbRows.length) {
+        // 建 lightbox DOM（只建一次，整頁共用）
+        var lightbox = document.createElement('div');
+        lightbox.className = 'cy-lightbox';
+        lightbox.innerHTML =
+            '<button type="button" class="cy-lightbox-close" aria-label="關閉">&#215;</button>' +
+            '<button type="button" class="cy-lightbox-prev" aria-label="上一張">&#8249;</button>' +
+            '<div class="cy-lightbox-stage"><img class="cy-lightbox-img" alt=""/></div>' +
+            '<button type="button" class="cy-lightbox-next" aria-label="下一張">&#8250;</button>' +
+            '<div class="cy-lightbox-counter"></div>';
+        document.body.appendChild(lightbox);
+
+        var lbImg = lightbox.querySelector('.cy-lightbox-img');
+        var lbCounter = lightbox.querySelector('.cy-lightbox-counter');
+        var lbPrev = lightbox.querySelector('.cy-lightbox-prev');
+        var lbNext = lightbox.querySelector('.cy-lightbox-next');
+        var lbClose = lightbox.querySelector('.cy-lightbox-close');
+        var lbStage = lightbox.querySelector('.cy-lightbox-stage');
+
+        var lbState = { urls: [], idx: 0 };
+
+        function lbOpen(urls, idx) {
+            lbState.urls = urls;
+            lbState.idx = idx;
+            lbRender();
+            lightbox.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        function lbHide() {
+            lightbox.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        function lbRender() {
+            if (!lbState.urls.length) return;
+            lbImg.src = lbState.urls[lbState.idx];
+            lbCounter.textContent = (lbState.idx + 1) + ' / ' + lbState.urls.length;
+            var multi = lbState.urls.length > 1;
+            lbPrev.style.visibility = multi ? 'visible' : 'hidden';
+            lbNext.style.visibility = multi ? 'visible' : 'hidden';
+            lbCounter.style.visibility = multi ? 'visible' : 'hidden';
+        }
+        function lbStep(delta) {
+            if (lbState.urls.length < 2) return;
+            lbState.idx = (lbState.idx + delta + lbState.urls.length) % lbState.urls.length;
+            lbRender();
+        }
+
+        // 縮圖點擊綁定（每組縮圖列獨立一個 url 陣列）
+        thumbRows.forEach(function (row) {
+            var thumbs = Array.prototype.slice.call(row.querySelectorAll('.cy-thumb[data-full]'));
+            var urls = thumbs.map(function (t) { return t.getAttribute('data-full'); });
+            thumbs.forEach(function (thumb, idx) {
+                thumb.addEventListener('click', function () { lbOpen(urls, idx); });
+            });
+        });
+
+        lbPrev.addEventListener('click', function (e) { e.stopPropagation(); lbStep(-1); });
+        lbNext.addEventListener('click', function (e) { e.stopPropagation(); lbStep(1); });
+        lbClose.addEventListener('click', lbHide);
+        // 點背景/舞台關閉
+        lightbox.addEventListener('click', function (e) {
+            if (e.target === lightbox || e.target === lbStage) lbHide();
+        });
+        // 鍵盤
+        document.addEventListener('keydown', function (e) {
+            if (!lightbox.classList.contains('active')) return;
+            if (e.key === 'Escape') lbHide();
+            else if (e.key === 'ArrowLeft') lbStep(-1);
+            else if (e.key === 'ArrowRight') lbStep(1);
+        });
+        // Touch swipe
+        var touchStartX = null;
+        lightbox.addEventListener('touchstart', function (e) {
+            touchStartX = e.changedTouches[0].clientX;
+        }, { passive: true });
+        lightbox.addEventListener('touchend', function (e) {
+            if (touchStartX === null) return;
+            var dx = e.changedTouches[0].clientX - touchStartX;
+            touchStartX = null;
+            if (Math.abs(dx) < 40) return;
+            lbStep(dx > 0 ? -1 : 1);
+        }, { passive: true });
     }
 
     } // end initPortalV10

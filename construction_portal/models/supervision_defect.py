@@ -17,7 +17,7 @@ class SupervisionDefectPortal(models.Model):
     def _compute_access_url(self):
         super()._compute_access_url()
         for defect in self:
-            defect.access_url = f'/my/construction/defect/{defect.id}'
+            defect.access_url = f'/construction/defect/{defect.id}'
 
     # === Portal 專用欄位 ===
     portal_improver_id = fields.Many2one(
@@ -43,7 +43,10 @@ class SupervisionDefectPortal(models.Model):
             domain.append(('project_id', 'in', project_ids))
         return domain
 
-    def portal_submit_improvement(self, improvement_text, partner, after_photos=None):
+    def portal_submit_improvement(self, improvement_text, partner,
+                                   after_photos=None,
+                                   corrective_action=None,
+                                   preventive_action=None):
         """
         Portal 用戶提交改善說明
 
@@ -51,6 +54,8 @@ class SupervisionDefectPortal(models.Model):
             improvement_text: 改善說明文字
             partner: Portal 用戶的 partner
             after_photos: 改善後照片附件 IDs
+            corrective_action: 矯正措施
+            preventive_action: 預防措施
         """
         self.ensure_one()
 
@@ -61,16 +66,30 @@ class SupervisionDefectPortal(models.Model):
             'improvement_description': improvement_text,
         }
 
+        if corrective_action:
+            vals['corrective_action'] = corrective_action
+        if preventive_action:
+            vals['preventive_action'] = preventive_action
         if after_photos:
-            vals['after_photo_ids'] = [(6, 0, after_photos)]
+            vals['after_photo_ids'] = [(4, pid) for pid in after_photos]
 
         self.sudo().write(vals)
 
-        # 發送通知給監造人員
-        self.message_post(
-            body=f'承包廠商已提交改善說明：\n{improvement_text}',
+        # 組訊息正文（含有填的欄位都一併通知）
+        body_lines = [f'承包廠商 {partner.name} 已提交改善：']
+        body_lines.append(f'【改善說明】\n{improvement_text or "(未填)"}')
+        if corrective_action:
+            body_lines.append(f'【矯正措施】\n{corrective_action}')
+        if preventive_action:
+            body_lines.append(f'【預防措施】\n{preventive_action}')
+        if after_photos:
+            body_lines.append(f'【改善後照片】已上傳 {len(after_photos)} 張')
+
+        self.sudo().message_post(
+            body='\n\n'.join(body_lines).replace('\n', '<br/>'),
             message_type='comment',
             subtype_xmlid='mail.mt_comment',
+            attachment_ids=list(after_photos) if after_photos else None,
         )
 
         return True

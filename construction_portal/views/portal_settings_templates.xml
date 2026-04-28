@@ -6,11 +6,25 @@
             <t t-set="no_footer" t-value="True"/>
 
             <div class="cy-v10-app">
-                <div class="cy-breadcrumb">
-                    <a t-att-href="back_url or '/my/construction'" class="cy-breadcrumb-item">
-                        <t t-esc="back_label or '工程列表'"/>
-                    </a>
-                    <span class="cy-breadcrumb-item active">設定</span>
+                <!-- HUD-style top bar (與工程詳情頁一致) -->
+                <div class="cy-hud" style="padding-bottom: 0;">
+                    <div class="cy-hud-top">
+                        <div class="cy-hud-left">
+                            <div class="cy-hud-day" t-if="project">
+                                <div>
+                                    <div class="cy-hud-day-num"><t t-esc="day_count"/></div>
+                                    <div style="font-size: 0.55rem; color: var(--wb-t3); letter-spacing: 2px; font-weight: 700;">DAY</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="cy-hud-project">
+                            <t t-if="project"><t t-esc="project.name"/></t>
+                            <t t-else="">設定</t>
+                        </div>
+                        <a t-att-href="back_url or '/construction'" class="cy-hud-avatar" t-att-title="back_label or '返回'">
+                            <t t-esc="request.env.user.name[:1]"/>
+                        </a>
+                    </div>
                 </div>
 
 
@@ -21,7 +35,7 @@
                     <div class="cy-card" style="overflow: hidden; margin-bottom: 16px;">
                         <!-- Avatar + 基本資訊 -->
                         <div style="padding: 20px 16px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--wb-bdr);">
-                            <div style="width: 56px; height: 56px; border-radius: 28px; background: linear-gradient(135deg, #e6a020, #d4880a); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 900; color: #fff; flex-shrink: 0;">
+                            <div style="width: 56px; height: 56px; border-radius: 28px; background: linear-gradient(135deg, #769FCD, #5a82b3); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 900; color: #fff; flex-shrink: 0;">
                                 <t t-esc="user.name[:1]"/>
                             </div>
                             <div>
@@ -30,8 +44,8 @@
                                 <div style="font-size: 0.85rem; color: var(--wb-t3);"><t t-esc="partner.email or user.login"/></div>
                             </div>
                         </div>
-                        <!-- 切換工程 -->
-                        <a href="/my/construction" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
+                        <!-- 切換工程:清掉 cy_skip_locator localStorage 旗標,強制重跑 GPS splash 自動帶到最近案件 -->
+                        <a href="/construction" onclick="try{localStorage.removeItem('cy_skip_locator')}catch(e){}" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <span style="font-size: 1.2rem;">🏗</span>
                                 <span style="font-size: 0.9rem; font-weight: 600;">切換工程</span>
@@ -43,7 +57,7 @@
                     <!-- 專案管理 -->
                     <div class="cy-section-title">專案管理</div>
                     <div class="cy-card" style="overflow: hidden; margin-bottom: 16px;">
-                        <a t-attf-href="/my/construction/project/new#{projects and '?from_project=' + str(projects[0].id) or ''}" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
+                        <a t-attf-href="/construction/project/new#{projects and '?from_project=' + str(projects[0].id) or ''}" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <span style="font-size: 1.2rem;">➕</span>
                                 <span style="font-size: 0.9rem; font-weight: 600;">新增專案</span>
@@ -51,7 +65,7 @@
                             <span style="font-size: 0.85rem; color: var(--wb-t3);">›</span>
                         </a>
                         <t t-if="projects">
-                            <a t-attf-href="/my/construction/#{projects[0].id}/documents" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
+                            <a t-attf-href="/construction/#{projects[0].id}/documents" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <span style="font-size: 1.2rem;">📂</span>
                                     <span style="font-size: 0.9rem; font-weight: 600;">檔案管理</span>
@@ -60,7 +74,7 @@
                             </a>
                         </t>
                         <t t-foreach="projects" t-as="proj">
-                            <a t-attf-href="/my/construction/#{proj.id}" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit;">
+                            <a t-attf-href="/construction/#{proj.id}" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit;">
                                 <div>
                                     <div style="font-size: 0.95rem; font-weight: 700;"><t t-esc="proj.name"/></div>
                                     <div style="display: flex; gap: 8px; margin-top: 6px;">

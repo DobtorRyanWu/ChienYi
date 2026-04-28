@@ -22,9 +22,9 @@
     try { projectCenter = JSON.parse(appEl.dataset.projectCenterJson || '{}'); } catch (e) {}
 
     var API = {
-        MARKERS: '/my/construction/' + projectId + '/photos/api/markers',
-        AREA:    '/my/construction/' + projectId + '/photos/api/area-photos',
-        NEARBY:  '/my/construction/' + projectId + '/photos/api/nearby',
+        MARKERS: '/construction/' + projectId + '/photos/api/markers',
+        AREA:    '/construction/' + projectId + '/photos/api/area-photos',
+        NEARBY:  '/construction/' + projectId + '/photos/api/nearby',
     };
 
     var SOURCE_COLORS = {
@@ -58,6 +58,7 @@
             construction_phase: '',
             date_from: '',
             date_to: '',
+            search: '',
         },
         // 目前用於 lightbox 的照片陣列
         gallery: [],
@@ -212,6 +213,7 @@
             construction_phase: state.filters.construction_phase || '',
             date_from: state.filters.date_from || '',
             date_to: state.filters.date_to || '',
+            search: state.filters.search || '',
         };
     }
 
@@ -539,7 +541,7 @@
         $('lightboxCounter').textContent = (state.galleryIndex + 1) + ' / ' + state.gallery.length;
 
         var srcLink = $('lightboxSource');
-        srcLink.href = '/my/construction/photo/' + p.id;
+        srcLink.href = '/construction/photo/' + p.id;
 
         var srcLabel = SOURCE_LABELS[p.source_model] || '';
         var srcColor = SOURCE_COLORS[p.source_model] || '#6b7280';
@@ -703,7 +705,11 @@
     }
 
     function resetAllFilters() {
-        state.filters = { source_model: '', category: '', construction_phase: '', date_from: '', date_to: '' };
+        state.filters = { source_model: '', category: '', construction_phase: '', date_from: '', date_to: '', search: '' };
+        var si = document.getElementById('photoMapSearch');
+        var sc = document.getElementById('photoMapSearchClear');
+        if (si) si.value = '';
+        if (sc) sc.hidden = true;
         updatePillLabels();
         updateFilterSummary();
         loadMarkers();
@@ -830,6 +836,39 @@
     // 事件綁定
     // =============================================
     function bindEvents() {
+        // 頂部搜尋列(Google Maps 風)
+        var searchInput = $('photoMapSearch');
+        var searchClear = $('photoMapSearchClear');
+        if (searchInput && searchClear) {
+            var searchTimer = null;
+            searchInput.addEventListener('input', function () {
+                var v = this.value;
+                searchClear.hidden = !v;
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(function () {
+                    state.filters.search = v.trim();
+                    loadMarkers();
+                }, 300);
+            });
+            searchClear.addEventListener('click', function () {
+                searchInput.value = '';
+                searchClear.hidden = true;
+                state.filters.search = '';
+                loadMarkers();
+                searchInput.focus();
+            });
+            // Enter 立即觸發(略過 debounce)
+            searchInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    clearTimeout(searchTimer);
+                    state.filters.search = this.value.trim();
+                    loadMarkers();
+                    this.blur();
+                }
+            });
+        }
+
         // Pill → 篩選 Modal
         document.querySelectorAll('.cy-pill[data-filter]').forEach(function (pill) {
             pill.addEventListener('click', function () { openFilterModal(this.dataset.filter); });

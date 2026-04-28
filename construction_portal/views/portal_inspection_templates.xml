@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ============================================
-         自主檢查列表 /my/construction/<pid>/inspections
+         自主檢查列表 /construction/<pid>/inspections
          ============================================ -->
     <template id="portal_construction_inspections" name="Construction Inspections">
         <t t-call="web.frontend_layout">
@@ -11,7 +11,7 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
                     <span class="cy-breadcrumb-item active">自主檢查</span>
                 </div>
 
@@ -19,13 +19,13 @@
                     <div class="cy-sec-divider"><span>自主檢查</span></div>
 
                     <!-- 全寬新增按鈕 -->
-                    <a t-attf-href="/my/construction/#{project.id}/inspection/new"
+                    <a t-attf-href="/construction/#{project.id}/inspection/new"
                        class="cy-btn-gradient-full amber" style="text-decoration: none; display: block;">
                         + 新增檢查
                     </a>
 
                     <!-- 批次匯入入口 -->
-                    <a t-attf-href="/my/construction/#{project.id}/inspections/import"
+                    <a t-attf-href="/construction/#{project.id}/inspections/import"
                        class="cy-btn"
                        style="display: block; margin-top: 8px; padding: 10px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 600; border-radius: 10px; text-decoration: none;">
                         <i class="fa fa-upload"/> 批次匯入總表單
@@ -37,10 +37,10 @@
                     <!-- 預約式通報單篩選 chips -->
                     <t t-if="slip_list">
                         <div class="cy-filter-pills" style="margin-bottom: 12px;">
-                            <a t-attf-href="/my/construction/#{project.id}/inspections"
+                            <a t-attf-href="/construction/#{project.id}/inspections"
                                t-attf-class="cy-filter-pill #{not slip_filter and 'active' or ''}">全部</a>
                             <t t-foreach="slip_list" t-as="sl">
-                                <a t-attf-href="/my/construction/#{project.id}/inspections?slip_id=#{sl.id}"
+                                <a t-attf-href="/construction/#{project.id}/inspections?slip_id=#{sl.id}"
                                    t-attf-class="cy-filter-pill #{slip_filter == sl.id and 'active' or ''}">
                                     第 <t t-esc="sl.slip_no"/> 次
                                 </a>
@@ -57,7 +57,7 @@
 
                     <!-- 檢查卡片（border-left + checked count）-->
                     <t t-foreach="inspections" t-as="insp">
-                        <a t-attf-href="/my/construction/inspection/#{insp.id}" class="cy-insp-card"
+                        <a t-attf-href="/construction/inspection/#{insp.id}" class="cy-insp-card"
                            t-att-data-state="insp.state">
                             <div class="cy-insp-card-header">
                                 <div>
@@ -92,7 +92,7 @@
     </template>
 
     <!-- ============================================
-         自主檢查詳情 /my/construction/inspection/<iid>
+         自主檢查詳情 /construction/inspection/<iid>
          ============================================ -->
     <template id="portal_construction_inspection_detail" name="Inspection Detail">
         <t t-call="web.frontend_layout">
@@ -102,8 +102,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/inspections" class="cy-breadcrumb-item">檢查</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/inspections" class="cy-breadcrumb-item">檢查</a>
                     <span class="cy-breadcrumb-item active"><t t-esc="inspection.name"/></span>
                 </div>
 
@@ -263,7 +263,7 @@
     </template>
 
     <!-- ============================================
-         自主檢查新增表單 /my/construction/<pid>/inspection/new
+         自主檢查新增表單 /construction/<pid>/inspection/new
          ============================================ -->
     <template id="portal_construction_inspection_form" name="Inspection Form">
         <t t-call="web.frontend_layout">
@@ -273,15 +273,15 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/inspections" class="cy-breadcrumb-item">檢查</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/inspections" class="cy-breadcrumb-item">檢查</a>
                     <span class="cy-breadcrumb-item active">新增</span>
                 </div>
 
                 <div class="cy-content">
                     <h4 style="font-weight: 700; margin-bottom: 16px;">新增自主檢查</h4>
 
-                    <form action="/my/construction/inspection/create" method="post" enctype="multipart/form-data">
+                    <form action="/construction/inspection/create" method="post" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                         <input type="hidden" name="project_id" t-att-value="project.id"/>
 
@@ -424,7 +424,7 @@
     </template>
 
     <!-- ============================================
-         預約式自主檢查列表 /my/construction/<pid>/reservation-inspections
+         預約式自主檢查列表 /construction/<pid>/reservation-inspections
          ============================================ -->
     <template id="portal_construction_reservation_inspections" name="Reservation Inspections">
         <t t-call="web.frontend_layout">
@@ -434,7 +434,7 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
                     <span class="cy-breadcrumb-item active">預約式檢查</span>
                 </div>
 
@@ -444,10 +444,10 @@
                     <!-- 通報單篩選 chips -->
                     <t t-if="slip_list">
                         <div class="cy-filter-pills" style="margin-bottom: 12px;">
-                            <a t-attf-href="/my/construction/#{project.id}/reservation-inspections"
+                            <a t-attf-href="/construction/#{project.id}/reservation-inspections"
                                t-attf-class="cy-filter-pill #{not slip_filter and 'active' or ''}">全部</a>
                             <t t-foreach="slip_list" t-as="s">
-                                <a t-attf-href="/my/construction/#{project.id}/reservation-inspections?slip_id=#{s.id}"
+                                <a t-attf-href="/construction/#{project.id}/reservation-inspections?slip_id=#{s.id}"
                                    t-attf-class="cy-filter-pill #{slip_filter and int(slip_filter) == s.id and 'active' or ''}">
                                     <t t-esc="s.slip_number or s.name"/>
                                 </a>
@@ -466,7 +466,7 @@
                     </t>
 
                     <t t-foreach="inspections" t-as="insp">
-                        <a t-attf-href="/my/construction/reservation-inspection/#{insp.id}"
+                        <a t-attf-href="/construction/reservation-inspection/#{insp.id}"
                            class="cy-card" style="text-decoration: none; color: inherit; display: block; margin-bottom: 8px;">
                             <div class="cy-card-body">
                                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
@@ -496,7 +496,7 @@
     </template>
 
     <!-- ============================================
-         預約式自主檢查表單 /my/construction/<pid>/reservation-inspection/new?slip_id=
+         預約式自主檢查表單 /construction/<pid>/reservation-inspection/new?slip_id=
          ============================================ -->
     <template id="portal_construction_reservation_inspection_form" name="Reservation Inspection Form">
         <t t-call="web.frontend_layout">
@@ -506,8 +506,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/slip/#{slip.id}" class="cy-breadcrumb-item">通報單</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/slip/#{slip.id}" class="cy-breadcrumb-item">通報單</a>
                     <span class="cy-breadcrumb-item active">新增檢查</span>
                 </div>
 
@@ -517,7 +517,7 @@
                         所屬通報單:<strong><t t-esc="slip.slip_number or slip.name"/></strong>
                     </div>
 
-                    <form action="/my/construction/reservation-inspection/create" method="post" enctype="multipart/form-data">
+                    <form action="/construction/reservation-inspection/create" method="post" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                         <input type="hidden" name="slip_id" t-att-value="slip.id"/>
 
@@ -644,7 +644,7 @@
     </template>
 
     <!-- ============================================
-         預約式自主檢查詳情 /my/construction/reservation-inspection/<id>
+         預約式自主檢查詳情 /construction/reservation-inspection/<id>
          ============================================ -->
     <template id="portal_construction_reservation_inspection_detail" name="Reservation Inspection Detail">
         <t t-call="web.frontend_layout">
@@ -654,8 +654,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/reservation-inspections" class="cy-breadcrumb-item">預約式檢查</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/reservation-inspections" class="cy-breadcrumb-item">預約式檢查</a>
                     <span class="cy-breadcrumb-item active"><t t-esc="inspection.inspection_no"/></span>
                 </div>
 
@@ -688,7 +688,7 @@
                         <div class="cy-info-row">
                             <span class="cy-info-label">通報單號</span>
                             <span class="cy-info-value">
-                                <a t-attf-href="/my/construction/#{project.id}/slip/#{slip.id}">
+                                <a t-attf-href="/construction/#{project.id}/slip/#{slip.id}">
                                     <t t-esc="slip.slip_number or slip.name"/>
                                 </a>
                             </span>
@@ -783,7 +783,7 @@
     </template>
 
     <!-- ============================================
-         自主檢查批次匯入 /my/construction/<pid>/inspections/import
+         自主檢查批次匯入 /construction/<pid>/inspections/import
          ============================================ -->
     <template id="portal_construction_inspection_import" name="Inspection Batch Import">
         <t t-call="web.frontend_layout">
@@ -793,8 +793,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/inspections" class="cy-breadcrumb-item">自主檢查</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/inspections" class="cy-breadcrumb-item">自主檢查</a>
                     <span class="cy-breadcrumb-item active">批次匯入</span>
                 </div>
 
@@ -845,7 +845,7 @@
                         </t>
                     </t>
 
-                    <form t-attf-action="/my/construction/#{project.id}/inspections/import"
+                    <form t-attf-action="/construction/#{project.id}/inspections/import"
                           method="post" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
 
@@ -874,7 +874,7 @@
                         </div>
 
                         <div style="display: flex; gap: 10px; margin-top: 18px; margin-bottom: 16px;">
-                            <a t-attf-href="/my/construction/#{project.id}/inspections"
+                            <a t-attf-href="/construction/#{project.id}/inspections"
                                class="cy-btn"
                                style="flex: 1; padding: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 700; border-radius: 10px; text-decoration: none;">
                                 取消

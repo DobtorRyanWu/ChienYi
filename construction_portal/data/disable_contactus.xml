@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- /contactus 頁面取消發佈,每次 -u 都重新套用 -->
+    <record id="website.contactus_page" model="website.page">
+        <field name="is_published" eval="False"/>
+    </record>
+
+    <!-- 拔掉 navbar 與 footer 上指向 /contactus 的選單連結(idempotent: 已刪則 no-op) -->
+    <delete model="website.menu" search="[('url', '=', '/contactus')]"/>
+
+    <!-- 停用網站 header 右上角「聯絡我們」CTA 按鈕(整個 template 關掉) -->
+    <record id="website.header_call_to_action" model="ir.ui.view">
+        <field name="active" eval="False"/>
+    </record>
+
+    <!-- 拔掉 footer「有用的連結」與「與我們保持互動」的聯絡我們 <li> -->
+    <template id="footer_remove_contactus" inherit_id="website.footer_custom" name="Remove /contactus footer links" priority="20">
+        <!-- 直接子 a -->
+        <xpath expr="//li[a[@href='/contactus']]" position="replace"/>
+        <!-- 巢狀 li > span > a -->
+        <xpath expr="//li[span/a[@href='/contactus']]" position="replace"/>
+    </template>
+</odoo>

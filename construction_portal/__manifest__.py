@@ -56,6 +56,8 @@ v2.0.0 (Portal v10)
         'views/portal_schedule_templates.xml',
         # 登入頁品牌化（EAGLE 風格）
         'views/login_templates.xml',
+        # 停用 Odoo Website 預設 /contactus 頁面（客服走另一系統）
+        'data/disable_contactus.xml',
     ],
     'assets': {
         'web.assets_frontend': [

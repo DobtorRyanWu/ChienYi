@@ -44,8 +44,42 @@
     color: var(--wb-t1, #1a1d26); white-space: nowrap;
 }
 .cy-map-title i { color: var(--wb-blue, #3b8de0); margin-right: 4px; }
+
+/* === Google Maps 風搜尋列 === */
+.cy-map-search {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--wb-bg3, #f0f1f5);
+    border-radius: 24px; height: 40px;
+    padding: 0 14px;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+.cy-map-search:focus-within {
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.15);
+}
+.cy-map-search-icon {
+    color: var(--wb-t3, #8b90a0); font-size: 14px; flex-shrink: 0;
+}
+.cy-map-search-input {
+    flex: 1; min-width: 0;
+    border: none; background: transparent; outline: none;
+    font-size: 15px; color: var(--wb-t1, #1a1d26);
+    padding: 0; height: 100%;
+}
+.cy-map-search-input::placeholder { color: var(--wb-t3, #8b90a0); }
+.cy-map-search-input::-webkit-search-cancel-button { display: none; }
+.cy-map-search-clear {
+    border: none; background: transparent; color: var(--wb-t3, #8b90a0);
+    cursor: pointer; padding: 4px; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.cy-map-search-clear:hover { color: var(--wb-t1, #1a1d26); }
+
 .cy-map-topbar-right {
-    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    margin-left: 0; display: flex; align-items: center; gap: 8px;
+    flex-shrink: 0;
 }
 .cy-map-stat {
     font-size: 13px; color: var(--wb-t3, #8b90a0);

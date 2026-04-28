@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ============================================
-         照片列表 /my/construction/<pid>/photos
+         照片列表 /construction/<pid>/photos
          ============================================ -->
     <template id="portal_construction_photos" name="Construction Photos">
         <t t-call="web.frontend_layout">
@@ -11,7 +11,7 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
                     <span class="cy-breadcrumb-item active">照片中心</span>
                 </div>
 
@@ -26,11 +26,11 @@
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <a t-attf-href="/my/construction/#{project.id}/photos/map"
+                            <a t-attf-href="/construction/#{project.id}/photos/map"
                                class="cy-btn cy-btn-outline" style="font-size: 0.85rem; padding: 8px 14px;">
                                 <i class="fa fa-map-marker"/> 地圖
                             </a>
-                            <a t-attf-href="/my/construction/#{project.id}/photo/upload"
+                            <a t-attf-href="/construction/#{project.id}/photo/upload"
                                class="cy-btn cy-btn-primary" style="font-size: 0.85rem; padding: 8px 16px;">
                                 <i class="fa fa-upload"/> 上傳
                             </a>
@@ -69,10 +69,10 @@
                                 <div style="margin-bottom: 10px;">
                                     <div style="font-size: 0.8rem; font-weight: 600; color: var(--wb-t3); margin-bottom: 4px;">來源</div>
                                     <div class="cy-filter-pills">
-                                        <a t-attf-href="/my/construction/#{project.id}/photos#{category_filter and '?category=' + category_filter or ''}"
+                                        <a t-attf-href="/construction/#{project.id}/photos#{category_filter and '?category=' + category_filter or ''}"
                                            t-attf-class="cy-filter-pill #{not source_filter and 'active' or ''}">全部</a>
                                         <t t-foreach="source_options" t-as="opt">
-                                            <a t-attf-href="/my/construction/#{project.id}/photos?source=#{opt[0]}#{category_filter and '&amp;category=' + category_filter or ''}"
+                                            <a t-attf-href="/construction/#{project.id}/photos?source=#{opt[0]}#{category_filter and '&amp;category=' + category_filter or ''}"
                                                t-attf-class="cy-filter-pill #{source_filter == opt[0] and 'active' or ''}">
                                                 <t t-esc="opt[1]"/>
                                             </a>
@@ -83,10 +83,10 @@
                                 <div>
                                     <div style="font-size: 0.8rem; font-weight: 600; color: var(--wb-t3); margin-bottom: 4px;">分類</div>
                                     <div class="cy-filter-pills">
-                                        <a t-attf-href="/my/construction/#{project.id}/photos#{source_filter and '?source=' + source_filter or ''}"
+                                        <a t-attf-href="/construction/#{project.id}/photos#{source_filter and '?source=' + source_filter or ''}"
                                            t-attf-class="cy-filter-pill #{not category_filter and 'active' or ''}">全部</a>
                                         <t t-foreach="category_options" t-as="opt">
-                                            <a t-attf-href="/my/construction/#{project.id}/photos?category=#{opt[0]}#{source_filter and '&amp;source=' + source_filter or ''}"
+                                            <a t-attf-href="/construction/#{project.id}/photos?category=#{opt[0]}#{source_filter and '&amp;source=' + source_filter or ''}"
                                                t-attf-class="cy-filter-pill #{category_filter == opt[0] and 'active' or ''}">
                                                 <t t-esc="opt[1]"/>
                                             </a>
@@ -115,7 +115,7 @@
                         </div>
                         <div class="cy-photo-grid">
                             <t t-foreach="dg['photos']" t-as="photo">
-                                <a t-attf-href="/my/construction/photo/#{photo.id}" class="cy-photo-card-with-info" style="text-decoration: none; color: inherit;">
+                                <a t-attf-href="/construction/photo/#{photo.id}" class="cy-photo-card-with-info" style="text-decoration: none; color: inherit;">
                                     <div class="cy-photo-card-thumb">
                                         <img t-attf-src="/web/image/ir.attachment/#{photo.attachment_id.id}/datas/300x300?crop=true"
                                              t-att-alt="photo.description or 'photo'" loading="lazy"/>
@@ -145,7 +145,7 @@
     </template>
 
     <!-- ============================================
-         照片詳情 /my/construction/photo/<phid>
+         照片詳情 /construction/photo/<phid>
          ============================================ -->
     <template id="portal_construction_photo_detail" name="Photo Detail">
         <t t-call="web.frontend_layout">
@@ -155,8 +155,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/photos" class="cy-breadcrumb-item">照片</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/photos" class="cy-breadcrumb-item">照片</a>
                     <span class="cy-breadcrumb-item active">詳情</span>
                 </div>
 
@@ -246,7 +246,7 @@
     </template>
 
     <!-- ============================================
-         照片上傳 /my/construction/<pid>/photo/upload
+         照片上傳 /construction/<pid>/photo/upload
          ============================================ -->
     <template id="portal_construction_photo_upload" name="Photo Upload">
         <t t-call="web.frontend_layout">
@@ -256,8 +256,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/photos" class="cy-breadcrumb-item">照片</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/photos" class="cy-breadcrumb-item">照片</a>
                     <span class="cy-breadcrumb-item active">上傳</span>
                 </div>
 

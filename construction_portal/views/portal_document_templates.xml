@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ============================================
-         檔案管理 /my/construction/<pid>/documents
+         檔案管理 /construction/<pid>/documents
          ============================================ -->
     <template id="portal_construction_documents" name="Construction Documents">
         <t t-call="web.frontend_layout">
@@ -11,7 +11,7 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
                     <span class="cy-breadcrumb-item active">檔案管理</span>
                 </div>
 
@@ -30,10 +30,10 @@
 
                     <!-- 分類篩選 -->
                     <div class="cy-filter-pills" style="margin-bottom: 12px;">
-                        <a t-attf-href="/my/construction/#{project.id}/documents"
+                        <a t-attf-href="/construction/#{project.id}/documents"
                            t-attf-class="cy-filter-pill #{not cat_filter and 'active' or ''}">全部</a>
                         <t t-foreach="categories" t-as="cat">
-                            <a t-attf-href="/my/construction/#{project.id}/documents?category=#{cat.id}"
+                            <a t-attf-href="/construction/#{project.id}/documents?category=#{cat.id}"
                                t-attf-class="cy-filter-pill #{cat_filter == cat.id and 'active' or ''}">
                                 <t t-esc="cat.name"/>
                             </a>
@@ -48,7 +48,7 @@
                     <div id="doc_upload_form" style="display: none;">
                         <div class="cy-card" style="margin-bottom: 14px;">
                             <div class="cy-card-body">
-                                <form t-attf-action="/my/construction/#{project.id}/document/upload" method="post" enctype="multipart/form-data">
+                                <form t-attf-action="/construction/#{project.id}/document/upload" method="post" enctype="multipart/form-data">
                                     <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                     <div style="margin-bottom: 10px;">
                                         <label class="form-label" style="font-size: 0.85rem;">文件名稱</label>

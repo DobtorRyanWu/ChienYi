@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ============================================
-         通報單列表 /my/construction/<pid>/slips
+         通報單列表 /construction/<pid>/slips
          ============================================ -->
     <template id="portal_construction_slips" name="Construction Notification Slips">
         <t t-call="web.frontend_layout">
@@ -11,7 +11,7 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
                     <span class="cy-breadcrumb-item active">通報單</span>
                 </div>
 
@@ -26,7 +26,7 @@
                     </t>
 
                     <t t-foreach="slips" t-as="slip">
-                        <a t-attf-href="/my/construction/#{project.id}/slip/#{slip.id}" class="cy-slip-card">
+                        <a t-attf-href="/construction/#{project.id}/slip/#{slip.id}" class="cy-slip-card">
                             <div class="cy-slip-header">
                                 <span class="cy-slip-no">
                                     第 <t t-esc="slip.slip_no"/> 次通報
@@ -65,7 +65,7 @@
     </template>
 
     <!-- ============================================
-         通報單詳情 /my/construction/<pid>/slip/<sid>
+         通報單詳情 /construction/<pid>/slip/<sid>
          ============================================ -->
     <template id="portal_construction_slip_detail" name="Notification Slip Detail">
         <t t-call="web.frontend_layout">
@@ -75,8 +75,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/slips" class="cy-breadcrumb-item">通報單</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/slips" class="cy-breadcrumb-item">通報單</a>
                     <span class="cy-breadcrumb-item active">第 <t t-esc="slip.slip_no"/> 次</span>
                 </div>
 
@@ -220,7 +220,7 @@
                     <!-- 自主檢查 -->
                     <div class="cy-section-title">
                         <span>自主檢查</span>
-                        <a t-attf-href="/my/construction/#{project.id}/reservation-inspection/new?slip_id=#{slip.id}"
+                        <a t-attf-href="/construction/#{project.id}/reservation-inspection/new?slip_id=#{slip.id}"
                            class="cy-btn cy-btn-outline"
                            style="font-size: 0.8rem; padding: 4px 12px; min-height: 32px;">
                             <i class="fa fa-plus"/> 新增檢查
@@ -229,7 +229,7 @@
                     <t t-if="slip_inspections">
                         <div class="cy-card" style="overflow: hidden;">
                             <t t-foreach="slip_inspections" t-as="si">
-                                <a t-attf-href="/my/construction/reservation-inspection/#{si.id}"
+                                <a t-attf-href="/construction/reservation-inspection/#{si.id}"
                                    style="text-decoration: none; color: inherit; display: block; padding: 16px; border-bottom: 1px solid var(--wb-bdr);">
                                     <div style="display: flex; justify-content: space-between;">
                                         <span style="font-size: 0.9rem; font-weight: 600;">

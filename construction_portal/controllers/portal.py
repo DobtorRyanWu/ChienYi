@@ -52,6 +52,7 @@ def _portal_save_photos(env, record, supervision_project, files, meta):
             'res_model': record._name,
             'res_id': record.id,
             'mimetype': f.mimetype or 'image/jpeg',
+            'public': True,
         })
         # 直接建 supervision.photo,不依賴 mixin
         if not Photo.search([('attachment_id', '=', att.id)], limit=1):
@@ -170,9 +171,42 @@ class ConstructionPortal(CustomerPortal):
             badges['log'] = 0
         return badges
 
+    # ==================== Portal 首頁 override ====================
+
+    @http.route(['/my', '/my/home'], type='http', auth='user', website=True)
+    def home(self, **kw):
+        # portal user 看 /my 與 /my/home 等同 /construction(同 controller render v10 列表)
+        # internal user 維持 Odoo 原生卡片牆,確保後台人員 portal 體驗不變
+        user = request.env.user
+        if user.has_group('base.group_portal') or not user.has_group('base.group_user'):
+            return self.portal_my_construction_projects(**kw)
+        return super().home(**kw)
+
+    # ==================== /contactus 停用 ====================
+
+    @http.route('/contactus', type='http', auth='public', website=True)
+    def contactus_disabled(self, **kw):
+        # 客服走另一個 Odoo 系統,本站不需要聯絡頁。
+        # 注意:@http.route 回 not_found() 會被 website module 接住 fallback 渲染
+        # website.page,所以改用 302 redirect 到首頁(已登入用戶會被首頁的 portal 邏輯
+        # 接到 /construction)。navbar/footer 的「聯絡我們」連結另由 data XML 拔除。
+        return request.redirect('/', code=302)
+
+    # ==================== Legacy /my/construction* → /construction* (Phase 4) ====================
+
+    @http.route(['/my/construction', '/my/construction/<path:subpath>'],
+                type='http', auth='public', website=True)
+    def my_construction_legacy_redirect(self, subpath=None, **kw):
+        # 舊書籤、外部分享連結、E2E 既存 spec 仍打 /my/construction*,308 永久轉址保留 method
+        target = '/construction' + (('/' + subpath) if subpath else '')
+        qs = request.httprequest.query_string.decode()
+        if qs:
+            target += '?' + qs
+        return request.redirect(target, code=308)
+
     # ==================== 工程案件 ====================
 
-    @http.route(['/my/construction', '/my/construction/page/<int:page>'],
+    @http.route(['/construction', '/construction/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_my_construction_projects(self, page=1, sortby=None, **kw):
         """工程案件入口
@@ -182,7 +216,7 @@ class ConstructionPortal(CustomerPortal):
         - 0 個可見專案 → 顯示列表頁(空狀態)
         - 1 個可見專案 → server-side 直接 redirect 到該專案 HUD
         - 多個可見專案 → render GPS 定位中介頁(splash),
-          由前端 JS 取得座標後 POST 到 /my/construction/nearest 拿最近專案 id 再跳轉
+          由前端 JS 取得座標後 POST 到 /construction/nearest 拿最近專案 id 再跳轉
         """
         partner = request.env.user.partner_id
         Project = request.env['supervision.project']
@@ -195,7 +229,7 @@ class ConstructionPortal(CustomerPortal):
                 # 落到列表頁顯示空狀態
                 pass
             elif len(accessible) == 1:
-                return request.redirect('/my/construction/%s' % accessible.id)
+                return request.redirect('/construction/%s' % accessible.id)
             else:
                 return request.render(
                     'construction_portal.portal_construction_locator',
@@ -224,7 +258,7 @@ class ConstructionPortal(CustomerPortal):
         # 計數與分頁
         project_count = Project.search_count(domain)
         pager = portal_pager(
-            url='/my/construction',
+            url='/construction',
             total=project_count,
             page=page,
             step=self._items_per_page,
@@ -242,20 +276,20 @@ class ConstructionPortal(CustomerPortal):
             'projects': projects,
             'page_name': 'construction',
             'pager': pager,
-            'default_url': '/my/construction',
+            'default_url': '/construction',
             'searchbar_sortings': searchbar_sortings,
             'sortby': sortby,
         }
 
         return request.render('construction_portal.portal_my_construction_projects', values)
 
-    @http.route('/my/construction/nearest', type='json', auth='user', website=True)
+    @http.route(['/construction/nearest'], type='json', auth='user', website=True)
     def portal_construction_nearest(self, lat=None, lng=None, **kw):
         """回傳離使用者(lat,lng)最近、且使用者有權限的工程案件 id
 
-        供 /my/construction 的 splash 頁前端呼叫。
+        供 /construction 的 splash 頁前端呼叫。
         若沒有任何「有座標的」可見專案,回傳 {'project_id': None},
-        前端應改導去 /my/construction?view=list。
+        前端應改導去 /construction?view=list。
         """
         try:
             user_lat = float(lat)
@@ -281,7 +315,17 @@ class ConstructionPortal(CustomerPortal):
         )
         return {'project_id': nearest.id}
 
-    @http.route(['/my/construction/<int:project_id>'],
+    @http.route(['/construction/splash-preview'], type='http', auth='user', website=True)
+    def portal_construction_splash_preview(self, **kw):
+        """Splash 最終定格預覽頁（設計用）。
+        預設：立即定格（所有元素在終態，不跑動畫、不 fadeout）。
+        `?play=1`：播放一次動畫後停住不 fadeout。
+        """
+        return request.render('construction_portal.portal_construction_splash_preview', {
+            'play_animation': kw.get('play') == '1',
+        })
+
+    @http.route(['/construction/<int:project_id>'],
                 type='http', auth='user', website=True)
     def portal_construction_project_detail(self, project_id, **kw):
         """工程首頁（v10 HUD 設計）"""
@@ -458,7 +502,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_project_detail', values)
 
-    @http.route(['/my/construction/<int:project_id>/info'],
+    @http.route(['/construction/<int:project_id>/info'],
                 type='http', auth='user', website=True)
     def portal_construction_project_info(self, project_id, **kw):
         """工程資訊頁面（底部導航第一 tab）"""
@@ -499,7 +543,7 @@ class ConstructionPortal(CustomerPortal):
 
     # ==================== 工程資訊編輯 ====================
 
-    @http.route(['/my/construction/<int:project_id>/edit'],
+    @http.route(['/construction/<int:project_id>/edit'],
                 type='http', auth='user', website=True)
     def portal_construction_project_edit(self, project_id, **kw):
         """工程資訊編輯頁（補填/修改 supervision.project，僅 draft 狀態可用）"""
@@ -514,7 +558,7 @@ class ConstructionPortal(CustomerPortal):
         # 僅允許 draft 編輯
         if project.state != 'draft':
             return request.redirect(
-                f'/my/construction/{project_id}/info?error=not_draft'
+                f'/construction/{project_id}/info?error=not_draft'
             )
 
         env = request.env
@@ -606,7 +650,7 @@ class ConstructionPortal(CustomerPortal):
             'construction_portal.portal_construction_project_edit', values
         )
 
-    @http.route(['/my/construction/<int:project_id>/update'],
+    @http.route(['/construction/<int:project_id>/update'],
                 type='http', auth='user', website=True,
                 methods=['POST'], csrf=True)
     def portal_construction_project_update(self, project_id, **post):
@@ -620,7 +664,7 @@ class ConstructionPortal(CustomerPortal):
 
         if project.state != 'draft':
             return request.redirect(
-                f'/my/construction/{project_id}/info?error=not_draft'
+                f'/construction/{project_id}/info?error=not_draft'
             )
 
         def _s(key):
@@ -771,7 +815,7 @@ class ConstructionPortal(CustomerPortal):
         )
         if eff_start and eff_end and eff_end < eff_start:
             return request.redirect(
-                f'/my/construction/{project_id}/edit?error=date_invalid'
+                f'/construction/{project_id}/edit?error=date_invalid'
             )
 
         # ---- 寫入 ----
@@ -781,22 +825,21 @@ class ConstructionPortal(CustomerPortal):
         except (ValidationError, UserError) as e:
             _logger.warning('portal project edit write failed: %s', e)
             return request.redirect(
-                f'/my/construction/{project_id}/edit?error=save_failed'
+                f'/construction/{project_id}/edit?error=save_failed'
             )
         except Exception:
             _logger.exception('portal project edit unexpected error')
             return request.redirect(
-                f'/my/construction/{project_id}/edit?error=save_failed'
+                f'/construction/{project_id}/edit?error=save_failed'
             )
 
         return request.redirect(
-            f'/my/construction/{project_id}/info?message=updated'
+            f'/construction/{project_id}/info?message=updated'
         )
 
     # ==================== 施工日誌 ====================
 
-    @http.route(['/my/construction/<int:project_id>/daily-logs',
-                 '/my/construction/<int:project_id>/daily-logs/page/<int:page>'],
+    @http.route(['/construction/<int:project_id>/daily-logs', '/construction/<int:project_id>/daily-logs/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_daily_logs(self, project_id, page=1, **kw):
         """施工日誌列表"""
@@ -810,7 +853,7 @@ class ConstructionPortal(CustomerPortal):
 
         log_count = DailyLog.search_count(domain)
         pager = portal_pager(
-            url=f'/my/construction/{project_id}/daily-logs',
+            url=f'/construction/{project_id}/daily-logs',
             total=log_count,
             page=page,
             step=self._items_per_page,
@@ -879,7 +922,7 @@ class ConstructionPortal(CustomerPortal):
             'logs': logs,
             'page_name': 'construction_daily_logs',
             'pager': pager,
-            'default_url': f'/my/construction/{project_id}/daily-logs',
+            'default_url': f'/construction/{project_id}/daily-logs',
             # Alert 資料
             'week_target': week_target,
             'week_range': week_range,
@@ -893,7 +936,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_daily_logs', values)
 
-    @http.route(['/my/construction/<int:project_id>/daily-log/<int:log_id>'],
+    @http.route(['/construction/<int:project_id>/daily-log/<int:log_id>'],
                 type='http', auth='user', website=True)
     def portal_construction_daily_log_detail(self, project_id, log_id, **kw):
         """施工日誌詳情"""
@@ -908,7 +951,7 @@ class ConstructionPortal(CustomerPortal):
             ('supervision_project_id', '=', project.id),
         ], limit=1)
         if not log:
-            return request.redirect(f'/my/construction/{project_id}/daily-logs')
+            return request.redirect(f'/construction/{project_id}/daily-logs')
 
         # 天氣 Selection 選項（從 fields_get 拉）
         weather_selection = dict(
@@ -929,8 +972,8 @@ class ConstructionPortal(CustomerPortal):
             'photos': log.photo_ids,
             'photo_to_supervision': _portal_photo_to_supervision(request.env, log.photo_ids),
             'photo_categories': photo_categories,
-            'upload_url': f'/my/construction/daily-log/{log.id}/photo/upload',
-            'delete_url_tpl': f'/my/construction/daily-log/{log.id}/photo/%s/delete',
+            'upload_url': f'/construction/daily-log/{log.id}/photo/upload',
+            'delete_url_tpl': f'/construction/daily-log/{log.id}/photo/%s/delete',
             'is_locked': log.is_locked,
             # chatter
             'object': log,
@@ -942,7 +985,7 @@ class ConstructionPortal(CustomerPortal):
 
     # ==================== 施工日誌批次匯入 (XLSM) ====================
 
-    @http.route(['/my/construction/<int:project_id>/daily-logs/import'],
+    @http.route(['/construction/<int:project_id>/daily-logs/import'],
                 type='http', auth='user', website=True, methods=['GET'])
     def portal_construction_daily_logs_import(self, project_id, **kw):
         """施工日誌批次匯入頁（GET）"""
@@ -965,7 +1008,7 @@ class ConstructionPortal(CustomerPortal):
             'construction_portal.portal_construction_daily_log_import', values
         )
 
-    @http.route(['/my/construction/<int:project_id>/daily-logs/import'],
+    @http.route(['/construction/<int:project_id>/daily-logs/import'],
                 type='http', auth='user', website=True,
                 methods=['POST'], csrf=True)
     def portal_construction_daily_logs_import_submit(self, project_id, **post):
@@ -989,7 +1032,7 @@ class ConstructionPortal(CustomerPortal):
         env = request.env
         DailyLog = env['daily.log.sheet'].sudo()
         ProjectTask = env['project.task'].sudo()
-        base_url = f'/my/construction/{project_id}/daily-logs/import'
+        base_url = f'/construction/{project_id}/daily-logs/import'
         project_record_id = project.project_id.id
         supervision_project_id = project.id
 
@@ -1111,7 +1154,7 @@ class ConstructionPortal(CustomerPortal):
             f'{base_url}?imported={imported}&skipped={skipped}&failed={failed}'
         )
 
-    @http.route(['/my/construction/<int:project_id>/daily-log/new'],
+    @http.route(['/construction/<int:project_id>/daily-log/new'],
                 type='http', auth='user', website=True)
     def portal_construction_daily_log_new(self, project_id, **kw):
         """新增施工日誌表單"""
@@ -1146,7 +1189,7 @@ class ConstructionPortal(CustomerPortal):
             'photo_categories': photo_categories,
             'is_edit': False,
             'log': False,
-            'form_action': '/my/construction/daily-log/create',
+            'form_action': '/construction/daily-log/create',
             'page_name': 'construction_daily_log_new',
             'today': date.today().isoformat(),
             'day_count': self._get_project_day_count(project),
@@ -1155,7 +1198,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_daily_log_form', values)
 
-    @http.route(['/my/construction/daily-log/create'],
+    @http.route(['/construction/daily-log/create'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_daily_log_create(self, **post):
         """建立施工日誌"""
@@ -1236,10 +1279,10 @@ class ConstructionPortal(CustomerPortal):
         )
 
         return request.redirect(
-            f'/my/construction/{project_id}/daily-log/{log.id}?message=created'
+            f'/construction/{project_id}/daily-log/{log.id}?message=created'
         )
 
-    @http.route(['/my/construction/<int:project_id>/daily-log/<int:log_id>/edit'],
+    @http.route(['/construction/<int:project_id>/daily-log/<int:log_id>/edit'],
                 type='http', auth='user', website=True)
     def portal_construction_daily_log_edit(self, project_id, log_id, **kw):
         """編輯施工日誌(共用 form 模板)"""
@@ -1254,10 +1297,10 @@ class ConstructionPortal(CustomerPortal):
             ('supervision_project_id', '=', project.id),
         ], limit=1)
         if not log:
-            return request.redirect(f'/my/construction/{project_id}/daily-logs')
+            return request.redirect(f'/construction/{project_id}/daily-logs')
         if log.is_locked:
             return request.redirect(
-                f'/my/construction/{project_id}/daily-log/{log.id}?error=locked'
+                f'/construction/{project_id}/daily-log/{log.id}?error=locked'
             )
 
         weather_selection = DailyLog.fields_get(['weather_am'])['weather_am']['selection']
@@ -1280,7 +1323,7 @@ class ConstructionPortal(CustomerPortal):
             'tasks': tasks,
             'photo_categories': photo_categories,
             'is_edit': True,
-            'form_action': f'/my/construction/{project_id}/daily-log/{log.id}/update',
+            'form_action': f'/construction/{project_id}/daily-log/{log.id}/update',
             'page_name': 'construction_daily_log_edit',
             'today': log.log_date.isoformat() if log.log_date else date.today().isoformat(),
             'day_count': self._get_project_day_count(project),
@@ -1288,7 +1331,7 @@ class ConstructionPortal(CustomerPortal):
         }
         return request.render('construction_portal.portal_construction_daily_log_form', values)
 
-    @http.route(['/my/construction/<int:project_id>/daily-log/<int:log_id>/update'],
+    @http.route(['/construction/<int:project_id>/daily-log/<int:log_id>/update'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_daily_log_update(self, project_id, log_id, **post):
         """更新施工日誌(編輯儲存)"""
@@ -1303,10 +1346,10 @@ class ConstructionPortal(CustomerPortal):
             ('supervision_project_id', '=', project.id),
         ], limit=1)
         if not log:
-            return request.redirect(f'/my/construction/{project_id}/daily-logs')
+            return request.redirect(f'/construction/{project_id}/daily-logs')
         if log.is_locked:
             return request.redirect(
-                f'/my/construction/{project_id}/daily-log/{log.id}?error=locked'
+                f'/construction/{project_id}/daily-log/{log.id}?error=locked'
             )
 
         log.write({
@@ -1341,10 +1384,10 @@ class ConstructionPortal(CustomerPortal):
         )
 
         return request.redirect(
-            f'/my/construction/{project_id}/daily-log/{log.id}?message=updated'
+            f'/construction/{project_id}/daily-log/{log.id}?message=updated'
         )
 
-    @http.route(['/my/construction/daily-log/<int:log_id>/photo/upload'],
+    @http.route(['/construction/daily-log/<int:log_id>/photo/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_daily_log_photo_upload(self, log_id, **post):
         """詳情頁追加上傳照片"""
@@ -1358,7 +1401,7 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
         if log.is_locked:
             return request.redirect(
-                f'/my/construction/{project.id}/daily-log/{log.id}?error=locked'
+                f'/construction/{project.id}/daily-log/{log.id}?error=locked'
             )
 
         meta = {
@@ -1375,10 +1418,10 @@ class ConstructionPortal(CustomerPortal):
             meta,
         )
         return request.redirect(
-            f'/my/construction/{project.id}/daily-log/{log.id}?message=photo_added'
+            f'/construction/{project.id}/daily-log/{log.id}?message=photo_added'
         )
 
-    @http.route(['/my/construction/daily-log/<int:log_id>/photo/<int:att_id>/delete'],
+    @http.route(['/construction/daily-log/<int:log_id>/photo/<int:att_id>/delete'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_daily_log_photo_delete(self, log_id, att_id, **post):
         """從詳情頁刪除單張照片"""
@@ -1392,19 +1435,19 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
         if log.is_locked:
             return request.redirect(
-                f'/my/construction/{project.id}/daily-log/{log.id}?error=locked'
+                f'/construction/{project.id}/daily-log/{log.id}?error=locked'
             )
 
         if att_id in log.photo_ids.ids:
             _portal_delete_photo(request.env, log, att_id)
 
         return request.redirect(
-            f'/my/construction/{project.id}/daily-log/{log.id}?message=photo_deleted'
+            f'/construction/{project.id}/daily-log/{log.id}?message=photo_deleted'
         )
 
     # ==================== 自主檢查 ====================
 
-    @http.route(['/my/construction/<int:project_id>/inspections/import'],
+    @http.route(['/construction/<int:project_id>/inspections/import'],
                 type='http', auth='user', website=True, methods=['GET'])
     def portal_construction_inspections_import(self, project_id, **kw):
         """自主檢查批次匯入頁（GET）"""
@@ -1427,7 +1470,7 @@ class ConstructionPortal(CustomerPortal):
         return request.render(
             'construction_portal.portal_construction_inspection_import', values)
 
-    @http.route(['/my/construction/<int:project_id>/inspections/import'],
+    @http.route(['/construction/<int:project_id>/inspections/import'],
                 type='http', auth='user', website=True,
                 methods=['POST'], csrf=True)
     def portal_construction_inspections_import_submit(self, project_id, **post):
@@ -1448,7 +1491,7 @@ class ConstructionPortal(CustomerPortal):
         env = request.env
         Insp = env['general.self.inspection'].sudo()
         InspType = env['self.inspection.type'].sudo()
-        base_url = f'/my/construction/{project_id}/inspections/import'
+        base_url = f'/construction/{project_id}/inspections/import'
         supervision_project_id = project.id
 
         imported = 0
@@ -1578,8 +1621,7 @@ class ConstructionPortal(CustomerPortal):
         return request.redirect(
             f'{base_url}?imported={imported}&skipped={skipped}&failed={failed}')
 
-    @http.route(['/my/construction/<int:project_id>/inspections',
-                 '/my/construction/<int:project_id>/inspections/page/<int:page>'],
+    @http.route(['/construction/<int:project_id>/inspections', '/construction/<int:project_id>/inspections/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_inspections(self, project_id, page=1, **kw):
         """自主檢查列表"""
@@ -1593,7 +1635,7 @@ class ConstructionPortal(CustomerPortal):
 
         inspection_count = Inspection.search_count(domain)
         pager = portal_pager(
-            url=f'/my/construction/{project_id}/inspections',
+            url=f'/construction/{project_id}/inspections',
             total=inspection_count,
             page=page,
             step=self._items_per_page,
@@ -1623,7 +1665,7 @@ class ConstructionPortal(CustomerPortal):
             'inspection_count': inspection_count,
             'page_name': 'construction_inspections',
             'pager': pager,
-            'default_url': f'/my/construction/{project_id}/inspections',
+            'default_url': f'/construction/{project_id}/inspections',
             'slip_list': slip_list,
             'slip_filter': int(slip_filter) if slip_filter else 0,
             'day_count': self._get_project_day_count(project),
@@ -1632,7 +1674,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_inspections', values)
 
-    @http.route(['/my/construction/<int:project_id>/inspection/new'],
+    @http.route(['/construction/<int:project_id>/inspection/new'],
                 type='http', auth='user', website=True)
     def portal_construction_inspection_new(self, project_id, **kw):
         """新增自主檢查表單"""
@@ -1662,7 +1704,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_inspection_form', values)
 
-    @http.route(['/my/construction/inspection/create'],
+    @http.route(['/construction/inspection/create'],
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_construction_inspection_create(self, **post):
         """建立自主檢查（含 checklist 項目提交）"""
@@ -1720,12 +1762,12 @@ class ConstructionPortal(CustomerPortal):
             idx += 1
 
         return request.redirect(
-            f'/my/construction/{project_id}/daily-log/../inspection/{inspection.id}'.replace(
+            f'/construction/{project_id}/daily-log/../inspection/{inspection.id}'.replace(
                 '/daily-log/../', '/'
-            ) if False else f'/my/construction/inspection/{inspection.id}?message=created'
+            ) if False else f'/construction/inspection/{inspection.id}?message=created'
         )
 
-    @http.route(['/my/construction/inspection/get-items'],
+    @http.route(['/construction/inspection/get-items'],
                 type='json', auth='user', methods=['POST'])
     def portal_construction_inspection_get_items(self, **post):
         """AJAX: 取得檢查類型的預設 checklist items"""
@@ -1758,7 +1800,7 @@ class ConstructionPortal(CustomerPortal):
 
         return {'items': items, 'stages': stages}
 
-    @http.route(['/my/construction/inspection/<int:inspection_id>'],
+    @http.route(['/construction/inspection/<int:inspection_id>'],
                 type='http', auth='user', website=True)
     def portal_construction_inspection_detail(self, inspection_id, **kw):
         """自主檢查詳情"""
@@ -1809,8 +1851,8 @@ class ConstructionPortal(CustomerPortal):
             'photos': inspection.photo_ids,
             'photo_to_supervision': _portal_photo_to_supervision(request.env, inspection.photo_ids),
             'photo_categories': photo_categories,
-            'upload_url': f'/my/construction/inspection/{inspection.id}/photo/upload',
-            'delete_url_tpl': f'/my/construction/inspection/{inspection.id}/photo/%s/delete',
+            'upload_url': f'/construction/inspection/{inspection.id}/photo/upload',
+            'delete_url_tpl': f'/construction/inspection/{inspection.id}/photo/%s/delete',
             'is_locked': False,
             # chatter
             'object': inspection,
@@ -1820,7 +1862,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_inspection_detail', values)
 
-    @http.route(['/my/construction/inspection/<int:inspection_id>/photo/upload'],
+    @http.route(['/construction/inspection/<int:inspection_id>/photo/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_inspection_photo_upload(self, inspection_id, **post):
         """一般式自主檢查詳情頁追加上傳照片"""
@@ -1843,10 +1885,10 @@ class ConstructionPortal(CustomerPortal):
             meta,
         )
         return request.redirect(
-            f'/my/construction/inspection/{inspection.id}?message=photo_added'
+            f'/construction/inspection/{inspection.id}?message=photo_added'
         )
 
-    @http.route(['/my/construction/inspection/<int:inspection_id>/photo/<int:att_id>/delete'],
+    @http.route(['/construction/inspection/<int:inspection_id>/photo/<int:att_id>/delete'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_inspection_photo_delete(self, inspection_id, att_id, **post):
         """一般式自主檢查刪除照片"""
@@ -1858,13 +1900,12 @@ class ConstructionPortal(CustomerPortal):
         if att_id in inspection.photo_ids.ids:
             _portal_delete_photo(request.env, inspection, att_id)
         return request.redirect(
-            f'/my/construction/inspection/{inspection.id}?message=photo_deleted'
+            f'/construction/inspection/{inspection.id}?message=photo_deleted'
         )
 
     # ==================== 預約式自主檢查 ====================
 
-    @http.route(['/my/construction/<int:project_id>/reservation-inspections',
-                 '/my/construction/<int:project_id>/reservation-inspections/page/<int:page>'],
+    @http.route(['/construction/<int:project_id>/reservation-inspections', '/construction/<int:project_id>/reservation-inspections/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_reservation_inspections(self, project_id, page=1, **kw):
         """預約式自主檢查列表(掛在通報單下,但這裡彙總顯示)"""
@@ -1884,7 +1925,7 @@ class ConstructionPortal(CustomerPortal):
 
         inspection_count = Inspection.search_count(domain)
         pager = portal_pager(
-            url=f'/my/construction/{project_id}/reservation-inspections',
+            url=f'/construction/{project_id}/reservation-inspections',
             total=inspection_count,
             page=page,
             step=self._items_per_page,
@@ -1907,7 +1948,7 @@ class ConstructionPortal(CustomerPortal):
             'project': project,
             'inspections': inspections,
             'pager': pager,
-            'default_url': f'/my/construction/{project_id}/reservation-inspections',
+            'default_url': f'/construction/{project_id}/reservation-inspections',
             'slip_list': slip_list,
             'slip_filter': slip_filter,
             'page_name': 'construction_reservation_inspections',
@@ -1916,7 +1957,7 @@ class ConstructionPortal(CustomerPortal):
         }
         return request.render('construction_portal.portal_construction_reservation_inspections', values)
 
-    @http.route(['/my/construction/<int:project_id>/reservation-inspection/new'],
+    @http.route(['/construction/<int:project_id>/reservation-inspection/new'],
                 type='http', auth='user', website=True)
     def portal_construction_reservation_inspection_new(self, project_id, slip_id=None, **kw):
         """預約式檢查新增表單(必須帶 slip_id)"""
@@ -1926,7 +1967,7 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
 
         if not slip_id:
-            return request.redirect(f'/my/construction/{project_id}/slips')
+            return request.redirect(f'/construction/{project_id}/slips')
 
         Slip = request.env['reservation.notification.slip']
         slip = Slip.search([
@@ -1934,7 +1975,7 @@ class ConstructionPortal(CustomerPortal):
             ('project_id', '=', project.id),
         ], limit=1)
         if not slip:
-            return request.redirect(f'/my/construction/{project_id}/slips')
+            return request.redirect(f'/construction/{project_id}/slips')
 
         InspType = request.env['self.inspection.type'].sudo()
         inspection_types = InspType.search([])
@@ -1958,7 +1999,7 @@ class ConstructionPortal(CustomerPortal):
         }
         return request.render('construction_portal.portal_construction_reservation_inspection_form', values)
 
-    @http.route(['/my/construction/reservation-inspection/create'],
+    @http.route(['/construction/reservation-inspection/create'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_reservation_inspection_create(self, **post):
         """建立預約式自主檢查"""
@@ -2023,10 +2064,10 @@ class ConstructionPortal(CustomerPortal):
         )
 
         return request.redirect(
-            f'/my/construction/reservation-inspection/{inspection.id}?message=created'
+            f'/construction/reservation-inspection/{inspection.id}?message=created'
         )
 
-    @http.route(['/my/construction/reservation-inspection/<int:inspection_id>'],
+    @http.route(['/construction/reservation-inspection/<int:inspection_id>'],
                 type='http', auth='user', website=True)
     def portal_construction_reservation_inspection_detail(self, inspection_id, **kw):
         """預約式自主檢查詳情"""
@@ -2069,14 +2110,14 @@ class ConstructionPortal(CustomerPortal):
             'photos': inspection.photo_ids,
             'photo_to_supervision': _portal_photo_to_supervision(request.env, inspection.photo_ids),
             'photo_categories': photo_categories,
-            'upload_url': f'/my/construction/reservation-inspection/{inspection.id}/photo/upload',
-            'delete_url_tpl': f'/my/construction/reservation-inspection/{inspection.id}/photo/%s/delete',
+            'upload_url': f'/construction/reservation-inspection/{inspection.id}/photo/upload',
+            'delete_url_tpl': f'/construction/reservation-inspection/{inspection.id}/photo/%s/delete',
             'is_locked': False,
         }
         return request.render(
             'construction_portal.portal_construction_reservation_inspection_detail', values)
 
-    @http.route(['/my/construction/reservation-inspection/<int:inspection_id>/photo/upload'],
+    @http.route(['/construction/reservation-inspection/<int:inspection_id>/photo/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_reservation_inspection_photo_upload(self, inspection_id, **post):
         """預約式檢查追加照片"""
@@ -2102,10 +2143,10 @@ class ConstructionPortal(CustomerPortal):
             meta,
         )
         return request.redirect(
-            f'/my/construction/reservation-inspection/{inspection.id}?message=photo_added'
+            f'/construction/reservation-inspection/{inspection.id}?message=photo_added'
         )
 
-    @http.route(['/my/construction/reservation-inspection/<int:inspection_id>/photo/<int:att_id>/delete'],
+    @http.route(['/construction/reservation-inspection/<int:inspection_id>/photo/<int:att_id>/delete'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_reservation_inspection_photo_delete(self, inspection_id, att_id, **post):
         """預約式檢查刪除照片"""
@@ -2120,12 +2161,12 @@ class ConstructionPortal(CustomerPortal):
         if att_id in inspection.photo_ids.ids:
             _portal_delete_photo(request.env, inspection, att_id)
         return request.redirect(
-            f'/my/construction/reservation-inspection/{inspection.id}?message=photo_deleted'
+            f'/construction/reservation-inspection/{inspection.id}?message=photo_deleted'
         )
 
     # ==================== 缺失管理 ====================
 
-    @http.route(['/my/construction/<int:project_id>/defects/import'],
+    @http.route(['/construction/<int:project_id>/defects/import'],
                 type='http', auth='user', website=True, methods=['GET'])
     def portal_construction_defects_import(self, project_id, **kw):
         """缺失批次匯入頁（GET）"""
@@ -2148,7 +2189,7 @@ class ConstructionPortal(CustomerPortal):
         return request.render(
             'construction_portal.portal_construction_defect_import', values)
 
-    @http.route(['/my/construction/<int:project_id>/defects/import'],
+    @http.route(['/construction/<int:project_id>/defects/import'],
                 type='http', auth='user', website=True,
                 methods=['POST'], csrf=True)
     def portal_construction_defects_import_submit(self, project_id, **post):
@@ -2166,7 +2207,7 @@ class ConstructionPortal(CustomerPortal):
 
         env = request.env
         Defect = env['supervision.defect'].sudo()
-        base_url = f'/my/construction/{project_id}/defects/import'
+        base_url = f'/construction/{project_id}/defects/import'
         supervision_project_id = project.id
 
         imported = 0
@@ -2260,7 +2301,7 @@ class ConstructionPortal(CustomerPortal):
         return request.redirect(
             f'{base_url}?imported={imported}&skipped={skipped}&failed={failed}')
 
-    @http.route(['/my/construction/<int:project_id>/defects/enrich'],
+    @http.route(['/construction/<int:project_id>/defects/enrich'],
                 type='http', auth='user', website=True, methods=['GET'])
     def portal_construction_defects_enrich(self, project_id, **kw):
         """缺失改善明細補充頁（GET）"""
@@ -2283,7 +2324,7 @@ class ConstructionPortal(CustomerPortal):
         return request.render(
             'construction_portal.portal_construction_defect_enrich', values)
 
-    @http.route(['/my/construction/<int:project_id>/defects/enrich'],
+    @http.route(['/construction/<int:project_id>/defects/enrich'],
                 type='http', auth='user', website=True,
                 methods=['POST'], csrf=True)
     def portal_construction_defects_enrich_submit(self, project_id, **post):
@@ -2301,7 +2342,7 @@ class ConstructionPortal(CustomerPortal):
 
         env = request.env
         Defect = env['supervision.defect'].sudo()
-        base_url = f'/my/construction/{project_id}/defects/enrich'
+        base_url = f'/construction/{project_id}/defects/enrich'
         supervision_project_id = project.id
 
         # index 現有缺失 by source_description (register_no)
@@ -2384,7 +2425,7 @@ class ConstructionPortal(CustomerPortal):
         return request.redirect(
             f'{base_url}?updated={updated}&unmatched={unmatched}&failed={failed}')
 
-    @http.route(['/my/construction/<int:project_id>/defects/import-docx'],
+    @http.route(['/construction/<int:project_id>/defects/import-docx'],
                 type='http', auth='user', website=True, methods=['GET'])
     def portal_construction_defects_import_docx(self, project_id, **kw):
         """從 docx zip 直接建立缺失紀錄（沒有總表單的案場用）。"""
@@ -2407,7 +2448,7 @@ class ConstructionPortal(CustomerPortal):
         return request.render(
             'construction_portal.portal_construction_defect_import_docx', values)
 
-    @http.route(['/my/construction/<int:project_id>/defects/import-docx'],
+    @http.route(['/construction/<int:project_id>/defects/import-docx'],
                 type='http', auth='user', website=True,
                 methods=['POST'], csrf=True)
     def portal_construction_defects_import_docx_submit(self, project_id, **post):
@@ -2425,7 +2466,7 @@ class ConstructionPortal(CustomerPortal):
 
         env = request.env
         Defect = env['supervision.defect'].sudo()
-        base_url = f'/my/construction/{project_id}/defects/import-docx'
+        base_url = f'/construction/{project_id}/defects/import-docx'
         supervision_project_id = project.id
 
         imported = 0
@@ -2529,8 +2570,7 @@ class ConstructionPortal(CustomerPortal):
         return request.redirect(
             f'{base_url}?imported={imported}&skipped={skipped}&failed={failed}')
 
-    @http.route(['/my/construction/<int:project_id>/defects',
-                 '/my/construction/<int:project_id>/defects/page/<int:page>'],
+    @http.route(['/construction/<int:project_id>/defects', '/construction/<int:project_id>/defects/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_defects(self, project_id, page=1, filterby=None, **kw):
         """缺失列表"""
@@ -2554,7 +2594,7 @@ class ConstructionPortal(CustomerPortal):
 
         defect_count = Defect.search_count(domain)
         pager = portal_pager(
-            url=f'/my/construction/{project_id}/defects',
+            url=f'/construction/{project_id}/defects',
             total=defect_count,
             page=page,
             step=self._items_per_page,
@@ -2574,7 +2614,7 @@ class ConstructionPortal(CustomerPortal):
             'defect_count': defect_count,
             'page_name': 'construction_defects',
             'pager': pager,
-            'default_url': f'/my/construction/{project_id}/defects',
+            'default_url': f'/construction/{project_id}/defects',
             'searchbar_filters': searchbar_filters,
             'filterby': filterby,
             'day_count': self._get_project_day_count(project),
@@ -2583,7 +2623,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_defects', values)
 
-    @http.route(['/my/construction/<int:project_id>/defect/new'],
+    @http.route(['/construction/<int:project_id>/defect/new'],
                 type='http', auth='user', website=True)
     def portal_construction_defect_new(self, project_id, **kw):
         """新增缺失表單"""
@@ -2609,7 +2649,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_defect_form', values)
 
-    @http.route(['/my/construction/defect/create'],
+    @http.route(['/construction/defect/create'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_defect_create(self, **post):
         """建立缺失"""
@@ -2645,12 +2685,13 @@ class ConstructionPortal(CustomerPortal):
                 'res_model': 'supervision.defect',
                 'res_id': defect.id,
                 'type': 'binary',
+                'public': True,
             })
             defect.write({'before_photo_ids': [(4, attachment.id)]})
 
-        return request.redirect(f'/my/construction/defect/{defect.id}?message=created')
+        return request.redirect(f'/construction/defect/{defect.id}?message=created')
 
-    @http.route(['/my/construction/defect/<int:defect_id>'],
+    @http.route(['/construction/defect/<int:defect_id>'],
                 type='http', auth='user', website=True)
     def portal_construction_defect_detail(self, defect_id, **kw):
         """缺失詳情"""
@@ -2687,10 +2728,10 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_defect_detail', values)
 
-    @http.route(['/my/construction/defect/<int:defect_id>/improve'],
+    @http.route(['/construction/defect/<int:defect_id>/improve'],
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_construction_defect_improve(self, defect_id, **post):
-        """提交缺失改善"""
+        """提交缺失改善（改善說明、矯正措施、預防措施、改善後照片）"""
         partner = request.env.user.partner_id
 
         try:
@@ -2698,15 +2739,43 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        improvement_text = post.get('improvement_description', '')
-        defect.portal_submit_improvement(improvement_text, partner)
+        # 收齊文字欄位
+        improvement_text = post.get('improvement_description', '').strip()
+        corrective_action = post.get('corrective_action', '').strip()
+        preventive_action = post.get('preventive_action', '').strip()
 
-        return request.redirect(f'/my/construction/defect/{defect_id}?message=success')
+        # 收改善後照片（支援多張）
+        import base64
+        uploaded_files = request.httprequest.files.getlist('after_photo')
+        attachment_ids = []
+        for f in uploaded_files:
+            if not f or not f.filename:
+                continue
+            raw = f.read()
+            if not raw:
+                continue
+            attachment = request.env['ir.attachment'].sudo().create({
+                'name': f.filename,
+                'datas': base64.b64encode(raw),
+                'res_model': 'supervision.defect',
+                'res_id': defect.id,
+                'type': 'binary',
+                'public': True,
+            })
+            attachment_ids.append(attachment.id)
+
+        defect.portal_submit_improvement(
+            improvement_text, partner,
+            after_photos=attachment_ids or None,
+            corrective_action=corrective_action or None,
+            preventive_action=preventive_action or None,
+        )
+
+        return request.redirect(f'/construction/defect/{defect_id}?message=success')
 
     # ==================== 照片管理 ====================
 
-    @http.route(['/my/construction/<int:project_id>/photos',
-                 '/my/construction/<int:project_id>/photos/page/<int:page>'],
+    @http.route(['/construction/<int:project_id>/photos', '/construction/<int:project_id>/photos/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_photos(self, project_id, page=1, **kw):
         """照片列表（含篩選、日期分群）"""
@@ -2734,7 +2803,7 @@ class ConstructionPortal(CustomerPortal):
             url_args['category'] = category_filter
 
         pager = portal_pager(
-            url=f'/my/construction/{project_id}/photos',
+            url=f'/construction/{project_id}/photos',
             total=photo_count,
             page=page,
             step=24,
@@ -2771,7 +2840,7 @@ class ConstructionPortal(CustomerPortal):
             'date_groups': date_groups,
             'page_name': 'construction_photos',
             'pager': pager,
-            'default_url': f'/my/construction/{project_id}/photos',
+            'default_url': f'/construction/{project_id}/photos',
             'source_options': source_options,
             'category_options': category_options,
             'source_filter': source_filter or '',
@@ -2782,7 +2851,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_photos', values)
 
-    @http.route(['/my/construction/<int:project_id>/photo/upload'],
+    @http.route(['/construction/<int:project_id>/photo/upload'],
                 type='http', auth='user', website=True)
     def portal_construction_photo_upload_form(self, project_id, **kw):
         """照片上傳表單"""
@@ -2806,7 +2875,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_photo_upload', values)
 
-    @http.route(['/my/construction/photo/upload'],
+    @http.route(['/construction/photo/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_photo_upload(self, **post):
         """處理照片上傳（支持分類與 GPS）"""
@@ -2853,11 +2922,11 @@ class ConstructionPortal(CustomerPortal):
             Photo = request.env['supervision.photo']
             photo = Photo.create_from_portal(vals, partner, file_data)
 
-            return request.redirect(f'/my/construction/{project_id}/photos?message=uploaded')
+            return request.redirect(f'/construction/{project_id}/photos?message=uploaded')
 
-        return request.redirect(f'/my/construction/{project_id}/photo/upload?error=no_file')
+        return request.redirect(f'/construction/{project_id}/photo/upload?error=no_file')
 
-    @http.route(['/my/construction/photo/upload/ajax'],
+    @http.route(['/construction/photo/upload/ajax'],
                 type='json', auth='user', methods=['POST'])
     def portal_construction_photo_upload_ajax(self, **post):
         """AJAX: 單張照片上傳（批次上傳時逐張呼叫）"""
@@ -2910,7 +2979,7 @@ class ConstructionPortal(CustomerPortal):
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
-    @http.route(['/my/construction/photo/<int:photo_id>'],
+    @http.route(['/construction/photo/<int:photo_id>'],
                 type='http', auth='user', website=True)
     def portal_construction_photo_detail(self, photo_id, **kw):
         """照片詳情"""
@@ -2934,8 +3003,7 @@ class ConstructionPortal(CustomerPortal):
 
     # ==================== 通報單（預約式）====================
 
-    @http.route(['/my/construction/<int:project_id>/slips',
-                 '/my/construction/<int:project_id>/slips/page/<int:page>'],
+    @http.route(['/construction/<int:project_id>/slips', '/construction/<int:project_id>/slips/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_slips(self, project_id, page=1, **kw):
         """通報單列表"""
@@ -2945,14 +3013,14 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
 
         if project.project_type != 'reservation':
-            return request.redirect(f'/my/construction/{project_id}')
+            return request.redirect(f'/construction/{project_id}')
 
         Slip = request.env['reservation.notification.slip']
         domain = [('project_id', '=', project.id)]
 
         slip_count = Slip.search_count(domain)
         pager = portal_pager(
-            url=f'/my/construction/{project_id}/slips',
+            url=f'/construction/{project_id}/slips',
             total=slip_count,
             page=page,
             step=self._items_per_page,
@@ -2970,14 +3038,14 @@ class ConstructionPortal(CustomerPortal):
             'slips': slips,
             'page_name': 'construction_slips',
             'pager': pager,
-            'default_url': f'/my/construction/{project_id}/slips',
+            'default_url': f'/construction/{project_id}/slips',
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
         }
 
         return request.render('construction_portal.portal_construction_slips', values)
 
-    @http.route(['/my/construction/<int:project_id>/slip/<int:slip_id>'],
+    @http.route(['/construction/<int:project_id>/slip/<int:slip_id>'],
                 type='http', auth='user', website=True)
     def portal_construction_slip_detail(self, project_id, slip_id, **kw):
         """通報單詳情"""
@@ -2992,7 +3060,7 @@ class ConstructionPortal(CustomerPortal):
             ('project_id', '=', project.id),
         ], limit=1)
         if not slip:
-            return request.redirect(f'/my/construction/{project_id}/slips')
+            return request.redirect(f'/construction/{project_id}/slips')
 
         state_selection = dict(
             Slip.fields_get(['state'])['state']['selection']
@@ -3033,8 +3101,7 @@ class ConstructionPortal(CustomerPortal):
 
     # ==================== 檔案管理 ====================
 
-    @http.route(['/my/construction/<int:project_id>/documents',
-                 '/my/construction/<int:project_id>/documents/page/<int:page>'],
+    @http.route(['/construction/<int:project_id>/documents', '/construction/<int:project_id>/documents/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_documents(self, project_id, page=1, **kw):
         """檔案管理列表"""
@@ -3053,7 +3120,7 @@ class ConstructionPortal(CustomerPortal):
 
         doc_count = Doc.search_count(domain)
         pager = portal_pager(
-            url=f'/my/construction/{project_id}/documents',
+            url=f'/construction/{project_id}/documents',
             total=doc_count,
             page=page,
             step=self._items_per_page,
@@ -3077,14 +3144,14 @@ class ConstructionPortal(CustomerPortal):
             'cat_filter': int(cat_filter) if cat_filter else 0,
             'page_name': 'construction_documents',
             'pager': pager,
-            'default_url': f'/my/construction/{project_id}/documents',
+            'default_url': f'/construction/{project_id}/documents',
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
         }
 
         return request.render('construction_portal.portal_construction_documents', values)
 
-    @http.route(['/my/construction/<int:project_id>/document/upload'],
+    @http.route(['/construction/<int:project_id>/document/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_document_upload(self, project_id, **post):
         """文件上傳"""
@@ -3098,12 +3165,13 @@ class ConstructionPortal(CustomerPortal):
             import base64
             file_data = base64.b64encode(uploaded_file.read())
 
-            # 建立 attachment
+            # 建立 attachment(public=True 讓 portal user 能下載/預覽)
             attachment = request.env['ir.attachment'].sudo().create({
                 'name': uploaded_file.filename,
                 'datas': file_data,
                 'res_model': 'supervision.document',
                 'type': 'binary',
+                'public': True,
             })
 
             cat_id = int(post.get('document_category_id', 0)) or False
@@ -3118,25 +3186,25 @@ class ConstructionPortal(CustomerPortal):
             request.env['supervision.document'].sudo().create(doc_vals)
 
             return request.redirect(
-                f'/my/construction/{project_id}/documents?message=uploaded'
+                f'/construction/{project_id}/documents?message=uploaded'
             )
 
-        return request.redirect(f'/my/construction/{project_id}/documents?error=no_file')
+        return request.redirect(f'/construction/{project_id}/documents?error=no_file')
 
     # ==================== 新增專案 ====================
 
-    @http.route(['/my/construction/project/new'],
+    @http.route(['/construction/project/new'],
                 type='http', auth='user', website=True)
     def portal_construction_project_new(self, **kw):
         """新增工程專案表單"""
         # 從 query string 取得來源專案 ID，讓 breadcrumb 可以回首頁
         from_project_id = kw.get('from_project')
-        back_url = '/my/construction'
+        back_url = '/construction'
         back_label = '工程列表'
         if from_project_id:
             try:
                 pid = int(from_project_id)
-                back_url = f'/my/construction/{pid}'
+                back_url = f'/construction/{pid}'
                 back_label = '首頁'
             except (ValueError, TypeError):
                 pass
@@ -3148,7 +3216,7 @@ class ConstructionPortal(CustomerPortal):
         }
         return request.render('construction_portal.portal_construction_project_new', values)
 
-    @http.route(['/my/construction/project/create'],
+    @http.route(['/construction/project/create'],
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_construction_project_create(self, **post):
         """建立工程專案"""
@@ -3156,7 +3224,7 @@ class ConstructionPortal(CustomerPortal):
 
         name = post.get('name', '').strip()
         if not name:
-            return request.redirect('/my/construction/project/new?error=no_name')
+            return request.redirect('/construction/project/new?error=no_name')
 
         # 建立 Odoo 原生專案
         Project = request.env['project.project'].sudo()
@@ -3232,11 +3300,11 @@ class ConstructionPortal(CustomerPortal):
         except Exception:
             pass
 
-        return request.redirect(f'/my/construction/{sup_project.id}')
+        return request.redirect(f'/construction/{sup_project.id}')
 
     # ==================== 設定 ====================
 
-    @http.route(['/my/construction/settings'],
+    @http.route(['/construction/settings'],
                 type='http', auth='user', website=True)
     def portal_construction_settings(self, **kw):
         """設定頁面"""
@@ -3245,15 +3313,21 @@ class ConstructionPortal(CustomerPortal):
         domain = self._get_construction_projects_domain(partner)
         projects = Project.search(domain, order='name')
 
-        # 從 query string 取得來源專案，讓 breadcrumb 可以回首頁
+        # 從 query string 取得來源專案,讓 HUD top bar 顯示對應工程資訊 + 回首頁
         from_project_id = kw.get('from_project')
-        back_url = '/my/construction'
+        back_url = '/construction'
         back_label = '工程列表'
+        project = None
+        day_count = 0
         if from_project_id:
             try:
                 pid = int(from_project_id)
-                back_url = f'/my/construction/{pid}'
-                back_label = '首頁'
+                candidate = Project.browse(pid)
+                if candidate.exists() and candidate.id in projects.ids:
+                    project = candidate
+                    day_count = self._get_project_day_count(project)
+                    back_url = f'/construction/{pid}'
+                    back_label = '首頁'
             except (ValueError, TypeError):
                 pass
 
@@ -3261,6 +3335,8 @@ class ConstructionPortal(CustomerPortal):
             'user': request.env.user,
             'partner': partner,
             'projects': projects,
+            'project': project,
+            'day_count': day_count,
             'page_name': 'construction_settings',
             'back_url': back_url,
             'back_label': back_label,
@@ -3268,11 +3344,11 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_settings', values)
 
-    @http.route(['/my/construction/switch-project'],
+    @http.route(['/construction/switch-project'],
                 type='http', auth='user', website=True)
     def portal_construction_switch_project(self, **kw):
         """切換工程（重導向到工程列表）"""
-        return request.redirect('/my/construction')
+        return request.redirect('/construction')
 
     # ================================================================
     # 照片地圖
@@ -3305,6 +3381,13 @@ class ConstructionPortal(CustomerPortal):
             domain.append(('shot_date', '>=', post['date_from']))
         if post.get('date_to'):
             domain.append(('shot_date', '<=', post['date_to']))
+        # 全文搜尋:照片說明 / 檔案名稱 / 位置敘述
+        search_q = (post.get('search') or '').strip()
+        if search_q:
+            domain += ['|', '|',
+                       ('name', 'ilike', search_q),
+                       ('image_filename', 'ilike', search_q),
+                       ('location_description', 'ilike', search_q)]
         return domain
 
     def _portal_map_photo_to_marker(self, photo):
@@ -3350,14 +3433,14 @@ class ConstructionPortal(CustomerPortal):
             'location_description': photo.location_description or '',
         }
 
-    @http.route(['/my/construction/<int:project_id>/photos/map'],
+    @http.route(['/construction/<int:project_id>/photos/map'],
                 type='http', auth='user', website=True)
     def portal_construction_photos_map(self, project_id, **kw):
         """照片地圖頁面"""
         try:
             project_sudo = self._document_check_access('supervision.project', project_id)
         except (AccessError, MissingError):
-            return request.redirect('/my/construction')
+            return request.redirect('/construction')
 
         Photo = request.env['supervision.photo'].sudo()
         project_domain = [('active', '=', True), ('project_id', '=', project_id)]
@@ -3393,7 +3476,7 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_photos_map', values)
 
-    @http.route(['/my/construction/<int:project_id>/photos/api/markers'],
+    @http.route(['/construction/<int:project_id>/photos/api/markers'],
                 type='json', auth='user', methods=['POST'])
     def portal_photos_map_markers(self, project_id, **post):
         """取得專案照片 markers"""
@@ -3417,7 +3500,7 @@ class ConstructionPortal(CustomerPortal):
             'filtered': len(photos),
         }
 
-    @http.route(['/my/construction/<int:project_id>/photos/api/area-photos'],
+    @http.route(['/construction/<int:project_id>/photos/api/area-photos'],
                 type='json', auth='user', methods=['POST'])
     def portal_photos_map_area(self, project_id, **post):
         """取得地圖範圍內照片詳情"""
@@ -3453,7 +3536,7 @@ class ConstructionPortal(CustomerPortal):
             'has_more': (offset + limit) < total,
         }
 
-    @http.route(['/my/construction/<int:project_id>/photos/api/nearby'],
+    @http.route(['/construction/<int:project_id>/photos/api/nearby'],
                 type='json', auth='user', methods=['POST'])
     def portal_photos_map_nearby(self, project_id, **post):
         """取得附近照片（依距離排序）"""
@@ -3509,7 +3592,7 @@ class ConstructionPortal(CustomerPortal):
         return {'photos': photos_data}
 
     # ==================== 工期展延（action_extend_lines）====================
-    @http.route(['/my/construction/<int:project_id>/schedule/extend'],
+    @http.route(['/construction/<int:project_id>/schedule/extend'],
                 type='http', auth='user', website=True)
     def portal_schedule_extend_page(self, project_id, **kw):
         """工期展延頁面：顯示 draft 進度表並提供展延輸入"""
@@ -3537,7 +3620,7 @@ class ConstructionPortal(CustomerPortal):
         }
         return request.render('construction_portal.portal_schedule_extend', values)
 
-    @http.route(['/my/construction/<int:project_id>/schedule/<int:schedule_id>/extend'],
+    @http.route(['/construction/<int:project_id>/schedule/<int:schedule_id>/extend'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_schedule_extend_submit(self, project_id, schedule_id, **post):
         """提交工期展延：寫入 current_extension 並呼叫 action_extend_lines"""
@@ -3551,19 +3634,19 @@ class ConstructionPortal(CustomerPortal):
         schedule = request.env['progress.schedule'].sudo().browse(schedule_id)
         if not schedule.exists() or schedule.project_id.id != project.id:
             return request.redirect(
-                f'/my/construction/{project_id}/schedule/extend?error=not_found')
+                f'/construction/{project_id}/schedule/extend?error=not_found')
         if schedule.state != 'draft':
             return request.redirect(
-                f'/my/construction/{project_id}/schedule/extend?error=not_draft')
+                f'/construction/{project_id}/schedule/extend?error=not_draft')
 
         try:
             current_extension = int(post.get('current_extension') or 0)
         except (TypeError, ValueError):
             return request.redirect(
-                f'/my/construction/{project_id}/schedule/extend?error=invalid_value')
+                f'/construction/{project_id}/schedule/extend?error=invalid_value')
         if current_extension < 0:
             return request.redirect(
-                f'/my/construction/{project_id}/schedule/extend?error=negative')
+                f'/construction/{project_id}/schedule/extend?error=negative')
 
         try:
             schedule.write({'current_extension': current_extension})
@@ -3571,7 +3654,7 @@ class ConstructionPortal(CustomerPortal):
         except (UserError, ValidationError) as e:
             _logger.warning('schedule extend failed: %s', e)
             return request.redirect(
-                f'/my/construction/{project_id}/schedule/extend?error=action_failed')
+                f'/construction/{project_id}/schedule/extend?error=action_failed')
 
         return request.redirect(
-            f'/my/construction/{project_id}/schedule/extend?success=1')
+            f'/construction/{project_id}/schedule/extend?success=1')

@@ -17,7 +17,7 @@ class GeneralSelfInspectionPortal(models.Model):
     def _compute_access_url(self):
         super()._compute_access_url()
         for inspection in self:
-            inspection.access_url = f'/my/construction/inspection/{inspection.id}'
+            inspection.access_url = f'/construction/inspection/{inspection.id}'
 
     # === Portal 專用欄位 ===
     portal_creator_id = fields.Many2one(

@@ -1,42 +1,53 @@
 /**
- * ChienYi Portal v10 — 行動端樣式
- * 色彩系統：--wb-* CSS variables（淺色/深色模式）
+ * ChienYi Portal v11 — 行動端樣式
+ * 色彩系統：白底 + #769FCD 鋼藍 --wb-* CSS variables
  * 設計原則：Mobile-first、大字體、大按鈕、觸控友善 44px+
  */
 
-/* === 色彩系統 === */
+/* === 色彩系統（v11 白底鋼藍） === */
 :root {
-  --wb-bg0: #f5f6fa;
-  --wb-bg2: #ffffff;
-  --wb-bg3: #f0f1f5;
-  --wb-bdr: #e0e3eb;
+  /* 背景 — 柔藍白底 + 白色卡片 */
+  --wb-bg0: #F7FBFC;          /* 頁面底色 */
+  --wb-bg2: #ffffff;          /* 卡片底色 */
+  --wb-bg3: #dbe1f0;          /* 次級背景（淺紫藍） */
+  --wb-bg4: #B9D7EA;          /* 強背景（柔藍） */
+  --wb-bdr: #B9D7EA;          /* 邊框（中等淺藍） */
+  --wb-bdr-soft: #dbe1f0;     /* 分隔線 */
+
+  /* 文字 */
   --wb-t1: #1a1d26;
   --wb-t2: #5a6070;
   --wb-t3: #8b90a0;
-  --wb-amber: #e6a020;
+
+  /* 品牌色 — 鋼藍 Steel Blue */
+  --wb-brand: #769FCD;
+  --wb-brand-light: #B9D7EA;
+  --wb-brand-dark: #5a82b3;
+  --wb-brand-darker: #3d6a9e;
+  --wb-brand-soft: #dbe1f0;
+  --wb-brand-soft2: #B9D7EA;
+  --wb-brand-border: #769FCD;
+
+  /* Logo 金屬色（LOCKED，不可染藍） */
+  --wb-metal-light: #e8e8ec;
+  --wb-metal-mid: #a8a8b0;
+  --wb-metal-dark: #6b6b73;
+  --wb-metal-flat: #898989;
+
+  /* 語意色 */
   --wb-red: #e8364f;
   --wb-green: #22b357;
   --wb-blue: #3b8de0;
-  --wb-brand: #c9a84c;
-  --wb-brand-light: #e6c86e;
-  --wb-brand-dark: #9a7a2e;
+  --wb-warn: #d68b1a;         /* 次要警告色（v11 新增） */
+  --wb-amber: #769FCD;        /* v11：原 amber 強調 → 改為 brand 鋼藍以統一主色 */
+
+  /* 陰影 */
+  --wb-shadow: 0 1px 3px rgba(30,60,100,0.05), 0 2px 8px rgba(30,60,100,0.04);
+  --wb-shadow-lg: 0 4px 20px rgba(118,159,205,0.22);
+
   --wb-nav-h: 76px;
   --wb-radius: 14px;
   --wb-radius-sm: 8px;
-}
-
-[data-theme="dark"] {
-  --wb-bg0: #0a0c10;
-  --wb-bg2: #1a1e28;
-  --wb-bg3: #232836;
-  --wb-bdr: #333a4d;
-  --wb-t1: #f0f2f8;
-  --wb-t2: #a0a8bc;
-  --wb-t3: #6b7280;
-  --wb-amber: #f5b740;
-  --wb-red: #ff4d6a;
-  --wb-green: #3de87a;
-  --wb-blue: #5eaaff;
 }
 
 /* === 全域設定 === */
@@ -316,7 +327,7 @@
   padding: 8px 14px;
   border-radius: 8px;
   border: none;
-  background: rgba(212, 148, 10, 0.08);
+  background: rgba(118, 159, 205, 0.08);
   color: var(--wb-amber);
   font-size: 0.9rem;
   font-weight: 700;
@@ -368,12 +379,12 @@
   width: 56px;
   height: 56px;
   border-radius: 16px;
-  background: linear-gradient(135deg, var(--wb-amber), #cc8a10);
+  background: linear-gradient(135deg, var(--wb-brand), var(--wb-brand-dark));
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.5rem;
-  box-shadow: 0 4px 20px rgba(230, 160, 32, 0.2);
+  box-shadow: 0 4px 20px rgba(118, 159, 205, 0.2);
   color: #000;
 }
 
@@ -414,8 +425,8 @@
 }
 
 .cy-event-warn {
-  background: rgba(230, 160, 32, 0.06);
-  border: 1px solid rgba(230, 160, 32, 0.2);
+  background: rgba(118, 159, 205, 0.06);
+  border: 1px solid rgba(118, 159, 205, 0.2);
 }
 
 .cy-event-info {
@@ -549,7 +560,7 @@
 
 .cy-task-icon.blue { background: rgba(59, 141, 224, 0.12); color: var(--wb-blue); }
 .cy-task-icon.green { background: rgba(34, 179, 87, 0.12); color: var(--wb-green); }
-.cy-task-icon.amber { background: rgba(230, 160, 32, 0.12); color: var(--wb-amber); }
+.cy-task-icon.amber { background: rgba(118, 159, 205, 0.12); color: var(--wb-amber); }
 .cy-task-icon.red { background: rgba(232, 54, 79, 0.12); color: var(--wb-red); }
 
 .cy-task-info {
@@ -582,7 +593,7 @@
 }
 
 .cy-task-badge.pending {
-  background: rgba(230, 160, 32, 0.12);
+  background: rgba(118, 159, 205, 0.12);
   color: var(--wb-amber);
 }
 
@@ -630,7 +641,7 @@
 }
 
 .cy-slip-state.draft { background: rgba(139, 144, 160, 0.12); color: var(--wb-t3); }
-.cy-slip-state.not_started { background: rgba(230, 160, 32, 0.12); color: var(--wb-amber); }
+.cy-slip-state.not_started { background: rgba(118, 159, 205, 0.12); color: var(--wb-amber); }
 .cy-slip-state.in_progress { background: rgba(59, 141, 224, 0.12); color: var(--wb-blue); }
 .cy-slip-state.closed { background: rgba(34, 179, 87, 0.12); color: var(--wb-green); }
 
@@ -744,7 +755,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
-  border-right: 1px solid rgba(230, 160, 32, 0.15);
+  border-right: 1px solid rgba(118, 159, 205, 0.15);
 }
 
 .cy-breadcrumb-item:last-child {
@@ -754,7 +765,7 @@
 .cy-breadcrumb-item.active {
   color: var(--wb-amber);
   font-weight: 700;
-  background: rgba(230, 160, 32, 0.08);
+  background: rgba(118, 159, 205, 0.08);
 }
 
 .cy-breadcrumb-item:hover:not(.active) {
@@ -832,7 +843,7 @@
 
 .cy-badge-draft { background: rgba(139, 144, 160, 0.12); color: var(--wb-t3); }
 .cy-badge-construction { background: rgba(59, 141, 224, 0.12); color: var(--wb-blue); }
-.cy-badge-completion { background: rgba(230, 160, 32, 0.12); color: var(--wb-amber); }
+.cy-badge-completion { background: rgba(118, 159, 205, 0.12); color: var(--wb-amber); }
 .cy-badge-acceptance { background: rgba(232, 54, 79, 0.12); color: var(--wb-red); }
 .cy-badge-closed { background: rgba(34, 179, 87, 0.12); color: var(--wb-green); }
 .cy-badge-suspended { background: rgba(253, 126, 20, 0.12); color: #fd7e14; }
@@ -1051,7 +1062,7 @@
 }
 
 .cy-btn-gradient-full.amber {
-  background: linear-gradient(135deg, var(--wb-amber), #cc8a10);
+  background: linear-gradient(135deg, var(--wb-brand), var(--wb-brand-dark));
   color: #fff;
 }
 
@@ -1168,8 +1179,8 @@
 }
 
 .cy-log-day-badge.filled { background: rgba(34, 179, 87, 0.1); color: var(--wb-green); }
-.cy-log-day-badge.empty { background: rgba(230, 160, 32, 0.12); color: var(--wb-amber); }
-.cy-log-day-badge.today { background: rgba(230, 160, 32, 0.12); color: var(--wb-amber); }
+.cy-log-day-badge.empty { background: rgba(118, 159, 205, 0.12); color: var(--wb-amber); }
+.cy-log-day-badge.today { background: rgba(118, 159, 205, 0.12); color: var(--wb-amber); }
 .cy-log-day-badge.off { color: var(--wb-t3); }
 
 /* === Alert 卡片（日誌頁用：藍/紅/琥珀）=== */
@@ -1190,8 +1201,8 @@
 }
 
 .cy-alert-box.amber {
-  background: rgba(230, 160, 32, 0.06);
-  border: 1px solid rgba(230, 160, 32, 0.15);
+  background: rgba(118, 159, 205, 0.06);
+  border: 1px solid rgba(118, 159, 205, 0.15);
 }
 
 .cy-alert-box-title {
@@ -1244,9 +1255,9 @@
 }
 
 .cy-photo-fab-btn.upload {
-  background: linear-gradient(135deg, var(--wb-amber), #cc8a10);
+  background: linear-gradient(135deg, var(--wb-brand), var(--wb-brand-dark));
   color: #000;
-  box-shadow: 0 4px 24px rgba(230, 160, 32, 0.25);
+  box-shadow: 0 4px 24px rgba(118, 159, 205, 0.25);
 }
 
 /* 照片頁面浮動篩選面板 */
@@ -1362,7 +1373,7 @@
   font-weight: 600;
 }
 
-/* === 工程列表（/my/construction） === */
+/* === 工程列表（/construction） === */
 .cy-project-list-card {
   background: var(--wb-bg2);
   border: 1px solid var(--wb-bdr);
@@ -1521,28 +1532,36 @@
   display: none !important;
 }
 
-/* === Splash 載入動畫 === */
+/* === Splash 載入動畫 ===
+   時間軸：
+   0.00-1.65s  4 條斜線依序從底部長高（stagger 0.15s, duration 1.2s）
+   1.50-2.91s  8 根柱子依序從底部長高（stagger 0.13s, duration 0.5s）
+   2.60s       ChienYi 大標
+   2.80s       QIAN YI TECHNOLOGY
+   3.00s       水資源工程監造管理系統
+   3.50-4.00s  fadeout
+*/
 .cy-splash {
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
   z-index: 9999;
-  background: #0a0c10;
+  background: var(--wb-bg0);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  animation: splashFade 0.6s ease 4.5s forwards;
+  animation: splashFade 0.5s ease 3.5s forwards;
 }
 
-/* 背景光暈 */
+/* 背景光暈 — 鋼藍放射（跟 ChienYi 大標同步出現） */
 .cy-splash-glow {
   position: absolute;
-  width: 400px; height: 400px;
-  background: radial-gradient(circle, rgba(200,200,210,0.18) 0%, rgba(180,180,190,0.08) 40%, transparent 70%);
+  width: 420px; height: 420px;
+  background: radial-gradient(ellipse at center, rgba(118,159,205,0.18) 0%, rgba(118,159,205,0.06) 45%, transparent 70%);
   border-radius: 50%;
   opacity: 0;
-  animation: splashGlowIn 1s ease 2.6s forwards;
+  animation: splashGlowIn 0.8s ease 2.60s forwards;
 }
 @keyframes splashGlowIn {
   from { opacity: 0; transform: scale(0.7); }
@@ -1562,86 +1581,109 @@
   inset: 0;
   width: 100%; height: 100%;
   overflow: visible;
-  filter: drop-shadow(0 6px 30px rgba(200,200,210,0.35));
+  filter: drop-shadow(0 8px 22px rgba(118,159,205,0.28));
 }
 
-/* === 4 條斜線：純填色，從頂部往下 scaleY 長出來（跟柱體上下對稱） === */
+/* === 4 條斜線：從底部 scaleY(0) 長起來，stagger 0.15s，duration 1.2s === */
 .cy-line {
-  fill: #898989;
-  transform-box: fill-box;
-  transform-origin: center top;
-  transform: scaleY(0);
-}
-.cy-line-1 { animation: lineGrow 0.5s cubic-bezier(0.65,0,0.35,1) 0.2s forwards; }
-.cy-line-2 { animation: lineGrow 0.5s cubic-bezier(0.65,0,0.35,1) 0.4s forwards; }
-.cy-line-3 { animation: lineGrow 0.5s cubic-bezier(0.65,0,0.35,1) 0.6s forwards; }
-.cy-line-4 { animation: lineGrow 0.5s cubic-bezier(0.65,0,0.35,1) 0.8s forwards; }
-@keyframes lineGrow {
-  to { transform: scaleY(1); }
-}
-
-/* === 8 根柱體：由外往內成對，從底部 scaleY(0) 長起來 === */
-.cy-col {
-  fill: #898989;
+  fill: var(--wb-metal-flat);
   transform-box: fill-box;
   transform-origin: center bottom;
   transform: scaleY(0);
 }
-/* 4 對柱體：外 → 內（peak 在 col-4/col-5，col-7/col-8 已強制對齊 ground） */
-.cy-col-1, .cy-col-8 { animation: colGrow 0.3s cubic-bezier(0.34,1.56,0.64,1) 1.3s forwards; }
-.cy-col-2, .cy-col-7 { animation: colGrow 0.3s cubic-bezier(0.34,1.56,0.64,1) 1.5s forwards; }
-.cy-col-3, .cy-col-6 { animation: colGrow 0.3s cubic-bezier(0.34,1.56,0.64,1) 1.7s forwards; }
-.cy-col-4, .cy-col-5 { animation: colGrow 0.3s cubic-bezier(0.34,1.56,0.64,1) 1.9s forwards; }
+.cy-line-1 { animation: lineGrow 1.2s cubic-bezier(0.65,0,0.35,1) 0s forwards; }
+.cy-line-2 { animation: lineGrow 1.2s cubic-bezier(0.65,0,0.35,1) 0.15s forwards; }
+.cy-line-3 { animation: lineGrow 1.2s cubic-bezier(0.65,0,0.35,1) 0.30s forwards; }
+.cy-line-4 { animation: lineGrow 1.2s cubic-bezier(0.65,0,0.35,1) 0.45s forwards; }
+@keyframes lineGrow {
+  to { transform: scaleY(1); }
+}
+
+/* === 8 根柱體：依序（col-1 → col-8）從底部長起，stagger 0.13s，duration 0.5s === */
+.cy-col {
+  fill: var(--wb-metal-flat);
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  transform: scaleY(0);
+}
+.cy-col-1 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.50s forwards; }
+.cy-col-2 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.63s forwards; }
+.cy-col-3 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.76s forwards; }
+.cy-col-4 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.89s forwards; }
+.cy-col-5 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 2.02s forwards; }
+.cy-col-6 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 2.15s forwards; }
+.cy-col-7 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 2.28s forwards; }
+.cy-col-8 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 2.41s forwards; }
 @keyframes colGrow {
   to { transform: scaleY(1); }
 }
 
-/* 文字淡入 */
-.cy-splash-name {
+/* === 文字三段淡入 === */
+.cy-splash-brand {
   margin-top: 24px;
-  font-size: 1.1rem; font-weight: 900;
-  color: #d8d8dc; letter-spacing: 4px;
+  font-size: 2.4rem; font-weight: 800;
+  color: var(--wb-brand); letter-spacing: 8px;
   position: relative; z-index: 2;
   opacity: 0;
-  animation: splashTextIn 0.5s ease 3.0s forwards;
+  animation: splashTextIn 0.4s ease 2.60s forwards;
+}
+.cy-splash-name {
+  margin-top: 10px;
+  font-size: 1.0rem; font-weight: 700;
+  color: var(--wb-t2); letter-spacing: 4px;
+  position: relative; z-index: 2;
+  opacity: 0;
+  animation: splashTextIn 0.4s ease 2.80s forwards;
 }
 .cy-splash-sub {
   margin-top: 8px;
-  font-size: 0.75rem; color: #8b90a0; letter-spacing: 3px;
+  font-size: 0.85rem; color: var(--wb-t3); letter-spacing: 3px;
   position: relative; z-index: 2;
   opacity: 0;
-  animation: splashTextIn 0.5s ease 3.2s forwards;
+  animation: splashTextIn 0.4s ease 3.00s forwards;
 }
 @keyframes splashTextIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* 載入點點 */
-.cy-splash-dots {
-  position: absolute;
-  bottom: 60px;
-  display: flex; gap: 7px;
-  opacity: 0;
-  animation: splashTextIn 0.4s ease 3.4s forwards;
-  z-index: 2;
-}
-.cy-splash-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #b8b8c0; display: block;
-  animation: splashDot 1.2s ease 3.4s infinite;
-}
-.cy-splash-dot:nth-child(2) { animation-delay: 3.55s; }
-.cy-splash-dot:nth-child(3) { animation-delay: 3.7s; }
-@keyframes splashDot {
-  0%, 100% { opacity: 0.3; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.15); }
-}
-
-/* 整體淡出 */
+/* 整體淡出（3.50s → 4.00s） */
 @keyframes splashFade {
   from { opacity: 1; pointer-events: auto; }
-  to { opacity: 0; pointer-events: none; }
+  to { opacity: 0; pointer-events: none; visibility: hidden; }
+}
+
+/* === Splash 預覽模式 ===
+   立即定格：所有元素跳到終態、不跑動畫、不 fadeout
+   用途：/construction/splash-preview */
+.cy-splash.cy-splash-preview,
+.cy-splash.cy-splash-preview * {
+  animation: none !important;
+}
+.cy-splash.cy-splash-preview {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+.cy-splash.cy-splash-preview .cy-splash-glow {
+  opacity: 1;
+  transform: scale(1);
+}
+.cy-splash.cy-splash-preview .cy-line,
+.cy-splash.cy-splash-preview .cy-col {
+  transform: scaleY(1);
+}
+.cy-splash.cy-splash-preview .cy-splash-brand,
+.cy-splash.cy-splash-preview .cy-splash-name,
+.cy-splash.cy-splash-preview .cy-splash-sub {
+  opacity: 1;
+  transform: none;
+}
+
+/* 播放模式：動畫正常跑、結束後停住不 fadeout
+   用途：/construction/splash-preview?play=1 */
+.cy-splash.cy-splash-preview-play {
+  animation: none !important;
 }
 
 /* ===== 批次照片上傳 ===== */
@@ -1754,4 +1796,106 @@
   border-radius: 4px;
   width: 0%;
   transition: width 0.3s ease;
+}
+
+/* === 縮圖列（橫向捲動）=== */
+.cy-thumb-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.cy-thumb-row::-webkit-scrollbar { height: 4px; }
+.cy-thumb-row::-webkit-scrollbar-thumb {
+  background: var(--wb-bdr);
+  border-radius: 2px;
+}
+.cy-thumb {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--wb-bdr);
+  cursor: pointer;
+  scroll-snap-align: start;
+  background: var(--wb-bg2);
+  transition: transform 0.1s ease;
+}
+.cy-thumb:active { transform: scale(0.96); }
+.cy-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* === Lightbox（全螢幕看圖 + 左右滑動）=== */
+.cy-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.cy-lightbox.active { display: flex; }
+.cy-lightbox-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.cy-lightbox-img {
+  max-width: 96vw;
+  max-height: 86vh;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.cy-lightbox-close,
+.cy-lightbox-prev,
+.cy-lightbox-next {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  line-height: 1;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  backdrop-filter: blur(4px);
+  transition: background 0.15s;
+}
+.cy-lightbox-close:hover,
+.cy-lightbox-prev:hover,
+.cy-lightbox-next:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+.cy-lightbox-close { top: 16px; right: 16px; font-size: 28px; }
+.cy-lightbox-prev { left: 12px; top: 50%; transform: translateY(-50%); }
+.cy-lightbox-next { right: 12px; top: 50%; transform: translateY(-50%); }
+.cy-lightbox-counter {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 5px 14px;
+  border-radius: 14px;
 }

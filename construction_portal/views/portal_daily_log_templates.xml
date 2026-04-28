@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ============================================
-         施工日誌列表 /my/construction/<pid>/daily-logs
+         施工日誌列表 /construction/<pid>/daily-logs
          ============================================ -->
     <template id="portal_construction_daily_logs" name="Construction Daily Logs">
         <t t-call="web.frontend_layout">
@@ -11,14 +11,14 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
                     <span class="cy-breadcrumb-item active">施工日誌</span>
                 </div>
 
                 <div class="cy-content">
                     <!-- 批次匯入入口 -->
                     <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
-                        <a t-attf-href="/my/construction/#{project.id}/daily-logs/import"
+                        <a t-attf-href="/construction/#{project.id}/daily-logs/import"
                            class="cy-btn"
                            style="padding: 6px 14px; border: 1px solid var(--wb-blue); color: var(--wb-blue); font-weight: 700; font-size: 0.85rem; border-radius: 8px; text-decoration: none;">
                             <i class="fa fa-upload"/> 批次匯入 XLSM
@@ -91,7 +91,7 @@
                     <!-- 日曆式日卡（本週 7 天）-->
                     <t t-if="log_days">
                         <t t-foreach="log_days" t-as="day">
-                            <a t-attf-href="#{day['status'] != 'off' and '/my/construction/' + str(project.id) + '/daily-log/new?date=' + day['date_full'] or '#'}"
+                            <a t-attf-href="#{day['status'] != 'off' and '/construction/' + str(project.id) + '/daily-log/new?date=' + day['date_full'] or '#'}"
                                class="cy-log-day-card" t-att-data-status="day['status']"
                                style="text-decoration: none; color: inherit; display: block;">
                                 <div class="cy-log-day-card-header">
@@ -120,7 +120,7 @@
                     <t t-if="logs">
                         <div class="cy-sec-divider"><span>歷史日誌</span></div>
                         <t t-foreach="logs" t-as="log">
-                            <a t-attf-href="/my/construction/#{project.id}/daily-log/#{log.id}"
+                            <a t-attf-href="/construction/#{project.id}/daily-log/#{log.id}"
                                class="cy-task-row" style="text-decoration: none; color: inherit;">
                                 <div style="min-width: 50px; text-align: center;">
                                     <div style="font-size: 1.5rem; font-weight: 800; color: var(--wb-t1); line-height: 1;">
@@ -161,7 +161,7 @@
     </template>
 
     <!-- ============================================
-         施工日誌詳情 /my/construction/<pid>/daily-log/<lid>
+         施工日誌詳情 /construction/<pid>/daily-log/<lid>
          ============================================ -->
     <template id="portal_construction_daily_log_detail" name="Daily Log Detail">
         <t t-call="web.frontend_layout">
@@ -171,8 +171,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">日誌</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">日誌</a>
                     <span class="cy-breadcrumb-item active"><t t-esc="log.log_date"/></span>
                 </div>
 
@@ -203,7 +203,7 @@
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <a t-if="not log.is_locked"
-                               t-attf-href="/my/construction/#{project.id}/daily-log/#{log.id}/edit"
+                               t-attf-href="/construction/#{project.id}/daily-log/#{log.id}/edit"
                                class="cy-btn cy-btn-outline"
                                style="font-size: 0.8rem; padding: 6px 12px; min-height: 32px;">
                                 <i class="fa fa-pen"/> 編輯
@@ -386,7 +386,7 @@
     </template>
 
     <!-- ============================================
-         施工日誌新增表單 /my/construction/<pid>/daily-log/new
+         施工日誌新增表單 /construction/<pid>/daily-log/new
          ============================================ -->
     <template id="portal_construction_daily_log_form" name="Daily Log Form">
         <t t-call="web.frontend_layout">
@@ -396,8 +396,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">日誌</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">日誌</a>
                     <span class="cy-breadcrumb-item active">
                         <t t-if="is_edit">編輯</t>
                         <t t-else="">新增</t>
@@ -665,7 +665,7 @@
 
                         <!-- 提交 -->
                         <div style="margin-top: 20px; margin-bottom: 20px;">
-                            <button type="submit" class="cy-btn cy-btn-amber cy-btn-block" style="font-size: 1.2rem; min-height: 64px; font-weight: 900; border-radius: 14px; box-shadow: 0 4px 20px rgba(230,160,32,0.2);">
+                            <button type="submit" class="cy-btn cy-btn-amber cy-btn-block" style="font-size: 1.2rem; min-height: 64px; font-weight: 900; border-radius: 14px; box-shadow: 0 4px 20px rgba(118,159,205,0.22);">
                                 <t t-if="is_edit">更新日誌</t>
                                 <t t-else="">儲存日誌</t>
                             </button>
@@ -679,7 +679,7 @@
     </template>
 
     <!-- ============================================
-         施工日誌批次匯入 /my/construction/<pid>/daily-logs/import
+         施工日誌批次匯入 /construction/<pid>/daily-logs/import
          ============================================ -->
     <template id="portal_construction_daily_log_import" name="Daily Log Batch Import">
         <t t-call="web.frontend_layout">
@@ -689,8 +689,8 @@
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
-                    <a t-attf-href="/my/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/my/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">施工日誌</a>
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/daily-logs" class="cy-breadcrumb-item">施工日誌</a>
                     <span class="cy-breadcrumb-item active">批次匯入</span>
                 </div>
 
@@ -743,7 +743,7 @@
                         </t>
                     </t>
 
-                    <form t-attf-action="/my/construction/#{project.id}/daily-logs/import"
+                    <form t-attf-action="/construction/#{project.id}/daily-logs/import"
                           method="post" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
 
@@ -773,7 +773,7 @@
                         </div>
 
                         <div style="display: flex; gap: 10px; margin-top: 18px; margin-bottom: 16px;">
-                            <a t-attf-href="/my/construction/#{project.id}/daily-logs"
+                            <a t-attf-href="/construction/#{project.id}/daily-logs"
                                class="cy-btn"
                                style="flex: 1; padding: 16px; text-align: center; border: 1px solid rgba(255,255,255,0.18); color: var(--wb-t2); font-weight: 700; border-radius: 10px; text-decoration: none;">
                                 取消
