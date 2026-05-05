@@ -1,0 +1,216 @@
+/* ================================================================
+   Dobtor Doc Editor — 主樣式表（Canvas 引擎版）
+   ================================================================ */
+
+/* ─── 全螢幕容器 ─── */
+.o_action.o_dobtor_doc_editor {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    background: #f0f0f0;
+}
+
+/* ─── 頂部工具列 ─── */
+.doc-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: #fff;
+    border-bottom: 1px solid #dee2e6;
+    flex-shrink: 0;
+    z-index: 100;
+    min-height: 44px;
+    white-space: nowrap;
+    overflow-x: auto;
+}
+
+.doc-toolbar-title {
+    font-size: 1rem;
+    font-weight: 600;
+    width: 200px;
+    max-width: 260px;
+    border: none;
+    outline: none;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: transparent;
+    flex-shrink: 1;
+}
+
+.doc-toolbar-title:hover,
+.doc-toolbar-title:focus {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.doc-toolbar-sep {
+    width: 1px;
+    height: 24px;
+    background: #dee2e6;
+    flex-shrink: 0;
+}
+
+.doc-toolbar-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    font-size: 0.875rem;
+    color: #495057;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.doc-toolbar-btn:hover:not(:disabled) {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+}
+
+.doc-toolbar-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.doc-toolbar-btn.primary {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+
+.doc-toolbar-btn.primary:hover:not(:disabled) {
+    background: #0b5ed7;
+}
+
+.doc-toolbar-btn.saving {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.doc-toolbar-select {
+    padding: 4px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    background: #fff;
+    cursor: pointer;
+}
+
+/* ─── 離線提示徽章 ─── */
+.doc-toolbar-offline-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: #856404;
+}
+
+/* ─── 編輯器工作區（Canvas 掛載容器）───
+   canvas-editor 初始化時會對 .canvas-editor-container 執行：
+     container.style.position = "relative"
+     container.style.width    = "<paperWidth>px"  (e.g. 794px A4)
+   因此 doc-workspace 需要是 flex 置中容器，
+   讓被縮為 794px 的 container 在灰色背景上水平置中。
+─── */
+.doc-workspace {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;          /* 捲動多頁內容 */
+    background: #f0f0f0;     /* 灰色背景，白色紙張置中顯示 */
+    display: flex;
+    justify-content: center; /* 水平置中紙張 */
+    align-items: flex-start; /* 從頂部開始排列 */
+    padding: 20px 40px;      /* 上下留白 */
+    box-sizing: border-box;
+}
+
+/* ─── Canvas 編輯器容器 ───
+   canvas-editor 會自行設定 position:relative 和 width:<paperWidth>px。
+   此處只需確保不壓縮、不隱藏 overflow（避免裁切內部彈出層）。
+─── */
+.canvas-editor-container {
+    flex-shrink: 0;
+    overflow: visible;
+}
+
+/* ─── 模板變數面板 ─── */
+.doc-template-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 16px;
+    background: #e8f4e8;
+    border-top: 1px solid #c3e6cb;
+    font-size: 12px;
+    color: #155724;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.doc-template-bar-label {
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.doc-template-bar-vars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.doc-context-json {
+    width: 100%;
+    max-width: 800px;
+    font-size: 11px;
+    font-family: monospace;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+    padding: 4px 6px;
+    background: #fff;
+    resize: vertical;
+}
+
+/* ─── 狀態列 ─── */
+.doc-statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 16px;
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    font-size: 11px;
+    color: #6c757d;
+    flex-shrink: 0;
+}
+
+.doc-statusbar-saved {
+    color: #198754;
+}
+
+.doc-statusbar-saving {
+    color: #fd7e14;
+}
+
+.doc-statusbar-error {
+    color: #dc3545;
+}
+
+/* ─── 列印樣式 ─── */
+@media print {
+    .doc-toolbar,
+    .doc-statusbar {
+        display: none !important;
+    }
+
+    .doc-workspace {
+        overflow: visible;
+    }
+}

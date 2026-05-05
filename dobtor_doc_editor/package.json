@@ -1,0 +1,30 @@
+{
+  "name": "dobtor-doc-editor-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "dobtor_doc_editor — Frontend build pipeline (OOXML Parser + patched canvas-editor)",
+  "scripts": {
+    "postinstall": "patch-package",
+    "build:frontend": "rollup -c rollup.config.js",
+    "build:watch": "rollup -c rollup.config.js --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hufe921/canvas-editor": "0.9.128",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-typescript": "^11.0.0",
+    "happy-dom": "^15.11.7",
+    "patch-package": "^8.0.0",
+    "rollup": "^4.0.0",
+    "tslib": "^2.6.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.9"
+  }
+}
