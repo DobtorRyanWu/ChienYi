@@ -741,21 +741,367 @@
     }
 
     /**
-     * ParagraphParser — 解析 <w:p> 與內部 <w:r>（Run）
+     * units — OOXML 度量單位轉換工具
+     *
+     * OOXML 慣用單位：
+     *   - twip (1/20 pt) — w:sz、w:tblW (w:dxa)
+     *   - half-point (1/2 pt) — w:sz of w:rPr font size
+     *   - eighth-point (1/8 pt) — w:sz of border width
+     *   - EMU (English Metric Unit, 1/914400 inch) — DrawingML wp:extent
+     *
+     * 全模組一律以 pt 為標準（見 ast/types.ts: Pt）。
+     */
+    const TWIP_PER_PT = 20;
+    const HALF_POINT_PER_PT = 2;
+    const EIGHTH_POINT_PER_PT = 8;
+    const EMU_PER_INCH = 914400;
+    const PT_PER_INCH = 72;
+    const EMU_PER_PT = EMU_PER_INCH / PT_PER_INCH; // 12700
+    function twipToPt(twip) {
+        return twip / TWIP_PER_PT;
+    }
+    function halfPointToPt(hp) {
+        return hp / HALF_POINT_PER_PT;
+    }
+    function eighthPointToPt(ep) {
+        return ep / EIGHTH_POINT_PER_PT;
+    }
+    function emuToPt(emu) {
+        return emu / EMU_PER_PT;
+    }
+    function ptToPx(pt, dpi = 96) {
+        return (pt / PT_PER_INCH) * dpi;
+    }
+
+    /**
+     * ParagraphParser — 解析 <w:p>（段落）與內部 <w:r>（Run）
      *
      * 處理範圍（Sprint 1）：
-     *   - w:pPr 段落屬性（對齊、縮排、行距、numbering）
-     *   - w:rPr Run 屬性（字型、字級、粗斜體、下劃線、顏色、highlight）
-     *   - w:t 文字、w:br 換行、w:tab、w:fldSimple/w:fldChar 欄位
-     *   - w:drawing 內嵌圖片（轉發 DrawingParser）
+     *   - w:pPr 段落屬性：jc, ind, spacing, pStyle, numPr, keepNext, pageBreakBefore
+     *   - w:rPr Run 屬性：rFonts, sz, b, i, u, strike, color, highlight, vertAlign
+     *   - w:t 文字（含 xml:space="preserve" 保留空白）
+     *   - w:br type="line|page|column" → BreakNode
+     *   - w:tab → 暫時當文字 "\t"
+     *   - w:fldSimple instr="..." → FieldNode
      *
-     * Phase 1 Sprint 1 實作；目前為 stub。
+     * 設計原則：
+     *   - 用 getElementsByTagName(qualifiedName) 而非 getElementsByTagNameNS
+     *     （happy-dom 對預設命名空間 NS 查詢有缺陷；此 walker 全環境一致）
+     *   - 只處理「直接子節點」，不遞迴尋找（OOXML 結構非 free-form HTML）
+     *   - 樣式繼承鏈交給 StyleResolver 在 Sprint 2 處理；本 Parser 只解 in-line 屬性
+     *
+     * Sprint 1 issue #4 + #5 + #6
      */
+    // ── 對外 ──────────────────────────────────────────────────────────────────────
     class ParagraphParser {
-        // TODO Sprint 1
-        parse(_paragraphElement) {
-            throw new Error('ParagraphParser.parse() not implemented — Sprint 1');
+        /**
+         * 解析單一 <w:p> Element 為 ParagraphNode。
+         * @param p w:p 元素（已是 DOM Element）
+         */
+        parse(p) {
+            const pPrEl = directChild(p, 'w:pPr');
+            const props = pPrEl ? parseParagraphProps(pPrEl) : {};
+            const styleId = pPrEl
+                ? attr(directChild(pPrEl, 'w:pStyle'), 'w:val')
+                : undefined;
+            const runs = [];
+            for (const child of directChildren(p)) {
+                switch (child.tagName) {
+                    case 'w:r':
+                        for (const node of parseRun(child))
+                            runs.push(node);
+                        break;
+                    case 'w:fldSimple':
+                        runs.push(parseFldSimple(child));
+                        break;
+                    case 'w:hyperlink':
+                        // hyperlink 內含 w:r，視同包裹 — 直接展平 runs
+                        for (const r of directChildren(child)) {
+                            if (r.tagName === 'w:r') {
+                                for (const node of parseRun(r))
+                                    runs.push(node);
+                            }
+                        }
+                        break;
+                    // w:pPr 已先處理；其他子節點 (w:bookmarkStart, w:proofErr) 暫時忽略
+                }
+            }
+            const node = {
+                type: 'paragraph',
+                props,
+                runs,
+            };
+            if (styleId)
+                node.styleId = styleId;
+            return node;
         }
+    }
+    // ── w:pPr ─────────────────────────────────────────────────────────────────────
+    function parseParagraphProps(pPr) {
+        const props = {};
+        const jc = attr(directChild(pPr, 'w:jc'), 'w:val');
+        if (jc) {
+            const a = mapAlignment(jc);
+            if (a)
+                props.alignment = a;
+        }
+        const indEl = directChild(pPr, 'w:ind');
+        if (indEl) {
+            const indent = {};
+            const left = attrTwip(indEl, 'w:left') ?? attrTwip(indEl, 'w:start');
+            const right = attrTwip(indEl, 'w:right') ?? attrTwip(indEl, 'w:end');
+            const firstLine = attrTwip(indEl, 'w:firstLine');
+            const hanging = attrTwip(indEl, 'w:hanging');
+            if (left !== undefined)
+                indent.left = left;
+            if (right !== undefined)
+                indent.right = right;
+            if (firstLine !== undefined)
+                indent.firstLine = firstLine;
+            if (hanging !== undefined)
+                indent.hanging = hanging;
+            if (Object.keys(indent).length > 0)
+                props.indent = indent;
+        }
+        const spEl = directChild(pPr, 'w:spacing');
+        if (spEl) {
+            const spacing = {};
+            const before = attrTwip(spEl, 'w:before');
+            const after = attrTwip(spEl, 'w:after');
+            if (before !== undefined)
+                spacing.before = before;
+            if (after !== undefined)
+                spacing.after = after;
+            const lineRaw = spEl.getAttribute('w:line');
+            const ruleRaw = spEl.getAttribute('w:lineRule');
+            if (lineRaw) {
+                const line = parseInt(lineRaw, 10);
+                if (Number.isFinite(line)) {
+                    const rule = mapLineSpacingRule(ruleRaw);
+                    // auto 規則用 240 分母（Word 慣例）；其餘 rule 與 exact/atLeast 用 twip
+                    const value = rule === 'auto' ? line / 240 : twipToPt(line);
+                    spacing.line = { rule, value };
+                }
+            }
+            if (Object.keys(spacing).length > 0)
+                props.spacing = spacing;
+        }
+        const numPrEl = directChild(pPr, 'w:numPr');
+        if (numPrEl) {
+            const ilvlVal = attr(directChild(numPrEl, 'w:ilvl'), 'w:val');
+            const numIdVal = attr(directChild(numPrEl, 'w:numId'), 'w:val');
+            if (ilvlVal !== undefined) {
+                const n = parseInt(ilvlVal, 10);
+                if (Number.isFinite(n))
+                    props.ilvl = n;
+            }
+            if (numIdVal !== undefined) {
+                const n = parseInt(numIdVal, 10);
+                if (Number.isFinite(n))
+                    props.numId = n;
+            }
+        }
+        if (boolFlag(directChild(pPr, 'w:keepNext')))
+            props.keepNext = true;
+        if (boolFlag(directChild(pPr, 'w:keepLines')))
+            props.keepLines = true;
+        if (boolFlag(directChild(pPr, 'w:pageBreakBefore')))
+            props.pageBreakBefore = true;
+        return props;
+    }
+    // ── w:r → RunNode[]（單一 run 可能因 w:br 等切多筆） ─────────────────────────
+    function parseRun(r) {
+        const rPrEl = directChild(r, 'w:rPr');
+        const baseProps = rPrEl ? parseRunProps(rPrEl) : {};
+        const out = [];
+        let textBuf = '';
+        const flushText = () => {
+            if (textBuf.length === 0)
+                return;
+            out.push({ type: 'run', text: textBuf, props: { ...baseProps } });
+            textBuf = '';
+        };
+        for (const child of directChildren(r)) {
+            switch (child.tagName) {
+                case 'w:t': {
+                    // xml:space="preserve" → 保留前後空白
+                    // 注意：DOM 對缺省屬性取出可能是 null，不影響 textContent 讀取
+                    textBuf += child.textContent ?? '';
+                    break;
+                }
+                case 'w:br': {
+                    flushText();
+                    const t = child.getAttribute('w:type');
+                    const breakType = t === 'page' ? 'page' : t === 'column' ? 'column' : 'line';
+                    out.push({ type: 'break', breakType });
+                    break;
+                }
+                case 'w:tab':
+                    textBuf += '\t';
+                    break;
+                case 'w:noBreakHyphen':
+                    textBuf += '‑'; // non-breaking hyphen
+                    break;
+                case 'w:softHyphen':
+                    textBuf += '­'; // soft hyphen
+                    break;
+                case 'w:cr':
+                    textBuf += '\n';
+                    break;
+                // w:rPr 已先處理；w:drawing / w:pict / w:fldChar 暫不處理（Sprint 3 Drawing）
+            }
+        }
+        flushText();
+        return out;
+    }
+    // ── w:rPr ─────────────────────────────────────────────────────────────────────
+    function parseRunProps(rPr) {
+        const props = {};
+        const fontsEl = directChild(rPr, 'w:rFonts');
+        if (fontsEl) {
+            const ascii = fontsEl.getAttribute('w:ascii');
+            const east = fontsEl.getAttribute('w:eastAsia');
+            if (ascii)
+                props.fontFamily = ascii;
+            if (east)
+                props.fontFamilyEastAsia = east;
+        }
+        // w:sz 與 w:szCs 都是 half-point；CS 給 complex script。先用 w:sz。
+        const szVal = attr(directChild(rPr, 'w:sz'), 'w:val');
+        if (szVal !== undefined) {
+            const n = parseInt(szVal, 10);
+            if (Number.isFinite(n))
+                props.fontSize = halfPointToPt(n);
+        }
+        if (boolFlag(directChild(rPr, 'w:b')))
+            props.bold = true;
+        if (boolFlag(directChild(rPr, 'w:i')))
+            props.italic = true;
+        if (boolFlag(directChild(rPr, 'w:strike')))
+            props.strike = true;
+        if (boolFlag(directChild(rPr, 'w:dstrike')))
+            props.dstrike = true;
+        const uVal = attr(directChild(rPr, 'w:u'), 'w:val');
+        if (uVal)
+            props.underline = uVal;
+        const colorVal = attr(directChild(rPr, 'w:color'), 'w:val');
+        if (colorVal)
+            props.color = colorVal;
+        // w:highlight 用具名色（yellow/cyan/...）；w:shd val + w:fill 才是 hex shading
+        const highlight = attr(directChild(rPr, 'w:highlight'), 'w:val');
+        if (highlight)
+            props.highlight = highlight;
+        const vert = attr(directChild(rPr, 'w:vertAlign'), 'w:val');
+        if (vert === 'superscript' || vert === 'subscript' || vert === 'baseline') {
+            props.vertAlign = vert;
+        }
+        const spacing = attr(directChild(rPr, 'w:spacing'), 'w:val');
+        if (spacing !== undefined) {
+            const n = parseInt(spacing, 10);
+            if (Number.isFinite(n))
+                props.spacing = twipToPt(n);
+        }
+        const lang = attr(directChild(rPr, 'w:lang'), 'w:val');
+        if (lang)
+            props.lang = lang;
+        return props;
+    }
+    // ── w:fldSimple → FieldNode ──────────────────────────────────────────────────
+    function parseFldSimple(el) {
+        const instruction = (el.getAttribute('w:instr') ?? '').trim();
+        // 第一個非空字 token 視為 fieldType，並轉大寫
+        const firstToken = instruction.split(/\s+/)[0]?.toUpperCase() ?? '';
+        const knownTypes = ['PAGE', 'NUMPAGES', 'DATE', 'TIME', 'AUTHOR', 'FILENAME'];
+        const fieldType = knownTypes.includes(firstToken)
+            ? firstToken
+            : 'unknown';
+        // 快取值：fldSimple 內部的 w:r → w:t 串接
+        let cached = '';
+        for (const r of directChildren(el)) {
+            if (r.tagName !== 'w:r')
+                continue;
+            for (const t of directChildren(r)) {
+                if (t.tagName === 'w:t')
+                    cached += t.textContent ?? '';
+            }
+        }
+        const node = { type: 'field', instruction, fieldType };
+        if (cached)
+            node.cachedValue = cached;
+        return node;
+    }
+    // ── 共用工具 ──────────────────────────────────────────────────────────────────
+    function directChildren(el) {
+        const out = [];
+        const children = el.childNodes;
+        for (let i = 0; i < children.length; i++) {
+            const n = children[i];
+            if (n.nodeType === 1)
+                out.push(n);
+        }
+        return out;
+    }
+    function directChild(el, tagName) {
+        if (!el)
+            return undefined;
+        for (const child of directChildren(el)) {
+            if (child.tagName === tagName)
+                return child;
+        }
+        return undefined;
+    }
+    function attr(el, name) {
+        if (!el)
+            return undefined;
+        const v = el.getAttribute(name);
+        return v === null ? undefined : v;
+    }
+    function attrTwip(el, name) {
+        const v = attr(el, name);
+        if (v === undefined)
+            return undefined;
+        const n = parseInt(v, 10);
+        return Number.isFinite(n) ? twipToPt(n) : undefined;
+    }
+    /**
+     * OOXML 布林屬性慣例：
+     *   - 元素存在且無 w:val 屬性 → true
+     *   - w:val="0" / "false" → false
+     *   - w:val="1" / "true"  → true
+     */
+    function boolFlag(el) {
+        if (!el)
+            return false;
+        const v = el.getAttribute('w:val');
+        if (v === null)
+            return true;
+        return v !== '0' && v.toLowerCase() !== 'false';
+    }
+    function mapAlignment(jc) {
+        switch (jc) {
+            case 'left':
+            case 'start':
+                return 'left';
+            case 'right':
+            case 'end':
+                return 'right';
+            case 'center':
+                return 'center';
+            case 'both':
+            case 'justify':
+                return 'justify';
+            case 'distribute':
+                return 'distribute';
+            default:
+                return undefined;
+        }
+    }
+    function mapLineSpacingRule(rule) {
+        if (rule === 'exact')
+            return 'exact';
+        if (rule === 'atLeast')
+            return 'atLeast';
+        return 'auto';
     }
 
     /**
@@ -875,39 +1221,6 @@
         parse(_drawingElement) {
             throw new Error('DrawingParser.parse() not implemented — Sprint 3');
         }
-    }
-
-    /**
-     * units — OOXML 度量單位轉換工具
-     *
-     * OOXML 慣用單位：
-     *   - twip (1/20 pt) — w:sz、w:tblW (w:dxa)
-     *   - half-point (1/2 pt) — w:sz of w:rPr font size
-     *   - eighth-point (1/8 pt) — w:sz of border width
-     *   - EMU (English Metric Unit, 1/914400 inch) — DrawingML wp:extent
-     *
-     * 全模組一律以 pt 為標準（見 ast/types.ts: Pt）。
-     */
-    const TWIP_PER_PT = 20;
-    const HALF_POINT_PER_PT = 2;
-    const EIGHTH_POINT_PER_PT = 8;
-    const EMU_PER_INCH = 914400;
-    const PT_PER_INCH = 72;
-    const EMU_PER_PT = EMU_PER_INCH / PT_PER_INCH; // 12700
-    function twipToPt(twip) {
-        return twip / TWIP_PER_PT;
-    }
-    function halfPointToPt(hp) {
-        return hp / HALF_POINT_PER_PT;
-    }
-    function eighthPointToPt(ep) {
-        return ep / EIGHTH_POINT_PER_PT;
-    }
-    function emuToPt(emu) {
-        return emu / EMU_PER_PT;
-    }
-    function ptToPx(pt, dpi = 96) {
-        return (pt / PT_PER_INCH) * dpi;
     }
 
     var index = /*#__PURE__*/Object.freeze({

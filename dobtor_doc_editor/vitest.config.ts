@@ -2,10 +2,11 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // happy-dom 提供 DOMParser，比 jsdom 輕量快速
-    environment: 'happy-dom',
-    include: ['tests/unit/**/*.test.ts'],
-    // 跑 fixture 測試需要讀檔，限制在 Node 端可用 fs
+    // 用純 Node 環境 + setup 檔注入 @xmldom/xmldom 的 DOMParser
+    // happy-dom 的 DOMParser 對 prefix 命名空間（<w:p>）會誤當 HTML 解，不適用
+    environment: 'node',
+    setupFiles: ['./tests/setup.ts'],
+    include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
     globals: false,
   },
 });
