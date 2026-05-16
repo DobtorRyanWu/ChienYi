@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 120 — sprint50_66_retro.md 方法論萃取 + 階段 A 8 sprint 全綠收尾；下個進入階段 B Phase 1-4 漏項）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 121 — 階段 B 開工：TableParser trHeight 入口防禦 9 新 test + bundle rebuild + VR 0.073191 byte-identical；Phase 1 72→73%）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
@@ -38,7 +38,7 @@ VR mean 進展：**0.1728**（Sprint 28 baseline）→ **0.1156**（Sprint 33）
 | Phase | 完成度 | 說明 |
 |---|---|---|
 | Phase 0 能力盤點 | 100% | CI ✅ / CONTRIBUTING.md ✅（Sprint 67 落地）|
-| Phase 1 OOXML Parser | 72% | 主流元素已覆蓋 |
+| Phase 1 OOXML Parser | 73% | 主流元素已覆蓋；Sprint 121 補 trHeight 入口防禦 4 項（負 val / val=0+auto / hRule 強約束無 val / 未知 hRule fallback） |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%）| opentype.js 已用於字型 metric;HarfBuzz 為長期方案 |
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191 |
 | Phase 4 Style Theme | 80% | Sprint 19 style merge 落地 |

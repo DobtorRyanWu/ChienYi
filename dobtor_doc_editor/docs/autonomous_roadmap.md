@@ -73,7 +73,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 
 | Sprint | Phase | 工作 | 狀態 |
 |---|---|---|---|
-| 121-123 | Phase 1 OOXML | 1.5 進階 row height(`<w:trHeight calcInternal>`)、1.8 OLE objects 降級渲染、1.9 field code 完整覆蓋(PAGE / DATE / SEQ / TOC) | ⏳ |
+| 121-123 | Phase 1 OOXML | 1.5 進階 row height(`<w:trHeight calcInternal>`)、1.8 OLE objects 降級渲染、1.9 field code 完整覆蓋(PAGE / DATE / SEQ / TOC) | 🟢 121 ✅ / 122-123 ⏳ |
 | 124-126 | Phase 1 OOXML | 1.9 SDT 結構化標籤、1.9 bookmark range、1.9 hyperlink rels 完整 | ⏳ |
 | 127-128 | Phase 2 字型 | 把 FontMetricsAdapter 推到 production(目前 opt-in、Sprint 64b external 候選 — Claude 自主執行 migrate doc_editor.js 走自家 pipeline) | ⏳ |
 | 129 | Phase 2 字型 | HarfBuzz WASM 整合 spike(規畫書原列 1-2 週) | ⏳ |
@@ -205,6 +205,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 118 | 2026-05-17 01:00+ | 0.073191(未跑) | architecture_decision.md 彙整:§0 索引(21 ADR + 004-007 缺口註解)+ §0.5 規畫書 §3 6-layer ↔ ADR 對映 + ADR-021 Sprint 117 cross-company 決策。+54 行純 docs | #20 候選(Sprint 118):集中索引文件(ADR/glossary/CONTRIBUTING)應有 §0 索引段、超過 10 entry 必加、歷史缺口保留編號標示 |
 | 119 | 2026-05-17 01:30+ | 0.073191(未跑) | glossary.md 擴 Sprint 110 → 118 era:紀律表 17 → 18 條 + 6 子 + 1 候選、加 §0 索引(驗證 #20 候選跨 2 sprint)、加 §8 Process 模式 8 條、§4 補 cross-company/null byte/lock-in test/autonomous_roadmap。172 → 216 行 | #14 廣域應用(Sprint 119):紀律 #14 從 ADR 延伸到 glossary、新紀律確立應同 sprint 同步 glossary 不是 8 sprint 後補 |
 | 120 | 2026-05-17 02:00+ | 0.073191(未跑) | sprint50_66_retro.md 方法論萃取(+260 行):cache 五連發(Stable platform → 高風險改造)+ FontMetricsAdapter(Probe→Negative→Positive→Delta→Drift→Promote 6 階段)+ Sprint 113-118 套用驗證 + 未來 cluster checklist。**階段 A 8 sprint 全綠** | Sprint 120 驗證紀律 #20 候選「<10 entry 不必加 §0」門檻、本 retro 未加屬正確判斷 |
+| 121 | 2026-05-17 00:55+ | **0.073191(已跑、byte-identical)** | **階段 B 開工**。TableParser trHeight 入口防禦 +14 行(負 val / val=0+auto strip / hRule 強約束無 val 時 demote auto / 未知 hRule fallback)+ 9 新 unit test、vitest 976 → **985 passed + 1 skipped**、bundle rebuild、VR 42 fixture × 126 pages re-run mean **0.073191 byte-identical**。Phase 1 72% → 73% | #1 子候選(Sprint 121):改 parser/style/layout 任一層、即使預期 VR 不變、仍應 rebuild bundle + 跑全 VR 確認(待 Sprint 122/123 跨 3 sprint 驗證) |
 
 ---
 
