@@ -157,9 +157,25 @@ export class ParagraphParser {
       fieldCached = '';
     };
 
+    // Sprint 125：bookmark 名稱收集（段落直屬 + run 內含）
+    // ECMA-376 §17.13.6：`<w:bookmarkStart w:id="N" w:name="...">` / `<w:bookmarkEnd w:id="N"/>`
+    // 不影響 render（純錨點），但需 capture name 供未來 hyperlink anchor 反查、PDF 內部跳轉。
+    const bookmarkNames = new Set<string>();
+    const collectBookmarksFromRun = (r: Element): void => {
+      for (const c of directChildren(r)) {
+        if (c.tagName === 'w:bookmarkStart') {
+          const name = c.getAttribute('w:name');
+          if (name) bookmarkNames.add(name);
+        }
+        // bookmarkEnd 不帶 name、不收集
+      }
+    };
+
     for (const child of effectiveChildren(p)) {
       switch (child.tagName) {
         case 'w:r': {
+          // Sprint 125：先收集 run 內 bookmark（即使後續走 field path）
+          collectBookmarksFromRun(child);
           // Sprint 123：field state machine 入口
           //   - 已在 field 模式 → 全交給 consumeRunIntoField（含 separate / end 切換）
           //   - 未在 field 模式但 r 內含 fldChar begin → 同樣交給 consumeRunIntoField
@@ -181,6 +197,7 @@ export class ParagraphParser {
           // hyperlink 內含 w:r，視同包裹 — 展平 runs 並標記 hyperlink 資訊
           for (const r of effectiveChildren(child)) {
             if (r.tagName !== 'w:r') continue;
+            collectBookmarksFromRun(r);  // Sprint 125：hyperlink 內 w:r 也掃 bookmark
             for (const node of parseRun(r)) {
               if (linkInfo && node.type === 'run') {
                 node.hyperlink = linkInfo;
@@ -190,7 +207,16 @@ export class ParagraphParser {
           }
           break;
         }
-        // w:pPr 已先處理；其他子節點 (w:bookmarkStart, w:proofErr) 暫時忽略
+        case 'w:bookmarkStart': {
+          // Sprint 125：段落直屬 bookmarkStart（w:r 同層）
+          const name = child.getAttribute('w:name');
+          if (name) bookmarkNames.add(name);
+          break;
+        }
+        case 'w:bookmarkEnd':
+          // bookmarkEnd 純結尾標記、無 name、無內容、不影響 runs
+          break;
+        // w:pPr 已先處理；其他子節點 (w:proofErr) 暫時忽略
       }
     }
 
@@ -205,6 +231,10 @@ export class ParagraphParser {
       runs,
     };
     if (styleId) node.styleId = styleId;
+    // Sprint 125：bookmarks 只有在有內容時才掛 key、避免 AST diff noise
+    if (bookmarkNames.size > 0) {
+      node.bookmarks = Array.from(bookmarkNames);
+    }
     return node;
   }
 }

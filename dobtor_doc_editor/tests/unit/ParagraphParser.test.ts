@@ -552,3 +552,108 @@ describe('ParagraphParser — Sprint 123 field codes', () => {
     });
   });
 });
+
+// ─── Sprint 125：bookmark range 完整覆蓋 ─────────────────────────────────────
+describe('ParagraphParser — Sprint 125 bookmark range', () => {
+  it('段落內單一 bookmark（直屬 w:p 層級）→ paragraph.bookmarks=[name]', () => {
+    const p = parsePXml(`
+      <w:bookmarkStart w:id="0" w:name="ch1"/>
+      <w:r><w:t>Chapter 1</w:t></w:r>
+      <w:bookmarkEnd w:id="0"/>
+    `);
+    const node = parser.parse(p);
+    expect(node.bookmarks).toEqual(['ch1']);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({ type: 'run', text: 'Chapter 1' });
+  });
+
+  it('w:r 內嵌 bookmarkStart → 仍被段落層 capture', () => {
+    // 真實 Word docx：bookmark 偶會被放在 w:r 內部（w:rPr 旁）
+    const p = parsePXml(`
+      <w:r>
+        <w:bookmarkStart w:id="1" w:name="inline_bm"/>
+        <w:t>inline anchor here</w:t>
+        <w:bookmarkEnd w:id="1"/>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.bookmarks).toEqual(['inline_bm']);
+    expect(node.runs[0]).toMatchObject({ text: 'inline anchor here' });
+  });
+
+  it('多個 bookmark 都被收集、去重', () => {
+    const p = parsePXml(`
+      <w:bookmarkStart w:id="0" w:name="a"/>
+      <w:bookmarkStart w:id="1" w:name="b"/>
+      <w:r><w:t>two anchors</w:t></w:r>
+      <w:bookmarkEnd w:id="0"/>
+      <w:bookmarkEnd w:id="1"/>
+      <w:bookmarkStart w:id="2" w:name="a"/>
+      <w:bookmarkEnd w:id="2"/>
+    `);
+    const node = parser.parse(p);
+    // 去重後 ['a', 'b']
+    expect(node.bookmarks).toEqual(['a', 'b']);
+  });
+
+  it('沒 bookmark 的段落 → bookmarks key 不存在（避免 AST diff noise）', () => {
+    const p = parsePXml('<w:r><w:t>plain</w:t></w:r>');
+    const node = parser.parse(p);
+    expect(node.bookmarks).toBeUndefined();
+  });
+
+  it('Word 自動生成的 _GoBack 也被捕捉（fixture 真實 case）', () => {
+    // 42 fixture 內 20 個 bookmark 全是 _GoBack；本 test 鎖定不丟此 case
+    const p = parsePXml(`
+      <w:r><w:t>some text</w:t></w:r>
+      <w:bookmarkStart w:id="0" w:name="_GoBack"/>
+      <w:bookmarkEnd w:id="0"/>
+    `);
+    const node = parser.parse(p);
+    expect(node.bookmarks).toEqual(['_GoBack']);
+  });
+
+  it('bookmark 名稱缺失（malformed）→ 不收集、不 throw', () => {
+    // ECMA-376 spec name 必填；現實 docx 偶有 attr missing
+    const p = parsePXml(`
+      <w:bookmarkStart w:id="0"/>
+      <w:r><w:t>no name bookmark</w:t></w:r>
+      <w:bookmarkEnd w:id="0"/>
+    `);
+    const node = parser.parse(p);
+    expect(node.bookmarks).toBeUndefined();
+    expect(node.runs[0]).toMatchObject({ text: 'no name bookmark' });
+  });
+
+  it('hyperlink 內 w:r 含 bookmarkStart → 段落層也 capture', () => {
+    const p = parsePXml(`
+      <w:hyperlink w:anchor="external">
+        <w:r>
+          <w:bookmarkStart w:id="0" w:name="hl_inner"/>
+          <w:t>link text</w:t>
+          <w:bookmarkEnd w:id="0"/>
+        </w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    expect(node.bookmarks).toEqual(['hl_inner']);
+    // hyperlink 內 run 仍保留
+    expect(node.runs[0]).toMatchObject({ type: 'run', text: 'link text' });
+  });
+
+  it('bookmark 與 field 共存 → 兩者都 capture', () => {
+    const p = parsePXml(`
+      <w:bookmarkStart w:id="0" w:name="ref_target"/>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText> PAGE </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>3</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:bookmarkEnd w:id="0"/>
+    `);
+    const node = parser.parse(p);
+    expect(node.bookmarks).toEqual(['ref_target']);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({ type: 'field', fieldType: 'PAGE', cachedValue: '3' });
+  });
+});

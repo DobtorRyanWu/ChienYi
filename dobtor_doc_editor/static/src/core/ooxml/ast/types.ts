@@ -283,6 +283,14 @@ export interface ParagraphNode {
   props: ParagraphProps;
   runs: InlineNode[];
   styleId?: string;   // w:pStyle 參照的樣式 ID
+  /**
+   * Sprint 125 — 此段落內 `<w:bookmarkStart w:name="...">` 收集的名稱列表（去重）。
+   * 包含：段落直屬 bookmarkStart + 段落內任一 w:r 內含的 bookmarkStart。
+   * 用於：未來 hyperlink `w:anchor="..."` 反向查詢段落定位（規畫書 §1.9）、
+   * REF field 解析、PDF 內部跳轉錨點。
+   * Word 自動生成的 `_GoBack` 也會被捕捉、屬正常行為（不影響 render）。
+   */
+  bookmarks?: string[];
 }
 
 // ── 表格 ──────────────────────────────────────────────────────────────────────
