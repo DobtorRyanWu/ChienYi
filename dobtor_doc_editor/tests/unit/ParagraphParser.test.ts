@@ -265,3 +265,144 @@ describe('ParagraphParser — 邊界情況', () => {
     expect(node.runs[0]).toMatchObject({ type: 'run', text: 'OK' });
   });
 });
+
+// ─── Sprint 122：OLE / VML pict 降級 placeholder ─────────────────────────────
+describe('ParagraphParser — Sprint 122 OLE / pict fallback', () => {
+  const O_NS_DECL = 'xmlns:o="urn:schemas-microsoft-com:office:office"';
+  const V_NS_DECL = 'xmlns:v="urn:schemas-microsoft-com:vml"';
+  const R_NS_DECL = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+
+  function parsePXmlNs(innerPXml: string): Element {
+    const xml = `<?xml version="1.0"?><w:p ${W_NS_DECL} ${O_NS_DECL} ${V_NS_DECL} ${R_NS_DECL}>${innerPXml}</w:p>`;
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    return doc.documentElement;
+  }
+
+  it('w:object 帶 ProgID → italic 文字 placeholder「[嵌入物件: <ProgID>]」', () => {
+    const p = parsePXmlNs(`
+      <w:r>
+        <w:object>
+          <v:shape id="_x0000_i1025" type="#_x0000_t75"/>
+          <o:OLEObject Type="Embed" ProgID="Equation.3" ShapeID="_x0000_i1025" DrawAspect="Content" ObjectID="_1234567" r:id="rId4"/>
+        </w:object>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({
+      type: 'run',
+      text: '[嵌入物件: Equation.3]',
+      props: { italic: true },
+    });
+  });
+
+  it('w:object 帶 ProgID + v:shape alt → 兩者組合', () => {
+    const p = parsePXmlNs(`
+      <w:r>
+        <w:object>
+          <v:shape id="s1" alt="二元二次方程式"/>
+          <o:OLEObject ProgID="Equation.3" r:id="rId5"/>
+        </w:object>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({
+      type: 'run',
+      text: '[嵌入物件: Equation.3 — 二元二次方程式]',
+      props: { italic: true },
+    });
+  });
+
+  it('w:object 完全沒 ProgID / alt → 純「[嵌入物件]」placeholder', () => {
+    const p = parsePXmlNs(`
+      <w:r>
+        <w:object>
+          <v:shape id="s2"/>
+        </w:object>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({ type: 'run', text: '[嵌入物件]' });
+  });
+
+  it('w:pict 純 VML 圖（無 OLEObject）→「[圖片(VML)]」', () => {
+    const p = parsePXmlNs(`
+      <w:r>
+        <w:pict>
+          <v:shape id="img1"/>
+        </w:pict>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({ type: 'run', text: '[圖片(VML)]' });
+  });
+
+  it('w:pict 純 VML 帶 alt → 加 alt 補充', () => {
+    const p = parsePXmlNs(`
+      <w:r>
+        <w:pict>
+          <v:shape id="img2" alt="logo"/>
+        </w:pict>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({ type: 'run', text: '[圖片(VML): logo]' });
+  });
+
+  it('w:pict 內含 OLEObject → 走 OLE 文案（不是 VML 文案）', () => {
+    const p = parsePXmlNs(`
+      <w:r>
+        <w:pict>
+          <v:shape id="ole-pict" alt="圖象 OLE"/>
+          <o:OLEObject ProgID="Excel.Sheet.12" r:id="rId6"/>
+        </w:pict>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({
+      type: 'run',
+      text: '[嵌入物件: Excel.Sheet.12 — 圖象 OLE]',
+    });
+  });
+
+  it('w:object 與 w:t 文字並存 → text run + placeholder run 分離輸出', () => {
+    const p = parsePXmlNs(`
+      <w:r>
+        <w:t>公式：</w:t>
+        <w:object>
+          <o:OLEObject ProgID="Equation.3" r:id="rId7"/>
+        </w:object>
+        <w:t>，結束</w:t>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    // text run 1 / OLE placeholder / text run 2
+    expect(node.runs).toHaveLength(3);
+    expect(node.runs[0]).toMatchObject({ type: 'run', text: '公式：' });
+    expect(node.runs[1]).toMatchObject({ type: 'run', text: '[嵌入物件: Equation.3]' });
+    expect(node.runs[2]).toMatchObject({ type: 'run', text: '，結束' });
+  });
+
+  it('w:object placeholder 繼承 baseProps（rPr bold）+ italic overlay', () => {
+    // baseProps 的 italic 會被 placeholder overlay 為 true（不管原本如何）
+    const p = parsePXmlNs(`
+      <w:r>
+        <w:rPr><w:b/></w:rPr>
+        <w:object>
+          <o:OLEObject ProgID="Equation.3" r:id="rId8"/>
+        </w:object>
+      </w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0].type).toBe('run');
+    const run = node.runs[0] as { type: 'run'; props: { bold?: boolean; italic?: boolean } };
+    expect(run.props.bold).toBe(true);
+    expect(run.props.italic).toBe(true);
+  });
+});

@@ -1137,7 +1137,38 @@
                     out.push(drawingParser.parse(child, factory));
                     break;
                 }
-                // w:rPr 已先處理；w:pict（VML 舊圖）/ w:fldChar 暫不處理
+                case 'w:object': {
+                    // Sprint 122 — OLE 物件降級渲染（ECMA-376 §17.3.3.19）
+                    // <w:object> 包 <v:shape>（VML preview）+ <o:OLEObject ProgID="..."/>
+                    // 我們不嘗試渲染實際 OLE blob、emit italic 文字 placeholder 讓使用者
+                    // 至少知道此處原本有嵌入物件、配合 ProgID / alt 顯示類型。
+                    flushText();
+                    const placeholder = buildOleFallbackText(child);
+                    if (placeholder) {
+                        out.push({
+                            type: 'run',
+                            text: placeholder,
+                            props: { ...baseProps, italic: true },
+                        });
+                    }
+                    break;
+                }
+                case 'w:pict': {
+                    // Sprint 122 — VML 舊圖 placeholder（ECMA-376 §17.3.3.21、Word 97-2003 相容）
+                    // <w:pict> 內含 <v:shape>、可能有 <o:OLEObject>（圖象化的舊版 OLE）。
+                    // 同樣 emit italic placeholder、若內含 OLEObject 走 OLE 文案、否則 VML 文案。
+                    flushText();
+                    const placeholder = buildPictFallbackText(child);
+                    if (placeholder) {
+                        out.push({
+                            type: 'run',
+                            text: placeholder,
+                            props: { ...baseProps, italic: true },
+                        });
+                    }
+                    break;
+                }
+                // w:rPr 已先處理；w:fldChar 暫不處理（Sprint 123 候選）
             }
         }
         flushText();
@@ -1207,6 +1238,93 @@
         if (lang)
             props.lang = lang;
         return props;
+    }
+    // ── Sprint 122：OLE / VML pict 降級 placeholder ─────────────────────────────
+    /**
+     * Sprint 122 — `<w:object>` placeholder 文字。
+     *
+     * OOXML §17.3.3.19：`<w:object>` 包 VML `<v:shape>` + `<o:OLEObject>`。
+     *   - 嘗試讀 `<o:OLEObject ProgID="Equation.3"/>` → `[嵌入物件: Equation.3]`
+     *   - 若有 `<v:shape alt="...">` → 加 alt 補充
+     *   - 兩者都缺 → 純 `[嵌入物件]`
+     *
+     * 設計：getElementsByTagName 不限 namespace 前綴（OOXML 真實 docx 偶見
+     *   `<OLEObject>` 無前綴、或 `<v:shape>` 改成 `<vml:shape>`）。
+     */
+    function buildOleFallbackText(objectEl) {
+        let progId = '';
+        let alt = '';
+        // 寬鬆 walk：對 wildcard tagName endsWith 比對
+        // happy-dom / browser 對 namespace 前綴處理不一致、用 walker 統一
+        const walk = (root) => {
+            const children = root.childNodes;
+            for (let i = 0; i < children.length; i++) {
+                const c = children[i];
+                if (c.nodeType !== 1)
+                    continue;
+                const el = c;
+                const local = el.localName ?? el.tagName.split(':').pop() ?? '';
+                if (!progId && local === 'OLEObject') {
+                    progId = el.getAttribute('ProgID') ?? '';
+                }
+                if (!alt && local === 'shape') {
+                    alt = el.getAttribute('alt') ?? '';
+                }
+                walk(el);
+            }
+        };
+        walk(objectEl);
+        if (progId && alt)
+            return `[嵌入物件: ${progId} — ${alt}]`;
+        if (progId)
+            return `[嵌入物件: ${progId}]`;
+        if (alt)
+            return `[嵌入物件: ${alt}]`;
+        return '[嵌入物件]';
+    }
+    /**
+     * Sprint 122 — `<w:pict>` placeholder 文字（VML legacy picture）。
+     *
+     * OOXML §17.3.3.21：Word 97-2003 相容圖片包裝。
+     *   - 內含 `<o:OLEObject>` → 走 OLE 文案
+     *   - 否則純 VML → `[圖片(VML)]` 或 `[圖片(VML): <alt>]`
+     */
+    function buildPictFallbackText(pictEl) {
+        let hasOle = false;
+        let progId = '';
+        let alt = '';
+        const walk = (root) => {
+            const children = root.childNodes;
+            for (let i = 0; i < children.length; i++) {
+                const c = children[i];
+                if (c.nodeType !== 1)
+                    continue;
+                const el = c;
+                const local = el.localName ?? el.tagName.split(':').pop() ?? '';
+                if (local === 'OLEObject') {
+                    hasOle = true;
+                    if (!progId)
+                        progId = el.getAttribute('ProgID') ?? '';
+                }
+                if (!alt && local === 'shape') {
+                    alt = el.getAttribute('alt') ?? '';
+                }
+                walk(el);
+            }
+        };
+        walk(pictEl);
+        if (hasOle) {
+            if (progId && alt)
+                return `[嵌入物件: ${progId} — ${alt}]`;
+            if (progId)
+                return `[嵌入物件: ${progId}]`;
+            if (alt)
+                return `[嵌入物件: ${alt}]`;
+            return '[嵌入物件]';
+        }
+        if (alt)
+            return `[圖片(VML): ${alt}]`;
+        return '[圖片(VML)]';
     }
     // ── w:fldSimple → FieldNode ──────────────────────────────────────────────────
     function parseFldSimple(el) {
