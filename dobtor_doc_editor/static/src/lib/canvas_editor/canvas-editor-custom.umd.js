@@ -530,6 +530,19 @@
                 }
                 // Choice 與 Fallback 都無時：跳過此 AlternateContent
             }
+            else if (child.tagName === 'w:sdt') {
+                // Sprint 124 — SDT 結構化文件標籤透明展開（ECMA-376 §17.5.2）
+                // `<w:sdt>` 包 `<w:sdtPr>` (metadata) + `<w:sdtContent>` (actual content)。
+                // 我們不渲染 sdtPr 的 alias / tag / form control type、純取 sdtContent
+                // 子節點 inline 到父級（block-level / inline-level / cell-level 都適用）。
+                // 遞迴展開 sdtContent（OOXML 允許 sdt 嵌套，且 sdtContent 內可能再含
+                // AlternateContent 或 sdt）。
+                const sdtContent = directChild$5(child, 'w:sdtContent');
+                if (sdtContent) {
+                    out.push(...effectiveChildren(sdtContent));
+                }
+                // sdtContent 缺失（malformed docx）→ 此 sdt 不貢獻內容、跳過
+            }
             else {
                 out.push(child);
             }

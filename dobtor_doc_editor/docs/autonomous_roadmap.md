@@ -74,7 +74,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | Sprint | Phase | 工作 | 狀態 |
 |---|---|---|---|
 | 121-123 | Phase 1 OOXML | 1.5 進階 row height(`<w:trHeight calcInternal>`)、1.8 OLE objects 降級渲染、1.9 field code 完整覆蓋(PAGE / DATE / SEQ / TOC) | ✅ |
-| 124-126 | Phase 1 OOXML | 1.9 SDT 結構化標籤、1.9 bookmark range、1.9 hyperlink rels 完整 | ⏳ |
+| 124-126 | Phase 1 OOXML | 1.9 SDT 結構化標籤、1.9 bookmark range、1.9 hyperlink rels 完整 | 🟢 124 ✅ / 125-126 ⏳ |
 | 127-128 | Phase 2 字型 | 把 FontMetricsAdapter 推到 production(目前 opt-in、Sprint 64b external 候選 — Claude 自主執行 migrate doc_editor.js 走自家 pipeline) | ⏳ |
 | 129 | Phase 2 字型 | HarfBuzz WASM 整合 spike(規畫書原列 1-2 週) | ⏳ |
 | 130-131 | Phase 4 Style | 4.1 Theme tint/shade 演算法(HSL luminance)、4.2 tblStylePr 15 種條件完整 | ⏳ |
@@ -208,6 +208,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 121 | 2026-05-17 00:55+ | **0.073191(已跑、byte-identical)** | **階段 B 開工**。TableParser trHeight 入口防禦 +14 行(負 val / val=0+auto strip / hRule 強約束無 val 時 demote auto / 未知 hRule fallback)+ 9 新 unit test、vitest 976 → **985 passed + 1 skipped**、bundle rebuild、VR 42 fixture × 126 pages re-run mean **0.073191 byte-identical**。Phase 1 72% → 73% | #1 子候選(Sprint 121):改 parser/style/layout 任一層、即使預期 VR 不變、仍應 rebuild bundle + 跑全 VR 確認(待 Sprint 122/123 跨 3 sprint 驗證) |
 | 122 | 2026-05-17 01:10+ | **0.073191(已跑、byte-identical)** | ParagraphParser OLE / VML pict 入口降級 placeholder +85 行(`<w:object>` → `[嵌入物件: ProgID]`、`<w:pict>` → `[圖片(VML)]`、italic overlay)+ 8 新 unit test、vitest 985 → **993 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 1 73% → 74% | #1 子候選跨 sprint 驗證進展 2/3(Sprint 121-122 連兩次 parser 變動跑 VR、Sprint 123 完成第 3 次可升正式) |
 | 123 | 2026-05-17 01:25+ | **0.073191(已跑、byte-identical、第 3 次連續)** | ParagraphParser field code 完整覆蓋:fieldType 擴 SEQ/TOC/REF/HYPERLINK/STYLEREF + 複式 fldChar state machine(begin/separate/end 跨多 w:r 收集)+ 9 新 unit test。vitest 993 → **1002 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 1 74% → 75%。**階段 B cluster 1 (121-123) 完成** | **紀律 #1.a 升正式**(Sprint 123 跨 3 sprint 驗證完成):改 parser/style/layout 任一層、即使預期 VR 不變、也應 rebuild bundle + 跑全 VR 確認。紀律 18 → **19 條** |
+| 124 | 2026-05-17 07:40+ | **0.073191(已跑、byte-identical、第 4 次連續)** | dom.ts effectiveChildren 加 w:sdt 透明 unwrap +15 行(block / inline / cell-via-effectiveChildren 三層自動覆蓋、遞迴展開 sdtContent、malformed 容錯)+ 8 新 unit test。vitest 1002 → **1010 passed + 1 skipped**、bundle rebuild。Phase 1 75% → 76%。階段 B cluster 2 (124-126) 1/3 | 紀律 #1.a 第一次正式應用(dom.ts utility 也跑全 VR、通過驗證)|
 
 ---
 
