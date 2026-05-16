@@ -901,12 +901,47 @@
                 ? attr$1(directChild$4(pPrEl, 'w:pStyle'), 'w:val')
                 : undefined;
             const runs = [];
+            // Sprint 123：複式 field 跨多 w:r 的 state machine。
+            // OOXML §17.16.1.7 fldChar：begin → [instrText...] → separate → [w:t...] → end
+            // 三段可分屬不同 w:r、必須在 paragraph 層收集。
+            // - mode='instr'：收集 instrText 串到 instruction
+            // - mode='cached'：收集 w:t 串到 cachedValue
+            // - 嵌套不支援（規畫書 §1.9 未列）；遇 nested begin 不嘗試處理、視為 unknown
+            let fieldMode = null;
+            let fieldInstr = '';
+            let fieldCached = '';
+            const emitField = () => {
+                if (fieldMode === null && fieldInstr === '' && fieldCached === '')
+                    return;
+                const node = {
+                    type: 'field',
+                    instruction: fieldInstr.trim(),
+                    fieldType: classifyFieldType(fieldInstr),
+                };
+                if (fieldCached)
+                    node.cachedValue = fieldCached;
+                runs.push(node);
+                fieldMode = null;
+                fieldInstr = '';
+                fieldCached = '';
+            };
             for (const child of effectiveChildren(p)) {
                 switch (child.tagName) {
-                    case 'w:r':
+                    case 'w:r': {
+                        // Sprint 123：field state machine 入口
+                        //   - 已在 field 模式 → 全交給 consumeRunIntoField（含 separate / end 切換）
+                        //   - 未在 field 模式但 r 內含 fldChar begin → 同樣交給 consumeRunIntoField
+                        //     （consume 內部會 setMode('instr') 並接後續 instrText / 切換信號）
+                        const inField = fieldMode !== null;
+                        const beginFound = !inField && detectFieldBegin(child);
+                        if (inField || beginFound) {
+                            consumeRunIntoField(child, () => fieldMode, (m) => { fieldMode = m; }, (s) => { fieldInstr += s; }, (s) => { fieldCached += s; }, emitField);
+                            break;
+                        }
                         for (const node of parseRun(child))
                             runs.push(node);
                         break;
+                    }
                     case 'w:fldSimple':
                         runs.push(parseFldSimple(child));
                         break;
@@ -927,6 +962,10 @@
                     }
                     // w:pPr 已先處理；其他子節點 (w:bookmarkStart, w:proofErr) 暫時忽略
                 }
+            }
+            // 若段落結束時 field 未閉合（malformed docx）、emit 已收集部分為 unknown
+            if (fieldMode !== null || fieldInstr !== '' || fieldCached !== '') {
+                emitField();
             }
             const node = {
                 type: 'paragraph',
@@ -1326,15 +1365,74 @@
             return `[圖片(VML): ${alt}]`;
         return '[圖片(VML)]';
     }
+    // ── Sprint 123：複式 fldChar 跨多 w:r state machine helpers ─────────────────
+    /**
+     * Sprint 123 — 偵測 w:r 內是否含 `<w:fldChar w:fldCharType="begin">`。
+     * 用於 paragraph-level state machine 起始判斷（不消費內容）。
+     */
+    function detectFieldBegin(r) {
+        for (const child of directChildren$5(r)) {
+            if (child.tagName !== 'w:fldChar')
+                continue;
+            if (child.getAttribute('w:fldCharType') === 'begin')
+                return true;
+        }
+        return false;
+    }
+    /**
+     * Sprint 123 — 在 field-collection mode 中消費一個 w:r 的內容。
+     *
+     * w:r 子元素可能含：
+     *   - `<w:fldChar w:fldCharType="separate">` → 切換 instr → cached
+     *   - `<w:fldChar w:fldCharType="end">` → emit field、結束 mode
+     *   - `<w:instrText>` → instr mode 時 append 到 instruction
+     *   - `<w:t>` → cached mode 時 append 到 cachedValue（instr mode 時忽略）
+     *
+     * @returns true 若此 w:r 完全被 field machine 消費；false 表示應 fallthrough 普通處理
+     */
+    function consumeRunIntoField(r, getMode, setMode, appendInstr, appendCached, emit) {
+        // mode 可能在迭代中變動（begin / separate / end），故每個元素都重新讀
+        for (const child of directChildren$5(r)) {
+            switch (child.tagName) {
+                case 'w:fldChar': {
+                    const type = child.getAttribute('w:fldCharType');
+                    if (type === 'begin') {
+                        // begin 已由 caller 處理（或嵌套：不支援、清空已有累積以 unknown 開新 field）
+                        if (getMode() !== null) {
+                            emit(); // 強制 close 前一個（malformed）
+                        }
+                        setMode('instr');
+                    }
+                    else if (type === 'separate') {
+                        if (getMode() !== null)
+                            setMode('cached');
+                    }
+                    else if (type === 'end') {
+                        if (getMode() !== null)
+                            emit();
+                    }
+                    break;
+                }
+                case 'w:instrText': {
+                    if (getMode() === 'instr')
+                        appendInstr(child.textContent ?? '');
+                    break;
+                }
+                case 'w:t': {
+                    if (getMode() === 'cached')
+                        appendCached(child.textContent ?? '');
+                    // instr 模式時 w:t 是異常（spec 用 instrText）、忽略
+                    break;
+                }
+                // 其他 (w:rPr / w:br 等) field 模式內忽略
+            }
+        }
+        return getMode() !== null;
+    }
     // ── w:fldSimple → FieldNode ──────────────────────────────────────────────────
     function parseFldSimple(el) {
         const instruction = (el.getAttribute('w:instr') ?? '').trim();
-        // 第一個非空字 token 視為 fieldType，並轉大寫
-        const firstToken = instruction.split(/\s+/)[0]?.toUpperCase() ?? '';
-        const knownTypes = ['PAGE', 'NUMPAGES', 'DATE', 'TIME', 'AUTHOR', 'FILENAME'];
-        const fieldType = knownTypes.includes(firstToken)
-            ? firstToken
-            : 'unknown';
+        const fieldType = classifyFieldType(instruction);
         // 快取值：fldSimple 內部的 w:r → w:t 串接
         let cached = '';
         for (const r of directChildren$5(el)) {
@@ -1349,6 +1447,23 @@
         if (cached)
             node.cachedValue = cached;
         return node;
+    }
+    /**
+     * Sprint 123 — instruction 字串 → FieldNode['fieldType'] 分類。
+     * 第一個非空字 token 轉大寫對映已知集合；未知者回 'unknown'。
+     * 共用給 parseFldSimple（簡式）+ 複式 fldChar（同 paragraph 跨多 w:r）。
+     */
+    function classifyFieldType(instruction) {
+        const firstToken = instruction.trim().split(/\s+/)[0]?.toUpperCase() ?? '';
+        const knownTypes = [
+            'PAGE', 'NUMPAGES',
+            'DATE', 'TIME',
+            'AUTHOR', 'FILENAME',
+            'SEQ', 'TOC', 'REF', 'HYPERLINK', 'STYLEREF',
+        ];
+        return knownTypes.includes(firstToken)
+            ? firstToken
+            : 'unknown';
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
     function directChildren$5(el) {

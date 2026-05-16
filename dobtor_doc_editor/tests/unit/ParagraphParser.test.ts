@@ -219,7 +219,8 @@ describe('ParagraphParser — inline elements', () => {
   });
 
   it('w:fldSimple unknown instruction 標為 unknown', () => {
-    const p = parsePXml('<w:fldSimple w:instr=" SEQ Figure \\* ARABIC "/>');
+    // Sprint 123 前：SEQ 被標為 unknown；現已升為已知集合（見下方 Sprint 123 測試）
+    const p = parsePXml('<w:fldSimple w:instr=" XYZGIBBERISH foo bar "/>');
     const node = parser.parse(p);
     expect(node.runs[0]).toMatchObject({ type: 'field', fieldType: 'unknown' });
   });
@@ -404,5 +405,150 @@ describe('ParagraphParser — Sprint 122 OLE / pict fallback', () => {
     const run = node.runs[0] as { type: 'run'; props: { bold?: boolean; italic?: boolean } };
     expect(run.props.bold).toBe(true);
     expect(run.props.italic).toBe(true);
+  });
+});
+
+// ─── Sprint 123：field code 完整覆蓋（PAGE / DATE / SEQ / TOC / 複式 fldChar）──
+describe('ParagraphParser — Sprint 123 field codes', () => {
+  it('w:fldSimple SEQ 被分類為 SEQ（不是 unknown）', () => {
+    const p = parsePXml('<w:fldSimple w:instr=" SEQ Figure \\* ARABIC "><w:r><w:t>3</w:t></w:r></w:fldSimple>');
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({
+      type: 'field',
+      fieldType: 'SEQ',
+      cachedValue: '3',
+    });
+  });
+
+  it('w:fldSimple TOC 分類', () => {
+    const p = parsePXml('<w:fldSimple w:instr=" TOC \\o &quot;1-3&quot; \\h \\z "/>');
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({ type: 'field', fieldType: 'TOC' });
+  });
+
+  it('w:fldSimple REF / HYPERLINK / STYLEREF 分類', () => {
+    // 注意：instruction 內含 " 必須在 XML 屬性中以 &quot; 表達
+    const cases = [
+      [' REF _Ref12345 \\h ', 'REF'],
+      [' HYPERLINK &quot;http://example.com&quot; ', 'HYPERLINK'],
+      [' STYLEREF &quot;Heading 1&quot; \\l ', 'STYLEREF'],
+    ] as const;
+    for (const [instr, expected] of cases) {
+      const p = parsePXml(`<w:fldSimple w:instr="${instr}"/>`);
+      const node = parser.parse(p);
+      expect(node.runs[0]).toMatchObject({ type: 'field', fieldType: expected });
+    }
+  });
+
+  it('複式 fldChar PAGE 跨 5 個 w:r 收集為單一 FieldNode', () => {
+    // 標準 OOXML §17.16.1.7 複式 field：begin → instrText → separate → cachedValue → end
+    const p = parsePXml(`
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>7</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({
+      type: 'field',
+      fieldType: 'PAGE',
+      cachedValue: '7',
+    });
+    // 注意：instruction trim 過、可能是 'PAGE' 或保留 spacing
+    const fieldNode = node.runs[0] as { type: 'field'; instruction: string };
+    expect(fieldNode.instruction).toBe('PAGE');
+  });
+
+  it('複式 fldChar instrText 跨多 w:r 串接（OOXML 規格允許）', () => {
+    // Word 偶會把 long instruction 切多個 instrText
+    const p = parsePXml(`
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText xml:space="preserve"> SEQ </w:instrText></w:r>
+      <w:r><w:instrText xml:space="preserve">Table </w:instrText></w:r>
+      <w:r><w:instrText xml:space="preserve">\\* ARABIC </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>2</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({
+      type: 'field',
+      fieldType: 'SEQ',
+      cachedValue: '2',
+    });
+    const fieldNode = node.runs[0] as { type: 'field'; instruction: string };
+    expect(fieldNode.instruction).toContain('SEQ');
+    expect(fieldNode.instruction).toContain('Table');
+  });
+
+  it('複式 fldChar 無 cachedValue（separate 後立刻 end）', () => {
+    const p = parsePXml(`
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText> NUMPAGES </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({ type: 'field', fieldType: 'NUMPAGES' });
+    // 沒 cachedValue → 該 key 不存在
+    expect((node.runs[0] as Record<string, unknown>).cachedValue).toBeUndefined();
+  });
+
+  it('複式 fldChar 段落結尾未閉合（malformed） → emit 已收集部分為 unknown', () => {
+    // begin 後 instrText、但沒 end — 段落結束時應 emit
+    const p = parsePXml(`
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText> PAGE </w:instrText></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({ type: 'field', fieldType: 'PAGE' });
+  });
+
+  it('複式 fldChar 與普通文字並存（field 前後有 plain run）', () => {
+    const p = parsePXml(`
+      <w:r><w:t>Page </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText> PAGE </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>3</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+      <w:r><w:t> of </w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText> NUMPAGES </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>10</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    `);
+    const node = parser.parse(p);
+    // run "Page " / field PAGE / run " of " / field NUMPAGES
+    expect(node.runs).toHaveLength(4);
+    expect(node.runs[0]).toMatchObject({ type: 'run', text: 'Page ' });
+    expect(node.runs[1]).toMatchObject({ type: 'field', fieldType: 'PAGE', cachedValue: '3' });
+    expect(node.runs[2]).toMatchObject({ type: 'run', text: ' of ' });
+    expect(node.runs[3]).toMatchObject({ type: 'field', fieldType: 'NUMPAGES', cachedValue: '10' });
+  });
+
+  it('複式 fldChar TOC instruction 含換行 / 多空白 trim 正常', () => {
+    const p = parsePXml(`
+      <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+      <w:r><w:instrText>  TOC \\o "1-3" \\h \\z  </w:instrText></w:r>
+      <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+      <w:r><w:t>目錄占位</w:t></w:r>
+      <w:r><w:fldChar w:fldCharType="end"/></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    expect(node.runs[0]).toMatchObject({
+      type: 'field',
+      fieldType: 'TOC',
+      cachedValue: '目錄占位',
+    });
   });
 });

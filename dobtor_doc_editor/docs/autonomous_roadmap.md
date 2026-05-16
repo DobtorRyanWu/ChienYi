@@ -73,7 +73,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 
 | Sprint | Phase | 工作 | 狀態 |
 |---|---|---|---|
-| 121-123 | Phase 1 OOXML | 1.5 進階 row height(`<w:trHeight calcInternal>`)、1.8 OLE objects 降級渲染、1.9 field code 完整覆蓋(PAGE / DATE / SEQ / TOC) | 🟢 121-122 ✅ / 123 ⏳ |
+| 121-123 | Phase 1 OOXML | 1.5 進階 row height(`<w:trHeight calcInternal>`)、1.8 OLE objects 降級渲染、1.9 field code 完整覆蓋(PAGE / DATE / SEQ / TOC) | ✅ |
 | 124-126 | Phase 1 OOXML | 1.9 SDT 結構化標籤、1.9 bookmark range、1.9 hyperlink rels 完整 | ⏳ |
 | 127-128 | Phase 2 字型 | 把 FontMetricsAdapter 推到 production(目前 opt-in、Sprint 64b external 候選 — Claude 自主執行 migrate doc_editor.js 走自家 pipeline) | ⏳ |
 | 129 | Phase 2 字型 | HarfBuzz WASM 整合 spike(規畫書原列 1-2 週) | ⏳ |
@@ -207,6 +207,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 120 | 2026-05-17 02:00+ | 0.073191(未跑) | sprint50_66_retro.md 方法論萃取(+260 行):cache 五連發(Stable platform → 高風險改造)+ FontMetricsAdapter(Probe→Negative→Positive→Delta→Drift→Promote 6 階段)+ Sprint 113-118 套用驗證 + 未來 cluster checklist。**階段 A 8 sprint 全綠** | Sprint 120 驗證紀律 #20 候選「<10 entry 不必加 §0」門檻、本 retro 未加屬正確判斷 |
 | 121 | 2026-05-17 00:55+ | **0.073191(已跑、byte-identical)** | **階段 B 開工**。TableParser trHeight 入口防禦 +14 行(負 val / val=0+auto strip / hRule 強約束無 val 時 demote auto / 未知 hRule fallback)+ 9 新 unit test、vitest 976 → **985 passed + 1 skipped**、bundle rebuild、VR 42 fixture × 126 pages re-run mean **0.073191 byte-identical**。Phase 1 72% → 73% | #1 子候選(Sprint 121):改 parser/style/layout 任一層、即使預期 VR 不變、仍應 rebuild bundle + 跑全 VR 確認(待 Sprint 122/123 跨 3 sprint 驗證) |
 | 122 | 2026-05-17 01:10+ | **0.073191(已跑、byte-identical)** | ParagraphParser OLE / VML pict 入口降級 placeholder +85 行(`<w:object>` → `[嵌入物件: ProgID]`、`<w:pict>` → `[圖片(VML)]`、italic overlay)+ 8 新 unit test、vitest 985 → **993 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 1 73% → 74% | #1 子候選跨 sprint 驗證進展 2/3(Sprint 121-122 連兩次 parser 變動跑 VR、Sprint 123 完成第 3 次可升正式) |
+| 123 | 2026-05-17 01:25+ | **0.073191(已跑、byte-identical、第 3 次連續)** | ParagraphParser field code 完整覆蓋:fieldType 擴 SEQ/TOC/REF/HYPERLINK/STYLEREF + 複式 fldChar state machine(begin/separate/end 跨多 w:r 收集)+ 9 新 unit test。vitest 993 → **1002 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 1 74% → 75%。**階段 B cluster 1 (121-123) 完成** | **紀律 #1.a 升正式**(Sprint 123 跨 3 sprint 驗證完成):改 parser/style/layout 任一層、即使預期 VR 不變、也應 rebuild bundle + 跑全 VR 確認。紀律 18 → **19 條** |
 
 ---
 
