@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 119 — glossary.md 擴 Sprint 118 era：18 條紀律 + 6 子 + 1 候選同步、§0 索引驗證紀律 #20 跨 2 sprint、§8 Process 模式新章節）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 120 — sprint50_66_retro.md 方法論萃取 + 階段 A 8 sprint 全綠收尾；下個進入階段 B Phase 1-4 漏項）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓

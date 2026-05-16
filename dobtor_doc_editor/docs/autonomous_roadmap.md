@@ -59,7 +59,9 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 117 | Sprint 78 Finding B portal company rule audit 收口 | §11.1 行 5 | backend test + ir.rule check | ✅ |
 | 118 | autonomous docs sprint:`architecture_decision.md` 補完(規畫書 §3 對映 + ADR 20 個彙整) | §11.2 行 5、§附錄 A 殘餘 | docs only | ✅ |
 | 119 | autonomous docs sprint:`glossary.md` 擴充到 Sprint 112 era 完整紀律與 OOXML 術語 | §附錄 B 延伸 | docs only | ✅ |
-| 120 | Sprint 50-66 retro:`sprint50_66_retro.md` 萃取 cache 五連發 + FontMetricsAdapter 學到的方法論 | §11.2 行 5 | docs only | ⏳ |
+| 120 | Sprint 50-66 retro:`sprint50_66_retro.md` 萃取 cache 五連發 + FontMetricsAdapter 學到的方法論 | §11.2 行 5 | docs only | ✅ |
+
+**階段 A 完成（2026-05-17）**:8 sprint 全綠、開始 Sprint 121 階段 B（Phase 1-4 剩餘漏項）。
 
 **階段 A 收益估算**:VR mean 不變(0.073191)、test 數 +30~50、ir.rule +1~2、docs +3 份、CI 嚴謹度大幅升級。
 
@@ -202,6 +204,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 117 | 2026-05-17 00:30+ | 0.073191(未跑) | Sprint 78 Finding B 收口:doc.document portal cross-company collaboration 保留現狀 + lock-in 4 test(TestPortalCrossCompanyCollaboration)+ doc_security.xml 註解擴充。Odoo backend 27 → **31** | #18 子原則(Sprint 117):autonomous 收口「待 user 決策」候選必須讀原始設計意圖(group / model 註解)後才決、不能憑 default-secure 直覺加邊界 |
 | 118 | 2026-05-17 01:00+ | 0.073191(未跑) | architecture_decision.md 彙整:§0 索引(21 ADR + 004-007 缺口註解)+ §0.5 規畫書 §3 6-layer ↔ ADR 對映 + ADR-021 Sprint 117 cross-company 決策。+54 行純 docs | #20 候選(Sprint 118):集中索引文件(ADR/glossary/CONTRIBUTING)應有 §0 索引段、超過 10 entry 必加、歷史缺口保留編號標示 |
 | 119 | 2026-05-17 01:30+ | 0.073191(未跑) | glossary.md 擴 Sprint 110 → 118 era:紀律表 17 → 18 條 + 6 子 + 1 候選、加 §0 索引(驗證 #20 候選跨 2 sprint)、加 §8 Process 模式 8 條、§4 補 cross-company/null byte/lock-in test/autonomous_roadmap。172 → 216 行 | #14 廣域應用(Sprint 119):紀律 #14 從 ADR 延伸到 glossary、新紀律確立應同 sprint 同步 glossary 不是 8 sprint 後補 |
+| 120 | 2026-05-17 02:00+ | 0.073191(未跑) | sprint50_66_retro.md 方法論萃取(+260 行):cache 五連發(Stable platform → 高風險改造)+ FontMetricsAdapter(Probe→Negative→Positive→Delta→Drift→Promote 6 階段)+ Sprint 113-118 套用驗證 + 未來 cluster checklist。**階段 A 8 sprint 全綠** | Sprint 120 驗證紀律 #20 候選「<10 entry 不必加 §0」門檻、本 retro 未加屬正確判斷 |
 
 ---
 
