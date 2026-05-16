@@ -57,7 +57,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 115 | 檢視 doc_controller.py / portal routes security test 缺口(廣域 #5/#11)、補 6 HttpCase security boundary test、揭示 1 critical null-byte 500 留 Sprint 116 plus | §11.1 隱含 + 紀律 #15 | flake8 + L4 HttpCase 6/6 in 1.04s | ✅ |
 | 116 | i18n 7 missing translations 補完 zh_TW(+35 行 / 7 新 msgid)+ Sprint 116 plus:upload_template null byte sanitize fix(controller +18 行 / test 收緊)+ 紀律 #18 子(critical-fix cooldown ≤1 sprint) | §11.2 行 5 + Sprint 115 critical | strict flake8 + Babel po valid + L4 HttpCase 6/6 | ✅ |
 | 117 | Sprint 78 Finding B portal company rule audit 收口 | §11.1 行 5 | backend test + ir.rule check | ✅ |
-| 118 | autonomous docs sprint:`architecture_decision.md` 補完(規畫書 §3 對映 + ADR 20 個彙整) | §11.2 行 5、§附錄 A 殘餘 | docs only | ⏳ |
+| 118 | autonomous docs sprint:`architecture_decision.md` 補完(規畫書 §3 對映 + ADR 20 個彙整) | §11.2 行 5、§附錄 A 殘餘 | docs only | ✅ |
 | 119 | autonomous docs sprint:`glossary.md` 擴充到 Sprint 112 era 完整紀律與 OOXML 術語 | §附錄 B 延伸 | docs only | ⏳ |
 | 120 | Sprint 50-66 retro:`sprint50_66_retro.md` 萃取 cache 五連發 + FontMetricsAdapter 學到的方法論 | §11.2 行 5 | docs only | ⏳ |
 
@@ -200,6 +200,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 115 | 2026-05-16 23:40+ | 0.073191(未跑) | Odoo backend local 21 → 27、+6 controller boundary HttpCase、揭示 1 critical null-byte 500 | #15 子原則(Sprint 115):security 邊界紀律廣域應用到所有同類 controller / route |
 | 116 | 2026-05-17 00:10+ | 0.073191(未跑) | i18n zh_TW.po 19 → 26 msgid + upload_template null byte sanitize fix(controller +18 行)+ test 收緊為 graceful 400 explicit | #18 子原則(Sprint 116):critical finding 揭示 sprint 後、下個 sprint 應 enforce fix(cooldown ≤ 1 sprint) |
 | 117 | 2026-05-17 00:30+ | 0.073191(未跑) | Sprint 78 Finding B 收口:doc.document portal cross-company collaboration 保留現狀 + lock-in 4 test(TestPortalCrossCompanyCollaboration)+ doc_security.xml 註解擴充。Odoo backend 27 → **31** | #18 子原則(Sprint 117):autonomous 收口「待 user 決策」候選必須讀原始設計意圖(group / model 註解)後才決、不能憑 default-secure 直覺加邊界 |
+| 118 | 2026-05-17 01:00+ | 0.073191(未跑) | architecture_decision.md 彙整:§0 索引(21 ADR + 004-007 缺口註解)+ §0.5 規畫書 §3 6-layer ↔ ADR 對映 + ADR-021 Sprint 117 cross-company 決策。+54 行純 docs | #20 候選(Sprint 118):集中索引文件(ADR/glossary/CONTRIBUTING)應有 §0 索引段、超過 10 entry 必加、歷史缺口保留編號標示 |
 
 ---
 
