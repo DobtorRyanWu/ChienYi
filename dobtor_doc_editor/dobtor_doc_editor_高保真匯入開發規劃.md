@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 125 — ParagraphNode.bookmarks capture 8 新 test + VR 0.073191 byte-identical（第 5 次連續、首次真實 fixture trigger 20 `_GoBack`）；紀律 #21 候選；Phase 1 76→77%）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 126 — HyperlinkInfo 擴 tgtFrame/history/docLocation 10 新 test + VR 0.073191 byte-identical（第 6 次連續）；階段 B cluster 2 完成；Phase 1 77→78%）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
@@ -38,7 +38,7 @@ VR mean 進展：**0.1728**（Sprint 28 baseline）→ **0.1156**（Sprint 33）
 | Phase | 完成度 | 說明 |
 |---|---|---|
 | Phase 0 能力盤點 | 100% | CI ✅ / CONTRIBUTING.md ✅（Sprint 67 落地）|
-| Phase 1 OOXML Parser | 77% | 主流元素已覆蓋；Sprint 121 trHeight；Sprint 122 OLE / pict；Sprint 123 field code + 複式 fldChar；Sprint 124 SDT 透明 unwrap；Sprint 125 bookmark range capture（ParagraphNode.bookmarks）|
+| Phase 1 OOXML Parser | 78% | 主流元素已覆蓋；Sprint 121 trHeight；Sprint 122 OLE / pict；Sprint 123 field code + 複式 fldChar；Sprint 124 SDT 透明 unwrap；Sprint 125 bookmark range capture；Sprint 126 hyperlink rels 擴 tgtFrame/history/docLocation |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%）| opentype.js 已用於字型 metric;HarfBuzz 為長期方案 |
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191 |
 | Phase 4 Style Theme | 80% | Sprint 19 style merge 落地 |

@@ -254,12 +254,24 @@ function parseHyperlinkInfo(
   const anchor = el.getAttribute('w:anchor') ?? undefined;
   const tooltip = el.getAttribute('w:tooltip') ?? undefined;
   const url = rId && lookup ? lookup(rId) : undefined;
+  // Sprint 126：額外 rels 屬性
+  const tgtFrame = el.getAttribute('w:tgtFrame') ?? undefined;
+  const docLocation = el.getAttribute('w:docLocation') ?? undefined;
+  const historyRaw = el.getAttribute('w:history');
+  // OOXML 布林：'1' / 'true' → true、'0' / 'false' → false、缺則 undefined
+  let history: boolean | undefined;
+  if (historyRaw === '1' || historyRaw === 'true') history = true;
+  else if (historyRaw === '0' || historyRaw === 'false') history = false;
 
   const info: HyperlinkInfo = {};
   if (rId) info.rId = rId;
   if (url) info.url = url;
   if (anchor) info.anchor = anchor;
   if (tooltip) info.tooltip = tooltip;
+  if (tgtFrame) info.tgtFrame = tgtFrame;
+  if (history !== undefined) info.history = history;
+  if (docLocation) info.docLocation = docLocation;
+  // 紀律 #21 候選遵守：空集合不掛 key、只在有值時 set
   return Object.keys(info).length > 0 ? info : undefined;
 }
 

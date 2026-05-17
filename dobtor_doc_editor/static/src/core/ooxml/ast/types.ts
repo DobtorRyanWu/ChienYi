@@ -124,18 +124,27 @@ export interface ParagraphProps {
 // ── 文件內嵌元素（Inline Nodes）──────────────────────────────────────────────
 
 /**
- * 超連結資訊（OOXML w:hyperlink 元素的解析結果）。
+ * 超連結資訊（OOXML w:hyperlink 元素的解析結果，ECMA-376 §17.16.22）。
  *
- * 三種來源：
+ * 來源組合：
  *   - External URL（rId 透過 .rels 解析為 http(s):// URL）：url 有值
  *   - 文件內 anchor（w:anchor="bookmarkName"）：anchor 有值，url 通常無
- *   - tooltip（w:tooltip）：滑鼠提示文字
+ *   - External + anchor 共存：跨文件指定位置（rare 但合法）
+ *   - rels 損壞時：url 為 undefined、rId 保留供下游診斷
+ *
+ * Sprint 126 — 擴充 hyperlink rels 完整覆蓋：
+ *   - tgtFrame：HTML 風格 target frame（_blank / _self / _parent / _top / 自訂 frame 名）
+ *   - history：是否計入瀏覽歷史（Word 視為「已造訪」）
+ *   - docLocation：替代文件位置（早期 Word 跨文件連結）
  */
 export interface HyperlinkInfo {
-  rId?: string;       // 原始關係 ID（External 連結時有）
-  url?: string;       // 從 document.xml.rels 解析的 External URL
-  anchor?: string;    // 文件內 bookmark 名稱（w:anchor）
-  tooltip?: string;   // w:tooltip 滑鼠提示
+  rId?: string;          // 原始關係 ID（External 連結時有）
+  url?: string;          // 從 document.xml.rels 解析的 External URL
+  anchor?: string;       // 文件內 bookmark 名稱（w:anchor）
+  tooltip?: string;      // w:tooltip 滑鼠提示
+  tgtFrame?: string;     // Sprint 126 — w:tgtFrame target 視窗
+  history?: boolean;     // Sprint 126 — w:history（"1" / "true" → true，"0" / "false" → false）
+  docLocation?: string;  // Sprint 126 — w:docLocation 跨文件位置
 }
 
 /** 文字 Run */

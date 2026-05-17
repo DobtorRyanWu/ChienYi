@@ -539,3 +539,152 @@ describe('Sprint 124 — ParagraphParser SDT 整合', () => {
     expect(node.runs[2]).toMatchObject({ type: 'run', text: '後綴' });
   });
 });
+
+// ── Sprint 126：hyperlink rels 完整覆蓋（tgtFrame / history / docLocation）─────
+describe('Sprint 126 — w:hyperlink rels 完整覆蓋', () => {
+  const parser = new ParagraphParser();
+
+  it('w:tgtFrame=_blank → HyperlinkInfo.tgtFrame=_blank', () => {
+    parser.setRelsLookup(() => 'https://example.com');
+    const p = parsePFragment(`
+      <w:hyperlink r:id="rId1" w:tgtFrame="_blank">
+        <w:r><w:t>新分頁</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    const r = node.runs[0];
+    if (r.type !== 'run') throw new Error('expected run');
+    expect(r.hyperlink?.tgtFrame).toBe('_blank');
+    expect(r.hyperlink?.url).toBe('https://example.com');
+  });
+
+  it('w:history="1" → history=true', () => {
+    const p = parsePFragment(`
+      <w:hyperlink w:anchor="bm" w:history="1">
+        <w:r><w:t>x</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    const r = node.runs[0];
+    if (r.type !== 'run') throw new Error('expected run');
+    expect(r.hyperlink?.history).toBe(true);
+    expect(r.hyperlink?.anchor).toBe('bm');
+  });
+
+  it('w:history="0" → history=false（顯式禁止計入歷史）', () => {
+    const p = parsePFragment(`
+      <w:hyperlink w:anchor="bm" w:history="0">
+        <w:r><w:t>x</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    const r = node.runs[0];
+    if (r.type !== 'run') throw new Error('expected run');
+    expect(r.hyperlink?.history).toBe(false);
+  });
+
+  it('w:history="true" / "false" 兩種布林字串同樣解析', () => {
+    const pTrue = parsePFragment(`
+      <w:hyperlink w:anchor="a" w:history="true">
+        <w:r><w:t>t</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const pFalse = parsePFragment(`
+      <w:hyperlink w:anchor="b" w:history="false">
+        <w:r><w:t>f</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const tNode = parser.parse(pTrue);
+    const fNode = parser.parse(pFalse);
+    const tRun = tNode.runs[0];
+    const fRun = fNode.runs[0];
+    if (tRun.type !== 'run' || fRun.type !== 'run') throw new Error('expected runs');
+    expect(tRun.hyperlink?.history).toBe(true);
+    expect(fRun.hyperlink?.history).toBe(false);
+  });
+
+  it('w:history 缺 → history 不在 info 內（紀律 #21 候選）', () => {
+    parser.setRelsLookup(() => 'https://example.com');
+    const p = parsePFragment(`
+      <w:hyperlink r:id="rIdH">
+        <w:r><w:t>x</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    const r = node.runs[0];
+    if (r.type !== 'run') throw new Error('expected run');
+    expect(r.hyperlink).toBeDefined();
+    expect(r.hyperlink?.history).toBeUndefined();
+  });
+
+  it('w:docLocation 跨文件位置', () => {
+    parser.setRelsLookup((rId) => rId === 'rIdDL' ? 'other.docx' : undefined);
+    const p = parsePFragment(`
+      <w:hyperlink r:id="rIdDL" w:docLocation="Section3">
+        <w:r><w:t>跳到他文件</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    const r = node.runs[0];
+    if (r.type !== 'run') throw new Error('expected run');
+    expect(r.hyperlink?.docLocation).toBe('Section3');
+    expect(r.hyperlink?.url).toBe('other.docx');
+  });
+
+  it('External + anchor 共存（跨文件指定位置）', () => {
+    parser.setRelsLookup(() => 'https://docs.example.com/spec.html');
+    const p = parsePFragment(`
+      <w:hyperlink r:id="rId99" w:anchor="section3" w:tooltip="see §3">
+        <w:r><w:t>See section 3</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    const r = node.runs[0];
+    if (r.type !== 'run') throw new Error('expected run');
+    expect(r.hyperlink?.url).toBe('https://docs.example.com/spec.html');
+    expect(r.hyperlink?.anchor).toBe('section3');
+    expect(r.hyperlink?.tooltip).toBe('see §3');
+  });
+
+  it('五屬性全帶 → 全部出現在 HyperlinkInfo', () => {
+    parser.setRelsLookup(() => 'https://full.example.com');
+    const p = parsePFragment(`
+      <w:hyperlink r:id="rIdAll" w:anchor="top" w:tooltip="hint" w:tgtFrame="_self" w:history="1" w:docLocation="loc1">
+        <w:r><w:t>all</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    const r = node.runs[0];
+    if (r.type !== 'run') throw new Error('expected run');
+    expect(r.hyperlink).toMatchObject({
+      rId: 'rIdAll',
+      url: 'https://full.example.com',
+      anchor: 'top',
+      tooltip: 'hint',
+      tgtFrame: '_self',
+      history: true,
+      docLocation: 'loc1',
+    });
+  });
+
+  it('rId 存在但 lookup 沒命中 → url undefined、rId 仍保留供下游診斷', () => {
+    parser.setRelsLookup(() => undefined);
+    const p = parsePFragment(`
+      <w:hyperlink r:id="rIdBroken" w:tooltip="壞掉的 rels">
+        <w:r><w:t>broken</w:t></w:r>
+      </w:hyperlink>
+    `);
+    const node = parser.parse(p);
+    const r = node.runs[0];
+    if (r.type !== 'run') throw new Error('expected run');
+    expect(r.hyperlink?.rId).toBe('rIdBroken');
+    expect(r.hyperlink?.url).toBeUndefined();
+    expect(r.hyperlink?.tooltip).toBe('壞掉的 rels');
+  });
+
+  it('完全空的 w:hyperlink（無屬性、無 run）→ 該段落 runs 空、hyperlink 為 undefined', () => {
+    const p = parsePFragment(`<w:hyperlink></w:hyperlink>`);
+    const node = parser.parse(p);
+    expect(node.runs).toEqual([]);
+  });
+});

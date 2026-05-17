@@ -74,7 +74,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | Sprint | Phase | 工作 | 狀態 |
 |---|---|---|---|
 | 121-123 | Phase 1 OOXML | 1.5 進階 row height(`<w:trHeight calcInternal>`)、1.8 OLE objects 降級渲染、1.9 field code 完整覆蓋(PAGE / DATE / SEQ / TOC) | ✅ |
-| 124-126 | Phase 1 OOXML | 1.9 SDT 結構化標籤、1.9 bookmark range、1.9 hyperlink rels 完整 | 🟢 124-125 ✅ / 126 ⏳ |
+| 124-126 | Phase 1 OOXML | 1.9 SDT 結構化標籤、1.9 bookmark range、1.9 hyperlink rels 完整 | ✅ |
 | 127-128 | Phase 2 字型 | 把 FontMetricsAdapter 推到 production(目前 opt-in、Sprint 64b external 候選 — Claude 自主執行 migrate doc_editor.js 走自家 pipeline) | ⏳ |
 | 129 | Phase 2 字型 | HarfBuzz WASM 整合 spike(規畫書原列 1-2 週) | ⏳ |
 | 130-131 | Phase 4 Style | 4.1 Theme tint/shade 演算法(HSL luminance)、4.2 tblStylePr 15 種條件完整 | ⏳ |
@@ -210,6 +210,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 123 | 2026-05-17 01:25+ | **0.073191(已跑、byte-identical、第 3 次連續)** | ParagraphParser field code 完整覆蓋:fieldType 擴 SEQ/TOC/REF/HYPERLINK/STYLEREF + 複式 fldChar state machine(begin/separate/end 跨多 w:r 收集)+ 9 新 unit test。vitest 993 → **1002 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 1 74% → 75%。**階段 B cluster 1 (121-123) 完成** | **紀律 #1.a 升正式**(Sprint 123 跨 3 sprint 驗證完成):改 parser/style/layout 任一層、即使預期 VR 不變、也應 rebuild bundle + 跑全 VR 確認。紀律 18 → **19 條** |
 | 124 | 2026-05-17 07:40+ | **0.073191(已跑、byte-identical、第 4 次連續)** | dom.ts effectiveChildren 加 w:sdt 透明 unwrap +15 行(block / inline / cell-via-effectiveChildren 三層自動覆蓋、遞迴展開 sdtContent、malformed 容錯)+ 8 新 unit test。vitest 1002 → **1010 passed + 1 skipped**、bundle rebuild。Phase 1 75% → 76%。階段 B cluster 2 (124-126) 1/3 | 紀律 #1.a 第一次正式應用(dom.ts utility 也跑全 VR、通過驗證)|
 | 125 | 2026-05-17 07:55+ | **0.073191(已跑、byte-identical、第 5 次連續、首次真實 fixture trigger)** | ParagraphNode.bookmarks?: string[] 加（types +9）+ ParagraphParser bookmark 收集（段落直屬 / w:r 內含 / hyperlink 內 三路）+30 行 + 8 新 unit test。vitest 1010 → **1018 passed + 1 skipped**、bundle rebuild、**20 個 fixture `_GoBack` 真實被 capture、render 仍 byte-identical**。Phase 1 76% → 77% | #21 候選(Sprint 125): 新 optional 欄位空集合時不掛 key、避免 AST diff noise + 保 cache key 穩定 |
+| 126 | 2026-05-17 08:10+ | **0.073191(已跑、byte-identical、第 6 次連續)** | HyperlinkInfo 擴 tgtFrame/history/docLocation 3 欄位（types +12 / parser +15）+ 10 新 unit test（含 OOXML 布林雙形式 "1"/"true"/"0"/"false"、history false 是合法值用 `!== undefined` 檢測、防禦 broken rels）。vitest 1018 → **1028 passed + 1 skipped**、bundle rebuild。Phase 1 77% → 78%。**階段 B cluster 2 (124-126) 完成** | #21 候選跨 sprint 驗證 2/3（Sprint 125 揭示、Sprint 126 套用驗證 boolean 欄位特例「`!== undefined` 而非 truthy」）|
 
 ---
 
