@@ -505,13 +505,41 @@ export interface StyleEntry {
   rProps?: RunProps;
   basedOn?: string;   // 父樣式 ID，繼承鏈由 StyleResolver 展開後不再需要追蹤
   /**
-   * 表格條件樣式（type → { pProps, rProps }）。
+   * 表格條件樣式（type → { pProps, rProps, cProps }）。
    *
    * 僅 `<w:style w:type="table">` 的 entry 會有此欄位。
-   * 由 Renderer/Layout Engine 依列/欄位置選擇套用。
+   * 由 Renderer/Layout Engine 依列/欄位位置選擇套用。
    * StyleResolver 不對其做 basedOn flatten — 條件樣式內容直接保留。
+   *
+   * Sprint 131：新增 `cProps`（cell-level conditional props）。
+   *   subset of CellNode['props']：當前支援 `shading` + `vAlign`（最常用的兩個）。
+   *   borders / margins / textDirection 需 BorderConflictResolver 整合、defer 未來 sprint。
    */
-  conditional?: Map<TableConditionalType, { pProps?: ParagraphProps; rProps?: RunProps }>;
+  conditional?: Map<
+    TableConditionalType,
+    {
+      pProps?: ParagraphProps;
+      rProps?: RunProps;
+      cProps?: TableConditionalCellProps;
+    }
+  >;
+}
+
+/**
+ * Sprint 131：tblStylePr 的 w:tcPr 內可套用的 cell-level 條件 props 子集。
+ *
+ * 目前實作的 OOXML §17.7.6.4 (tblStylePr) 子元素：
+ *   - `w:shd` → shading（header row 背景填色最常見）
+ *   - `w:vAlign` → 垂直對齊（標題列置中常用）
+ *
+ * 暫不實作（defer to future sprint）：
+ *   - `w:tcBorders`（需與 BorderConflictResolver 互動、複雜度高）
+ *   - `w:tcMar`（margins）
+ *   - `w:noWrap` / `w:textDirection`（罕見於條件樣式）
+ */
+export interface TableConditionalCellProps {
+  shading?: { fill?: HexColor; color?: HexColor; pattern?: string };
+  vAlign?: 'top' | 'center' | 'bottom';
 }
 
 export type StyleMap = Map<string, StyleEntry>;

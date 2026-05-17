@@ -1827,6 +1827,8 @@
                 const vertBand = computeVertBand(cell.gridCol, totalCols, tblLook);
                 let effP = baseP ? { ...baseP } : {};
                 let effR = baseR ? { ...baseR } : {};
+                // Sprint 131：累積條件樣式的 cell-level props（shading + vAlign）
+                let effC = {};
                 // 1. wholeTable
                 const ct = (k) => cond?.get(k);
                 const apply = (entry) => {
@@ -1834,6 +1836,8 @@
                         return;
                     effP = mergeProps(effP, entry.pProps);
                     effR = mergeProps(effR, entry.rProps);
+                    if (entry.cProps)
+                        effC = mergeCellConditionalProps(effC, entry.cProps);
                 };
                 apply(ct('wholeTable'));
                 // 2. Horizontal banding
@@ -1868,6 +1872,11 @@
                 }
                 if (isLastRow && isLastCol && tblLook.lastRow && tblLook.lastColumn) {
                     apply(ct('seCell'));
+                }
+                // 7a. Sprint 131：把 effective cell-level conditional props 寫回 cell.props
+                //     explicit cell.props（TableParser 已 set）優先；空欄位才補入 conditional
+                if (effC.shading || effC.vAlign) {
+                    applyConditionalCellProps(cell, effC);
                 }
                 // 7. 把 effective props 寫回 cell 內每段段落 + run（explicit 永遠優先）
                 // Sprint 7：cell.content 內 TableNode 也遞迴套用同一 styleEntry + tblLook
@@ -1931,6 +1940,40 @@
         if (tblLook.firstColumn)
             bandIdx -= 1;
         return bandIdx % 2 === 0 ? 1 : 2;
+    }
+    /**
+     * Sprint 131：合併 cell-level conditional props（後者覆蓋前者、shading 巢狀深合併）。
+     *
+     * shading 物件做 per-key 淺合併（fill/color/pattern 各自獨立覆蓋）；
+     * vAlign 是 atomic 整體覆蓋。
+     */
+    function mergeCellConditionalProps(base, overlay) {
+        const out = { ...base };
+        if (overlay.shading) {
+            out.shading = { ...(base.shading ?? {}), ...overlay.shading };
+        }
+        if (overlay.vAlign !== undefined) {
+            out.vAlign = overlay.vAlign;
+        }
+        return out;
+    }
+    /**
+     * Sprint 131：把 effective conditional cell props 寫回 cell.props，explicit 優先。
+     *
+     * 規則（與 paragraph/run props 一致）：
+     *   - cell.props.shading 已有值 → 條件樣式整體放棄（atomic、避免半填半空）
+     *     注意：TableParser 即使遇到 `<w:shd w:val="clear"/>`（無 fill/color）也會
+     *     設置 shading={}（pattern only），這時 conditional 會被「卡掉」。
+     *     現實中這種空 shading 罕見；shading=undefined 才是常態 fall-through。
+     *   - cell.props.vAlign 已有值 → 條件樣式放棄；否則套用
+     */
+    function applyConditionalCellProps(cell, effC) {
+        if (effC.shading && cell.props.shading === undefined) {
+            cell.props.shading = { ...effC.shading };
+        }
+        if (effC.vAlign !== undefined && cell.props.vAlign === undefined) {
+            cell.props.vAlign = effC.vAlign;
+        }
     }
     /**
      * 合併兩個 props 物件：overlay 覆蓋 base；undefined keys 不影響。
@@ -4373,12 +4416,19 @@
                         break;
                     const condPPr = directChild(child, 'w:pPr');
                     const condRPr = directChild(child, 'w:rPr');
+                    const condTcPr = directChild(child, 'w:tcPr');
                     const entry = {};
                     if (condPPr)
                         entry.pPr = parseParagraphProps(condPPr);
                     if (condRPr)
                         entry.rPr = parseRunProps(condRPr);
-                    if (entry.pPr || entry.rPr) {
+                    if (condTcPr) {
+                        // Sprint 131：提取 cell-level 條件 props（shading + vAlign）
+                        const cPr = parseConditionalTcPr(condTcPr);
+                        if (cPr)
+                            entry.cPr = cPr;
+                    }
+                    if (entry.pPr || entry.rPr || entry.cPr) {
                         if (!conditional)
                             conditional = new Map();
                         conditional.set(condType, entry);
@@ -4435,7 +4485,7 @@
             out.rProps = rProps;
         if (self?.basedOn)
             out.basedOn = self.basedOn;
-        // 條件樣式直接保留（不參與 basedOn 繼承鏈），把 raw 內部的 pPr/rPr 轉成 AST 的 pProps/rProps
+        // 條件樣式直接保留（不參與 basedOn 繼承鏈），把 raw 內部的 pPr/rPr/cPr 轉成 AST 的 pProps/rProps/cProps
         if (self?.conditional) {
             const out2 = new Map();
             for (const [type, entry] of self.conditional) {
@@ -4444,10 +4494,52 @@
                     conv.pProps = entry.pPr;
                 if (entry.rPr)
                     conv.rProps = entry.rPr;
+                if (entry.cPr)
+                    conv.cProps = entry.cPr;
                 out2.set(type, conv);
             }
             out.conditional = out2;
         }
+        return out;
+    }
+    /**
+     * Sprint 131：解析 `<w:tblStylePr w:type="firstRow"><w:tcPr>...</w:tcPr></w:tblStylePr>`
+     * 內的 cell-level 條件 props。
+     *
+     * 只提取最常用的兩個：
+     *   - w:shd → shading（header row 背景色）
+     *   - w:vAlign → 垂直對齊
+     *
+     * 其他 tcPr 子元素（tcBorders/tcMar/noWrap/textDirection）defer 到未來 sprint。
+     *
+     * 缺值或全空時回 undefined（caller 用 if (cPr) 檢查是否掛 key）。
+     */
+    function parseConditionalTcPr(tcPr) {
+        const out = {};
+        const shdEl = directChild(tcPr, 'w:shd');
+        if (shdEl) {
+            const fill = shdEl.getAttribute('w:fill');
+            const color = shdEl.getAttribute('w:color');
+            const pattern = shdEl.getAttribute('w:val');
+            const shd = {};
+            if (fill)
+                shd.fill = fill;
+            if (color)
+                shd.color = color;
+            if (pattern)
+                shd.pattern = pattern;
+            if (shd.fill || shd.color || shd.pattern)
+                out.shading = shd;
+        }
+        const vAlignEl = directChild(tcPr, 'w:vAlign');
+        if (vAlignEl) {
+            const v = vAlignEl.getAttribute('w:val');
+            if (v === 'top' || v === 'center' || v === 'bottom')
+                out.vAlign = v;
+        }
+        // 空集合不掛 key（紀律 #21 候選）
+        if (!out.shading && !out.vAlign)
+            return undefined;
         return out;
     }
     /**

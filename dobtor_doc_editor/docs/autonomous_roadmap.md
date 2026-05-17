@@ -79,7 +79,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 128 | Phase 2 字型 | HarfBuzz WASM 整合 spike(原 Sprint 129 前移、規畫書原列 1-2 週)| ✅ |
 | ~~129~~ | ~~Phase 2 字型~~ | ~~HarfBuzz~~（移到 Sprint 128）| — |
 | 130 | Phase 4 Style | 4.1 Theme tint/shade 演算法 HSL luminance 升級 | ✅ |
-| 131 | Phase 4 Style | 4.2 tblStylePr 15 種條件完整 | ⏳ |
+| 131 | Phase 4 Style | 4.2 tblStylePr/tcPr 條件 cell-level props 傳遞（shading + vAlign）| ✅ |
 | 132 | Phase 4 Style | 4.3 中文編號格式 chineseCounting / ideographDigital / japaneseCounting 完整 | ⏳ |
 | 133-134 | Phase 4 Style | 4.4 段落進階(`<w:pBdr>` 邊框 + 陰影 / tab stop leader+decimal / textAlignment) | ⏳ |
 | 135 | Phase 3 漏項 | docGrid snap 段落層級判別子(規畫書 §0.1 列為長期 backlog;Sprint 46+49 全域翻車、需段落條件式) | ⏳ |
@@ -216,6 +216,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 127 | 2026-05-17 09:20+ | 0.073191（未跑、純 probe docs） | **Probe sprint** — 3 條 docx 路徑 audit（default / DevTools TS engine / VR pipeline）揭示 production canvas-editor 完全沒整合 FontMetricsAdapter（only VR pipeline 有）。「Promote to production」非 flag flip、是 5-25 sprint architectural migration（4 候選策略 A/B/C/D）。**Autonomous 決策 Strategy D（維持現狀）**、defer A/B/C 給 user。Sprint 128 改為 HarfBuzz spike（原 129 前移） | #22 候選(Sprint 127): 「external 候選」標記不代表 scope 小、任何 production migration 開工前先 probe sprint 確認 mental model |
 | 128 | 2026-05-17 15:35+ | 0.073191（未跑、spike test only） | **Probe sprint** — HarfBuzz WASM 進階能力 spike 補完（kerning / ligature / CJK / 純函式 / module 可用性 5 新 test、連同 Phase D.2 基礎 5 test = 10/10 全綠）+ bundle size 量測（核心 +465KB、production 整合不可接受 / VR 可接受）+ async/sync 分析（shape 本身 sync、僅 load async；FontMetricsAdapter 舊註解部分不正確）+ 4 candidate decision（GO-1 / GO-2 / NO-GO / DEFER-1）。**Autonomous 決策 DEFER-1（列為階段 D 候選）**：階段 C 重生 goldens 會打亂 baseline、整合放階段 C 後更划算。vitest 1028 → **1033 passed + 1 skipped**。**階段 B cluster 3 (127-128) 完成** | #22 候選跨 sprint 驗證 2/3（Sprint 127-128 連兩 probe sprint 都成功 catch 「mental model vs 實況」差距、Sprint 130+ 同類可完成 3 次驗證升正式 #22.a）|
 | 130 | 2026-05-17 19:30+ | **0.073191（已跑、byte-identical、第 7 次連續）** | **階段 B cluster 4 開工**。ThemeResolver applyTint/applyShade RGB linear → **HSL luminance** 升級（+80 行、HSL 保 hue+saturation、規畫書 §Phase 4.1 收口）+ 11 新 unit test（vivid navy/red/灰階短路/極端值/單調性/round-trip 精度）。vitest 1033 → **1044 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 4 Style 80% → **81%** | 紀律 #1.a 第 7 次連續 byte-identical 驗證、覆蓋 OOXML parser / dom utility / style resolver 三類修改點 |
+| 131 | 2026-05-17 20:00+ | **0.073191（已跑、byte-identical、第 8 次連續）** | StyleResolver + TableStyleApplicator tblStylePr/tcPr 條件樣式 cell-level props 傳遞補完（types +30 / StyleResolver +50 / TableStyleApplicator +60；shading + vAlign 兩屬性、cBorders/tcMar/trPr/tblPr 條件 defer）+ 13 新 test（9 applicator + 4 resolver、含 explicit 優先、merge 順序、shading 巢狀合併、tblLook gating）。vitest 1044 → **1057 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 4 Style 81% → **82%**。階段 B cluster 4 (130-131) 完成 | **紀律 #21 升正式**（Sprint 125-126-131 跨 3 sprint 驗證完成）：optional 欄位空集合不掛 key。紀律 19 → **20 條** |
 
 ---
 
