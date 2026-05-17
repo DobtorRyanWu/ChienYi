@@ -657,3 +657,157 @@ describe('ParagraphParser — Sprint 125 bookmark range', () => {
     expect(node.runs[0]).toMatchObject({ type: 'field', fieldType: 'PAGE', cachedValue: '3' });
   });
 });
+
+// ── Sprint 133：w:pBdr (段落邊框) + w:shd (段落底色) ────────────────────────
+
+describe('ParagraphParser — Sprint 133 pBdr + shd', () => {
+  it('w:pBdr 完整 4 邊 → props.borders 含四邊 BorderDef', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:pBdr>
+          <w:top w:val="single" w:sz="4" w:space="1" w:color="000000"/>
+          <w:bottom w:val="single" w:sz="4" w:space="1" w:color="000000"/>
+          <w:left w:val="single" w:sz="4" w:space="4" w:color="auto"/>
+          <w:right w:val="single" w:sz="4" w:space="4" w:color="auto"/>
+        </w:pBdr>
+      </w:pPr>
+      <w:r><w:t>bordered</w:t></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.borders?.top).toMatchObject({ style: 'single', width: 0.5, color: '000000' });
+    expect(node.props.borders?.bottom?.style).toBe('single');
+    expect(node.props.borders?.left?.color).toBe('auto');
+    expect(node.props.borders?.right?.space).toBe(4);
+  });
+
+  it('w:pBdr 部分邊（只 top）→ props.borders 只含 top key', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:pBdr>
+          <w:top w:val="double" w:sz="16" w:color="FF0000"/>
+        </w:pBdr>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.borders?.top).toMatchObject({ style: 'double', color: 'FF0000' });
+    expect(node.props.borders?.top?.width).toBeCloseTo(2.0, 2); // 16/8 = 2pt
+    expect(node.props.borders?.bottom).toBeUndefined();
+    expect(node.props.borders?.left).toBeUndefined();
+    expect(node.props.borders?.right).toBeUndefined();
+  });
+
+  it('w:pBdr 全空（無子邊）→ props.borders 不掛 key（紀律 #21）', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:pBdr></w:pBdr>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.borders).toBeUndefined();
+  });
+
+  it('w:pBdr 子邊缺 w:val → 該邊 silent drop（無效邊）', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:pBdr>
+          <w:top w:sz="4" w:color="000000"/>
+          <w:bottom w:val="single" w:sz="4" w:color="000000"/>
+        </w:pBdr>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.borders?.top).toBeUndefined();
+    expect(node.props.borders?.bottom?.style).toBe('single');
+  });
+
+  it('w:pBdr w:start / w:end 別名對應 left / right（OOXML logical direction）', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:pBdr>
+          <w:start w:val="dotted" w:sz="8" w:color="00FF00"/>
+          <w:end w:val="dashed" w:sz="8" w:color="0000FF"/>
+        </w:pBdr>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.borders?.left?.style).toBe('dotted');
+    expect(node.props.borders?.left?.color).toBe('00FF00');
+    expect(node.props.borders?.right?.style).toBe('dashed');
+    expect(node.props.borders?.right?.color).toBe('0000FF');
+  });
+
+  it('w:pBdr 含 w:between / w:bar（defer）→ silent drop、不影響其他邊', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:pBdr>
+          <w:top w:val="single" w:sz="4" w:color="000000"/>
+          <w:between w:val="single" w:sz="4" w:color="000000"/>
+          <w:bar w:val="single" w:sz="4" w:color="000000"/>
+        </w:pBdr>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.borders?.top?.style).toBe('single');
+    // between / bar 不掛在 borders 4 邊 (defer to future)
+    expect(Object.keys(node.props.borders ?? {})).toEqual(['top']);
+  });
+
+  it('w:shd 完整 → props.shading 含 fill + color + pattern', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:shd w:val="clear" w:fill="DEEAF6" w:color="auto"/>
+      </w:pPr>
+      <w:r><w:t>shaded</w:t></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.shading).toMatchObject({
+      fill: 'DEEAF6',
+      color: 'auto',
+      pattern: 'clear',
+    });
+  });
+
+  it('w:shd 只有 fill → 其他 key 不掛', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:shd w:fill="FFFF00"/>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.shading?.fill).toBe('FFFF00');
+    expect(node.props.shading?.color).toBeUndefined();
+    expect(node.props.shading?.pattern).toBeUndefined();
+  });
+
+  it('w:shd 全空（無屬性）→ props.shading 不掛 key（紀律 #21）', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:shd/>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.shading).toBeUndefined();
+  });
+
+  it('pBdr + shd 同時存在 → 互不干擾', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:pBdr>
+          <w:top w:val="single" w:sz="4" w:color="000000"/>
+        </w:pBdr>
+        <w:shd w:val="clear" w:fill="DEEAF6"/>
+      </w:pPr>
+      <w:r><w:t>boxed + shaded</w:t></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.borders?.top?.style).toBe('single');
+    expect(node.props.shading?.fill).toBe('DEEAF6');
+  });
+
+  it('普通段落（無 pBdr / shd）→ borders / shading 都不掛 key', () => {
+    const p = parsePXml('<w:r><w:t>normal</w:t></w:r>');
+    const node = parser.parse(p);
+    expect(node.props.borders).toBeUndefined();
+    expect(node.props.shading).toBeUndefined();
+  });
+});

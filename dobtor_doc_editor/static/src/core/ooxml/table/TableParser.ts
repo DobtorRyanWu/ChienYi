@@ -24,8 +24,6 @@
 
 import type {
   BlockNode,
-  BorderDef,
-  BorderStyle,
   CellBorders,
   CellNode,
   HexColor,
@@ -36,10 +34,11 @@ import type {
   TableNode,
 } from '../ast/types';
 import { DocumentParser } from '../document/DocumentParser';
-import { eighthPointToPt, twipToPt } from '../units/units';
+import { twipToPt } from '../units/units';
 import { GridResolver } from './GridResolver';
 import { applyTableStyle, parseTblLook } from '../styles/TableStyleApplicator';
 import { resolveTableBorders } from './BorderConflictResolver';
+import { parseBorderDef, parseShading } from '../styles/borderShading';
 
 /**
  * 內部用：每格的原始 vMerge 資訊。
@@ -449,45 +448,8 @@ function parseCellBorders(el: Element): CellBorders {
   return out;
 }
 
-function parseBorderDef(el: Element): BorderDef | undefined {
-  const valRaw = el.getAttribute('w:val');
-  if (!valRaw) return undefined;
-  const style: BorderStyle = valRaw;
-  // w:sz 是 1/8 pt
-  let width = 0;
-  const szRaw = el.getAttribute('w:sz');
-  if (szRaw !== null) {
-    const n = parseInt(szRaw, 10);
-    if (Number.isFinite(n)) width = eighthPointToPt(n);
-  }
-  const colorRaw = el.getAttribute('w:color');
-  const color: HexColor = colorRaw ?? 'auto';
-  const out: BorderDef = { style, width, color };
-  // w:space 是 pt（不是 twip）
-  const spaceRaw = el.getAttribute('w:space');
-  if (spaceRaw !== null) {
-    const n = parseInt(spaceRaw, 10);
-    if (Number.isFinite(n)) out.space = n;
-  }
-  return out;
-}
-
-// ── <w:shd> ──────────────────────────────────────────────────────────────────
-
-function parseShading(el: Element): {
-  fill?: HexColor;
-  color?: HexColor;
-  pattern?: string;
-} {
-  const out: { fill?: HexColor; color?: HexColor; pattern?: string } = {};
-  const fill = el.getAttribute('w:fill');
-  const color = el.getAttribute('w:color');
-  const pattern = el.getAttribute('w:val');
-  if (fill) out.fill = fill;
-  if (color) out.color = color;
-  if (pattern) out.pattern = pattern;
-  return out;
-}
+// Sprint 133：parseBorderDef / parseShading 已抽到 ../styles/borderShading.ts
+// 共用、本檔 import 使用、避免雙處維護 BorderDef shape
 
 // ── <w:tcMar> / <w:tblCellMar> ───────────────────────────────────────────────
 

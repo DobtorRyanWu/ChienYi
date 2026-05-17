@@ -188,7 +188,7 @@
         // 解析 textbox 內所有 <w:p>
         const paragraphs = [];
         if (paragraphFactory) {
-            for (const child of directChildren$7(txbxContent)) {
+            for (const child of directChildren$8(txbxContent)) {
                 if (child.tagName === 'w:p') {
                     paragraphs.push(paragraphFactory(child));
                 }
@@ -412,7 +412,7 @@
     }
     // ── wrap type 偵測 ────────────────────────────────────────────────────────────
     function detectWrapType(el) {
-        for (const child of directChildren$7(el)) {
+        for (const child of directChildren$8(el)) {
             switch (child.tagName) {
                 case 'wp:wrapNone':
                     return 'none';
@@ -434,7 +434,7 @@
         return { type: 'inlineImage', rId: '', width: 0, height: 0 };
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$7(el) {
+    function directChildren$8(el) {
         if (!el)
             return [];
         const out = [];
@@ -447,7 +447,7 @@
         return out;
     }
     function directChild$6(el, tagName) {
-        for (const child of directChildren$7(el)) {
+        for (const child of directChildren$8(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -475,7 +475,7 @@
      *   也支援巢狀 AlternateContent（雖極罕見）。
      */
     /** 直接 Element 子節點（過濾 text/comment 等非 Element 子節點）。 */
-    function directChildren$6(el) {
+    function directChildren$7(el) {
         if (!el)
             return [];
         const out = [];
@@ -489,7 +489,7 @@
     }
     /** 找首個指定 tagName 的直接子 Element。 */
     function directChild$5(el, tagName) {
-        for (const child of directChildren$6(el)) {
+        for (const child of directChildren$7(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -518,7 +518,7 @@
      */
     function effectiveChildren(el) {
         const out = [];
-        for (const child of directChildren$6(el)) {
+        for (const child of directChildren$7(el)) {
             if (child.tagName === 'mc:AlternateContent') {
                 // 優先 Choice，否則 Fallback
                 const choice = directChild$5(child, 'mc:Choice');
@@ -906,6 +906,124 @@
     }
 
     /**
+     * borderShading — 共用的 `<w:bdr>` / `<w:tcBorders>` / `<w:tblBorders>` / `<w:pBdr>`
+     * 邊框解析 + `<w:shd>` 陰影解析 utility（Sprint 133 從 TableParser 抽出）。
+     *
+     * 由 TableParser（cell/table borders + cell shading）、ParagraphParser（pBdr + shd）、
+     * 未來 BorderConflictResolver 共用。集中後 BorderDef shape 變更只需一處同步。
+     *
+     * 參考：
+     *   - ECMA-376 Part 1 §17.4.65 (tblBorders) / §17.4.66 (tcBorders) / §17.3.1.24 (pBdr)
+     *   - ECMA-376 Part 1 §17.18.97 (shd)
+     *   - 單位：w:sz 為 1/8 pt（eighthPointToPt）；w:space 為 pt 整數
+     */
+    /**
+     * 解析單一邊 `<w:top>` / `<w:bottom>` / `<w:left>` / `<w:right>` / `<w:insideH>` / ... 為 BorderDef。
+     *
+     * - `w:val` 缺則回 undefined（OOXML 規範：無 val 視為「不指定」）
+     * - `w:sz` 缺則 width = 0（仍視為合法 border，由 caller 判斷是否渲染）
+     * - `w:color="auto"` 保留為字面值 'auto'、不轉成具體 hex（caller 決定 default）
+     * - `w:space` 缺則回 undefined（不掛 key）
+     *
+     * @param el 邊框子元素（`<w:top>` 等）
+     * @returns BorderDef 或 undefined（無 val）
+     */
+    function parseBorderDef(el) {
+        const valRaw = el.getAttribute('w:val');
+        if (!valRaw)
+            return undefined;
+        const style = valRaw;
+        let width = 0;
+        const szRaw = el.getAttribute('w:sz');
+        if (szRaw !== null) {
+            const n = parseInt(szRaw, 10);
+            if (Number.isFinite(n))
+                width = eighthPointToPt(n);
+        }
+        const colorRaw = el.getAttribute('w:color');
+        const color = colorRaw ?? 'auto';
+        const out = { style, width, color };
+        const spaceRaw = el.getAttribute('w:space');
+        if (spaceRaw !== null) {
+            const n = parseInt(spaceRaw, 10);
+            if (Number.isFinite(n))
+                out.space = n;
+        }
+        return out;
+    }
+    /**
+     * 解析 `<w:shd w:val="clear" w:fill="DEEAF6" w:color="auto"/>` 為 shading 物件。
+     *
+     * - 三屬性都缺則 caller 拿到空物件、自行決定是否視為「無 shading」
+     * - 'auto' 保留為字面值（與 parseBorderDef 一致）
+     *
+     * @param el `<w:shd>` 元素
+     * @returns shading 物件（含 fill / color / pattern，缺則該 key 不掛）
+     */
+    function parseShading(el) {
+        const out = {};
+        const fill = el.getAttribute('w:fill');
+        const color = el.getAttribute('w:color');
+        const pattern = el.getAttribute('w:val');
+        if (fill)
+            out.fill = fill;
+        if (color)
+            out.color = color;
+        if (pattern)
+            out.pattern = pattern;
+        return out;
+    }
+    /**
+     * 解析段落邊框 `<w:pBdr>` 為 ParagraphProps.borders 子集（top / bottom / left / right）。
+     *
+     * Sprint 133 起 ParagraphParser 用此 helper；
+     * 與 cell/table borders 共用 parseBorderDef 但段落邊框只有 4 邊（無 insideH/insideV）。
+     *
+     * @param pBdr `<w:pBdr>` 元素
+     * @returns borders 物件（缺邊則該 key 不掛；全空回 undefined）
+     */
+    function parseParagraphBorders(pBdr) {
+        const out = {};
+        for (const child of directChildren$6(pBdr)) {
+            const def = parseBorderDef(child);
+            if (!def)
+                continue;
+            switch (child.tagName) {
+                case 'w:top':
+                    out.top = def;
+                    break;
+                case 'w:bottom':
+                    out.bottom = def;
+                    break;
+                case 'w:left':
+                case 'w:start':
+                    out.left = def;
+                    break;
+                case 'w:right':
+                case 'w:end':
+                    out.right = def;
+                    break;
+                // 注意：段落 w:pBdr 也可包 between / bar，但這兩種屬「段落間 / 邊欄」
+                // 不對應 ParagraphProps.borders 4 邊；defer 未來 sprint
+            }
+        }
+        if (!out.top && !out.bottom && !out.left && !out.right)
+            return undefined;
+        return out;
+    }
+    /** 內部：直接子節點（Element）走訪。獨立於 dom.ts 避免 cross-layer dependency */
+    function directChildren$6(el) {
+        const out = [];
+        const cs = el.childNodes;
+        for (let i = 0; i < cs.length; i++) {
+            const n = cs[i];
+            if (n.nodeType === 1)
+                out.push(n);
+        }
+        return out;
+    }
+
+    /**
      * ParagraphParser — 解析 <w:p>（段落）與內部 <w:r>（Run）
      *
      * 處理範圍（Sprint 1）：
@@ -1212,6 +1330,21 @@
             props.keepLines = true;
         if (boolFlag$2(directChild$4(pPr, 'w:pageBreakBefore')))
             props.pageBreakBefore = true;
+        // Sprint 133: w:pBdr — 段落邊框（top / bottom / left / right、between / bar defer）
+        const pBdrEl = directChild$4(pPr, 'w:pBdr');
+        if (pBdrEl) {
+            const borders = parseParagraphBorders(pBdrEl);
+            if (borders)
+                props.borders = borders;
+        }
+        // Sprint 133: w:shd — 段落底色 / 圖案
+        const shdEl = directChild$4(pPr, 'w:shd');
+        if (shdEl) {
+            const shading = parseShading(shdEl);
+            if (shading.fill || shading.color || shading.pattern) {
+                props.shading = shading;
+            }
+        }
         // Sprint 29：w:snapToGrid — 預設 true（OOXML §17.3.1.32），val="0" 顯式關閉
         const snapEl = directChild$4(pPr, 'w:snapToGrid');
         if (snapEl) {
@@ -2633,45 +2766,8 @@
         }
         return out;
     }
-    function parseBorderDef(el) {
-        const valRaw = el.getAttribute('w:val');
-        if (!valRaw)
-            return undefined;
-        const style = valRaw;
-        // w:sz 是 1/8 pt
-        let width = 0;
-        const szRaw = el.getAttribute('w:sz');
-        if (szRaw !== null) {
-            const n = parseInt(szRaw, 10);
-            if (Number.isFinite(n))
-                width = eighthPointToPt(n);
-        }
-        const colorRaw = el.getAttribute('w:color');
-        const color = colorRaw ?? 'auto';
-        const out = { style, width, color };
-        // w:space 是 pt（不是 twip）
-        const spaceRaw = el.getAttribute('w:space');
-        if (spaceRaw !== null) {
-            const n = parseInt(spaceRaw, 10);
-            if (Number.isFinite(n))
-                out.space = n;
-        }
-        return out;
-    }
-    // ── <w:shd> ──────────────────────────────────────────────────────────────────
-    function parseShading(el) {
-        const out = {};
-        const fill = el.getAttribute('w:fill');
-        const color = el.getAttribute('w:color');
-        const pattern = el.getAttribute('w:val');
-        if (fill)
-            out.fill = fill;
-        if (color)
-            out.color = color;
-        if (pattern)
-            out.pattern = pattern;
-        return out;
-    }
+    // Sprint 133：parseBorderDef / parseShading 已抽到 ../styles/borderShading.ts
+    // 共用、本檔 import 使用、避免雙處維護 BorderDef shape
     // ── <w:tcMar> / <w:tblCellMar> ───────────────────────────────────────────────
     function parseCellMargins(el) {
         const out = {};

@@ -22,6 +22,7 @@ import { twipToPt, halfPointToPt } from '../units/units';
 import { DrawingParser } from '../drawing/DrawingParser';
 import { effectiveChildren } from '../utils/dom';
 import { resolveColorElement } from '../styles/colorResolver';
+import { parseParagraphBorders, parseShading } from '../styles/borderShading';
 import type { ThemeMap } from '../styles/ThemeResolver';
 import type {
   Alignment,
@@ -345,6 +346,22 @@ export function parseParagraphProps(pPr: Element): ParagraphProps {
   if (boolFlag(directChild(pPr, 'w:keepNext'))) props.keepNext = true;
   if (boolFlag(directChild(pPr, 'w:keepLines'))) props.keepLines = true;
   if (boolFlag(directChild(pPr, 'w:pageBreakBefore'))) props.pageBreakBefore = true;
+
+  // Sprint 133: w:pBdr — 段落邊框（top / bottom / left / right、between / bar defer）
+  const pBdrEl = directChild(pPr, 'w:pBdr');
+  if (pBdrEl) {
+    const borders = parseParagraphBorders(pBdrEl);
+    if (borders) props.borders = borders;
+  }
+
+  // Sprint 133: w:shd — 段落底色 / 圖案
+  const shdEl = directChild(pPr, 'w:shd');
+  if (shdEl) {
+    const shading = parseShading(shdEl);
+    if (shading.fill || shading.color || shading.pattern) {
+      props.shading = shading;
+    }
+  }
 
   // Sprint 29：w:snapToGrid — 預設 true（OOXML §17.3.1.32），val="0" 顯式關閉
   const snapEl = directChild(pPr, 'w:snapToGrid');
