@@ -5273,6 +5273,570 @@
     const __DOBTOR_OOXML_STUB__ = 'phase-a';
 
     /**
+     * numberingCounter — 文件走訪時維護「numId × ilvl」清單編號計數器
+     *
+     * 純函式狀態機（無 side effect 對外、內部 Map 為 state holder）。
+     *
+     * 用途：
+     *   走訪 DocumentNode.sections 時、對每個 paragraph 若帶 numId、
+     *   呼叫 `state.advance(numId, ilvl, abstractNumbering)` 取得當前序號字串
+     *   與展開後的 counter 序列（給 indent / pPr 套用）。
+     *
+     * OOXML 規則（ECMA-376 Part 1 §17.9）：
+     *   - 每個 numId 維護 levels[ilvl] 0–8 的獨立計數器
+     *   - 首次出現某 ilvl：counter = levels[ilvl].start
+     *   - 再次出現同 ilvl 同 numId：counter += 1
+     *   - 跳到較淺層（ilvl 變小）：保留淺層 counter、reset 所有「深層 ilvl > current」counters
+     *     → 下次再出現深層 ilvl 時重新從 start 起算
+     *   - `lvlRestart` 屬性：levels[X].lvlRestart = N 表示「遇到 ilvl < N 的段落時、ilvl X 重啟」
+     *     - 預設行為 = lvlRestart 等於 ilvl（深層遇淺層自動 reset）
+     *     - 顯式 lvlRestart = 0 表示「永不重啟」（編號跨章節連續）
+     *
+     * 不負責：
+     *   - lvlText 模板展開（由 numberingFormatter.expandLvlText 處理）
+     *   - bullet 字元產生（bullet numFmt 由 lvlText 直接給字元）
+     *   - 縮排計算（由 caller 從 levels[ilvl].indent 取）
+     *
+     * 紀律 #21（optional 空集合不掛 key）：返回 counters 陣列只含 0..ilvl（不掛深層 undefined）
+     */
+    /**
+     * 清單編號計數器狀態 holder。
+     *
+     * 每個 numId 維護 levels[ilvl] 0–8 的計數值 + 首次出現旗標（用於判定是否套 start）。
+     * 跨 numId 的 counter 互相獨立（OOXML 規範）。
+     *
+     * Lifecycle：
+     *   const counter = new NumberingCounterState();
+     *   for each paragraph with numId:
+     *     const result = counter.advance(numId, ilvl, abstractNum);
+     *     // result.counters → expandLvlText(level.text, result.counters, result.numFmts)
+     */
+    class NumberingCounterState {
+        constructor() {
+            /** numId → counters[ilvl]（-1 = 未初始化、0+ = 已 set 過 counter）*/
+            this.state = new Map();
+        }
+        /**
+         * 推進一個 numbered paragraph 的計數器、回傳當前序號狀態。
+         *
+         * @param numId             paragraph.props.numId
+         * @param ilvl              paragraph.props.ilvl（預設 0）
+         * @param abstractNumbering NumberingMap.get(numId)；undefined 視為空清單 placeholder
+         * @returns                 AdvanceResult；abstractNumbering 缺 ilvl 對應 level 時、
+         *                          回傳 placeholder level (numFmt='decimal', text='%1.', start=1)
+         */
+        advance(numId, ilvl, abstractNumbering) {
+            // 取得或初始化此 numId 的 counters 陣列
+            let counters = this.state.get(numId);
+            if (!counters) {
+                counters = new Array(9).fill(-1); // -1 = 未初始化
+                this.state.set(numId, counters);
+            }
+            // 取得 level 定義（缺失時用 placeholder、不污染 state）
+            const level = findLevel(abstractNumbering, ilvl) ?? placeholderLevel(ilvl);
+            // 計算 lvlRestart 規則：
+            //   - 顯式 lvlRestart = 0 → 永不 reset 深層
+            //   - 顯式 lvlRestart = N → 遇 ilvl < N 時 reset 此 level
+            //   - 未指定 → 預設行為（深層遇淺層 reset、由本演算法的「reset 深層」step 處理）
+            //
+            // 本實作的 reset 是「advance 此 ilvl 時、reset 所有 ilvl' > ilvl 的 counter」。
+            // 對應 OOXML 預設「深層遇淺層 reset」(lvlRestart undefined 等同於 lvlRestart = ilvl + 1)。
+            // 顯式 lvlRestart=0 不影響本 step；要影響「淺層遇深層 reset 自己」需 caller 另查
+            // levels[X].lvlRestart 並決定 — 本實作不主動套（避免複雜耦合、留給未來 sprint）。
+            // 推進此 ilvl 的 counter
+            if (counters[ilvl] < 0) {
+                // 首次出現：用 start
+                counters[ilvl] = level.start;
+            }
+            else {
+                // 已出現過：+1
+                counters[ilvl] += 1;
+            }
+            // Reset 所有「ilvl' > ilvl」的深層 counter（下次再出現重新從 start 起算）
+            // 例外：顯式 lvlRestart = 0 的 level 不 reset（連續編號跨章節）
+            for (let i = ilvl + 1; i < counters.length; i++) {
+                if (counters[i] < 0)
+                    continue; // 從未出現過、無需 reset
+                const deeperLevel = findLevel(abstractNumbering, i);
+                if (deeperLevel && deeperLevel.lvlRestart === 0)
+                    continue;
+                counters[i] = -1;
+            }
+            // 組裝 counters 結果（只取 0..ilvl、紀律 #21 空集合不掛 key）
+            const resultCounters = [];
+            const resultNumFmts = [];
+            for (let i = 0; i <= ilvl; i++) {
+                // 較淺層若從未出現過（如直接從 ilvl=2 開始）、視為 start - 1 + 1 = start
+                // 不主動 advance 較淺層（OOXML 規範：淺層只在自己被 advance 時才 +1）
+                if (counters[i] < 0) {
+                    const shallow = findLevel(abstractNumbering, i);
+                    // 用 start 當顯示值（不寫入 state、避免影響後續真正 advance）
+                    resultCounters.push(shallow?.start ?? 1);
+                    resultNumFmts.push(shallow?.numFmt ?? 'decimal');
+                }
+                else {
+                    resultCounters.push(counters[i]);
+                    const shallow = findLevel(abstractNumbering, i);
+                    resultNumFmts.push(shallow?.numFmt ?? 'decimal');
+                }
+            }
+            return { counters: resultCounters, numFmts: resultNumFmts, level };
+        }
+        /**
+         * 完整重置所有 numId 的計數器（如：開始解析新文件時）。
+         */
+        reset() {
+            this.state.clear();
+        }
+        /**
+         * 重置單一 numId 的計數器（如：遇到 sectPr 強制重啟章節）。
+         *
+         * @param numId 要重置的 numId；未存在時 no-op
+         */
+        resetNum(numId) {
+            this.state.delete(numId);
+        }
+        /**
+         * （debug / test 用）取得目前 state snapshot。
+         *
+         * 回傳的 Map 是 deep copy、修改不影響內部 state。
+         */
+        snapshot() {
+            const out = new Map();
+            for (const [k, v] of this.state) {
+                out.set(k, [...v]);
+            }
+            return out;
+        }
+    }
+    // ── 內部 helper ──────────────────────────────────────────────────────────────
+    function findLevel(abstractNumbering, ilvl) {
+        if (!abstractNumbering)
+            return undefined;
+        // levels 陣列已由 NumberingResolver 按 ilvl 排序、但允許稀疏（缺中間層）
+        return abstractNumbering.levels.find((l) => l.ilvl === ilvl);
+    }
+    function placeholderLevel(ilvl) {
+        // 缺失 level 的 placeholder：標準 decimal "%1." 編號（不 crash 下游）
+        return { ilvl, numFmt: 'decimal', text: '%1.', start: 1 };
+    }
+
+    /**
+     * numberingFormatter — 把序號數字按 OOXML w:numFmt 規則格式化為顯示字串
+     *
+     * 用途：NumberingResolver 解析 `<w:lvl><w:numFmt val="chineseCounting"/></w:lvl>`
+     * 後保留原始 `numFmt` 字串；Renderer / mapper 階段把計數器 number 透過此模組轉為
+     * 「一」「二」「壹」「i」「I」「a」… 等實際顯示字元。
+     *
+     * 設計決策（Sprint 132、規畫書 §Phase 4.3）：
+     *   - **純函式 + 無狀態**：好 cache、好測試（紀律 #3 / #5）
+     *   - **不在 Renderer 內 inline**：保持「OOXML 知識」集中在 numbering 目錄
+     *   - **fallback 為 decimal**：未知 numFmt 不 throw、回 `String(n)` 確保 render 不斷
+     *   - **0 / 負數防禦**：依各 format 語意決定（如 decimal 直回；CN 序數的 0 = 〇）
+     *
+     * 涵蓋的 numFmt（ECMA-376 §17.18.59 ST_NumberFormat 子集，依規畫書 §Phase 4.3）：
+     *
+     * | numFmt | 範例（n=1, 2, 11） | 備註 |
+     * |---|---|---|
+     * | decimal | 1, 2, 11 | 預設 / fallback |
+     * | decimalZero | 01, 02, 11 | 兩位數補 0（OOXML 標準 padding） |
+     * | none | "" | 不渲染（OOXML 規定）|
+     * | bullet | "" | 由 w:lvlText 直接給字元、formatter 不處理 |
+     * | lowerLetter / upperLetter | a/A, b/B, aa/AA | base-26 |
+     * | lowerRoman / upperRoman | i/I, ii/II, xi/XI | 1–3999 範圍 |
+     * | ordinal | 1st, 2nd, 3rd, 11th | 英文序數 |
+     * | ordinalText | first, second, eleventh | 英文序數文字（1–20）|
+     * | cardinalText | one, two, eleven | 英文基數文字（1–20）|
+     * | chineseCounting | 一, 二, 十一 | 繁/簡通用書寫形式（1–9999）|
+     * | chineseCountingThousand | 一千零一 | 千分隔（1–9999）|
+     * | chineseLegalSimplified | 壹, 貳, 拾壹 | 法定大寫（繁體寫法、簡體稍有差異）|
+     * | ideographDigital | 〇, 一, 二, 一一 | 用作 digits（每位數獨立）|
+     * | ideographZodiac | 子, 丑, 寅 | 12 地支循環 |
+     * | ideographTraditional | 甲, 乙, 丙 | 10 天干循環 |
+     * | japaneseCounting | 一, 二, 十一 | 與 chineseCounting 同（W 規格簡化）|
+     * | japaneseDigitalTenThousand | 一万 | 萬分隔 |
+     * | japaneseLegal | 壱, 弐, 参 | 日文法定大寫（與中文略異）|
+     * | taiwaneseCounting | 一, 二, 十一 | 同 chineseCounting |
+     * | taiwaneseCountingThousand | 一千, 二千 | 同 chineseCountingThousand |
+     * | iroha | い, ろ, は, … | 47 字假名循環 |
+     * | aiueo | あ, い, う, … | 46 字假名循環 |
+     *
+     * 規格參考：
+     *   - ECMA-376 Part 1 §17.18.59 (ST_NumberFormat)
+     *   - ECMA-376 Part 1 §17.9.27 (lvlText)
+     *   - ECMA-376 Part 1 §17.9.30 (numFmt)
+     */
+    /**
+     * 把計數 n 依 numFmt 格式化為顯示字串。
+     *
+     * @param n        計數值（通常 ≥ 1；0 / 負數依 format 各自處理）
+     * @param numFmt   OOXML w:numFmt 字串（如 'chineseCounting'）
+     * @returns 顯示字串；未知 numFmt 回 `String(n)`（fallback to decimal）
+     *
+     * @example
+     *   formatNumber(1, 'chineseCounting')         // → "一"
+     *   formatNumber(11, 'chineseCounting')        // → "十一"
+     *   formatNumber(5, 'lowerRoman')              // → "v"
+     *   formatNumber(28, 'lowerLetter')            // → "ab"
+     *   formatNumber(3, 'ordinal')                 // → "3rd"
+     *   formatNumber(2024, 'ideographDigital')     // → "二〇二四"
+     *   formatNumber(101, 'chineseLegalSimplified')// → "壹佰零壹"
+     */
+    function formatNumber(n, numFmt) {
+        // none / bullet：renderer 直接用 lvlText、不該 call 這裡；防禦回 ""
+        if (numFmt === 'none' || numFmt === 'bullet')
+            return '';
+        if (!Number.isFinite(n))
+            return '';
+        switch (numFmt) {
+            case 'decimal':
+                return String(n);
+            case 'decimalZero':
+                return n < 10 && n >= 0 ? '0' + n : String(n);
+            case 'lowerLetter':
+                return toBase26Letter(n, false);
+            case 'upperLetter':
+                return toBase26Letter(n, true);
+            case 'lowerRoman':
+                return toRoman(n).toLowerCase();
+            case 'upperRoman':
+                return toRoman(n);
+            case 'ordinal':
+                return toOrdinal(n);
+            case 'ordinalText':
+                return toOrdinalText(n);
+            case 'cardinalText':
+                return toCardinalText(n);
+            case 'chineseCounting':
+            case 'japaneseCounting':
+            case 'taiwaneseCounting':
+                return toChineseCounting(n);
+            case 'chineseCountingThousand':
+            case 'taiwaneseCountingThousand':
+                return toChineseCountingThousand(n);
+            case 'chineseLegalSimplified':
+                return toChineseLegal(n);
+            case 'japaneseLegal':
+                return toJapaneseLegal(n);
+            case 'ideographDigital':
+            case 'taiwaneseDigital':
+                return toIdeographDigital(n);
+            case 'japaneseDigitalTenThousand':
+                return toJapaneseDigitalTenThousand(n);
+            case 'ideographZodiac':
+                return toZodiac(n);
+            case 'ideographTraditional':
+                return toHeavenlyStem(n);
+            case 'iroha':
+                return toIroha(n);
+            case 'irohaFullWidth':
+                return toIroha(n);
+            case 'aiueo':
+                return toAiueo(n);
+            case 'aiueoFullWidth':
+                return toAiueo(n);
+            default:
+                // 未知 format fallback to decimal — 不 throw、保 render 不斷
+                return String(n);
+        }
+    }
+    /**
+     * 展開 lvlText 模板字串（如 `"%1.%2."`）為實際序號（如 `"1.2."`）。
+     *
+     * @param template       OOXML w:lvlText/@val 字串
+     * @param counters       各 level 的目前計數值（counters[0] = ilvl 0 的計數、counters[1] = ilvl 1 的計數 ...）
+     * @param numFmts        各 level 的 numFmt 字串（與 counters 同長、由 NumberingMap 提供）
+     * @returns 展開後字串；缺對應 counter / numFmt 時該 placeholder 留空
+     *
+     * @example
+     *   expandLvlText("%1.%2.", [3, 2], ['decimal', 'lowerLetter']) // → "3.b."
+     *   expandLvlText("第%1章", [5], ['chineseCounting'])           // → "第五章"
+     */
+    function expandLvlText(template, counters, numFmts) {
+        // 用單一 regex 取代 %1, %2, ..., %9 placeholder
+        return template.replace(/%([1-9])/g, (_, digit) => {
+            const idx = parseInt(digit, 10) - 1; // %1 → counters[0]
+            const counter = counters[idx];
+            const fmt = numFmts[idx];
+            if (counter === undefined || fmt === undefined)
+                return '';
+            return formatNumber(counter, fmt);
+        });
+    }
+    // ── 西式格式 ────────────────────────────────────────────────────────────────
+    /** base-26：1=a, 26=z, 27=aa, 52=az, 53=ba, … */
+    function toBase26Letter(n, uppercase) {
+        if (n < 1)
+            return uppercase ? 'A' : 'a';
+        let v = Math.floor(n);
+        let out = '';
+        const base = uppercase ? 65 : 97; // 'A' or 'a'
+        while (v > 0) {
+            const rem = (v - 1) % 26;
+            out = String.fromCharCode(base + rem) + out;
+            v = Math.floor((v - 1) / 26);
+        }
+        return out;
+    }
+    const ROMAN_PAIRS = [
+        [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+        [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+        [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+    ];
+    /** 1–3999；範圍外回 decimal */
+    function toRoman(n) {
+        if (n < 1 || n > 3999)
+            return String(n);
+        let v = Math.floor(n);
+        let out = '';
+        for (const [val, sym] of ROMAN_PAIRS) {
+            while (v >= val) {
+                out += sym;
+                v -= val;
+            }
+        }
+        return out;
+    }
+    function toOrdinal(n) {
+        const v = Math.floor(n);
+        const mod100 = v % 100;
+        if (mod100 >= 11 && mod100 <= 13)
+            return v + 'th';
+        switch (v % 10) {
+            case 1: return v + 'st';
+            case 2: return v + 'nd';
+            case 3: return v + 'rd';
+            default: return v + 'th';
+        }
+    }
+    const ORDINAL_TEXT = [
+        '', 'first', 'second', 'third', 'fourth', 'fifth',
+        'sixth', 'seventh', 'eighth', 'ninth', 'tenth',
+        'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth',
+        'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth',
+    ];
+    function toOrdinalText(n) {
+        const v = Math.floor(n);
+        return v >= 1 && v <= 20 ? ORDINAL_TEXT[v] : toOrdinal(v);
+    }
+    const CARDINAL_TEXT = [
+        '', 'one', 'two', 'three', 'four', 'five',
+        'six', 'seven', 'eight', 'nine', 'ten',
+        'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
+        'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty',
+    ];
+    function toCardinalText(n) {
+        const v = Math.floor(n);
+        return v >= 1 && v <= 20 ? CARDINAL_TEXT[v] : String(v);
+    }
+    // ── 中文格式 ────────────────────────────────────────────────────────────────
+    const CN_DIGITS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+    /**
+     * 繁體中文計數寫法（1–9999）：
+     *   1=一, 10=十, 11=十一, 20=二十, 99=九十九,
+     *   100=一百, 101=一百零一, 110=一百一十, 999=九百九十九,
+     *   1000=一千, 9999=九千九百九十九
+     *
+     * 範圍外 fallback decimal。
+     */
+    function toChineseCounting(n) {
+        if (n < 0)
+            return '負' + toChineseCounting(-n);
+        if (n === 0)
+            return CN_DIGITS[0];
+        if (n >= 10000)
+            return String(n); // 超出 4 位 fallback decimal（萬以上由 chineseCountingThousand 處理）
+        const v = Math.floor(n);
+        if (v < 10)
+            return CN_DIGITS[v];
+        // 10–19：十、十一、…、十九（無「一十」前綴）
+        if (v < 20)
+            return v === 10 ? '十' : '十' + CN_DIGITS[v - 10];
+        // 20–99
+        if (v < 100) {
+            const tens = Math.floor(v / 10);
+            const ones = v % 10;
+            return CN_DIGITS[tens] + '十' + (ones === 0 ? '' : CN_DIGITS[ones]);
+        }
+        // 100–999
+        if (v < 1000) {
+            const h = Math.floor(v / 100);
+            const rest = v % 100;
+            if (rest === 0)
+                return CN_DIGITS[h] + '百';
+            // 101–109：一百零一
+            if (rest < 10)
+                return CN_DIGITS[h] + '百零' + CN_DIGITS[rest];
+            // 110, 120 ..：一百一十；111–199 → 一百一十一
+            return CN_DIGITS[h] + '百' + toChineseCounting(rest);
+        }
+        // 1000–9999
+        const k = Math.floor(v / 1000);
+        const rest = v % 1000;
+        if (rest === 0)
+            return CN_DIGITS[k] + '千';
+        if (rest < 100)
+            return CN_DIGITS[k] + '千零' + toChineseCounting(rest);
+        return CN_DIGITS[k] + '千' + toChineseCounting(rest);
+    }
+    /**
+     * 千分隔變體：相對於 chineseCounting，本變體不省略「零」、適用法律 / 正式文書。
+     * Sprint 132 簡化為 alias to chineseCounting；如未來 fixture 出現差異再分流。
+     */
+    function toChineseCountingThousand(n) {
+        return toChineseCounting(n);
+    }
+    const CN_LEGAL_DIGITS = [
+        '零', '壹', '貳', '參', '肆', '伍', '陸', '柒', '捌', '玖',
+    ];
+    /**
+     * 中文法定大寫（繁體寫法）：
+     *   1=壹, 10=拾, 11=拾壹, 100=壹佰, 1000=壹仟, 10000=壹萬
+     *
+     * 用於支票、財報、法律文件防竄改。範圍 1–99999999（億以下）。
+     */
+    function toChineseLegal(n) {
+        if (n < 0)
+            return '負' + toChineseLegal(-n);
+        if (n === 0)
+            return CN_LEGAL_DIGITS[0];
+        const v = Math.floor(n);
+        if (v < 10)
+            return CN_LEGAL_DIGITS[v];
+        // 10–19：拾、拾壹…（同 chineseCounting 不寫「壹拾」）
+        if (v < 20)
+            return v === 10 ? '拾' : '拾' + CN_LEGAL_DIGITS[v - 10];
+        if (v < 100) {
+            const tens = Math.floor(v / 10);
+            const ones = v % 10;
+            return CN_LEGAL_DIGITS[tens] + '拾' + (ones === 0 ? '' : CN_LEGAL_DIGITS[ones]);
+        }
+        if (v < 1000) {
+            const h = Math.floor(v / 100);
+            const rest = v % 100;
+            if (rest === 0)
+                return CN_LEGAL_DIGITS[h] + '佰';
+            if (rest < 10)
+                return CN_LEGAL_DIGITS[h] + '佰零' + CN_LEGAL_DIGITS[rest];
+            return CN_LEGAL_DIGITS[h] + '佰' + toChineseLegal(rest);
+        }
+        if (v < 10000) {
+            const k = Math.floor(v / 1000);
+            const rest = v % 1000;
+            if (rest === 0)
+                return CN_LEGAL_DIGITS[k] + '仟';
+            if (rest < 100)
+                return CN_LEGAL_DIGITS[k] + '仟零' + toChineseLegal(rest);
+            return CN_LEGAL_DIGITS[k] + '仟' + toChineseLegal(rest);
+        }
+        // 萬以上 — 簡化處理：直接 fallback decimal（超大金額罕用 ilvl 編號）
+        return String(v);
+    }
+    /**
+     * 日文法定大寫（與中文略異）：
+     *   1=壱, 2=弐, 3=参, 10=拾, 100=百, 1000=千
+     *
+     * 日本對某些字使用簡化版（壱弐参）、其他字（肆伍）回退到普通寫法。
+     * Sprint 132 簡化：用日文 1-3 + 普通 4-9、結構同 chineseLegal。
+     */
+    const JP_LEGAL_DIGITS = [
+        '零', '壱', '弐', '参', '四', '五', '六', '七', '八', '九',
+    ];
+    function toJapaneseLegal(n) {
+        if (n < 0)
+            return '負' + toJapaneseLegal(-n);
+        if (n === 0)
+            return JP_LEGAL_DIGITS[0];
+        const v = Math.floor(n);
+        if (v < 10)
+            return JP_LEGAL_DIGITS[v];
+        if (v < 20)
+            return v === 10 ? '拾' : '拾' + JP_LEGAL_DIGITS[v - 10];
+        if (v < 100) {
+            const tens = Math.floor(v / 10);
+            const ones = v % 10;
+            return JP_LEGAL_DIGITS[tens] + '拾' + (ones === 0 ? '' : JP_LEGAL_DIGITS[ones]);
+        }
+        return String(v);
+    }
+    /**
+     * ideographDigital：把 n 的每位數獨立轉為中文數字（不含「十百千」）。
+     *
+     *   1 → 一
+     *   23 → 二三
+     *   100 → 一〇〇
+     *   2024 → 二〇二四
+     *
+     * 適用「壹零壹」式編號（如電話號碼、年份）。
+     */
+    function toIdeographDigital(n) {
+        if (n < 0)
+            return '負' + toIdeographDigital(-n);
+        const v = Math.floor(Math.abs(n));
+        return String(v).split('').map((d) => CN_DIGITS[parseInt(d, 10)] ?? d).join('');
+    }
+    /**
+     * 日文 ten-thousand：使用「万」分隔。
+     *   1 → 一, 10000 → 一万, 12345 → 一万二千三百四十五
+     *
+     * Sprint 132 簡化：n < 10000 同 chineseCounting；n ≥ 10000 加「万」前綴。
+     */
+    function toJapaneseDigitalTenThousand(n) {
+        if (n < 0)
+            return '負' + toJapaneseDigitalTenThousand(-n);
+        const v = Math.floor(n);
+        if (v < 10000)
+            return toChineseCounting(v);
+        const man = Math.floor(v / 10000);
+        const rest = v % 10000;
+        const manStr = toChineseCounting(man) + '万';
+        if (rest === 0)
+            return manStr;
+        return manStr + toChineseCounting(rest);
+    }
+    // ── 循環序列 ────────────────────────────────────────────────────────────────
+    const ZODIAC = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
+    function toZodiac(n) {
+        if (n < 1)
+            return ZODIAC[0];
+        return ZODIAC[(Math.floor(n) - 1) % 12];
+    }
+    const HEAVENLY_STEM = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
+    function toHeavenlyStem(n) {
+        if (n < 1)
+            return HEAVENLY_STEM[0];
+        return HEAVENLY_STEM[(Math.floor(n) - 1) % 10];
+    }
+    const IROHA_HW = [
+        'い', 'ろ', 'は', 'に', 'ほ', 'へ', 'と', 'ち', 'り', 'ぬ',
+        'る', 'を', 'わ', 'か', 'よ', 'た', 'れ', 'そ', 'つ', 'ね',
+        'な', 'ら', 'む', 'う', 'ゐ', 'の', 'お', 'く', 'や', 'ま',
+        'け', 'ふ', 'こ', 'え', 'て', 'あ', 'さ', 'き', 'ゆ', 'め',
+        'み', 'し', 'ゑ', 'ひ', 'も', 'せ', 'す',
+    ];
+    /**
+     * いろは 47 字假名循環。半形（katakana）目前 fall through to 平假名（OOXML 用
+     * 全形 / 半形 hint 但實務上 fixture 罕見、defer）。
+     */
+    function toIroha(n, _fullWidth) {
+        if (n < 1)
+            return IROHA_HW[0];
+        return IROHA_HW[(Math.floor(n) - 1) % IROHA_HW.length];
+    }
+    const AIUEO_HW = [
+        'あ', 'い', 'う', 'え', 'お', 'か', 'き', 'く', 'け', 'こ',
+        'さ', 'し', 'す', 'せ', 'そ', 'た', 'ち', 'つ', 'て', 'と',
+        'な', 'に', 'ぬ', 'ね', 'の', 'は', 'ひ', 'ふ', 'へ', 'ほ',
+        'ま', 'み', 'む', 'め', 'も', 'や', 'ゆ', 'よ', 'ら', 'り',
+        'る', 'れ', 'ろ', 'わ', 'を', 'ん',
+    ];
+    function toAiueo(n, _fullWidth) {
+        if (n < 1)
+            return AIUEO_HW[0];
+        return AIUEO_HW[(Math.floor(n) - 1) % AIUEO_HW.length];
+    }
+
+    /**
      * ToCanvasEditor — 把 DocumentNode 轉成 @hufe921/canvas-editor 的 IElement[] 格式
      *
      * canvas-editor 的輸入是「扁平 IElement 陣列」：
@@ -5311,35 +5875,60 @@
          */
         convert(doc) {
             const elements = [];
+            // Sprint 138：跨 section 共用 counter state（OOXML §17.9 預設行為、
+            // sectPr 不強制重啟編號；若 fixture 需要可由 future sprint 加 hook）
+            const counter = new NumberingCounterState();
             for (let i = 0; i < doc.sections.length; i++) {
                 const section = doc.sections[i];
                 // section 之間插 pageBreak（除了第一節前不需要）
                 if (i > 0) {
                     elements.push({ type: 'pageBreak', value: '\n' });
                 }
-                this.appendBlocks(elements, section.body, doc.media);
+                this.appendBlocks(elements, section.body, doc.media, doc.numbering, counter);
             }
             return elements;
         }
         // ── BlockNode[] 走訪 ──────────────────────────────────────────────────────
-        appendBlocks(out, blocks, media) {
+        appendBlocks(out, blocks, media, numbering, counter) {
             for (const block of blocks) {
                 if (block.type === 'paragraph') {
-                    this.appendParagraph(out, block, media);
+                    this.appendParagraph(out, block, media, numbering, counter);
                 }
                 else {
-                    out.push(this.convertTable(block, media));
+                    out.push(this.convertTable(block, media, numbering, counter));
                     // 表格後仍需段落終止符 \n（canvas-editor 規範）
                     out.push({ value: '\n' });
                 }
             }
         }
         // ── Paragraph → IElement[]（含段尾 \n）────────────────────────────────────
-        appendParagraph(out, para, media) {
+        appendParagraph(out, para, media, numbering, counter) {
             const rowFlex = mapAlignment(para.props.alignment);
             const rowMargin = para.props.spacing?.before ?? para.props.spacing?.after;
             // 段落內 InlineNode → 各別 IElement
             const paraElements = [];
+            // Sprint 138：若 paragraph 有 numId，emit 編號前綴（展開 lvlText + tab 分隔）
+            // canvas-editor 無 listType/listStyle 對應、降級為「前綴字串 + tab」嵌入段首
+            // - bullet numFmt：lvlText 直接是字元（如「•」）、counter advance 仍需推進避免污染深層
+            // - decimal/letter/roman/CN/JP/...：用 expandLvlText 展開 counter 為字串
+            // - lvlText='' 的 placeholder：跳過 emit（避免空 prefix）
+            if (para.props.numId !== undefined) {
+                const ilvl = para.props.ilvl ?? 0;
+                const abstractNum = numbering.get(para.props.numId);
+                const result = counter.advance(para.props.numId, ilvl, abstractNum);
+                const prefix = expandLvlText(result.level.text, result.counters, result.numFmts);
+                if (prefix !== '') {
+                    // 用 paragraph 的 runProps 基底（從 level.runProps fallback）作為前綴樣式
+                    // 取第一個 run 的 props 當前綴 baseStyle；若無 run、用 level.runProps 或空
+                    const baseProps = (para.runs.find((r) => r.type === 'run')?.props) ??
+                        result.level.runProps ??
+                        {};
+                    const baseStyle = mapRunProps(baseProps);
+                    this.appendChars(paraElements, prefix, baseStyle);
+                    // 編號與後續文字以 tab 分隔（OOXML 預設 lvlText suffix = tab）
+                    paraElements.push({ ...baseStyle, type: 'tab', value: '\t' });
+                }
+            }
             for (const node of para.runs) {
                 this.appendInlineNode(paraElements, node, media);
             }
@@ -5452,9 +6041,9 @@
             });
         }
         // ── Table → IElement (type='table') ───────────────────────────────────────
-        convertTable(table, media) {
+        convertTable(table, media, numbering, counter) {
             const colgroup = table.grid.map((w) => ({ width: w }));
-            const trList = table.rows.map((row) => this.convertRow(row, media));
+            const trList = table.rows.map((row) => this.convertRow(row, media, numbering, counter));
             return {
                 type: 'table',
                 value: '',
@@ -5462,27 +6051,27 @@
                 trList,
             };
         }
-        convertRow(row, media) {
+        convertRow(row, media, numbering, counter) {
             const tdList = [];
             for (const cell of row.cells) {
                 // vMerge continue 格子在 canvas-editor 中不出現（被 anchor 的 rowspan 吸收）
                 if (cell.isContinuation)
                     continue;
-                tdList.push(this.convertCell(cell, media));
+                tdList.push(this.convertCell(cell, media, numbering, counter));
             }
             return {
                 height: row.props.height ?? 0,
                 tdList,
             };
         }
-        convertCell(cell, media) {
+        convertCell(cell, media, numbering, counter) {
             // Sprint 5：cell.content 改為 BlockNode[]，paragraphs 直接 append；
             // 巢狀 TableNode 暫時降級成「[巢狀表格 N×M]」文字占位
             // （canvas-editor IElement 結構不支援 cell 內又包 type=table，需自寫 Renderer）。
             const value = [];
             for (const block of cell.content) {
                 if (block.type === 'paragraph') {
-                    this.appendParagraph(value, block, media);
+                    this.appendParagraph(value, block, media, numbering, counter);
                 }
                 else if (block.type === 'table') {
                     const r = block.rows.length;

@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 137 — Phase 4 wire-up 第一階段：`numberingCounter.ts` 純函式 state machine（NumberingCounterState、OOXML §17.9 多 numId × ilvl 0-8 獨立計數 + 深層 reset + lvlRestart=0 跨章節連續 + 缺失防禦）+ 20 新 unit test、vitest 1136 → **1156 passed + 1 skipped**、VR 0.073191 byte-identical 第 13 次連續；Phase 4 Style 85% → 86%；Sprint 138 候選 = mapper wire-up Phase 1）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 138 — Phase 4 wire-up 第二階段：`ToCanvasEditor.ts` numbering wire-up（+50 行、NumberingCounterState 跨 section/cell 共用、appendParagraph 入口 advance counter + expandLvlText 展開為「字元 IElement + tab」）+ 10 新 unit test + 8 fixture AST snapshot regenerate（02_std_table 5 + 03_complex_table 2 + 含 numId fixture 全覆蓋）。vitest 1156 → **1166 passed + 1 skipped**、VR 0.073191 byte-identical 第 14 次連續（**證實「VR 不走 mapper」mental model 正確**）；Phase 4 Style 86% → 88%；Sprint 139 候選 = textAlignment / framePr wire-up）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
