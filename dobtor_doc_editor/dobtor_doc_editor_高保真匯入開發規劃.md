@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 131 — StyleResolver + TableStyleApplicator tblStylePr/tcPr 條件 cell-level props 傳遞補完（shading + vAlign）+ 13 新 unit test（9 applicator + 4 resolver）+ vitest 1044 → **1057 passed + 1 skipped** + VR **0.073191 byte-identical 第 8 次連續**；**紀律 #21 升正式（19 → 20 條）**；階段 B cluster 4 (130-131) 完成、Phase 4 Style 81% → 82%）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 132 — numberingFormatter 純函式模組（16 numFmt + expandLvlText 模板展開、規畫書 §Phase 4.3 收口、wire-up 留未來 sprint）+ 50 新 unit test + vitest 1057 → **1107 passed + 1 skipped** + VR **0.073191 byte-identical 第 9 次連續**；階段 B cluster 5 (132) 完成、Phase 4 Style 82% → 83%）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
@@ -41,7 +41,7 @@ VR mean 進展：**0.1728**（Sprint 28 baseline）→ **0.1156**（Sprint 33）
 | Phase 1 OOXML Parser | 78% | 主流元素已覆蓋；Sprint 121 trHeight；Sprint 122 OLE / pict；Sprint 123 field code + 複式 fldChar；Sprint 124 SDT 透明 unwrap；Sprint 125 bookmark range capture；Sprint 126 hyperlink rels 擴 tgtFrame/history/docLocation |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%）| opentype.js 已用於字型 metric;HarfBuzz 為長期方案 |
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191 |
-| Phase 4 Style Theme | 82% | Sprint 19 style merge 落地；Sprint 130 §Phase 4.1 tint/shade 演算法 HSL luminance 升級；Sprint 131 §Phase 4.2 tblStylePr/tcPr 條件 cell shading + vAlign 傳遞補完（tcBorders/trPr/tblPr 條件 defer）|
+| Phase 4 Style Theme | 83% | Sprint 19 style merge 落地；Sprint 130 §Phase 4.1 tint/shade HSL luminance 升級；Sprint 131 §Phase 4.2 tblStylePr/tcPr cell shading + vAlign 傳遞補完；Sprint 132 §Phase 4.3 numberingFormatter 模組（16 numFmt + expandLvlText、wire-up 留未來 sprint）|
 | Phase 4.5 產品化基礎建設 | 100% | 見附錄 A.1 |
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 未開始 | 待 mean ≤ 0.07 後啟動 |
 | Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe |
@@ -474,9 +474,9 @@ for each block in flow:
 - 待補：tcBorders 條件樣式（需 BorderConflictResolver 整合）、trPr / tblPr 條件樣式（罕見）、字元↔段落樣式 `<w:link>` 連結（Phase 6 export 再評估）
 
 #### 4.3 編號樣式（1 週）
-- 編號文字的字型大小、顏色獨立於段落
-- 編號與段落的間距(`<w:suff>` = `tab` / `space` / `nothing`)
-- 中文編號格式完整支援、`<w:lvlText>` 模板解析
+- 編號文字的字型大小、顏色獨立於段落（待 wire-up sprint）
+- 編號與段落的間距(`<w:suff>` = `tab` / `space` / `nothing`)（待 Layout sprint）
+- ~~中文編號格式完整支援、`<w:lvlText>` 模板解析~~ **Sprint 132 完成模組** — 16 種 numFmt（decimal/letter/roman/ordinal/CN/JP/zodiac/iroha/aiueo）+ `expandLvlText("%1.%2.")` 模板展開，純函式設計，詳見 [docs/sprint132_numbering_formatter.md](docs/sprint132_numbering_formatter.md)。**wire-up 到 mapper / renderer 留未來 sprint**
 
 #### 4.4 Paragraph 進階（1 週）
 - `<w:frame>` 段落框、`<w:pBdr>` 段落邊框 + 陰影、`<w:tab>` tab stop 進階、`<w:textAlignment>`
