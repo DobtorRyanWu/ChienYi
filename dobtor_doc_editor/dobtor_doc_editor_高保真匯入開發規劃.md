@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 126 — HyperlinkInfo 擴 tgtFrame/history/docLocation 10 新 test + VR 0.073191 byte-identical（第 6 次連續）；階段 B cluster 2 完成；Phase 1 77→78%）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 127 — Probe sprint：FontMetricsAdapter production migration audit；揭示是 5-25 sprint architectural migration、autonomous 決策 Strategy D 維持現狀、defer 真正 migration 給 user；Sprint 128 改為 HarfBuzz spike）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
@@ -881,7 +881,7 @@ dobtor_doc_editor/static/src/
 
 | 候選 | scope | 為什麼 |
 |---|---|---|
-| migrate doc_editor.js 走 production canvas-editor 整合 | Sprint 64b external | 自家 VR pipeline 已落地 FontMetricsAdapter -2.3%;real production 啟用同等 VR 改善需 portal / canvas-editor font 供應策略 |
+| ~~migrate doc_editor.js 走 production canvas-editor 整合~~ | Sprint 64b external → **Sprint 127 probe 後 autonomous 決策 Strategy D 維持現狀** | Sprint 127 probe 揭示：production canvas-editor 完全沒整合 FontMetricsAdapter；要 promote 需重寫 production render 層（5-25 sprint）；non-trivial scope。詳見 [docs/sprint127_fontmetrics_production_probe.md](docs/sprint127_fontmetrics_production_probe.md)。**defer 至 user 決定是否啟動 Strategy A/B/C** |
 | 重生 goldens 用 Word desktop 渲染 | 大改造 | 換 metric anchor — goldens 目前是 LibreOffice anchor、副作用大、需重生 251 PNG |
 | OffscreenCanvas + Web Worker render | 3-5 sprint | Sprint 60 probe 技術可行性 GREEN(puppeteer 4/4 features、postMessage ~5ms);UI 非阻塞、Safari < 16.4 受限 |
 | 50+ 頁 fixture 收集 | 待 user 提供 | Sprint 53 可視頁虛擬化、Sprint 55 full-warm benchmark 在當前 fixture ≤6p 限制下無法量化全域 payoff |
