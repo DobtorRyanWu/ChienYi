@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 136 — isInTableCell 實作後 VR 全 42 fixture **翻車** → revert（byte-identical Sprint 135）：03 全套管 5 fixture +0.86~1.47pp、aggregate +0.021pp 淨退化；snap 公式對 03 title 塊 overshoot golden 12pt；vitest 1133 → **1136 passed + 1 skipped**（+3 lockdown test）+ VR 0.073191 byte-identical 第 12 次連續含 revert；docGrid snap 議題 autonomous 推薦長期 defer、進階段 C 換 metric anchor）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 137 — Phase 4 wire-up 第一階段：`numberingCounter.ts` 純函式 state machine（NumberingCounterState、OOXML §17.9 多 numId × ilvl 0-8 獨立計數 + 深層 reset + lvlRestart=0 跨章節連續 + 缺失防禦）+ 20 新 unit test、vitest 1136 → **1156 passed + 1 skipped**、VR 0.073191 byte-identical 第 13 次連續；Phase 4 Style 85% → 86%；Sprint 138 候選 = mapper wire-up Phase 1）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
