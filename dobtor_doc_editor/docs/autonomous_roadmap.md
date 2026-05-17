@@ -76,7 +76,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 121-123 | Phase 1 OOXML | 1.5 進階 row height(`<w:trHeight calcInternal>`)、1.8 OLE objects 降級渲染、1.9 field code 完整覆蓋(PAGE / DATE / SEQ / TOC) | ✅ |
 | 124-126 | Phase 1 OOXML | 1.9 SDT 結構化標籤、1.9 bookmark range、1.9 hyperlink rels 完整 | ✅ |
 | 127 | Phase 2 字型 | **Probe sprint** — FontMetricsAdapter production migration audit;autonomous 決策 Strategy D(維持現狀、defer 真正 migration 到 user) | ✅ |
-| 128 | Phase 2 字型 | HarfBuzz WASM 整合 spike(原 Sprint 129 前移、規畫書原列 1-2 週) | ⏳ |
+| 128 | Phase 2 字型 | HarfBuzz WASM 整合 spike(原 Sprint 129 前移、規畫書原列 1-2 週)| ✅ |
 | ~~129~~ | ~~Phase 2 字型~~ | ~~HarfBuzz~~（移到 Sprint 128）| — |
 | 130-131 | Phase 4 Style | 4.1 Theme tint/shade 演算法(HSL luminance)、4.2 tblStylePr 15 種條件完整 | ⏳ |
 | 132 | Phase 4 Style | 4.3 中文編號格式 chineseCounting / ideographDigital / japaneseCounting 完整 | ⏳ |
@@ -213,6 +213,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 125 | 2026-05-17 07:55+ | **0.073191(已跑、byte-identical、第 5 次連續、首次真實 fixture trigger)** | ParagraphNode.bookmarks?: string[] 加（types +9）+ ParagraphParser bookmark 收集（段落直屬 / w:r 內含 / hyperlink 內 三路）+30 行 + 8 新 unit test。vitest 1010 → **1018 passed + 1 skipped**、bundle rebuild、**20 個 fixture `_GoBack` 真實被 capture、render 仍 byte-identical**。Phase 1 76% → 77% | #21 候選(Sprint 125): 新 optional 欄位空集合時不掛 key、避免 AST diff noise + 保 cache key 穩定 |
 | 126 | 2026-05-17 08:10+ | **0.073191(已跑、byte-identical、第 6 次連續)** | HyperlinkInfo 擴 tgtFrame/history/docLocation 3 欄位（types +12 / parser +15）+ 10 新 unit test（含 OOXML 布林雙形式 "1"/"true"/"0"/"false"、history false 是合法值用 `!== undefined` 檢測、防禦 broken rels）。vitest 1018 → **1028 passed + 1 skipped**、bundle rebuild。Phase 1 77% → 78%。**階段 B cluster 2 (124-126) 完成** | #21 候選跨 sprint 驗證 2/3（Sprint 125 揭示、Sprint 126 套用驗證 boolean 欄位特例「`!== undefined` 而非 truthy」）|
 | 127 | 2026-05-17 09:20+ | 0.073191（未跑、純 probe docs） | **Probe sprint** — 3 條 docx 路徑 audit（default / DevTools TS engine / VR pipeline）揭示 production canvas-editor 完全沒整合 FontMetricsAdapter（only VR pipeline 有）。「Promote to production」非 flag flip、是 5-25 sprint architectural migration（4 候選策略 A/B/C/D）。**Autonomous 決策 Strategy D（維持現狀）**、defer A/B/C 給 user。Sprint 128 改為 HarfBuzz spike（原 129 前移） | #22 候選(Sprint 127): 「external 候選」標記不代表 scope 小、任何 production migration 開工前先 probe sprint 確認 mental model |
+| 128 | 2026-05-17 15:35+ | 0.073191（未跑、spike test only） | **Probe sprint** — HarfBuzz WASM 進階能力 spike 補完（kerning / ligature / CJK / 純函式 / module 可用性 5 新 test、連同 Phase D.2 基礎 5 test = 10/10 全綠）+ bundle size 量測（核心 +465KB、production 整合不可接受 / VR 可接受）+ async/sync 分析（shape 本身 sync、僅 load async；FontMetricsAdapter 舊註解部分不正確）+ 4 candidate decision（GO-1 / GO-2 / NO-GO / DEFER-1）。**Autonomous 決策 DEFER-1（列為階段 D 候選）**：階段 C 重生 goldens 會打亂 baseline、整合放階段 C 後更划算。vitest 1028 → **1033 passed + 1 skipped**。**階段 B cluster 3 (127-128) 完成** | #22 候選跨 sprint 驗證 2/3（Sprint 127-128 連兩 probe sprint 都成功 catch 「mental model vs 實況」差距、Sprint 130+ 同類可完成 3 次驗證升正式 #22.a）|
 
 ---
 

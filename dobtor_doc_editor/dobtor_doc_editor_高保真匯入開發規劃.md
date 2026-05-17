@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 127 — Probe sprint：FontMetricsAdapter production migration audit；揭示是 5-25 sprint architectural migration、autonomous 決策 Strategy D 維持現狀、defer 真正 migration 給 user；Sprint 128 改為 HarfBuzz spike）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 128 — HarfBuzz WASM spike 擴 5 新 test（共 10/10）+ bundle size 量測（+465KB）+ async/sync 分析 + autonomous 決策 DEFER-1（列為階段 D 候選）；階段 B cluster 3 (127-128) 完成）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
