@@ -83,7 +83,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 132 | Phase 4 Style | 4.3 numberingFormatter 模組（16 numFmt + expandLvlText、純函式）| ✅ |
 | 133 | Phase 4 Style | 4.4 段落 `<w:pBdr>` + `<w:shd>` 解析 + borderShading utility 抽出 DRY | ✅ |
 | 134 | Phase 4 Style | 4.4 剩餘：`<w:textAlignment>` + `<w:framePr>` capture（tab leader 渲染屬 Layout、defer） | ✅ |
-| 135 | Phase 3 漏項 | docGrid snap 段落層級判別子(規畫書 §0.1 列為長期 backlog;Sprint 46+49 全域翻車、需段落條件式) | ⏳ |
+| 135 | Phase 3 漏項 | docGrid snap 段落層級判別子 **probe sprint** — 找到判別子 = 「段落是否在 table cell 內」、Sprint 136 候選 ready 待 user GO | ✅ |
 
 **階段 B 收益估算**:Phase 1 72% → 90%+、Phase 2 部分 → 80%、Phase 4 80% → 95%、VR mean 0.073191 → ~0.05(估)。
 
@@ -221,6 +221,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 132 | 2026-05-17 22:10+ | **0.073191（已跑、byte-identical、第 9 次連續）** | **階段 B cluster 5 開工 + 完成**。numberingFormatter.ts 純函式模組（+400 行：16 numFmt 含 decimal/letter/roman/ordinal/CN/JP/zodiac/iroha/aiueo + expandLvlText 模板展開）+ 50 新 unit test（CN 補零行為 / base-26 邊界 / ordinal teen 例外 / 循環序列 / Infinity/NaN 防禦 / 模板展開含 literal 保留）。vitest 1057 → **1107 passed + 1 skipped**、bundle rebuild、VR byte-identical（純加新模組、無 wire-up 整合）。Phase 4 Style 82% → **83%** | 紀律 #1.a 第 9 次連續驗證、覆蓋至 pure utility 新模組類；紀律 #3 應用（probe 確認無既有 consumer、scope 限 utility layer 避 Sprint 62 IIFE blocker） |
 | 133 | 2026-05-17 22:30+ | **0.073191（已跑、byte-identical、第 10 次連續）** | **階段 B cluster 6 開工**。borderShading.ts utility 抽出（+130 行：parseBorderDef / parseShading / parseParagraphBorders 集中）+ TableParser DRY refactor（-38 helper + 1 import + 移 2 unused type）+ ParagraphParser pBdr + shd 解析補完（+20 行）+ 11 新 unit test（4 邊 / 部分邊 / 全空 / start-end alias / between-bar defer / shd 主路徑+部分/全空 / 共存 / 回歸驗證）。vitest 1107 → **1118 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 4 Style 83% → **84%** | 紀律 #1.a 第 **10** 次連續、紀律 #21 第 3 次正式應用、紀律 #4 揭示「ParagraphProps shape 完整 ≠ parser 實作」結構性技術債 |
 | 134 | 2026-05-17 23:15+ | **0.073191（已跑、byte-identical、第 11 次連續）** | **階段 B cluster 6 完成**。types.ts ParagraphProps 擴 textAlignment + framePr 兩欄位（+45 行）+ ParagraphParser textAlignment inline（10 行嚴格 enum）+ parseFramePr helper（+75 行、11 屬性嚴格 enum + 紀律 #21 空集合不掛）+ 15 新 unit test（含 it.each 5 enum）。vitest 1118 → **1133 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 4 Style 84% → **85%**（capture 部分完工） | 紀律 #1.a 第 **11** 次連續、紀律 #21 第 4 次正式應用、紀律 #4 對比：Sprint 133 是「shape 完整 parser 沒接」、134 是「shape 也沒有 ground-up 新增」兩種型別技術債 |
+| 135 | 2026-05-18 00:00+ | 0.073191（未跑、純 probe） | **階段 B cluster 7 probe**。docGrid snap 段落層級判別子 probe sprint：讀 Sprint 46/49 翻車歷史 + 結構化分析 42 fixture（按 in_cell × has_spacing.line × explicit_snapToGrid × pStyle 四維度）+ 找到判別子 = **「段落是否在 table cell 內」**（02_std_table in-cell 14-21 段落是 Sprint 49 翻車主源、03 全套管 body 3 個 title 是想救對的）+ Sprint 136 設計 sketch + autonomous DEFER-1 決策（probe-only、留 GO 給 user）。0 production code 變動 | **紀律 #22 升正式**（Sprint 127-128-135 跨 3 sprint 驗證完成）：backlog 開工前先 probe sprint 確認 mental model vs 實況差距。紀律 20 → **21 條** |
 
 ---
 

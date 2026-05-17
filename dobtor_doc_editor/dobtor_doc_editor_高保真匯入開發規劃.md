@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 134 — ParagraphParser w:textAlignment + w:framePr capture 補完（規畫書 §Phase 4.4 收尾）+ types.ts ParagraphProps 擴 2 欄位 + 15 新 unit test + vitest 1118 → **1133 passed + 1 skipped** + VR **0.073191 byte-identical 第 11 次連續**；階段 B cluster 6 (133-134) 完成、Phase 4 Style 84% → 85% capture 部分完工）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 135 — docGrid snap 段落層級判別子 **probe sprint**：讀 Sprint 46/49 翻車歷史 + 結構化分析 42 fixture + 找到判別子 = 「段落是否在 table cell 內」+ Sprint 136 設計 sketch + autonomous DEFER-1 留 GO 給 user；**紀律 #22 升正式（20 → 21 條）**；0 production code 變動、vitest 1133 / VR 0.073191 不變、階段 B cluster 7 probe 完成）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
