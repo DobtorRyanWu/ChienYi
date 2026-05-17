@@ -569,12 +569,13 @@
      *   只能讀到 themeColor reference；要轉成具體 hex 必須查 theme1.xml 的 colorScheme
      *   並套用 tint/shade 演算法。
      *
-     * 設計決策（ADR-012 補）：
+     * 設計決策（ADR-012 補 + Sprint 130 升級）：
      *   - eager resolve：parser 階段就把 themeColor → hex 寫回 RunProps.color，
      *     mapper / renderer 不用再查 theme（簡化下游邏輯，但失去原 themeColor 識別）
-     *   - tint/shade 演算法用 RGB linear 而非 HSL luminance（OOXML §20.1.2.3.20 的
-     *     精確版要 HSL 轉換；linear 對 typical fixture 視覺差異 < 5pp，trade-off
-     *     accuracy for code simplicity）
+     *   - tint/shade 演算法：**Sprint 130 升級為 HSL luminance**（規畫書 §Phase 4.1）。
+     *     原 Sprint 1-129 用 RGB linear blend（對 mid-saturation 色差異 < 5pp、但對
+     *     vivid 色如 dark navy 會 wash out hue）。HSL 版本保留 hue+saturation、只調 L。
+     *     極端值 tint=FF/shade=FF 仍回 white/black（與舊版相容）。
      *   - 缺檔降級：parseTheme 回 null，caller 需自行決定是否用 DEFAULT_THEME_MAP
      *
      * 規格參考：
@@ -742,25 +743,102 @@
         }
         return base;
     }
-    /** Tint = 把顏色往白色推；t 為 0..1 比例 */
+    /**
+     * Tint = 把顏色亮度往 1.0（白）推；t 為 0..1 比例。
+     *
+     * HSL luminance 演算法（OOXML §20.1.2.3.20、規畫書 §Phase 4.1）：
+     *   L_new = L * (1 - t) + 1.0 * t  →  L + (1 - L) * t
+     * 保留 hue 與 saturation、只調 L，避免 vivid 色被 wash out 成 gray-pastel。
+     *
+     * 極端值：t=0 不變色；t=1 → L_new=1.0 → 純白（與舊 RGB linear 版相容）。
+     */
     function applyTint(hex, t) {
         const tt = clamp01(t);
         const [r, g, b] = hexToRgb(hex);
-        return rgbToHex([
-            Math.round(r * (1 - tt) + 255 * tt),
-            Math.round(g * (1 - tt) + 255 * tt),
-            Math.round(b * (1 - tt) + 255 * tt),
-        ]);
+        const [h, s, l] = rgbToHsl(r, g, b);
+        const lNew = l + (1 - l) * tt;
+        const [nr, ng, nb] = hslToRgb(h, s, lNew);
+        return rgbToHex([Math.round(nr), Math.round(ng), Math.round(nb)]);
     }
-    /** Shade = 把顏色往黑色推；s 為 0..1 比例 */
+    /**
+     * Shade = 把顏色亮度往 0.0（黑）推；s 為 0..1 比例。
+     *
+     * HSL luminance 演算法（OOXML §20.1.2.3.20、規畫書 §Phase 4.1）：
+     *   L_new = L * (1 - s)
+     * 保留 hue 與 saturation、只調 L。
+     *
+     * 極端值：s=0 不變色；s=1 → L_new=0 → 純黑（與舊 RGB linear 版相容）。
+     */
     function applyShade(hex, s) {
         const ss = clamp01(s);
         const [r, g, b] = hexToRgb(hex);
-        return rgbToHex([
-            Math.round(r * (1 - ss)),
-            Math.round(g * (1 - ss)),
-            Math.round(b * (1 - ss)),
-        ]);
+        const [h, sat, l] = rgbToHsl(r, g, b);
+        const lNew = l * (1 - ss);
+        const [nr, ng, nb] = hslToRgb(h, sat, lNew);
+        return rgbToHex([Math.round(nr), Math.round(ng), Math.round(nb)]);
+    }
+    /**
+     * RGB → HSL 轉換（標準公式，rgb 為 0..255，回傳 h:0..1, s:0..1, l:0..1）。
+     * 灰階（max==min）回 h=0、s=0。
+     */
+    function rgbToHsl(r, g, b) {
+        const rn = r / 255;
+        const gn = g / 255;
+        const bn = b / 255;
+        const max = Math.max(rn, gn, bn);
+        const min = Math.min(rn, gn, bn);
+        const l = (max + min) / 2;
+        if (max === min) {
+            return [0, 0, l]; // 灰階：無 hue、無 saturation
+        }
+        const d = max - min;
+        const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        let h;
+        switch (max) {
+            case rn:
+                h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6;
+                break;
+            case gn:
+                h = ((bn - rn) / d + 2) / 6;
+                break;
+            default:
+                h = ((rn - gn) / d + 4) / 6;
+                break;
+        }
+        return [h, s, l];
+    }
+    /**
+     * HSL → RGB 轉換（標準公式，h/s/l 為 0..1，回傳 rgb 0..255 浮點，caller 自行 round）。
+     */
+    function hslToRgb(h, s, l) {
+        const lc = clamp01(l);
+        const sc = clamp01(s);
+        if (sc === 0) {
+            const v = lc * 255;
+            return [v, v, v]; // 灰階：r=g=b=L
+        }
+        const q = lc < 0.5 ? lc * (1 + sc) : lc + sc - lc * sc;
+        const p = 2 * lc - q;
+        const hMod = ((h % 1) + 1) % 1; // 包進 0..1
+        return [
+            hueToRgb(p, q, hMod + 1 / 3) * 255,
+            hueToRgb(p, q, hMod) * 255,
+            hueToRgb(p, q, hMod - 1 / 3) * 255,
+        ];
+    }
+    function hueToRgb(p, q, t) {
+        let tt = t;
+        if (tt < 0)
+            tt += 1;
+        if (tt > 1)
+            tt -= 1;
+        if (tt < 1 / 6)
+            return p + (q - p) * 6 * tt;
+        if (tt < 1 / 2)
+            return q;
+        if (tt < 2 / 3)
+            return p + (q - p) * (2 / 3 - tt) * 6;
+        return p;
     }
     /** 把 OOXML 的 hex byte（"00"–"FF"）正規化為 0..1 */
     function parseHexByte(hex) {

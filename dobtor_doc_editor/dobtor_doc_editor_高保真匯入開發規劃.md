@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 128 — HarfBuzz WASM spike 擴 5 新 test（共 10/10）+ bundle size 量測（+465KB）+ async/sync 分析 + autonomous 決策 DEFER-1（列為階段 D 候選）；階段 B cluster 3 (127-128) 完成）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 130 — ThemeResolver applyTint/applyShade RGB linear → **HSL luminance** 升級（規畫書 §Phase 4.1 收口）+ 11 新 unit test（vivid 色 hue/saturation 保留 / 灰階短路 / 極端值 / 單調性 / round-trip 精度）+ vitest 1033 → **1044 passed + 1 skipped** + VR **0.073191 byte-identical 第 7 次連續**；階段 B cluster 4 (130-131) 開工、Phase 4 Style 80% → 81%）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
@@ -41,7 +41,7 @@ VR mean 進展：**0.1728**（Sprint 28 baseline）→ **0.1156**（Sprint 33）
 | Phase 1 OOXML Parser | 78% | 主流元素已覆蓋；Sprint 121 trHeight；Sprint 122 OLE / pict；Sprint 123 field code + 複式 fldChar；Sprint 124 SDT 透明 unwrap；Sprint 125 bookmark range capture；Sprint 126 hyperlink rels 擴 tgtFrame/history/docLocation |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%）| opentype.js 已用於字型 metric;HarfBuzz 為長期方案 |
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191 |
-| Phase 4 Style Theme | 80% | Sprint 19 style merge 落地 |
+| Phase 4 Style Theme | 81% | Sprint 19 style merge 落地；Sprint 130 §Phase 4.1 tint/shade 演算法 RGB linear → HSL luminance 升級（hue+saturation 保留）|
 | Phase 4.5 產品化基礎建設 | 100% | 見附錄 A.1 |
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 未開始 | 待 mean ≤ 0.07 後啟動 |
 | Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe |
@@ -467,7 +467,7 @@ for each block in flow:
 #### 4.1 Theme 系統（1 週）
 - 解析 `theme1.xml` colorScheme(12 色)、fontScheme(6 組)
 - Theme color resolver:`<w:color w:themeColor="accent1" w:themeTint="60"/>` → 具體 hex
-- Tint/shade 演算法(HSL luminance 計算)
+- ~~Tint/shade 演算法(HSL luminance 計算)~~ **Sprint 130 完成** — `applyTint` / `applyShade` 從 RGB linear blend 升級為 HSL luminance（保 hue+saturation，vivid 色不再 wash out），詳見 [docs/sprint130_theme_tint_shade_hsl.md](docs/sprint130_theme_tint_shade_hsl.md)
 
 #### 4.2 Style 條件式與進階（1 週）
 - `<w:tblStylePr>` 15 種條件、字元樣式 + 段落樣式的合併順序、樣式連結
