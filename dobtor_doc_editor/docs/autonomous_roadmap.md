@@ -82,7 +82,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 131 | Phase 4 Style | 4.2 tblStylePr/tcPr 條件 cell-level props 傳遞（shading + vAlign）| ✅ |
 | 132 | Phase 4 Style | 4.3 numberingFormatter 模組（16 numFmt + expandLvlText、純函式）| ✅ |
 | 133 | Phase 4 Style | 4.4 段落 `<w:pBdr>` + `<w:shd>` 解析 + borderShading utility 抽出 DRY | ✅ |
-| 134 | Phase 4 Style | 4.4 剩餘：`<w:textAlignment>` + tab stop leader 渲染 + frame 基礎 | ⏳ |
+| 134 | Phase 4 Style | 4.4 剩餘：`<w:textAlignment>` + `<w:framePr>` capture（tab leader 渲染屬 Layout、defer） | ✅ |
 | 135 | Phase 3 漏項 | docGrid snap 段落層級判別子(規畫書 §0.1 列為長期 backlog;Sprint 46+49 全域翻車、需段落條件式) | ⏳ |
 
 **階段 B 收益估算**:Phase 1 72% → 90%+、Phase 2 部分 → 80%、Phase 4 80% → 95%、VR mean 0.073191 → ~0.05(估)。
@@ -220,6 +220,7 @@ Stop hook(`/mnt/d/work/.claude/keep-going.sh`)機制:每個 sprint 完成後自�
 | 131 | 2026-05-17 20:00+ | **0.073191（已跑、byte-identical、第 8 次連續）** | StyleResolver + TableStyleApplicator tblStylePr/tcPr 條件樣式 cell-level props 傳遞補完（types +30 / StyleResolver +50 / TableStyleApplicator +60；shading + vAlign 兩屬性、cBorders/tcMar/trPr/tblPr 條件 defer）+ 13 新 test（9 applicator + 4 resolver、含 explicit 優先、merge 順序、shading 巢狀合併、tblLook gating）。vitest 1044 → **1057 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 4 Style 81% → **82%**。階段 B cluster 4 (130-131) 完成 | **紀律 #21 升正式**（Sprint 125-126-131 跨 3 sprint 驗證完成）：optional 欄位空集合不掛 key。紀律 19 → **20 條** |
 | 132 | 2026-05-17 22:10+ | **0.073191（已跑、byte-identical、第 9 次連續）** | **階段 B cluster 5 開工 + 完成**。numberingFormatter.ts 純函式模組（+400 行：16 numFmt 含 decimal/letter/roman/ordinal/CN/JP/zodiac/iroha/aiueo + expandLvlText 模板展開）+ 50 新 unit test（CN 補零行為 / base-26 邊界 / ordinal teen 例外 / 循環序列 / Infinity/NaN 防禦 / 模板展開含 literal 保留）。vitest 1057 → **1107 passed + 1 skipped**、bundle rebuild、VR byte-identical（純加新模組、無 wire-up 整合）。Phase 4 Style 82% → **83%** | 紀律 #1.a 第 9 次連續驗證、覆蓋至 pure utility 新模組類；紀律 #3 應用（probe 確認無既有 consumer、scope 限 utility layer 避 Sprint 62 IIFE blocker） |
 | 133 | 2026-05-17 22:30+ | **0.073191（已跑、byte-identical、第 10 次連續）** | **階段 B cluster 6 開工**。borderShading.ts utility 抽出（+130 行：parseBorderDef / parseShading / parseParagraphBorders 集中）+ TableParser DRY refactor（-38 helper + 1 import + 移 2 unused type）+ ParagraphParser pBdr + shd 解析補完（+20 行）+ 11 新 unit test（4 邊 / 部分邊 / 全空 / start-end alias / between-bar defer / shd 主路徑+部分/全空 / 共存 / 回歸驗證）。vitest 1107 → **1118 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 4 Style 83% → **84%** | 紀律 #1.a 第 **10** 次連續、紀律 #21 第 3 次正式應用、紀律 #4 揭示「ParagraphProps shape 完整 ≠ parser 實作」結構性技術債 |
+| 134 | 2026-05-17 23:15+ | **0.073191（已跑、byte-identical、第 11 次連續）** | **階段 B cluster 6 完成**。types.ts ParagraphProps 擴 textAlignment + framePr 兩欄位（+45 行）+ ParagraphParser textAlignment inline（10 行嚴格 enum）+ parseFramePr helper（+75 行、11 屬性嚴格 enum + 紀律 #21 空集合不掛）+ 15 新 unit test（含 it.each 5 enum）。vitest 1118 → **1133 passed + 1 skipped**、bundle rebuild、VR byte-identical。Phase 4 Style 84% → **85%**（capture 部分完工） | 紀律 #1.a 第 **11** 次連續、紀律 #21 第 4 次正式應用、紀律 #4 對比：Sprint 133 是「shape 完整 parser 沒接」、134 是「shape 也沒有 ground-up 新增」兩種型別技術債 |
 
 ---
 

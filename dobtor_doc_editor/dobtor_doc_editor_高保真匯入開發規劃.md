@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 133 — borderShading.ts utility 抽出 + ParagraphParser w:pBdr + w:shd 解析補完（規畫書 §Phase 4.4 起點）+ TableParser DRY refactor + 11 新 unit test + vitest 1107 → **1118 passed + 1 skipped** + VR **0.073191 byte-identical 第 10 次連續**；階段 B cluster 6 (133) 第 1 個完成、Phase 4 Style 83% → 84%）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-17（Sprint 134 — ParagraphParser w:textAlignment + w:framePr capture 補完（規畫書 §Phase 4.4 收尾）+ types.ts ParagraphProps 擴 2 欄位 + 15 新 unit test + vitest 1118 → **1133 passed + 1 skipped** + VR **0.073191 byte-identical 第 11 次連續**；階段 B cluster 6 (133-134) 完成、Phase 4 Style 84% → 85% capture 部分完工）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
@@ -41,7 +41,7 @@ VR mean 進展：**0.1728**（Sprint 28 baseline）→ **0.1156**（Sprint 33）
 | Phase 1 OOXML Parser | 78% | 主流元素已覆蓋；Sprint 121 trHeight；Sprint 122 OLE / pict；Sprint 123 field code + 複式 fldChar；Sprint 124 SDT 透明 unwrap；Sprint 125 bookmark range capture；Sprint 126 hyperlink rels 擴 tgtFrame/history/docLocation |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%）| opentype.js 已用於字型 metric;HarfBuzz 為長期方案 |
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191 |
-| Phase 4 Style Theme | 84% | Sprint 19 style merge；Sprint 130 §Phase 4.1 HSL luminance；Sprint 131 §Phase 4.2 tblStylePr/tcPr；Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）；Sprint 133 §Phase 4.4 pBdr + shd 解析 + borderShading utility 抽出 DRY |
+| Phase 4 Style Theme | 85% | Sprint 19 style merge；Sprint 130 §Phase 4.1 HSL；Sprint 131 §Phase 4.2 tblStylePr/tcPr；Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）；Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY；Sprint 134 §Phase 4.4 textAlignment + framePr capture（Layout wire-up defer）|
 | Phase 4.5 產品化基礎建設 | 100% | 見附錄 A.1 |
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 未開始 | 待 mean ≤ 0.07 後啟動 |
 | Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe |
@@ -480,7 +480,9 @@ for each block in flow:
 
 #### 4.4 Paragraph 進階（1 週）
 - ~~`<w:pBdr>` 段落邊框 + 陰影~~ **Sprint 133 完成** — ParagraphParser 補完 pBdr (4 邊) + shd 解析、borderShading.ts 共用 utility 抽出（與 TableParser DRY），詳見 [docs/sprint133_paragraph_border_shading.md](docs/sprint133_paragraph_border_shading.md)
-- 待補：`<w:textAlignment>` 文字行內垂直對齊、`<w:tab>` leader 渲染（parser 已 capture、renderer 待 wire-up）、`<w:frame>` 段落框、`<w:pBdr>` between / bar 額外 2 邊
+- ~~`<w:textAlignment>` 文字行內垂直對齊~~ **Sprint 134 完成 capture** — ParagraphProps 擴 textAlignment 欄位、嚴格 enum、Layout wire-up 待後續 sprint
+- ~~`<w:frame>` 段落框~~ **Sprint 134 完成 capture** — ParagraphProps 擴 framePr 欄位、capture 11 屬性、drop cap 進階與 Layout wire-up 待後續 sprint
+- 待補：`<w:tab>` leader 渲染（parser 已 capture、屬 Layout 階段 wire-up）、`<w:pBdr>` between / bar 額外 2 邊、drop cap 進階屬性、anchorLock
 
 **Exit Criteria**：對測試文件的字型、顏色、編號、邊框 100% 吻合 Word 視覺。
 

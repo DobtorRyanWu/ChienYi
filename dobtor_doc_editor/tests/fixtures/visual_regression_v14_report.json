@@ -1,5 +1,5 @@
 {
-  "runAt": "2026-05-17T14:22:12.037Z",
+  "runAt": "2026-05-17T15:13:33.820Z",
   "pipeline": "sprint14_dobtor",
   "bundlePath": "/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor/tools/dist/visual_regression_pipeline.iife.js",
   "maxDiffThreshold": 0.5,

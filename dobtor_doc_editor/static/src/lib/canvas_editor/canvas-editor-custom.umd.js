@@ -1345,6 +1345,21 @@
                 props.shading = shading;
             }
         }
+        // Sprint 134: w:textAlignment — 行內垂直對齊（OOXML §17.3.1.36）
+        const textAlignEl = directChild$4(pPr, 'w:textAlignment');
+        if (textAlignEl) {
+            const v = textAlignEl.getAttribute('w:val');
+            if (v === 'auto' || v === 'top' || v === 'center' || v === 'baseline' || v === 'bottom') {
+                props.textAlignment = v;
+            }
+        }
+        // Sprint 134: w:framePr — 段落框基礎屬性（OOXML §17.3.1.11）
+        const framePrEl = directChild$4(pPr, 'w:framePr');
+        if (framePrEl) {
+            const frame = parseFramePr(framePrEl);
+            if (frame)
+                props.framePr = frame;
+        }
         // Sprint 29：w:snapToGrid — 預設 true（OOXML §17.3.1.32），val="0" 顯式關閉
         const snapEl = directChild$4(pPr, 'w:snapToGrid');
         if (snapEl) {
@@ -1393,6 +1408,66 @@
             }
         }
         return props;
+    }
+    // ── Sprint 134：w:framePr 段落框基礎屬性解析 ────────────────────────────────
+    /**
+     * 解析 `<w:framePr/>` 為 ParagraphProps.framePr 子集（OOXML §17.3.1.11）。
+     *
+     * Word 用此元素標示「位置與大小固定的浮動段落」（drop cap / 邊欄注釋）。
+     * 當前 capture 主流屬性、進階（dropCap / lines / anchorLock）defer。
+     *
+     * 缺所有屬性回 undefined（紀律 #21）。
+     */
+    function parseFramePr(el) {
+        const out = {};
+        const w = attrTwip$1(el, 'w:w');
+        if (w !== undefined)
+            out.width = w;
+        const h = attrTwip$1(el, 'w:h');
+        if (h !== undefined)
+            out.height = h;
+        const hRuleRaw = el.getAttribute('w:hRule');
+        if (hRuleRaw === 'auto' || hRuleRaw === 'atLeast' || hRuleRaw === 'exact') {
+            out.hRule = hRuleRaw;
+        }
+        const hSpace = attrTwip$1(el, 'w:hSpace');
+        if (hSpace !== undefined)
+            out.hSpace = hSpace;
+        const vSpace = attrTwip$1(el, 'w:vSpace');
+        if (vSpace !== undefined)
+            out.vSpace = vSpace;
+        const wrapRaw = el.getAttribute('w:wrap');
+        if (wrapRaw === 'around' || wrapRaw === 'notBeside' || wrapRaw === 'through' ||
+            wrapRaw === 'tight' || wrapRaw === 'none') {
+            out.wrap = wrapRaw;
+        }
+        const hAnchorRaw = el.getAttribute('w:hAnchor');
+        if (hAnchorRaw === 'margin' || hAnchorRaw === 'page' || hAnchorRaw === 'text') {
+            out.hAnchor = hAnchorRaw;
+        }
+        const vAnchorRaw = el.getAttribute('w:vAnchor');
+        if (vAnchorRaw === 'margin' || vAnchorRaw === 'page' || vAnchorRaw === 'text') {
+            out.vAnchor = vAnchorRaw;
+        }
+        const xAlignRaw = el.getAttribute('w:xAlign');
+        if (xAlignRaw === 'left' || xAlignRaw === 'center' || xAlignRaw === 'right' ||
+            xAlignRaw === 'inside' || xAlignRaw === 'outside') {
+            out.xAlign = xAlignRaw;
+        }
+        const yAlignRaw = el.getAttribute('w:yAlign');
+        if (yAlignRaw === 'top' || yAlignRaw === 'center' || yAlignRaw === 'bottom' ||
+            yAlignRaw === 'inside' || yAlignRaw === 'outside' || yAlignRaw === 'inline') {
+            out.yAlign = yAlignRaw;
+        }
+        const x = attrTwip$1(el, 'w:x');
+        if (x !== undefined)
+            out.x = x;
+        const y = attrTwip$1(el, 'w:y');
+        if (y !== undefined)
+            out.y = y;
+        if (Object.keys(out).length === 0)
+            return undefined;
+        return out;
     }
     // ── w:r → RunNode[]（單一 run 可能因 w:br 等切多筆） ─────────────────────────
     function parseRun(r) {

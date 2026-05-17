@@ -119,6 +119,46 @@ export interface ParagraphProps {
   numId?: number;    // 清單編號 ID（來自 numbering.xml）
   ilvl?: number;     // 清單縮排層級（0-based）
   tabs?: Array<{ pos: Pt; align: 'left' | 'right' | 'center' | 'decimal'; leader?: string; }>;
+  /**
+   * Sprint 134：`<w:textAlignment w:val="..."/>` 文字行內垂直對齊（ECMA-376 §17.3.1.36）。
+   *
+   *   - 'auto'：依字型 metric 自動（預設）
+   *   - 'top'：頂部對齊
+   *   - 'center'：垂直置中
+   *   - 'baseline'：基線對齊
+   *   - 'bottom'：底部對齊
+   *
+   * 影響行內混合不同字型大小 / 數學符號 / 圖片時 baseline 位置。
+   * Layout 階段消費；parser 僅 capture。
+   */
+  textAlignment?: 'auto' | 'top' | 'center' | 'baseline' | 'bottom';
+  /**
+   * Sprint 134：`<w:framePr/>` 段落框基礎屬性（ECMA-376 §17.3.1.11）。
+   *
+   * Word 「位置與大小固定的浮動段落」（如 drop cap、邊欄注釋）。
+   * 罕見於 ChienYi 監造文件、但若 fixture 出現需 capture 避免遺失資料。
+   *
+   * 當前只 capture 主流位置 / 大小 / 環繞屬性；w:dropCap / w:lines / w:anchorLock 等進階 defer。
+   */
+  framePr?: {
+    width?: Pt;
+    height?: Pt;
+    hRule?: 'auto' | 'atLeast' | 'exact';
+    hSpace?: Pt;
+    vSpace?: Pt;
+    /** w:wrap：around / notBeside / through / tight / none */
+    wrap?: 'around' | 'notBeside' | 'through' | 'tight' | 'none';
+    /** w:hAnchor：margin / page / text */
+    hAnchor?: 'margin' | 'page' | 'text';
+    /** w:vAnchor：margin / page / text */
+    vAnchor?: 'margin' | 'page' | 'text';
+    /** w:xAlign：left / center / right / inside / outside */
+    xAlign?: 'left' | 'center' | 'right' | 'inside' | 'outside';
+    /** w:yAlign：top / center / bottom / inside / outside / inline */
+    yAlign?: 'top' | 'center' | 'bottom' | 'inside' | 'outside' | 'inline';
+    x?: Pt;   // w:x 絕對位置（與 xAlign 互斥）
+    y?: Pt;   // w:y 絕對位置（與 yAlign 互斥）
+  };
 }
 
 // ── 文件內嵌元素（Inline Nodes）──────────────────────────────────────────────

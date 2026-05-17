@@ -811,3 +811,140 @@ describe('ParagraphParser — Sprint 133 pBdr + shd', () => {
     expect(node.props.shading).toBeUndefined();
   });
 });
+
+// ── Sprint 134：w:textAlignment + w:framePr ─────────────────────────────────
+
+describe('ParagraphParser — Sprint 134 textAlignment', () => {
+  it.each([
+    ['auto', 'auto'],
+    ['top', 'top'],
+    ['center', 'center'],
+    ['baseline', 'baseline'],
+    ['bottom', 'bottom'],
+  ] as const)('w:textAlignment="%s" → props.textAlignment="%s"', (raw, expected) => {
+    const p = parsePXml(`
+      <w:pPr><w:textAlignment w:val="${raw}"/></w:pPr>
+      <w:r><w:t>x</w:t></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.textAlignment).toBe(expected);
+  });
+
+  it('w:textAlignment 無效值（如 "garbage"）→ silent drop、不掛 key', () => {
+    const p = parsePXml(`
+      <w:pPr><w:textAlignment w:val="garbage"/></w:pPr>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.textAlignment).toBeUndefined();
+  });
+
+  it('w:textAlignment 缺 w:val → silent drop', () => {
+    const p = parsePXml(`<w:pPr><w:textAlignment/></w:pPr>`);
+    const node = parser.parse(p);
+    expect(node.props.textAlignment).toBeUndefined();
+  });
+
+  it('普通段落（無 textAlignment）→ 不掛 key', () => {
+    const p = parsePXml('<w:r><w:t>normal</w:t></w:r>');
+    const node = parser.parse(p);
+    expect(node.props.textAlignment).toBeUndefined();
+  });
+});
+
+describe('ParagraphParser — Sprint 134 framePr', () => {
+  it('完整 framePr：w/h + hRule + hSpace/vSpace + wrap + hAnchor/vAnchor', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:framePr w:w="2880" w:h="1440" w:hRule="exact"
+                   w:hSpace="180" w:vSpace="180"
+                   w:wrap="around"
+                   w:hAnchor="margin" w:vAnchor="page"
+                   w:xAlign="left" w:yAlign="top"/>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    const f = node.props.framePr!;
+    expect(f.width).toBeCloseTo(144, 1);   // 2880 twip / 20 = 144pt
+    expect(f.height).toBeCloseTo(72, 1);   // 1440 twip / 20 = 72pt
+    expect(f.hRule).toBe('exact');
+    expect(f.hSpace).toBeCloseTo(9, 1);    // 180 twip / 20 = 9pt
+    expect(f.vSpace).toBeCloseTo(9, 1);
+    expect(f.wrap).toBe('around');
+    expect(f.hAnchor).toBe('margin');
+    expect(f.vAnchor).toBe('page');
+    expect(f.xAlign).toBe('left');
+    expect(f.yAlign).toBe('top');
+  });
+
+  it('絕對位置 x / y（與 xAlign / yAlign 互斥的另一種寫法）', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:framePr w:w="1440" w:x="720" w:y="1440" w:wrap="none"/>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    const f = node.props.framePr!;
+    expect(f.x).toBeCloseTo(36, 1);    // 720 twip / 20 = 36pt
+    expect(f.y).toBeCloseTo(72, 1);    // 1440 twip / 20 = 72pt
+    expect(f.wrap).toBe('none');
+    expect(f.xAlign).toBeUndefined();  // 未設、不掛
+    expect(f.yAlign).toBeUndefined();
+  });
+
+  it('framePr 部分屬性 → 其他 key 不掛（紀律 #21）', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:framePr w:wrap="tight"/>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    const f = node.props.framePr!;
+    expect(f.wrap).toBe('tight');
+    expect(f.width).toBeUndefined();
+    expect(f.height).toBeUndefined();
+    expect(f.hRule).toBeUndefined();
+  });
+
+  it('framePr 全空 → 不掛 key（紀律 #21）', () => {
+    const p = parsePXml(`<w:pPr><w:framePr/></w:pPr>`);
+    const node = parser.parse(p);
+    expect(node.props.framePr).toBeUndefined();
+  });
+
+  it('framePr 無效列舉值（hRule="garbage"、wrap="invalid"）→ silent drop、其他屬性仍保留', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:framePr w:w="1440" w:hRule="garbage" w:wrap="invalid" w:hAnchor="bogus"/>
+      </w:pPr>
+    `);
+    const node = parser.parse(p);
+    const f = node.props.framePr!;
+    expect(f.width).toBeCloseTo(72, 1);
+    expect(f.hRule).toBeUndefined();
+    expect(f.wrap).toBeUndefined();
+    expect(f.hAnchor).toBeUndefined();
+  });
+
+  it('普通段落（無 framePr）→ 不掛 key', () => {
+    const p = parsePXml('<w:r><w:t>plain</w:t></w:r>');
+    const node = parser.parse(p);
+    expect(node.props.framePr).toBeUndefined();
+  });
+
+  it('framePr + textAlignment + pBdr + shd 同存 → 互不干擾', () => {
+    const p = parsePXml(`
+      <w:pPr>
+        <w:framePr w:w="2880" w:wrap="around"/>
+        <w:textAlignment w:val="center"/>
+        <w:pBdr><w:top w:val="single" w:sz="4" w:color="000000"/></w:pBdr>
+        <w:shd w:val="clear" w:fill="EEEEEE"/>
+      </w:pPr>
+      <w:r><w:t>everything</w:t></w:r>
+    `);
+    const node = parser.parse(p);
+    expect(node.props.framePr?.wrap).toBe('around');
+    expect(node.props.textAlignment).toBe('center');
+    expect(node.props.borders?.top?.style).toBe('single');
+    expect(node.props.shading?.fill).toBe('EEEEEE');
+  });
+});
