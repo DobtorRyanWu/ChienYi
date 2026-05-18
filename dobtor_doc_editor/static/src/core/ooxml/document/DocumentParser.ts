@@ -124,6 +124,7 @@ export class DocumentParser {
       footers,
       footnotes: new Map(),
       endnotes: new Map(),
+      settings: {},
       styles,
       numbering,
       media,

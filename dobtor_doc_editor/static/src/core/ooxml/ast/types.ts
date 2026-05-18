@@ -504,6 +504,71 @@ export interface HeaderFooterContent {
   content: BlockNode[];
 }
 
+// ── 文件設定（Sprint 146、word/settings.xml capture-only）────────────────────
+
+/**
+ * 文件級設定（OOXML §17.15 settings.xml）。
+ *
+ * Sprint 146 capture-only:42/42 fixture 都有 settings.xml、但 layout/render 端
+ * 暫時不消費。為將來 wire-up（如 defaultTabStop 用於 tab stop 排版、zoom 用於
+ * UI 預設縮放、compat 用於 Word 版本相容）鋪路。
+ *
+ * 欄位皆 optional;capture-only 階段不掛 key 的欄位由 caller 用 `??` 提供 fallback。
+ */
+export interface DocumentSettings {
+  /** w:zoom w:percent：UI 預設縮放百分比（如 100 = 100%）*/
+  zoomPercent?: number;
+  /** w:defaultTabStop w:val：預設 tab stop 距離（pt、來自 twip 轉換）*/
+  defaultTabStop?: Pt;
+  /**
+   * w:characterSpacingControl w:val:字距控制策略
+   *
+   * - 'doNotCompress':西文預設、不壓縮標點
+   * - 'compressPunctuation':中日韓文預設、壓縮全形標點
+   * - 'compressPunctuationAndJapaneseKana':中日韓進階、額外壓縮日文假名
+   */
+  characterSpacingControl?:
+    | 'doNotCompress'
+    | 'compressPunctuation'
+    | 'compressPunctuationAndJapaneseKana';
+  /** w:autoHyphenation:自動斷字開啟 */
+  autoHyphenation?: boolean;
+  /** w:evenAndOddHeaders:奇偶頁 header/footer 差異化 */
+  evenAndOddHeaders?: boolean;
+  /** w:trackChanges:追蹤修訂模式啟用 */
+  trackChanges?: boolean;
+  /** w:proofState:拼字 / 文法檢查狀態 */
+  proofState?: {
+    spelling?: 'clean' | 'dirty';
+    grammar?: 'clean' | 'dirty';
+  };
+  /** w:footnotePr:footnote 編號 / 位置設定 */
+  footnotePr?: {
+    /** numRestart:eachPage / eachSect / continuous（未設）*/
+    numRestart?: 'continuous' | 'eachPage' | 'eachSect';
+    /** numFmt:decimal / lowerLetter / lowerRoman 等 */
+    numFmt?: string;
+    /** position:pageBottom / beneathText / sectEnd / docEnd */
+    position?: 'pageBottom' | 'beneathText' | 'sectEnd' | 'docEnd';
+    /** numStart:起始序號（預設 1）*/
+    numStart?: number;
+  };
+  /** w:endnotePr:endnote 編號 / 位置設定（結構同 footnotePr）*/
+  endnotePr?: {
+    numRestart?: 'continuous' | 'eachPage' | 'eachSect';
+    numFmt?: string;
+    position?: 'sectEnd' | 'docEnd';
+    numStart?: number;
+  };
+  /**
+   * w:compat:相容性設定子元素的名稱列表（如 'spaceForUL' / 'balanceSingleByteDoubleByteWidth'）
+   *
+   * 不解析每個子元素的詳細參數、僅記錄存在;對應 OOXML §17.15.1.x 各 compat 元素。
+   * Wire-up 時 caller 用 `settings.compat?.includes('xxx')` 判定。
+   */
+  compat?: string[];
+}
+
 // ── 註腳 / 尾註內容（Sprint 145、Phase 3.6 capture-only）──────────────────────
 
 /**
@@ -616,6 +681,8 @@ export interface DocumentNode {
   footnotes: Map<number, FootnoteContent>;
   /** Sprint 145：endnotes.xml 解析結果（id → 內容）；fixture 0 覆蓋時為空 Map */
   endnotes: Map<number, FootnoteContent>;
+  /** Sprint 146：settings.xml 解析結果（capture-only、欄位皆 optional、空物件代表「無設定 part」）*/
+  settings: DocumentSettings;
   styles: StyleMap;
   numbering: NumberingMap;
   media: Map<string, string>;  // rId → blob URL 或 base64 data URL（圖片）

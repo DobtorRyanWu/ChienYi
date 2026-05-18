@@ -22,6 +22,7 @@ function makeFakeAst(tag: string): DocumentNode {
     footers: new Map(),
     footnotes: new Map(),
     endnotes: new Map(),
+    settings: {},
     styles: new Map(),
     numbering: new Map(),
     media: new Map([['rId1', `data:text/plain;base64,${tag}`]]),

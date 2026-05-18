@@ -24,6 +24,7 @@
 import type {
   BlockNode,
   DocumentNode,
+  DocumentSettings,
   FootnoteContent,
   HeaderFooterContent,
   NumberingMap,
@@ -34,6 +35,7 @@ import { DocumentParser } from './document/DocumentParser';
 import { FootnotesParser } from './footnotes/FootnotesParser';
 import { HeaderFooterParser } from './header-footer/HeaderFooterParser';
 import { NumberingResolver } from './numbering/NumberingResolver';
+import { SettingsParser } from './settings/SettingsParser';
 import {
   PackageReader,
   type OoxmlPackage,
@@ -61,6 +63,8 @@ const REL_TYPE_FOOTNOTES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
 const REL_TYPE_ENDNOTES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+const REL_TYPE_SETTINGS =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
 const REL_TYPE_IMAGE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
 
@@ -88,6 +92,8 @@ export class OoxmlParser {
   private headerFooterParser = new HeaderFooterParser(this.documentParser);
   /** Sprint 145：footnotes / endnotes 重用 documentParser、與 header/footer 對齊 */
   private footnotesParser = new FootnotesParser(this.documentParser);
+  /** Sprint 146：settings.xml capture-only */
+  private settingsParser = new SettingsParser();
 
   /**
    * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -153,6 +159,11 @@ export class OoxmlParser {
     const footnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_FOOTNOTES);
     const endnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_ENDNOTES);
 
+    // Step 6.6（Sprint 146）：settings.xml — capture-only、無 wire-up
+    //   42/42 fixture 都有 settings.xml、含 zoom / defaultTabStop / characterSpacingControl /
+    //   footnotePr / endnotePr / compat 等文件級設定;為將來 wire-up 鋪路。
+    const settings = collectSettings(pkg, mainDocPath, this.settingsParser);
+
     // Step 7：媒體收集（image rId → data URL）
     const media = collectMedia(pkg, mainDocPath);
 
@@ -167,6 +178,7 @@ export class OoxmlParser {
       footers,
       footnotes,
       endnotes,
+      settings,
       styles,
       numbering,
       media,
@@ -293,6 +305,27 @@ function collectNotes(
     return parser.parse(xml);  // 找到第一個就回（footnotes/endnotes 各最多 1 個 part）
   }
   return new Map();
+}
+
+/**
+ * Sprint 146：走訪 mainDoc 的 .rels、抓 settings.xml part 並解析。
+ *
+ * @returns DocumentSettings；rels 沒指向 settings 時回 {}（capture-only safety）
+ */
+function collectSettings(
+  pkg: OoxmlPackage,
+  mainDocPath: string,
+  parser: SettingsParser,
+): DocumentSettings {
+  const rels = pkg.relationships.get(mainDocPath);
+  if (!rels) return {};
+  for (const rel of rels.values()) {
+    if (rel.targetMode !== 'Internal') continue;
+    if (rel.type !== REL_TYPE_SETTINGS) continue;
+    const xml = pkg.partAsText(rel.target);
+    return parser.parse(xml);
+  }
+  return {};
 }
 
 /**

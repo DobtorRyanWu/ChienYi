@@ -188,7 +188,7 @@
         // 解析 textbox 內所有 <w:p>
         const paragraphs = [];
         if (paragraphFactory) {
-            for (const child of directChildren$8(txbxContent)) {
+            for (const child of directChildren$9(txbxContent)) {
                 if (child.tagName === 'w:p') {
                     paragraphs.push(paragraphFactory(child));
                 }
@@ -412,7 +412,7 @@
     }
     // ── wrap type 偵測 ────────────────────────────────────────────────────────────
     function detectWrapType(el) {
-        for (const child of directChildren$8(el)) {
+        for (const child of directChildren$9(el)) {
             switch (child.tagName) {
                 case 'wp:wrapNone':
                     return 'none';
@@ -434,7 +434,7 @@
         return { type: 'inlineImage', rId: '', width: 0, height: 0 };
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$8(el) {
+    function directChildren$9(el) {
         if (!el)
             return [];
         const out = [];
@@ -447,7 +447,7 @@
         return out;
     }
     function directChild$6(el, tagName) {
-        for (const child of directChildren$8(el)) {
+        for (const child of directChildren$9(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -475,7 +475,7 @@
      *   也支援巢狀 AlternateContent（雖極罕見）。
      */
     /** 直接 Element 子節點（過濾 text/comment 等非 Element 子節點）。 */
-    function directChildren$7(el) {
+    function directChildren$8(el) {
         if (!el)
             return [];
         const out = [];
@@ -489,7 +489,7 @@
     }
     /** 找首個指定 tagName 的直接子 Element。 */
     function directChild$5(el, tagName) {
-        for (const child of directChildren$7(el)) {
+        for (const child of directChildren$8(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -518,7 +518,7 @@
      */
     function effectiveChildren(el) {
         const out = [];
-        for (const child of directChildren$7(el)) {
+        for (const child of directChildren$8(el)) {
             if (child.tagName === 'mc:AlternateContent') {
                 // 優先 Choice，否則 Fallback
                 const choice = directChild$5(child, 'mc:Choice');
@@ -984,7 +984,7 @@
      */
     function parseParagraphBorders(pBdr) {
         const out = {};
-        for (const child of directChildren$6(pBdr)) {
+        for (const child of directChildren$7(pBdr)) {
             const def = parseBorderDef(child);
             if (!def)
                 continue;
@@ -1012,7 +1012,7 @@
         return out;
     }
     /** 內部：直接子節點（Element）走訪。獨立於 dom.ts 避免 cross-layer dependency */
-    function directChildren$6(el) {
+    function directChildren$7(el) {
         const out = [];
         const cs = el.childNodes;
         for (let i = 0; i < cs.length; i++) {
@@ -1139,7 +1139,7 @@
             // 不影響 render（純錨點），但需 capture name 供未來 hyperlink anchor 反查、PDF 內部跳轉。
             const bookmarkNames = new Set();
             const collectBookmarksFromRun = (r) => {
-                for (const c of directChildren$5(r)) {
+                for (const c of directChildren$6(r)) {
                     if (c.tagName === 'w:bookmarkStart') {
                         const name = c.getAttribute('w:name');
                         if (name)
@@ -1371,7 +1371,7 @@
         const tabsEl = directChild$4(pPr, 'w:tabs');
         if (tabsEl) {
             const tabs = [];
-            for (const child of directChildren$5(tabsEl)) {
+            for (const child of directChildren$6(tabsEl)) {
                 if (child.tagName !== 'w:tab')
                     continue;
                 // w:val 可為 left / right / center / decimal / bar / num / clear / start / end
@@ -1715,7 +1715,7 @@
      * 用於 paragraph-level state machine 起始判斷（不消費內容）。
      */
     function detectFieldBegin(r) {
-        for (const child of directChildren$5(r)) {
+        for (const child of directChildren$6(r)) {
             if (child.tagName !== 'w:fldChar')
                 continue;
             if (child.getAttribute('w:fldCharType') === 'begin')
@@ -1736,7 +1736,7 @@
      */
     function consumeRunIntoField(r, getMode, setMode, appendInstr, appendCached, emit) {
         // mode 可能在迭代中變動（begin / separate / end），故每個元素都重新讀
-        for (const child of directChildren$5(r)) {
+        for (const child of directChildren$6(r)) {
             switch (child.tagName) {
                 case 'w:fldChar': {
                     const type = child.getAttribute('w:fldCharType');
@@ -1779,10 +1779,10 @@
         const fieldType = classifyFieldType(instruction);
         // 快取值：fldSimple 內部的 w:r → w:t 串接
         let cached = '';
-        for (const r of directChildren$5(el)) {
+        for (const r of directChildren$6(el)) {
             if (r.tagName !== 'w:r')
                 continue;
-            for (const t of directChildren$5(r)) {
+            for (const t of directChildren$6(r)) {
                 if (t.tagName === 'w:t')
                     cached += t.textContent ?? '';
             }
@@ -1810,7 +1810,7 @@
             : 'unknown';
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$5(el) {
+    function directChildren$6(el) {
         const out = [];
         const children = el.childNodes;
         for (let i = 0; i < children.length; i++) {
@@ -1823,7 +1823,7 @@
     function directChild$4(el, tagName) {
         if (!el)
             return undefined;
-        for (const child of directChildren$5(el)) {
+        for (const child of directChildren$6(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -2531,7 +2531,7 @@
         // ── row / cell 走訪 ────────────────────────────────────────────────────────
         parseRows(tbl) {
             const rows = [];
-            for (const child of directChildren$4(tbl)) {
+            for (const child of directChildren$5(tbl)) {
                 if (child.tagName !== 'w:tr')
                     continue;
                 rows.push(this.parseRow(child));
@@ -2579,7 +2579,7 @@
                 if (boolFlag$1(directChild$3(trPr, 'w:cantSplit')))
                     cantSplit = true;
             }
-            for (const child of directChildren$4(tr)) {
+            for (const child of directChildren$5(tr)) {
                 if (child.tagName !== 'w:tc')
                     continue;
                 cells.push(this.parseCell(child));
@@ -2734,7 +2734,7 @@
         if (!tblGrid)
             return [];
         const widths = [];
-        for (const child of directChildren$4(tblGrid)) {
+        for (const child of directChildren$5(tblGrid)) {
             if (child.tagName !== 'w:gridCol')
                 continue;
             const w = child.getAttribute('w:w');
@@ -2812,7 +2812,7 @@
     // ── <w:tcBorders> / <w:tblBorders> ───────────────────────────────────────────
     function parseCellBorders(el) {
         const out = {};
-        for (const child of directChildren$4(el)) {
+        for (const child of directChildren$5(el)) {
             const def = parseBorderDef(child);
             if (!def)
                 continue;
@@ -2846,7 +2846,7 @@
     // ── <w:tcMar> / <w:tblCellMar> ───────────────────────────────────────────────
     function parseCellMargins(el) {
         const out = {};
-        for (const child of directChildren$4(el)) {
+        for (const child of directChildren$5(el)) {
             const wVal = child.getAttribute('w:w');
             const wType = child.getAttribute('w:type');
             if (wVal === null)
@@ -2877,7 +2877,7 @@
         return out;
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$4(el) {
+    function directChildren$5(el) {
         if (!el)
             return [];
         const out = [];
@@ -2890,7 +2890,7 @@
         return out;
     }
     function directChild$3(el, tagName) {
-        for (const child of directChildren$4(el)) {
+        for (const child of directChildren$5(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -2971,7 +2971,7 @@
          * @throws Error 若 XML 無法解析或缺 <w:body>
          */
         parse(documentXml) {
-            const doc = parseXml$5(documentXml);
+            const doc = parseXml$6(documentXml);
             const root = doc.documentElement;
             if (!root) {
                 throw new Error('DocumentParser: empty document');
@@ -3011,6 +3011,7 @@
                 footers,
                 footnotes: new Map(),
                 endnotes: new Map(),
+                settings: {},
                 styles,
                 numbering,
                 media,
@@ -3043,7 +3044,7 @@
          * @deprecated 改用 walkBodyAsSections 取得多節切分
          */
         walkBody(documentXml) {
-            const doc = parseXml$5(documentXml);
+            const doc = parseXml$6(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3052,7 +3053,7 @@
                 throw new Error('DocumentParser: <w:body> not found');
             const blocks = [];
             let trailingSectPr;
-            for (const child of directChildren$3(body)) {
+            for (const child of directChildren$4(body)) {
                 switch (child.tagName) {
                     case 'w:p':
                         blocks.push(this.paragraphParser.parse(child));
@@ -3082,7 +3083,7 @@
          * @internal 給 OoxmlParser orchestrator 用，搭配 SectionParser 產生 SectionNode[]
          */
         walkBodyAsSections(documentXml) {
-            const doc = parseXml$5(documentXml);
+            const doc = parseXml$6(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3129,7 +3130,7 @@
          * @internal
          */
         findAllSectPrs(documentXml) {
-            const doc = parseXml$5(documentXml);
+            const doc = parseXml$6(documentXml);
             const root = doc.documentElement;
             if (!root)
                 return [];
@@ -3138,7 +3139,7 @@
                 return [];
             const out = [];
             // body 直接子 sectPr
-            for (const child of directChildren$3(body)) {
+            for (const child of directChildren$4(body)) {
                 if (child.tagName === 'w:sectPr')
                     out.push(child);
             }
@@ -3184,7 +3185,7 @@
         };
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$3(el) {
+    function directChildren$4(el) {
         const out = [];
         const children = el.childNodes;
         for (let i = 0; i < children.length; i++) {
@@ -3197,13 +3198,13 @@
     function directChild$2(el, tagName) {
         if (!el)
             return undefined;
-        for (const child of directChildren$3(el)) {
+        for (const child of directChildren$4(el)) {
             if (child.tagName === tagName)
                 return child;
         }
         return undefined;
     }
-    function parseXml$5(xml) {
+    function parseXml$6(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DocumentParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3273,7 +3274,7 @@
             if (!xml)
                 return out;
             try {
-                const doc = parseXml$4(xml);
+                const doc = parseXml$5(xml);
                 const root = doc.documentElement;
                 if (!root)
                     return out;
@@ -3331,7 +3332,7 @@
                 return undefined;
         }
     }
-    function parseXml$4(xml) {
+    function parseXml$5(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FootnotesParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3374,7 +3375,7 @@
         parse(xml, rId) {
             let content = [];
             try {
-                const doc = parseXml$3(xml);
+                const doc = parseXml$4(xml);
                 const root = doc.documentElement;
                 if (root) {
                     // <w:hdr> 與 <w:ftr> 內部結構等同 <w:body> — 直接走訪即可
@@ -3389,7 +3390,7 @@
         }
     }
     // ── 共用 XML 解析 ─────────────────────────────────────────────────────────────
-    function parseXml$3(xml) {
+    function parseXml$4(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('HeaderFooterParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3433,7 +3434,7 @@
         resolve(xml) {
             if (!xml)
                 return new Map();
-            const doc = parseXml$2(xml);
+            const doc = parseXml$3(xml);
             const root = doc.documentElement;
             if (!root)
                 return new Map();
@@ -3499,7 +3500,7 @@
         let runProps;
         let pProps;
         let isLegal;
-        for (const child of directChildren$2(lvlEl)) {
+        for (const child of directChildren$3(lvlEl)) {
             switch (child.tagName) {
                 case 'w:start': {
                     const v = child.getAttribute('w:val');
@@ -3585,7 +3586,7 @@
             return undefined;
         let abstractNumId = -1;
         const overrides = [];
-        for (const child of directChildren$2(numEl)) {
+        for (const child of directChildren$3(numEl)) {
             if (child.tagName === 'w:abstractNumId') {
                 const v = child.getAttribute('w:val');
                 const n = v ? parseInt(v, 10) : NaN;
@@ -3610,7 +3611,7 @@
         if (!Number.isFinite(ilvl))
             return undefined;
         const out = { ilvl };
-        for (const child of directChildren$2(el)) {
+        for (const child of directChildren$3(el)) {
             if (child.tagName === 'w:startOverride') {
                 const v = child.getAttribute('w:val');
                 const n = v ? parseInt(v, 10) : NaN;
@@ -3652,6 +3653,195 @@
         return { abstractNumId: raw.abstractNumId, levels };
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
+    function directChildren$3(el) {
+        if (!el)
+            return [];
+        const out = [];
+        const cs = el.childNodes;
+        for (let i = 0; i < cs.length; i++) {
+            const n = cs[i];
+            if (n.nodeType === 1)
+                out.push(n);
+        }
+        return out;
+    }
+    function parseXml$3(xml) {
+        if (typeof DOMParser === 'undefined') {
+            throw new Error('NumberingResolver: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+        }
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const errors = doc.getElementsByTagName('parsererror');
+        if (errors.length > 0) {
+            throw new Error(`NumberingResolver: XML parse error — ${errors[0].textContent}`);
+        }
+        return doc;
+    }
+
+    /**
+     * SettingsParser — 解析 word/settings.xml(OOXML §17.15)
+     *
+     * Sprint 146(capture-only):
+     *   - 42 fixture settings.xml 全覆蓋(100%)、未來 layout/render 端 wire-up 鋪路
+     *   - 高覆蓋元素: zoom / defaultTabStop / characterSpacingControl /
+     *     footnotePr / endnotePr / compat 全 42/42
+     *   - 不 wire-up(同 Sprint 145 Footnotes 模式)、capture 進 AST 供 caller 查詢
+     *
+     * 解析範圍(對應 DocumentSettings interface):
+     *   - w:zoom w:percent → zoomPercent: number
+     *   - w:defaultTabStop w:val → defaultTabStop: pt(從 twip 轉)
+     *   - w:characterSpacingControl w:val → 列舉
+     *   - w:autoHyphenation / w:evenAndOddHeaders / w:trackChanges → boolean(存在即 true)
+     *   - w:proofState w:spelling/w:grammar → proofState
+     *   - w:footnotePr / w:endnotePr → 結構物件
+     *   - w:compat 內所有子元素標籤名 → string[]
+     *
+     * 紀律 #21:optional 欄位空集合不掛 key — 空物件 {} 代表「無設定」、所有欄位 undefined。
+     *
+     * 防禦:undefined / 空 / XML 解析失敗 → 回 {}(不阻塞 OoxmlParser)。
+     */
+    class SettingsParser {
+        /**
+         * 解析 word/settings.xml 字串為 DocumentSettings。
+         *
+         * @param xml settings.xml 完整字串;undefined / 空 → 回 {}
+         */
+        parse(xml) {
+            if (!xml)
+                return {};
+            let doc;
+            try {
+                doc = parseXml$2(xml);
+            }
+            catch {
+                return {};
+            }
+            const root = doc.documentElement;
+            if (!root)
+                return {};
+            const out = {};
+            for (const child of directChildren$2(root)) {
+                switch (child.tagName) {
+                    case 'w:zoom': {
+                        const v = child.getAttribute('w:percent');
+                        const n = v !== null ? parseInt(v, 10) : NaN;
+                        if (Number.isFinite(n) && n > 0)
+                            out.zoomPercent = n;
+                        break;
+                    }
+                    case 'w:defaultTabStop': {
+                        const v = child.getAttribute('w:val');
+                        const n = v !== null ? parseInt(v, 10) : NaN;
+                        if (Number.isFinite(n) && n > 0) {
+                            out.defaultTabStop = twipToPt(n);
+                        }
+                        break;
+                    }
+                    case 'w:characterSpacingControl': {
+                        const v = child.getAttribute('w:val');
+                        if (v === 'doNotCompress' ||
+                            v === 'compressPunctuation' ||
+                            v === 'compressPunctuationAndJapaneseKana') {
+                            out.characterSpacingControl = v;
+                        }
+                        break;
+                    }
+                    case 'w:autoHyphenation':
+                        out.autoHyphenation = readToggle(child);
+                        break;
+                    case 'w:evenAndOddHeaders':
+                        out.evenAndOddHeaders = readToggle(child);
+                        break;
+                    case 'w:trackChanges':
+                        out.trackChanges = readToggle(child);
+                        break;
+                    case 'w:proofState': {
+                        const ps = {};
+                        const sp = child.getAttribute('w:spelling');
+                        const gr = child.getAttribute('w:grammar');
+                        if (sp === 'clean' || sp === 'dirty')
+                            ps.spelling = sp;
+                        if (gr === 'clean' || gr === 'dirty')
+                            ps.grammar = gr;
+                        if (Object.keys(ps).length > 0)
+                            out.proofState = ps;
+                        break;
+                    }
+                    case 'w:footnotePr':
+                        out.footnotePr = parseNotePr(child, 'footnote');
+                        break;
+                    case 'w:endnotePr':
+                        out.endnotePr = parseNotePr(child, 'endnote');
+                        break;
+                    case 'w:compat': {
+                        const names = [];
+                        for (const sub of directChildren$2(child)) {
+                            // 去掉 w: 前綴
+                            const tag = sub.tagName;
+                            const local = tag.includes(':') ? tag.split(':')[1] : tag;
+                            if (local)
+                                names.push(local);
+                        }
+                        if (names.length > 0)
+                            out.compat = names;
+                        break;
+                    }
+                }
+            }
+            return out;
+        }
+    }
+    // ── 內部 helpers ──────────────────────────────────────────────────────────
+    /**
+     * OOXML toggle:`<w:foo/>` 或 `<w:foo w:val="1"/>` 為 true、`w:val="0"` / `"false"` 為 false。
+     * 預設(無屬性)= true、與 OOXML §17.17.4 規範對齊。
+     */
+    function readToggle(el) {
+        const v = el.getAttribute('w:val');
+        if (v === null)
+            return true; // 元素存在 = true
+        return v !== '0' && v.toLowerCase() !== 'false';
+    }
+    function parseNotePr(el, kind) {
+        const out = {};
+        for (const sub of directChildren$2(el)) {
+            switch (sub.tagName) {
+                case 'w:numRestart': {
+                    const v = sub.getAttribute('w:val');
+                    if (v === 'continuous' || v === 'eachPage' || v === 'eachSect') {
+                        out.numRestart = v;
+                    }
+                    break;
+                }
+                case 'w:numFmt': {
+                    const v = sub.getAttribute('w:val');
+                    if (v)
+                        out.numFmt = v;
+                    break;
+                }
+                case 'w:pos': {
+                    const v = sub.getAttribute('w:val');
+                    // footnote: pageBottom/beneathText/sectEnd/docEnd
+                    // endnote: sectEnd/docEnd
+                    const valid = kind === 'footnote'
+                        ? ['pageBottom', 'beneathText', 'sectEnd', 'docEnd']
+                        : ['sectEnd', 'docEnd'];
+                    if (v && valid.includes(v)) {
+                        out.position = v;
+                    }
+                    break;
+                }
+                case 'w:numStart': {
+                    const v = sub.getAttribute('w:val');
+                    const n = v !== null ? parseInt(v, 10) : NaN;
+                    if (Number.isFinite(n))
+                        out.numStart = n;
+                    break;
+                }
+                // <w:footnote w:id="-1"/> 等 — fixture 中 footnotes 預設 stub 引用、本 sprint 不解析
+            }
+        }
+        return out;
+    }
     function directChildren$2(el) {
         if (!el)
             return [];
@@ -3666,12 +3856,12 @@
     }
     function parseXml$2(xml) {
         if (typeof DOMParser === 'undefined') {
-            throw new Error('NumberingResolver: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+            throw new Error('SettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
         const doc = new DOMParser().parseFromString(xml, 'application/xml');
         const errors = doc.getElementsByTagName('parsererror');
         if (errors.length > 0) {
-            throw new Error(`NumberingResolver: XML parse error — ${errors[0].textContent}`);
+            throw new Error(`SettingsParser: XML parse error — ${errors[0].textContent}`);
         }
         return doc;
     }
@@ -5160,6 +5350,7 @@
     const REL_TYPE_FOOTER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     const REL_TYPE_FOOTNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     const REL_TYPE_ENDNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+    const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     const REL_TYPE_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     const DEFAULT_DOC_PATH = 'word/document.xml';
     class OoxmlParser {
@@ -5179,6 +5370,8 @@
             this.headerFooterParser = new HeaderFooterParser(this.documentParser);
             /** Sprint 145：footnotes / endnotes 重用 documentParser、與 header/footer 對齊 */
             this.footnotesParser = new FootnotesParser(this.documentParser);
+            /** Sprint 146：settings.xml capture-only */
+            this.settingsParser = new SettingsParser();
         }
         /**
          * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -5227,6 +5420,10 @@
             //   為將來 user 提供含 footnoteReference 的 fixture 後 wire-up 鋪路。
             const footnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_FOOTNOTES);
             const endnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_ENDNOTES);
+            // Step 6.6（Sprint 146）：settings.xml — capture-only、無 wire-up
+            //   42/42 fixture 都有 settings.xml、含 zoom / defaultTabStop / characterSpacingControl /
+            //   footnotePr / endnotePr / compat 等文件級設定;為將來 wire-up 鋪路。
+            const settings = collectSettings(pkg, mainDocPath, this.settingsParser);
             // Step 7：媒體收集（image rId → data URL）
             const media = collectMedia(pkg, mainDocPath);
             // Step 8：docProps/core.xml 解析（Sprint 13）
@@ -5239,6 +5436,7 @@
                 footers,
                 footnotes,
                 endnotes,
+                settings,
                 styles,
                 numbering,
                 media,
@@ -5349,6 +5547,25 @@
             return parser.parse(xml); // 找到第一個就回（footnotes/endnotes 各最多 1 個 part）
         }
         return new Map();
+    }
+    /**
+     * Sprint 146：走訪 mainDoc 的 .rels、抓 settings.xml part 並解析。
+     *
+     * @returns DocumentSettings；rels 沒指向 settings 時回 {}（capture-only safety）
+     */
+    function collectSettings(pkg, mainDocPath, parser) {
+        const rels = pkg.relationships.get(mainDocPath);
+        if (!rels)
+            return {};
+        for (const rel of rels.values()) {
+            if (rel.targetMode !== 'Internal')
+                continue;
+            if (rel.type !== REL_TYPE_SETTINGS)
+                continue;
+            const xml = pkg.partAsText(rel.target);
+            return parser.parse(xml);
+        }
+        return {};
     }
     /**
      * 走訪 mainDoc 的 .rels，把所有 image 關聯的 rId 對應到該 part 的 base64 data URL。
