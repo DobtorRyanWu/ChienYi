@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 148 — **Phase 1 webSettings.xml capture-only**（Sprint 147 §後續 E-4、結束 part 三連 cluster）：新模組 WebSettingsParser +95 行（scope-down 解析:4 toggle + hasDivs boolean、不深入 w:divs 巢狀）+ types/orchestrator +60 行 + 5 既有 constructor patch + 14 新 unit test。**紀律 #18 scope-down 案例**:儀式性收尾不過度設計、divs 內部留 Phase 6 docx export。vitest 1235 → **1249 + 1 skipped**、VR 0.073191 byte-identical **第 19 連**。Phase 1 OOXML 86% → 87%。**Phase 1 capture-only 四連 cluster(145-148)完成**：5 parts / 24 elements / +73 test / +7pp Phase 1（80→87%）。Sprint 149 候選 = wire-up 階段(settings.defaultTabStop / fontTable.altName)或 cluster retro）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 149 — **Sprint 143-148 cluster retro（autonomous docs sprint、短週期模式）**：6 sprint 方法論萃取、3 個成熟模式 explicit（紀律 #1.b 升正 + catch-up / Phase 1 capture-only 四連 archetype 9-step / retro 短週期觸發）+ 紀律 #18 scope-down 新案例 + cluster checklist 補強 2 項（#7 儀式性收尾 / #8 短週期 retro）+ 跨 retro 對照（Sprint 120/144/149 三次）。0 production code。Sprint 150+ 決策框架 ready:wire-up 階段 vs 等 user vs 持續 capture）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
