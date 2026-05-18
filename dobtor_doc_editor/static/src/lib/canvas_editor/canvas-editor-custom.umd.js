@@ -2971,7 +2971,7 @@
          * @throws Error 若 XML 無法解析或缺 <w:body>
          */
         parse(documentXml) {
-            const doc = parseXml$4(documentXml);
+            const doc = parseXml$5(documentXml);
             const root = doc.documentElement;
             if (!root) {
                 throw new Error('DocumentParser: empty document');
@@ -3009,6 +3009,8 @@
                 sections: [section],
                 headers,
                 footers,
+                footnotes: new Map(),
+                endnotes: new Map(),
                 styles,
                 numbering,
                 media,
@@ -3041,7 +3043,7 @@
          * @deprecated 改用 walkBodyAsSections 取得多節切分
          */
         walkBody(documentXml) {
-            const doc = parseXml$4(documentXml);
+            const doc = parseXml$5(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3080,7 +3082,7 @@
          * @internal 給 OoxmlParser orchestrator 用，搭配 SectionParser 產生 SectionNode[]
          */
         walkBodyAsSections(documentXml) {
-            const doc = parseXml$4(documentXml);
+            const doc = parseXml$5(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3127,7 +3129,7 @@
          * @internal
          */
         findAllSectPrs(documentXml) {
-            const doc = parseXml$4(documentXml);
+            const doc = parseXml$5(documentXml);
             const root = doc.documentElement;
             if (!root)
                 return [];
@@ -3201,7 +3203,7 @@
         }
         return undefined;
     }
-    function parseXml$4(xml) {
+    function parseXml$5(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DocumentParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3209,6 +3211,134 @@
         const errors = doc.getElementsByTagName('parsererror');
         if (errors.length > 0) {
             throw new Error(`DocumentParser: XML parse error — ${errors[0].textContent}`);
+        }
+        return doc;
+    }
+
+    /**
+     * FootnotesParser — 解析 word/footnotes.xml 與 word/endnotes.xml
+     *
+     * Sprint 145(Phase 3.6 capture-only):
+     *   - 規畫書 §11.2 行 2「Phase 3.6 註腳 / 尾註:30% 政府文件需求」
+     *   - 當前 42 fixture footnoteReference 0 出現(雖每個 docx 都有 footnotes.xml/endnotes.xml part)
+     *   - **本 sprint 只做 parser、不做 layout/render wire-up**(同 Sprint 134 textAlignment/framePr 模式)
+     *   - 為將來 user 提供含 footnoteReference fixture 時的 wire-up 鋪路
+     *
+     * Footnote 結構(OOXML §17.11):
+     *   <w:footnotes>
+     *     <w:footnote w:type="separator" w:id="-1">
+     *       <w:p><w:r><w:separator/></w:r></w:p>
+     *     </w:footnote>
+     *     <w:footnote w:type="continuationSeparator" w:id="0">
+     *       <w:p><w:r><w:continuationSeparator/></w:r></w:p>
+     *     </w:footnote>
+     *     <w:footnote w:id="1">
+     *       <w:p>...一般 footnote 內容...</w:p>
+     *     </w:footnote>
+     *   </w:footnotes>
+     *
+     * Endnote 結構同 footnote、僅根元素為 <w:endnotes> / <w:endnote>。
+     *
+     * w:type 可能值(ECMA-376 §17.11.21):
+     *   - 未設(普通 footnote 內容):一般用 footnoteReference 引用
+     *   - "separator":footnote 區頂端的分隔線
+     *   - "continuationSeparator":跨頁延續的分隔線
+     *   - "continuationNotice":跨頁延續提示文字
+     *
+     * w:id:
+     *   - -1:separator(預設)
+     *   - 0:continuationSeparator(預設)
+     *   - 1+:普通 footnote 內容(被 footnoteReference 引用)
+     *
+     * 重用 DocumentParser.parseBodyContent 解析 footnote 內部段落 + 表格,
+     * 與 HeaderFooterParser 模式對齊。
+     */
+    class FootnotesParser {
+        /**
+         * @param documentParser 可選;OoxmlParser orchestrator 注入共用 instance 以重用 TableParser 等狀態。
+         *                       不傳則自建一個。
+         */
+        constructor(documentParser) {
+            this.documentParser = documentParser ?? new DocumentParser();
+        }
+        /**
+         * 解析 word/footnotes.xml(或 endnotes.xml)為 Map<id, FootnoteContent>。
+         *
+         * @param xml footnotes.xml / endnotes.xml 完整字串;undefined / 空 → 回空 Map
+         * @returns Map<id, FootnoteContent>;id 是 footnote 的 w:id 整數
+         *          ;XML 無法解析時回空 Map(不 throw)
+         */
+        parse(xml) {
+            const out = new Map();
+            if (!xml)
+                return out;
+            try {
+                const doc = parseXml$4(xml);
+                const root = doc.documentElement;
+                if (!root)
+                    return out;
+                // 收集所有 <w:footnote> 或 <w:endnote> 直接子元素(根節點下)
+                // 用 tagName endsWith 容忍 endnotes.xml(<w:endnote>)和 footnotes.xml(<w:footnote>)
+                const cs = root.childNodes;
+                for (let i = 0; i < cs.length; i++) {
+                    const n = cs[i];
+                    if (n.nodeType !== 1)
+                        continue;
+                    const el = n;
+                    // 允許 w:footnote 或 w:endnote
+                    if (el.tagName !== 'w:footnote' && el.tagName !== 'w:endnote')
+                        continue;
+                    const idRaw = el.getAttribute('w:id');
+                    if (idRaw === null)
+                        continue;
+                    const id = parseInt(idRaw, 10);
+                    if (!Number.isFinite(id))
+                        continue;
+                    const typeRaw = el.getAttribute('w:type') ?? undefined;
+                    const type = normalizeType(typeRaw);
+                    // 內部結構等同 <w:body> — 重用 DocumentParser
+                    let content = [];
+                    try {
+                        content = this.documentParser.parseBodyContent(el);
+                    }
+                    catch {
+                        content = [];
+                    }
+                    const entry = { id, content };
+                    if (type !== undefined)
+                        entry.type = type;
+                    out.set(id, entry);
+                }
+            }
+            catch {
+                // 整檔解析失敗 → 回空 Map(不阻塞 OoxmlParser)
+                return new Map();
+            }
+            return out;
+        }
+    }
+    // ── 內部 helpers ──────────────────────────────────────────────────────────
+    function normalizeType(raw) {
+        if (raw === undefined)
+            return undefined;
+        switch (raw) {
+            case 'separator':
+            case 'continuationSeparator':
+            case 'continuationNotice':
+                return raw;
+            default:
+                // 未知 type 視為 undefined(降級為一般 footnote)
+                return undefined;
+        }
+    }
+    function parseXml$4(xml) {
+        if (typeof DOMParser === 'undefined') {
+            throw new Error('FootnotesParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+        }
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const errors = doc.getElementsByTagName('parsererror');
+        if (errors.length > 0) {
+            throw new Error(`FootnotesParser: XML parse error — ${errors[0].textContent}`);
         }
         return doc;
     }
@@ -5028,6 +5158,8 @@
     const REL_TYPE_NUMBERING = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     const REL_TYPE_HEADER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
     const REL_TYPE_FOOTER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
+    const REL_TYPE_FOOTNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
+    const REL_TYPE_ENDNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     const REL_TYPE_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     const DEFAULT_DOC_PATH = 'word/document.xml';
     class OoxmlParser {
@@ -5045,6 +5177,8 @@
             this.tableParser = new TableParser();
             this.documentParser = new DocumentParser(this.tableParser);
             this.headerFooterParser = new HeaderFooterParser(this.documentParser);
+            /** Sprint 145：footnotes / endnotes 重用 documentParser、與 header/footer 對齊 */
+            this.footnotesParser = new FootnotesParser(this.documentParser);
         }
         /**
          * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -5088,6 +5222,11 @@
             const headers = new Map();
             const footers = new Map();
             collectHeadersFooters(pkg, mainDocPath, this.headerFooterParser, headers, footers);
+            // Step 6.5（Sprint 145）：Footnotes / Endnotes — capture-only、無 wire-up
+            //   42 fixture footnoteReference 0 出現,本步驟只是 parse 進 AST 不影響 layout/render。
+            //   為將來 user 提供含 footnoteReference 的 fixture 後 wire-up 鋪路。
+            const footnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_FOOTNOTES);
+            const endnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_ENDNOTES);
             // Step 7：媒體收集（image rId → data URL）
             const media = collectMedia(pkg, mainDocPath);
             // Step 8：docProps/core.xml 解析（Sprint 13）
@@ -5098,6 +5237,8 @@
                 sections,
                 headers,
                 footers,
+                footnotes,
+                endnotes,
                 styles,
                 numbering,
                 media,
@@ -5185,6 +5326,29 @@
                 footers.set(rel.id, parser.parse(xml, rel.id));
             }
         }
+    }
+    /**
+     * Sprint 145：走訪 mainDoc 的 .rels、抓 footnotes 或 endnotes part 並解析。
+     *
+     * 與 collectHeadersFooters 不同點：footnote/endnote 的 key 是 numeric id（OOXML w:id）、
+     * 不是 rId；rels 只指向「文件級別的 footnotes.xml」單一 part、parse 後產出 Map<id, content>。
+     *
+     * @param relType REL_TYPE_FOOTNOTES 或 REL_TYPE_ENDNOTES
+     * @returns Map<id, FootnoteContent>；rels 沒指向 footnotes/endnotes 時回空 Map
+     */
+    function collectNotes(pkg, mainDocPath, parser, relType) {
+        const rels = pkg.relationships.get(mainDocPath);
+        if (!rels)
+            return new Map();
+        for (const rel of rels.values()) {
+            if (rel.targetMode !== 'Internal')
+                continue;
+            if (rel.type !== relType)
+                continue;
+            const xml = pkg.partAsText(rel.target);
+            return parser.parse(xml); // 找到第一個就回（footnotes/endnotes 各最多 1 個 part）
+        }
+        return new Map();
     }
     /**
      * 走訪 mainDoc 的 .rels，把所有 image 關聯的 rId 對應到該 part 的 base64 data URL。

@@ -55,6 +55,8 @@ function makeDoc(
     sections,
     headers: new Map(),
     footers: new Map(),
+    footnotes: new Map(),
+    endnotes: new Map(),
     styles: new Map(),
     numbering,
     media,

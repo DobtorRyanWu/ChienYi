@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 144 — **Sprint 121-142 cluster retro（autonomous docs sprint）**：22 sprint 方法論萃取、3 個新模式 explicit（probe-only 例行化 / Strategy C 折衷 / **autonomous 邊界揭示** 3 維度框架）+ wire-up 三段式架構 + 數據總覽（+200 vitest / Phase 4 +10pp / 15 連 byte-identical / 4 條紀律升正）+ Sprint 50-66 跨 cluster 對照 + 未來 cluster checklist 6 項。沿用 Sprint 120 retro 模式。0 production code。Sprint 145+ 等 user 決策階段 C / Phase 5 / textAlignment GO 三選一）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 145 — **Phase 3.6 Footnotes / Endnotes Parser capture-only**（規畫書 §11.2 行 2）：新模組 FootnotesParser +135 行（支援 footnotes.xml/endnotes.xml 同 parser、w:type 4 種、w:id 整數、重用 DocumentParser 解析內部、4 防禦邊界）+ types/orchestrator 串接 +50 行 + 4 既有 constructor patch + 12 新 unit test。probe 確認 fixture footnoteReference 0/42 出現、capture-only 模式（Sprint 134 範本）。vitest 1176 → **1188 + 1 skipped**、VR 0.073191 byte-identical **第 16 連**。Phase 1 OOXML 80% → 82%。紀律 #1.a #22 #18 #1.b 連用、為將來 user 提供含 footnoteReference fixture 鋪路）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓

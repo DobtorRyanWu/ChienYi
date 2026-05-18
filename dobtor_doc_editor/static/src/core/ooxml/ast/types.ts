@@ -504,6 +504,25 @@ export interface HeaderFooterContent {
   content: BlockNode[];
 }
 
+// ── 註腳 / 尾註內容（Sprint 145、Phase 3.6 capture-only）──────────────────────
+
+/**
+ * 單一 footnote / endnote 條目。
+ *
+ * - id:OOXML w:id 整數(-1 = separator、0 = continuationSeparator、1+ = 普通內容)
+ * - type:undefined = 普通 footnote(被 footnoteReference 引用)
+ *        'separator' / 'continuationSeparator' / 'continuationNotice' = 預設裝飾
+ * - content:footnote 內部段落 + 表格(重用 BlockNode、與 header/footer 結構相同)
+ *
+ * 本 sprint(145)只做 capture、不 wire-up:42 fixture footnoteReference 0 出現,
+ * VR 視覺收益 = 0;留 hook 給 user 提供含 footnoteReference 的 fixture 後 wire-up。
+ */
+export interface FootnoteContent {
+  id: number;
+  type?: 'separator' | 'continuationSeparator' | 'continuationNotice';
+  content: BlockNode[];
+}
+
 // ── 清單編號（Numbering）─────────────────────────────────────────────────────
 
 export interface NumberingLevel {
@@ -593,6 +612,10 @@ export interface DocumentNode {
   sections: SectionNode[];
   headers: Map<string, HeaderFooterContent>;  // rId → 內容
   footers: Map<string, HeaderFooterContent>;  // rId → 內容
+  /** Sprint 145：footnotes.xml 解析結果（id → 內容）；fixture 0 覆蓋時為空 Map */
+  footnotes: Map<number, FootnoteContent>;
+  /** Sprint 145：endnotes.xml 解析結果（id → 內容）；fixture 0 覆蓋時為空 Map */
+  endnotes: Map<number, FootnoteContent>;
   styles: StyleMap;
   numbering: NumberingMap;
   media: Map<string, string>;  // rId → blob URL 或 base64 data URL（圖片）
