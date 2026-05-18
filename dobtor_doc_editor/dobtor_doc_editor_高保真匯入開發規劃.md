@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 139 — Phase 4 wire-up 第三階段、cluster 完工：Layout 路徑 numbering wire-up（types.ts +20 / BoxBuilder.ts +25 / Paginator.ts +60 / TableLayout.ts +35 + 10 新 unit test）+ **Strategy C 折衷**（VR 第一次嘗試 +0.001pp、改 opt-in 後 byte-identical 第 15 連、layout wire-up 保留待階段 C 切 opt-out）。vitest 1166 → **1176 passed + 1 skipped**；Phase 4 Style 88% → 90%；Sprint 140 候選 = textAlignment/framePr 或階段 C 重生 goldens）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 140 — A 候選 textAlignment / framePr wire-up **probe-only DEFER**：fixture 分布 4+1/42、canvas-editor 無對應、Layout 對應微弱、預期收益 < pixelmatch resolution → autonomous DEFER + 4 個後續觸發條件明確化。0 production code、紀律 #22 第 7 次正式應用、#1.b 候選 v2 第 6 次跨 sprint 驗證（3 類型完整光譜）。Sprint 141 候選 = B 階段 C 重生 goldens probe）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
