@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 143 — **紀律 #1.b 正式升格 + catch-up 同步集中索引**：Sprint 121-142 期間 4 次升正（#1.a Sprint 123 / #21 Sprint 131 / #22 Sprint 135 / **#1.b 本 sprint**）未同步、本 sprint 補 CONTRIBUTING.md §5 +~80 行 + glossary.md §2.1 紀律表 +3 行 + §0 索引更新。**紀律總數 18 → 22 條**。紀律 #14/#14.a 反例 catch-up + #18 守護案例。0 production code。Sprint 144 推薦 = D-2 Sprint 121-142 cluster retro 或等 user 決策）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 144 — **Sprint 121-142 cluster retro（autonomous docs sprint）**：22 sprint 方法論萃取、3 個新模式 explicit（probe-only 例行化 / Strategy C 折衷 / **autonomous 邊界揭示** 3 維度框架）+ wire-up 三段式架構 + 數據總覽（+200 vitest / Phase 4 +10pp / 15 連 byte-identical / 4 條紀律升正）+ Sprint 50-66 跨 cluster 對照 + 未來 cluster checklist 6 項。沿用 Sprint 120 retro 模式。0 production code。Sprint 145+ 等 user 決策階段 C / Phase 5 / textAlignment GO 三選一）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
