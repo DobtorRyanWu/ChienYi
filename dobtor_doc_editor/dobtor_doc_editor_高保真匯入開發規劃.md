@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 140 — A 候選 textAlignment / framePr wire-up **probe-only DEFER**：fixture 分布 4+1/42、canvas-editor 無對應、Layout 對應微弱、預期收益 < pixelmatch resolution → autonomous DEFER + 4 個後續觸發條件明確化。0 production code、紀律 #22 第 7 次正式應用、#1.b 候選 v2 第 6 次跨 sprint 驗證（3 類型完整光譜）。Sprint 141 候選 = B 階段 C 重生 goldens probe）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 141 — B 階段 C 重生 goldens 環境 **probe DEFER user GO**：揭示現有 goldens = LibreOffice → PDF → PNG（非規畫書 §11.1 假設的 Word desktop）+ 環境就緒度（LibreOffice/Docker/Pillow/puppeteer ✓ + OnlyOffice 未拉）+ 3 方案評估（A 微調 / **B OnlyOffice 推薦** / C wkhtmltopdf 不推薦）→ 換 baseline 影響紀律 #1.a 16 連需 user 明確 GO、4-step 路徑 ready。紀律 #22 第 8 次、#1.b 候選 v2 第 7 次跨 sprint 驗證揭示新類型「需 user GO 的預防 DEFER」。Sprint 142 候選 = C Phase 5 開工 probe）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
