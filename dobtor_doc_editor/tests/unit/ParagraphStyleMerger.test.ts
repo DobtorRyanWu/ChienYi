@@ -25,6 +25,7 @@ function makeDoc(sections: any[]): DocumentNode {
     endnotes: new Map(),
     settings: {},
     fontTable: new Map(),
+    webSettings: {},
     styles: new Map(),
     numbering: new Map(),
     media: new Map(),

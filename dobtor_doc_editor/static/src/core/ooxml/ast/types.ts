@@ -504,6 +504,36 @@ export interface HeaderFooterContent {
   content: BlockNode[];
 }
 
+// ── Web 設定（Sprint 148、word/webSettings.xml capture-only）─────────────────
+
+/**
+ * Web 設定(OOXML §17.16、word/webSettings.xml)。
+ *
+ * Sprint 148 capture-only:
+ *   - 42/42 fixture 都有 webSettings.xml(Word 預設骨架)
+ *   - 主要是 docx 匯出 HTML 時的 hint、import / layout / render **完全不用**
+ *   - 結束 Phase 1 part 三連 cluster(Sprint 145-148)的儀式性 capture
+ *   - 留 hook 給將來 Phase 6 docx export 對稱性(import-export round-trip equality)
+ *
+ * 解析範圍(簡化):
+ *   - 4 個 toggle 元素 boolean
+ *   - hasDivs:是否含 w:divs(HTML div 結構提示、深層巢狀、本 sprint 不深入)
+ *
+ * 紀律 #18:scope 限縮、不解析 divs 內部結構(屬 Phase 6 docx export 範疇)。
+ */
+export interface DocumentWebSettings {
+  /** w:optimizeForBrowser:HTML 匯出時針對特定瀏覽器最佳化 */
+  optimizeForBrowser?: boolean;
+  /** w:allowPNG:允許 HTML 匯出時用 PNG 圖片格式 */
+  allowPNG?: boolean;
+  /** w:saveSmartTagsAsXml:Smart Tags 是否以 XML 形式儲存 */
+  saveSmartTagsAsXml?: boolean;
+  /** w:doNotSaveAsSingleFile:HTML 匯出不另存為單一檔案(預設拆分多檔)*/
+  doNotSaveAsSingleFile?: boolean;
+  /** w:divs 存在性:是否含 HTML div 結構提示(本 sprint 不深入內容)*/
+  hasDivs?: boolean;
+}
+
 // ── 字型表（Sprint 147、word/fontTable.xml capture-only）─────────────────────
 
 /**
@@ -760,6 +790,8 @@ export interface DocumentNode {
   settings: DocumentSettings;
   /** Sprint 147：fontTable.xml 解析結果（capture-only、空 Map 代表「無 fontTable.xml」）*/
   fontTable: FontTable;
+  /** Sprint 148：webSettings.xml 解析結果（capture-only、layout/render 不用、留 Phase 6 export）*/
+  webSettings: DocumentWebSettings;
   styles: StyleMap;
   numbering: NumberingMap;
   media: Map<string, string>;  // rId → blob URL 或 base64 data URL（圖片）

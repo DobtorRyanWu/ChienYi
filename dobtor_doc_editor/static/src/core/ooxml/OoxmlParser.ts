@@ -25,6 +25,7 @@ import type {
   BlockNode,
   DocumentNode,
   DocumentSettings,
+  DocumentWebSettings,
   FontTable,
   FootnoteContent,
   HeaderFooterContent,
@@ -38,6 +39,7 @@ import { FootnotesParser } from './footnotes/FootnotesParser';
 import { HeaderFooterParser } from './header-footer/HeaderFooterParser';
 import { NumberingResolver } from './numbering/NumberingResolver';
 import { SettingsParser } from './settings/SettingsParser';
+import { WebSettingsParser } from './web-settings/WebSettingsParser';
 import {
   PackageReader,
   type OoxmlPackage,
@@ -69,6 +71,8 @@ const REL_TYPE_SETTINGS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
 const REL_TYPE_FONT_TABLE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
+const REL_TYPE_WEB_SETTINGS =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
 const REL_TYPE_IMAGE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
 
@@ -100,6 +104,8 @@ export class OoxmlParser {
   private settingsParser = new SettingsParser();
   /** Sprint 147：fontTable.xml capture-only */
   private fontTableParser = new FontTableParser();
+  /** Sprint 148：webSettings.xml capture-only(結束 Phase 1 part 三連 cluster)*/
+  private webSettingsParser = new WebSettingsParser();
 
   /**
    * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -175,6 +181,11 @@ export class OoxmlParser {
     //   chain / metric hint / Unicode sig 精確匹配 wire-up 鋪路。
     const fontTable = collectFontTable(pkg, mainDocPath, this.fontTableParser);
 
+    // Step 6.8（Sprint 148）：webSettings.xml — capture-only、無 wire-up
+    //   42/42 fixture 都有 webSettings.xml(Word 預設骨架)、layout/render 不用;
+    //   結束 Phase 1 part 三連 cluster(Sprint 145-148)、留 Phase 6 docx export 用。
+    const webSettings = collectWebSettings(pkg, mainDocPath, this.webSettingsParser);
+
     // Step 7：媒體收集（image rId → data URL）
     const media = collectMedia(pkg, mainDocPath);
 
@@ -191,6 +202,7 @@ export class OoxmlParser {
       endnotes,
       settings,
       fontTable,
+      webSettings,
       styles,
       numbering,
       media,
@@ -359,6 +371,27 @@ function collectFontTable(
     return parser.parse(xml);
   }
   return new Map();
+}
+
+/**
+ * Sprint 148：走訪 mainDoc 的 .rels、抓 webSettings.xml part 並解析。
+ *
+ * @returns DocumentWebSettings；rels 沒指向 webSettings 時回 {}（capture-only safety）
+ */
+function collectWebSettings(
+  pkg: OoxmlPackage,
+  mainDocPath: string,
+  parser: WebSettingsParser,
+): DocumentWebSettings {
+  const rels = pkg.relationships.get(mainDocPath);
+  if (!rels) return {};
+  for (const rel of rels.values()) {
+    if (rel.targetMode !== 'Internal') continue;
+    if (rel.type !== REL_TYPE_WEB_SETTINGS) continue;
+    const xml = pkg.partAsText(rel.target);
+    return parser.parse(xml);
+  }
+  return {};
 }
 
 /**
