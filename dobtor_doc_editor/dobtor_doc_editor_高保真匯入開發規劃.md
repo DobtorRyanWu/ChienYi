@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 142 — C Phase 5 開工 **probe DEFER user GO**：6 子功能（OMML/SmartArt/Charts/追蹤修訂/註解/浮水印）在 42 fixture **0 覆蓋** → VR 視覺收益 = 0 不論實作哪個都無法 VR 驗證。autonomous 已到達**規畫書既有 backlog 邊緣**、3 連 probe + DEFER 完整光譜。紀律 #22 第 9 次、**#1.b 候選 v2 第 8 次跨 sprint 驗證可升正式**。Sprint 143 推薦 = 紀律 #1.b 正式升格（docs-only）或等 user 決策）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 143 — **紀律 #1.b 正式升格 + catch-up 同步集中索引**：Sprint 121-142 期間 4 次升正（#1.a Sprint 123 / #21 Sprint 131 / #22 Sprint 135 / **#1.b 本 sprint**）未同步、本 sprint 補 CONTRIBUTING.md §5 +~80 行 + glossary.md §2.1 紀律表 +3 行 + §0 索引更新。**紀律總數 18 → 22 條**。紀律 #14/#14.a 反例 catch-up + #18 守護案例。0 production code。Sprint 144 推薦 = D-2 Sprint 121-142 cluster retro 或等 user 決策）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓

@@ -7,7 +7,7 @@
 | § | 章節 | 主要術語數 |
 |---|---|---|
 | 1 | VR 與衡量指標 | 11 |
-| 2 | Sprint 紀律與類型 | 紀律 18 條 + 6 子 + 1 候選；10 種 sprint 類型 |
+| 2 | Sprint 紀律與類型 | 紀律 22 條 + 6 子 + 1 候選；10 種 sprint 類型（Sprint 143 升正 #1.a/#1.b/#21/#22）|
 | 3 | 前端子系統與術語 | 核心模組 9 + 衡量單位 4 |
 | 4 | 後端 / Odoo 整合 | 12 |
 | 5 | 工具鏈與 CI | 11 + CI gate 漸進模式 3 階段 |
@@ -53,6 +53,8 @@
 | # | 紀律 | Sprint 來源 |
 |---|---|---|
 | 1 | 改 BrowserCanvasRenderContext / CanvasRenderer 後強制跑全 42-fixture VR | 57 |
+| 1.a | 廣域版 — parser / style / layout 任一層變動、即使預期 VR 不變也跑全 VR rebuild + 確認（跨 Sprint 121-138 第 14 次連續 byte-identical 驗證）| 123 |
+| 1.b | spike 後遇結構性問題、必須 scope-down 或完整 revert byte-identical、不嘗試「微調 + retry」（跨 Sprint 110-142 第 8 次驗證 × 3 類型完整光譜：全 revert × 2 / 預防 × 4 / 實作 + 折衷 × 2、含「需 user GO 的 DEFER」次類型 3 次）| 143 |
 | 2 | 單元測試用 spy 驗 API、VR 驗 pixels — 兩者都綠才算過 | 57 |
 | 3 | 高風險改造前先 probe sprint 收集事實 | 60 |
 | 4 | 負面結果 sprint 仍有結構價值；揭示隱性 assumption 是真實學習 | 61 |
@@ -81,6 +83,8 @@
 | 18.c | critical finding 揭示 sprint 後、下個 sprint 應 enforce fix（cooldown ≤ 1 sprint）| 116 |
 | 18.d | 「待 user 決策」候選的 autonomous 收口必須讀原始設計意圖後才決、不能憑 default-secure 直覺 | 117 |
 | 20（候選）| 集中索引文件（ADR / glossary / CONTRIBUTING）超過 10 entry 應有 §0 索引段；歷史缺口保留編號 | 118 |
+| 21 | optional 欄位空集合不掛 key（避免 AST diff noise + 保 cache key 穩定）| 131 |
+| 22 | backlog 開工前先 probe sprint 確認 mental model vs 實況差距（跨 Sprint 127-142 第 9 次驗證、含「需 user GO 的預防 DEFER」次類型）| 135 |
 
 ### 2.2 Sprint 類型
 
