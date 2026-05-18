@@ -24,6 +24,7 @@ function makeDoc(sections: any[]): DocumentNode {
     footnotes: new Map(),
     endnotes: new Map(),
     settings: {},
+    fontTable: new Map(),
     styles: new Map(),
     numbering: new Map(),
     media: new Map(),

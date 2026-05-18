@@ -58,6 +58,7 @@ function makeDoc(
     footnotes: new Map(),
     endnotes: new Map(),
     settings: {},
+    fontTable: new Map(),
     styles: new Map(),
     numbering,
     media,

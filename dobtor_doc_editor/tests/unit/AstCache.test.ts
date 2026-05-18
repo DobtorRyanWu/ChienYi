@@ -23,6 +23,7 @@ function makeFakeAst(tag: string): DocumentNode {
     footnotes: new Map(),
     endnotes: new Map(),
     settings: {},
+    fontTable: new Map(),
     styles: new Map(),
     numbering: new Map(),
     media: new Map([['rId1', `data:text/plain;base64,${tag}`]]),

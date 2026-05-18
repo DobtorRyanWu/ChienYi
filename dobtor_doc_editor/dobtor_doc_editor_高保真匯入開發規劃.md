@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 146 — **Phase 1 settings.xml capture-only**（autonomous §11.2 探索 + Sprint 145 §後續 E-3）：新模組 SettingsParser +187 行（9 elements 全覆蓋：zoom / defaultTabStop / characterSpacingControl / 3 toggles / proofState / footnotePr / endnotePr / compat + 紀律 #21 空集合不掛 key + 7 防禦邊界）+ types/orchestrator +110 行 + 5 既有 constructor patch + 27 新 unit test。**probe 升級為「跨 fixture part 統計」**揭示 42/42 fixture 全覆蓋但未 parse。vitest 1188 → **1215 + 1 skipped**、VR 0.073191 byte-identical **第 17 連**。Phase 1 OOXML 82% → 84%。紀律 #1.a/#22/#21/#18/#1.b 連用、Sprint 147 候選 = fontTable.xml capture-only）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 147 — **Phase 1 fontTable.xml capture-only**（Sprint 146 §後續 E-3 cont.）：新模組 FontTableParser +150 行（7 elements: name 主 key / altName / charset / family 6 列舉 / pitch 3 列舉 / panose1 / sig 6 屬性 + 紀律 #21 + 7 防禦 + CJK Unicode key）+ types/orchestrator +100 行 + 5 既有 constructor patch + 20 新 unit test。與 FontMetricsAdapter 互補關係 explicit。vitest 1215 → **1235 + 1 skipped**、VR 0.073191 byte-identical **第 18 連**。Phase 1 OOXML 84% → 86%。**Phase 1 capture-only 三連 cluster(145-147)完成**：4 parts / 19 elements / +59 test / +6pp Phase 1。Sprint 148 候選 = webSettings.xml capture-only(結束 part 三連)或 wire-up 升級）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓

@@ -504,6 +504,81 @@ export interface HeaderFooterContent {
   content: BlockNode[];
 }
 
+// ── 字型表（Sprint 147、word/fontTable.xml capture-only）─────────────────────
+
+/**
+ * 字型 family 列舉(OOXML §17.18.46):
+ * - 'auto':預設、由 reader 決定
+ * - 'decorative':裝飾性字型
+ * - 'modern':等寬字型(Courier 類)
+ * - 'roman':襯線字型(Times 類)
+ * - 'script':手寫風格(楷體類)
+ * - 'swiss':無襯線字型(Arial / 黑體類)
+ */
+export type FontFamily = 'auto' | 'decorative' | 'modern' | 'roman' | 'script' | 'swiss';
+
+/**
+ * 字型 pitch 列舉(OOXML §17.18.51):
+ * - 'fixed':等寬
+ * - 'variable':可變寬
+ * - 'default':預設(由 family 推斷)
+ */
+export type FontPitch = 'fixed' | 'variable' | 'default';
+
+/**
+ * 字型 Unicode 子集 + Code Page 簽章(OOXML §17.8.3.10 + §17.8.3.4)。
+ *
+ * usb0-usb3:Unicode Subset Bitfields(4 × 32-bit hex string)
+ * csb0-csb1:Code Page Bitfields(2 × 32-bit hex string)
+ *
+ * 用途:wire-up 時可判定字型支援哪些 Unicode 區段(如「CJK 漢字」、
+ * 「拉丁擴展 A」、「希臘文」等)、避免用不支援的字型 render fallback character。
+ *
+ * 紀律 #21:全空時(整 sig 無屬性)不掛 key。
+ */
+export interface FontSignature {
+  usb0?: string;
+  usb1?: string;
+  usb2?: string;
+  usb3?: string;
+  csb0?: string;
+  csb1?: string;
+}
+
+/**
+ * 單一字型條目(對應 word/fontTable.xml 中的 `<w:font w:name="...">` 子元素)。
+ *
+ * Sprint 147 capture-only:42/42 fixture 都有 fontTable.xml、平均 ~20-30 fonts/file。
+ * Wire-up 候選(留將來 sprint):
+ * - altName:替代字型 fallback chain(已知字型缺失時用)
+ * - family + pitch:字型分類顯示(UI)、metric 選擇 hint
+ * - panose1 / sig:精確 fallback 匹配(同 family + Unicode 支援度)
+ */
+export interface FontEntry {
+  /** w:font/@w:name:字型名稱(主 key、必填)*/
+  name: string;
+  /** w:altName/@w:val:替代字型名稱(無 main 字型時 Word 自動用 alt)*/
+  altName?: string;
+  /** w:charset/@w:val:字元集 ID(hex 字串,如 '88' = ChineseBIG5)*/
+  charset?: string;
+  /** w:family/@w:val:字型 family 列舉(未知值降級為 undefined)*/
+  family?: FontFamily;
+  /** w:pitch/@w:val:字型 pitch 列舉 */
+  pitch?: FontPitch;
+  /** w:panose1/@w:val:10-byte Panose 識別碼(hex 字串)*/
+  panose1?: string;
+  /** w:sig:Unicode + Code Page 支援簽章(紀律 #21 全空不掛 key)*/
+  sig?: FontSignature;
+}
+
+/**
+ * 文件字型表(Sprint 147、word/fontTable.xml capture-only)。
+ *
+ * 以字型名稱為 key 的 Map、保留 fontTable.xml 內的順序資訊由 caller 自行記錄。
+ * 空 Map 代表「無 fontTable.xml part」或「fontTable.xml 內 0 font」。
+ */
+export type FontTable = Map<string, FontEntry>;
+
 // ── 文件設定（Sprint 146、word/settings.xml capture-only）────────────────────
 
 /**
@@ -683,6 +758,8 @@ export interface DocumentNode {
   endnotes: Map<number, FootnoteContent>;
   /** Sprint 146：settings.xml 解析結果（capture-only、欄位皆 optional、空物件代表「無設定 part」）*/
   settings: DocumentSettings;
+  /** Sprint 147：fontTable.xml 解析結果（capture-only、空 Map 代表「無 fontTable.xml」）*/
+  fontTable: FontTable;
   styles: StyleMap;
   numbering: NumberingMap;
   media: Map<string, string>;  // rId → blob URL 或 base64 data URL（圖片）

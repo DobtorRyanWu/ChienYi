@@ -25,6 +25,7 @@ import type {
   BlockNode,
   DocumentNode,
   DocumentSettings,
+  FontTable,
   FootnoteContent,
   HeaderFooterContent,
   NumberingMap,
@@ -32,6 +33,7 @@ import type {
   StyleMap,
 } from './ast/types';
 import { DocumentParser } from './document/DocumentParser';
+import { FontTableParser } from './font-table/FontTableParser';
 import { FootnotesParser } from './footnotes/FootnotesParser';
 import { HeaderFooterParser } from './header-footer/HeaderFooterParser';
 import { NumberingResolver } from './numbering/NumberingResolver';
@@ -65,6 +67,8 @@ const REL_TYPE_ENDNOTES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
 const REL_TYPE_SETTINGS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+const REL_TYPE_FONT_TABLE =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
 const REL_TYPE_IMAGE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
 
@@ -94,6 +98,8 @@ export class OoxmlParser {
   private footnotesParser = new FootnotesParser(this.documentParser);
   /** Sprint 146：settings.xml capture-only */
   private settingsParser = new SettingsParser();
+  /** Sprint 147：fontTable.xml capture-only */
+  private fontTableParser = new FontTableParser();
 
   /**
    * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -164,6 +170,11 @@ export class OoxmlParser {
     //   footnotePr / endnotePr / compat 等文件級設定;為將來 wire-up 鋪路。
     const settings = collectSettings(pkg, mainDocPath, this.settingsParser);
 
+    // Step 6.7（Sprint 147）：fontTable.xml — capture-only、無 wire-up
+    //   42/42 fixture 都有 fontTable.xml、~20-30 fonts/file;為將來 altName fallback
+    //   chain / metric hint / Unicode sig 精確匹配 wire-up 鋪路。
+    const fontTable = collectFontTable(pkg, mainDocPath, this.fontTableParser);
+
     // Step 7：媒體收集（image rId → data URL）
     const media = collectMedia(pkg, mainDocPath);
 
@@ -179,6 +190,7 @@ export class OoxmlParser {
       footnotes,
       endnotes,
       settings,
+      fontTable,
       styles,
       numbering,
       media,
@@ -326,6 +338,27 @@ function collectSettings(
     return parser.parse(xml);
   }
   return {};
+}
+
+/**
+ * Sprint 147：走訪 mainDoc 的 .rels、抓 fontTable.xml part 並解析。
+ *
+ * @returns FontTable；rels 沒指向 fontTable 時回空 Map
+ */
+function collectFontTable(
+  pkg: OoxmlPackage,
+  mainDocPath: string,
+  parser: FontTableParser,
+): FontTable {
+  const rels = pkg.relationships.get(mainDocPath);
+  if (!rels) return new Map();
+  for (const rel of rels.values()) {
+    if (rel.targetMode !== 'Internal') continue;
+    if (rel.type !== REL_TYPE_FONT_TABLE) continue;
+    const xml = pkg.partAsText(rel.target);
+    return parser.parse(xml);
+  }
+  return new Map();
 }
 
 /**

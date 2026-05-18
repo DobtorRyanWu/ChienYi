@@ -188,7 +188,7 @@
         // 解析 textbox 內所有 <w:p>
         const paragraphs = [];
         if (paragraphFactory) {
-            for (const child of directChildren$9(txbxContent)) {
+            for (const child of directChildren$a(txbxContent)) {
                 if (child.tagName === 'w:p') {
                     paragraphs.push(paragraphFactory(child));
                 }
@@ -412,7 +412,7 @@
     }
     // ── wrap type 偵測 ────────────────────────────────────────────────────────────
     function detectWrapType(el) {
-        for (const child of directChildren$9(el)) {
+        for (const child of directChildren$a(el)) {
             switch (child.tagName) {
                 case 'wp:wrapNone':
                     return 'none';
@@ -434,7 +434,7 @@
         return { type: 'inlineImage', rId: '', width: 0, height: 0 };
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$9(el) {
+    function directChildren$a(el) {
         if (!el)
             return [];
         const out = [];
@@ -447,7 +447,7 @@
         return out;
     }
     function directChild$6(el, tagName) {
-        for (const child of directChildren$9(el)) {
+        for (const child of directChildren$a(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -475,7 +475,7 @@
      *   也支援巢狀 AlternateContent（雖極罕見）。
      */
     /** 直接 Element 子節點（過濾 text/comment 等非 Element 子節點）。 */
-    function directChildren$8(el) {
+    function directChildren$9(el) {
         if (!el)
             return [];
         const out = [];
@@ -489,7 +489,7 @@
     }
     /** 找首個指定 tagName 的直接子 Element。 */
     function directChild$5(el, tagName) {
-        for (const child of directChildren$8(el)) {
+        for (const child of directChildren$9(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -518,7 +518,7 @@
      */
     function effectiveChildren(el) {
         const out = [];
-        for (const child of directChildren$8(el)) {
+        for (const child of directChildren$9(el)) {
             if (child.tagName === 'mc:AlternateContent') {
                 // 優先 Choice，否則 Fallback
                 const choice = directChild$5(child, 'mc:Choice');
@@ -984,7 +984,7 @@
      */
     function parseParagraphBorders(pBdr) {
         const out = {};
-        for (const child of directChildren$7(pBdr)) {
+        for (const child of directChildren$8(pBdr)) {
             const def = parseBorderDef(child);
             if (!def)
                 continue;
@@ -1012,7 +1012,7 @@
         return out;
     }
     /** 內部：直接子節點（Element）走訪。獨立於 dom.ts 避免 cross-layer dependency */
-    function directChildren$7(el) {
+    function directChildren$8(el) {
         const out = [];
         const cs = el.childNodes;
         for (let i = 0; i < cs.length; i++) {
@@ -1139,7 +1139,7 @@
             // 不影響 render（純錨點），但需 capture name 供未來 hyperlink anchor 反查、PDF 內部跳轉。
             const bookmarkNames = new Set();
             const collectBookmarksFromRun = (r) => {
-                for (const c of directChildren$6(r)) {
+                for (const c of directChildren$7(r)) {
                     if (c.tagName === 'w:bookmarkStart') {
                         const name = c.getAttribute('w:name');
                         if (name)
@@ -1371,7 +1371,7 @@
         const tabsEl = directChild$4(pPr, 'w:tabs');
         if (tabsEl) {
             const tabs = [];
-            for (const child of directChildren$6(tabsEl)) {
+            for (const child of directChildren$7(tabsEl)) {
                 if (child.tagName !== 'w:tab')
                     continue;
                 // w:val 可為 left / right / center / decimal / bar / num / clear / start / end
@@ -1715,7 +1715,7 @@
      * 用於 paragraph-level state machine 起始判斷（不消費內容）。
      */
     function detectFieldBegin(r) {
-        for (const child of directChildren$6(r)) {
+        for (const child of directChildren$7(r)) {
             if (child.tagName !== 'w:fldChar')
                 continue;
             if (child.getAttribute('w:fldCharType') === 'begin')
@@ -1736,7 +1736,7 @@
      */
     function consumeRunIntoField(r, getMode, setMode, appendInstr, appendCached, emit) {
         // mode 可能在迭代中變動（begin / separate / end），故每個元素都重新讀
-        for (const child of directChildren$6(r)) {
+        for (const child of directChildren$7(r)) {
             switch (child.tagName) {
                 case 'w:fldChar': {
                     const type = child.getAttribute('w:fldCharType');
@@ -1779,10 +1779,10 @@
         const fieldType = classifyFieldType(instruction);
         // 快取值：fldSimple 內部的 w:r → w:t 串接
         let cached = '';
-        for (const r of directChildren$6(el)) {
+        for (const r of directChildren$7(el)) {
             if (r.tagName !== 'w:r')
                 continue;
-            for (const t of directChildren$6(r)) {
+            for (const t of directChildren$7(r)) {
                 if (t.tagName === 'w:t')
                     cached += t.textContent ?? '';
             }
@@ -1810,7 +1810,7 @@
             : 'unknown';
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$6(el) {
+    function directChildren$7(el) {
         const out = [];
         const children = el.childNodes;
         for (let i = 0; i < children.length; i++) {
@@ -1823,7 +1823,7 @@
     function directChild$4(el, tagName) {
         if (!el)
             return undefined;
-        for (const child of directChildren$6(el)) {
+        for (const child of directChildren$7(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -2531,7 +2531,7 @@
         // ── row / cell 走訪 ────────────────────────────────────────────────────────
         parseRows(tbl) {
             const rows = [];
-            for (const child of directChildren$5(tbl)) {
+            for (const child of directChildren$6(tbl)) {
                 if (child.tagName !== 'w:tr')
                     continue;
                 rows.push(this.parseRow(child));
@@ -2579,7 +2579,7 @@
                 if (boolFlag$1(directChild$3(trPr, 'w:cantSplit')))
                     cantSplit = true;
             }
-            for (const child of directChildren$5(tr)) {
+            for (const child of directChildren$6(tr)) {
                 if (child.tagName !== 'w:tc')
                     continue;
                 cells.push(this.parseCell(child));
@@ -2734,7 +2734,7 @@
         if (!tblGrid)
             return [];
         const widths = [];
-        for (const child of directChildren$5(tblGrid)) {
+        for (const child of directChildren$6(tblGrid)) {
             if (child.tagName !== 'w:gridCol')
                 continue;
             const w = child.getAttribute('w:w');
@@ -2812,7 +2812,7 @@
     // ── <w:tcBorders> / <w:tblBorders> ───────────────────────────────────────────
     function parseCellBorders(el) {
         const out = {};
-        for (const child of directChildren$5(el)) {
+        for (const child of directChildren$6(el)) {
             const def = parseBorderDef(child);
             if (!def)
                 continue;
@@ -2846,7 +2846,7 @@
     // ── <w:tcMar> / <w:tblCellMar> ───────────────────────────────────────────────
     function parseCellMargins(el) {
         const out = {};
-        for (const child of directChildren$5(el)) {
+        for (const child of directChildren$6(el)) {
             const wVal = child.getAttribute('w:w');
             const wType = child.getAttribute('w:type');
             if (wVal === null)
@@ -2877,7 +2877,7 @@
         return out;
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$5(el) {
+    function directChildren$6(el) {
         if (!el)
             return [];
         const out = [];
@@ -2890,7 +2890,7 @@
         return out;
     }
     function directChild$3(el, tagName) {
-        for (const child of directChildren$5(el)) {
+        for (const child of directChildren$6(el)) {
             if (child.tagName === tagName)
                 return child;
         }
@@ -2971,7 +2971,7 @@
          * @throws Error 若 XML 無法解析或缺 <w:body>
          */
         parse(documentXml) {
-            const doc = parseXml$6(documentXml);
+            const doc = parseXml$7(documentXml);
             const root = doc.documentElement;
             if (!root) {
                 throw new Error('DocumentParser: empty document');
@@ -3012,6 +3012,7 @@
                 footnotes: new Map(),
                 endnotes: new Map(),
                 settings: {},
+                fontTable: new Map(),
                 styles,
                 numbering,
                 media,
@@ -3044,7 +3045,7 @@
          * @deprecated 改用 walkBodyAsSections 取得多節切分
          */
         walkBody(documentXml) {
-            const doc = parseXml$6(documentXml);
+            const doc = parseXml$7(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3053,7 +3054,7 @@
                 throw new Error('DocumentParser: <w:body> not found');
             const blocks = [];
             let trailingSectPr;
-            for (const child of directChildren$4(body)) {
+            for (const child of directChildren$5(body)) {
                 switch (child.tagName) {
                     case 'w:p':
                         blocks.push(this.paragraphParser.parse(child));
@@ -3083,7 +3084,7 @@
          * @internal 給 OoxmlParser orchestrator 用，搭配 SectionParser 產生 SectionNode[]
          */
         walkBodyAsSections(documentXml) {
-            const doc = parseXml$6(documentXml);
+            const doc = parseXml$7(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3130,7 +3131,7 @@
          * @internal
          */
         findAllSectPrs(documentXml) {
-            const doc = parseXml$6(documentXml);
+            const doc = parseXml$7(documentXml);
             const root = doc.documentElement;
             if (!root)
                 return [];
@@ -3139,7 +3140,7 @@
                 return [];
             const out = [];
             // body 直接子 sectPr
-            for (const child of directChildren$4(body)) {
+            for (const child of directChildren$5(body)) {
                 if (child.tagName === 'w:sectPr')
                     out.push(child);
             }
@@ -3185,7 +3186,7 @@
         };
     }
     // ── 共用工具 ──────────────────────────────────────────────────────────────────
-    function directChildren$4(el) {
+    function directChildren$5(el) {
         const out = [];
         const children = el.childNodes;
         for (let i = 0; i < children.length; i++) {
@@ -3198,13 +3199,13 @@
     function directChild$2(el, tagName) {
         if (!el)
             return undefined;
-        for (const child of directChildren$4(el)) {
+        for (const child of directChildren$5(el)) {
             if (child.tagName === tagName)
                 return child;
         }
         return undefined;
     }
-    function parseXml$6(xml) {
+    function parseXml$7(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DocumentParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3212,6 +3213,182 @@
         const errors = doc.getElementsByTagName('parsererror');
         if (errors.length > 0) {
             throw new Error(`DocumentParser: XML parse error — ${errors[0].textContent}`);
+        }
+        return doc;
+    }
+
+    /**
+     * FontTableParser — 解析 word/fontTable.xml(OOXML §17.8)
+     *
+     * Sprint 147(capture-only):
+     *   - 42/42 fixture 都有 fontTable.xml、平均 ~20-30 fonts/file
+     *   - 同 Sprint 145/146 capture-only 模式、不 wire-up
+     *   - 為將來 wire-up 鋪路:
+     *     - altName fallback chain(主字型缺失時 Word 自動用 alt)
+     *     - family + pitch metric 選擇 hint
+     *     - sig usb/csb Unicode 支援度精確 fallback 匹配
+     *
+     * 解析範圍:
+     *   - <w:font w:name="..."> 主 key
+     *   - <w:altName w:val="..."> 替代字型
+     *   - <w:charset w:val="..."> hex 字串(如 '88' = BIG5)
+     *   - <w:family w:val="..."> 列舉降級(auto/decorative/modern/roman/script/swiss)
+     *   - <w:pitch w:val="..."> 列舉降級(fixed/variable/default)
+     *   - <w:panose1 w:val="..."> 10-byte hex 字串
+     *   - <w:sig w:usb0 ... w:csb1> 6 hex 屬性(紀律 #21 全空不掛 key)
+     *
+     * 與 FontMetricsAdapter(Sprint 60-65)的關係:
+     *   - FontMetricsAdapter 走 opentype.js 量真實字型 metric;
+     *   - 本 sprint capture fontTable.xml 是 docx 自帶的 font 表、不依賴 opentype.js;
+     *   - 兩者互補:fontTable 提供 fallback hint、FontMetricsAdapter 提供精確 metric。
+     *
+     * 防禦:undefined / 空 / XML 失敗 → 回空 Map(不阻塞 OoxmlParser)。
+     */
+    class FontTableParser {
+        /**
+         * 解析 word/fontTable.xml 字串為 FontTable(Map<name, FontEntry>)。
+         *
+         * @param xml fontTable.xml 完整字串;undefined / 空 → 回空 Map
+         */
+        parse(xml) {
+            const out = new Map();
+            if (!xml)
+                return out;
+            let doc;
+            try {
+                doc = parseXml$6(xml);
+            }
+            catch {
+                return out;
+            }
+            const root = doc.documentElement;
+            if (!root)
+                return out;
+            // 收集所有 <w:font> 直接子元素
+            const fontEls = directChildren$4(root).filter((el) => el.tagName === 'w:font');
+            for (const fontEl of fontEls) {
+                const name = fontEl.getAttribute('w:name');
+                if (!name)
+                    continue; // 缺 name → 跳過此條目
+                const entry = { name };
+                for (const sub of directChildren$4(fontEl)) {
+                    switch (sub.tagName) {
+                        case 'w:altName': {
+                            const v = sub.getAttribute('w:val');
+                            if (v)
+                                entry.altName = v;
+                            break;
+                        }
+                        case 'w:charset': {
+                            const v = sub.getAttribute('w:val');
+                            if (v)
+                                entry.charset = v;
+                            break;
+                        }
+                        case 'w:family': {
+                            const v = sub.getAttribute('w:val');
+                            const family = normalizeFamily(v);
+                            if (family !== undefined)
+                                entry.family = family;
+                            break;
+                        }
+                        case 'w:pitch': {
+                            const v = sub.getAttribute('w:val');
+                            const pitch = normalizePitch(v);
+                            if (pitch !== undefined)
+                                entry.pitch = pitch;
+                            break;
+                        }
+                        case 'w:panose1': {
+                            const v = sub.getAttribute('w:val');
+                            if (v)
+                                entry.panose1 = v;
+                            break;
+                        }
+                        case 'w:sig': {
+                            const sig = parseSig(sub);
+                            // 紀律 #21:全空時不掛 key
+                            if (Object.keys(sig).length > 0)
+                                entry.sig = sig;
+                            break;
+                        }
+                    }
+                }
+                out.set(name, entry);
+            }
+            return out;
+        }
+    }
+    // ── 內部 helpers ──────────────────────────────────────────────────────────
+    function normalizeFamily(v) {
+        if (v === null)
+            return undefined;
+        switch (v) {
+            case 'auto':
+            case 'decorative':
+            case 'modern':
+            case 'roman':
+            case 'script':
+            case 'swiss':
+                return v;
+            default:
+                return undefined;
+        }
+    }
+    function normalizePitch(v) {
+        if (v === null)
+            return undefined;
+        switch (v) {
+            case 'fixed':
+            case 'variable':
+            case 'default':
+                return v;
+            default:
+                return undefined;
+        }
+    }
+    function parseSig(el) {
+        const sig = {};
+        const usb0 = el.getAttribute('w:usb0');
+        const usb1 = el.getAttribute('w:usb1');
+        const usb2 = el.getAttribute('w:usb2');
+        const usb3 = el.getAttribute('w:usb3');
+        const csb0 = el.getAttribute('w:csb0');
+        const csb1 = el.getAttribute('w:csb1');
+        if (usb0)
+            sig.usb0 = usb0;
+        if (usb1)
+            sig.usb1 = usb1;
+        if (usb2)
+            sig.usb2 = usb2;
+        if (usb3)
+            sig.usb3 = usb3;
+        if (csb0)
+            sig.csb0 = csb0;
+        if (csb1)
+            sig.csb1 = csb1;
+        return sig;
+    }
+    function directChildren$4(el) {
+        if (!el)
+            return [];
+        const out = [];
+        const cs = el.childNodes;
+        for (let i = 0; i < cs.length; i++) {
+            const n = cs[i];
+            if (n.nodeType === 1)
+                out.push(n);
+        }
+        return out;
+    }
+    function parseXml$6(xml) {
+        if (typeof DOMParser === 'undefined') {
+            throw new Error('FontTableParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+        }
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const errors = doc.getElementsByTagName('parsererror');
+        if (errors.length > 0) {
+            throw new Error(`FontTableParser: XML parse error — ${errors[0].textContent}`);
         }
         return doc;
     }
@@ -5351,6 +5528,7 @@
     const REL_TYPE_FOOTNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     const REL_TYPE_ENDNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
     const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+    const REL_TYPE_FONT_TABLE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     const REL_TYPE_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     const DEFAULT_DOC_PATH = 'word/document.xml';
     class OoxmlParser {
@@ -5372,6 +5550,8 @@
             this.footnotesParser = new FootnotesParser(this.documentParser);
             /** Sprint 146：settings.xml capture-only */
             this.settingsParser = new SettingsParser();
+            /** Sprint 147：fontTable.xml capture-only */
+            this.fontTableParser = new FontTableParser();
         }
         /**
          * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -5424,6 +5604,10 @@
             //   42/42 fixture 都有 settings.xml、含 zoom / defaultTabStop / characterSpacingControl /
             //   footnotePr / endnotePr / compat 等文件級設定;為將來 wire-up 鋪路。
             const settings = collectSettings(pkg, mainDocPath, this.settingsParser);
+            // Step 6.7（Sprint 147）：fontTable.xml — capture-only、無 wire-up
+            //   42/42 fixture 都有 fontTable.xml、~20-30 fonts/file;為將來 altName fallback
+            //   chain / metric hint / Unicode sig 精確匹配 wire-up 鋪路。
+            const fontTable = collectFontTable(pkg, mainDocPath, this.fontTableParser);
             // Step 7：媒體收集（image rId → data URL）
             const media = collectMedia(pkg, mainDocPath);
             // Step 8：docProps/core.xml 解析（Sprint 13）
@@ -5437,6 +5621,7 @@
                 footnotes,
                 endnotes,
                 settings,
+                fontTable,
                 styles,
                 numbering,
                 media,
@@ -5566,6 +5751,25 @@
             return parser.parse(xml);
         }
         return {};
+    }
+    /**
+     * Sprint 147：走訪 mainDoc 的 .rels、抓 fontTable.xml part 並解析。
+     *
+     * @returns FontTable；rels 沒指向 fontTable 時回空 Map
+     */
+    function collectFontTable(pkg, mainDocPath, parser) {
+        const rels = pkg.relationships.get(mainDocPath);
+        if (!rels)
+            return new Map();
+        for (const rel of rels.values()) {
+            if (rel.targetMode !== 'Internal')
+                continue;
+            if (rel.type !== REL_TYPE_FONT_TABLE)
+                continue;
+            const xml = pkg.partAsText(rel.target);
+            return parser.parse(xml);
+        }
+        return new Map();
     }
     /**
      * 走訪 mainDoc 的 .rels，把所有 image 關聯的 rId 對應到該 part 的 base64 data URL。
