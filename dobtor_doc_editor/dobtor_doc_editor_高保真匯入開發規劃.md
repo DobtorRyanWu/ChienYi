@@ -235,12 +235,12 @@ const glyphs = buffer.json()  // 精確的 glyph advance、kerning
 ### Phase 0：能力盤點與架構決策（2 週）
 
 **工作**：
-- [ ] 蒐集 **30-50 份真實測試文件**（合約、報告、工程表單、公文、論文、履歷）
-- [ ] 每份用 Word、Google Docs、OnlyOffice、LibreOffice 分別打開截圖，當 reference
-- [ ] 對 canvas-editor 做能力探測（寫 10 個極端 JSON sample 測試）
-- [ ] 列出必須 fork canvas-editor 的模組清單
-- [ ] 決定 **canvas-editor fork 策略**：patch 管理、版本追蹤、升級流程
-- [ ] 搭建 monorepo + CI 基礎設施
+- [x] 蒐集 **30-50 份真實測試文件**（合約、報告、工程表單、公文、論文、履歷）
+- [x] 每份用 Word、Google Docs、OnlyOffice、LibreOffice 分別打開截圖，當 reference
+- [x] 對 canvas-editor 做能力探測（寫 10 個極端 JSON sample 測試）
+- [x] 列出必須 fork canvas-editor 的模組清單
+- [x] 決定 **canvas-editor fork 策略**：patch 管理、版本追蹤、升級流程
+- [x] 搭建 monorepo + CI 基礎設施
 
 **產出**：
 - `docs/capability_audit.md` — canvas-editor 能力缺口清單
@@ -902,17 +902,17 @@ dobtor_doc_editor/static/src/
 ## 附錄 A：立即可做的 Phase 0 任務清單
 
 ```
-[ ] 把 dobtor_doc_editor 複製到 /mnt/d/work/odoo18-docker/addons/
-[ ] 建立 docs/ 目錄放規劃、決策記錄、API 文件
-[ ] 收集 30-50 份測試 docx 到 tests/fixtures/
-[ ] 用 LibreOffice headless 批量產出 reference PNG
-[ ] 在 canvas-editor 的 JSON API 上手寫 10 個極端表格樣本
-[ ] 記錄「哪些能渲染 / 哪些不能」，寫 capability_audit.md
-[ ] 在 github 建 canvas-editor fork，設定 upstream tracking
-[ ] 確定 TypeScript / Vitest / pixelmatch / playwright 技術選型
-[ ] 建 monorepo（建議 pnpm workspace）
-[ ] 撰寫第一份 ADR：為何選保留 canvas-editor + fork 策略
-[ ] 撰寫 CONTRIBUTING.md 與 程式風格指南
+[x] 把 dobtor_doc_editor 複製到 /mnt/d/work/odoo18-docker/addons/
+[x] 建立 docs/ 目錄放規劃、決策記錄、API 文件
+[x] 收集 30-50 份測試 docx 到 tests/fixtures/
+[x] 用 LibreOffice headless 批量產出 reference PNG
+[x] 在 canvas-editor 的 JSON API 上手寫 10 個極端表格樣本
+[x] 記錄「哪些能渲染 / 哪些不能」，寫 capability_audit.md
+[x] 在 github 建 canvas-editor fork，設定 upstream tracking
+[x] 確定 TypeScript / Vitest / pixelmatch / playwright 技術選型
+[x] 建 monorepo（建議 pnpm workspace）
+[x] 撰寫第一份 ADR：為何選保留 canvas-editor + fork 策略
+[x] 撰寫 CONTRIBUTING.md 與 程式風格指南
 ```
 
 ---
