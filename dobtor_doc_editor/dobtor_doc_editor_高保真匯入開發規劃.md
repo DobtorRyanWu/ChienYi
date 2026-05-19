@@ -334,7 +334,7 @@ function resolveVerticalMerges(table: Table): Table {
 - [x] `<w:headerReference>`、`<w:footerReference>` 的 type：`default` / `even` / `first`
 - [x] 頁首頁尾 parts 解析（也是完整 paragraph/table）
 - [x] `<w:cols>` 分欄：num、space、equalWidth、individual col widths
-- [ ] `<w:footnotePr>`、`<w:endnotePr>`（Sprint 146 settings.xml capture 已含、Sprint 145 footnotes/endnotes parser capture-only、wire-up=0）
+- [ ] `<w:footnotePr>`、`<w:endnotePr>`（Sprint 146 settings.xml capture 已含、Sprint 145 footnotes/endnotes parser capture-only、Phase 1 optional → 真實 layout/render wire-up 屬 [§5.4 Phase 5.4](#54-追蹤修訂1-週)）
 - [x] `<w:docGrid>` — CJK 行格
 
 #### 1.8 Drawings 與 OLE（1.5 週）
@@ -350,8 +350,8 @@ function resolveVerticalMerges(table: Table): Table {
 - [x] `<v:shape>` VML（舊 Word 的圖形） — 降級處理
 
 #### 1.9 進階結構（2 週）
-- [ ] `<w:footnoteReference>` + `footnotes.xml`（Sprint 145 capture-only、wire-up=0）
-- [ ] `<w:endnoteReference>` + `endnotes.xml`（Sprint 145 capture-only、wire-up=0）
+- [ ] `<w:footnoteReference>` + `footnotes.xml`（Sprint 145 capture-only、Phase 1 optional → 真實 footnote 渲染屬 [§5.4 Phase 5.4](#54-追蹤修訂1-週)、parser AST 已就緒等渲染管線）
+- [ ] `<w:endnoteReference>` + `endnotes.xml`（Sprint 145 capture-only、Phase 1 optional → 真實 endnote 渲染屬 [§5.4 Phase 5.4](#54-追蹤修訂1-週)、parser AST 已就緒等渲染管線）
 - [x] `<w:hyperlink>` + rels 查詢
 - [x] `<w:fldSimple>` 簡單欄位（PAGE、DATE、SEQ）
 - [ ] `<w:instrText>` 複雜欄位（fldChar begin/separate/end）（Sprint 123 capture 強化、render 端未完全消費）
@@ -359,12 +359,21 @@ function resolveVerticalMerges(table: Table): Table {
 - [x] `<w:sdt>` 結構化文件標籤（內容控制項、Sprint 124 transparent unwrap）
 - [ ] `<mc:AlternateContent>` — 新舊版本相容選擇（Phase 1 optional）
 
-> **追蹤修訂 / 註解 / OMML 已移至對應 Phase**：
+> **後續 Phase 工項 / Phase 1 optional 標示彙整**：
+>
+> **移除（已 涵蓋於 Phase 5）**：
 > - `<w:ins>` / `<w:del>` / `<w:moveFrom>` / `<w:moveTo>` 追蹤修訂 → [§5.4 Phase 5.4](#54-追蹤修訂1-週)
 > - `<w:commentRangeStart>` / `<w:commentRangeEnd>` 註解 → [§5.5 Phase 5.5](#55-註解1-週)
 > - `<m:oMath>` 數學公式 OMML → [§5.1 Phase 5.1](#51-數學公式omml--katexmathjax3-4-週)
 >
-> 這些**不擋 Phase 1 Exit**，原 Phase 1 §1.9 內條目於 Sprint 159 audit 後移除（規畫書 author 誤放、Phase 5 對應段已涵蓋）。
+> **保留但標 (Phase 1 optional) — 真實 wire-up 須 Phase 5.4 footnote/endnote 渲染管線**：
+> - `<w:footnotePr>` / `<w:endnotePr>` (§1.7、Sprint 146 settings.xml capture 已含)
+> - `<w:footnoteReference>` + `footnotes.xml` (§1.9、Sprint 145 capture-only)
+> - `<w:endnoteReference>` + `endnotes.xml` (§1.9、Sprint 145 capture-only)
+>
+> 這些**不擋 Phase 1 Exit**。
+> - 第一批（移除）：Sprint 159 audit 識別、commit 85e5e81 處理
+> - 第二批（footnote optional）：Sprint 160 v1 stub 嘗試後識別、commit 待補（Phase 5.4 渲染管線不存在時無法做真實 wire-up）
 
 **Exit Criteria**：
 - Parser 對 50 份測試 docx 全部無 error
