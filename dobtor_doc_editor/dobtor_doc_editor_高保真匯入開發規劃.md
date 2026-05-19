@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 154 — **Sprint 145-153 cluster retro（第 4 次 retro、autonomous docs sprint）**：沿用 Sprint 120/144/149 retro 模式、9 sprint(跳過 149)方法論萃取:**4 個新變體模式 explicit** — (1)「最薄」capture-only variant（Sprint 152、+0 parser）；(2) discriminated union variant capture（Sprint 151）；(3) 紀律 #21 例外判斷（Sprint 153、key 即 binary signal 時 value 全空仍掛）；(4) **autonomous-friendly §11.2 backlog 真的耗盡**（第二次邊界揭示）。+ Phase 1 整數里程碑 80→90% + cluster checklist 補強 2 項 + Sprint 155+ 三方向決策框架 + 1 個潛在子原則候選(#21.a)。0 production code、純 docs retro）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-19（**Sprint 155** — **glossary catch-up to Sprint 154 era（autonomous docs sprint、方向 C）**：Sprint 119 上次同步距今 35 sprint;6 個 § 段同步 — § 0 索引 / § 1 VR（+2 新術語 byte-identical streak + Phase 1 整數里程碑）/ § 2.1 紀律表（標題 18→22 + #21.a 潛在子原則候選）/ § 3.1 核心模組（+9 含 8 個 Sprint 145-153 capture-only parser）/ § 5 vitest baseline 976→1331 / § 8 Process 模式 8→16 條。揭示候選紀律 #14.b 子原則:每 5 cluster retro 後 1 sprint 強制集中索引同步檢查。0 production code、純 docs sync。<br>**Sprint 154** — Sprint 145-153 cluster retro（第 4 次 retro、autonomous docs sprint）：沿用 Sprint 120/144/149 retro 模式、9 sprint(跳過 149)方法論萃取:4 個新變體模式 explicit + Phase 1 整數里程碑 80→90% + Sprint 155+ 三方向決策框架 + 1 個潛在子原則候選(#21.a)。0 production code、純 docs retro）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓

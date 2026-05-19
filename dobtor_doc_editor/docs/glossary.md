@@ -1,19 +1,19 @@
 # dobtor_doc_editor — 術語表（Glossary）
 
-> Sprint 73 落地、Sprint 119 擴充到 Sprint 118 era（+紀律 #15/#18 子 + #20 候選 + autonomous roadmap / CI gate 漸進 / cross-company / lock-in test 等新術語）。規畫書附錄 B 已有 OOXML 對映表、本 glossary 補完 *sprint 紀律 / 衡量指標 / 內部子系統 / 工具鏈 / process 模式* 術語。新貢獻者 / 跨 sprint 回顧時對齊用語。
+> Sprint 73 落地、Sprint 119 擴充到 Sprint 118 era、**Sprint 155 catch-up 到 Sprint 154 era**（+ Sprint 145-153 三新變體 / autonomous 邊界第二次揭示 / Phase 1 90% 整數里程碑 / 紀律 #21.a 潛在子候選等）。規畫書附錄 B 已有 OOXML 對映表、本 glossary 補完 *sprint 紀律 / 衡量指標 / 內部子系統 / 工具鏈 / process 模式* 術語。新貢獻者 / 跨 sprint 回顧時對齊用語。
 
-## 0. 章節索引（Sprint 119 加，驗證紀律 #20 候選）
+## 0. 章節索引（Sprint 119 加、Sprint 155 更新；驗證紀律 #20 候選）
 
 | § | 章節 | 主要術語數 |
 |---|---|---|
-| 1 | VR 與衡量指標 | 11 |
-| 2 | Sprint 紀律與類型 | 紀律 22 條 + 6 子 + 1 候選；10 種 sprint 類型（Sprint 143 升正 #1.a/#1.b/#21/#22）|
-| 3 | 前端子系統與術語 | 核心模組 9 + 衡量單位 4 |
+| 1 | VR 與衡量指標 | 13（+ byte-identical 23 連 / Phase 1 90% 整數里程碑） |
+| 2 | Sprint 紀律與類型 | 紀律 22 條 + 6 子 + 1 候選 + **1 潛在子（#21.a、Sprint 154 retro）**；10 種 sprint 類型（Sprint 143 升正 #1.a/#1.b/#21/#22；Sprint 145-153 第 8-16 次連續應用）|
+| 3 | 前端子系統與術語 | 核心模組 **17**（+ Sprint 145-153 八個 capture-only parser）+ 衡量單位 4 |
 | 4 | 後端 / Odoo 整合 | 12 |
-| 5 | 工具鏈與 CI | 11 + CI gate 漸進模式 3 階段 |
+| 5 | 工具鏈與 CI | 11 + CI gate 漸進模式 3 階段（vitest baseline 1331 + 1 skipped、Sprint 153）|
 | 6 | 角色與權限 | 3 group + cross-company 邏輯 |
 | 7 | 縮寫 | 14 |
-| 8 | Process 模式（Sprint 113+ 新增）| 8 |
+| 8 | Process 模式（Sprint 113+ 新增、Sprint 155 擴充）| **16**（Sprint 119-154 era +8 條：probe 例行化 / Strategy C / autonomous 邊界 / capture-only 四連 archetype / retro 短週期 / 最薄變體 / discriminated union variant / 紀律 #21 例外判斷）|
 
 ## 目錄
 
@@ -33,7 +33,9 @@
 | 術語 | 定義 | 來源 |
 |---|---|---|
 | **VR** | Visual Regression — 對全 42 fixture 跑 puppeteer 渲染、用 pixelmatch 對比 golden PNG | Sprint 14 |
-| **VR mean** | 42 fixture × 126 pages 的 per-page diff 平均；當前 baseline = **0.073191**（Sprint 65 promote `--font-metrics` default-on）| Sprint 50-65 |
+| **VR mean** | 42 fixture × 126 pages 的 per-page diff 平均；當前 baseline = **0.073191**（Sprint 65 promote `--font-metrics` default-on）；Sprint 145-153 維持 byte-identical 第 23 次連續（跨 8 production sprint、九連 capture-only cluster）| Sprint 50-65 / 145-153 |
+| **byte-identical streak** | VR mean 連續 N 個 production sprint 保持 0.073191（無 floating-point diff、無新 ops、無 page count drift）的指標；Sprint 153 結尾 = **第 23 次連續**；斷裂條件 = parser/style/layout/render 任一引入新行為（Sprint 139 numbering layout wire-up = 末次斷裂、Strategy C 折衷後恢復）| Sprint 121-153 |
+| **Phase 1 整數里程碑** | Phase 1 OOXML 完成度突破 10% 整數的事件；Sprint 153 latentStyles capture 後 89.5% → **90%**；Sprint 144-153 平均 0.75pp/sprint（後期報酬遞減）| Sprint 153 |
 | **failed pages** | VR mean > threshold（0.5）的 page 數；當前 = 0 | Sprint 14 |
 | **goldens** | 每份 fixture 的 reference PNG，由 LibreOffice headless 渲染、放在 `tests/fixtures/<category>/golden/<name>-<page>.png` | Sprint 0 |
 | **LO anchor** | LibreOffice 渲染 metric 校準基準。Sprint 28 經驗值 1.15em / Sprint 62 用 LO 系統 fallback fonts 對齊 | Sprint 61 揭示 |
@@ -48,13 +50,15 @@
 
 ## 2. Sprint 紀律與類型
 
-### 2.1 18 條紀律 + 6 子原則 + 1 候選（Sprint 50-118 累積；Sprint 90-109 已 revert）
+### 2.1 22 條紀律 + 6 子原則 + 1 候選 + 1 潛在子原則（Sprint 50-154 累積；Sprint 90-109 已 revert）
+
+> **Sprint 155 catch-up**：Sprint 143 升正 #1.a / #1.b / #21 / #22 → 紀律 18 → 22 條（[sprint143_148_retro.md](sprint143_148_retro.md) §1）。Sprint 154 retro §4 揭示 1 潛在子原則 #21.a 候選（key 即 binary signal 例外）— 待 3 sprint 跨類型驗證升正。
 
 | # | 紀律 | Sprint 來源 |
 |---|---|---|
 | 1 | 改 BrowserCanvasRenderContext / CanvasRenderer 後強制跑全 42-fixture VR | 57 |
 | 1.a | 廣域版 — parser / style / layout 任一層變動、即使預期 VR 不變也跑全 VR rebuild + 確認（跨 Sprint 121-138 第 14 次連續 byte-identical 驗證）| 123 |
-| 1.b | spike 後遇結構性問題、必須 scope-down 或完整 revert byte-identical、不嘗試「微調 + retry」（跨 Sprint 110-142 第 8 次驗證 × 3 類型完整光譜：全 revert × 2 / 預防 × 4 / 實作 + 折衷 × 2、含「需 user GO 的 DEFER」次類型 3 次）| 143 |
+| 1.b | spike 後遇結構性問題、必須 scope-down 或完整 revert byte-identical、不嘗試「微調 + retry」（跨 Sprint 110-153 累計 **16 次正面驗證** × 3 類型完整光譜：全 revert × 2 / 預防 ×4 / 實作 + 折衷 ×2 / capture-only 變體 ×8、含「需 user GO 的 DEFER」次類型 3 次）| 143 |
 | 2 | 單元測試用 spy 驗 API、VR 驗 pixels — 兩者都綠才算過 | 57 |
 | 3 | 高風險改造前先 probe sprint 收集事實 | 60 |
 | 4 | 負面結果 sprint 仍有結構價值；揭示隱性 assumption 是真實學習 | 61 |
@@ -84,7 +88,8 @@
 | 18.d | 「待 user 決策」候選的 autonomous 收口必須讀原始設計意圖後才決、不能憑 default-secure 直覺 | 117 |
 | 20（候選）| 集中索引文件（ADR / glossary / CONTRIBUTING）超過 10 entry 應有 §0 索引段；歷史缺口保留編號 | 118 |
 | 21 | optional 欄位空集合不掛 key（避免 AST diff noise + 保 cache key 穩定）| 131 |
-| 22 | backlog 開工前先 probe sprint 確認 mental model vs 實況差距（跨 Sprint 127-142 第 9 次驗證、含「需 user GO 的預防 DEFER」次類型）| 135 |
+| 22 | backlog 開工前先 probe sprint 確認 mental model vs 實況差距（跨 Sprint 127-153 累計 **17 次正式應用**、含「需 user GO 的預防 DEFER」次類型 / 跨 fixture part 統計 / variant 型別覆蓋 / fixture parts gap 系統掃描等子變體）| 135 |
+| 21.a（**潛在子原則候選**、Sprint 154 揭示）| 紀律 #21 例外判斷:key 本身已是 binary signal（存在/不存在）時、value 全空仍掛 key;mental model 主導非機械式應用;**僅 1 sprint 案例**（Sprint 153 latentStyles exception）、待 3+ sprint 跨類型驗證升正 | 154 retro §4 |
 
 ### 2.2 Sprint 類型
 
@@ -119,6 +124,15 @@
 | **LayoutCache** | layout 結果 L1 cache | Sprint 58 |
 | **FontMetricsAdapter** | opentype.js 真實字型 metric（取代 1.15em empirical） | Sprint 62 |
 | **FontLoader** | portal/canvas-editor 端 lazy load + IDB cache | Sprint 64b |
+| **NumberingCounterState** | 純函式 state machine、OOXML §17.9 多 numId × ilvl 0-8 獨立計數 + 深層 reset + lvlRestart=0 跨章節連續 | Sprint 137 |
+| **FootnotesParser** | footnotes.xml + endnotes.xml 同 parser、capture-only（無 wire-up）；fixture footnoteReference 0/42 覆蓋 | Sprint 145 |
+| **SettingsParser** | settings.xml capture-only：9 元素（zoom / defaultTabStop twip→pt / characterSpacingControl / 3 toggles / proofState / footnotePr / endnotePr / compat 子元素）；紀律 #21 雙層雙模式 | Sprint 146 |
+| **FontTableParser** | fontTable.xml capture-only：7 元素（name / altName / charset hex / family 6 列舉 / pitch 3 列舉 / panose1 10-byte / sig 6 屬性）；與 FontMetricsAdapter 互補關係 | Sprint 147 |
+| **WebSettingsParser** | webSettings.xml capture-only：4 toggle + hasDivs；scope-down 不深入 w:divs 巢狀（留 Phase 6 docx export） | Sprint 148 |
+| **AppPropsParser** | docProps/app.xml capture-only：17 元素（4 字串 / 8 整數含 DocSecurity enum / 5 布林）；嚴格規格 "true"/"false" / 嚴格整數 / xmldom localName fallback | Sprint 150 |
+| **CustomPropsParser** | docProps/custom.xml capture-only：discriminated union variant（string / int / bool / real / filetime / unknown 降級）；scope-down 5 常見 variant + unknown raw | Sprint 151 |
+| **LatentStylesParser** | styles.xml `<w:latentStyles>` capture-only：5 root defaults + Map<name, exception>；紀律 #21 例外判斷（exception 全空仍掛 key、key 即 binary signal） | Sprint 153 |
+| **PackageContentTypes** | PackageReader internal `parseContentTypes` 暴露給 DocumentNode 的 capture-only「最薄」變體；+0 行新 parser code、復用既有 internal | Sprint 152 |
 
 ### 3.2 衡量單位
 
@@ -157,7 +171,7 @@
 | 名稱 | 用途 |
 |---|---|
 | **rollup** | TS → IIFE bundle |
-| **vitest** | unit + integration test runner（當前 976 passed + 1 skipped）|
+| **vitest** | unit + integration test runner（Sprint 153 結尾 **1331 passed + 1 skipped**；Sprint 110 → 153 期間 +355 test）|
 | **pixelmatch** | PNG pixel-level diff |
 | **puppeteer** | headless Chromium、跑 VR |
 | **HttpCase** | Odoo runtime HTTP test base class |
@@ -218,3 +232,11 @@
 | **read-design-intent-first** | autonomous 收口「待 user 決策」候選前、grep 該功能 group / model 註解；決策若覆蓋既有設計、audit doc 必須明示 | Sprint 117（紀律 #18.d）|
 | **§0 索引段** | 集中索引文件超過 10 entry 應有；歷史缺口（如 ADR-004-007）保留編號標示 | Sprint 118（紀律 #20 候選）|
 | **lock-in test** | 鎖既有 by-design 行為的 test；fail 訊息引導讀 audit doc；防未來「security review」型 sprint 誤改 | Sprint 117 |
+| **probe-only sprint 例行化** | 純診斷 sprint 從零星轉為例行流程；Sprint 127-153 累計 9+ 次（FontMetricsAdapter / HarfBuzz / docGrid snap / textAlignment / goldens / Phase 5 / fixture parts gap / variant 覆蓋 / fontTable element 結構）；0 production code 變動 + audit doc 含 5 維度評估表 | Sprint 127-153（紀律 #22 case study）|
+| **Strategy C 折衷模式** | autonomous 翻車後不全 revert、保留 layout wire-up 但 VR pipeline 改 opt-in（caller 顯式傳才啟用）的部分翻車 scope-down 模式；填補「全做/全不做」二元中間 | Sprint 139（紀律 #1.b 完整光譜第 3 類）|
+| **autonomous 邊界 3 維度** | autonomous 自主決策受限的 3 種維度:(1) baseline 改變需 user 同意（Sprint 141 goldens）;(2) 大依賴需 user 提供 fixture（Sprint 142 Phase 5）;(3) user 業務優先順序未知；對應產出「需 user GO 的 DEFER」audit doc | Sprint 141-142 / 154 retro §8 |
+| **capture-only 四連 archetype** | 9-step 模式可複製:probe fixture 覆蓋 → 新 parser 模組 → types interface → OoxmlParser Step N 接線 → DocumentNode constructor patch → vitest unit test → bundle rebuild → VR full run → audit doc;Sprint 145-148 連 4 sprint 應用 → 紀律 #1.a / #21 / #22 同步驗證 | Sprint 145-148 |
+| **retro 短週期觸發** | cluster 模式成熟即可寫 retro、不必等 ≥10 sprint;6 sprint(Sprint 149)、9 sprint(Sprint 154)兩次短週期 retro 已驗證;觸發條件 = 3+ 新 explicit 模式或紀律升正 + 上次 retro 距離 ≥ 5 sprint | Sprint 149 / 154 |
+| **「最薄」capture-only variant** | capture-only sprint 中、無需新 parser code、僅暴露既有 internal 結構至 DocumentNode 的變體;紀律 #14 DRY 應用峰值;適用情境 = 既有 parser 已 internal 處理但未對外暴露 | Sprint 152（紀律 #14 DRY 主導）|
+| **discriminated union variant capture** | capture variant 值（OOXML §22.4 vt:* 等）使用 TypeScript discriminated union;`kind` 屬性 narrow + 未知 variant 降級 `unknown` raw;caller 用 switch case 編譯期保證 exhaustive | Sprint 151（紀律 #18 scope-down + TS 型別系統）|
+| **紀律 #21 例外判斷** | 紀律 #21 機械式 = optional 空集合不掛 key;例外 = key 本身已是 binary signal（存在/不存在）時、value 全空仍掛 key（user 未 override default 是合法 semantic）;mental model 主導非機械式應用 | Sprint 153 / 154 retro §4（潛在子 #21.a）|
