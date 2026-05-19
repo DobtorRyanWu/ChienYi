@@ -7,6 +7,17 @@ dist/
 npm-debug.log*
 yarn-error.log*
 
+# CI 輸出（Sprint 20 補入）
+tests/vitest-junit.xml
+tests/fixtures/sprint18_ratio_grid_report.json
+
+# VR run 暫存（Sprint 158 補入）
+tests/fixtures/.visual_regression_tmp/
+tests/fixtures/**/golden/*_diff.png
+
+# Autopilot Y 本機設定（Sprint 158 補入；per-machine、不進 git）
+.antigravity/
+
 # =========================
 # 2. Odoo 後端與 Python 暫存
 # =========================
