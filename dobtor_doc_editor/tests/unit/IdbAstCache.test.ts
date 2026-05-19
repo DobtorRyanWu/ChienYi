@@ -31,6 +31,7 @@ function makeFakeAst(tag: string): DocumentNode {
     docProps: { title: tag },
     appProps: {},
     customProps: new Map(),
+    contentTypes: { defaults: new Map(), overrides: new Map() },
   };
 }
 

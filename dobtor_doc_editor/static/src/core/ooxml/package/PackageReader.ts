@@ -38,11 +38,29 @@ export interface RelationshipDef {
   targetMode: 'Internal' | 'External';
 }
 
+/**
+ * [Content_Types].xml 解析結果（Sprint 152 暴露至 OoxmlPackage)。
+ *
+ * OOXML §10.2.2 / OPC §3.2:每個 OOXML package 必有一個 [Content_Types].xml、
+ * 它告訴 reader 每個 part 的 MIME type。本介面與 internal ParsedContentTypes 一致、
+ * 對外保持 readonly 形式以便為 Phase 6 docx export 對稱性鋪路。
+ *
+ * Sprint 152 capture-only:capture 但不 wire-up;不消費於 layout/render。
+ */
+export interface PackageContentTypes {
+  /** Default Extension → ContentType (e.g. 'xml' → 'application/xml') */
+  defaults: ReadonlyMap<string, string>;
+  /** Override PartName(no leading "/") → ContentType */
+  overrides: ReadonlyMap<string, string>;
+}
+
 export interface OoxmlPackage {
   /** 全部 part 的查找表（key = path） */
   parts: Map<string, PackagePart>;
   /** 每個 part 的關聯（key = part path；root 用空字串 ""） */
   relationships: Map<string, Map<string, RelationshipDef>>;
+  /** Sprint 152: [Content_Types].xml 解析結果 (readonly、capture-only) */
+  contentTypes: PackageContentTypes;
   /** 取單一 part 的便捷方法 */
   getPart(path: string): PackagePart | undefined;
   /** 取單一 part 的關聯 */
@@ -103,7 +121,7 @@ export class PackageReader {
       parts.set(path, { path, contentType, data });
     }
 
-    return makePackage(parts, relationships);
+    return makePackage(parts, relationships, contentTypes);
   }
 }
 
@@ -259,10 +277,15 @@ function parseXml(xml: string): Document {
 function makePackage(
   parts: Map<string, PackagePart>,
   relationships: Map<string, Map<string, RelationshipDef>>,
+  contentTypes: ParsedContentTypes,
 ): OoxmlPackage {
   return {
     parts,
     relationships,
+    contentTypes: {
+      defaults: contentTypes.defaults,
+      overrides: contentTypes.overrides,
+    },
     getPart(path) {
       return parts.get(path.replace(/^\/+/, ''));
     },

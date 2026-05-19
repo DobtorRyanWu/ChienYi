@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 151 — **Phase 1 docProps/custom.xml capture-only**（Sprint 150 §後續 E-10、doc-props 子目錄延伸）：variant 型別 discriminated union 設計（5 常見 vt:* + unknown 降級）+ 紀律 #18 多維度 scope-down（metadata/value/variant/error handling 4 維）+ 29 新 test + 5 個 DocumentNode constructor patch。vitest 1269→**1298 passed + 1 skipped**、VR mean **0.073191** **第 21 連 byte-identical**。Phase 1 OOXML 88%→**89%**。**Phase 1 capture-only 七連 cluster(145-151)延續**:7 parts / 47 elements / +122 test / +9pp Phase 1 進度（80→89%）。autonomous-friendly §11.2 backlog 大幅消化、剩餘候選不適 capture-only、下個 sprint = session 自然停止點）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 152 — **Phase 1 [Content_Types].xml capture-only**（PackageReader internal expose、user 指示「繼續」後重評 §11.2 backlog）：PackageReader L72-79 已 internal parse 但未 expose、本 sprint 暴露至 OoxmlPackage + DocumentNode、+0 行新 parser code（復用 internal、紀律 #14 DRY）+ 紀律 #18 多維度 scope-down（不寫新 parser / 不解析 MIME 語意 / 不寫反向 lookup / 不深拷貝 Map）+ 14 新 test。vitest 1298→**1312 passed + 1 skipped**、VR mean **0.073191** **第 22 連 byte-identical**。Phase 1 OOXML 89%→**89.5%**。**Phase 1 capture-only 八連 cluster(145-152)延續**:8 parts / 0 新 parser / +136 test / +9.5pp Phase 1。本 sprint 是「最薄」一 sprint）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓

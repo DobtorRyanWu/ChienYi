@@ -206,6 +206,11 @@ export class OoxmlParser {
     //   留 Phase 6 docx export 對稱性 + author 自訂中介資料保留。
     const customProps = parseCustomProps(pkg);
 
+    // Step 8.3（Sprint 152）：[Content_Types].xml — capture-only、無 wire-up
+    //   PackageReader 已解析、本 step 把 pkg.contentTypes 暴露到 DocumentNode
+    //   為 Phase 6 docx export 對稱性鋪路(export 時要原樣重建)、layout/render 不用。
+    const contentTypes = pkg.contentTypes;
+
     const doc: DocumentNode = {
       type: 'document',
       sections,
@@ -222,6 +227,7 @@ export class OoxmlParser {
       docProps,
       appProps,
       customProps,
+      contentTypes,
     };
 
     // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props

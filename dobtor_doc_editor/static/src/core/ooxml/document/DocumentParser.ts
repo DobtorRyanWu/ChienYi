@@ -133,6 +133,7 @@ export class DocumentParser {
       docProps: {},
       appProps: {},
       customProps: new Map(),
+      contentTypes: { defaults: new Map(), overrides: new Map() },
     };
   }
 

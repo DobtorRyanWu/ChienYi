@@ -3020,6 +3020,7 @@
                 docProps: {},
                 appProps: {},
                 customProps: new Map(),
+                contentTypes: { defaults: new Map(), overrides: new Map() },
             };
         }
         /**
@@ -4674,7 +4675,7 @@
                 const contentType = resolveContentType(path, contentTypes);
                 parts.set(path, { path, contentType, data });
             }
-            return makePackage(parts, relationships);
+            return makePackage(parts, relationships, contentTypes);
         }
     }
     function parseContentTypes(xml) {
@@ -4803,10 +4804,14 @@
         }
         return doc;
     }
-    function makePackage(parts, relationships) {
+    function makePackage(parts, relationships, contentTypes) {
         return {
             parts,
             relationships,
+            contentTypes: {
+                defaults: contentTypes.defaults,
+                overrides: contentTypes.overrides,
+            },
             getPart(path) {
                 return parts.get(path.replace(/^\/+/, ''));
             },
@@ -6073,6 +6078,10 @@
             //   variant 型別 discriminated union(string / int / bool / real / filetime / unknown)
             //   留 Phase 6 docx export 對稱性 + author 自訂中介資料保留。
             const customProps = parseCustomProps(pkg);
+            // Step 8.3（Sprint 152）：[Content_Types].xml — capture-only、無 wire-up
+            //   PackageReader 已解析、本 step 把 pkg.contentTypes 暴露到 DocumentNode
+            //   為 Phase 6 docx export 對稱性鋪路(export 時要原樣重建)、layout/render 不用。
+            const contentTypes = pkg.contentTypes;
             const doc = {
                 type: 'document',
                 sections,
@@ -6089,6 +6098,7 @@
                 docProps,
                 appProps,
                 customProps,
+                contentTypes,
             };
             // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props
             //   - StyleResolver 已展開繼承鏈為 StyleMap

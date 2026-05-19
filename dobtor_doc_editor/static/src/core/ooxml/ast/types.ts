@@ -836,6 +836,33 @@ export interface DocumentNode {
    * Key 為 `name` 屬性、value 為 type-discriminated CustomPropertyValue。
    */
   customProps: DocPropsCustom;
+  /**
+   * Sprint 152：[Content_Types].xml 解析結果（capture-only、readonly、空 Map 代表「未解析或無 part」）。
+   *
+   * OOXML §10.2.2 / OPC §3.2：
+   *   每個 OOXML package 必有 [Content_Types].xml、告訴 reader 每個 part 的 MIME type。
+   *   `defaults` 以 Extension(小寫) 為 key、`overrides` 以 part path(無前導 "/") 為 key。
+   *
+   * 為 Phase 6 docx export 對稱性鋪路(import 端讀進來、export 端要原樣寫回);
+   * 本 capture 階段 layout/render 不消費。
+   *
+   * 42/42 fixture 都有此 part(spec 強制)、單 fixture 平均 ~13 entries
+   * (2-3 defaults + 10-15 overrides)。
+   */
+  contentTypes: DocContentTypes;
+}
+
+/**
+ * [Content_Types].xml 解析結果(Sprint 152 capture-only、readonly)。
+ *
+ * 與 `package/PackageReader.ts` 的 `PackageContentTypes` 結構相同、本 alias
+ * 對外置於 `core/ooxml/ast/types`、避免外部消費端 import package 子目錄。
+ */
+export interface DocContentTypes {
+  /** Default Extension(小寫) → ContentType(MIME) */
+  defaults: ReadonlyMap<string, string>;
+  /** Override PartName(無前導 "/") → ContentType */
+  overrides: ReadonlyMap<string, string>;
 }
 
 export interface DocProps {
