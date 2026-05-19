@@ -126,7 +126,7 @@ verify                build 鏈通電（type check + rollup build）
 
 ---
 
-## 5. Sprint 紀律（Sprint 50-66 累積 8 條）
+## 5. Sprint 紀律（Sprint 50-154 累積 22 條 + 6 子 + 1 候選 + 1 潛在子原則）
 
 這 8 條紀律是從 Sprint 50-66 連 17 個 sprint 累積的、實戰證實會踩坑的工程紀律。**新 sprint 開工前先讀完**。
 
@@ -295,6 +295,51 @@ Sprint 90-109 因看到 user 圖一 esign 參考、誤判要做 UI 改造、執�
 3. **若 scope-down 跨 autonomous 決策邊界**（換 baseline / 大依賴 / user 業務優先）→ probe-only sprint + DEFER user GO + 完整推薦路徑 ready
 
 → 8 次跨 sprint 驗證 + 3 類型完整光譜 + 「需 user GO 的 DEFER」次類型 3 次驗證、Sprint 143 正式升格為紀律 #1.b。
+
+### 紀律 #21.a（**潛在子原則候選**、Sprint 154 揭示）：紀律 #21 例外判斷 — key 即 binary signal
+
+紀律 #21 機械式應用 = optional 欄位空集合不掛 key（避 noise）。**例外**：當 key 本身已是 binary signal（存在 / 不存在）時、value 全空仍掛 key、因為 key 名本身已是資訊（如 latentStyles.exception 全空屬性 = user 未 override default、是合法 semantic）。
+
+> 僅 1 sprint 案例（Sprint 153 LatentStylesParser 例外判斷）、需 3+ sprint 跨類型驗證才可升正、暫列**潛在子原則候選**。對照 Sprint 151 CustomPropsParser 「property 全空跳過」（property name 是 user-defined、空 value 是 noise）。
+
+→ 紀律應用需 mental model 判斷、不是純機械式。詳見 [docs/sprint145_153_retro.md §4](docs/sprint145_153_retro.md)。
+
+### 5.x Scope 紀律總結（含 #18 教訓案例 + ADR 流程合規範例）
+
+紀律 #18 是規畫書最重要的紀律、源自 Sprint 90-109 教訓案例。
+
+**Sprint 90-109 案例（誤判 → 全 revert）**：
+
+User 提供 `test-risen.dobtor.com` esign UI 截圖、Claude 誤判為「規畫書方向擴張為 esign-style UI 改造」、執行 20 sprint 連續 batch（doc.template.signer / doc.template.field / overlay placement layer / sidebar inspector 等）後發現:
+- 與規畫書 Phase 0-7「docx 1:1 高保真匯入」根本矛盾
+- 未經 user 認可即啟動大型 scope 擴張
+- 紀律 #1 / #3 / #5 並未阻止此偏離（紀律無 scope-alignment check）
+
+最終結局:Strategy A 並存策略救命 + 全 20 sprint revert byte-identical;規畫書與 production code 都未受永久污染。Sprint 110 揭示紀律 #18:**「開工大型新 feature 前必須先對齊規畫書真實 scope」**。
+
+詳見 [docs/sprint90_to_109_revert.md](docs/sprint90_to_109_revert.md)。
+
+**ADR-022 案例（流程合規 scope 擴張）**：
+
+2026-05-19 user 再次提供 esign UI 截圖、要求改造 dobtor 後台 `ir.actions.client` 視覺 + 拖曳欄位範本。**差異**:user 明確認知 Sprint 90-109 revert 教訓、明確認知衝突、仍決定推進 → 屬紀律 #18 「user 認可或修改規畫書」**合法路徑**。
+
+走 Strategy B（直接改 DocEditor、非並存）+ 增量交付 + 條件啟動。詳見 [docs/architecture_decision.md ADR-022](docs/architecture_decision.md#adr-022) + [docs/sprint90_to_109_revert.md「2026-05-19 後續」段](docs/sprint90_to_109_revert.md)。
+
+**紀律 #18 應用原則**:
+- 紀律 #18 **不禁止** scope 擴張
+- 紀律 #18 **禁止**「未 user 認可的擴張」
+- scope 擴張須走 ADR 流程或修改規畫書 + user 明確認可
+- 看到 user 提供參考 UI / 第三方 demo **不等於規畫書方向**
+- user 說「根據計劃書繼續執行」= 規畫書 scope 內推進、**不是順便加新功能**
+
+### 5.y 進度進展紀錄（搬出 CONTRIBUTING、見 docs/）
+
+完整紀律應用次數、Sprint 145-153 capture-only 九連對紀律的驗證、cluster retro 紀錄等 *進度* 性質內容、見:
+- [docs/progress_snapshot.md](docs/progress_snapshot.md) — 當前指標 + Phase 完成度
+- [docs/INDEX.md](docs/INDEX.md) — 132 個 sprint audit doc 索引
+- [docs/scope_audit_2026-05-19.md](docs/scope_audit_2026-05-19.md) — sprint 工作層 scope drift audit
+
+本 CONTRIBUTING **只保留紀律定義本身**、不再追蹤紀律應用次數 / 升正 sprint 等流動性指標。
 
 ### 健康紀律分布（Sprint 50-89 累積，Sprint 90-109 已 revert 不計入）
 

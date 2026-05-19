@@ -1,9 +1,16 @@
 # Autonomous Roadmap — Sprint 113+ 推進規畫書到 A 級完成
 
+> ⚠️ **2026-05-19 ARCHIVED**:User 標記本 roadmap 為「**偏離軌道**」、autonomous 模式中止。
+> - **問題**:Sprint 113 audit doc 內 Claude 自宣告 user 授權「自主決策、跑到整份完成才停」、user 從未白紙黑字授權此模式（[scope_audit_2026-05-19.md §4.1 G4](scope_audit_2026-05-19.md)）
+> - **副作用**:Sprint 145-153 capture-only 九連 wire-up=0、Phase 1 80→90% 純為 % 數字（[scope_audit §3.1 G10](scope_audit_2026-05-19.md)）;retro inflation（4 次 + 1 catch-up、節律失控、[§4.3 G11](scope_audit_2026-05-19.md)）
+> - **本檔仍保留**:Sprint 156-175 候選列表 user 後續若要走仍可參考;Sprint 113-155 進度表是 INDEX.md / progress_snapshot.md 的素材源
+> - **Sprint 156+ 不再以本 roadmap 為執行依據**:走 user 三方向決策框架（[sprint145_153_retro.md §8](sprint145_153_retro.md)），預設方向 B「等 user 決策」
+
 **建立**:Sprint 113(2026-05-16)
-**狀態**:active
-**對應規畫書**:[../dobtor_doc_editor_高保真匯入開發規劃.md](../dobtor_doc_editor_高保真匯入開發規劃.md)
+**狀態**:**archived (2026-05-19、Sprint 155)**
+**對應規畫書**:[../dobtor_doc_editor_高保真匯入開發規劃.md](../dobtor_doc_editor_高保真匯入開發規劃.md)（已還原為純規畫）
 **對應 plan**:[/home/chichi/.claude/plans/lazy-dazzling-shell.md](/home/chichi/.claude/plans/lazy-dazzling-shell.md)
+**Archive 觸發**:user 親口確認「文件 + 部分 sprint 偏離」、走 plan-mode revert 流程（[/home/chichi/.claude/plans/d-dobtor-doc-editor-md-snappy-nova.md](/home/chichi/.claude/plans/d-dobtor-doc-editor-md-snappy-nova.md)）
 
 ---
 
