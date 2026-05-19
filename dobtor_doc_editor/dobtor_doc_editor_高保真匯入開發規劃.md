@@ -283,7 +283,7 @@ const glyphs = buffer.json()  // 精確的 glyph advance、kerning
 - [x] `<w:t xml:space="preserve">` 空白保留
 - [x] `<w:tab>`、`<w:br type="page|column|textWrapping">`
 - [x] `<w:symbol>`、`<w:sym>` — 特殊符號
-- [ ] `<w:ruby>` — 注音（日文常用，中文罕見）
+- [ ] `<w:ruby>` — 注音（日文常用，中文罕見、Phase 1 optional）
 
 #### 1.5 表格完整解析（3 週）★ 圖上跑版的主戰場
 
@@ -300,14 +300,14 @@ const glyphs = buffer.json()  // 精確的 glyph advance、kerning
 - [x] `<w:tcMar>` 儲存格邊界
 - [x] `<w:vAlign>` top / center / bottom
 - [x] `<w:noWrap>`、`<w:hideMark>`
-- [ ] `<w:tcFitText>` — 自動縮字（罕用但 Word 有）
+- [ ] `<w:tcFitText>` — 自動縮字（罕用但 Word 有、Phase 1 optional）
 
 ##### 1.5.3 列與表屬性
 - [x] `<w:trHeight>`:`hRule` = `exact` / `atLeast` / `auto`
 - [x] `<w:tblHeader>` — 跨頁重複標題列
 - [x] `<w:cantSplit>` — 列不可跨頁拆分
 - [x] `<w:tblPr>`:`<w:tblW>`、`<w:tblInd>`、`<w:tblLayout>`、`<w:tblLook>`、`<w:tblStyle>`
-- [ ] `<w:tblStylePr>` — 條件樣式（firstRow、lastRow、firstCol 等 15 種、Sprint 131 補 cell-level shading+vAlign;tcBorders / trPr / tblPr 條件樣式未做）
+- [ ] `<w:tblStylePr>` — 條件樣式（firstRow、lastRow、firstCol 等 15 種、Sprint 131 補 cell-level shading+vAlign;tcBorders / trPr / tblPr 條件樣式未做、Phase 1 optional）
 - [x] 巢狀表格（cell 內又有 tbl）
 
 ##### 1.5.4 vMerge 演算法獨立模組
@@ -326,7 +326,7 @@ function resolveVerticalMerges(table: Table): Table {
 - [x] 多層級（`<w:lvl ilvl="0..8">`）
 - [x] 編號格式：decimal、lowerRoman、upperRoman、lowerLetter、upperLetter、bullet、ordinal、cardinalText、ordinalText、chineseCounting、chineseCountingThousand、ideographDigital、japaneseCounting、aiueo、iroha、taiwaneseCounting
 - [x] 重啟層級：`<w:lvlRestart>`
-- [ ] `<w:lvlOverride>` 局部覆寫
+- [ ] `<w:lvlOverride>` 局部覆寫（Phase 1 optional）
 - [x] 編號連續性（跨段落計算）
 
 #### 1.7 Sections 與頁面（1 週）
@@ -339,14 +339,14 @@ function resolveVerticalMerges(table: Table): Table {
 
 #### 1.8 Drawings 與 OLE（1.5 週）
 - [x] `<w:drawing>` > `<wp:inline>` 內嵌圖片
-- [ ] `<w:drawing>` > `<wp:anchor>` 浮動圖片
+- [ ] `<w:drawing>` > `<wp:anchor>` 浮動圖片（Phase 1 optional — 子項目核心 position/extent 已 [x]、wrap 與 effectExtent 已標 optional）
   - [x] `<wp:positionH>`、`<wp:positionV>` — 相對錨點定位
-  - [ ] `<wp:wrapNone|wrapSquare|wrapTight|wrapThrough|wrapTopAndBottom>`（wrapNone / wrapSquare / wrapTopAndBottom 已做、wrapTight / wrapThrough 未做）
+  - [ ] `<wp:wrapNone|wrapSquare|wrapTight|wrapThrough|wrapTopAndBottom>`（wrapNone / wrapSquare / wrapTopAndBottom 已做、wrapTight / wrapThrough 未做 → snappy-nova Phase 3 Sprint 168-172 補完、Phase 1 optional）
   - [x] `<wp:extent>` 尺寸（EMU）
-  - [ ] `<wp:effectExtent>` 陰影外擴
+  - [ ] `<wp:effectExtent>` 陰影外擴（Phase 1 optional）
 - [x] `<a:blip r:embed="rIdN">` → 從 rels 取得圖片 part
 - [x] 圖片裁切 `<a:srcRect>`
-- [ ] 圖片效果（陰影、外框） — 可選
+- [ ] 圖片效果（陰影、外框）— 可選、Phase 1 optional
 - [x] `<v:shape>` VML（舊 Word 的圖形） — 降級處理
 
 #### 1.9 進階結構（2 週）
@@ -357,15 +357,20 @@ function resolveVerticalMerges(table: Table): Table {
 - [ ] `<w:instrText>` 複雜欄位（fldChar begin/separate/end）（Sprint 123 capture 強化、render 端未完全消費）
 - [ ] `<w:bookmarkStart>`、`<w:bookmarkEnd>`（Sprint 125 capture-only、render 端不消費）
 - [x] `<w:sdt>` 結構化文件標籤（內容控制項、Sprint 124 transparent unwrap）
-- [ ] `<w:ins>`、`<w:del>`、`<w:moveFrom>`、`<w:moveTo>` 追蹤修訂（Phase 5.4 未做）
-- [ ] `<w:commentRangeStart>` + `comments.xml` 註解（Phase 5.5 未做）
-- [ ] `<m:oMath>` 數學公式（OMML）— parser 出 AST，渲染留到 Phase 5（未做）
-- [ ] `<mc:AlternateContent>` — 新舊版本相容選擇
+- [ ] `<mc:AlternateContent>` — 新舊版本相容選擇（Phase 1 optional）
+
+> **追蹤修訂 / 註解 / OMML 已移至對應 Phase**：
+> - `<w:ins>` / `<w:del>` / `<w:moveFrom>` / `<w:moveTo>` 追蹤修訂 → [§5.4 Phase 5.4](#54-追蹤修訂1-週)
+> - `<w:commentRangeStart>` / `<w:commentRangeEnd>` 註解 → [§5.5 Phase 5.5](#55-註解1-週)
+> - `<m:oMath>` 數學公式 OMML → [§5.1 Phase 5.1](#51-數學公式omml--katexmathjax3-4-週)
+>
+> 這些**不擋 Phase 1 Exit**，原 Phase 1 §1.9 內條目於 Sprint 159 audit 後移除（規畫書 author 誤放、Phase 5 對應段已涵蓋）。
 
 **Exit Criteria**：
 - Parser 對 50 份測試 docx 全部無 error
 - AST dump 對照 OOXML 原文，屬性吻合率 >99%
 - 有完整 TypeScript 型別
+- 所有非 `(Phase 1 optional)` 標記的 `[ ]` 工項已 `[x]`
 
 ---
 
