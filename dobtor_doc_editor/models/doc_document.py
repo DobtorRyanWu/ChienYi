@@ -275,6 +275,31 @@ class DocDocument(models.Model):
         ondelete='set null',
         help='用於欄位變數渲染的目標模型',
     )
+    res_id = fields.Many2oneReference(
+        model_field='model_id',
+        string='關聯記錄 ID',
+        index=True,
+        help='與本文件雙向關聯的目標記錄 ID（搭配 doc.linked.mixin 使用）',
+    )
+
+    # ─── 版本管理（W7-8 P1-1）─────────────────────────────────────
+    # 設計（修正版）：把版本快照陣列直接存在 doc.document.versions_data (fields.Json)
+    #       原本想透過 mail.thread message body 內嵌 base64 JSON，但 body 是 HTML
+    #       field 會被 sanitizer 處理（剝除自訂 data-* 屬性），無法 round-trip。
+    #       現在把實際 snapshot 內容存在 versions_data，message_post 只記摘要。
+    version_number = fields.Integer(
+        string='版本號',
+        default=0,
+        copy=False,
+        help='文件版本流水號，每次儲存版本快照時 +1',
+    )
+    versions_data = fields.Json(
+        string='版本快照陣列',
+        default=list,
+        copy=False,
+        help='儲存所有版本快照的 JSON 陣列。每筆含 version_no/created_at/'
+             'author_id/author_name/label/content_html/content_json。',
+    )
     template_id = fields.Many2one(
         'doc.template',
         string='使用範本',
@@ -337,12 +362,52 @@ class DocDocument(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        """建立文件時：1) sanitize HTML 欄位 2) 若指定 template_id 但 content_html
+        為空，自動把 template.content_html / page_format 複製過來。
+
+        為何在 create() 而非 onchange：onchange 只在後台 Form view 觸發，
+        Portal Modal / API / 程式內部 .create() 都不會走 onchange；放在 create()
+        裡可以涵蓋所有建立路徑（後台、Portal、ChienYi mixin、單元測試）。
+        """
         sanitizer = self.env['doc.sanitizer']
+        Template = self.env['doc.template']
         for vals in vals_list:
+            # 範本自動填充：template_id 有給但 content_html 沒給（或空）
+            if vals.get('template_id') and not vals.get('content_html'):
+                template = Template.browse(vals['template_id'])
+                if template.exists():
+                    if template.content_html:
+                        vals['content_html'] = template.content_html
+                    if template.page_format and not vals.get('page_format'):
+                        vals['page_format'] = template.page_format
             for field in self._HTML_FIELDS:
                 if vals.get(field):
                     vals[field] = sanitizer.sanitize_html(vals[field])
         return super().create(vals_list)
+
+    @api.onchange('template_id')
+    def _onchange_template_id(self):
+        """後台 Form view 選 / 切換範本時，直接覆寫 content_html / page_format。
+
+        為何不保護「已有內容」：在 Form view 顯式切換 template_id 是使用者
+        刻意動作，意圖就是要新範本內容。若怕誤覆寫已編輯文件，使用者應該
+        先儲存版本快照（Ctrl+Shift+S）或不要切 template。
+
+        實際情境（Sprint 16 bug）：使用者建文件 → 選範本 A → 切到範本 B →
+        舊邏輯因 content_html 已有 A 的內容而拒絕覆寫 → 編輯器顯示 A 而非 B
+        → 使用者誤以為「範本沒套用」。
+
+        例外：當前 content_html 看起來是「使用者編輯過」（不等於任何 template
+        的 content_html），仍直接覆寫；保護機制留給「儲存版本快照」工作流。
+        """
+        for rec in self:
+            if not rec.template_id:
+                continue
+            tpl = rec.template_id
+            if tpl.content_html:
+                rec.content_html = tpl.content_html
+            if tpl.page_format:
+                rec.page_format = tpl.page_format
 
     def write(self, vals):
         sanitizer = self.env['doc.sanitizer']
@@ -706,29 +771,181 @@ img {{ max-width: 100%; height: auto; }}
         doc.save(buf)
         return buf.getvalue()
 
-    # ─── 版本快照 ────────────────────────────────────────────────────
+    # ─── 版本快照（W7-8 P1-1 重構版）─────────────────────────────────
+    # 把實際 snapshot 內容存在 versions_data (fields.Json)，避開 mail.thread
+    # body sanitizer 對自訂 data-* 屬性的清洗。mail.thread 仍接收摘要訊息，
+    # 提供 audit trail 與 chatter UI 友善體驗。
+    #
+    # 對外 ID = version_number（自然遞增整數），不再用 message_id 當 key。
 
     def action_save_version(self, label=None):
-        """在 mail thread 中儲存版本快照。"""
+        """儲存版本快照。
+
+        Args:
+            label: 使用者可自填的版本說明（如「會議結論定稿」）。
+
+        Returns:
+            dict: {'version_number': N, 'message_id': msg.id}
+        """
         self.ensure_one()
-        html = self.get_content_html()
-        self.message_post(
-            body=f'<div class="doc-version-snapshot">'
-                 f'<strong>版本快照</strong> {label or ""}<br/>{html}</div>',
+        self.version_number = (self.version_number or 0) + 1
+        version_no = self.version_number
+
+        # 寫進 versions_data 陣列（避開 sanitizer）
+        # JSON field 會自動序列化；用 list 而非 set 因為要保留順序
+        versions = list(self.versions_data or [])
+        versions.append({
+            'version_no': version_no,
+            'created_at': fields.Datetime.now().isoformat(),
+            'author_id': self.env.user.id,
+            'author_name': self.env.user.name or '匿名',
+            'label': label or '',
+            'content_html': self.get_content_html() or '',
+            'content_json': self.content_json or '',
+        })
+        self.versions_data = versions
+
+        # 摘要訊息送 chatter（不含 content，只當 audit trail）
+        summary = (
+            f'<p><strong>版本 v{version_no}</strong>'
+            + (f' — {label}' if label else '')
+            + '</p>'
+        )
+        msg = self.message_post(
+            body=summary,
             subtype_xmlid='mail.mt_note',
             message_type='comment',
         )
+        return {
+            'version_number': version_no,
+            'message_id': msg.id,
+        }
 
     def get_version_list(self):
-        """取得版本快照清單。"""
+        """取得版本快照清單（不含 content，輕量）。"""
         self.ensure_one()
-        messages = self.message_ids.filtered(
-            lambda m: '<div class="doc-version-snapshot"' in (m.body or '')
+        versions = list(self.versions_data or [])
+        # 降序：最新版在前
+        versions_sorted = sorted(
+            versions,
+            key=lambda v: v.get('version_no', 0),
+            reverse=True,
         )
         return [
-            {'id': msg.id, 'date': str(msg.date), 'author': msg.author_id.name}
-            for msg in messages.sorted('date', reverse=True)
+            {
+                'version_id': v.get('version_no'),
+                'version_number': v.get('version_no'),
+                'date': v.get('created_at'),
+                'author_id': v.get('author_id'),
+                'author_name': v.get('author_name', '匿名'),
+                'label': v.get('label', ''),
+            }
+            for v in versions_sorted
         ]
+
+    def _find_version_entry(self, version_id):
+        """內部用：依 version_id 找出對應的 entry（or None）。"""
+        for v in (self.versions_data or []):
+            if v.get('version_no') == version_id:
+                return v
+        return None
+
+    def get_version_content(self, version_id):
+        """取得單一版本的完整內容（HTML + JSON）。
+
+        Args:
+            version_id: 版本號（int）。為向後相容 W7-8 早期 API 也接受傳入字串。
+        """
+        self.ensure_one()
+        try:
+            version_id = int(version_id)
+        except (TypeError, ValueError):
+            return None
+        entry = self._find_version_entry(version_id)
+        if not entry:
+            return None
+        return {
+            'version_id': entry.get('version_no'),
+            'version_number': entry.get('version_no'),
+            'date': entry.get('created_at'),
+            'author_name': entry.get('author_name', '匿名'),
+            'content_html': entry.get('content_html', ''),
+            'content_json': entry.get('content_json', ''),
+        }
+
+    def restore_version(self, version_id):
+        """把指定版本的內容還原到當前文件（會自動先存「還原前」版本）。"""
+        self.ensure_one()
+        from odoo.exceptions import UserError
+        try:
+            version_id = int(version_id)
+        except (TypeError, ValueError):
+            raise UserError("無效的版本識別碼。")
+        entry = self._find_version_entry(version_id)
+        if not entry:
+            raise UserError("找不到指定的版本快照。")
+
+        target_version = entry.get('version_no')
+        # 先存「還原前」快照
+        self.action_save_version(
+            label=f'還原前快照（即將回退到 v{target_version}）'
+        )
+
+        # 套用快照內容
+        update_vals = {
+            'content_html': entry.get('content_html') or '',
+            'content_json': entry.get('content_json') or '',
+        }
+        self.write(update_vals)
+        return {
+            'restored_version': target_version,
+            'new_current_version': self.version_number,
+        }
+
+    def diff_versions(self, version_id_a, version_id_b):
+        """段落層級 diff。
+
+        Returns:
+            dict: {'a_version', 'b_version', 'a_date', 'b_date', 'opcodes': [...]}
+                  或 None 若任一 version_id 不存在
+        """
+        self.ensure_one()
+        import difflib
+        import re as _re
+        from html import unescape
+
+        def _to_lines(html):
+            t = _re.sub(
+                r'<br\s*/?>|</(p|div|h\d|li|tr)>',
+                '\n', html or '', flags=_re.I,
+            )
+            t = _re.sub(r'<[^>]+>', '', t)
+            t = unescape(t)
+            return [ln.strip() for ln in t.split('\n') if ln.strip()]
+
+        a = self.get_version_content(version_id_a)
+        b = self.get_version_content(version_id_b)
+        if not a or not b:
+            return None
+
+        lines_a = _to_lines(a.get('content_html'))
+        lines_b = _to_lines(b.get('content_html'))
+
+        sm = difflib.SequenceMatcher(None, lines_a, lines_b)
+        ops = []
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            ops.append({
+                'op': tag,
+                'a_lines': lines_a[i1:i2],
+                'b_lines': lines_b[j1:j2],
+            })
+        return {
+            'a_version': a.get('version_number'),
+            'b_version': b.get('version_number'),
+            'a_date': a.get('date'),
+            'b_date': b.get('date'),
+            'opcodes': ops,
+        }
 
     # ─── DB 索引 ─────────────────────────────────────────────────────
 

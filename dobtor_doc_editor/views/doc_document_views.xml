@@ -61,6 +61,13 @@
                             icon="fa-file-word-o"/>
                 </header>
                 <sheet>
+                    <!-- Sprint 16：content_html 必須在 form view 中宣告（即使隱藏），
+                         否則 @api.onchange('template_id') 對 content_html 的修改
+                         會被 Odoo 18 web client 視為「不在 view 的欄位」直接丟棄，
+                         導致使用者切換 template_id 後 content_html 不更新，編輯器
+                         仍顯示舊範本內容。 -->
+                    <field name="content_html" invisible="1"/>
+                    <field name="content_json" invisible="1"/>
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="文件名稱" required="1"/>

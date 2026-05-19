@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import logging
 import re
 import shutil
 import subprocess
@@ -11,6 +12,14 @@ import html as html_mod
 from lxml import etree
 from odoo import http
 from odoo.http import request
+
+from ..models.doc_zip_guard import (
+    assert_input_size,
+    inspect_zip_safe,
+    ZipBombError,
+)
+
+_logger = logging.getLogger(__name__)
 
 # ─── DOCX XML 命名空間 ────────────────────────────────────────────────────────
 _W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -461,6 +470,70 @@ def _odt_to_html(file_bytes):
     return '\n'.join(parts) if parts else '<p></p>'
 
 
+def _ts_parse_docx_to_elements(file_bytes):
+    """使用本模組的 TS OOXML Parser 把 .docx 解析為 canvas-editor IElement[] JSON。
+
+    流程（Phase E 並行通道）：
+        1. 把 file_bytes 寫到暫存檔
+        2. subprocess 呼叫 `node tools/dist/parse_docx_cli.cjs <input> <output>`
+        3. 讀回 IElement[] JSON 並 parse 為 Python list
+        4. 失敗時回 None（caller 應 fallback 到 LibreOffice 路徑）
+
+    依賴：
+        - container 內有 Node 18+（`docker exec odoo18 which node` 已驗）
+        - `tools/dist/parse_docx_cli.cjs` 已 build（`npm run build:cli` 產出）
+
+    回傳：list[dict] 或 None
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # 解析 module 根目錄（doc_controller.py 在 controllers/ 下）
+    module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cli_path = os.path.join(module_dir, 'tools', 'dist', 'parse_docx_cli.cjs')
+
+    if not os.path.isfile(cli_path):
+        _logger.warning(
+            'dobtor_doc_editor: TS CLI not built at %s — '
+            'run `cd %s && npm run build:cli`',
+            cli_path, module_dir,
+        )
+        return None
+
+    if not shutil.which('node'):
+        _logger.warning('dobtor_doc_editor: `node` not in PATH; TS engine unavailable')
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            in_path = os.path.join(tmpdir, 'input.docx')
+            out_path = os.path.join(tmpdir, 'output.json')
+            with open(in_path, 'wb') as fp:
+                fp.write(file_bytes)
+
+            proc = subprocess.run(
+                ['node', cli_path, in_path, out_path, '--elements'],
+                capture_output=True,
+                timeout=30,
+            )
+            if proc.returncode != 0:
+                _logger.warning(
+                    'dobtor_doc_editor: TS CLI failed (rc=%d): %s',
+                    proc.returncode,
+                    proc.stderr.decode('utf-8', errors='replace')[:500],
+                )
+                return None
+
+            with open(out_path, 'r', encoding='utf-8') as fp:
+                return json.load(fp)
+    except subprocess.TimeoutExpired:
+        _logger.warning('dobtor_doc_editor: TS CLI timeout (30s)')
+        return None
+    except Exception as e:
+        _logger.warning('dobtor_doc_editor: TS CLI error — %s', e)
+        return None
+
+
 def _lo_convert_to_html(file_bytes, ext):
     """使用 LibreOffice headless 將 ODT/DOCX 轉換為 HTML。
 
@@ -818,7 +891,12 @@ class DocEditorController(http.Controller):
 
     @http.route('/dobtor_doc/load', type='json', auth='user', methods=['POST'])
     def load_document(self, doc_id, **kw):
-        """載入文件資料（Canvas JSON 內容＋頁面設定）。"""
+        """載入文件資料（Canvas JSON 內容＋頁面設定）。
+
+        回傳值含 `write_date`，給前端做樂觀鎖（P2-2）：
+            前端在後續 save 帶回 if_unmodified_since=write_date，
+            後端比對若已變動則拒絕並回 409。
+        """
         doc = request.env['doc.document'].browse(doc_id)
         doc.check_access_rule('read')
         return {
@@ -841,16 +919,56 @@ class DocEditorController(http.Controller):
             'has_different_first_page': doc.has_different_first_page,
             'first_header_html': doc.first_header_html or '',
             'first_footer_html': doc.first_footer_html or '',
+            # P2-2 樂觀鎖用：給前端記下最後一次同步的 write_date
+            'write_date': doc.write_date.isoformat() if doc.write_date else None,
+            'version_number': doc.version_number or 0,
         }
 
     @http.route('/dobtor_doc/save', type='json', auth='user', methods=['POST'])
     def save_document(self, doc_id=None, content_html=None, content_json=None,
-                      header_html=None, footer_html=None, name=None, **kw):
-        """儲存文件內容（content_json 為主，content_html 為備份）。"""
+                      header_html=None, footer_html=None, name=None,
+                      if_unmodified_since=None, **kw):
+        """儲存文件內容（content_json 為主，content_html 為備份）。
+
+        P2-2 樂觀鎖：
+            前端傳入 if_unmodified_since（從 load 回傳的 write_date），
+            後端比對若 write_date 已變動 → 拒絕並回 409 形式（response 帶 conflict=True）。
+            這避免兩個 user 同時編輯時，後存的人覆蓋前者沒看到的修改。
+
+            前端收到 conflict=True 時應：
+                1. 提示「文件已被他人修改」
+                2. 自動 reload 拿最新內容
+                3. 把使用者編輯的內容存到 IndexedDB 暫存（offline_manager）
+        """
         if not doc_id:
             return {'success': False, 'error': 'doc_id required'}
         doc = request.env['doc.document'].browse(doc_id)
         doc.check_access_rule('write')
+
+        # P2-2 樂觀鎖檢查
+        if if_unmodified_since:
+            current_wd = doc.write_date.isoformat() if doc.write_date else None
+            # 用字串比對而非 datetime parse — 兩端都用 isoformat 應一致
+            # 容忍微秒誤差：取秒為單位比對（或前端送什麼後端就比對什麼）
+            if current_wd and current_wd != if_unmodified_since:
+                _logger.info(
+                    "Optimistic lock conflict on doc_id=%s: client had %s, server has %s",
+                    doc_id, if_unmodified_since, current_wd,
+                )
+                return {
+                    'success': False,
+                    'conflict': True,
+                    'error': '文件已被他人修改，請重新載入後再儲存。',
+                    'server_write_date': current_wd,
+                    'server_version_number': doc.version_number or 0,
+                    'server_author_id': (
+                        doc.write_uid.id if doc.write_uid else None
+                    ),
+                    'server_author_name': (
+                        doc.write_uid.name if doc.write_uid else ''
+                    ),
+                }
+
         vals = {}
         if content_json is not None:
             vals['content_json'] = content_json
@@ -864,7 +982,11 @@ class DocEditorController(http.Controller):
             vals['name'] = name
         if vals:
             doc.write(vals)
-        return {'success': True, 'write_date': doc.write_date.isoformat()}
+        return {
+            'success': True,
+            'write_date': doc.write_date.isoformat(),
+            'version_number': doc.version_number or 0,
+        }
 
     # ─── DOCX 模板引擎路由 ───────────────────────────────────────────
 
@@ -876,11 +998,46 @@ class DocEditorController(http.Controller):
         1. 把 +++INS name+++ 語法轉換為 {{ name }}（段落層級，處理 run 切割）
         2. 偵測 {{ variable }} 佔位符清單
         3. 儲存轉換後的位元組
+
+        Sprint 116 plus:filename 含 null byte → graceful 400(避免 Postgres
+        ROLLBACK 造成 500 leak trace);filename 取 basename 防 path traversal
+        傳入 DB(深度防禦原則、紀律 #15 廣域應用)。
         """
         doc = request.env['doc.document'].browse(int(doc_id))
         doc.check_access_rule('write')
 
+        # Sprint 116 plus:filename 入口 sanitize
+        raw_filename = getattr(docx_file, 'filename', '') or ''
+        if '\x00' in raw_filename:
+            return request.make_response(
+                json.dumps({'success': False, 'error': 'invalid filename (null byte)'}),
+                headers={'Content-Type': 'application/json'},
+                status=400,
+            )
+        # 取 basename 防 path component 進 DB(深度防禦)
+        safe_filename = os.path.basename(raw_filename.replace('\\', '/'))
+        # 重新賦值給 docx_file.filename 讓後續邏輯用 sanitized 版本
+        try:
+            docx_file.filename = safe_filename
+        except Exception:
+            pass
+
         raw_bytes = docx_file.read()
+
+        # ── Zip Bomb 防護（W1 P0-2）：檢查原檔大小、解壓總大小、entry 數量 ──
+        try:
+            assert_input_size(raw_bytes)
+            inspect_zip_safe(raw_bytes)
+        except ZipBombError as e:
+            _logger.warning(
+                "upload_template rejected by zip_guard: %s (file=%s, uid=%s)",
+                e, getattr(docx_file, 'filename', '?'), request.env.user.id,
+            )
+            return request.make_response(
+                json.dumps({'success': False, 'error': str(e)}),
+                headers={'Content-Type': 'application/json'},
+                status=400,
+            )
 
         # Step 1：轉換 +++INS+++ → {{ }}
         converted_bytes = _convert_ins_to_jinja(raw_bytes)
@@ -945,20 +1102,37 @@ class DocEditorController(http.Controller):
                             '.wordprocessingml.document',
             }
 
-        # PDF：LibreOffice headless（/usr/bin/soffice 已確認存在）
-        with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, 'input.docx')
-            pdf_path = os.path.join(tmpdir, 'input.pdf')
-            with open(docx_path, 'wb') as f:
-                f.write(filled_bytes)
-            subprocess.run(
-                ['soffice', '--headless', '--convert-to', 'pdf',
-                 '--outdir', tmpdir, docx_path],
-                check=True, timeout=60,
-                env={**os.environ, 'HOME': tmpdir}  # 防止 soffice 鎖定 ~/.config/libreoffice
-            )
-            with open(pdf_path, 'rb') as f:
-                pdf_bytes = f.read()
+        # PDF：LibreOffice headless
+        # Sprint 70 修正：原註解誤宣稱「/usr/bin/soffice 已確認存在」，但 odoo18 container 是 minimal Ubuntu base、
+        # 無 libreoffice 套件 → subprocess.run(check=True) 會 raise FileNotFoundError 500 給 user。
+        # 加 graceful fallback（紀律 #11：production filesystem cross-check）。
+        if not shutil.which('soffice'):
+            return {
+                'success': False,
+                'error': 'PDF export 需要 LibreOffice — 當前 container 未安裝。請改用 output_format="docx"，'
+                         '或聯絡管理員加裝 libreoffice 套件。',
+                'fallback': 'docx',
+            }
+        try:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                docx_path = os.path.join(tmpdir, 'input.docx')
+                pdf_path = os.path.join(tmpdir, 'input.pdf')
+                with open(docx_path, 'wb') as f:
+                    f.write(filled_bytes)
+                subprocess.run(
+                    ['soffice', '--headless', '--convert-to', 'pdf',
+                     '--outdir', tmpdir, docx_path],
+                    check=True, timeout=60,
+                    env={**os.environ, 'HOME': tmpdir}  # 防止 soffice 鎖定 ~/.config/libreoffice
+                )
+                with open(pdf_path, 'rb') as f:
+                    pdf_bytes = f.read()
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+            return {
+                'success': False,
+                'error': f'LibreOffice PDF 轉換失敗：{type(e).__name__} — {str(e)[:200]}',
+                'fallback': 'docx',
+            }
 
         return {
             'success': True,
@@ -1040,18 +1214,148 @@ class DocEditorController(http.Controller):
 
     @http.route('/dobtor_doc/save_version', type='json', auth='user', methods=['POST'])
     def save_version(self, doc_id, label=None, **kw):
-        """儲存版本快照。"""
-        doc = request.env['doc.document'].browse(doc_id)
+        """儲存版本快照（W7-8 P1-1：回傳 version_number 與 message_id）。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
         doc.check_access_rule('write')
-        doc.action_save_version(label=label)
-        return {'success': True}
+        result = doc.action_save_version(label=label)
+        return {'success': True, **(result or {})}
+
+    # ─── 版本管理路由（W7-8 P1-1）────────────────────────────────────
+
+    @http.route('/dobtor_doc/versions/list', type='json', auth='user', methods=['POST'])
+    def versions_list(self, doc_id, **kw):
+        """列出文件所有版本快照（不含 content，輕量）。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('read')
+        return {'versions': doc.get_version_list()}
+
+    @http.route('/dobtor_doc/versions/get', type='json', auth='user', methods=['POST'])
+    def versions_get(self, doc_id, version_id=None, message_id=None, **kw):
+        """取得單一版本的完整內容（accept version_id 或 legacy message_id）。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('read')
+        vid = version_id if version_id is not None else message_id
+        content = doc.get_version_content(vid)
+        if content is None:
+            return {'error': '找不到指定的版本快照'}
+        return {'success': True, **content}
+
+    @http.route('/dobtor_doc/versions/restore', type='json', auth='user', methods=['POST'])
+    def versions_restore(self, doc_id, version_id=None, message_id=None, **kw):
+        """還原到指定版本（自動先存「還原前」快照）。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('write')
+        vid = version_id if version_id is not None else message_id
+        try:
+            result = doc.restore_version(vid)
+        except Exception as e:
+            return {'error': str(e)}
+        return {'success': True, **(result or {})}
+
+    @http.route('/dobtor_doc/versions/diff', type='json', auth='user', methods=['POST'])
+    def versions_diff(self, doc_id, version_id_a=None, version_id_b=None,
+                      message_id_a=None, message_id_b=None, **kw):
+        """段落層級 diff 兩個版本（accept version_id_* 或 legacy message_id_*）。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('read')
+        a = version_id_a if version_id_a is not None else message_id_a
+        b = version_id_b if version_id_b is not None else message_id_b
+        result = doc.diff_versions(a, b)
+        if result is None:
+            return {'error': '找不到指定的版本快照'}
+        return {'success': True, **result}
+
+    # ─── 監控與遙測（P2-4）─────────────────────────────────────────
+
+    @http.route('/dobtor_doc/telemetry/error', type='json', auth='user', methods=['POST'])
+    def telemetry_error(self, error_type='other', message='', stack_trace='',
+                        user_agent='', url='', doc_id=None, extra=None, **kw):
+        """前端錯誤上報。
+
+        受信賴的最小欄位 — 拒絕儲存超過 size 的 message / stack 以防 abuse。
+        """
+        ALLOWED_TYPES = (
+            'js_error', 'promise_rejection', 'canvas_error',
+            'save_failure', 'import_failure', 'export_failure', 'other',
+        )
+        if error_type not in ALLOWED_TYPES:
+            error_type = 'other'
+
+        # 截斷防止濫用（DB 欄位本身 size=512/256，但前端可能傳更長）
+        message = (message or '')[:500]
+        user_agent = (user_agent or '')[:250]
+        url = (url or '')[:500]
+        # stack_trace 是 Text 沒長度限制，但截到 8K 避免 DB 爆量
+        stack_trace = (stack_trace or '')[:8000]
+
+        try:
+            request.env['doc.editor.error.log'].sudo().create({
+                'doc_id': int(doc_id) if doc_id else False,
+                'user_id': request.env.user.id,
+                'company_id': request.env.company.id,
+                'error_type': error_type,
+                'message': message,
+                'stack_trace': stack_trace,
+                'user_agent': user_agent,
+                'url': url,
+                'extra': extra or {},
+            })
+            return {'success': True}
+        except Exception as e:
+            _logger.warning("Failed to log telemetry error: %s", e)
+            # 不擾斷前端，靜默吞掉（telemetry 失敗不應影響使用者）
+            return {'success': False}
+
+    @http.route('/dobtor_doc/telemetry/metric', type='json', auth='user', methods=['POST'])
+    def telemetry_metric(self, metric_type=None, value=None,
+                         doc_id=None, page_count=None, extra=None, **kw):
+        """前端效能指標上報。
+
+        每筆代表一個 metric event。前端可批次合併多個 metric type 一次發。
+        """
+        if not metric_type or value is None:
+            return {'success': False, 'error': 'metric_type + value required'}
+        # metric_type 不限白名單（彈性高），但截 size 避免 abuse
+        metric_type = str(metric_type)[:64]
+
+        try:
+            value_f = float(value)
+        except (TypeError, ValueError):
+            return {'success': False, 'error': 'value must be numeric'}
+
+        try:
+            request.env['doc.editor.perf.metric'].sudo().create({
+                'doc_id': int(doc_id) if doc_id else False,
+                'user_id': request.env.user.id,
+                'metric_type': metric_type,
+                'value': value_f,
+                'page_count': int(page_count) if page_count else 0,
+                'extra': extra or {},
+            })
+            return {'success': True}
+        except Exception as e:
+            _logger.warning("Failed to log telemetry metric: %s", e)
+            return {'success': False}
 
     @http.route('/dobtor_doc/import', type='http', auth='user', methods=['POST'], csrf=False)
     def import_document(self, **kw):
-        """匯入 DOCX / ODT 檔案，轉換為 HTML。
-        DOCX：使用 mammoth（純 Python）
-        ODT：使用 odfpy（純 Python）
-        其他格式：嘗試 LibreOffice，不可用時回傳錯誤
+        """匯入 DOCX / ODT 檔案。
+
+        Engine 並行通道（Phase E）：
+            engine=libreoffice（預設）：傳統 LibreOffice → HTML 路徑（穩定）
+            engine=ts                 ：本模組 TS OOXML Parser → IElement[] 路徑
+                                        前端可直接餵給 canvas-editor 初始化（content_json）
+            engine=both               ：兩條都跑，回傳 html + elements + 比對 log
+                                        debug 模式：可快速肉眼比對 LibreOffice 與 TS 路徑差異
+
+        前端策略（doc_editor.js）：
+            - 優先使用 elements（如有），呼叫 editor.command.executeSetValue(elements)
+            - 否則 fallback 到 html（既有路徑）
+
+        ODT / 其他格式仍只能走 LibreOffice。
+
+        Args:
+            engine: 'libreoffice' / 'ts' / 'both'（從 form 或 query string 取）
         """
         def _json_resp(data):
             return request.make_response(
@@ -1066,37 +1370,332 @@ class DocEditorController(http.Controller):
         filename = upload.filename or ''
         ext = os.path.splitext(filename)[1].lower()
 
+        # 解析 engine 參數（form > query > 預設）
+        engine = (
+            request.httprequest.form.get('engine')
+            or request.httprequest.args.get('engine')
+            or 'libreoffice'
+        ).lower()
+        if engine not in ('libreoffice', 'ts', 'both'):
+            engine = 'libreoffice'
+
+        # ODT 不支援 TS 路徑（無 ODT parser），自動降級
+        if ext == '.odt' and engine in ('ts', 'both'):
+            engine = 'libreoffice'
+
         try:
             file_bytes = upload.read()
-            page_margins = None
 
+            # ── Zip Bomb 防護（W1 P0-2）：DOCX 才檢查；ODT 也是 zip 但結構不同 ──
             if ext in ('.docx', '.odt'):
-                # ── 優先使用 LibreOffice（格式保留最完整）──
-                lo_result = _lo_convert_to_html(file_bytes, ext)
-                if lo_result is not None:
-                    body_html, page_margins = lo_result
-                elif ext == '.docx':
-                    # Fallback：zipfile + lxml（LibreOffice 未安裝時）
-                    body_html = _docx_to_html_with_format(file_bytes)
+                try:
+                    assert_input_size(file_bytes)
+                    inspect_zip_safe(file_bytes)
+                except ZipBombError as e:
+                    _logger.warning(
+                        "import_document rejected by zip_guard: %s (file=%s, uid=%s)",
+                        e, filename, request.env.user.id,
+                    )
+                    return _json_resp({'error': str(e)})
+
+            page_margins = None
+            body_html = None
+            elements = None
+            audit = {}  # debug 比對資訊
+
+            # ── TS 路徑（engine=ts 或 both）──
+            if engine in ('ts', 'both') and ext == '.docx':
+                ts_elements = _ts_parse_docx_to_elements(file_bytes)
+                if ts_elements is not None:
+                    elements = ts_elements
+                    audit['ts_element_count'] = len(ts_elements)
                 else:
-                    # Fallback：odfpy（LibreOffice 未安裝時）
-                    body_html = _odt_to_html(file_bytes)
+                    audit['ts_failed'] = True
+                    if engine == 'ts':
+                        # 純 ts 模式失敗時自動 fallback libreoffice（避免使用者卡住）
+                        engine = 'libreoffice'
 
-            else:
-                # ── 其他格式：LibreOffice（僅支援已安裝時）──
-                if not shutil.which('soffice'):
-                    return _json_resp({
-                        'error': f'不支援的格式（{ext}）。支援格式：.docx、.odt'
-                    })
-                lo_result = _lo_convert_to_html(file_bytes, ext)
-                if lo_result is None:
-                    return _json_resp({'error': f'LibreOffice 無法轉換格式：{ext}'})
-                body_html, page_margins = lo_result
+            # ── LibreOffice 路徑（engine=libreoffice 或 both）──
+            if engine in ('libreoffice', 'both'):
+                if ext in ('.docx', '.odt'):
+                    lo_result = _lo_convert_to_html(file_bytes, ext)
+                    if lo_result is not None:
+                        body_html, page_margins = lo_result
+                        audit['lo_html_len'] = len(body_html)
+                    elif ext == '.docx':
+                        body_html = _docx_to_html_with_format(file_bytes)
+                        audit['lo_fallback'] = 'docx_python'
+                    else:
+                        body_html = _odt_to_html(file_bytes)
+                        audit['lo_fallback'] = 'odt_python'
+                else:
+                    if not shutil.which('soffice'):
+                        return _json_resp({
+                            'error': f'不支援的格式（{ext}）。支援格式：.docx、.odt'
+                        })
+                    lo_result = _lo_convert_to_html(file_bytes, ext)
+                    if lo_result is None:
+                        return _json_resp({'error': f'LibreOffice 無法轉換格式：{ext}'})
+                    body_html, page_margins = lo_result
 
-            resp = {'html': body_html}
+            resp = {'engine': engine}
+            if body_html is not None:
+                resp['html'] = body_html
+            if elements is not None:
+                resp['elements'] = elements
             if page_margins:
                 resp['margins'] = page_margins
+            if engine == 'both':
+                resp['audit'] = audit
+
+            # 至少要有一條路徑成功
+            if body_html is None and elements is None:
+                return _json_resp({
+                    'error': 'TS 與 LibreOffice 皆無法轉換此檔案',
+                    'audit': audit,
+                })
+
             return _json_resp(resp)
 
         except Exception as e:
             return _json_resp({'error': str(e)})
+
+    # ─── Phase F：視覺回歸測試路由 ─────────────────────────────────────────
+    #
+    # 用途：給 puppeteer + pixelmatch 截圖比對 LibreOffice golden PNG 用。
+    # 設計：
+    #   GET  /dobtor_doc_editor/test?fixture=<rel_path>  → 回傳 clean HTML 頁面
+    #   POST /dobtor_doc_editor/test_data {fixture}       → 回傳 IElement[]
+    #   test_harness.js 在 clean 頁面 fetch test_data → 餵 canvas-editor → 設 ready flag
+
+    @http.route('/dobtor_doc_editor/test', type='http', auth='user', methods=['GET'])
+    def test_render(self, fixture=None, **kw):
+        """渲染 fixture .docx 為 clean canvas-editor 頁面（無 Odoo header/sidebar）。
+
+        Phase F 視覺回歸 pipeline 入口。puppeteer 對此 URL 截圖，
+        對比 tests/fixtures/<category>/golden/<fixture>-<page>.png。
+        """
+        if not fixture:
+            return request.make_response('missing ?fixture=<rel_path>', status=400)
+
+        # 安全：fixture 必須是 tests/fixtures/ 下的相對路徑、無 .. traversal
+        module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        fixtures_root = os.path.join(module_dir, 'tests', 'fixtures')
+        abs_path = os.path.normpath(os.path.join(fixtures_root, fixture))
+        if not abs_path.startswith(fixtures_root + os.sep):
+            return request.make_response('invalid fixture path', status=400)
+        if not abs_path.lower().endswith('.docx'):
+            return request.make_response('only .docx supported', status=400)
+        if not os.path.isfile(abs_path):
+            return request.make_response(f'fixture not found: {fixture}', status=404)
+
+        return request.render('dobtor_doc_editor.test_layout', {
+            'fixture_name': fixture,
+        })
+
+    @http.route('/dobtor_doc_editor/test_data', type='json', auth='user', methods=['POST'])
+    def test_data(self, fixture=None, **kw):
+        """回傳指定 fixture 的 IElement[]（Phase F test_harness.js 用）。
+
+        參數：
+            fixture: tests/fixtures/ 下的相對路徑（如 '01_simple/xxx.docx'）
+
+        回傳：{'elements': [...IElement...]} 或 {'error': str}
+        """
+        if not fixture:
+            return {'error': 'missing fixture parameter'}
+
+        module_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        fixtures_root = os.path.join(module_dir, 'tests', 'fixtures')
+        abs_path = os.path.normpath(os.path.join(fixtures_root, fixture))
+        if not abs_path.startswith(fixtures_root + os.sep):
+            return {'error': 'invalid fixture path'}
+        if not abs_path.lower().endswith('.docx') or not os.path.isfile(abs_path):
+            return {'error': f'fixture not found: {fixture}'}
+
+        with open(abs_path, 'rb') as fp:
+            file_bytes = fp.read()
+
+        elements = _ts_parse_docx_to_elements(file_bytes)
+        if elements is None:
+            return {'error': 'TS parser failed (CLI not built or runtime error)'}
+
+        return {'elements': elements, 'fixture': fixture}
+
+    # ════════════════════════════════════════════════════════════════
+    # Phase 8 Template UI Builder（ADR-022）— Phase 2.1 inline control
+    # ════════════════════════════════════════════════════════════════
+    #
+    # 設計：doc-centric endpoint。前端傳 doc_id、後端反查 doc.template_id 操作。
+    # 為什麼：1) 跟既有 /dobtor_doc/* 端點命名一致；2) 用 doc 的 access rule
+    #         自然繼承（user 對 doc 有 write 才能改範本欄位）；3) 不需要前端管 template_id。
+    #
+    # 權限：load read-only / save/delete 需要 doc.write（manager group 才能寫 doc.template.field）。
+    # 不 sudo() — 範本欄位修改 = 範本設計變更，依 ACL 限定 manager 是有意為之。
+
+    @http.route('/dobtor_doc/template_fields/load', type='json', auth='user', methods=['POST'])
+    def template_fields_load(self, doc_id, **kw):
+        """載入當前 doc 對應 template 的所有 signers + fields。
+
+        回傳：
+            {
+                'has_template': bool,
+                'template_id': int | None,
+                'signers': [{id, name, color, sequence, field_count}, ...],
+                'fields':  [{id, signer_id, field_type, page_no, required,
+                             placeholder_text, font_size, odoo_field_name,
+                             width, height, pos_x, pos_y}, ...]
+            }
+        """
+        doc = request.env['doc.document'].browse(doc_id)
+        doc.check_access_rule('read')
+        if not doc.template_id:
+            return {'has_template': False, 'template_id': None, 'signers': [], 'fields': []}
+        template = doc.template_id
+        template.check_access_rule('read')
+        signers = template.signer_ids.read([
+            'id', 'name', 'color', 'sequence', 'field_count',
+        ])
+        fields_list = template.field_ids.read([
+            'id', 'signer_id', 'field_type', 'page_no', 'required',
+            'placeholder_text', 'font_size', 'odoo_field_name',
+            'width', 'height', 'pos_x', 'pos_y',
+        ])
+        # signer_id 從 Odoo Many2one [id, display_name] tuple 簡化為純 id
+        for f in fields_list:
+            if f.get('signer_id'):
+                f['signer_id'] = f['signer_id'][0]
+        return {
+            'has_template': True,
+            'template_id': template.id,
+            'signers': signers,
+            'fields': fields_list,
+        }
+
+    @http.route('/dobtor_doc/template_fields/save_field', type='json', auth='user', methods=['POST'])
+    def template_fields_save_field(self, doc_id, field=None, **kw):
+        """新建或更新單個範本欄位。
+
+        field 參數：
+            {
+                'id':            int | None  # None = create
+                'signer_id':     int (required)
+                'field_type':    str
+                'page_no':       int
+                'required':      bool
+                'placeholder_text': str
+                'font_size':     int
+                'odoo_field_name': str
+                'width', 'height', 'pos_x', 'pos_y': float
+            }
+
+        回傳：{'success': True, 'id': field_id, 'signer_field_counts': {signer_id: count}}
+            或 {'success': False, 'error': str}
+        """
+        if not field:
+            return {'success': False, 'error': 'missing field parameter'}
+        doc = request.env['doc.document'].browse(doc_id)
+        doc.check_access_rule('write')
+        if not doc.template_id:
+            return {'success': False, 'error': '此文件未關聯範本，無法新增欄位'}
+        template = doc.template_id
+        # 允許的欄位白名單（防止前端塞奇怪 key 進來）
+        ALLOWED = {
+            'signer_id', 'field_type', 'page_no', 'required',
+            'placeholder_text', 'font_size', 'odoo_field_name',
+            'width', 'height', 'pos_x', 'pos_y',
+        }
+        vals = {k: v for k, v in field.items() if k in ALLOWED}
+        FieldModel = request.env['doc.template.field']
+        field_id = field.get('id')
+        try:
+            if field_id:
+                rec = FieldModel.browse(int(field_id))
+                rec.check_access_rule('write')
+                # 確保不能透過 update 把欄位搬到其他範本
+                if rec.template_id != template:
+                    return {'success': False, 'error': '欄位不屬於此範本'}
+                rec.write(vals)
+            else:
+                vals['template_id'] = template.id
+                rec = FieldModel.create(vals)
+                field_id = rec.id
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+        # 回傳每位簽約人最新的欄位計數（前端 chip 計數即時更新）
+        signer_counts = {}
+        for signer in template.signer_ids:
+            signer_counts[signer.id] = len(signer.field_ids)
+
+        return {
+            'success': True,
+            'id': field_id,
+            'signer_field_counts': signer_counts,
+            'field_count': len(template.field_ids),
+        }
+
+    @http.route('/dobtor_doc/template_fields/delete_field', type='json', auth='user', methods=['POST'])
+    def template_fields_delete_field(self, doc_id, field_id, **kw):
+        """刪除單個範本欄位。
+
+        回傳：{'success': True, 'signer_field_counts': {...}, 'field_count': int}
+            或 {'success': False, 'error': str}
+        """
+        doc = request.env['doc.document'].browse(doc_id)
+        doc.check_access_rule('write')
+        if not doc.template_id:
+            return {'success': False, 'error': '此文件未關聯範本'}
+        template = doc.template_id
+        field = request.env['doc.template.field'].browse(int(field_id))
+        if not field.exists():
+            return {'success': False, 'error': 'field not found'}
+        if field.template_id != template:
+            return {'success': False, 'error': '欄位不屬於此範本'}
+        try:
+            field.check_access_rule('unlink')
+            field.unlink()
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+
+        signer_counts = {}
+        for signer in template.signer_ids:
+            signer_counts[signer.id] = len(signer.field_ids)
+        return {
+            'success': True,
+            'signer_field_counts': signer_counts,
+            'field_count': len(template.field_ids),
+        }
+
+    @http.route('/dobtor_doc/template_fields/save_signer', type='json', auth='user', methods=['POST'])
+    def template_fields_save_signer(self, doc_id, signer=None, **kw):
+        """新建或更新範本簽約人（讓 Phase 2.1 UI 也能在文件編輯器加 signer）。
+
+        signer 參數：
+            {'id': int | None, 'name': str, 'color': int, 'sequence': int}
+        """
+        if not signer:
+            return {'success': False, 'error': 'missing signer parameter'}
+        doc = request.env['doc.document'].browse(doc_id)
+        doc.check_access_rule('write')
+        if not doc.template_id:
+            return {'success': False, 'error': '此文件未關聯範本'}
+        template = doc.template_id
+        ALLOWED = {'name', 'color', 'sequence'}
+        vals = {k: v for k, v in signer.items() if k in ALLOWED}
+        SignerModel = request.env['doc.template.signer']
+        signer_id = signer.get('id')
+        try:
+            if signer_id:
+                rec = SignerModel.browse(int(signer_id))
+                rec.check_access_rule('write')
+                if rec.template_id != template:
+                    return {'success': False, 'error': '簽約人不屬於此範本'}
+                rec.write(vals)
+            else:
+                vals['template_id'] = template.id
+                rec = SignerModel.create(vals)
+                signer_id = rec.id
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+        return {'success': True, 'id': signer_id}

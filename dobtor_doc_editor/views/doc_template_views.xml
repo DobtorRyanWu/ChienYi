@@ -22,6 +22,8 @@
                 <field name="category"/>
                 <field name="model_id" optional="show"/>
                 <field name="page_format" optional="show"/>
+                <field name="signer_count" optional="show"/>
+                <field name="field_count" optional="show"/>
                 <field name="active" optional="show"/>
             </list>
         </field>
@@ -66,6 +68,37 @@
                                    widget="html"
                                    options="{'resizable': true}"
                                    style="min-height: 400px;"/>
+                        </page>
+                        <page string="簽約人角色 (Phase 8)">
+                            <div class="alert alert-light mb-2" role="alert">
+                                <i class="fa fa-info-circle me-1"/>
+                                簽約人是「範本欄位」的填寫對象。在文件編輯器拖入欄位前，請先在此定義角色（例：房東 / 業務 / 見證人）。
+                            </div>
+                            <field name="signer_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="color" widget="color_picker"/>
+                                    <field name="field_count" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="範本欄位 (Phase 8)">
+                            <div class="alert alert-light mb-2" role="alert">
+                                <i class="fa fa-info-circle me-1"/>
+                                範本欄位通常在文件編輯器（後台 client action）以拖曳方式新增；此處列出僅供檢視 / 微調。
+                            </div>
+                            <field name="field_ids">
+                                <list>
+                                    <field name="signer_id"/>
+                                    <field name="field_type"/>
+                                    <field name="placeholder_text" optional="show"/>
+                                    <field name="required"/>
+                                    <field name="page_no"/>
+                                    <field name="font_size" optional="hide"/>
+                                    <field name="odoo_field_name" optional="hide"/>
+                                </list>
+                            </field>
                         </page>
                     </notebook>
                 </sheet>

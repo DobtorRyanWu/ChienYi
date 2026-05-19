@@ -21,4 +21,7 @@ export { NumberingResolver } from './numbering';
 export { SectionParser } from './section';
 export { HeaderFooterParser } from './header-footer';
 export { DrawingParser } from './drawing';
+export { ToCanvasEditor } from './mapper';
+export type { CEElement } from './mapper';
 export * as Units from './units';
+export { parseDocProps, parseDocPropsXml } from './DocPropsParser';

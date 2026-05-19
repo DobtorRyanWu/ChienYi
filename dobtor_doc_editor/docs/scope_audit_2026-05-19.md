@@ -12,7 +12,7 @@
 |---|---|---|
 | **已認證偏離（不再處理）** | 1 (G3) | Sprint 90-109、已 byte-identical revert |
 | **實質偏離（影響 production code）** | 3 (G2 / G8 / G10) | production code 已寫但不接通整體 pipeline、Phase 1 / Phase 4 % 數字虛胖 |
-| **治理偏離（docs / process 過度）** | 4 (G4 / G7 / G9 / G11) | autonomous mode 自宣告、probe-only inflation、retro inflation、紀律 22 條過度治理 |
+| **治理偏離（docs / process 過度 + working tree drift）** | 5 (G4 / G7 / G9 / G11 / G12) | autonomous mode 自宣告、probe-only inflation、retro inflation、紀律 22 條過度治理、Sprint 0-157 working tree commit 紀律 drift(G12、Sprint 158 已 backfill) |
 | **半偏離（看狀況）** | 3 (G2 / G5 / G8 部分) | 有正當部分但有疑慮、user 判斷 |
 | **白名單（正當 sprint）** | 4 (G1 / G5 / G6 / G8 部分) | 確認在規畫書 scope 內、不該被誤判 |
 
@@ -215,6 +215,30 @@
 
 **priority**: P1（不影響 production、影響 process 健康度）
 
+### G12 — 治理偏離(Sprint 158 揭發) — Sprint 0-157 working tree commit 紀律 drift
+
+**範圍**: Sprint 0 → Sprint 157 期間累積 working tree drift
+
+**情境**: Sprint 157 commit message 揭「Sprint 64b font_loader.ts 從未進 git、漂在 working tree」、Sprint 158 P0 prep `git status -s .` 揭出整片冰山:**29 modified + 324 untracked = 353 件 file 沒進 git**。
+
+**範圍細分**:
+- Production code: ~70 個 file(controllers / models / wizards / static/src / views / data / i18n / scripts / tools / LICENSES / NOTICE.md / rollup / tsconfig variants)
+- Tests: ~50 個 file(vitest unit/integration + Odoo test_*.py + scripts + fixture .json)
+- Docs: 107 個(94 sprint*.md + 13 design docs)
+- Modified tracked: 27 個(累積 5903 insertions / 630 deletions、含 doc_controller.py / doc_editor.js / NumberingResolver.ts 等核心)
+- Ignored: 128 個(126 _diff.png + .visual_regression_tmp/ + .antigravity/)
+
+**為什麼是治理偏離不是實質**: 已落地 production code 都在 working tree、vitest 1340 + 1 skipped / VR mean 0.073191 / Odoo backend 31 都 GREEN。**沒有 production 行為差異**、只是 git history 視角缺。但這構成「Sprint 159+ 任何人 `git clone` 後拿到的 code != 開發者 working tree」、為治理偏離。
+
+**Mitigation**: Sprint 158 P0 prep 已 5 個 batch commit 全部 backfill 進 git、working tree drift 清零。詳見 [sprint158_working_tree_backfill_audit.md](sprint158_working_tree_backfill_audit.md)。
+
+**Lesson**:
+- 紀律 #14.b(commit 即 publish)需 retroactive 全 enforce、不能只「之後新 sprint 遵守」
+- Sprint 159+ 每 sprint commit 前先 `git status -s addons/dobtor_doc_editor/` 確認 0 modified 0 untracked
+- 不允許「commit 部分、其他放著之後再說」(本 sprint 的反例就是長達 100+ sprint 累積)
+
+**priority**: P0（已執行、本 audit 已升級補救紀律應用)
+
 ---
 
 ## §5 半偏離（看狀況、user 決策）
@@ -271,6 +295,7 @@ Sprint 130-131 + 137-139 是正當 wire-up（HSL / tblStylePr / numbering counte
 | CONTRIBUTING §5 加 Scope 紀律總結 + #21.a 候選 | 紀律 #18 教訓重申 | ✅ Sprint 155 已加 |
 | retro 節律規範（cluster ≥ 20 sprint） | G11 | ✅ 本檔 §4.3 + [progress_snapshot.md §5](progress_snapshot.md) 已落地 |
 | probe-only sprint inflation 內化教訓 | G7 / G9 | ✅ 本檔 §4.2 已 explicit |
+| **Working tree backfill audit**(G12) | G12 / [sprint158_working_tree_backfill_audit.md](sprint158_working_tree_backfill_audit.md) | ✅ Sprint 158 已執行(5 batch commit、353 件進 git、紀律 #14.b retroactive enforce) |
 
 ### P1（應做、user 後續決策）
 

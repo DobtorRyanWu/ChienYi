@@ -1232,3 +1232,45 @@ Sprint 78 audit 評為 medium、需 user 確認業務流程。Sprint 117 autonom
 
 - 完整 rationale：[docs/sprint117_portal_company_rule_closure.md](sprint117_portal_company_rule_closure.md)
 - Sprint 78 原始 audit：[docs/sprint78_acl_record_rules_audit.md](sprint78_acl_record_rules_audit.md) §2.3
+
+---
+
+## ADR-022：DocEditor 後台 UI 擴充為範本欄位拖曳建構器（Phase 8 Template UI Builder）
+
+**日期**：2026-05-19
+
+### 背景
+
+User 提供 `test-risen.dobtor.com/.../esign_configure` 介面截圖，要求 `dobtor_doc_editor` 後台 `ir.actions.client` 全螢幕編輯器的視覺靠攏該圖（三欄式 + 欄位工具列 + 簽約人 chip + 右側 inspector），並新增「可拖曳欄位放到文件上做範本」功能。
+
+此方向與規劃書原 scope（docx 1:1 高保真匯入、Phase 0-7 全部 docx 匯入相關，無電子簽章 phase）明確衝突，且與 Sprint 90-109 revert 教訓表面相似（同一張參考圖、相同方向）。
+
+差異點：Sprint 90-109 是 **Claude 誤判**使用者意圖、未確認 scope 即批次執行 20 sprint。本次 user 明確認知衝突、明確認知 revert 教訓後仍決定推進——屬紀律 #18 的「user 認可或修改規畫書」合法路徑。
+
+### 決策：正式擴張規劃書 scope，加入 Phase 8 Template UI Builder
+
+| 選項 | 評估 |
+|---|---|
+| 拒絕、維持 scope（user 須另開模組） | user 已明確選擇改造既有 `ir.actions.client`、否決另開模組 |
+| Strategy A：新建 doc_sign_builder 並存舊 DocEditor | Sprint 90-109 已試、被認定「助長順便做」、20 sprint 浪費可 revert 但仍是浪費 |
+| **Strategy B：直接改 DocEditor**（本次選擇） | 失敗成本可見、會更謹慎；滿足 user「改造後台 ir.actions.client」明確要求 |
+
+選 Strategy B，並用 **增量交付 + 條件啟動** 控制風險：
+- Phase 1（視覺風格靠攏）：~1 週、無新 model，4 個檔案改動。
+- Phase 2.1（inline control 拖曳）：~1 週、新增 `doc.template.signer` + `doc.template.field` model，用 canvas-editor 原生 control API；control 會被序列化回 docx，與原規劃書 docx 匯入體系一致。
+- Phase 2.2（overlay 絕對定位）：~3-4 週、**僅當 Phase 2.1 實測明確不滿意才啟動**，不預設動工。
+
+### 後果
+
+- 規劃書 `dobtor_doc_editor_高保真匯入開發規劃.md` 第 0.2 節 Phase 完成度表追加「Phase 8 Template UI Builder | 0%」。
+- `docs/sprint90_to_109_revert.md` 結尾追加「2026-05-19 後續」段，紀錄本次重啟與上次的差別。
+- 紀律 #18 補充案例：紀律 #18 不是「禁止 scope 擴張」，而是「scope 擴張須走 user 認可或修改規畫書流程」；本 ADR 是流程合規範例。
+- VR mean target、Phase 進度條須重新校準（Phase 8 工時不計入 docx 匯入 phase）。
+- 可逆性：若 Phase 8 後續再被推翻，因走 Strategy B（直接改 DocEditor）、回滾需手動 diff 還原；不像 Sprint 90-109 可 byte-identical revert。這是 Strategy B 明知接受的代價。
+
+### 參考
+
+- 計畫檔：[/home/chichi/.claude/plans/mnt-d-work-odoo18-docker-addons-dobtor-sharded-sedgewick.md](/home/chichi/.claude/plans/mnt-d-work-odoo18-docker-addons-dobtor-sharded-sedgewick.md)
+- Sprint 90-109 revert：[docs/sprint90_to_109_revert.md](sprint90_to_109_revert.md)
+- 紀律 #18 出處：規劃書 [§6.5 18 條開發紀律](../dobtor_doc_editor_高保真匯入開發規劃.md#65-18-條開發紀律)
+

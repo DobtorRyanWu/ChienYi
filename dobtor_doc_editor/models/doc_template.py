@@ -35,3 +35,22 @@ class DocTemplate(models.Model):
         ('letter', 'Letter'),
         ('legal', 'Legal'),
     ], string='預設頁面格式', default='A4')
+
+    # Phase 8 Template UI Builder（ADR-022）
+    signer_ids = fields.One2many(
+        'doc.template.signer',
+        'template_id',
+        string='簽約人角色',
+    )
+    field_ids = fields.One2many(
+        'doc.template.field',
+        'template_id',
+        string='範本欄位',
+    )
+    signer_count = fields.Integer(string='簽約人數', compute='_compute_phase8_counts')
+    field_count = fields.Integer(string='欄位數', compute='_compute_phase8_counts')
+
+    def _compute_phase8_counts(self):
+        for rec in self:
+            rec.signer_count = len(rec.signer_ids)
+            rec.field_count = len(rec.field_ids)

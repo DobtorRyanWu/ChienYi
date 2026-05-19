@@ -8,17 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 155 結尾）
+## 1. 當前指標一覽（Sprint 158 結尾）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1331 passed + 1 skipped** |
-| VR mean | **0.073191**（Sprint 65 promote、Sprint 145-153 第 23 次連續 byte-identical 維持） |
+| vitest | **1340 passed + 1 skipped**（Sprint 157 +9 fontTable.altName tests） |
+| VR mean | **0.073191**（Sprint 65 promote、Sprint 145-153 + Sprint 158 第 24 次連續 byte-identical 維持） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 155 |
+| Sprint audit doc | 158 |
+| Working tree drift | **0**（Sprint 158 P0 prep 清零、325 件 backfill 進 git、紀律 #14.b retroactive enforce） |
 
 ---
 
@@ -75,6 +76,8 @@
 5. **CI gate v1 workflow_dispatch**（security test 進 gate、紀律 #15.a）
 
 每個 sprint 的 audit doc（[INDEX.md](INDEX.md)）含三層 SOP 的具體數據。完整紀律集合見 [../CONTRIBUTING.md §5 + §6](../CONTRIBUTING.md)。
+
+**自 Sprint 159 起紀律 #14.b 嚴格 enforce**:每個 sprint commit 前 `git status -s addons/dobtor_doc_editor/` 必須 0 modified 0 untracked、否則先補 commit 殘留(避免 working tree drift 累積、Sprint 158 P0 prep 揭發 Sprint 0-157 期間 353 件 backfill 是反例)。
 
 ---
 

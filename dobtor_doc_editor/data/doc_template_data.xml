@@ -9,5 +9,159 @@
             <field name="description">空白 A4 文件範本</field>
             <field name="content_html"><![CDATA[<p><br></p>]]></field>
         </record>
+
+        <!--
+            ChienYi 整合範本（W5-6 P1-2）
+            ============================================
+            為 doc.linked.mixin 整合提供典型台灣監造文件骨架。
+            填充欄位以 Jinja {{ var }} 語法，搭配 model 的 _doc_render_context() 帶入。
+        -->
+
+        <!-- 範本 1：監造會議記錄 -->
+        <record id="template_meeting_record" model="doc.template">
+            <field name="name">監造會議記錄樣板</field>
+            <field name="category">report</field>
+            <field name="page_format">A4</field>
+            <field name="description">用於監造會議記錄的文件範本，含會議資訊、出席者、議題、結論等段落。可由 construction.meeting.record 透過 doc.linked.mixin 自動建立並填充。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">監造會議記錄</h1>
+<table style="width:100%;border-collapse:collapse">
+  <tr><td style="border:1px solid #000;padding:6px;width:25%"><b>會議名稱</b></td><td style="border:1px solid #000;padding:6px">{{ subject }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>會議日期</b></td><td style="border:1px solid #000;padding:6px">{{ meeting_date }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>會議地點</b></td><td style="border:1px solid #000;padding:6px">{{ location }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>主席</b></td><td style="border:1px solid #000;padding:6px">{{ chairperson }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>記錄人</b></td><td style="border:1px solid #000;padding:6px">{{ recorder }}</td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>出席人員</b></td><td style="border:1px solid #000;padding:6px">{{ attendees|join(', ') if attendees else '' }}</td></tr>
+</table>
+<h2>一、會議議題</h2><p><br></p>
+<h2>二、討論內容</h2><p><br></p>
+<h2>三、決議事項</h2><p><br></p>
+<h2>四、追蹤事項</h2><p><br></p>
+<p style="text-align:right;margin-top:32px">主席簽名：________________</p>
+            ]]></field>
+        </record>
+
+        <!-- 範本 2：自主檢查表 -->
+        <record id="template_self_inspection" model="doc.template">
+            <field name="name">自主檢查表樣板</field>
+            <field name="category">report</field>
+            <field name="page_format">A4</field>
+            <field name="description">承包商自主檢查表，可由 general.self.inspection 或 reservation.self.inspection 透過 doc.linked.mixin 整合。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">自主檢查表</h1>
+<table style="width:100%;border-collapse:collapse">
+  <tr>
+    <td style="border:1px solid #000;padding:6px;width:20%"><b>工程名稱</b></td><td style="border:1px solid #000;padding:6px;width:30%">{{ project_name }}</td>
+    <td style="border:1px solid #000;padding:6px;width:20%"><b>檢查日期</b></td><td style="border:1px solid #000;padding:6px;width:30%">{{ inspection_date }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>檢查項目</b></td><td style="border:1px solid #000;padding:6px">{{ inspection_type }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>檢查時機</b></td><td style="border:1px solid #000;padding:6px">{{ timing }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>檢查人員</b></td><td style="border:1px solid #000;padding:6px">{{ inspector }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>承包商</b></td><td style="border:1px solid #000;padding:6px">{{ contractor }}</td>
+  </tr>
+</table>
+<h3>檢查項目清單</h3>
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f0f0f0">
+      <th style="border:1px solid #000;padding:6px;width:8%">編號</th>
+      <th style="border:1px solid #000;padding:6px">檢查項目</th>
+      <th style="border:1px solid #000;padding:6px;width:15%">合格/不合格</th>
+      <th style="border:1px solid #000;padding:6px">備註</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="border:1px solid #000;padding:6px">1</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">□合格 □不合格</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px">2</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">□合格 □不合格</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px">3</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">□合格 □不合格</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+  </tbody>
+</table>
+<h3>整體結果</h3>
+<p>□合格　□條件式合格　□不合格</p>
+<p>說明：</p><p><br></p>
+<table style="width:100%;margin-top:32px">
+  <tr><td style="text-align:left">檢查人員：________________</td><td style="text-align:right">日期：____ 年 ____ 月 ____ 日</td></tr>
+</table>
+            ]]></field>
+        </record>
+
+        <!-- 範本 3：缺失改善通知 -->
+        <record id="template_defect_improvement" model="doc.template">
+            <field name="name">缺失改善通知樣板</field>
+            <field name="category">letter</field>
+            <field name="page_format">A4</field>
+            <field name="description">缺失改善通知書，可由 supervision.defect 或 reservation.defect.improvement 透過 doc.linked.mixin 整合。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">缺失改善通知書</h1>
+<p style="text-align:right">通知編號：{{ notice_no }}</p>
+<table style="width:100%;border-collapse:collapse">
+  <tr><td style="border:1px solid #000;padding:6px;width:25%"><b>工程名稱</b></td><td style="border:1px solid #000;padding:6px" colspan="3">{{ project_name }}</td></tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>發現日期</b></td><td style="border:1px solid #000;padding:6px;width:25%">{{ found_date }}</td>
+    <td style="border:1px solid #000;padding:6px;width:25%"><b>嚴重度</b></td><td style="border:1px solid #000;padding:6px;width:25%">{{ severity }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>負責廠商</b></td><td style="border:1px solid #000;padding:6px">{{ responsible_company }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>改善期限</b></td><td style="border:1px solid #000;padding:6px">{{ deadline }}</td>
+  </tr>
+</table>
+<h3>缺失說明</h3>
+<p>{{ description }}</p>
+<h3>改善要求</h3>
+<p>　　請於上述「改善期限」前完成改善作業並回報，逾期未改善者依契約規定處理。</p>
+<h3>回覆欄</h3>
+<table style="width:100%;border-collapse:collapse">
+  <tr><td style="border:1px solid #000;padding:6px;width:20%"><b>改善日期</b></td><td style="border:1px solid #000;padding:6px"></td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>改善內容</b></td><td style="border:1px solid #000;padding:6px;height:60px"></td></tr>
+  <tr><td style="border:1px solid #000;padding:6px"><b>承辦人</b></td><td style="border:1px solid #000;padding:6px"></td></tr>
+</table>
+<p style="margin-top:32px;text-align:right">監造單位：________________　承包商：________________</p>
+            ]]></field>
+        </record>
+
+        <!-- 範本 4：估驗計價單 -->
+        <record id="template_payment_estimate" model="doc.template">
+            <field name="name">估驗計價單樣板</field>
+            <field name="category">contract</field>
+            <field name="page_format">A4</field>
+            <field name="description">估驗計價單線上協作版本（補充既有 QWeb 報表，供協商階段使用）；可由 payment.estimate 透過 doc.linked.mixin 整合。</field>
+            <field name="content_html"><![CDATA[
+<h1 style="text-align:center">估驗計價單</h1>
+<p style="text-align:right">估驗期：第 {{ estimate_no }} 期</p>
+<table style="width:100%;border-collapse:collapse">
+  <tr><td style="border:1px solid #000;padding:6px;width:25%"><b>工程名稱</b></td><td style="border:1px solid #000;padding:6px" colspan="3">{{ project_name }}</td></tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>承包商</b></td><td style="border:1px solid #000;padding:6px;width:25%">{{ contractor }}</td>
+    <td style="border:1px solid #000;padding:6px;width:25%"><b>估驗日期</b></td><td style="border:1px solid #000;padding:6px;width:25%">{{ estimate_date }}</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>本期估驗金額</b></td><td style="border:1px solid #000;padding:6px">{{ current_amount }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>累計金額</b></td><td style="border:1px solid #000;padding:6px">{{ cumulative_amount }}</td>
+  </tr>
+</table>
+<h3>本期完成工項</h3>
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f0f0f0">
+      <th style="border:1px solid #000;padding:6px;width:6%">項次</th>
+      <th style="border:1px solid #000;padding:6px">工項名稱</th>
+      <th style="border:1px solid #000;padding:6px;width:10%">單位</th>
+      <th style="border:1px solid #000;padding:6px;width:14%">本期數量</th>
+      <th style="border:1px solid #000;padding:6px;width:14%">單價</th>
+      <th style="border:1px solid #000;padding:6px;width:14%">小計</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+  </tbody>
+</table>
+<h3>備註</h3>
+<p><br></p>
+<p style="margin-top:32px;text-align:right">承包商簽核：________________　監造單位簽核：________________　業主簽核：________________</p>
+            ]]></field>
+        </record>
     </data>
 </odoo>

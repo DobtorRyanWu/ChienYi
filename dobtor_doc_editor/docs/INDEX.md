@@ -2,7 +2,7 @@
 
 **抽出自** [規畫書 §12](../dobtor_doc_editor_高保真匯入開發規劃.md) **+ [autonomous_roadmap.md](autonomous_roadmap.md) 進度表（已 archive）/ Sprint 155 catch-up（2026-05-19）**
 
-132 個 sprint audit doc 完整索引。每個 sprint 的 root cause / 修法 / 三層 SOP / 設計取捨完整記錄在各自獨立 audit doc。
+158 個 sprint audit doc 完整索引(Sprint 1-158)。每個 sprint 的 root cause / 修法 / 三層 SOP / 設計取捨完整記錄在各自獨立 audit doc。
 
 ---
 
@@ -47,6 +47,10 @@ Sprint 64b portal font infra、Sprint 66 font endpoint tests、Sprint 67 CONTRIB
 ### Sprint 155（glossary catch-up、本 INDEX 抽出 sprint）
 
 [sprint155_glossary_catchup_to_sprint154](sprint155_glossary_catchup_to_sprint154.md)
+
+### Sprint 156-158（snappy-nova plan 啟動 + 第一個 wire-up + working tree 大 backfill）
+
+[sprint156_phase1_checkbox_audit](sprint156_phase1_checkbox_audit.md)（Phase 1 §5 內 52 [x] / 17 [ ] checkbox audit、docs-only、揭發真實 wire-up 75%）、[sprint157_fonttable_altname_wireup](sprint157_fonttable_altname_wireup.md)（Phase 2 §2.2 第 1 個 `[x]`、FontLoader altName fallback、+ Sprint 64b backfill 1 file）、[sprint158_working_tree_backfill_audit](sprint158_working_tree_backfill_audit.md)（**Sprint 0-157 整片 working tree drift 揭發 + 5 batch backfill commit、353 件進 git、紀律 #14.b retroactive enforce**）
 
 ---
 
