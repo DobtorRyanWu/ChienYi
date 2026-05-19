@@ -2971,7 +2971,7 @@
          * @throws Error 若 XML 無法解析或缺 <w:body>
          */
         parse(documentXml) {
-            const doc = parseXml$8(documentXml);
+            const doc = parseXml$9(documentXml);
             const root = doc.documentElement;
             if (!root) {
                 throw new Error('DocumentParser: empty document');
@@ -3021,6 +3021,7 @@
                 appProps: {},
                 customProps: new Map(),
                 contentTypes: { defaults: new Map(), overrides: new Map() },
+                latentStyles: {},
             };
         }
         /**
@@ -3049,7 +3050,7 @@
          * @deprecated 改用 walkBodyAsSections 取得多節切分
          */
         walkBody(documentXml) {
-            const doc = parseXml$8(documentXml);
+            const doc = parseXml$9(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3088,7 +3089,7 @@
          * @internal 給 OoxmlParser orchestrator 用，搭配 SectionParser 產生 SectionNode[]
          */
         walkBodyAsSections(documentXml) {
-            const doc = parseXml$8(documentXml);
+            const doc = parseXml$9(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3135,7 +3136,7 @@
          * @internal
          */
         findAllSectPrs(documentXml) {
-            const doc = parseXml$8(documentXml);
+            const doc = parseXml$9(documentXml);
             const root = doc.documentElement;
             if (!root)
                 return [];
@@ -3209,7 +3210,7 @@
         }
         return undefined;
     }
-    function parseXml$8(xml) {
+    function parseXml$9(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DocumentParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3260,7 +3261,7 @@
                 return out;
             let doc;
             try {
-                doc = parseXml$7(xml);
+                doc = parseXml$8(xml);
             }
             catch {
                 return out;
@@ -3385,7 +3386,7 @@
         }
         return out;
     }
-    function parseXml$7(xml) {
+    function parseXml$8(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FontTableParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3455,7 +3456,7 @@
             if (!xml)
                 return out;
             try {
-                const doc = parseXml$6(xml);
+                const doc = parseXml$7(xml);
                 const root = doc.documentElement;
                 if (!root)
                     return out;
@@ -3513,7 +3514,7 @@
                 return undefined;
         }
     }
-    function parseXml$6(xml) {
+    function parseXml$7(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FootnotesParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3556,7 +3557,7 @@
         parse(xml, rId) {
             let content = [];
             try {
-                const doc = parseXml$5(xml);
+                const doc = parseXml$6(xml);
                 const root = doc.documentElement;
                 if (root) {
                     // <w:hdr> 與 <w:ftr> 內部結構等同 <w:body> — 直接走訪即可
@@ -3571,7 +3572,7 @@
         }
     }
     // ── 共用 XML 解析 ─────────────────────────────────────────────────────────────
-    function parseXml$5(xml) {
+    function parseXml$6(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('HeaderFooterParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3615,7 +3616,7 @@
         resolve(xml) {
             if (!xml)
                 return new Map();
-            const doc = parseXml$4(xml);
+            const doc = parseXml$5(xml);
             const root = doc.documentElement;
             if (!root)
                 return new Map();
@@ -3846,7 +3847,7 @@
         }
         return out;
     }
-    function parseXml$4(xml) {
+    function parseXml$5(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('NumberingResolver: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3891,7 +3892,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$3(xml);
+                doc = parseXml$4(xml);
             }
             catch {
                 return {};
@@ -4035,7 +4036,7 @@
         }
         return out;
     }
-    function parseXml$3(xml) {
+    function parseXml$4(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('SettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4072,7 +4073,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$2(xml);
+                doc = parseXml$3(xml);
             }
             catch {
                 return {};
@@ -4126,7 +4127,7 @@
         }
         return out;
     }
-    function parseXml$2(xml) {
+    function parseXml$3(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('WebSettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4679,7 +4680,7 @@
         }
     }
     function parseContentTypes(xml) {
-        const doc = parseXml$1(xml);
+        const doc = parseXml$2(xml);
         const defaults = new Map();
         const overrides = new Map();
         const defaultEls = doc.getElementsByTagName('Default');
@@ -4732,7 +4733,7 @@
         return `${dir}${file}`;
     }
     function parseRelationships(xml, ownerPart) {
-        const doc = parseXml$1(xml);
+        const doc = parseXml$2(xml);
         const out = new Map();
         const rels = doc.getElementsByTagName('Relationship');
         for (let i = 0; i < rels.length; i++) {
@@ -4792,7 +4793,7 @@
      * 統一 XML 解析入口。優先用 DOMParser（瀏覽器與 happy-dom/jsdom 環境）。
      * 若解析失敗（含 <parsererror>），丟錯。
      */
-    function parseXml$1(xml) {
+    function parseXml$2(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('PackageReader: DOMParser not available — Node tests must use happy-dom environment');
         }
@@ -4829,6 +4830,151 @@
                 return rels?.get(rId)?.target;
             },
         };
+    }
+
+    /**
+     * LatentStylesParser — 解析 styles.xml `<w:latentStyles>`(OOXML §17.7.4.6)
+     *
+     * Sprint 153(capture-only、styles/ 子目錄延伸):
+     *   - 41/42 fixture 有 latentStyles(Word 預設骨架、平均 ~147 lsdException)
+     *   - layout / render 不消費(latent styles 是 Word UI 'Style Gallery' 顯示用)
+     *   - 為將來 Phase 6 docx export 對稱性鋪路(export 端要原樣重建 latentStyles)
+     *
+     * 解析結構:
+     *   <w:latentStyles
+     *     w:defLockedState="0"
+     *     w:defUIPriority="99"
+     *     w:defSemiHidden="1"
+     *     w:defUnhideWhenUsed="1"
+     *     w:defQFormat="0"
+     *     w:count="267">
+     *     <w:lsdException w:name="Normal" w:uiPriority="0" w:qFormat="1"/>
+     *     <w:lsdException w:name="heading 1" ... />
+     *     ...
+     *   </w:latentStyles>
+     *
+     * 設計決策:
+     *   - 與 StyleResolver 平行(StyleResolver 處理 <w:style>、本 parser 處理 <w:latentStyles>)
+     *   - 紀律 #21:屬性不存在 → undefined、不掛 key
+     *   - 紀律 #18:exceptions 用 Map<name, LatentStyleException>、不展開為陣列(便於 lookup)
+     *   - 重複 name(理論不應發生)→ 後者覆蓋前者
+     *
+     * 防禦:undefined / 空 / XML 失敗 / 缺 root → 回 {}(不阻塞 OoxmlParser)。
+     */
+    class LatentStylesParser {
+        /**
+         * 從 styles.xml 字串中找 `<w:latentStyles>` 並解析。
+         *
+         * @param xml styles.xml 完整字串;undefined / 空 / 無 latentStyles → 回 {}
+         */
+        parse(xml) {
+            if (!xml || !xml.trim())
+                return {};
+            let doc;
+            try {
+                doc = parseXml$1(xml);
+            }
+            catch {
+                return {};
+            }
+            const root = doc.documentElement;
+            if (!root)
+                return {};
+            // 找 latentStyles 子元素(在 <w:styles> 下層)
+            const latentEl = findDirectChildByLocalName(root, 'latentStyles');
+            if (!latentEl)
+                return {};
+            const out = {};
+            // root 級 defaults(5 個 toggle/integer + count)
+            assignToggle(out, 'defLockedState', latentEl, 'defLockedState');
+            assignInt$1(out, 'defUIPriority', latentEl, 'defUIPriority');
+            assignToggle(out, 'defSemiHidden', latentEl, 'defSemiHidden');
+            assignToggle(out, 'defUnhideWhenUsed', latentEl, 'defUnhideWhenUsed');
+            assignToggle(out, 'defQFormat', latentEl, 'defQFormat');
+            assignInt$1(out, 'count', latentEl, 'count');
+            // exceptions(0..N 個 lsdException 子元素)
+            const exceptions = new Map();
+            for (let i = 0; i < latentEl.childNodes.length; i++) {
+                const n = latentEl.childNodes[i];
+                if (n.nodeType !== 1)
+                    continue;
+                const el = n;
+                if (localName$2(el) !== 'lsdException')
+                    continue;
+                const name = readAttr(el, 'name');
+                if (!name)
+                    continue; // 紀律 #21:無 name 跳過
+                const ex = {};
+                assignToggle(ex, 'locked', el, 'locked');
+                assignInt$1(ex, 'uiPriority', el, 'uiPriority');
+                assignToggle(ex, 'semiHidden', el, 'semiHidden');
+                assignToggle(ex, 'unhideWhenUsed', el, 'unhideWhenUsed');
+                assignToggle(ex, 'qFormat', el, 'qFormat');
+                // 紀律 #21:全空的 exception 仍掛 key(name 本身已是資訊、e.g. 區分「存在 latent style」與「不存在」)
+                exceptions.set(name, ex);
+            }
+            if (exceptions.size > 0) {
+                out.exceptions = exceptions;
+            }
+            return out;
+        }
+    }
+    // ── 內部 helpers ──────────────────────────────────────────────────────────
+    /** 用 w:* prefix 讀屬性、xmldom 部分版本不能直接用 namespace lookup */
+    function readAttr(el, localAttrName) {
+        // 先試 w:name、再試 localName (defensive、實際 fixture 都用 w: prefix)
+        const v = el.getAttribute(`w:${localAttrName}`);
+        if (v !== null)
+            return v;
+        return el.getAttribute(localAttrName);
+    }
+    function assignToggle(out, key, el, attrName) {
+        const v = readAttr(el, attrName);
+        if (v === null)
+            return; // 紀律 #21:屬性不存在 → undefined
+        // OOXML toggle:"0"/"false" = false、否則 true(包含 "1"/"true"/空字串)
+        out[key] = v !== '0' && v.toLowerCase() !== 'false';
+    }
+    function assignInt$1(out, key, el, attrName) {
+        const v = readAttr(el, attrName);
+        if (v === null)
+            return;
+        if (!/^-?\d+$/.test(v))
+            return;
+        const n = parseInt(v, 10);
+        if (!Number.isFinite(n))
+            return;
+        out[key] = n;
+    }
+    function localName$2(el) {
+        const ln = el.localName;
+        if (ln)
+            return ln;
+        const tag = el.tagName;
+        const colon = tag.indexOf(':');
+        return colon >= 0 ? tag.substring(colon + 1) : tag;
+    }
+    function findDirectChildByLocalName(parent, target) {
+        for (let i = 0; i < parent.childNodes.length; i++) {
+            const n = parent.childNodes[i];
+            if (n.nodeType !== 1)
+                continue;
+            const el = n;
+            if (localName$2(el) === target)
+                return el;
+        }
+        return null;
+    }
+    function parseXml$1(xml) {
+        if (typeof DOMParser === 'undefined') {
+            throw new Error('LatentStylesParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+        }
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const errors = doc.getElementsByTagName('parsererror');
+        if (errors.length > 0) {
+            throw new Error(`LatentStylesParser: XML parse error — ${errors[0].textContent}`);
+        }
+        return doc;
     }
 
     /**
@@ -6004,6 +6150,8 @@
             this.fontTableParser = new FontTableParser();
             /** Sprint 148：webSettings.xml capture-only(結束 Phase 1 part 三連 cluster)*/
             this.webSettingsParser = new WebSettingsParser();
+            /** Sprint 153：styles.xml `<w:latentStyles>` capture-only */
+            this.latentStylesParser = new LatentStylesParser();
         }
         /**
          * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -6032,8 +6180,11 @@
             this.documentParser.setThemeMap(themeMap);
             this.styleResolver.setThemeMap(themeMap);
             // Step 3：Styles / Numbering（Phase A 為空 Map）
-            const styles = this.styleResolver.resolve(readRelatedPart(pkg, mainDocPath, REL_TYPE_STYLES));
+            const stylesXml = readRelatedPart(pkg, mainDocPath, REL_TYPE_STYLES);
+            const styles = this.styleResolver.resolve(stylesXml);
             const numbering = this.numberingResolver.resolve(readRelatedPart(pkg, mainDocPath, REL_TYPE_NUMBERING));
+            // Step 3.1（Sprint 153）：latentStyles capture — 與 StyleResolver 平行運作、不影響 active styles
+            const latentStyles = this.latentStylesParser.parse(stylesXml);
             // Step 3.5：注入 StyleMap 給 TableParser（Phase 4.2 條件樣式套用用）
             this.tableParser.setStyleMap(styles);
             // Step 4-5：走訪 body 並切多 section
@@ -6099,6 +6250,7 @@
                 appProps,
                 customProps,
                 contentTypes,
+                latentStyles,
             };
             // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props
             //   - StyleResolver 已展開繼承鏈為 StyleMap

@@ -33,6 +33,7 @@ function makeDoc(sections: any[]): DocumentNode {
     appProps: {},
     customProps: new Map(),
     contentTypes: { defaults: new Map(), overrides: new Map() },
+    latentStyles: {},
   };
 }
 

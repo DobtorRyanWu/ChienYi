@@ -23,6 +23,7 @@
 
 import type {
   BlockNode,
+  DocumentLatentStyles,
   DocumentNode,
   DocumentSettings,
   DocumentWebSettings,
@@ -46,6 +47,7 @@ import {
   type PackagePart,
   type RelationshipDef,
 } from './package/PackageReader';
+import { LatentStylesParser } from './styles/LatentStylesParser';
 import { SectionParser } from './section/SectionParser';
 import { StyleResolver } from './styles/StyleResolver';
 import { mergeParagraphStyles } from './styles/ParagraphStyleMerger';
@@ -108,6 +110,8 @@ export class OoxmlParser {
   private fontTableParser = new FontTableParser();
   /** Sprint 148：webSettings.xml capture-only(結束 Phase 1 part 三連 cluster)*/
   private webSettingsParser = new WebSettingsParser();
+  /** Sprint 153：styles.xml `<w:latentStyles>` capture-only */
+  private latentStylesParser = new LatentStylesParser();
 
   /**
    * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -144,12 +148,13 @@ export class OoxmlParser {
     this.styleResolver.setThemeMap(themeMap);
 
     // Step 3：Styles / Numbering（Phase A 為空 Map）
-    const styles: StyleMap = this.styleResolver.resolve(
-      readRelatedPart(pkg, mainDocPath, REL_TYPE_STYLES),
-    );
+    const stylesXml = readRelatedPart(pkg, mainDocPath, REL_TYPE_STYLES);
+    const styles: StyleMap = this.styleResolver.resolve(stylesXml);
     const numbering: NumberingMap = this.numberingResolver.resolve(
       readRelatedPart(pkg, mainDocPath, REL_TYPE_NUMBERING),
     );
+    // Step 3.1（Sprint 153）：latentStyles capture — 與 StyleResolver 平行運作、不影響 active styles
+    const latentStyles: DocumentLatentStyles = this.latentStylesParser.parse(stylesXml);
 
     // Step 3.5：注入 StyleMap 給 TableParser（Phase 4.2 條件樣式套用用）
     this.tableParser.setStyleMap(styles);
@@ -228,6 +233,7 @@ export class OoxmlParser {
       appProps,
       customProps,
       contentTypes,
+      latentStyles,
     };
 
     // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props

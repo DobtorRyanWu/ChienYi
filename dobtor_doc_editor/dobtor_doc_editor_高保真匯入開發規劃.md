@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 152 — **Phase 1 [Content_Types].xml capture-only**（PackageReader internal expose、user 指示「繼續」後重評 §11.2 backlog）：PackageReader L72-79 已 internal parse 但未 expose、本 sprint 暴露至 OoxmlPackage + DocumentNode、+0 行新 parser code（復用 internal、紀律 #14 DRY）+ 紀律 #18 多維度 scope-down（不寫新 parser / 不解析 MIME 語意 / 不寫反向 lookup / 不深拷貝 Map）+ 14 新 test。vitest 1298→**1312 passed + 1 skipped**、VR mean **0.073191** **第 22 連 byte-identical**。Phase 1 OOXML 89%→**89.5%**。**Phase 1 capture-only 八連 cluster(145-152)延續**:8 parts / 0 新 parser / +136 test / +9.5pp Phase 1。本 sprint 是「最薄」一 sprint）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 153 — **Phase 1 styles.xml `<w:latentStyles>` capture-only**（§11.2 backlog 最後一塊、九連 cluster 收尾）：Word 預設骨架的 latent style 列表（41/42 fixture、平均 ~147 lsdException）、與 StyleResolver 平行運作不衝突 + 紀律 #21 雙層應用 + 紀律 #14 DRY（重用 OoxmlParser stylesXml）+ 紀律 #18 三維度 scope-down + 19 新 test + 5 個 DocumentNode constructor patch。vitest 1312→**1331 passed + 1 skipped**、VR mean **0.073191** **第 23 連 byte-identical**。Phase 1 OOXML 89.5%→**90%（整數里程碑！）**。**Phase 1 capture-only 九連 cluster(145-153、跳過 149 retro)完工**:9 parts / +1091 行 parser / +155 test / **+10pp Phase 1（80→90%）**。autonomous-friendly §11.2 backlog 真的耗盡、剩餘候選不是需 user GO 就是 ROI 過低不適）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓

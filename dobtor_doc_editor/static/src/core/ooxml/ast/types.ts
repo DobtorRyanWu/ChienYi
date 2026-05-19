@@ -850,6 +850,23 @@ export interface DocumentNode {
    * (2-3 defaults + 10-15 overrides)。
    */
   contentTypes: DocContentTypes;
+  /**
+   * Sprint 153：styles.xml `<w:latentStyles>` 解析結果（capture-only、空物件代表「無 latentStyles」）。
+   *
+   * OOXML §17.7.4.6 latentStyles:
+   *   Word 內建 latent style 列表(預設不展開為 StyleEntry、節省 styles.xml 體積)、
+   *   含 root 級 defaults(defLockedState / defUIPriority / defSemiHidden /
+   *   defUnhideWhenUsed / defQFormat / count)與 0..N 個 `<w:lsdException>`
+   *   exception(per-style override:locked / uiPriority / semiHidden /
+   *   unhideWhenUsed / qFormat)。
+   *
+   * 41/42 fixture 都有 latentStyles(平均 ~147 lsdException entries、Word 預設骨架)。
+   * Layout / render 不消費(latent styles 是 Word UI 'Style Gallery' 顯示用)、
+   * 為將來 Phase 6 docx export 對稱性鋪路。
+   *
+   * 缺檔 / 解析失敗 → latentStyles 為空物件 `{}`、欄位 undefined。
+   */
+  latentStyles: DocumentLatentStyles;
 }
 
 /**
@@ -858,6 +875,40 @@ export interface DocumentNode {
  * 與 `package/PackageReader.ts` 的 `PackageContentTypes` 結構相同、本 alias
  * 對外置於 `core/ooxml/ast/types`、避免外部消費端 import package 子目錄。
  */
+/**
+ * 單一 latent style exception(對應 styles.xml 中的 `<w:lsdException>`)。
+ *
+ * Sprint 153 capture-only:欄位皆 optional、紀律 #21 空集合不掛 key。
+ * `name` 由父 Map 的 key 持有、本介面不重複帶 name。
+ */
+export interface LatentStyleException {
+  locked?: boolean;
+  uiPriority?: number;
+  semiHidden?: boolean;
+  unhideWhenUsed?: boolean;
+  qFormat?: boolean;
+}
+
+/**
+ * 文件 latent styles(Sprint 153、styles.xml `<w:latentStyles>` capture-only)。
+ *
+ * 結構:
+ *   - defaults:root 級 default attributes(5 toggles/integer + count)
+ *   - exceptions:Map<name, LatentStyleException>(per-style override)
+ *
+ * 紀律 #21:defaults 欄位不存在 → undefined、exceptions 為空時為空 Map。
+ */
+export interface DocumentLatentStyles {
+  defLockedState?: boolean;
+  defUIPriority?: number;
+  defSemiHidden?: boolean;
+  defUnhideWhenUsed?: boolean;
+  defQFormat?: boolean;
+  /** Word 內建 latent style 總數(用於 export 對稱性、不限制 exceptions size)*/
+  count?: number;
+  exceptions?: Map<string, LatentStyleException>;
+}
+
 export interface DocContentTypes {
   /** Default Extension(小寫) → ContentType(MIME) */
   defaults: ReadonlyMap<string, string>;

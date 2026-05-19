@@ -134,6 +134,7 @@ export class DocumentParser {
       appProps: {},
       customProps: new Map(),
       contentTypes: { defaults: new Map(), overrides: new Map() },
+      latentStyles: {},
     };
   }
 
