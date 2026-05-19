@@ -380,7 +380,7 @@ function resolveVerticalMerges(table: Table): Table {
 - [ ] Feature 開關：kerning (`kern`)、連字 (`liga`/`dlig`)、variant (`ss01`...)
 
 #### 2.2 字型載入與 fallback（1-2 週）
-- [ ] 從 `fontTable.xml` 讀字型名稱
+- [x] 從 `fontTable.xml` 讀字型名稱（Sprint 147 capture + Sprint 157 altName fallback wire-up to FontLoader）
 - [ ] 字型載入器：
   - 系統已安裝的直接用
   - 系統沒有的嘗試用 WOFF2 CDN 補（Google Fonts / 中華數位）
