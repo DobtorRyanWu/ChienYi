@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 153 — **Phase 1 styles.xml `<w:latentStyles>` capture-only**（§11.2 backlog 最後一塊、九連 cluster 收尾）：Word 預設骨架的 latent style 列表（41/42 fixture、平均 ~147 lsdException）、與 StyleResolver 平行運作不衝突 + 紀律 #21 雙層應用 + 紀律 #14 DRY（重用 OoxmlParser stylesXml）+ 紀律 #18 三維度 scope-down + 19 新 test + 5 個 DocumentNode constructor patch。vitest 1312→**1331 passed + 1 skipped**、VR mean **0.073191** **第 23 連 byte-identical**。Phase 1 OOXML 89.5%→**90%（整數里程碑！）**。**Phase 1 capture-only 九連 cluster(145-153、跳過 149 retro)完工**:9 parts / +1091 行 parser / +155 test / **+10pp Phase 1（80→90%）**。autonomous-friendly §11.2 backlog 真的耗盡、剩餘候選不是需 user GO 就是 ROI 過低不適）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 154 — **Sprint 145-153 cluster retro（第 4 次 retro、autonomous docs sprint）**：沿用 Sprint 120/144/149 retro 模式、9 sprint(跳過 149)方法論萃取:**4 個新變體模式 explicit** — (1)「最薄」capture-only variant（Sprint 152、+0 parser）；(2) discriminated union variant capture（Sprint 151）；(3) 紀律 #21 例外判斷（Sprint 153、key 即 binary signal 時 value 全空仍掛）；(4) **autonomous-friendly §11.2 backlog 真的耗盡**（第二次邊界揭示）。+ Phase 1 整數里程碑 80→90% + cluster checklist 補強 2 項 + Sprint 155+ 三方向決策框架 + 1 個潛在子原則候選(#21.a)。0 production code、純 docs retro）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
