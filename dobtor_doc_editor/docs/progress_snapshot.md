@@ -51,7 +51,7 @@
 | Phase | 完成度 | 說明 |
 |---|---|---|
 | Phase 0 能力盤點 | 100% | CI ✅ / CONTRIBUTING.md ✅（Sprint 67 落地） |
-| Phase 1 OOXML Parser | **90%（含 capture-only） / 86%（含 wire-up only）** | Sprint 121-126 trHeight / OLE / SDT / bookmark / hyperlink rels;Sprint 145-153 九連 capture-only(footnotes/settings/fontTable/webSettings/appProps/customProps/contentTypes/latentStyles);**雙指標見 [scope_audit_2026-05-19.md §3.1](scope_audit_2026-05-19.md)** |
+| Phase 1 OOXML Parser | **90%（含 capture-only） / 86%（部分 wire-up） / 75%（嚴格 wire-up、Sprint 156 audit 確認 52/69 工項）** | Sprint 121-126 trHeight / OLE / SDT / bookmark / hyperlink rels;Sprint 145-153 九連 capture-only(footnotes/settings/fontTable/webSettings/appProps/customProps/contentTypes/latentStyles);**Sprint 156 checkbox audit 揭示真實 wire-up 75%**、剩 17 個 `[ ]` 工項待 Sprint 157+ 補完;雙指標 / 三指標見 [sprint156_phase1_checkbox_audit.md §4](sprint156_phase1_checkbox_audit.md) + [scope_audit_2026-05-19.md §3.1](scope_audit_2026-05-19.md) |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%） | opentype.js 已用於字型 metric;HarfBuzz 為長期方案;Sprint 127 probe 揭示「production canvas-editor 未整合」 |
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191;Sprint 44-49 突破紀錄 |
 | Phase 4 Style Theme | 90% | Sprint 19 style merge;Sprint 130 §Phase 4.1 HSL;Sprint 131 §Phase 4.2 tblStylePr/tcPr;Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）;Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY;Sprint 134 §Phase 4.4 textAlignment + framePr capture(Layout wire-up defer);Sprint 137-139 numbering wire-up Strategy C |

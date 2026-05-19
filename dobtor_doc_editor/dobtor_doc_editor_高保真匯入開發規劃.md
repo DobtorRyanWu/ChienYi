@@ -260,55 +260,55 @@ const glyphs = buffer.json()  // 精確的 glyph advance、kerning
 目標：**把任何合法 docx 100% 解析成 Document AST**，屬性無遺漏。
 
 #### 1.1 Package 與 Relationships（1 週）
-- [ ] `DocxPackage` class：載入 zip、暴露 `getPart(name)`
-- [ ] 解析 `[Content_Types].xml` — 每個 part 的 MIME type
-- [ ] 解析全部 `.rels` 檔：rId → target 映射
-- [ ] 資源管線：圖片 / 字型 / 頁首頁尾 part 索引
+- [x] `DocxPackage` class：載入 zip、暴露 `getPart(name)`
+- [x] 解析 `[Content_Types].xml` — 每個 part 的 MIME type
+- [x] 解析全部 `.rels` 檔:rId → target 映射
+- [x] 資源管線:圖片 / 字型 / 頁首頁尾 part 索引
 
 #### 1.2 單位系統（2 天）
-- [ ] `units.ts`：twips、dxa、half-points、EMU、points、pct → px
-- [ ] DPI 處理（DPI 96 vs 72 vs 150）
+- [x] `units.ts`:twips、dxa、half-points、EMU、points、pct → px
+- [x] DPI 處理（DPI 96 vs 72 vs 150）
 
 #### 1.3 Styles 與繼承鏈（2 週）
-- [ ] `StyleRegistry` 載入 `styles.xml`
-- [ ] 解析 `<w:docDefaults>` 預設值
-- [ ] 解析 `<w:style>` 各種類型：paragraph、character、table、numbering
-- [ ] `basedOn` 多層繼承 resolver（含迴圈偵測）
-- [ ] 樣式 flatten：直接屬性 > pStyle/rStyle > docDefaults
-- [ ] 單元測試：每種 style type 各 5 個 fixture
+- [x] `StyleRegistry` 載入 `styles.xml`
+- [x] 解析 `<w:docDefaults>` 預設值
+- [x] 解析 `<w:style>` 各種類型:paragraph、character、table、numbering
+- [x] `basedOn` 多層繼承 resolver（含迴圈偵測）
+- [x] 樣式 flatten:直接屬性 > pStyle/rStyle > docDefaults
+- [x] 單元測試:每種 style type 各 5 個 fixture
 
 #### 1.4 Paragraph / Run / Text（2 週）
-- [ ] `<w:p>` + `<w:pPr>`：對齊、縮排、間距、行距、tab stops、tabs
-- [ ] `<w:r>` + `<w:rPr>`：字型(rFonts 四屬性)、sz、b、i、u、strike、color、highlight、vertAlign（上下標）、spacing（字距）
-- [ ] `<w:t xml:space="preserve">` 空白保留
-- [ ] `<w:tab>`、`<w:br type="page|column|textWrapping">`
-- [ ] `<w:symbol>`、`<w:sym>` — 特殊符號
+- [x] `<w:p>` + `<w:pPr>`:對齊、縮排、間距、行距、tab stops、tabs
+- [x] `<w:r>` + `<w:rPr>`:字型(rFonts 四屬性)、sz、b、i、u、strike、color、highlight、vertAlign（上下標）、spacing（字距）
+- [x] `<w:t xml:space="preserve">` 空白保留
+- [x] `<w:tab>`、`<w:br type="page|column|textWrapping">`
+- [x] `<w:symbol>`、`<w:sym>` — 特殊符號
 - [ ] `<w:ruby>` — 注音（日文常用，中文罕見）
 
 #### 1.5 表格完整解析（3 週）★ 圖上跑版的主戰場
 
 ##### 1.5.1 結構
-- [ ] `<w:tbl>`、`<w:tr>`、`<w:tc>`
-- [ ] `<w:tblGrid>` + `<w:gridCol w:w="...">` 欄寬定義
+- [x] `<w:tbl>`、`<w:tr>`、`<w:tc>`
+- [x] `<w:tblGrid>` + `<w:gridCol w:w="...">` 欄寬定義
 
 ##### 1.5.2 儲存格屬性
-- [ ] `<w:tcW>` 三種 type：`dxa` / `pct` / `auto` / `nil`
-- [ ] `<w:gridSpan>` 橫向合併
-- [ ] `<w:vMerge>`：`restart` / 無值=continue 演算法
-- [ ] `<w:tcBorders>` + `<w:tblBorders>` 衝突解決（ECMA-376 17.4.65 優先級表）
-- [ ] `<w:shd>` 底色（含 theme color + tint/shade）
-- [ ] `<w:tcMar>` 儲存格邊界
-- [ ] `<w:vAlign>` top / center / bottom
-- [ ] `<w:noWrap>`、`<w:hideMark>`
+- [x] `<w:tcW>` 三種 type:`dxa` / `pct` / `auto` / `nil`
+- [x] `<w:gridSpan>` 橫向合併
+- [x] `<w:vMerge>`:`restart` / 無值=continue 演算法
+- [x] `<w:tcBorders>` + `<w:tblBorders>` 衝突解決（ECMA-376 17.4.65 優先級表）
+- [x] `<w:shd>` 底色（含 theme color + tint/shade）
+- [x] `<w:tcMar>` 儲存格邊界
+- [x] `<w:vAlign>` top / center / bottom
+- [x] `<w:noWrap>`、`<w:hideMark>`
 - [ ] `<w:tcFitText>` — 自動縮字（罕用但 Word 有）
 
 ##### 1.5.3 列與表屬性
-- [ ] `<w:trHeight>`：`hRule` = `exact` / `atLeast` / `auto`
-- [ ] `<w:tblHeader>` — 跨頁重複標題列
-- [ ] `<w:cantSplit>` — 列不可跨頁拆分
-- [ ] `<w:tblPr>`：`<w:tblW>`、`<w:tblInd>`、`<w:tblLayout>`、`<w:tblLook>`、`<w:tblStyle>`
-- [ ] `<w:tblStylePr>` — 條件樣式（firstRow、lastRow、firstCol 等 15 種）
-- [ ] 巢狀表格（cell 內又有 tbl）
+- [x] `<w:trHeight>`:`hRule` = `exact` / `atLeast` / `auto`
+- [x] `<w:tblHeader>` — 跨頁重複標題列
+- [x] `<w:cantSplit>` — 列不可跨頁拆分
+- [x] `<w:tblPr>`:`<w:tblW>`、`<w:tblInd>`、`<w:tblLayout>`、`<w:tblLook>`、`<w:tblStyle>`
+- [ ] `<w:tblStylePr>` — 條件樣式（firstRow、lastRow、firstCol 等 15 種、Sprint 131 補 cell-level shading+vAlign;tcBorders / trPr / tblPr 條件樣式未做）
+- [x] 巢狀表格（cell 內又有 tbl）
 
 ##### 1.5.4 vMerge 演算法獨立模組
 ```ts
@@ -322,44 +322,44 @@ function resolveVerticalMerges(table: Table): Table {
 **關鍵細節**：vMerge 的 column 判定不能用欄位索引（會被 gridSpan 打亂），要用**累計 grid 位置**。
 
 #### 1.6 Numbering（列表編號）（1 週）
-- [ ] `<w:num>` + `<w:abstractNum>` 二層結構
-- [ ] 多層級（`<w:lvl ilvl="0..8">`）
-- [ ] 編號格式：decimal、lowerRoman、upperRoman、lowerLetter、upperLetter、bullet、ordinal、cardinalText、ordinalText、chineseCounting、chineseCountingThousand、ideographDigital、japaneseCounting、aiueo、iroha、taiwaneseCounting
-- [ ] 重啟層級：`<w:lvlRestart>`
+- [x] `<w:num>` + `<w:abstractNum>` 二層結構
+- [x] 多層級（`<w:lvl ilvl="0..8">`）
+- [x] 編號格式：decimal、lowerRoman、upperRoman、lowerLetter、upperLetter、bullet、ordinal、cardinalText、ordinalText、chineseCounting、chineseCountingThousand、ideographDigital、japaneseCounting、aiueo、iroha、taiwaneseCounting
+- [x] 重啟層級：`<w:lvlRestart>`
 - [ ] `<w:lvlOverride>` 局部覆寫
-- [ ] 編號連續性（跨段落計算）
+- [x] 編號連續性（跨段落計算）
 
 #### 1.7 Sections 與頁面（1 週）
-- [ ] `<w:sectPr>`：`<w:pgSz>`、`<w:pgMar>`、`<w:pgBorders>`、`<w:pgNumType>`
-- [ ] `<w:headerReference>`、`<w:footerReference>` 的 type：`default` / `even` / `first`
-- [ ] 頁首頁尾 parts 解析（也是完整 paragraph/table）
-- [ ] `<w:cols>` 分欄：num、space、equalWidth、individual col widths
-- [ ] `<w:footnotePr>`、`<w:endnotePr>`
-- [ ] `<w:docGrid>` — CJK 行格
+- [x] `<w:sectPr>`：`<w:pgSz>`、`<w:pgMar>`、`<w:pgBorders>`、`<w:pgNumType>`
+- [x] `<w:headerReference>`、`<w:footerReference>` 的 type：`default` / `even` / `first`
+- [x] 頁首頁尾 parts 解析（也是完整 paragraph/table）
+- [x] `<w:cols>` 分欄：num、space、equalWidth、individual col widths
+- [ ] `<w:footnotePr>`、`<w:endnotePr>`（Sprint 146 settings.xml capture 已含、Sprint 145 footnotes/endnotes parser capture-only、wire-up=0）
+- [x] `<w:docGrid>` — CJK 行格
 
 #### 1.8 Drawings 與 OLE（1.5 週）
-- [ ] `<w:drawing>` > `<wp:inline>` 內嵌圖片
+- [x] `<w:drawing>` > `<wp:inline>` 內嵌圖片
 - [ ] `<w:drawing>` > `<wp:anchor>` 浮動圖片
-  - [ ] `<wp:positionH>`、`<wp:positionV>` — 相對錨點定位
-  - [ ] `<wp:wrapNone|wrapSquare|wrapTight|wrapThrough|wrapTopAndBottom>`
-  - [ ] `<wp:extent>` 尺寸（EMU）
+  - [x] `<wp:positionH>`、`<wp:positionV>` — 相對錨點定位
+  - [ ] `<wp:wrapNone|wrapSquare|wrapTight|wrapThrough|wrapTopAndBottom>`（wrapNone / wrapSquare / wrapTopAndBottom 已做、wrapTight / wrapThrough 未做）
+  - [x] `<wp:extent>` 尺寸（EMU）
   - [ ] `<wp:effectExtent>` 陰影外擴
-- [ ] `<a:blip r:embed="rIdN">` → 從 rels 取得圖片 part
-- [ ] 圖片裁切 `<a:srcRect>`
+- [x] `<a:blip r:embed="rIdN">` → 從 rels 取得圖片 part
+- [x] 圖片裁切 `<a:srcRect>`
 - [ ] 圖片效果（陰影、外框） — 可選
-- [ ] `<v:shape>` VML（舊 Word 的圖形） — 降級處理
+- [x] `<v:shape>` VML（舊 Word 的圖形） — 降級處理
 
 #### 1.9 進階結構（2 週）
-- [ ] `<w:footnoteReference>` + `footnotes.xml`
-- [ ] `<w:endnoteReference>` + `endnotes.xml`
-- [ ] `<w:hyperlink>` + rels 查詢
-- [ ] `<w:fldSimple>` 簡單欄位（PAGE、DATE、SEQ）
-- [ ] `<w:instrText>` 複雜欄位（fldChar begin/separate/end）
-- [ ] `<w:bookmarkStart>`、`<w:bookmarkEnd>`
-- [ ] `<w:sdt>` 結構化文件標籤（內容控制項）
-- [ ] `<w:ins>`、`<w:del>`、`<w:moveFrom>`、`<w:moveTo>` 追蹤修訂
-- [ ] `<w:commentRangeStart>` + `comments.xml` 註解
-- [ ] `<m:oMath>` 數學公式（OMML）— parser 出 AST，渲染留到 Phase 5
+- [ ] `<w:footnoteReference>` + `footnotes.xml`（Sprint 145 capture-only、wire-up=0）
+- [ ] `<w:endnoteReference>` + `endnotes.xml`（Sprint 145 capture-only、wire-up=0）
+- [x] `<w:hyperlink>` + rels 查詢
+- [x] `<w:fldSimple>` 簡單欄位（PAGE、DATE、SEQ）
+- [ ] `<w:instrText>` 複雜欄位（fldChar begin/separate/end）（Sprint 123 capture 強化、render 端未完全消費）
+- [ ] `<w:bookmarkStart>`、`<w:bookmarkEnd>`（Sprint 125 capture-only、render 端不消費）
+- [x] `<w:sdt>` 結構化文件標籤（內容控制項、Sprint 124 transparent unwrap）
+- [ ] `<w:ins>`、`<w:del>`、`<w:moveFrom>`、`<w:moveTo>` 追蹤修訂（Phase 5.4 未做）
+- [ ] `<w:commentRangeStart>` + `comments.xml` 註解（Phase 5.5 未做）
+- [ ] `<m:oMath>` 數學公式（OMML）— parser 出 AST，渲染留到 Phase 5（未做）
 - [ ] `<mc:AlternateContent>` — 新舊版本相容選擇
 
 **Exit Criteria**：
