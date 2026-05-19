@@ -131,6 +131,7 @@ export class DocumentParser {
       numbering,
       media,
       docProps: {},
+      appProps: {},
     };
   }
 

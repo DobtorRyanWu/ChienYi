@@ -30,6 +30,7 @@ function makeDoc(sections: any[]): DocumentNode {
     numbering: new Map(),
     media: new Map(),
     docProps: {},
+    appProps: {},
   };
 }
 

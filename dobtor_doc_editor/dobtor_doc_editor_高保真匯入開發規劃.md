@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-18（Sprint 149 — **Sprint 143-148 cluster retro（autonomous docs sprint、短週期模式）**：6 sprint 方法論萃取、3 個成熟模式 explicit（紀律 #1.b 升正 + catch-up / Phase 1 capture-only 四連 archetype 9-step / retro 短週期觸發）+ 紀律 #18 scope-down 新案例 + cluster checklist 補強 2 項（#7 儀式性收尾 / #8 短週期 retro）+ 跨 retro 對照（Sprint 120/144/149 三次）。0 production code。Sprint 150+ 決策框架 ready:wire-up 階段 vs 等 user vs 持續 capture）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 150 — **Phase 1 docProps/app.xml capture-only**（autonomous-friendly §11.2 backlog 路線、Sprint 149 retro 三選一中的「持續 capture」）：fixture parts gap 系統掃描 + 新模組目錄 `doc-props/AppPropsParser.ts`（17 elements:4 字串 / 8 整數含 DocSecurity enum / 5 布林、嚴格規格） + 20 新 test + 5 個 DocumentNode constructor patch。vitest 1249→**1269 passed + 1 skipped**、VR mean **0.073191** **第 20 連 byte-identical**。Phase 1 OOXML 87%→**88%**。**Phase 1 capture-only 五連 cluster(145-150)延續**:6 parts / 41 elements / +93 test / +8pp Phase 1 進度。紀律 #1.b 對「capture-only」變體類型第 13 次穩定驗證）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓
@@ -45,6 +45,7 @@ VR mean 進展：**0.1728**（Sprint 28 baseline）→ **0.1156**（Sprint 33）
 | Phase 4.5 產品化基礎建設 | 100% | 見附錄 A.1 |
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 未開始 | 待 mean ≤ 0.07 後啟動 |
 | Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe |
+| Phase 8 Template UI Builder | 0% | esign-style 視覺 + 拖曳欄位範本（決策日 2026-05-19，[ADR-022](docs/architecture_decision.md#adr-022dobeditor-後台-ui-擴充為範本欄位拖曳建構器phase-8-template-ui-builder)）。**非 docx 匯入 phase**，工時不計入 mean target。Phase 1 視覺 ~1 週 / Phase 2.1 inline control ~1 週 / Phase 2.2 overlay 條件啟動 ~3-4 週 |
 
 ### 0.3 三層 SOP（自 Sprint 23 起所有 sprint 適用）
 
@@ -79,11 +80,13 @@ VR mean 進展：**0.1728**（Sprint 28 baseline）→ **0.1156**（Sprint 33）
 
 **規畫書真實 scope = docx 1:1 高保真匯入**。Phase 0-7 全部 docx 匯入相關,**無電子簽章 phase**。
 
+> **2026-05-19 補充**:Phase 8(Template UI Builder) 經 user 明確認可後加入([ADR-022](docs/architecture_decision.md#adr-022dobeditor-後台-ui-擴充為範本欄位拖曳建構器phase-8-template-ui-builder))。Phase 8 是「範本內可拖曳填寫欄位 placeholder」、**不是**電子簽章法律行為(簽名 hash / 時間戳 / PKI)。Phase 8 工時、VR mean、進度條皆與 Phase 0-7 docx 匯入分開計算。本句「無電子簽章 phase」仍成立——電子簽章一律不做。
+
 開工任何大型新 feature 前,先對齊本規畫書真實 scope。**看到 user 參考 UI 圖 / 第三方範例不等於規畫書方向**;user 說「根據計劃書繼續執行」= 規畫書 scope 內推進、不是順便加新功能。
 
 歷史教訓:Sprint 90-109 曾誤判 user 提供的 dobtor esign 模組 demo 為「esign-style UI 改造」、執行 20 sprint 連續 batch 後全 revert(Strategy A 並存策略救命、byte-identical 救回)。**新 feature scope 與規畫書不符時優先誠實 revert、不是合理化保留**。詳見 [docs/sprint90_to_109_revert.md](docs/sprint90_to_109_revert.md)。
 
-此原則於 [§6.5](#65-18-條開發紀律) 列為紀律 #18。
+此原則於 [§6.5](#65-18-條開發紀律) 列為紀律 #18。**紀律 #18 不禁止 scope 擴張、禁止的是「未 user 認可的擴張」**;Phase 8 走 ADR-022 是合規範例。
 
 ### 1.1 這是什麼等級的工程
 

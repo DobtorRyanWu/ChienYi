@@ -812,6 +812,18 @@ export interface DocumentNode {
    * Layout caller 可把這些值對應到 LayoutOptions.documentMetadata。
    */
   docProps: DocProps;
+  /**
+   * Sprint 150：docProps/app.xml 解析結果（capture-only、欄位皆 optional、紀律 #21 空集合不掛 key）。
+   *
+   * OOXML §22.2 + extended-properties namespace：
+   *   docProps/app.xml 含 Application / Pages / Words / Company / AppVersion 等
+   *   docx 編輯歷史與環境 metadata；layout / render 不消費，留 Phase 6 docx export 用。
+   *
+   * 42/42 fixture 都有 app.xml（Word/WPS 預設骨架），17 elements 出現頻率 100%。
+   *
+   * 缺檔 / 解析失敗 → appProps 為空物件 `{}`。
+   */
+  appProps: DocPropsApp;
 }
 
 export interface DocProps {
@@ -823,4 +835,37 @@ export interface DocProps {
   lastModifiedBy?: string;
   created?: string;   // ISO datetime
   modified?: string;  // ISO datetime
+}
+
+/**
+ * 文件 extended properties（OOXML §22.2、docProps/app.xml）。
+ *
+ * Sprint 150 capture-only：欄位皆 optional、紀律 #21 空集合不掛 key。
+ *
+ * 來源元素（namespace = extended-properties）：
+ *   - Template / Application / AppVersion / Company：字串
+ *   - Pages / Words / Characters / Lines / Paragraphs / CharactersWithSpaces /
+ *     TotalTime / DocSecurity：整數
+ *   - ScaleCrop / LinksUpToDate / SharedDoc / HyperlinksChanged：布林（"true"/"false"）
+ *
+ * 注意：DocSecurity 是 enum（0=None / 1=PasswordProtected / 2=ReadOnly /
+ *      4=LockedForAnnotation / 8=LockedForReview），本 capture 階段以整數保留。
+ */
+export interface DocPropsApp {
+  template?: string;
+  application?: string;
+  appVersion?: string;
+  company?: string;
+  totalTime?: number;       // minutes
+  pages?: number;
+  words?: number;
+  characters?: number;
+  charactersWithSpaces?: number;
+  lines?: number;
+  paragraphs?: number;
+  docSecurity?: number;     // §22.2.2.6 enum
+  scaleCrop?: boolean;
+  linksUpToDate?: boolean;
+  sharedDoc?: boolean;
+  hyperlinksChanged?: boolean;
 }

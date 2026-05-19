@@ -64,6 +64,7 @@ function makeDoc(
     numbering,
     media,
     docProps: {},
+    appProps: {},
   };
 }
 

@@ -52,6 +52,7 @@ import { mergeParagraphStyles } from './styles/ParagraphStyleMerger';
 import { TableParser } from './table/TableParser';
 import { parseTheme, DEFAULT_THEME_MAP, type ThemeMap } from './styles/ThemeResolver';
 import { parseDocProps } from './DocPropsParser';
+import { parseAppProps } from './doc-props/AppPropsParser';
 
 const REL_TYPE_OFFICE_DOCUMENT =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
@@ -193,6 +194,11 @@ export class OoxmlParser {
     //   缺檔 / 解析失敗 → 空 docProps；不阻塞 parse
     const docProps = parseDocProps(pkg);
 
+    // Step 8.1（Sprint 150）：docProps/app.xml 解析 — capture-only、無 wire-up
+    //   42/42 fixture 都有 app.xml(Word/WPS 預設骨架)、17 elements 100% 覆蓋;
+    //   layout/render 不消費、為將來 Phase 6 docx export 對稱性鋪路。
+    const appProps = parseAppProps(pkg);
+
     const doc: DocumentNode = {
       type: 'document',
       sections,
@@ -207,6 +213,7 @@ export class OoxmlParser {
       numbering,
       media,
       docProps,
+      appProps,
     };
 
     // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props
