@@ -4,7 +4,7 @@
 **適用模組**：`/mnt/d/work/odoo18-docker/addons/dobtor_doc_editor`
 **當前基礎**：Odoo 18 OWL Component + @hufe921/canvas-editor + canvas-editor-plugin-docx + 自製 OOXML Parser（TypeScript）
 
-**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 150 — **Phase 1 docProps/app.xml capture-only**（autonomous-friendly §11.2 backlog 路線、Sprint 149 retro 三選一中的「持續 capture」）：fixture parts gap 系統掃描 + 新模組目錄 `doc-props/AppPropsParser.ts`（17 elements:4 字串 / 8 整數含 DocSecurity enum / 5 布林、嚴格規格） + 20 新 test + 5 個 DocumentNode constructor patch。vitest 1249→**1269 passed + 1 skipped**、VR mean **0.073191** **第 20 連 byte-identical**。Phase 1 OOXML 87%→**88%**。**Phase 1 capture-only 五連 cluster(145-150)延續**:6 parts / 41 elements / +93 test / +8pp Phase 1 進度。紀律 #1.b 對「capture-only」變體類型第 13 次穩定驗證）
+**產出日期**：2026-04-20 / **最後更新**：2026-05-19（Sprint 151 — **Phase 1 docProps/custom.xml capture-only**（Sprint 150 §後續 E-10、doc-props 子目錄延伸）：variant 型別 discriminated union 設計（5 常見 vt:* + unknown 降級）+ 紀律 #18 多維度 scope-down（metadata/value/variant/error handling 4 維）+ 29 新 test + 5 個 DocumentNode constructor patch。vitest 1269→**1298 passed + 1 skipped**、VR mean **0.073191** **第 21 連 byte-identical**。Phase 1 OOXML 88%→**89%**。**Phase 1 capture-only 七連 cluster(145-151)延續**:7 parts / 47 elements / +122 test / +9pp Phase 1 進度（80→89%）。autonomous-friendly §11.2 backlog 大幅消化、剩餘候選不適 capture-only、下個 sprint = session 自然停止點）
 
 **當前指標一覽**（Sprint 110 結尾）：
 - vitest **976 passed + 1 skipped** ✓

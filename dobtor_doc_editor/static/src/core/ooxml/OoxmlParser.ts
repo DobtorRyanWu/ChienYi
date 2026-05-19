@@ -53,6 +53,7 @@ import { TableParser } from './table/TableParser';
 import { parseTheme, DEFAULT_THEME_MAP, type ThemeMap } from './styles/ThemeResolver';
 import { parseDocProps } from './DocPropsParser';
 import { parseAppProps } from './doc-props/AppPropsParser';
+import { parseCustomProps } from './doc-props/CustomPropsParser';
 
 const REL_TYPE_OFFICE_DOCUMENT =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
@@ -199,6 +200,12 @@ export class OoxmlParser {
     //   layout/render 不消費、為將來 Phase 6 docx export 對稱性鋪路。
     const appProps = parseAppProps(pkg);
 
+    // Step 8.2（Sprint 151）：docProps/custom.xml 解析 — capture-only、無 wire-up
+    //   25/42 fixture 有 custom.xml(WPS / Grammarly 等 SaaS app stamp);
+    //   variant 型別 discriminated union(string / int / bool / real / filetime / unknown)
+    //   留 Phase 6 docx export 對稱性 + author 自訂中介資料保留。
+    const customProps = parseCustomProps(pkg);
+
     const doc: DocumentNode = {
       type: 'document',
       sections,
@@ -214,6 +221,7 @@ export class OoxmlParser {
       media,
       docProps,
       appProps,
+      customProps,
     };
 
     // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props

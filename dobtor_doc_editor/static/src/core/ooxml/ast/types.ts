@@ -824,6 +824,18 @@ export interface DocumentNode {
    * 缺檔 / 解析失敗 → appProps 為空物件 `{}`。
    */
   appProps: DocPropsApp;
+  /**
+   * Sprint 151：docProps/custom.xml 解析結果（capture-only、空 Map 代表「無 customProps 或解析失敗」）。
+   *
+   * OOXML §22.3 + custom-properties namespace：
+   *   docProps/custom.xml 含 `<property fmtid="..." pid="N" name="X">vt:value</property>`
+   *   是 author/app 自訂的鍵值對(KSOProductBuildVer / GrammarlyDocumentId 等)。
+   *
+   * 25/42 fixture 有 custom.xml(WPS / Grammarly 等 SaaS app stamp)、其他 17 fixture 無此 part。
+   *
+   * Key 為 `name` 屬性、value 為 type-discriminated CustomPropertyValue。
+   */
+  customProps: DocPropsCustom;
 }
 
 export interface DocProps {
@@ -851,6 +863,32 @@ export interface DocProps {
  * 注意：DocSecurity 是 enum（0=None / 1=PasswordProtected / 2=ReadOnly /
  *      4=LockedForAnnotation / 8=LockedForReview），本 capture 階段以整數保留。
  */
+/**
+ * 自訂屬性值（OOXML §22.4 vt:variant 子集）。
+ *
+ * Sprint 151 capture-only:scope-down 至 5 個常見 variant 型別、其他未知 variant
+ * 用 `kind: 'unknown'` 配 raw 字串保留(紀律 #18、不為 closure 而擴充)。
+ *
+ * 觀察:42 fixture 中只有 vt:lpwstr 出現(25 entries)、但 spec 允許更多
+ * variant 型別(vt:lpstr / vt:bool / vt:i4 / vt:filetime / vt:r8 / vt:cy 等)、
+ * 本 capture 對前 5 個常見 variant 解析、其他降級為 unknown。
+ */
+export type CustomPropertyValue =
+  | { kind: 'string'; value: string }       // vt:lpwstr / vt:lpstr / vt:bstr
+  | { kind: 'int'; value: number }          // vt:i4 / vt:i8 / vt:int / vt:uint
+  | { kind: 'bool'; value: boolean }        // vt:bool
+  | { kind: 'real'; value: number }         // vt:r4 / vt:r8 / vt:decimal
+  | { kind: 'filetime'; value: string }     // vt:filetime / vt:date(原 ISO 字串)
+  | { kind: 'unknown'; raw: string };       // 其他 variant、保留原 textContent
+
+/**
+ * 自訂屬性表(Sprint 151、docProps/custom.xml capture-only)。
+ *
+ * Map<name, CustomPropertyValue>;空 Map 代表「無 customProps part」或「解析失敗」。
+ * 保留 OOXML <property> 元素 `name` 屬性為 key、`fmtid` / `pid` 暫不保留(紀律 #18)。
+ */
+export type DocPropsCustom = Map<string, CustomPropertyValue>;
+
 export interface DocPropsApp {
   template?: string;
   application?: string;

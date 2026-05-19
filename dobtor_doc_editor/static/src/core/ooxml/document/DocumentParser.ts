@@ -132,6 +132,7 @@ export class DocumentParser {
       media,
       docProps: {},
       appProps: {},
+      customProps: new Map(),
     };
   }
 

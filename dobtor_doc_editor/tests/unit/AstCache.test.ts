@@ -30,6 +30,7 @@ function makeFakeAst(tag: string): DocumentNode {
     media: new Map([['rId1', `data:text/plain;base64,${tag}`]]),
     docProps: { title: tag },
     appProps: {},
+    customProps: new Map(),
   };
 }
 

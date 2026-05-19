@@ -31,6 +31,7 @@ function makeDoc(sections: any[]): DocumentNode {
     media: new Map(),
     docProps: {},
     appProps: {},
+    customProps: new Map(),
   };
 }
 

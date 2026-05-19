@@ -65,6 +65,7 @@ function makeDoc(
     media,
     docProps: {},
     appProps: {},
+    customProps: new Map(),
   };
 }
 
