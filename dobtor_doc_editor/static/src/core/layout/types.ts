@@ -7,7 +7,7 @@
  * 全部單位：pt（與 ooxml/ast/types.ts 一致）。Px 換算交給 Renderer。
  */
 
-import type { ParagraphProps, RunProps, HyperlinkInfo } from '../ooxml/ast/types';
+import type { ParagraphProps, RunProps, HyperlinkInfo, FieldNode } from '../ooxml/ast/types';
 import type { Pt } from '../ooxml/ast/types';
 
 // ── Item 模型（K-P breakpoint algebra）──────────────────────────────────────
@@ -37,8 +37,12 @@ export interface Box {
    * 對 fieldType='NUMPAGES' 的 Box 把 text 改成 layout.pages.length。
    *
    * undefined 表示一般文字 box，不做後處理。
+   *
+   * Sprint 163：型別對齊 AST `FieldNode['fieldType']`（11 型，含 Sprint 123 擴的
+   * SEQ/TOC/REF/HYPERLINK/STYLEREF）。Paginator `resolveFieldValues` 只 post-pass
+   * PAGE/NUMPAGES/DATE/TIME/AUTHOR/FILENAME，其餘型別保留原 placeholder。
    */
-  fieldType?: 'PAGE' | 'NUMPAGES' | 'DATE' | 'TIME' | 'AUTHOR' | 'FILENAME' | 'unknown';
+  fieldType?: FieldNode['fieldType'];
 }
 
 /** 伸縮膠：可被壓縮 / 撐開。空白 / 中文字間皆為 glue。*/

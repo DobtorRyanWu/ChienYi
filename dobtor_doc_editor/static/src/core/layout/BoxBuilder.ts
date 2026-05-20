@@ -23,6 +23,7 @@ import type {
   RunProps,
   Pt,
   HyperlinkInfo,
+  FieldNode,
 } from '../ooxml/ast/types';
 import type { Box, Glue, LayoutItem, ParagraphInput, TextMetrics } from './types';
 import { EstimateMetrics, isCjkChar } from './TextMetrics';
@@ -215,10 +216,13 @@ function cjkBreakGlue(): Glue {
   return { kind: 'glue', width: 0, stretch: 0, shrink: 0, isCjkBreak: true };
 }
 
-/** Sprint 10：欄位 placeholder 文字（沒有 cachedValue 時用） */
-function defaultFieldPlaceholder(
-  fieldType: 'PAGE' | 'NUMPAGES' | 'DATE' | 'TIME' | 'AUTHOR' | 'FILENAME' | 'unknown',
-): string {
+/**
+ * Sprint 10：欄位 placeholder 文字（沒有 cachedValue 時用）。
+ * Sprint 163：param 型別對齊 AST `FieldNode['fieldType']`（11 型）。
+ * SEQ/TOC/REF/HYPERLINK/STYLEREF/unknown 走 default 分支 → `{<type>}`
+ * （與 Sprint 0-162 runtime 行為一致、純型別擴展不改輸出）。
+ */
+function defaultFieldPlaceholder(fieldType: FieldNode['fieldType']): string {
   switch (fieldType) {
     case 'PAGE': return '##';
     case 'NUMPAGES': return '##';

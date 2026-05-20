@@ -196,3 +196,31 @@ describe('BoxBuilder — Sprint 139 numberingPrefix', () => {
     expect((out.items[2] as Box).runProps.fontSize).toBe(14);
   });
 });
+
+describe('BoxBuilder — Sprint 163 欄位 fieldType 型別對齊', () => {
+  it('PAGE 欄位無 cachedValue → placeholder "##" + Box.fieldType=PAGE', () => {
+    const para = makePara([{ type: 'field', instruction: ' PAGE ', fieldType: 'PAGE' }]);
+    const out = buildParagraph(para, 0);
+    const box = out.items[0] as Box;
+    expect(box.text).toBe('##');
+    expect(box.fieldType).toBe('PAGE');
+  });
+
+  it('PAGE 欄位有 cachedValue → 用 cachedValue', () => {
+    const para = makePara([
+      { type: 'field', instruction: ' PAGE ', fieldType: 'PAGE', cachedValue: '7' },
+    ]);
+    const out = buildParagraph(para, 0);
+    expect((out.items[0] as Box).text).toBe('7');
+  });
+
+  it('Sprint 123 擴充的 5 型（SEQ/TOC/REF/HYPERLINK/STYLEREF）走 default placeholder', () => {
+    for (const ft of ['SEQ', 'TOC', 'REF', 'HYPERLINK', 'STYLEREF'] as const) {
+      const para = makePara([{ type: 'field', instruction: ` ${ft} `, fieldType: ft }]);
+      const out = buildParagraph(para, 0);
+      const box = out.items[0] as Box;
+      expect(box.text).toBe(`{${ft}}`);
+      expect(box.fieldType).toBe(ft);
+    }
+  });
+});

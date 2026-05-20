@@ -8,17 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 162 結尾）
+## 1. 當前指標一覽（Sprint 163 結尾）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1358 passed + 1 skipped**（Sprint 162 +5 Paginator tab stop tests） |
-| VR mean | **0.073191**（Sprint 65 promote、第 26 次連續 byte-identical 維持；Sprint 161-162 tab stop wire-up 走 Strategy C、預設路徑 byte-identical、opt-in `--tab-stops` 量測 delta +4.8e-7 可忽略） |
+| vitest | **1361 passed + 1 skipped**（Sprint 163 +3 BoxBuilder fieldType tests） |
+| VR mean | **0.073191**（Sprint 65 promote、第 27 次連續 byte-identical 維持；Sprint 161-162 tab stop wire-up Strategy C、Sprint 163 純型別變更 emitted JS 不變） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
+| `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 161（156 / 157 / 158 / sprint160_v2 / sprint161 / sprint162；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 162（156 / 157 / 158 / sprint160_v2 / sprint161 / sprint162 / sprint163；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
 
 ---
