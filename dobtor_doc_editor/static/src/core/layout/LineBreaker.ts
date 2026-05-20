@@ -22,7 +22,7 @@
  */
 
 import type { Pt } from '../ooxml/ast/types';
-import type { Box, LayoutItem, Line, ParagraphInput, TextMetrics } from './types';
+import type { Box, Glue, LayoutItem, Line, ParagraphInput, TextMetrics } from './types';
 import { EstimateMetrics } from './TextMetrics';
 
 const PROHIBITED_LINE_START = '。、，；：！？」』）】》．,.;:!?)]';
@@ -76,6 +76,19 @@ export interface LineBreakOptions {
    * 而未提供時等同關閉。
    */
   docGridLinePitch?: Pt;
+  /**
+   * Sprint 161：預設 tab stop 間距（pt，OOXML §17.15.1.25 `w:defaultTabStop`、
+   * Word 預設 720 twip = 36pt）。
+   *
+   * - undefined / 0：不解析 tab stop，isTab glue 維持 BoxBuilder 給的空白寬度
+   *   （行為與 Sprint 0-160 完全一致 — Strategy C 預設路徑、baseline byte-identical）
+   * - > 0：每行 isTab glue 寬度重算為「推進到下一個 tab stop」；段落顯式
+   *   `props.tabs`（left 對齊）優先、否則落 default 間距整數倍
+   *
+   * 由 caller（Paginator、從 `DocumentSettings.defaultTabStop` 帶入）opt-in；
+   * VR pipeline 不傳 → 預設路徑不變。
+   */
+  defaultTabStop?: Pt;
 }
 
 /**
@@ -93,6 +106,7 @@ export function breakParagraph(
   const getLineWidth = opts.getLineWidth;
   const getLineXOffset = opts.getLineXOffset;
   const docGridLinePitch = opts.docGridLinePitch ?? 0;
+  const defaultTabStop = opts.defaultTabStop ?? 0;
 
   // 完全空段落：產出一行空行（高度 = defaultFontSize × 1.2）
   if (para.items.length === 0) {
@@ -104,7 +118,9 @@ export function breakParagraph(
 
   // Sprint 13：K-P opt-in（不支援 per-line lineWidth callback 時才走）
   if (opts.algorithm === 'knuth-plass' && !getLineWidth) {
-    return breakParagraphKP(para, baseLineWidth, firstLineIndent, getLineXOffset, docGridLinePitch);
+    return breakParagraphKP(
+      para, baseLineWidth, firstLineIndent, getLineXOffset, docGridLinePitch, defaultTabStop,
+    );
   }
 
   const lines: Line[] = [];
@@ -134,7 +150,7 @@ export function breakParagraph(
 
     if (item.kind === 'penalty' && item.cost === -Infinity) {
       // 強制斷行：把 buf flush（不含 penalty）
-      const ln = makeLine(buf, para, false, docGridLinePitch);
+      const ln = makeLine(buf, para, false, docGridLinePitch, defaultTabStop);
       ln.xOffset = getLineXOffset?.(lineIndex, accumulatedHeight) ?? 0;
       // Sprint 7：page / column break 透傳到 Line
       if (item.flagged && item.breakKind) {
@@ -159,7 +175,7 @@ export function breakParagraph(
       cutAt = applyKinsoku(buf, cutAt);
 
       const lineItems = trimTrailingGlue(buf.slice(0, cutAt));
-      const ln = makeLine(lineItems, para, false, docGridLinePitch);
+      const ln = makeLine(lineItems, para, false, docGridLinePitch, defaultTabStop);
       ln.xOffset = getLineXOffset?.(lineIndex, accumulatedHeight) ?? 0;
       lines.push(ln);
       accumulatedHeight += ln.height;
@@ -182,7 +198,7 @@ export function breakParagraph(
 
   // 收尾：buf 內剩下的成最後一行
   if (buf.length > 0 || lines.length === 0) {
-    const ln = makeLine(trimTrailingGlue(buf), para, true, docGridLinePitch);
+    const ln = makeLine(trimTrailingGlue(buf), para, true, docGridLinePitch, defaultTabStop);
     ln.xOffset = getLineXOffset?.(lineIndex, accumulatedHeight) ?? 0;
     lines.push(ln);
   } else if (lines.length > 0) {
@@ -283,7 +299,10 @@ function makeLine(
   para: ParagraphInput,
   isLastLine: boolean,
   docGridLinePitch: Pt = 0,
+  defaultTabStop: Pt = 0,
 ): Line {
+  // Sprint 161：tab stop 解析（僅 defaultTabStop > 0 時；否則 items 原樣回傳）
+  items = resolveTabStops(items, para, defaultTabStop);
   const width = sumWidth(items);
   let height = 0;
   // Sprint 44：偵測 image-only line（所有 box 都是 image，無文字 box）。
@@ -322,6 +341,57 @@ function makeLine(
     paragraphIndex: para.sourceIndex,
     paragraphProps: para.props,
   };
+}
+
+/** Sprint 161：tab stop 解析精度容差（pt）—— x 恰落在 stop 上時避免回傳零寬 tab。*/
+const TAB_RESOLVE_EPSILON_PT = 0.01;
+
+/**
+ * Sprint 161：把一行內的 isTab glue 寬度重算為「推進到下一個 tab stop」。
+ *
+ * - `defaultTabStop <= 0`：直接回傳原 items（Strategy C 預設路徑、baseline 不變）。
+ * - 段落顯式 tab stop（`para.props.tabs`、僅 `left` 對齊）優先於 default 間距。
+ * - x 原點 = 行內容起點（不計 firstLineIndent；§18 scope-down、leader tab 情境足夠）。
+ * - center / right / decimal 對齊 tab：本 sprint 不解析（罕用、留後續 sprint）。
+ * - 解析寬度僅影響 `makeLine` 後的 `Line.width`；貪婪斷行的 buf 累寬仍用 BoxBuilder
+ *   的空白寬度（近似 — leader tab 多在行首、影響極小，誠實聲明於 audit doc）。
+ */
+function resolveTabStops(
+  items: LayoutItem[],
+  para: ParagraphInput,
+  defaultTabStop: Pt,
+): LayoutItem[] {
+  if (defaultTabStop <= 0) return items;
+  if (!items.some((it) => it.kind === 'glue' && (it as Glue).isTab)) return items;
+
+  const explicitStops = (para.props.tabs ?? [])
+    .filter((t) => t.align === 'left')
+    .map((t) => t.pos)
+    .sort((a, b) => a - b);
+
+  let x = 0;
+  return items.map((it) => {
+    if (it.kind === 'glue' && (it as Glue).isTab) {
+      const target = nextTabStop(x, explicitStops, defaultTabStop);
+      const resolved: Glue = { ...(it as Glue), width: target - x };
+      x = target;
+      return resolved;
+    }
+    if (it.kind !== 'penalty') x += it.width;
+    return it;
+  });
+}
+
+/**
+ * 給定目前 x，回傳下一個 tab stop 的絕對位置（pt）。
+ * 顯式 stop（已升序）優先；超過所有顯式 stop 則落 `defaultTabStop` 間距整數倍。
+ */
+function nextTabStop(x: Pt, explicitStops: Pt[], defaultTabStop: Pt): Pt {
+  for (const stop of explicitStops) {
+    if (stop > x + TAB_RESOLVE_EPSILON_PT) return stop;
+  }
+  const n = Math.floor((x + TAB_RESOLVE_EPSILON_PT) / defaultTabStop) + 1;
+  return n * defaultTabStop;
 }
 
 function makeEmptyLine(
@@ -447,6 +517,7 @@ function breakParagraphKP(
   firstLineIndent: Pt,
   getLineXOffset: ((idx: number, h: Pt) => Pt) | undefined,
   docGridLinePitch: Pt = 0,
+  defaultTabStop: Pt = 0,
 ): Line[] {
   const items = para.items;
   const N = items.length;
@@ -572,7 +643,9 @@ function breakParagraphKP(
     cutAt = applyKinsokuAbs(items, start, cutAt);
     const slice = items.slice(start, cutAt);
     const lineItems = trimTrailingGlue(li === 0 ? slice : trimLeadingGlue(slice));
-    const ln = makeLine(lineItems, para, li === breakChain.length - 1, docGridLinePitch);
+    const ln = makeLine(
+      lineItems, para, li === breakChain.length - 1, docGridLinePitch, defaultTabStop,
+    );
     if (getLineXOffset) ln.xOffset = getLineXOffset(li, accumulatedHeight);
     // K-P 也要透傳 forced break kind（page / column）
     const lastItem = items[breakAt];
@@ -585,7 +658,9 @@ function breakParagraphKP(
   }
   // 若還有殘留 items（K-P 漏掉末段）
   if (start < N) {
-    const ln = makeLine(trimTrailingGlue(items.slice(start)), para, true, docGridLinePitch);
+    const ln = makeLine(
+      trimTrailingGlue(items.slice(start)), para, true, docGridLinePitch, defaultTabStop,
+    );
     if (getLineXOffset) ln.xOffset = getLineXOffset(lines.length, accumulatedHeight);
     lines.push(ln);
   }

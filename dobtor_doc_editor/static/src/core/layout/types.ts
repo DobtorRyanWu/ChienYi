@@ -49,6 +49,14 @@ export interface Glue {
   shrink: Pt;         // 最多壓縮
   /** 標記為「中文字間」glue（避頭尾規則用）*/
   isCjkBreak?: boolean;
+  /**
+   * Sprint 161：標記為 tab（來自 `<w:tab/>` → run text 的 `\t`）的 glue。
+   *
+   * BoxBuilder 一律先以空白寬度建立（行為與 Sprint 0-160 一致）；
+   * LineBreaker 在 `LineBreakOptions.defaultTabStop` 有提供時、才把 isTab glue
+   * 的寬度重算為「推進到下一個 tab stop」。未提供 → 維持空白寬度。
+   */
+  isTab?: boolean;
 }
 
 /** 強制 / 可選斷點。-Infinity = 強制斷，+Infinity = 禁止斷。*/

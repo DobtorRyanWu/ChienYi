@@ -172,10 +172,14 @@ function pushTextAsBoxes(
   for (const ch of chars) {
     const code = ch.charCodeAt(0);
     if (code === 0x20 || code === 0x09) {
-      // 空白：吐 buffer，加 space glue
+      // 空白 / tab：吐 buffer，加 space glue
+      // Sprint 161：tab（0x09）以空白寬度建立但標記 isTab；
+      //   寬度於 LineBreaker 在有 defaultTabStop 時才重算（不破 baseline）。
       flushBuffer();
       const spaceWidth = metrics.measureWidth(' ', props);
-      out.push(spaceGlue(spaceWidth));
+      const glue = spaceGlue(spaceWidth);
+      if (code === 0x09) glue.isTab = true;
+      out.push(glue);
     } else if (isCjkChar(ch)) {
       // CJK：吐 buffer，加 zero-width glue（可斷點），插字元 Box，再加一個 zero-width glue
       flushBuffer();
