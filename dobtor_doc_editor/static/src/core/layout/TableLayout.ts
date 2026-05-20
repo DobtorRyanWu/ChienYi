@@ -168,6 +168,7 @@ export function layoutCell(
         firstLineIndent: block.props.indent?.firstLine,
         metrics,
         docGridLinePitch: options.docGridLinePitch,
+        defaultTabStop: options.defaultTabStop,
       });
       let h = 0;
       let hUnsnapped = 0;

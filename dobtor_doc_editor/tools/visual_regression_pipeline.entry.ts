@@ -42,6 +42,14 @@ import {
 interface RenderOptions {
   dpi?: number;
   layoutOptions?: LayoutOptions;
+  /**
+   * Sprint 162：opt-in 啟用 tab stop 解析（Strategy C）。
+   *
+   * true → 從解析出的 `documentNode.settings.defaultTabStop`（無則 OOXML 預設 36pt）
+   * 注入 `LayoutOptions.defaultTabStop`，LineBreaker 把 `\t` 解析為推進到下一個 tab stop。
+   * 省略 / false → tab 維持空白寬度（VR 預設路徑、baseline byte-identical）。
+   */
+  enableTabStops?: boolean;
   /** 限制最多渲染 N 頁，避免極端文件 OOM */
   maxPages?: number;
   /**
@@ -152,6 +160,8 @@ interface RenderResult {
 }
 
 const DEFAULT_DPI = 150;
+/** OOXML §17.15.1.25 `w:defaultTabStop` 預設值：720 twip = 36pt。 */
+const OOXML_DEFAULT_TAB_STOP_PT = 36;
 
 function ptToPx(pt: number, dpi: number): number {
   return pt * (dpi / 72);
@@ -306,6 +316,15 @@ async function render(
   // Sprint 139：numbering 注入 = opt-in（caller 顯式傳入 layoutOptions.numbering 才啟用）
   // 預設不注入以維持 VR baseline byte-identical 軌道（紀律 #1.a）；
   // 階段 C 重生 goldens 後可由 caller 顯式 opt-in 衡量改善。
+
+  // Sprint 162：tab stop 解析 opt-in（Strategy C）。enableTabStops=true 才從
+  // documentNode.settings.defaultTabStop 注入；省略 → VR baseline byte-identical。
+  if (options.enableTabStops) {
+    effectiveLayoutOptions = {
+      ...effectiveLayoutOptions,
+      defaultTabStop: documentNode.settings?.defaultTabStop ?? OOXML_DEFAULT_TAB_STOP_PT,
+    };
+  }
 
   // Sprint 58：layout cache lookup（key = docxHash + opts hash）
   // 注意：caller-injected metrics instance（browserTextMetrics / fontAdapter）序列化進 layoutOptions hash 不穩定；

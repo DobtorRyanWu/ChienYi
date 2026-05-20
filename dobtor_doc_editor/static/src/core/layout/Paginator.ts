@@ -129,6 +129,13 @@ interface PaginateContext {
    * 跨 section / cell 共用 state（與 ToCanvasEditor Sprint 138 設計一致）。
    */
   numberingCounter: NumberingCounterState;
+
+  // ── Sprint 162：tab stop 解析（跨 section 共用）──────────────────────────
+  /**
+   * 預設 tab stop 間距（pt）；從 `LayoutOptions.defaultTabStop` 注入。
+   * undefined / 0 → LineBreaker 不解析 tab（Strategy C 預設路徑）。
+   */
+  defaultTabStop?: Pt;
 }
 
 /** Sprint 6：wrapSquare 排除區。 */
@@ -176,6 +183,8 @@ export function paginate(
     : makeContext(section, sectionIndex, startPageNumber);
   // Sprint 139：直接呼叫 paginate（unit test 用）也注入 numbering
   if (!carryCtx) ctx.numberingMap = options.numbering;
+  // Sprint 162：tab stop 間距注入（同 numbering、跨 section 共用、carryCtx 已帶）
+  if (!carryCtx) ctx.defaultTabStop = options.defaultTabStop;
 
   for (let blockIdx = 0; blockIdx < section.body.length; blockIdx++) {
     const block = section.body[blockIdx];
@@ -215,6 +224,8 @@ export function layoutDocument(
   const ctx: PaginateContext = makeContext(sections[0], 0, 1);
   // Sprint 139：注入 numbering map（counter state 已由 makeContext 建好、跨 section 共用）
   ctx.numberingMap = options.numbering;
+  // Sprint 162：tab stop 間距注入（跨 section 共用）
+  ctx.defaultTabStop = options.defaultTabStop;
 
   for (let i = 0; i < sections.length; i++) {
     const sec = sections[i];
@@ -404,6 +415,7 @@ function renderBlocksToEntries(
         lineWidth,
         firstLineIndent: block.props.indent?.firstLine,
         metrics,
+        defaultTabStop: options.defaultTabStop,
       });
       for (const line of lines) {
         const lineEntry: LinePageEntry = {
@@ -734,6 +746,7 @@ function layParagraph(
       ? (_li, accH) => exclusionAtY(paraStartAbsY + accH).xOffset
       : undefined,
     docGridLinePitch: ctx.docGridLinePitch,
+    defaultTabStop: ctx.defaultTabStop,
   });
 
   if (lines.length === 0) return;

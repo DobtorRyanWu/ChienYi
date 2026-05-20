@@ -8,17 +8,17 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 161 結尾）
+## 1. 當前指標一覽（Sprint 162 結尾）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1353 passed + 1 skipped**（Sprint 161 +11 LineBreaker tab stop tests） |
-| VR mean | **0.073191**（Sprint 65 promote、第 25 次連續 byte-identical 維持；Sprint 161 改 LineBreaker/BoxBuilder、Strategy C 預設路徑 by construction 不變、跑全 42 fixture 驗證 byte-identical） |
+| vitest | **1358 passed + 1 skipped**（Sprint 162 +5 Paginator tab stop tests） |
+| VR mean | **0.073191**（Sprint 65 promote、第 26 次連續 byte-identical 維持；Sprint 161-162 tab stop wire-up 走 Strategy C、預設路徑 byte-identical、opt-in `--tab-stops` 量測 delta +4.8e-7 可忽略） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 160（156 / 157 / 158 / sprint160_v2 / sprint161；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 161（156 / 157 / 158 / sprint160_v2 / sprint161 / sprint162；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
 
 ---
@@ -54,7 +54,7 @@
 | Phase 0 能力盤點 | 100% | CI ✅ / CONTRIBUTING.md ✅（Sprint 67 落地） |
 | Phase 1 OOXML Parser | **§5 checklist 52/65（80%）** | Sprint 121-126 trHeight / OLE / SDT / bookmark / hyperlink rels;Sprint 145-153 九連 capture-only(footnotes/settings/fontTable/webSettings/appProps/customProps/contentTypes/latentStyles);**Sprint 156 checkbox audit 揭示真實 wire-up 75%**;Sprint 159 / 160 v1 §5 Phase 1 scope 重構（總數 69→65）;**Sprint 160 v2** §1.9 `instrText` render wire-up（[ ]→[x]）;雙指標 / 三指標見 [sprint156_phase1_checkbox_audit.md §4](sprint156_phase1_checkbox_audit.md) + [scope_audit_2026-05-19.md §3.1](scope_audit_2026-05-19.md) |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%） | opentype.js 已用於字型 metric;HarfBuzz 為長期方案;Sprint 127 probe 揭示「production canvas-editor 未整合」;**Sprint 157 fontTable.altName fallback wire-up to FontLoader 完成**（§2.2 第 1 個 [ ] → [x]） |
-| Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191;Sprint 44-49 突破紀錄;Sprint 161 LineBreaker tab stop 解析引擎（`defaultTabStop` opt-in、Strategy C、production 接線待 Sprint 162） |
+| Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191;Sprint 44-49 突破紀錄;Sprint 161-162 tab stop wire-up（LineBreaker 引擎 + layoutDocument/Paginator/TableLayout 接線 + VR opt-in 量測；Strategy C、aggregate delta 可忽略） |
 | Phase 4 Style Theme | 90% | Sprint 19 style merge;Sprint 130 §Phase 4.1 HSL;Sprint 131 §Phase 4.2 tblStylePr/tcPr;Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）;Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY;Sprint 134 §Phase 4.4 textAlignment + framePr capture(Layout wire-up defer);Sprint 137-139 numbering wire-up Strategy C |
 | Phase 4.5 產品化基礎建設 | 100% | 詳見 [phase4_5_completed.md](phase4_5_completed.md) |
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 未開始 | 待 mean ≤ 0.07 後啟動;Sprint 142 probe DEFER user GO |

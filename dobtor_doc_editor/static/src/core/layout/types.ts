@@ -497,4 +497,16 @@ export interface LayoutOptions {
    * undefined → TableLayout 不 emit numbering prefix（保 backward compat）。
    */
   _numberingCounter?: import('../ooxml/numbering').NumberingCounterState;
+  /**
+   * Sprint 162：預設 tab stop 間距（pt，來自 `DocumentNode.settings.defaultTabStop`、
+   * OOXML §17.15.1.25；Word 預設 720 twip = 36pt）。
+   *
+   * 提供後、Paginator/TableLayout 把它透傳給 `LineBreakOptions.defaultTabStop`，
+   * LineBreaker 在 `makeLine` 把 `\t`（isTab glue）寬度重算為「推進到下一個 tab stop」
+   * （Sprint 161 落地的解析引擎）。
+   *
+   * 省略（undefined）/ 0 → tab glue 維持空白寬度（Sprint 0-161 行為）。
+   * 紀律 #1.b：本欄位 opt-in、layout 路徑 wire-up；caller 不傳 → VR baseline byte-identical。
+   */
+  defaultTabStop?: Pt;
 }

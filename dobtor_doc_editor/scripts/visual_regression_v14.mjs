@@ -63,6 +63,12 @@ function parseArgs(argv) {
      *   - 只有 VR script 預設啟用、用 LO 系統 fonts；對齊 goldens metric source
      */
     fontMetrics: true,
+    /**
+     * Sprint 162：開啟 tab stop 解析（settings.defaultTabStop → LineBreaker）。
+     *   - 預設 false → tab 維持空白寬（baseline byte-identical 軌道）
+     *   - `--tab-stops` 啟用 → Strategy C opt-in、量測含 tab fixture 的 VR delta
+     */
+    tabStops: false,
   };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
@@ -75,6 +81,8 @@ function parseArgs(argv) {
     // Sprint 62 引入；Sprint 65 後 default = true（用 --no-font-metrics 退回）
     else if (a === '--font-metrics') args.fontMetrics = true;
     else if (a === '--no-font-metrics') args.fontMetrics = false;
+    // Sprint 162：tab stop 解析 opt-in（Strategy C 量測用）
+    else if (a === '--tab-stops') args.tabStops = true;
   }
   return args;
 }
@@ -248,13 +256,14 @@ async function main() {
         // 左上 64×64% 區域 → 02_std_table 週報 / 03_complex_table 等 fixture diff 達 0.4-0.64
         // （內容在 cropped 區域外完全 mismatch）。改 150 DPI 後 pixel 對齊正確
         const result = await page.evaluate(
-          (b64, useBrowserMetrics, useFontMetrics, fontBytes) => {
+          (b64, useBrowserMetrics, useFontMetrics, fontBytes, useTabStops) => {
             const opts = { dpi: 150 };
             if (useBrowserMetrics) opts.useBrowserMetrics = true;
             if (useFontMetrics && fontBytes) {
               opts.useFontMetrics = true;
               opts.fontBytes = fontBytes;
             }
+            if (useTabStops) opts.enableTabStops = true;
             const r = window.__bootDobtorPipeline(b64, opts);
             return r;
           },
@@ -262,6 +271,7 @@ async function main() {
           args.browserMetrics,
           args.fontMetrics,
           fontBytesBase64,
+          args.tabStops,
         );
 
         if (result.errorMsg) {

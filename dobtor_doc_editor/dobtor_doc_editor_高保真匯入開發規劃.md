@@ -278,7 +278,7 @@ const glyphs = buffer.json()  // 精確的 glyph advance、kerning
 - [x] 單元測試:每種 style type 各 5 個 fixture
 
 #### 1.4 Paragraph / Run / Text（2 週）
-- [x] `<w:p>` + `<w:pPr>`:對齊、縮排、間距、行距、tab stops、tabs
+- [x] `<w:p>` + `<w:pPr>`:對齊、縮排、間距、行距、tab stops、tabs（Sprint 161-162 tab stop wire-up：`<w:tab/>` 從「當單一空白」升級為「推進到下一個 tab stop」—— Sprint 161 LineBreaker `resolveTabStops` 引擎、Sprint 162 `layoutDocument`/Paginator/TableLayout 接線 + `settings.defaultTabStop` 注入；Strategy C opt-in、VR byte-identical；left 對齊；center/right/decimal 對齊待後續）
 - [x] `<w:r>` + `<w:rPr>`:字型(rFonts 四屬性)、sz、b、i、u、strike、color、highlight、vertAlign（上下標）、spacing（字距）
 - [x] `<w:t xml:space="preserve">` 空白保留
 - [x] `<w:tab>`、`<w:br type="page|column|textWrapping">`
