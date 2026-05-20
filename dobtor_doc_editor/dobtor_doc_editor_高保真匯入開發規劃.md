@@ -354,7 +354,7 @@ function resolveVerticalMerges(table: Table): Table {
 - [ ] `<w:endnoteReference>` + `endnotes.xml`（Sprint 145 capture-only、Phase 1 optional → 真實 endnote 渲染屬 [§5.4 Phase 5.4](#54-追蹤修訂1-週)、parser AST 已就緒等渲染管線）
 - [x] `<w:hyperlink>` + rels 查詢
 - [x] `<w:fldSimple>` 簡單欄位（PAGE、DATE、SEQ）
-- [ ] `<w:instrText>` 複雜欄位（fldChar begin/separate/end）（Sprint 123 capture 強化、render 端未完全消費）
+- [x] `<w:instrText>` 複雜欄位（fldChar begin/separate/end）（Sprint 123 capture + Sprint 160 v2 ToCanvasEditor render 消費：cachedValue 優先、無快取則依 fieldType 產出 placeholder；真實動態值如即時頁碼需 layout pagination context、屬未來）
 - [ ] `<w:bookmarkStart>`、`<w:bookmarkEnd>`（Sprint 125 capture-only、render 端不消費）
 - [x] `<w:sdt>` 結構化文件標籤（內容控制項、Sprint 124 transparent unwrap）
 - [ ] `<mc:AlternateContent>` — 新舊版本相容選擇（Phase 1 optional）

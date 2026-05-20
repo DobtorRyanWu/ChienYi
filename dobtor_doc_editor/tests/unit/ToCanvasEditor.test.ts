@@ -641,3 +641,42 @@ describe('ToCanvasEditor — Sprint 138 numbering wire-up', () => {
   });
 });
 
+describe('ToCanvasEditor — Sprint 160 v2 instrText render wire-up', () => {
+  it('fldChar.begin + instrText PAGE + fldChar.separate + <digit> + fldChar.end 產生 PAGE 替代值', () => {
+    const doc = makeDoc([
+      makeSection([
+        makeParagraph([
+          {
+            type: 'field',
+            instruction: ' PAGE ',
+            fieldType: 'PAGE',
+            cachedValue: undefined, // 強制觸發 instrText render fallback
+          },
+        ]),
+      ]),
+    ]);
+    const elements = mapper.convert(doc);
+    const result = elements.map((e) => e.value).join('');
+    // 預期 mapping: '[PAGE]\n'
+    expect(result).toBe('[PAGE]\n');
+  });
+
+  it('有 cachedValue 時優先使用 cachedValue', () => {
+    const doc = makeDoc([
+      makeSection([
+        makeParagraph([
+          {
+            type: 'field',
+            instruction: ' PAGE ',
+            fieldType: 'PAGE',
+            cachedValue: '12',
+          },
+        ]),
+      ]),
+    ]);
+    const elements = mapper.convert(doc);
+    const result = elements.map((e) => e.value).join('');
+    expect(result).toBe('12\n');
+  });
+});
+

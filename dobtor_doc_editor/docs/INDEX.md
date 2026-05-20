@@ -48,9 +48,11 @@ Sprint 64b portal font infra、Sprint 66 font endpoint tests、Sprint 67 CONTRIB
 
 [sprint155_glossary_catchup_to_sprint154](sprint155_glossary_catchup_to_sprint154.md)
 
-### Sprint 156-158（snappy-nova plan 啟動 + 第一個 wire-up + working tree 大 backfill）
+### Sprint 156-160（snappy-nova plan 啟動 + wire-up 階段 + working tree 大 backfill）
 
-[sprint156_phase1_checkbox_audit](sprint156_phase1_checkbox_audit.md)（Phase 1 §5 內 52 [x] / 17 [ ] checkbox audit、docs-only、揭發真實 wire-up 75%）、[sprint157_fonttable_altname_wireup](sprint157_fonttable_altname_wireup.md)（Phase 2 §2.2 第 1 個 `[x]`、FontLoader altName fallback、+ Sprint 64b backfill 1 file）、[sprint158_working_tree_backfill_audit](sprint158_working_tree_backfill_audit.md)（**Sprint 0-157 整片 working tree drift 揭發 + 5 batch backfill commit、353 件進 git、紀律 #14.b retroactive enforce**）
+[sprint156_phase1_checkbox_audit](sprint156_phase1_checkbox_audit.md)（Phase 1 §5 內 52 [x] / 17 [ ] checkbox audit、docs-only、揭發真實 wire-up 75%）、[sprint157_fonttable_altname_wireup](sprint157_fonttable_altname_wireup.md)（Phase 2 §2.2 第 1 個 `[x]`、FontLoader altName fallback、+ Sprint 64b backfill 1 file）、[sprint158_working_tree_backfill_audit](sprint158_working_tree_backfill_audit.md)（**Sprint 0-157 整片 working tree drift 揭發 + 5 batch backfill commit、353 件進 git、紀律 #14.b retroactive enforce**）、[sprint160_v2_instrtext_render_wireup](sprint160_v2_instrtext_render_wireup.md)（Phase 1 §1.9 `<w:instrText>` → ToCanvasEditor render 消費 wire-up、`fieldType` placeholder、mapper 不在 VR pipeline、vitest 1340→1342）
+
+> Sprint 159 / 160 v1 為 docs-only follow-up（§5 Phase 1 scope 重構 / footnote-endnote scope 釐清）、無獨立 audit doc；見 [autonomous_roadmap.md 進度追蹤表](autonomous_roadmap.md)。
 
 ---
 

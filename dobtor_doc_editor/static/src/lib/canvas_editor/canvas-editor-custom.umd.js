@@ -7194,15 +7194,17 @@
                         out.push({ type: 'pageBreak', value: '\n' });
                     }
                     break;
-                case 'field':
-                    // 用 cachedValue（fldSimple 預先快取）；無快取則放 instruction 字面值
-                    {
-                        const text = node.cachedValue ?? node.instruction;
-                        for (const ch of text) {
-                            out.push({ value: ch });
-                        }
+                case 'field': {
+                    // Sprint 160 v2: <w:instrText> 複雜欄位 render 消費
+                    // fldChar begin/separate/end 三段語意 → parser 產出 FieldNode
+                    // renderer 根據 fieldType + instrText 決定輸出內容
+                    const textToRender = node.cachedValue
+                        ?? this.fieldPlaceholder(node.fieldType, node.instruction);
+                    for (const ch of textToRender) {
+                        out.push({ value: ch });
                     }
                     break;
+                }
                 case 'inlineImage':
                     this.appendImage(out, node, media);
                     break;
@@ -7252,6 +7254,32 @@
                     // 用 spread 複製樣式（避免不同字元共用同一物件造成意外突變）
                     out.push({ ...baseStyle, value: ch });
                 }
+            }
+        }
+        // ── Field placeholder ──────────────────────────────────────────────────────
+        /**
+         * 根據 fieldType 和原始 instruction 產出佔位文字。
+         * 無 cachedValue 時呼叫：讓 layout flow 有可見文字而非空白。
+         */
+        fieldPlaceholder(fieldType, instruction) {
+            switch (fieldType) {
+                case 'PAGE': return '[PAGE]';
+                case 'NUMPAGES': return '[NUMPAGES]';
+                case 'DATE': return '[DATE]';
+                case 'TIME': return '[TIME]';
+                case 'AUTHOR': return '[AUTHOR]';
+                case 'FILENAME': return '[FILENAME]';
+                case 'SEQ': return '[SEQ]';
+                case 'TOC': return '[TOC]';
+                case 'REF': return '[REF]';
+                case 'STYLEREF': return '[STYLEREF]';
+                case 'HYPERLINK':
+                    // HYPERLINK 欄位通常有 anchor/url — 回退到 instruction 片段
+                    return instruction.trim();
+                case 'unknown':
+                default:
+                    // 未識別欄位：用 instruction 本身作可見文字
+                    return instruction.trim() || '[FIELD]';
             }
         }
         // ── Image ─────────────────────────────────────────────────────────────────
