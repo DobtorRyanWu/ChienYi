@@ -599,8 +599,8 @@ docx 匯出是 parser 的反向：Document IR → OOXML → zip。
 
 走 Strategy B（直接改 DocEditor、非並存）+ 增量交付:
 
-- [ ] Phase 1（視覺風格靠攏 esign UI、~1 週、無新 model、4 個檔案改動）
-- [ ] Phase 2.1（inline control 拖曳、~1 週、新增 `doc.template.signer` + `doc.template.field` model、用 canvas-editor 原生 control API、control 會被序列化回 docx）
+- [x] Phase 1（視覺風格靠攏 esign UI、~1 週、無新 model、4 個檔案改動）
+- [x] Phase 2.1（inline control 拖曳、~1 週、新增 `doc.template.signer` + `doc.template.field` model、用 canvas-editor 原生 control API、control 會被序列化回 docx）
 - [ ] Phase 2.2（overlay 絕對定位、~3-4 週、**僅當 Phase 2.1 實測明確不滿意才啟動**）
 
 **可逆性**：因走 Strategy B、若 Phase 8 後續再被推翻、回滾需手動 diff 還原；不像 Sprint 90-109 可 byte-identical revert。是 Strategy B 明知接受的代價。

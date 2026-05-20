@@ -61,7 +61,7 @@
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 未開始 | 待 mean ≤ 0.07 後啟動;Sprint 142 probe DEFER user GO |
 | Phase 6 Export 對稱性 | 0% | 未開始 |
 | Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe（Sprint 60 GREEN） |
-| Phase 8 Template UI Builder | 0% | ADR-022 落地（2026-05-19）、非 docx 匯入、工時 / VR mean 與 Phase 0-7 分開計算 |
+| Phase 8 Template UI Builder | Phase 1 + 2.1 已驗證 / 2.2 未啟動 | ADR-022 落地（2026-05-19）、非 docx 匯入、工時 / VR mean 與 Phase 0-7 分開計算；Phase 1 視覺 + Phase 2.1 inline control 程式碼於 ADR-022 當日落地、2026-05-20 端到端驗證通過（vitest 1358 / 後端 6 test / 瀏覽器實測 0 console error、欄位插入刪除全通），詳見 [phase8_verification_2026-05-20.md](phase8_verification_2026-05-20.md)；Phase 2.2 overlay 依 ADR-022 條件啟動、未動工 |
 
 ---
 
