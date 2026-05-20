@@ -8,7 +8,7 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 163 結尾）
+## 1. 當前指標一覽（Sprint 164 結尾）
 
 | 指標 | 數值 |
 |---|---|
@@ -19,7 +19,7 @@
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 162（156 / 157 / 158 / sprint160_v2 / sprint161 / sprint162 / sprint163；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 163（156 / 157 / 158 / sprint160_v2 / sprint161 / sprint162 / sprint163 / sprint164；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
 
 ---
@@ -53,7 +53,7 @@
 | Phase | 完成度 | 說明 |
 |---|---|---|
 | Phase 0 能力盤點 | 100% | CI ✅ / CONTRIBUTING.md ✅（Sprint 67 落地） |
-| Phase 1 OOXML Parser | **§5 checklist 52/65（80%）** | Sprint 121-126 trHeight / OLE / SDT / bookmark / hyperlink rels;Sprint 145-153 九連 capture-only(footnotes/settings/fontTable/webSettings/appProps/customProps/contentTypes/latentStyles);**Sprint 156 checkbox audit 揭示真實 wire-up 75%**;Sprint 159 / 160 v1 §5 Phase 1 scope 重構（總數 69→65）;**Sprint 160 v2** §1.9 `instrText` render wire-up（[ ]→[x]）;雙指標 / 三指標見 [sprint156_phase1_checkbox_audit.md §4](sprint156_phase1_checkbox_audit.md) + [scope_audit_2026-05-19.md §3.1](scope_audit_2026-05-19.md) |
+| Phase 1 OOXML Parser | **§5 checklist 52/65（80%）** | Sprint 121-126 trHeight / OLE / SDT / bookmark / hyperlink rels;Sprint 145-153 九連 capture-only(footnotes/settings/fontTable/webSettings/appProps/customProps/contentTypes/latentStyles);**Sprint 156 checkbox audit 揭示真實 wire-up 75%**;Sprint 159 / 160 v1 §5 Phase 1 scope 重構（總數 69→65）;**Sprint 160 v2** §1.9 `instrText` render wire-up（[ ]→[x]）;**Sprint 164** bookmark render probe → 改標 Phase 1 optional（render 消費依賴 Phase 2 canvas-editor patch、decision 2B）;雙指標 / 三指標見 [sprint156_phase1_checkbox_audit.md §4](sprint156_phase1_checkbox_audit.md) + [scope_audit_2026-05-19.md §3.1](scope_audit_2026-05-19.md) |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%） | opentype.js 已用於字型 metric;HarfBuzz 為長期方案;Sprint 127 probe 揭示「production canvas-editor 未整合」;**Sprint 157 fontTable.altName fallback wire-up to FontLoader 完成**（§2.2 第 1 個 [ ] → [x]） |
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191;Sprint 44-49 突破紀錄;Sprint 161-162 tab stop wire-up（LineBreaker 引擎 + layoutDocument/Paginator/TableLayout 接線 + VR opt-in 量測；Strategy C、aggregate delta 可忽略） |
 | Phase 4 Style Theme | 90% | Sprint 19 style merge;Sprint 130 §Phase 4.1 HSL;Sprint 131 §Phase 4.2 tblStylePr/tcPr;Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）;Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY;Sprint 134 §Phase 4.4 textAlignment + framePr capture(Layout wire-up defer);Sprint 137-139 numbering wire-up Strategy C |

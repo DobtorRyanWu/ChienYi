@@ -355,7 +355,7 @@ function resolveVerticalMerges(table: Table): Table {
 - [x] `<w:hyperlink>` + rels 查詢
 - [x] `<w:fldSimple>` 簡單欄位（PAGE、DATE、SEQ）
 - [x] `<w:instrText>` 複雜欄位（fldChar begin/separate/end）（Sprint 123 capture + Sprint 160 v2 ToCanvasEditor render 消費：cachedValue 優先、無快取則依 fieldType 產出 placeholder；真實動態值如即時頁碼需 layout pagination context、屬未來）
-- [ ] `<w:bookmarkStart>`、`<w:bookmarkEnd>`（Sprint 125 capture-only、render 端不消費）
+- [ ] `<w:bookmarkStart>`、`<w:bookmarkEnd>`（Sprint 125 capture-only、Phase 1 optional → render 消費須 canvas-editor anchor 支援、Sprint 164 probe 確認 canvas-editor 無 bookmark/anchor element type、屬 Phase 2 decision 2B「直接 patch canvas-editor」範疇）
 - [x] `<w:sdt>` 結構化文件標籤（內容控制項、Sprint 124 transparent unwrap）
 - [ ] `<mc:AlternateContent>` — 新舊版本相容選擇（Phase 1 optional）
 
@@ -371,9 +371,13 @@ function resolveVerticalMerges(table: Table): Table {
 > - `<w:footnoteReference>` + `footnotes.xml` (§1.9、Sprint 145 capture-only)
 > - `<w:endnoteReference>` + `endnotes.xml` (§1.9、Sprint 145 capture-only)
 >
+> **保留但標 (Phase 1 optional) — render 消費須 canvas-editor anchor 支援**：
+> - `<w:bookmarkStart>` / `<w:bookmarkEnd>` (§1.9、Sprint 125 capture-only)
+>
 > 這些**不擋 Phase 1 Exit**。
 > - 第一批（移除）：Sprint 159 audit 識別、commit 85e5e81 處理
-> - 第二批（footnote optional）：Sprint 160 v1 stub 嘗試後識別、commit 待補（Phase 5.4 渲染管線不存在時無法做真實 wire-up）
+> - 第二批（footnote optional）：Sprint 160 v1 stub 嘗試後識別、commit a20d2f9 處理（Phase 5.4 渲染管線不存在時無法做真實 wire-up）
+> - 第三批（bookmark optional）：Sprint 164 probe 識別（canvas-editor 無 bookmark/anchor element type、render 消費屬 Phase 2 decision 2B「直接 patch canvas-editor」範疇）
 
 **Exit Criteria**：
 - Parser 對 50 份測試 docx 全部無 error
