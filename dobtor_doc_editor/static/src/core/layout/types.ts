@@ -513,4 +513,19 @@ export interface LayoutOptions {
    * 紀律 #1.b：本欄位 opt-in、layout 路徑 wire-up；caller 不傳 → VR baseline byte-identical。
    */
   defaultTabStop?: Pt;
+  /**
+   * Sprint 169：`<w:framePr>` 浮動段落框 wire-up 開關（opt-in、預設 false）。
+   *
+   * 提供 `true` 後、Paginator 對連續且 framePr 相同的段落（`ParagraphProps.framePr`）：
+   *   1. 從正常垂直流抽出、合併為單一 frame group
+   *   2. frame 內容子排版求寬高、依 hAnchor/vAnchor + x/y 偏移定出絕對位置
+   *   3. 各行以絕對座標 emit 為 `LinePageEntry`
+   *   4. Sprint 169：保留垂直空間（topAndBottom-like、不重疊）；Sprint 170 升級為
+   *      `wrap=around` 排除區、後續內文側繞
+   *
+   * 省略（undefined）/ false → framePr 段落走一般 `layParagraph`、與 Sprint 0-168
+   * 行為 byte-identical（Strategy C；framePr probe Sprint 168、user 2026-05-21 選
+   * opt-in 實作）。生效驗證待 decision B（OnlyOffice goldens 重生）。
+   */
+  enableFramePr?: boolean;
 }

@@ -43,6 +43,7 @@ import { buildParagraph, type NumberingPrefix } from './BoxBuilder';
 import { EstimateMetrics } from './TextMetrics';
 import { layoutTable, splitRowAtHeight, splitRowAtPageBreak } from './TableLayout';
 import { computeAlignmentShift } from './alignmentShift';
+import { isFramedParagraph, frameGroupLength } from './frameGroup';
 import { NumberingCounterState, expandLvlText } from '../ooxml/numbering';
 
 interface PaginateContext {
@@ -189,7 +190,18 @@ export function paginate(
   for (let blockIdx = 0; blockIdx < section.body.length; blockIdx++) {
     const block = section.body[blockIdx];
     if (block.type === 'paragraph') {
-      layParagraph(ctx, block, blockIdx, metrics, widowMin, orphanMin);
+      // Sprint 169：framePr 浮動段落框（opt-in）。連續同 framePr 段落合併為一 frame、
+      // 抽出正常流由 layFramedParagraphs 處理。enableFramePr 關 → 走一般 layParagraph、
+      // 與 Sprint 0-168 byte-identical。
+      if (options.enableFramePr && isFramedParagraph(block)) {
+        const groupLen = frameGroupLength(section.body, blockIdx);
+        const framed: ParagraphNode[] = [];
+        for (let i = 0; i < groupLen; i++) framed.push(section.body[blockIdx + i] as ParagraphNode);
+        layFramedParagraphs(ctx, framed, blockIdx, metrics);
+        blockIdx += groupLen - 1;
+      } else {
+        layParagraph(ctx, block, blockIdx, metrics, widowMin, orphanMin);
+      }
     } else if (block.type === 'table') {
       laySingleTable(ctx, block, blockIdx, options);
     }
@@ -588,7 +600,18 @@ function layoutSectionInto(
   for (let blockIdx = 0; blockIdx < section.body.length; blockIdx++) {
     const block = section.body[blockIdx];
     if (block.type === 'paragraph') {
-      layParagraph(ctx, block, blockIdx, metrics, widowMin, orphanMin);
+      // Sprint 169：framePr 浮動段落框（opt-in）。連續同 framePr 段落合併為一 frame、
+      // 抽出正常流由 layFramedParagraphs 處理。enableFramePr 關 → 走一般 layParagraph、
+      // 與 Sprint 0-168 byte-identical。
+      if (options.enableFramePr && isFramedParagraph(block)) {
+        const groupLen = frameGroupLength(section.body, blockIdx);
+        const framed: ParagraphNode[] = [];
+        for (let i = 0; i < groupLen; i++) framed.push(section.body[blockIdx + i] as ParagraphNode);
+        layFramedParagraphs(ctx, framed, blockIdx, metrics);
+        blockIdx += groupLen - 1;
+      } else {
+        layParagraph(ctx, block, blockIdx, metrics, widowMin, orphanMin);
+      }
     } else if (block.type === 'table') {
       laySingleTable(ctx, block, blockIdx, options);
     }
@@ -830,6 +853,146 @@ function layParagraph(
   // Sprint 18：段落放完後重設 R1 transition 狀態
   // 段落視為 std 內容，打斷 image row 段；下次見到 image row 視為新一輪 transition
   ctx.lastRowWasImage = false;
+}
+
+// ── Framed Paragraphs（Sprint 169：`<w:framePr>` 浮動段落框）────────────────
+
+/**
+ * Sprint 169：把連續同 framePr 的段落（已由 frameGroupLength 分組）排成一個浮動框。
+ *
+ * - 子排版：逐段 buildParagraph + breakParagraph、收集行與框內相對座標。
+ * - 框寬：framePr.width 顯式 → 用之；否則 auto → 用欄寬（內容 jc 在框內生效）。
+ * - 定位：vAnchor（text / margin / page）+ y 偏移決定框頂 y；hAnchor + x / xAlign
+ *   決定框左 x。各行以絕對座標 emit 為 LinePageEntry。
+ * - 垂直空間：Sprint 169 對 vAnchor=text 採 topAndBottom-like「保留空間」（currentY
+ *   推進框高、後續內文落在框下方、不重疊）。Sprint 170 升級為 wrap=around 排除區。
+ *
+ * Scope-down（紀律 #18）：框內不解析 floatImage / numbering 前綴（罕見、過濾後當純內文）；
+ * 框本身跨頁留 Sprint 171；vAnchor=page/margin 不保留垂直空間（純浮動、可能與內文重疊、
+ * 發 warning）。
+ */
+function layFramedParagraphs(
+  ctx: PaginateContext,
+  blocks: ParagraphNode[],
+  blockIdx: number,
+  metrics: import('./types').TextMetrics,
+): void {
+  const framePr = blocks[0].props.framePr;
+  if (!framePr) return;
+
+  const colX = currentColumnX(ctx);
+  const colWidth = currentColumnWidth(ctx);
+  // 框寬度：顯式 framePr.width 優先；否則 auto → 欄寬
+  const frameWidth = (framePr.width !== undefined && framePr.width > 0) ? framePr.width : colWidth;
+
+  // 子排版：逐段排版、收集各行框內相對座標（x = 框左起算、yRel = 框頂起算）
+  const placed: Array<{ line: Line; xRel: Pt; yRel: Pt }> = [];
+  let cursorY = 0;
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    // floatImage / floatTextBox 在框內 scope-down：過濾掉、框視為純內文
+    const inlineRuns: ParagraphNode['runs'] = [];
+    let hadFloat = false;
+    for (const r of b.runs) {
+      if (r.type === 'floatImage' || r.type === 'floatTextBox') hadFloat = true;
+      else inlineRuns.push(r);
+    }
+    if (hadFloat) {
+      ctx.warnings.push(`[paginate] block#${blockIdx + i} framed 段落含 floatImage/floatTextBox、框內 scope-down 略過（Sprint 169）。`);
+    }
+    const paraNode: ParagraphNode = inlineRuns.length === b.runs.length ? b : { ...b, runs: inlineRuns };
+    const indentLeft = b.props.indent?.left ?? 0;
+    const indentRight = b.props.indent?.right ?? 0;
+    const lineWidth = Math.max(frameWidth - indentLeft - indentRight, 1);
+    const para = buildParagraph(paraNode, blockIdx + i, metrics, undefined);
+    const lines = breakParagraph(para, {
+      lineWidth,
+      firstLineIndent: b.props.indent?.firstLine,
+      metrics,
+      docGridLinePitch: ctx.docGridLinePitch,
+      defaultTabStop: ctx.defaultTabStop,
+    });
+    cursorY += b.props.spacing?.before ?? 0;
+    for (let li = 0; li < lines.length; li++) {
+      const ln = lines[li];
+      const alignShift = computeAlignmentShift(ln.alignment, ln.width, lineWidth);
+      const firstLineIndent = li === 0 ? (b.props.indent?.firstLine ?? 0) : 0;
+      const xRel = indentLeft + (ln.xOffset ?? 0) + alignShift + firstLineIndent;
+      placed.push({ line: ln, xRel, yRel: cursorY });
+      cursorY += ln.height;
+    }
+    cursorY += b.props.spacing?.after ?? 0;
+  }
+  if (placed.length === 0) return;
+  const frameHeight = cursorY;
+
+  // 垂直錨點
+  const yOffset = framePr.y ?? 0;
+  const anchoredToFlow = framePr.vAnchor !== 'page' && framePr.vAnchor !== 'margin';
+  let frameTopY: Pt;
+  if (framePr.vAnchor === 'page') {
+    frameTopY = yOffset;
+  } else if (framePr.vAnchor === 'margin') {
+    frameTopY = ctx.marginTop + yOffset;
+  } else {
+    // vAnchor=text（預設）：相對當前文字流位置
+    // 框放不下當前頁 → 先 flush（scope-down：框本身不跨頁、留 Sprint 171）
+    if (ctx.currentY + yOffset + frameHeight > ctx.contentHeight && ctx.entries.length > 0) {
+      flushPage(ctx);
+    }
+    frameTopY = ctx.marginTop + ctx.currentY + yOffset;
+  }
+
+  // 水平錨點
+  const frameX = computeFrameX(framePr, frameWidth, colX, colWidth);
+
+  // emit 各行為絕對座標 LinePageEntry
+  for (const p of placed) {
+    const entry: LinePageEntry = {
+      kind: 'line',
+      line: p.line,
+      x: frameX + p.xRel,
+      y: frameTopY + p.yRel,
+      width: p.line.width,
+      height: p.line.height,
+    };
+    ctx.entries.push(entry);
+  }
+
+  // 垂直空間保留（Sprint 169：vAnchor=text 採 topAndBottom-like、後續內文落框下不重疊）
+  if (anchoredToFlow) {
+    ctx.currentY += yOffset + frameHeight;
+  } else {
+    ctx.warnings.push(`[paginate] block#${blockIdx} framePr vAnchor=${framePr.vAnchor}：純浮動、未保留垂直空間、可能與內文重疊（Sprint 170+ 補排除區）。`);
+  }
+  ctx.lastRowWasImage = false;
+}
+
+/** Sprint 169：framePr 水平錨點 → 框左 x（絕對座標）。 */
+function computeFrameX(
+  framePr: NonNullable<ParagraphNode['props']['framePr']>,
+  frameWidth: Pt,
+  colX: Pt,
+  colWidth: Pt,
+): Pt {
+  // xAlign 優先於 x 偏移
+  switch (framePr.xAlign) {
+    case 'center':
+      return colX + (colWidth - frameWidth) / 2;
+    case 'right':
+    case 'outside':
+      return colX + colWidth - frameWidth;
+    case 'left':
+    case 'inside':
+      return colX;
+    default:
+      break;
+  }
+  // 無 xAlign：x 偏移、基準依 hAnchor
+  const x = framePr.x ?? 0;
+  if (framePr.hAnchor === 'page') return x;
+  // margin / text（預設）→ 相對欄左（單欄時 = marginLeft）
+  return colX + x;
 }
 
 // ── Float Image ────────────────────────────────────────────────────────────
