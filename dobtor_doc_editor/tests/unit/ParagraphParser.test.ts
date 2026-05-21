@@ -948,3 +948,85 @@ describe('ParagraphParser — Sprint 134 framePr', () => {
     expect(node.props.shading?.fill).toBe('EEEEEE');
   });
 });
+
+describe('ParagraphParser — Sprint 174 追蹤修訂 <w:ins> / <w:del>', () => {
+  it('<w:ins> 包裹 run → revision type=ins + author/date/id', () => {
+    const p = parsePXml(
+      '<w:ins w:id="3" w:author="Alice" w:date="2024-01-02T10:00:00Z">' +
+      '<w:r><w:t>新增文字</w:t></w:r></w:ins>',
+    );
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    const run = node.runs[0];
+    expect(run.type).toBe('run');
+    if (run.type === 'run') {
+      expect(run.text).toBe('新增文字');
+      expect(run.revision).toEqual({
+        type: 'ins', author: 'Alice', date: '2024-01-02T10:00:00Z', id: 3,
+      });
+    }
+  });
+
+  it('<w:del> 包裹 run、文字來自 <w:delText> → revision type=del', () => {
+    const p = parsePXml(
+      '<w:del w:id="5" w:author="Bob" w:date="2024-02-03T08:00:00Z">' +
+      '<w:r><w:delText>刪除文字</w:delText></w:r></w:del>',
+    );
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(1);
+    const run = node.runs[0];
+    if (run.type === 'run') {
+      expect(run.text).toBe('刪除文字');
+      expect(run.revision).toEqual({
+        type: 'del', author: 'Bob', date: '2024-02-03T08:00:00Z', id: 5,
+      });
+    }
+  });
+
+  it('<w:ins> 無 author/date → revision 只有 type', () => {
+    const p = parsePXml('<w:ins w:id="1"><w:r><w:t>x</w:t></w:r></w:ins>');
+    const node = parser.parse(p);
+    const run = node.runs[0];
+    if (run.type === 'run') {
+      expect(run.revision).toEqual({ type: 'ins', id: 1 });
+    }
+  });
+
+  it('<w:ins> 內多個 run → 全部標記同一 revision', () => {
+    const p = parsePXml(
+      '<w:ins w:id="2" w:author="A"><w:r><w:t>一</w:t></w:r>' +
+      '<w:r><w:t>二</w:t></w:r></w:ins>',
+    );
+    const node = parser.parse(p);
+    expect(node.runs).toHaveLength(2);
+    for (const run of node.runs) {
+      if (run.type === 'run') {
+        expect(run.revision?.type).toBe('ins');
+        expect(run.revision?.author).toBe('A');
+      }
+    }
+  });
+
+  it('追蹤修訂 run 與一般 run 混排 → 順序保留、只有修訂 run 帶 revision', () => {
+    const p = parsePXml(
+      '<w:r><w:t>前</w:t></w:r>' +
+      '<w:ins w:id="1" w:author="A"><w:r><w:t>插</w:t></w:r></w:ins>' +
+      '<w:r><w:t>後</w:t></w:r>',
+    );
+    const node = parser.parse(p);
+    expect(node.runs.map((r) => (r.type === 'run' ? r.text : null))).toEqual(['前', '插', '後']);
+    expect(node.runs[0].type === 'run' && node.runs[0].revision).toBeUndefined();
+    expect(node.runs[1].type === 'run' && node.runs[1].revision?.type).toBe('ins');
+    expect(node.runs[2].type === 'run' && node.runs[2].revision).toBeUndefined();
+  });
+
+  it('w:id 非數字 → revision.id 不掛', () => {
+    const p = parsePXml('<w:ins w:id="abc" w:author="A"><w:r><w:t>x</w:t></w:r></w:ins>');
+    const node = parser.parse(p);
+    const run = node.runs[0];
+    if (run.type === 'run') {
+      expect(run.revision?.id).toBeUndefined();
+      expect(run.revision?.author).toBe('A');
+    }
+  });
+});

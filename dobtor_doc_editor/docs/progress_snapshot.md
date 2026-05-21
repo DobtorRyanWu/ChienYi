@@ -8,12 +8,12 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 173 結尾）
+## 1. 當前指標一覽（Sprint 174 結尾）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1439 passed + 1 skipped**（Sprint 173 +5 CanvasRenderer 浮水印；Sprint 172 +10；Sprint 171 +14） |
-| VR mean | **0.073191**（Sprint 65 promote、第 33 次連續 byte-identical；Sprint 167-173 textAlignment / framePr / background / watermark 皆 Strategy C、42 fixture byte-identical） |
+| vitest | **1445 passed + 1 skipped**（Sprint 174 +6 ParagraphParser 追蹤修訂；Sprint 173 +5；Sprint 172 +10） |
+| VR mean | **0.073191**（Sprint 65 promote、第 34 次連續 byte-identical；Sprint 167-174 textAlignment / framePr / background / watermark / 追蹤修訂 皆 Strategy C 或 0-coverage capture、42 fixture byte-identical） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
@@ -58,7 +58,7 @@
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191;Sprint 44-49 突破紀錄;Sprint 161-162 tab stop wire-up（LineBreaker 引擎 + layoutDocument/Paginator/TableLayout 接線 + VR opt-in 量測；Strategy C、aggregate delta 可忽略） |
 | Phase 4 Style Theme | 91% | Sprint 19 style merge;Sprint 130 §Phase 4.1 HSL;Sprint 131 §Phase 4.2 tblStylePr/tcPr;Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）;Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY;Sprint 134 §Phase 4.4 textAlignment + framePr capture;Sprint 137-139 numbering wire-up Strategy C;**Sprint 167 §Phase 4.4 textAlignment render wire-up（decision A part 1）**;**Sprint 168 framePr probe → user 選 opt-in 路徑**;**Sprint 169-170 §Phase 4.4 framePr 浮動段落框 layout wire-up（decision A part 2、frameGroup.ts + Paginator layFramedParagraphs + framePr.wrap 模式分派 around 側繞排除區/notBeside 保留空間/none 純浮動、opt-in enableFramePr、Strategy C、VR byte-identical）**;**決策 A（textAlignment + framePr）完成**;framePr auto-width 側繞 + 框跨頁 + page/margin anchor 留 Sprint 171 optional |
 | Phase 4.5 產品化基礎建設 | 100% | 詳見 [phase4_5_completed.md](phase4_5_completed.md) |
-| Phase 5+（註腳 / 追蹤修訂 / OMML） | 進行中（5.6 背景 done） | Sprint 142 probe → user 2026-05-21 GO 全 6 子功能;**Sprint 171 §Phase 5.6「背景」完成**（`<w:background>` parse + render wire-up）;**Sprint 172-173 §Phase 5.6「浮水印」完成**（Sprint 172 WatermarkParser capture header VML `<v:shape>` 文字/圖片浮水印;Sprint 173 CanvasRenderer renderWatermark 文字浮水印旋轉淺灰繪製、opt-in Strategy C、VR byte-identical;圖片浮水印 render 留後續）;**Phase 5.6「浮水印 + 背景」收尾**;5.4 追蹤修訂 / 5.5 註解 / 5.1 OMML / 5.2 SmartArt / 5.3 Charts 待續 |
+| Phase 5+（註腳 / 追蹤修訂 / OMML） | 進行中（5.6 背景 done） | Sprint 142 probe → user 2026-05-21 GO 全 6 子功能;**Sprint 171 §Phase 5.6「背景」完成**（`<w:background>` parse + render wire-up）;**Sprint 172-173 §Phase 5.6「浮水印」完成**（Sprint 172 WatermarkParser capture header VML `<v:shape>` 文字/圖片浮水印;Sprint 173 CanvasRenderer renderWatermark 文字浮水印旋轉淺灰繪製、opt-in Strategy C、VR byte-identical;圖片浮水印 render 留後續）;**Phase 5.6「浮水印 + 背景」收尾**;**Sprint 174 §Phase 5.4「追蹤修訂」capture**（`<w:ins>`/`<w:del>` → `RunNode.revision`、author/date/id、`<w:delText>` 文字、capture-only、0 fixture 覆蓋 VR byte-identical）;追蹤修訂 render 留 Sprint 175;5.5 註解 / 5.1 OMML / 5.2 SmartArt / 5.3 Charts 待續 |
 | Phase 6 Export 對稱性 | 0% | 未開始 |
 | Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe（Sprint 60 GREEN） |
 | Phase 8 Template UI Builder | Phase 1 + 2.1 已驗證 / 2.2 未啟動 | ADR-022 落地（2026-05-19）、非 docx 匯入、工時 / VR mean 與 Phase 0-7 分開計算；Phase 1 視覺 + Phase 2.1 inline control 程式碼於 ADR-022 當日落地、2026-05-20 端到端驗證通過（vitest 1358 / 後端 6 test / 瀏覽器實測 0 console error、欄位插入刪除全通），詳見 [phase8_verification_2026-05-20.md](phase8_verification_2026-05-20.md)；Phase 2.2 overlay 依 ADR-022 條件啟動、未動工 |

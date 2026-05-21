@@ -1193,6 +1193,30 @@
                             bookmarkNames.add(name);
                         break;
                     }
+                    case 'w:bookmarkEnd':
+                        // bookmarkEnd 純結尾標記、無 name、無內容、不影響 runs
+                        break;
+                    case 'w:ins':
+                    case 'w:del': {
+                        // Sprint 174（Phase 5.4 追蹤修訂）：`<w:ins>` 插入 / `<w:del>` 刪除
+                        //   容器包裹 `<w:r>`，展平 runs 並標記 revision（author / date / id）。
+                        //   `<w:del>` 內 run 的文字在 `<w:delText>` —— parseRun 已支援。
+                        //   Scope-down（紀律 #18）：只處理直接 `<w:r>` 子元素；巢狀 ins/del、
+                        //   ins/del 內含 hyperlink、moveFrom/moveTo、段落標記修訂留後續 sprint。
+                        const revType = child.tagName === 'w:ins' ? 'ins' : 'del';
+                        const revision = parseRevision(child, revType);
+                        for (const r of effectiveChildren(child)) {
+                            if (r.tagName !== 'w:r')
+                                continue;
+                            collectBookmarksFromRun(r);
+                            for (const node of parseRun(r)) {
+                                if (node.type === 'run')
+                                    node.revision = revision;
+                                runs.push(node);
+                            }
+                        }
+                        break;
+                    }
                     // w:pPr 已先處理；其他子節點 (w:proofErr) 暫時忽略
                 }
             }
@@ -1213,6 +1237,28 @@
             }
             return node;
         }
+    }
+    /**
+     * Sprint 174：解析 `<w:ins>` / `<w:del>` 的 w:author / w:date / w:id 為 RunRevision。
+     *
+     * @param el `<w:ins>` 或 `<w:del>` 元素
+     * @param type 'ins'（插入）或 'del'（刪除）
+     */
+    function parseRevision(el, type) {
+        const rev = { type };
+        const author = el.getAttribute('w:author');
+        if (author)
+            rev.author = author;
+        const date = el.getAttribute('w:date');
+        if (date)
+            rev.date = date;
+        const idRaw = el.getAttribute('w:id');
+        if (idRaw) {
+            const n = parseInt(idRaw, 10);
+            if (Number.isFinite(n))
+                rev.id = n;
+        }
+        return rev;
     }
     /**
      * 解析 <w:hyperlink> 的 r:id / w:anchor / w:tooltip 為 HyperlinkInfo。
@@ -1484,7 +1530,9 @@
         // 用 effectiveChildren 展開 mc:AlternateContent（Run 內 drawing 常被它包）
         for (const child of effectiveChildren(r)) {
             switch (child.tagName) {
-                case 'w:t': {
+                case 'w:t':
+                // Sprint 174：`<w:delText>`（`<w:del>` 內刪除文字）與 `<w:t>` 同樣讀取 textContent
+                case 'w:delText': {
                     // xml:space="preserve" → 保留前後空白
                     // 注意：DOM 對缺省屬性取出可能是 null，不影響 textContent 讀取
                     textBuf += child.textContent ?? '';

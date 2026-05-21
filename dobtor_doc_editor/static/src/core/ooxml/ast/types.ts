@@ -194,6 +194,25 @@ export interface RunNode {
   props: RunProps;
   metrics?: LineMetrics; // Phase 1 為 undefined，Phase 2 填入
   hyperlink?: HyperlinkInfo; // 此 Run 被 <w:hyperlink> 包裹時填入
+  /** Sprint 174：此 Run 被 `<w:ins>` / `<w:del>` 追蹤修訂標記包裹時填入。 */
+  revision?: RunRevision;
+}
+
+/**
+ * Sprint 174（Phase 5.4 追蹤修訂）：run 的追蹤修訂標記（OOXML §17.13.5.18 / §17.13.5.14）。
+ *
+ * `<w:ins>` 包裹的 run = 插入；`<w:del>` 包裹的 run = 刪除（內含 `<w:delText>`）。
+ * capture-only —— render（插入底線 / 刪除刪除線）留後續 sprint。
+ */
+export interface RunRevision {
+  /** 'ins' = 插入修訂；'del' = 刪除修訂。 */
+  type: 'ins' | 'del';
+  /** `w:author` 修訂者。 */
+  author?: string;
+  /** `w:date` 修訂時間（ISO 字串、capture raw、未轉 Date）。 */
+  date?: string;
+  /** `w:id` 修訂編號。 */
+  id?: number;
 }
 
 /** 欄位（PAGE、DATE、SEQ、TOC 等）*/
