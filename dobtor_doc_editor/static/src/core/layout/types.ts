@@ -29,6 +29,8 @@ export interface Box {
   imageSrcRect?: import('../ooxml/ast/types').ImageSrcRect;
   /** 超連結資訊（Run 被 hyperlink 包裹時填入）*/
   hyperlink?: HyperlinkInfo;
+  /** Sprint 175：追蹤修訂標記（Run 被 `<w:ins>`/`<w:del>` 包裹時填入；Renderer 用來繪插入底線 / 刪除刪除線）*/
+  revision?: import('../ooxml/ast/types').RunRevision;
   /**
    * Sprint 10：欄位類型標記（PAGE / NUMPAGES / DATE 等）。
    *

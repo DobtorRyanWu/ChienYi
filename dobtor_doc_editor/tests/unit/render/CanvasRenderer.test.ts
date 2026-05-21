@@ -1286,6 +1286,55 @@ describe('CanvasRenderer — Sprint 173 浮水印 render', () => {
   });
 });
 
+describe('CanvasRenderer — Sprint 175 追蹤修訂 render', () => {
+  function revisionPara(text: string, revType: 'ins' | 'del'): ParagraphNode {
+    const run: RunNode = {
+      type: 'run', text, props: { fontSize: 12 }, revision: { type: revType },
+    };
+    return { type: 'paragraph', props: {}, runs: [run] };
+  }
+
+  it('一般 run（無 revision）→ 無裝飾 drawLine', () => {
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx).render(layoutDocument([makeSection([para('plain')])]));
+    expect(ctx.filter('drawLine').length).toBe(0);
+  });
+
+  it('<w:ins> run → 畫底線（drawLine、水平）', () => {
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx).render(layoutDocument([makeSection([revisionPara('added', 'ins')])]));
+    const lines = ctx.filter('drawLine');
+    expect(lines.length).toBeGreaterThanOrEqual(1);
+    expect(lines[0].y1).toBe(lines[0].y2); // 水平線
+  });
+
+  it('<w:del> run → 畫刪除線、且刪除文字仍繪出', () => {
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx).render(layoutDocument([makeSection([revisionPara('removed', 'del')])]));
+    expect(ctx.filter('drawLine').length).toBeGreaterThanOrEqual(1);
+    // 刪除文字仍 fillText（markup view：刪除文字加刪除線、不隱藏）
+    expect(ctx.filter('fillText').some((t) => t.text === 'removed')).toBe(true);
+  });
+
+  it('ins 底線在基線下方、del 刪除線在基線上方', () => {
+    const ctxIns = new MockRenderContext();
+    new CanvasRenderer(ctxIns).render(layoutDocument([makeSection([revisionPara('x', 'ins')])]));
+    const ctxDel = new MockRenderContext();
+    new CanvasRenderer(ctxDel).render(layoutDocument([makeSection([revisionPara('x', 'del')])]));
+    const insY = ctxIns.filter('drawLine')[0].y1;
+    const delY = ctxDel.filter('drawLine')[0].y1;
+    // 底線 y 較大（畫面下方）、刪除線 y 較小（畫面上方）
+    expect(insY).toBeGreaterThan(delY);
+  });
+
+  it('drawTextDecorations=false → 不畫追蹤修訂裝飾', () => {
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx, { drawTextDecorations: false })
+      .render(layoutDocument([makeSection([revisionPara('added', 'ins')])]));
+    expect(ctx.filter('drawLine').length).toBe(0);
+  });
+});
+
 describe('CanvasRenderer — MockRenderContext counts/reset', () => {
   it('counts() 回傳每類 op 計數', () => {
     const ctx = new MockRenderContext();

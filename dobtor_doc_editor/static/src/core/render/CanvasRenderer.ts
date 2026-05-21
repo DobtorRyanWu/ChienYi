@@ -288,6 +288,21 @@ export class CanvasRenderer {
           color, width: DECORATION_WIDTH_PT, style: 'single',
         });
       }
+      // Sprint 175：追蹤修訂標記 —— `<w:ins>` 插入畫底線、`<w:del>` 刪除畫刪除線
+      //   （run 本身已有對應裝飾時不重畫、避免雙線）
+      if (box.revision?.type === 'ins'
+        && !(box.runProps.underline && box.runProps.underline !== 'none')) {
+        const yU = yBaseline + fontSize * 0.15;
+        this.ctx.drawLine(x, yU, x + box.width, yU, {
+          color, width: DECORATION_WIDTH_PT, style: 'single',
+        });
+      }
+      if (box.revision?.type === 'del' && !box.runProps.strike) {
+        const yS = yBaseline - fontSize * 0.3;
+        this.ctx.drawLine(x, yS, x + box.width, yS, {
+          color, width: DECORATION_WIDTH_PT, style: 'single',
+        });
+      }
     }
   }
 

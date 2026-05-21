@@ -64,7 +64,7 @@ export function buildParagraph(
 
   // Sprint 139：在段首 emit numbering 前綴 Box + tab Glue（若有）
   if (numberingPrefix && numberingPrefix.text !== '') {
-    pushTextAsBoxes(items, numberingPrefix.text, numberingPrefix.runProps, undefined, metrics);
+    pushTextAsBoxes(items, numberingPrefix.text, numberingPrefix.runProps, undefined, undefined, metrics);
     // tab：用 space Glue 佔位（與 BoxBuilder 對 \t 既有處理一致）
     const tabWidth = metrics.measureWidth(' ', numberingPrefix.runProps);
     items.push(spaceGlue(tabWidth));
@@ -137,7 +137,7 @@ function pushRunItems(
   metrics: TextMetrics,
 ): void {
   if (!run.text) return;
-  pushTextAsBoxes(out, run.text, run.props, run.hyperlink, metrics);
+  pushTextAsBoxes(out, run.text, run.props, run.hyperlink, run.revision, metrics);
 }
 
 /**
@@ -154,6 +154,7 @@ function pushTextAsBoxes(
   text: string,
   props: RunProps,
   hyperlink: HyperlinkInfo | undefined,
+  revision: import('../ooxml/ast/types').RunRevision | undefined,
   metrics: TextMetrics,
 ): void {
   const fontSize = props.fontSize ?? DEFAULT_FONT_SIZE_PT;
@@ -164,7 +165,7 @@ function pushTextAsBoxes(
   const flushBuffer = (): void => {
     if (!buffer) return;
     const w = metrics.measureWidth(buffer, props);
-    out.push(boxOf(buffer, w, lineHeight, props, hyperlink));
+    out.push(boxOf(buffer, w, lineHeight, props, hyperlink, revision));
     buffer = '';
   };
 
@@ -186,7 +187,7 @@ function pushTextAsBoxes(
       flushBuffer();
       // 前 glue 由前一個 CJK 提供；這裡只插字元 Box + 後 glue
       const w = metrics.measureWidth(ch, props);
-      out.push(boxOf(ch, w, lineHeight, props, hyperlink));
+      out.push(boxOf(ch, w, lineHeight, props, hyperlink, revision));
       out.push(cjkBreakGlue());
     } else {
       // Latin / 數字 / 半形標點：累積
@@ -202,8 +203,11 @@ function boxOf(
   height: Pt,
   props: RunProps,
   hyperlink: HyperlinkInfo | undefined,
+  revision?: import('../ooxml/ast/types').RunRevision,
 ): Box {
-  return { kind: 'box', text, width, height, runProps: props, hyperlink };
+  const box: Box = { kind: 'box', text, width, height, runProps: props, hyperlink };
+  if (revision) box.revision = revision;
+  return box;
 }
 
 function spaceGlue(width: Pt): Glue {
