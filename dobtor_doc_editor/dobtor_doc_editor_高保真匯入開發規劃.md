@@ -514,7 +514,7 @@ for each block in flow:
 - [ ] `<w:frame>` 段落框（罕用但規格支援）
 - [ ] `<w:pBdr>` 段落邊框 + 陰影
 - [ ] `<w:tab>` tab stop 進階：leader、alignment (right/center/decimal/bar)
-- [ ] `<w:textAlignment>` 基線對齊 (top/center/baseline/bottom/auto)
+- [x] `<w:textAlignment>` 基線對齊 (top/center/baseline/bottom/auto)（Sprint 167 — CanvasRenderer wire-up：`computeVerticalAlignShift` 依行內 box 高度差算各 box y 位移、等高行位移恆 0；Strategy C、42 fixture VR byte-identical；decision A part 1，framePr 留 Sprint 168）
 
 **Exit Criteria**：
 - 對測試文件的字型、顏色、編號、邊框 100% 吻合 Word 視覺

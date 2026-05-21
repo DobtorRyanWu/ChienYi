@@ -8,12 +8,12 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 166 結尾）
+## 1. 當前指標一覽（Sprint 167 結尾）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1371 passed + 1 skipped**（Sprint 166 +10 CJK fallback chain tests；Sprint 164/165 docs-only 未動） |
-| VR mean | **0.073191**（Sprint 65 promote、第 27 次連續 byte-identical 維持；Sprint 161-162 tab stop wire-up Strategy C、Sprint 163 純型別變更 emitted JS 不變） |
+| vitest | **1385 passed + 1 skipped**（Sprint 167 +14：verticalAlignShift 9 + CanvasRenderer 5；Sprint 166 +10 CJK fallback chain） |
+| VR mean | **0.073191**（Sprint 65 promote、第 28 次連續 byte-identical；Sprint 167 textAlignment wire-up Strategy C — 等高行位移恆 0、42 fixture byte-identical） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
@@ -56,7 +56,7 @@
 | Phase 1 OOXML Parser | **過 Exit Criteria（Sprint 165）/ 必做項 52/52（100%）** | Sprint 121-126 trHeight / OLE / SDT / bookmark / hyperlink rels;Sprint 145-153 九連 capture-only(footnotes/settings/fontTable/webSettings/appProps/customProps/contentTypes/latentStyles);**Sprint 156 checkbox audit 揭示真實 wire-up 75%**;Sprint 159 / 160 v1 §5 Phase 1 scope 重構（總數 69→65）;**Sprint 160 v2** §1.9 `instrText` render wire-up（[ ]→[x]）;**Sprint 164** bookmark render probe → 改標 Phase 1 optional（render 消費依賴 Phase 2 canvas-editor patch、decision 2B）;**Sprint 165 Phase 1 Exit re-verify 通過**——4 條 Exit Criteria 全過（42 fixture 0 error / AST snapshot+audit 全綠 / 型別齊備附 1 項 follow-up 型別債 / 0 個非-optional `[ ]`）、13 項 Phase 1 optional 依設計延後至 Phase 2·5.4;雙指標 / 三指標見 [sprint165_phase1_exit_reverify.md](sprint165_phase1_exit_reverify.md) + [sprint156_phase1_checkbox_audit.md §4](sprint156_phase1_checkbox_audit.md) + [scope_audit_2026-05-19.md §3.1](scope_audit_2026-05-19.md) |
 | Phase 2 Text Shaping | 部分（FontMetricsAdapter -1.7%、§2.2 2/5 [x]） | opentype.js 已用於字型 metric;HarfBuzz 為長期方案;Sprint 127 probe 揭示「production canvas-editor 未整合」;**Sprint 157 fontTable.altName fallback wire-up to FontLoader 完成**（§2.2 第 1 個 [ ] → [x]）;**Sprint 166 CJK fallback chain wire-up to FontLoader 完成**（§2.2 L406 [ ]→[x]：主+altName 失敗且 charset 判定 CJK 時試 思源黑體→微軟正黑體→新細明體 chain;FontLoader 為 caller-side infrastructure、production canvas-editor 尚未消費、同 Sprint 157 定位） |
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191;Sprint 44-49 突破紀錄;Sprint 161-162 tab stop wire-up（LineBreaker 引擎 + layoutDocument/Paginator/TableLayout 接線 + VR opt-in 量測；Strategy C、aggregate delta 可忽略） |
-| Phase 4 Style Theme | 90% | Sprint 19 style merge;Sprint 130 §Phase 4.1 HSL;Sprint 131 §Phase 4.2 tblStylePr/tcPr;Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）;Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY;Sprint 134 §Phase 4.4 textAlignment + framePr capture(Layout wire-up defer);Sprint 137-139 numbering wire-up Strategy C |
+| Phase 4 Style Theme | 91% | Sprint 19 style merge;Sprint 130 §Phase 4.1 HSL;Sprint 131 §Phase 4.2 tblStylePr/tcPr;Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）;Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY;Sprint 134 §Phase 4.4 textAlignment + framePr capture;Sprint 137-139 numbering wire-up Strategy C;**Sprint 167 §Phase 4.4 textAlignment render wire-up（decision A part 1、CanvasRenderer computeVerticalAlignShift、Strategy C、VR byte-identical）**;framePr wire-up 留 Sprint 168 |
 | Phase 4.5 產品化基礎建設 | 100% | 詳見 [phase4_5_completed.md](phase4_5_completed.md) |
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 未開始 | 待 mean ≤ 0.07 後啟動;Sprint 142 probe DEFER user GO |
 | Phase 6 Export 對稱性 | 0% | 未開始 |

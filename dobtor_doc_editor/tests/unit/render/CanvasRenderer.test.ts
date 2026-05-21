@@ -1126,6 +1126,85 @@ describe('CanvasRenderer — Sprint 40 image srcRect propagation', () => {
   });
 });
 
+describe('CanvasRenderer — Sprint 167 textAlignment 行內垂直對齊', () => {
+  // 同一段落兩 run、字型大小不同 → 同行兩個不同高度 box
+  function mixedHeightPara(textAlignment?: ParagraphNode['props']['textAlignment']): ParagraphNode {
+    const tall: RunNode = { type: 'run', text: 'A', props: { fontSize: 32 } };
+    const short: RunNode = { type: 'run', text: 'b', props: { fontSize: 8 } };
+    return { type: 'paragraph', props: textAlignment ? { textAlignment } : {}, runs: [tall, short] };
+  }
+
+  it('未設 textAlignment → 兩 box 共用同一 baseline y（既有行為）', () => {
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx).render(layoutDocument([makeSection([mixedHeightPara()])]));
+    const texts = ctx.filter('fillText');
+    expect(texts.length).toBe(2);
+    expect(texts[0].y).toBe(texts[1].y);
+  });
+
+  it("textAlignment='baseline' → 與未設一致（baseline 即預設、byte-identical）", () => {
+    const ctxDefault = new MockRenderContext();
+    new CanvasRenderer(ctxDefault).render(layoutDocument([makeSection([mixedHeightPara()])]));
+    const ctxBaseline = new MockRenderContext();
+    new CanvasRenderer(ctxBaseline).render(layoutDocument([makeSection([mixedHeightPara('baseline')])]));
+    const a = ctxDefault.filter('fillText');
+    const b = ctxBaseline.filter('fillText');
+    expect(b.map((t) => t.y)).toEqual(a.map((t) => t.y));
+  });
+
+  it("textAlignment='center' → 較矮 box 上移、較高 box 不動", () => {
+    const ctxDefault = new MockRenderContext();
+    new CanvasRenderer(ctxDefault).render(layoutDocument([makeSection([mixedHeightPara()])]));
+    const ctxCenter = new MockRenderContext();
+    new CanvasRenderer(ctxCenter).render(layoutDocument([makeSection([mixedHeightPara('center')])]));
+    const def = ctxDefault.filter('fillText');
+    const cen = ctxCenter.filter('fillText');
+    // 較高 box（'A' fontSize 32）位移為 0
+    const tallDef = def.find((t) => t.text === 'A')!;
+    const tallCen = cen.find((t) => t.text === 'A')!;
+    expect(tallCen.y).toBe(tallDef.y);
+    // 較矮 box（'b' fontSize 8）往上（y 變小）
+    const shortDef = def.find((t) => t.text === 'b')!;
+    const shortCen = cen.find((t) => t.text === 'b')!;
+    expect(shortCen.y).toBeLessThan(shortDef.y);
+  });
+
+  it("textAlignment top/center/bottom：較矮 box y 依序遞增", () => {
+    const ys: Record<string, number> = {};
+    for (const mode of ['top', 'center', 'bottom'] as const) {
+      const ctx = new MockRenderContext();
+      new CanvasRenderer(ctx).render(layoutDocument([makeSection([mixedHeightPara(mode)])]));
+      const short = ctx.filter('fillText').find((t) => t.text === 'b')!;
+      ys[mode] = short.y;
+    }
+    const ctxDef = new MockRenderContext();
+    new CanvasRenderer(ctxDef).render(layoutDocument([makeSection([mixedHeightPara()])]));
+    const base = ctxDef.filter('fillText').find((t) => t.text === 'b')!.y;
+    // top 往上最多、bottom 往下、center 居中
+    expect(ys.top).toBeLessThan(ys.center);
+    expect(ys.center).toBeLessThan(base);
+    expect(ys.bottom).toBeGreaterThan(base);
+  });
+
+  it('等高行（單一字型大小）標 center 仍 byte-identical', () => {
+    const uniform = (ta?: ParagraphNode['props']['textAlignment']): ParagraphNode => ({
+      type: 'paragraph',
+      props: ta ? { textAlignment: ta } : {},
+      runs: [
+        { type: 'run', text: 'foo ', props: { fontSize: 12 } },
+        { type: 'run', text: 'bar', props: { fontSize: 12 } },
+      ],
+    });
+    const ctxDefault = new MockRenderContext();
+    new CanvasRenderer(ctxDefault).render(layoutDocument([makeSection([uniform()])]));
+    const ctxCenter = new MockRenderContext();
+    new CanvasRenderer(ctxCenter).render(layoutDocument([makeSection([uniform('center')])]));
+    const a = ctxDefault.filter('fillText');
+    const c = ctxCenter.filter('fillText');
+    expect(c.map((t) => t.y)).toEqual(a.map((t) => t.y));
+  });
+});
+
 describe('CanvasRenderer — MockRenderContext counts/reset', () => {
   it('counts() 回傳每類 op 計數', () => {
     const ctx = new MockRenderContext();

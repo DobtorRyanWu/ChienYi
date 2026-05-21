@@ -38,6 +38,7 @@ import type { Box } from '../layout/types';
 import type { Pt, BorderDef, CellBorders, RunProps } from '../ooxml/ast/types';
 import type { RenderContext, RenderStrokeStyle, RenderTextStyle } from './types';
 import { computeAlignmentShift } from '../layout/alignmentShift';
+import { computeVerticalAlignShift } from '../layout/verticalAlignShift';
 import { buildParagraph } from '../layout/BoxBuilder';
 import { breakParagraph } from '../layout/LineBreaker';
 import { EstimateMetrics } from '../layout/TextMetrics';
@@ -151,18 +152,32 @@ export class CanvasRenderer {
    *      cell-level 對齊 shift 由 renderCellBlock 處理）
    *   - 每 box 走完 advance（box.width + 任何 glue 的 width）
    *   - y baseline = baseY + line.baseline
+   *   - Sprint 167：`<w:textAlignment>` 非 baseline 時、各 box 依與行內最高
+   *     box 的高度差額外 y 位移（等高行位移恆 0 → byte-identical）
    */
   private renderLine(line: Line, baseX: Pt, baseY: Pt, _lineWidth: Pt): void {
     const yBaseline = baseY + line.baseline;
     let cursor = baseX + (line.xOffset ?? 0);
+    // Sprint 167：textAlignment 非 baseline 時才計算行內最高 box（其餘走預設路徑、零成本）
+    const textAlignment = line.paragraphProps?.textAlignment;
+    let maxBoxHeight = 0;
+    if (textAlignment && textAlignment !== 'baseline' && textAlignment !== 'auto') {
+      for (const it of line.items) {
+        if (it.kind === 'box' && it.height > maxBoxHeight) maxBoxHeight = it.height;
+      }
+    }
     for (const item of line.items) {
       if (item.kind === 'box') {
         const box = item as Box;
+        const yShift = maxBoxHeight > 0
+          ? computeVerticalAlignShift(textAlignment, box.height, maxBoxHeight)
+          : 0;
+        const yBox = yBaseline + yShift;
         if (box.text && !box.isImage) {
-          this.renderBox(box, cursor, yBaseline, line.height);
+          this.renderBox(box, cursor, yBox, line.height);
         } else if (box.isImage && box.imageRId) {
           // Sprint 40：傳 imageSrcRect（如有）給 RenderContext.drawImage 做 source crop
-          this.ctx.drawImage(box.imageRId, cursor, yBaseline - box.height, box.width, box.height, box.imageSrcRect);
+          this.ctx.drawImage(box.imageRId, cursor, yBox - box.height, box.width, box.height, box.imageSrcRect);
         }
         cursor += box.width;
       } else if (item.kind === 'glue') {
