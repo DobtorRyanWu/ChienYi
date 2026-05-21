@@ -877,6 +877,16 @@ export interface DocumentNode {
    * docx 無此元素）。CanvasRenderer 以 `pageBackgroundColor` 選項消費 `color`。
    */
   background?: DocumentBackground;
+  /**
+   * Sprint 172（Phase 5.6 浮水印 + 背景）：文件浮水印（Word「設計 → 浮水印」）。
+   *
+   * Word 浮水印實作為 header part 內的 VML `<v:shape>`（文字 WordArt 或圖片）。
+   * 本欄位 capture 自任一 header 找到的第一個浮水印 shape。
+   *
+   * 紀律 #21：optional —— 無浮水印 → undefined（多數 docx 無浮水印）。
+   * Sprint 172 為 capture-only；render wire-up（每頁繪旋轉浮水印）留 Sprint 173。
+   */
+  watermark?: DocumentWatermark;
 }
 
 /** Sprint 171：`<w:background>` 文件頁面背景（OOXML §17.2.1）。 */
@@ -888,6 +898,26 @@ export interface DocumentBackground {
    * render wire-up 用 `color`；只有 themeColor 時 render 退回預設白底。
    */
   themeColor?: string;
+}
+
+/**
+ * Sprint 172：文件浮水印（header 內 VML `<v:shape>` capture-only）。
+ *
+ * Word 浮水印 = header part 的 `<w:pict>` 內一個 VML `<v:shape>`：
+ *   - 文字浮水印：`type="#_x0000_t136"` WordArt、含 `<v:textpath string="...">`
+ *   - 圖片浮水印：shape id 含 "watermark"、含 `<v:imagedata r:id="...">`
+ */
+export interface DocumentWatermark {
+  /** 'text' = WordArt 文字浮水印；'image' = 圖片浮水印。 */
+  kind: 'text' | 'image';
+  /** 文字浮水印文字內容（kind='text'、來自 `<v:textpath string="...">`）。 */
+  text?: string;
+  /** 文字浮水印字型（`<v:textpath>` style 的 font-family、去引號）。 */
+  font?: string;
+  /** 圖片浮水印的 image relationship Id（kind='image'）。 */
+  imageRId?: string;
+  /** 旋轉角度（度、來自 `<v:shape>` style 的 rotation；浮水印常見 315）。 */
+  rotation?: number;
 }
 
 /**

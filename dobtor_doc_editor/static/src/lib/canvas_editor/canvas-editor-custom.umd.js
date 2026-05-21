@@ -2971,7 +2971,7 @@
          * @throws Error 若 XML 無法解析或缺 <w:body>
          */
         parse(documentXml) {
-            const doc = parseXml$a(documentXml);
+            const doc = parseXml$b(documentXml);
             const root = doc.documentElement;
             if (!root) {
                 throw new Error('DocumentParser: empty document');
@@ -3050,7 +3050,7 @@
          * @deprecated 改用 walkBodyAsSections 取得多節切分
          */
         walkBody(documentXml) {
-            const doc = parseXml$a(documentXml);
+            const doc = parseXml$b(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3089,7 +3089,7 @@
          * @internal 給 OoxmlParser orchestrator 用，搭配 SectionParser 產生 SectionNode[]
          */
         walkBodyAsSections(documentXml) {
-            const doc = parseXml$a(documentXml);
+            const doc = parseXml$b(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3136,7 +3136,7 @@
          * @internal
          */
         findAllSectPrs(documentXml) {
-            const doc = parseXml$a(documentXml);
+            const doc = parseXml$b(documentXml);
             const root = doc.documentElement;
             if (!root)
                 return [];
@@ -3210,7 +3210,7 @@
         }
         return undefined;
     }
-    function parseXml$a(xml) {
+    function parseXml$b(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DocumentParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3261,7 +3261,7 @@
                 return out;
             let doc;
             try {
-                doc = parseXml$9(xml);
+                doc = parseXml$a(xml);
             }
             catch {
                 return out;
@@ -3386,7 +3386,7 @@
         }
         return out;
     }
-    function parseXml$9(xml) {
+    function parseXml$a(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FontTableParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3456,7 +3456,7 @@
             if (!xml)
                 return out;
             try {
-                const doc = parseXml$8(xml);
+                const doc = parseXml$9(xml);
                 const root = doc.documentElement;
                 if (!root)
                     return out;
@@ -3514,7 +3514,7 @@
                 return undefined;
         }
     }
-    function parseXml$8(xml) {
+    function parseXml$9(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FootnotesParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3557,7 +3557,7 @@
         parse(xml, rId) {
             let content = [];
             try {
-                const doc = parseXml$7(xml);
+                const doc = parseXml$8(xml);
                 const root = doc.documentElement;
                 if (root) {
                     // <w:hdr> 與 <w:ftr> 內部結構等同 <w:body> — 直接走訪即可
@@ -3572,7 +3572,7 @@
         }
     }
     // ── 共用 XML 解析 ─────────────────────────────────────────────────────────────
-    function parseXml$7(xml) {
+    function parseXml$8(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('HeaderFooterParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3616,7 +3616,7 @@
         resolve(xml) {
             if (!xml)
                 return new Map();
-            const doc = parseXml$6(xml);
+            const doc = parseXml$7(xml);
             const root = doc.documentElement;
             if (!root)
                 return new Map();
@@ -3847,7 +3847,7 @@
         }
         return out;
     }
-    function parseXml$6(xml) {
+    function parseXml$7(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('NumberingResolver: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3892,7 +3892,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$5(xml);
+                doc = parseXml$6(xml);
             }
             catch {
                 return {};
@@ -4036,7 +4036,7 @@
         }
         return out;
     }
-    function parseXml$5(xml) {
+    function parseXml$6(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('SettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4073,7 +4073,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$4(xml);
+                doc = parseXml$5(xml);
             }
             catch {
                 return {};
@@ -4127,7 +4127,7 @@
         }
         return out;
     }
-    function parseXml$4(xml) {
+    function parseXml$5(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('WebSettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4170,7 +4170,7 @@
                 return undefined;
             let doc;
             try {
-                doc = parseXml$3(documentXml);
+                doc = parseXml$4(documentXml);
             }
             catch {
                 return undefined;
@@ -4205,7 +4205,7 @@
         }
         return undefined;
     }
-    function parseXml$3(xml) {
+    function parseXml$4(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('BackgroundParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4213,6 +4213,142 @@
         const errors = doc.getElementsByTagName('parsererror');
         if (errors.length > 0) {
             throw new Error(`BackgroundParser: XML parse error — ${errors[0].textContent}`);
+        }
+        return doc;
+    }
+
+    /**
+     * WatermarkParser — 從 header*.xml 抽出文件浮水印（Phase 5.6 浮水印 + 背景）
+     *
+     * Sprint 172（capture-only）：
+     *   Word「設計 → 浮水印」儲存為 header part 內 `<w:pict>` 的 VML `<v:shape>`：
+     *     - 文字浮水印：`<v:shape type="#_x0000_t136">` WordArt、含 `<v:textpath string="...">`
+     *     - 圖片浮水印：`<v:shape id="...watermark...">`、含 `<v:imagedata r:id="...">`
+     *
+     * 解析範圍（對應 DocumentWatermark interface）：
+     *   - kind 'text'  → text（textpath string）、font（textpath style font-family）
+     *   - kind 'image' → imageRId（imagedata r:id）
+     *   - rotation     → v:shape style 的 rotation（度）
+     *
+     * 偵測準則：
+     *   - `<v:textpath>` 帶非空 `string` → 文字浮水印（header 內 WordArt 幾乎必為浮水印）
+     *   - `<v:imagedata>` + shape id 含 "watermark"（Word 命名 WordPictureWatermark*）→ 圖片浮水印
+     *
+     * Scope-down（紀律 #18）：capture-only，render（每頁繪旋轉浮水印）留 Sprint 173；
+     * 只 capture 第一個浮水印 shape；不解析 fill 透明度 / shape 尺寸。
+     *
+     * 防禦：undefined / 空 / XML 失敗 / 無浮水印 → 回 undefined（不阻塞 OoxmlParser）。
+     */
+    class WatermarkParser {
+        /**
+         * 從單一 header XML 抽出第一個浮水印。
+         *
+         * @param headerXml header*.xml 完整字串；undefined / 空 → undefined
+         * @returns DocumentWatermark 或 undefined（此 header 無浮水印）
+         */
+        parse(headerXml) {
+            if (!headerXml)
+                return undefined;
+            let doc;
+            try {
+                doc = parseXml$3(headerXml);
+            }
+            catch {
+                return undefined;
+            }
+            const root = doc.documentElement;
+            if (!root)
+                return undefined;
+            const shapes = root.getElementsByTagName('v:shape');
+            for (let i = 0; i < shapes.length; i++) {
+                const shape = shapes[i];
+                const wm = parseShape(shape);
+                if (wm)
+                    return wm;
+            }
+            return undefined;
+        }
+    }
+    /** 嘗試把單一 `<v:shape>` 解為浮水印；非浮水印 → undefined。 */
+    function parseShape(shape) {
+        const shapeStyle = shape.getAttribute('style');
+        const rotation = parseRotation(shapeStyle);
+        // 文字浮水印：<v:textpath string="...">
+        const textpath = firstByTag(shape, 'v:textpath');
+        if (textpath) {
+            const text = textpath.getAttribute('string');
+            if (text) {
+                const out = { kind: 'text', text };
+                const font = styleProp(textpath.getAttribute('style'), 'font-family');
+                if (font)
+                    out.font = stripQuotes(font);
+                if (rotation !== undefined)
+                    out.rotation = rotation;
+                return out;
+            }
+        }
+        // 圖片浮水印：shape id 含 "watermark" + <v:imagedata r:id="...">
+        const id = shape.getAttribute('id') ?? '';
+        if (/watermark/i.test(id)) {
+            const imagedata = firstByTag(shape, 'v:imagedata');
+            if (imagedata) {
+                const rId = imagedata.getAttribute('r:id') ?? imagedata.getAttribute('o:relid');
+                const out = { kind: 'image' };
+                if (rId)
+                    out.imageRId = rId;
+                if (rotation !== undefined)
+                    out.rotation = rotation;
+                return out;
+            }
+        }
+        return undefined;
+    }
+    /** 取第一個 tagName 相符的後代元素。 */
+    function firstByTag(el, tagName) {
+        const found = el.getElementsByTagName(tagName);
+        return found.length > 0 ? found[0] : undefined;
+    }
+    /** 從 CSS-like style 字串取某屬性值（如 "font-family:標楷體;font-size:1pt"）。 */
+    function styleProp(style, prop) {
+        if (!style)
+            return undefined;
+        for (const decl of style.split(';')) {
+            const idx = decl.indexOf(':');
+            if (idx < 0)
+                continue;
+            if (decl.slice(0, idx).trim().toLowerCase() === prop) {
+                return decl.slice(idx + 1).trim();
+            }
+        }
+        return undefined;
+    }
+    /** 從 v:shape style 取 rotation（度）；無 / 非數 → undefined。 */
+    function parseRotation(style) {
+        const raw = styleProp(style, 'rotation');
+        if (raw === undefined)
+            return undefined;
+        const n = parseFloat(raw);
+        return Number.isFinite(n) ? n : undefined;
+    }
+    /** 去除前後成對的單 / 雙引號。 */
+    function stripQuotes(s) {
+        if (s.length >= 2) {
+            const first = s[0];
+            const last = s[s.length - 1];
+            if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+                return s.slice(1, -1);
+            }
+        }
+        return s;
+    }
+    function parseXml$3(xml) {
+        if (typeof DOMParser === 'undefined') {
+            throw new Error('WatermarkParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+        }
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const errors = doc.getElementsByTagName('parsererror');
+        if (errors.length > 0) {
+            throw new Error(`WatermarkParser: XML parse error — ${errors[0].textContent}`);
         }
         return doc;
     }
@@ -6232,6 +6368,8 @@
             this.latentStylesParser = new LatentStylesParser();
             /** Sprint 171：document.xml `<w:background>` 文件背景（Phase 5.6 浮水印 + 背景）*/
             this.backgroundParser = new BackgroundParser();
+            /** Sprint 172：header VML 浮水印 shape capture（Phase 5.6 浮水印 + 背景）*/
+            this.watermarkParser = new WatermarkParser();
         }
         /**
          * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -6317,6 +6455,10 @@
             //   render wire-up：CanvasRenderer 以 pageBackgroundColor 選項消費 background.color。
             //   多數 docx 無此元素 → background 為 undefined（紀律 #21）。
             const background = this.backgroundParser.parse(documentXml);
+            // Step 8.5（Sprint 172）：header VML 浮水印 shape capture（Phase 5.6）
+            //   掃所有 header part、capture 第一個浮水印 shape；capture-only、render 留 Sprint 173。
+            //   多數 docx 無浮水印 → watermark 為 undefined（紀律 #21）。
+            const watermark = collectWatermark(pkg, mainDocPath, this.watermarkParser);
             const doc = {
                 type: 'document',
                 sections,
@@ -6336,6 +6478,7 @@
                 contentTypes,
                 latentStyles,
                 ...(background !== undefined ? { background } : {}),
+                ...(watermark !== undefined ? { watermark } : {}),
             };
             // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props
             //   - StyleResolver 已展開繼承鏈為 StyleMap
@@ -6419,6 +6562,28 @@
                 footers.set(rel.id, parser.parse(xml, rel.id));
             }
         }
+    }
+    /**
+     * Sprint 172：走訪所有 header part、capture 第一個浮水印 VML shape。
+     *
+     * 浮水印存於 header（每頁顯示），多份 header 可能含同一浮水印；本函式回傳第一個
+     * 找到的浮水印（scope-down、不區分 default/first/even header）。
+     *
+     * @returns DocumentWatermark 或 undefined（無 header 含浮水印）
+     */
+    function collectWatermark(pkg, mainDocPath, parser) {
+        const rels = pkg.relationships.get(mainDocPath);
+        if (!rels)
+            return undefined;
+        for (const rel of rels.values()) {
+            if (rel.targetMode !== 'Internal' || rel.type !== REL_TYPE_HEADER)
+                continue;
+            const xml = pkg.partAsText(rel.target);
+            const wm = parser.parse(xml);
+            if (wm)
+                return wm;
+        }
+        return undefined;
     }
     /**
      * Sprint 145：走訪 mainDoc 的 .rels、抓 footnotes 或 endnotes part 並解析。

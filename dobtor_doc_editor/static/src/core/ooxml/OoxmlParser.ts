@@ -26,6 +26,7 @@ import type {
   DocumentLatentStyles,
   DocumentNode,
   DocumentSettings,
+  DocumentWatermark,
   DocumentWebSettings,
   FontTable,
   FootnoteContent,
@@ -42,6 +43,7 @@ import { NumberingResolver } from './numbering/NumberingResolver';
 import { SettingsParser } from './settings/SettingsParser';
 import { WebSettingsParser } from './web-settings/WebSettingsParser';
 import { BackgroundParser } from './background/BackgroundParser';
+import { WatermarkParser } from './watermark/WatermarkParser';
 import {
   PackageReader,
   type OoxmlPackage,
@@ -115,6 +117,8 @@ export class OoxmlParser {
   private latentStylesParser = new LatentStylesParser();
   /** Sprint 171：document.xml `<w:background>` 文件背景（Phase 5.6 浮水印 + 背景）*/
   private backgroundParser = new BackgroundParser();
+  /** Sprint 172：header VML 浮水印 shape capture（Phase 5.6 浮水印 + 背景）*/
+  private watermarkParser = new WatermarkParser();
 
   /**
    * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -224,6 +228,11 @@ export class OoxmlParser {
     //   多數 docx 無此元素 → background 為 undefined（紀律 #21）。
     const background = this.backgroundParser.parse(documentXml);
 
+    // Step 8.5（Sprint 172）：header VML 浮水印 shape capture（Phase 5.6）
+    //   掃所有 header part、capture 第一個浮水印 shape；capture-only、render 留 Sprint 173。
+    //   多數 docx 無浮水印 → watermark 為 undefined（紀律 #21）。
+    const watermark = collectWatermark(pkg, mainDocPath, this.watermarkParser);
+
     const doc: DocumentNode = {
       type: 'document',
       sections,
@@ -243,6 +252,7 @@ export class OoxmlParser {
       contentTypes,
       latentStyles,
       ...(background !== undefined ? { background } : {}),
+      ...(watermark !== undefined ? { watermark } : {}),
     };
 
     // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props
@@ -339,6 +349,30 @@ function collectHeadersFooters(
       footers.set(rel.id, parser.parse(xml, rel.id));
     }
   }
+}
+
+/**
+ * Sprint 172：走訪所有 header part、capture 第一個浮水印 VML shape。
+ *
+ * 浮水印存於 header（每頁顯示），多份 header 可能含同一浮水印；本函式回傳第一個
+ * 找到的浮水印（scope-down、不區分 default/first/even header）。
+ *
+ * @returns DocumentWatermark 或 undefined（無 header 含浮水印）
+ */
+function collectWatermark(
+  pkg: OoxmlPackage,
+  mainDocPath: string,
+  parser: WatermarkParser,
+): DocumentWatermark | undefined {
+  const rels = pkg.relationships.get(mainDocPath);
+  if (!rels) return undefined;
+  for (const rel of rels.values()) {
+    if (rel.targetMode !== 'Internal' || rel.type !== REL_TYPE_HEADER) continue;
+    const xml = pkg.partAsText(rel.target);
+    const wm = parser.parse(xml);
+    if (wm) return wm;
+  }
+  return undefined;
 }
 
 /**
