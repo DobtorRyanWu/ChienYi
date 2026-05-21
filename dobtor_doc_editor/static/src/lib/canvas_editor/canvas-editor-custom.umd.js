@@ -68,11 +68,11 @@
          * @returns InlineImageNode / FloatImageNode / FloatTextBoxNode；無法辨識內容時回 fallback inline image（rId 為空）
          */
         parse(drawing, paragraphFactory) {
-            const inlineEl = directChild$6(drawing, 'wp:inline');
+            const inlineEl = directChild$7(drawing, 'wp:inline');
             if (inlineEl) {
                 return parseInlineImage(inlineEl);
             }
-            const anchorEl = directChild$6(drawing, 'wp:anchor');
+            const anchorEl = directChild$7(drawing, 'wp:anchor');
             if (anchorEl) {
                 // Sprint 38：偵測 anchor 是否為 text box（含 <wps:wsp><wps:txbx>）；
                 // 是 → FloatTextBoxNode；否 → 走原 image 路徑
@@ -103,8 +103,8 @@
         const { width, height } = parseExtent(el);
         const altText = parseAltText(el);
         const rId = findBlipEmbed(el) ?? '';
-        const posH = parsePositionH(directChild$6(el, 'wp:positionH'));
-        const posV = parsePositionV(directChild$6(el, 'wp:positionV'));
+        const posH = parsePositionH(directChild$7(el, 'wp:positionH'));
+        const posV = parsePositionV(directChild$7(el, 'wp:positionV'));
         const wrapType = detectWrapType(el);
         const behindDocRaw = el.getAttribute('behindDoc');
         const allowOverlapRaw = el.getAttribute('allowOverlap');
@@ -180,8 +180,8 @@
     }
     function parseFloatTextBox(anchorEl, txbxContent, paragraphFactory) {
         const { width, height } = parseExtent(anchorEl);
-        const posH = parsePositionH(directChild$6(anchorEl, 'wp:positionH'));
-        const posV = parsePositionV(directChild$6(anchorEl, 'wp:positionV'));
+        const posH = parsePositionH(directChild$7(anchorEl, 'wp:positionH'));
+        const posV = parsePositionV(directChild$7(anchorEl, 'wp:positionV'));
         const wrapType = detectWrapType(anchorEl);
         const behindDocRaw = anchorEl.getAttribute('behindDoc');
         const allowOverlapRaw = anchorEl.getAttribute('allowOverlap');
@@ -210,13 +210,13 @@
         // Sprint 39：解析 <wps:wsp> 內的 bodyPr / spPr（padding / 背景 / 邊框）
         const wsp = findWsp(anchorEl);
         if (wsp) {
-            const bodyPr = directChild$6(wsp, 'wps:bodyPr');
+            const bodyPr = directChild$7(wsp, 'wps:bodyPr');
             if (bodyPr) {
                 const parsed = parseBodyPr(bodyPr);
                 if (parsed)
                     node.bodyPr = parsed;
             }
-            const spPr = directChild$6(wsp, 'wps:spPr');
+            const spPr = directChild$7(wsp, 'wps:spPr');
             if (spPr) {
                 const fill = parseShapeFill(spPr);
                 if (fill)
@@ -273,12 +273,12 @@
      */
     function parseShapeFill(spPr) {
         // `<a:noFill/>` 直接子節點 → 無背景
-        if (directChild$6(spPr, 'a:noFill'))
+        if (directChild$7(spPr, 'a:noFill'))
             return undefined;
-        const solidFill = directChild$6(spPr, 'a:solidFill');
+        const solidFill = directChild$7(spPr, 'a:solidFill');
         if (!solidFill)
             return undefined;
-        const srgb = directChild$6(solidFill, 'a:srgbClr');
+        const srgb = directChild$7(solidFill, 'a:srgbClr');
         if (!srgb)
             return undefined;
         const val = srgb.getAttribute('val');
@@ -290,16 +290,16 @@
      * width 從 EMU 換算 Pt。
      */
     function parseShapeBorder(spPr) {
-        const ln = directChild$6(spPr, 'a:ln');
+        const ln = directChild$7(spPr, 'a:ln');
         if (!ln)
             return undefined;
         // `<a:ln><a:noFill/>` → 不畫
-        if (directChild$6(ln, 'a:noFill'))
+        if (directChild$7(ln, 'a:noFill'))
             return undefined;
-        const solidFill = directChild$6(ln, 'a:solidFill');
+        const solidFill = directChild$7(ln, 'a:solidFill');
         if (!solidFill)
             return undefined;
-        const srgb = directChild$6(solidFill, 'a:srgbClr');
+        const srgb = directChild$7(solidFill, 'a:srgbClr');
         if (!srgb)
             return undefined;
         const colorVal = srgb.getAttribute('val');
@@ -317,7 +317,7 @@
     }
     // ── 共用：尺寸 / altText / blip rId ──────────────────────────────────────────
     function parseExtent(el) {
-        const extent = directChild$6(el, 'wp:extent');
+        const extent = directChild$7(el, 'wp:extent');
         if (!extent)
             return { width: 0, height: 0 };
         const cx = parseInt(extent.getAttribute('cx') ?? '0', 10);
@@ -328,7 +328,7 @@
         };
     }
     function parseAltText(el) {
-        const docPr = directChild$6(el, 'wp:docPr');
+        const docPr = directChild$7(el, 'wp:docPr');
         if (!docPr)
             return undefined;
         return docPr.getAttribute('descr') ?? docPr.getAttribute('title') ?? undefined;
@@ -372,14 +372,14 @@
         const out = { relativeFrom };
         if (!el)
             return out;
-        const alignEl = directChild$6(el, 'wp:align');
+        const alignEl = directChild$7(el, 'wp:align');
         if (alignEl) {
             const txt = (alignEl.textContent ?? '').trim();
             if (POS_H_ALIGN.includes(txt)) {
                 out.align = txt;
             }
         }
-        const offsetEl = directChild$6(el, 'wp:posOffset');
+        const offsetEl = directChild$7(el, 'wp:posOffset');
         if (offsetEl) {
             const n = parseInt((offsetEl.textContent ?? '0').trim(), 10);
             if (Number.isFinite(n))
@@ -395,14 +395,14 @@
         const out = { relativeFrom };
         if (!el)
             return out;
-        const alignEl = directChild$6(el, 'wp:align');
+        const alignEl = directChild$7(el, 'wp:align');
         if (alignEl) {
             const txt = (alignEl.textContent ?? '').trim();
             if (POS_V_ALIGN.includes(txt)) {
                 out.align = txt;
             }
         }
-        const offsetEl = directChild$6(el, 'wp:posOffset');
+        const offsetEl = directChild$7(el, 'wp:posOffset');
         if (offsetEl) {
             const n = parseInt((offsetEl.textContent ?? '0').trim(), 10);
             if (Number.isFinite(n))
@@ -446,7 +446,7 @@
         }
         return out;
     }
-    function directChild$6(el, tagName) {
+    function directChild$7(el, tagName) {
         for (const child of directChildren$b(el)) {
             if (child.tagName === tagName)
                 return child;
@@ -488,7 +488,7 @@
         return out;
     }
     /** 找首個指定 tagName 的直接子 Element。 */
-    function directChild$5(el, tagName) {
+    function directChild$6(el, tagName) {
         for (const child of directChildren$a(el)) {
             if (child.tagName === tagName)
                 return child;
@@ -521,8 +521,8 @@
         for (const child of directChildren$a(el)) {
             if (child.tagName === 'mc:AlternateContent') {
                 // 優先 Choice，否則 Fallback
-                const choice = directChild$5(child, 'mc:Choice');
-                const fallback = directChild$5(child, 'mc:Fallback');
+                const choice = directChild$6(child, 'mc:Choice');
+                const fallback = directChild$6(child, 'mc:Fallback');
                 const target = choice ?? fallback;
                 if (target) {
                     // 遞迴展開：target 內可能再有 AlternateContent
@@ -537,7 +537,7 @@
                 // 子節點 inline 到父級（block-level / inline-level / cell-level 都適用）。
                 // 遞迴展開 sdtContent（OOXML 允許 sdt 嵌套，且 sdtContent 內可能再含
                 // AlternateContent 或 sdt）。
-                const sdtContent = directChild$5(child, 'w:sdtContent');
+                const sdtContent = directChild$6(child, 'w:sdtContent');
                 if (sdtContent) {
                     out.push(...effectiveChildren(sdtContent));
                 }
@@ -628,11 +628,11 @@
         const root = doc.documentElement;
         if (!root)
             return null;
-        const themeElements = directChild$5(root, 'a:themeElements');
+        const themeElements = directChild$6(root, 'a:themeElements');
         if (!themeElements)
             return null;
-        const clrSchemeEl = directChild$5(themeElements, 'a:clrScheme');
-        const fontSchemeEl = directChild$5(themeElements, 'a:fontScheme');
+        const clrSchemeEl = directChild$6(themeElements, 'a:clrScheme');
+        const fontSchemeEl = directChild$6(themeElements, 'a:fontScheme');
         return {
             colorScheme: clrSchemeEl ? parseColorScheme(clrSchemeEl) : { ...DEFAULT_THEME_COLORS },
             fontScheme: fontSchemeEl ? parseFontScheme(fontSchemeEl) : { major: { ...DEFAULT_THEME_FONTS.major }, minor: { ...DEFAULT_THEME_FONTS.minor } },
@@ -646,7 +646,7 @@
             'hlink', 'folHlink',
         ];
         for (const key of keys) {
-            const child = directChild$5(el, `a:${key}`);
+            const child = directChild$6(el, `a:${key}`);
             if (!child)
                 continue;
             const hex = readClrValue(child);
@@ -657,12 +657,12 @@
     }
     /** 從 <a:srgbClr val="HEX"/> 或 <a:sysClr lastClr="HEX"/> 取 hex */
     function readClrValue(parent) {
-        const srgb = directChild$5(parent, 'a:srgbClr');
+        const srgb = directChild$6(parent, 'a:srgbClr');
         if (srgb) {
             const v = attr$2(srgb, 'val');
             return v ? v.toUpperCase() : null;
         }
-        const sys = directChild$5(parent, 'a:sysClr');
+        const sys = directChild$6(parent, 'a:sysClr');
         if (sys) {
             const v = attr$2(sys, 'lastClr') || attr$2(sys, 'val');
             if (!v)
@@ -679,17 +679,17 @@
             major: { ...DEFAULT_THEME_FONTS.major },
             minor: { ...DEFAULT_THEME_FONTS.minor },
         };
-        const major = directChild$5(el, 'a:majorFont');
-        const minor = directChild$5(el, 'a:minorFont');
+        const major = directChild$6(el, 'a:majorFont');
+        const minor = directChild$6(el, 'a:minorFont');
         if (major) {
-            out.major.latin = attr$2(directChild$5(major, 'a:latin'), 'typeface') || out.major.latin;
-            out.major.ea = attr$2(directChild$5(major, 'a:ea'), 'typeface') || undefined;
-            out.major.cs = attr$2(directChild$5(major, 'a:cs'), 'typeface') || undefined;
+            out.major.latin = attr$2(directChild$6(major, 'a:latin'), 'typeface') || out.major.latin;
+            out.major.ea = attr$2(directChild$6(major, 'a:ea'), 'typeface') || undefined;
+            out.major.cs = attr$2(directChild$6(major, 'a:cs'), 'typeface') || undefined;
         }
         if (minor) {
-            out.minor.latin = attr$2(directChild$5(minor, 'a:latin'), 'typeface') || out.minor.latin;
-            out.minor.ea = attr$2(directChild$5(minor, 'a:ea'), 'typeface') || undefined;
-            out.minor.cs = attr$2(directChild$5(minor, 'a:cs'), 'typeface') || undefined;
+            out.minor.latin = attr$2(directChild$6(minor, 'a:latin'), 'typeface') || out.minor.latin;
+            out.minor.ea = attr$2(directChild$6(minor, 'a:ea'), 'typeface') || undefined;
+            out.minor.cs = attr$2(directChild$6(minor, 'a:cs'), 'typeface') || undefined;
         }
         return out;
     }
@@ -1104,10 +1104,10 @@
             }
         }
         _parseInternal(p) {
-            const pPrEl = directChild$4(p, 'w:pPr');
+            const pPrEl = directChild$5(p, 'w:pPr');
             const props = pPrEl ? parseParagraphProps(pPrEl) : {};
             const styleId = pPrEl
-                ? attr$1(directChild$4(pPrEl, 'w:pStyle'), 'w:val')
+                ? attr$1(directChild$5(pPrEl, 'w:pStyle'), 'w:val')
                 : undefined;
             const runs = [];
             // Sprint 123：複式 field 跨多 w:r 的 state machine。
@@ -1262,13 +1262,13 @@
      */
     function parseParagraphProps(pPr) {
         const props = {};
-        const jc = attr$1(directChild$4(pPr, 'w:jc'), 'w:val');
+        const jc = attr$1(directChild$5(pPr, 'w:jc'), 'w:val');
         if (jc) {
             const a = mapAlignment$1(jc);
             if (a)
                 props.alignment = a;
         }
-        const indEl = directChild$4(pPr, 'w:ind');
+        const indEl = directChild$5(pPr, 'w:ind');
         if (indEl) {
             const indent = {};
             const left = attrTwip$1(indEl, 'w:left') ?? attrTwip$1(indEl, 'w:start');
@@ -1286,7 +1286,7 @@
             if (Object.keys(indent).length > 0)
                 props.indent = indent;
         }
-        const spEl = directChild$4(pPr, 'w:spacing');
+        const spEl = directChild$5(pPr, 'w:spacing');
         if (spEl) {
             const spacing = {};
             const before = attrTwip$1(spEl, 'w:before');
@@ -1309,10 +1309,10 @@
             if (Object.keys(spacing).length > 0)
                 props.spacing = spacing;
         }
-        const numPrEl = directChild$4(pPr, 'w:numPr');
+        const numPrEl = directChild$5(pPr, 'w:numPr');
         if (numPrEl) {
-            const ilvlVal = attr$1(directChild$4(numPrEl, 'w:ilvl'), 'w:val');
-            const numIdVal = attr$1(directChild$4(numPrEl, 'w:numId'), 'w:val');
+            const ilvlVal = attr$1(directChild$5(numPrEl, 'w:ilvl'), 'w:val');
+            const numIdVal = attr$1(directChild$5(numPrEl, 'w:numId'), 'w:val');
             if (ilvlVal !== undefined) {
                 const n = parseInt(ilvlVal, 10);
                 if (Number.isFinite(n))
@@ -1324,21 +1324,21 @@
                     props.numId = n;
             }
         }
-        if (boolFlag$2(directChild$4(pPr, 'w:keepNext')))
+        if (boolFlag$2(directChild$5(pPr, 'w:keepNext')))
             props.keepNext = true;
-        if (boolFlag$2(directChild$4(pPr, 'w:keepLines')))
+        if (boolFlag$2(directChild$5(pPr, 'w:keepLines')))
             props.keepLines = true;
-        if (boolFlag$2(directChild$4(pPr, 'w:pageBreakBefore')))
+        if (boolFlag$2(directChild$5(pPr, 'w:pageBreakBefore')))
             props.pageBreakBefore = true;
         // Sprint 133: w:pBdr — 段落邊框（top / bottom / left / right、between / bar defer）
-        const pBdrEl = directChild$4(pPr, 'w:pBdr');
+        const pBdrEl = directChild$5(pPr, 'w:pBdr');
         if (pBdrEl) {
             const borders = parseParagraphBorders(pBdrEl);
             if (borders)
                 props.borders = borders;
         }
         // Sprint 133: w:shd — 段落底色 / 圖案
-        const shdEl = directChild$4(pPr, 'w:shd');
+        const shdEl = directChild$5(pPr, 'w:shd');
         if (shdEl) {
             const shading = parseShading(shdEl);
             if (shading.fill || shading.color || shading.pattern) {
@@ -1346,7 +1346,7 @@
             }
         }
         // Sprint 134: w:textAlignment — 行內垂直對齊（OOXML §17.3.1.36）
-        const textAlignEl = directChild$4(pPr, 'w:textAlignment');
+        const textAlignEl = directChild$5(pPr, 'w:textAlignment');
         if (textAlignEl) {
             const v = textAlignEl.getAttribute('w:val');
             if (v === 'auto' || v === 'top' || v === 'center' || v === 'baseline' || v === 'bottom') {
@@ -1354,21 +1354,21 @@
             }
         }
         // Sprint 134: w:framePr — 段落框基礎屬性（OOXML §17.3.1.11）
-        const framePrEl = directChild$4(pPr, 'w:framePr');
+        const framePrEl = directChild$5(pPr, 'w:framePr');
         if (framePrEl) {
             const frame = parseFramePr(framePrEl);
             if (frame)
                 props.framePr = frame;
         }
         // Sprint 29：w:snapToGrid — 預設 true（OOXML §17.3.1.32），val="0" 顯式關閉
-        const snapEl = directChild$4(pPr, 'w:snapToGrid');
+        const snapEl = directChild$5(pPr, 'w:snapToGrid');
         if (snapEl) {
             const v = snapEl.getAttribute('w:val');
             if (v === '0' || v === 'false')
                 props.snapToGrid = false;
         }
         // w:tabs — tab stop 定義
-        const tabsEl = directChild$4(pPr, 'w:tabs');
+        const tabsEl = directChild$5(pPr, 'w:tabs');
         if (tabsEl) {
             const tabs = [];
             for (const child of directChildren$8(tabsEl)) {
@@ -1471,7 +1471,7 @@
     }
     // ── w:r → RunNode[]（單一 run 可能因 w:br 等切多筆） ─────────────────────────
     function parseRun(r) {
-        const rPrEl = directChild$4(r, 'w:rPr');
+        const rPrEl = directChild$5(r, 'w:rPr');
         const baseProps = rPrEl ? parseRunProps(rPrEl) : {};
         const out = [];
         let textBuf = '';
@@ -1565,7 +1565,7 @@
      */
     function parseRunProps(rPr) {
         const props = {};
-        const fontsEl = directChild$4(rPr, 'w:rFonts');
+        const fontsEl = directChild$5(rPr, 'w:rFonts');
         if (fontsEl) {
             const ascii = fontsEl.getAttribute('w:ascii');
             const east = fontsEl.getAttribute('w:eastAsia');
@@ -1581,43 +1581,43 @@
                 props.fontFamilyCs = cs;
         }
         // w:sz 與 w:szCs 都是 half-point；CS 給 complex script。先用 w:sz。
-        const szVal = attr$1(directChild$4(rPr, 'w:sz'), 'w:val');
+        const szVal = attr$1(directChild$5(rPr, 'w:sz'), 'w:val');
         if (szVal !== undefined) {
             const n = parseInt(szVal, 10);
             if (Number.isFinite(n))
                 props.fontSize = halfPointToPt(n);
         }
-        if (boolFlag$2(directChild$4(rPr, 'w:b')))
+        if (boolFlag$2(directChild$5(rPr, 'w:b')))
             props.bold = true;
-        if (boolFlag$2(directChild$4(rPr, 'w:i')))
+        if (boolFlag$2(directChild$5(rPr, 'w:i')))
             props.italic = true;
-        if (boolFlag$2(directChild$4(rPr, 'w:strike')))
+        if (boolFlag$2(directChild$5(rPr, 'w:strike')))
             props.strike = true;
-        if (boolFlag$2(directChild$4(rPr, 'w:dstrike')))
+        if (boolFlag$2(directChild$5(rPr, 'w:dstrike')))
             props.dstrike = true;
-        const uVal = attr$1(directChild$4(rPr, 'w:u'), 'w:val');
+        const uVal = attr$1(directChild$5(rPr, 'w:u'), 'w:val');
         if (uVal)
             props.underline = uVal;
         // 顏色：優先 w:val（顯式 hex），再嘗試 themeColor + tint/shade（透過 ThemeMap）
-        const colorEl = directChild$4(rPr, 'w:color');
+        const colorEl = directChild$5(rPr, 'w:color');
         const resolvedColor = resolveColorElement(colorEl, themeMapForParser);
         if (resolvedColor)
             props.color = resolvedColor;
         // w:highlight 用具名色（yellow/cyan/...）；w:shd val + w:fill 才是 hex shading
-        const highlight = attr$1(directChild$4(rPr, 'w:highlight'), 'w:val');
+        const highlight = attr$1(directChild$5(rPr, 'w:highlight'), 'w:val');
         if (highlight)
             props.highlight = highlight;
-        const vert = attr$1(directChild$4(rPr, 'w:vertAlign'), 'w:val');
+        const vert = attr$1(directChild$5(rPr, 'w:vertAlign'), 'w:val');
         if (vert === 'superscript' || vert === 'subscript' || vert === 'baseline') {
             props.vertAlign = vert;
         }
-        const spacing = attr$1(directChild$4(rPr, 'w:spacing'), 'w:val');
+        const spacing = attr$1(directChild$5(rPr, 'w:spacing'), 'w:val');
         if (spacing !== undefined) {
             const n = parseInt(spacing, 10);
             if (Number.isFinite(n))
                 props.spacing = twipToPt(n);
         }
-        const lang = attr$1(directChild$4(rPr, 'w:lang'), 'w:val');
+        const lang = attr$1(directChild$5(rPr, 'w:lang'), 'w:val');
         if (lang)
             props.lang = lang;
         return props;
@@ -1820,7 +1820,7 @@
         }
         return out;
     }
-    function directChild$4(el, tagName) {
+    function directChild$5(el, tagName) {
         if (!el)
             return undefined;
         for (const child of directChildren$8(el)) {
@@ -2500,7 +2500,7 @@
         }
         parse(tbl) {
             const grid = parseTblGrid(tbl);
-            const tblProps = parseTblPr(directChild$3(tbl, 'w:tblPr'));
+            const tblProps = parseTblPr(directChild$4(tbl, 'w:tblPr'));
             const rawRows = this.parseRows(tbl);
             // Pass 1：cursor 推進 gridCol、標記 isContinuation
             let rows = rawRows.map((rr) => this.materializeRow(rr));
@@ -2544,9 +2544,9 @@
             let heightRule;
             let isHeader = false;
             let cantSplit = false;
-            const trPr = directChild$3(tr, 'w:trPr');
+            const trPr = directChild$4(tr, 'w:trPr');
             if (trPr) {
-                const trHeightEl = directChild$3(trPr, 'w:trHeight');
+                const trHeightEl = directChild$4(trPr, 'w:trHeight');
                 if (trHeightEl) {
                     // Sprint 121 — 進階 row height 防禦性解析（ECMA-376 §17.4.81）：
                     //   - val 必須是有限非負整數；負值 / NaN 視為缺 val
@@ -2574,9 +2574,9 @@
                         heightRule = 'auto';
                     }
                 }
-                if (boolFlag$1(directChild$3(trPr, 'w:tblHeader')))
+                if (boolFlag$1(directChild$4(trPr, 'w:tblHeader')))
                     isHeader = true;
-                if (boolFlag$1(directChild$3(trPr, 'w:cantSplit')))
+                if (boolFlag$1(directChild$4(trPr, 'w:cantSplit')))
                     cantSplit = true;
             }
             for (const child of directChildren$7(tr)) {
@@ -2602,23 +2602,23 @@
             let noWrap;
             let fitText;
             let textDirection;
-            const tcPr = directChild$3(tc, 'w:tcPr');
+            const tcPr = directChild$4(tc, 'w:tcPr');
             if (tcPr) {
                 // gridSpan
-                const gridSpanVal = attr(directChild$3(tcPr, 'w:gridSpan'), 'w:val');
+                const gridSpanVal = attr(directChild$4(tcPr, 'w:gridSpan'), 'w:val');
                 if (gridSpanVal) {
                     const n = parseInt(gridSpanVal, 10);
                     if (Number.isFinite(n) && n > 0)
                         gridSpan = n;
                 }
                 // vMerge
-                const vMergeEl = directChild$3(tcPr, 'w:vMerge');
+                const vMergeEl = directChild$4(tcPr, 'w:vMerge');
                 if (vMergeEl) {
                     const valRaw = vMergeEl.getAttribute('w:val');
                     vMerge = valRaw === 'restart' ? 'restart' : 'continue';
                 }
                 // tcW
-                const tcW = directChild$3(tcPr, 'w:tcW');
+                const tcW = directChild$4(tcPr, 'w:tcW');
                 if (tcW) {
                     const wVal = tcW.getAttribute('w:w');
                     const wType = tcW.getAttribute('w:type');
@@ -2630,33 +2630,33 @@
                     // pct / auto / nil 不轉 pt（width undefined，由 Layout 處理）
                 }
                 // tcBorders
-                const tcBordersEl = directChild$3(tcPr, 'w:tcBorders');
+                const tcBordersEl = directChild$4(tcPr, 'w:tcBorders');
                 if (tcBordersEl) {
                     borders = parseCellBorders(tcBordersEl);
                 }
                 // shd
-                const shdEl = directChild$3(tcPr, 'w:shd');
+                const shdEl = directChild$4(tcPr, 'w:shd');
                 if (shdEl) {
                     shading = parseShading(shdEl);
                 }
                 // tcMar
-                const tcMarEl = directChild$3(tcPr, 'w:tcMar');
+                const tcMarEl = directChild$4(tcPr, 'w:tcMar');
                 if (tcMarEl) {
                     margins = parseCellMargins(tcMarEl);
                 }
                 // vAlign
-                const vAlignVal = attr(directChild$3(tcPr, 'w:vAlign'), 'w:val');
+                const vAlignVal = attr(directChild$4(tcPr, 'w:vAlign'), 'w:val');
                 if (vAlignVal === 'top' || vAlignVal === 'center' || vAlignVal === 'bottom') {
                     vAlign = vAlignVal;
                 }
                 // noWrap / hideMark / fitText
-                if (boolFlag$1(directChild$3(tcPr, 'w:noWrap')))
+                if (boolFlag$1(directChild$4(tcPr, 'w:noWrap')))
                     noWrap = true;
-                if (boolFlag$1(directChild$3(tcPr, 'w:tcFitText')))
+                if (boolFlag$1(directChild$4(tcPr, 'w:tcFitText')))
                     fitText = true;
                 // textDirection（OOXML §17.18.93 ST_TextDirection）
                 // Sprint 34：擴充接受 V-suffix variants（glyph 旋轉式垂直文字，中文表單常用）
-                const tdVal = attr(directChild$3(tcPr, 'w:textDirection'), 'w:val');
+                const tdVal = attr(directChild$4(tcPr, 'w:textDirection'), 'w:val');
                 if (tdVal === 'lrTb' || tdVal === 'tbRl' || tdVal === 'btLr'
                     || tdVal === 'lrTbV' || tdVal === 'tbRlV' || tdVal === 'tbLrV') {
                     textDirection = tdVal;
@@ -2730,7 +2730,7 @@
     }
     // ── <w:tblGrid> ───────────────────────────────────────────────────────────────
     function parseTblGrid(tbl) {
-        const tblGrid = directChild$3(tbl, 'w:tblGrid');
+        const tblGrid = directChild$4(tbl, 'w:tblGrid');
         if (!tblGrid)
             return [];
         const widths = [];
@@ -2751,11 +2751,11 @@
         if (!tblPr)
             return { props };
         // tblStyle
-        const tblStyleVal = attr(directChild$3(tblPr, 'w:tblStyle'), 'w:val');
+        const tblStyleVal = attr(directChild$4(tblPr, 'w:tblStyle'), 'w:val');
         if (tblStyleVal)
             styleId = tblStyleVal;
         // tblW
-        const tblW = directChild$3(tblPr, 'w:tblW');
+        const tblW = directChild$4(tblPr, 'w:tblW');
         if (tblW) {
             const wVal = tblW.getAttribute('w:w');
             const wType = tblW.getAttribute('w:type');
@@ -2772,7 +2772,7 @@
             }
         }
         // tblInd
-        const tblInd = directChild$3(tblPr, 'w:tblInd');
+        const tblInd = directChild$4(tblPr, 'w:tblInd');
         if (tblInd) {
             const w = tblInd.getAttribute('w:w');
             if (w !== null) {
@@ -2782,7 +2782,7 @@
             }
         }
         // jc → alignment
-        const jcVal = attr(directChild$3(tblPr, 'w:jc'), 'w:val');
+        const jcVal = attr(directChild$4(tblPr, 'w:jc'), 'w:val');
         if (jcVal === 'left' || jcVal === 'right' || jcVal === 'center') {
             props.alignment = jcVal;
         }
@@ -2791,19 +2791,19 @@
         else if (jcVal === 'end')
             props.alignment = 'right';
         // tblBorders
-        const tblBordersEl = directChild$3(tblPr, 'w:tblBorders');
+        const tblBordersEl = directChild$4(tblPr, 'w:tblBorders');
         if (tblBordersEl) {
             props.borders = parseCellBorders(tblBordersEl);
         }
         // tblLook
-        const tblLookEl = directChild$3(tblPr, 'w:tblLook');
+        const tblLookEl = directChild$4(tblPr, 'w:tblLook');
         if (tblLookEl) {
             const v = tblLookEl.getAttribute('w:val');
             if (v)
                 props.look = v;
         }
         // tblCellMar → cellMargins
-        const tblCellMarEl = directChild$3(tblPr, 'w:tblCellMar');
+        const tblCellMarEl = directChild$4(tblPr, 'w:tblCellMar');
         if (tblCellMarEl) {
             props.cellMargins = parseCellMargins(tblCellMarEl);
         }
@@ -2889,7 +2889,7 @@
         }
         return out;
     }
-    function directChild$3(el, tagName) {
+    function directChild$4(el, tagName) {
         for (const child of directChildren$7(el)) {
             if (child.tagName === tagName)
                 return child;
@@ -2971,12 +2971,12 @@
          * @throws Error 若 XML 無法解析或缺 <w:body>
          */
         parse(documentXml) {
-            const doc = parseXml$9(documentXml);
+            const doc = parseXml$a(documentXml);
             const root = doc.documentElement;
             if (!root) {
                 throw new Error('DocumentParser: empty document');
             }
-            const body = directChild$2(root, 'w:body');
+            const body = directChild$3(root, 'w:body');
             if (!body) {
                 throw new Error('DocumentParser: <w:body> not found');
             }
@@ -3050,11 +3050,11 @@
          * @deprecated 改用 walkBodyAsSections 取得多節切分
          */
         walkBody(documentXml) {
-            const doc = parseXml$9(documentXml);
+            const doc = parseXml$a(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
-            const body = directChild$2(root, 'w:body');
+            const body = directChild$3(root, 'w:body');
             if (!body)
                 throw new Error('DocumentParser: <w:body> not found');
             const blocks = [];
@@ -3089,11 +3089,11 @@
          * @internal 給 OoxmlParser orchestrator 用，搭配 SectionParser 產生 SectionNode[]
          */
         walkBodyAsSections(documentXml) {
-            const doc = parseXml$9(documentXml);
+            const doc = parseXml$a(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
-            const body = directChild$2(root, 'w:body');
+            const body = directChild$3(root, 'w:body');
             if (!body)
                 throw new Error('DocumentParser: <w:body> not found');
             const sections = [];
@@ -3105,8 +3105,8 @@
                         // 段落本身屬於當前 section；先加入
                         currentBlocks.push(this.paragraphParser.parse(child));
                         // 段內 sectPr 表示當前 section 在此段落結束
-                        const pPr = directChild$2(child, 'w:pPr');
-                        const innerSectPr = directChild$2(pPr, 'w:sectPr');
+                        const pPr = directChild$3(child, 'w:pPr');
+                        const innerSectPr = directChild$3(pPr, 'w:sectPr');
                         if (innerSectPr) {
                             sections.push({ sectPrEl: innerSectPr, blocks: currentBlocks });
                             currentBlocks = [];
@@ -3136,11 +3136,11 @@
          * @internal
          */
         findAllSectPrs(documentXml) {
-            const doc = parseXml$9(documentXml);
+            const doc = parseXml$a(documentXml);
             const root = doc.documentElement;
             if (!root)
                 return [];
-            const body = directChild$2(root, 'w:body');
+            const body = directChild$3(root, 'w:body');
             if (!body)
                 return [];
             const out = [];
@@ -3152,8 +3152,8 @@
             // 段落中段內 sectPr：<w:p><w:pPr><w:sectPr>...</w:sectPr></w:pPr></w:p>
             const allParas = body.getElementsByTagName('w:p');
             for (let i = 0; i < allParas.length; i++) {
-                const pPr = directChild$2(allParas[i], 'w:pPr');
-                const sectPr = directChild$2(pPr, 'w:sectPr');
+                const pPr = directChild$3(allParas[i], 'w:pPr');
+                const sectPr = directChild$3(pPr, 'w:sectPr');
                 if (sectPr)
                     out.push(sectPr);
             }
@@ -3201,7 +3201,7 @@
         }
         return out;
     }
-    function directChild$2(el, tagName) {
+    function directChild$3(el, tagName) {
         if (!el)
             return undefined;
         for (const child of directChildren$6(el)) {
@@ -3210,7 +3210,7 @@
         }
         return undefined;
     }
-    function parseXml$9(xml) {
+    function parseXml$a(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DocumentParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3261,7 +3261,7 @@
                 return out;
             let doc;
             try {
-                doc = parseXml$8(xml);
+                doc = parseXml$9(xml);
             }
             catch {
                 return out;
@@ -3386,7 +3386,7 @@
         }
         return out;
     }
-    function parseXml$8(xml) {
+    function parseXml$9(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FontTableParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3456,7 +3456,7 @@
             if (!xml)
                 return out;
             try {
-                const doc = parseXml$7(xml);
+                const doc = parseXml$8(xml);
                 const root = doc.documentElement;
                 if (!root)
                     return out;
@@ -3514,7 +3514,7 @@
                 return undefined;
         }
     }
-    function parseXml$7(xml) {
+    function parseXml$8(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FootnotesParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3557,7 +3557,7 @@
         parse(xml, rId) {
             let content = [];
             try {
-                const doc = parseXml$6(xml);
+                const doc = parseXml$7(xml);
                 const root = doc.documentElement;
                 if (root) {
                     // <w:hdr> 與 <w:ftr> 內部結構等同 <w:body> — 直接走訪即可
@@ -3572,7 +3572,7 @@
         }
     }
     // ── 共用 XML 解析 ─────────────────────────────────────────────────────────────
-    function parseXml$6(xml) {
+    function parseXml$7(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('HeaderFooterParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3616,7 +3616,7 @@
         resolve(xml) {
             if (!xml)
                 return new Map();
-            const doc = parseXml$5(xml);
+            const doc = parseXml$6(xml);
             const root = doc.documentElement;
             if (!root)
                 return new Map();
@@ -3847,7 +3847,7 @@
         }
         return out;
     }
-    function parseXml$5(xml) {
+    function parseXml$6(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('NumberingResolver: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3892,7 +3892,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$4(xml);
+                doc = parseXml$5(xml);
             }
             catch {
                 return {};
@@ -4036,7 +4036,7 @@
         }
         return out;
     }
-    function parseXml$4(xml) {
+    function parseXml$5(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('SettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4073,7 +4073,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$3(xml);
+                doc = parseXml$4(xml);
             }
             catch {
                 return {};
@@ -4127,7 +4127,7 @@
         }
         return out;
     }
-    function parseXml$3(xml) {
+    function parseXml$4(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('WebSettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4135,6 +4135,84 @@
         const errors = doc.getElementsByTagName('parsererror');
         if (errors.length > 0) {
             throw new Error(`WebSettingsParser: XML parse error — ${errors[0].textContent}`);
+        }
+        return doc;
+    }
+
+    /**
+     * BackgroundParser — 解析 word/document.xml 的 `<w:background>`（OOXML §17.2.1）
+     *
+     * Sprint 171（Phase 5.6 浮水印 + 背景）：
+     *   `<w:background>` 是 `<w:document>` 的直接子元素（`<w:body>` 的 sibling）、
+     *   描述頁面背景色。Word「設計 → 頁面色彩」功能的儲存位置。
+     *
+     * 解析範圍（對應 DocumentBackground interface）：
+     *   - `w:color`      → color（6-hex 大寫；"auto" / 非法 / 缺 → 不掛）
+     *   - `w:themeColor` → themeColor（capture raw 主題色名、未解析為 hex）
+     *
+     * Scope-down（紀律 #18）：themeColor 不解析為 hex（render wire-up 用 color）；
+     * `<v:background>` VML 圖片填充背景留後續 sprint。
+     *
+     * 紀律 #21：無 `<w:background>` 或無有效屬性 → 回 undefined（不掛空 key）。
+     * 防禦：undefined / 空 / XML 解析失敗 → 回 undefined（不阻塞 OoxmlParser）。
+     */
+    /** OOXML hex 色：6 位 16 進位。 */
+    const HEX6_RE = /^[0-9A-Fa-f]{6}$/;
+    class BackgroundParser {
+        /**
+         * 解析 word/document.xml 字串、抽出 `<w:background>` 為 DocumentBackground。
+         *
+         * @param documentXml document.xml 完整字串；undefined / 空 → 回 undefined
+         * @returns DocumentBackground 或 undefined（無背景設定）
+         */
+        parse(documentXml) {
+            if (!documentXml)
+                return undefined;
+            let doc;
+            try {
+                doc = parseXml$3(documentXml);
+            }
+            catch {
+                return undefined;
+            }
+            const root = doc.documentElement;
+            if (!root)
+                return undefined;
+            const bg = directChild$2(root, 'w:background');
+            if (!bg)
+                return undefined;
+            const out = {};
+            const color = bg.getAttribute('w:color');
+            if (color && HEX6_RE.test(color)) {
+                out.color = color.toUpperCase();
+            }
+            const themeColor = bg.getAttribute('w:themeColor');
+            if (themeColor) {
+                out.themeColor = themeColor;
+            }
+            // 紀律 #21：無有效屬性（如僅 w:color="auto"）→ 不掛空物件
+            return Object.keys(out).length > 0 ? out : undefined;
+        }
+    }
+    /** 取得第一個 tagName 相符的直接子元素。 */
+    function directChild$2(el, tagName) {
+        const cs = el.childNodes;
+        for (let i = 0; i < cs.length; i++) {
+            const n = cs[i];
+            if (n.nodeType === 1 && n.tagName === tagName) {
+                return n;
+            }
+        }
+        return undefined;
+    }
+    function parseXml$3(xml) {
+        if (typeof DOMParser === 'undefined') {
+            throw new Error('BackgroundParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+        }
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const errors = doc.getElementsByTagName('parsererror');
+        if (errors.length > 0) {
+            throw new Error(`BackgroundParser: XML parse error — ${errors[0].textContent}`);
         }
         return doc;
     }
@@ -6152,6 +6230,8 @@
             this.webSettingsParser = new WebSettingsParser();
             /** Sprint 153：styles.xml `<w:latentStyles>` capture-only */
             this.latentStylesParser = new LatentStylesParser();
+            /** Sprint 171：document.xml `<w:background>` 文件背景（Phase 5.6 浮水印 + 背景）*/
+            this.backgroundParser = new BackgroundParser();
         }
         /**
          * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -6233,6 +6313,10 @@
             //   PackageReader 已解析、本 step 把 pkg.contentTypes 暴露到 DocumentNode
             //   為 Phase 6 docx export 對稱性鋪路(export 時要原樣重建)、layout/render 不用。
             const contentTypes = pkg.contentTypes;
+            // Step 8.4（Sprint 171）：document.xml `<w:background>` 文件背景（Phase 5.6）
+            //   render wire-up：CanvasRenderer 以 pageBackgroundColor 選項消費 background.color。
+            //   多數 docx 無此元素 → background 為 undefined（紀律 #21）。
+            const background = this.backgroundParser.parse(documentXml);
             const doc = {
                 type: 'document',
                 sections,
@@ -6251,6 +6335,7 @@
                 customProps,
                 contentTypes,
                 latentStyles,
+                ...(background !== undefined ? { background } : {}),
             };
             // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props
             //   - StyleResolver 已展開繼承鏈為 StyleMap

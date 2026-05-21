@@ -867,6 +867,27 @@ export interface DocumentNode {
    * 缺檔 / 解析失敗 → latentStyles 為空物件 `{}`、欄位 undefined。
    */
   latentStyles: DocumentLatentStyles;
+  /**
+   * Sprint 171（Phase 5.6 浮水印 + 背景）：`<w:background>` 文件頁面背景（OOXML §17.2.1）。
+   *
+   * `<w:background>` 是 `<w:document>` 的直接子元素（`<w:body>` 的 sibling）、描述頁面
+   * 背景色 —— Word「設計 → 頁面色彩」的儲存位置。
+   *
+   * 紀律 #21：optional —— 無 `<w:background>` 或無有效屬性 → 此欄位 undefined（多數
+   * docx 無此元素）。CanvasRenderer 以 `pageBackgroundColor` 選項消費 `color`。
+   */
+  background?: DocumentBackground;
+}
+
+/** Sprint 171：`<w:background>` 文件頁面背景（OOXML §17.2.1）。 */
+export interface DocumentBackground {
+  /** `w:color` 背景色 6-hex（大寫）；`"auto"` 或缺 / 非法 → undefined。 */
+  color?: string;
+  /**
+   * `w:themeColor` 主題色名（capture raw、Sprint 171 scope-down 不解析為 hex）。
+   * render wire-up 用 `color`；只有 themeColor 時 render 退回預設白底。
+   */
+  themeColor?: string;
 }
 
 /**

@@ -117,6 +117,30 @@ describe('CanvasRenderer — 頁面框架', () => {
     const fills = ctx.filter('fillRect');
     expect(fills.length).toBe(0);
   });
+
+  it('Sprint 171：未傳 pageBackgroundColor → 預設白底（byte-identical）', () => {
+    const sec = makeSection([para('hi')]);
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx).render(layoutDocument([sec]));
+    const idx = ctx.ops.findIndex((op) => op.kind === 'beginPage');
+    const next = ctx.ops[idx + 1];
+    expect(next.kind).toBe('fillRect');
+    if (next.kind === 'fillRect') expect(next.color.toUpperCase()).toBe('FFFFFF');
+  });
+
+  it('Sprint 171：pageBackgroundColor 指定 → 頁底色用該色（OOXML <w:background>）', () => {
+    const sec = makeSection([para('hi')]);
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx, { pageBackgroundColor: 'FFFF00' }).render(layoutDocument([sec]));
+    const idx = ctx.ops.findIndex((op) => op.kind === 'beginPage');
+    const next = ctx.ops[idx + 1];
+    expect(next.kind).toBe('fillRect');
+    if (next.kind === 'fillRect') {
+      expect(next.color.toUpperCase()).toBe('FFFF00');
+      expect(next.x).toBe(0);
+      expect(next.y).toBe(0);
+    }
+  });
 });
 
 describe('CanvasRenderer — 文字行', () => {

@@ -54,6 +54,14 @@ export interface CanvasRenderOptions {
   drawTextDecorations?: boolean;
   /** 預設文字色；RunProps.color 未指定時用 */
   defaultColor?: string;
+  /**
+   * Sprint 171：頁面背景色（6-hex、不含 '#'）。
+   *
+   * `fillPageBackground` 為 true 時、整頁以此色填底。預設 `'FFFFFF'`（白）
+   * → caller 不傳 → 與 Sprint 0-170 byte-identical。caller 讀
+   * `DocumentNode.background?.color`（OOXML `<w:background>`）傳入即生效。
+   */
+  pageBackgroundColor?: string;
 }
 
 const DEFAULTS: Required<CanvasRenderOptions> = {
@@ -62,6 +70,7 @@ const DEFAULTS: Required<CanvasRenderOptions> = {
   drawShading: true,
   drawTextDecorations: true,
   defaultColor: '000000',
+  pageBackgroundColor: 'FFFFFF',
 };
 
 /** 文字裝飾線寬：底線 / 刪除線預設 0.5pt（Word 預設 1px @96dpi 約 0.75pt，取近似） */
@@ -84,7 +93,8 @@ export class CanvasRenderer {
   private renderPage(page: Page): void {
     this.ctx.beginPage(page.pageNumber, page.width, page.height);
     if (this.opts.fillPageBackground) {
-      this.ctx.fillRect(0, 0, page.width, page.height, 'FFFFFF');
+      // Sprint 171：頁底色 = pageBackgroundColor（預設 'FFFFFF'、OOXML <w:background> 來源）
+      this.ctx.fillRect(0, 0, page.width, page.height, this.opts.pageBackgroundColor);
     }
     for (const entry of page.entries) {
       this.renderEntry(entry);

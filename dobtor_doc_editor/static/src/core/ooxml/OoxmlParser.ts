@@ -41,6 +41,7 @@ import { HeaderFooterParser } from './header-footer/HeaderFooterParser';
 import { NumberingResolver } from './numbering/NumberingResolver';
 import { SettingsParser } from './settings/SettingsParser';
 import { WebSettingsParser } from './web-settings/WebSettingsParser';
+import { BackgroundParser } from './background/BackgroundParser';
 import {
   PackageReader,
   type OoxmlPackage,
@@ -112,6 +113,8 @@ export class OoxmlParser {
   private webSettingsParser = new WebSettingsParser();
   /** Sprint 153：styles.xml `<w:latentStyles>` capture-only */
   private latentStylesParser = new LatentStylesParser();
+  /** Sprint 171：document.xml `<w:background>` 文件背景（Phase 5.6 浮水印 + 背景）*/
+  private backgroundParser = new BackgroundParser();
 
   /**
    * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -216,6 +219,11 @@ export class OoxmlParser {
     //   為 Phase 6 docx export 對稱性鋪路(export 時要原樣重建)、layout/render 不用。
     const contentTypes = pkg.contentTypes;
 
+    // Step 8.4（Sprint 171）：document.xml `<w:background>` 文件背景（Phase 5.6）
+    //   render wire-up：CanvasRenderer 以 pageBackgroundColor 選項消費 background.color。
+    //   多數 docx 無此元素 → background 為 undefined（紀律 #21）。
+    const background = this.backgroundParser.parse(documentXml);
+
     const doc: DocumentNode = {
       type: 'document',
       sections,
@@ -234,6 +242,7 @@ export class OoxmlParser {
       customProps,
       contentTypes,
       latentStyles,
+      ...(background !== undefined ? { background } : {}),
     };
 
     // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props

@@ -386,7 +386,13 @@ async function render(
       scale: dpi / 72,
       imageResolver,
     });
-    const renderer = new CanvasRenderer(browserCtx);
+    // Sprint 171：OOXML <w:background> 文件背景色 → CanvasRenderer 頁底色
+    //   無 <w:background>（多數 docx）→ bgColor undefined → 不傳 → 預設白底 byte-identical
+    const bgColor = documentNode?.background?.color;
+    const renderer = new CanvasRenderer(
+      browserCtx,
+      bgColor ? { pageBackgroundColor: bgColor } : {},
+    );
     renderer.render({ pages: [page], warnings: [] });
     canvas.dataset.painted = '1';
   }
