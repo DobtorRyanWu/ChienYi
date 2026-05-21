@@ -110,3 +110,53 @@ describe('Paginator framePr — enableFramePr 開', () => {
     expect(on[0].x).toBeGreaterThan(MARGINS.left);
   });
 });
+
+describe('Paginator framePr — Sprint 170 wrap 模式分派', () => {
+  // 顯式窄框寬 100pt（欄寬 ≈ 451pt、留得下側繞內文）
+  const FP_NARROW_AROUND: FramePr = { wrap: 'around', vAnchor: 'text', hAnchor: 'margin', width: 100 };
+  const FP_NARROW_NOTBESIDE: FramePr = { wrap: 'notBeside', vAnchor: 'text', hAnchor: 'margin', width: 100 };
+  const FP_NARROW_NONE: FramePr = { wrap: 'none', vAnchor: 'text', hAnchor: 'margin', width: 100 };
+
+  it('wrap=around + 顯式窄框 → 後續內文側繞（line entry x 右移）', () => {
+    const on = lineEntries(makeSection([para('框', FP_NARROW_AROUND), para('內文內容')]), true);
+    expect(on.length).toBe(2);
+    const framedLine = on[0];
+    const bodyLine = on[1];
+    // 框在欄左（hAnchor=margin、無 x）→ side=left → 後續內文被推右
+    expect(framedLine.x).toBeCloseTo(MARGINS.left, 6);
+    expect(bodyLine.x).toBeGreaterThan(MARGINS.left + 50);
+    // 側繞：currentY 未推進 → 內文與框頂同高（不落框下方）
+    expect(bodyLine.y).toBeCloseTo(framedLine.y, 6);
+  });
+
+  it('wrap=notBeside + 顯式窄框 → 保留垂直空間（內文落框下方、不右移）', () => {
+    const on = lineEntries(makeSection([para('框', FP_NARROW_NOTBESIDE), para('內文內容')]), true);
+    expect(on.length).toBe(2);
+    expect(on[1].x).toBeCloseTo(MARGINS.left, 6);
+    expect(on[1].y).toBeGreaterThanOrEqual(on[0].y + on[0].height);
+  });
+
+  it('wrap=none → 不保留空間也不排除（內文落框頂、x 不右移）', () => {
+    const on = lineEntries(makeSection([para('框', FP_NARROW_NONE), para('內文內容')]), true);
+    expect(on.length).toBe(2);
+    expect(on[1].x).toBeCloseTo(MARGINS.left, 6);
+    expect(on[1].y).toBeCloseTo(on[0].y, 6);
+  });
+
+  it('auto-width 框（無顯式 width）wrap=around → 退回保留空間、不側繞', () => {
+    // FP 為 auto-width（無 width）→ 無側繞、內文落框下方
+    const on = lineEntries(makeSection([para('框', FP), para('內文內容')]), true);
+    expect(on.length).toBe(2);
+    expect(on[1].x).toBeCloseTo(MARGINS.left, 6);
+    expect(on[1].y).toBeGreaterThanOrEqual(on[0].y + on[0].height);
+  });
+
+  it('顯式框過寬（旁無側繞空間）→ 退回保留垂直空間', () => {
+    // width 430pt、欄寬 ≈ 451 → 430+6 後不足 72pt 內文寬 → 退回保留空間
+    const wide: FramePr = { wrap: 'around', vAnchor: 'text', hAnchor: 'margin', width: 430 };
+    const on = lineEntries(makeSection([para('框', wide), para('內文內容')]), true);
+    expect(on.length).toBe(2);
+    expect(on[1].x).toBeCloseTo(MARGINS.left, 6);
+    expect(on[1].y).toBeGreaterThanOrEqual(on[0].y + on[0].height);
+  });
+});

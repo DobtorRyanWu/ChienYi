@@ -855,21 +855,29 @@ function layParagraph(
   ctx.lastRowWasImage = false;
 }
 
-// ── Framed Paragraphs（Sprint 169：`<w:framePr>` 浮動段落框）────────────────
+// ── Framed Paragraphs（Sprint 169-170：`<w:framePr>` 浮動段落框）─────────────
+
+/** Sprint 170：framePr.hSpace 未設時、框與側繞內文間距（pt、同 placeFloatImage padding）。 */
+const FRAME_DEFAULT_HSPACE_PT = 6;
+/** Sprint 170：側繞時內文至少需保留的寬度（pt、1 inch）；不足則退回保留垂直空間。 */
+const FRAME_MIN_WRAP_TEXT_PT = 72;
 
 /**
- * Sprint 169：把連續同 framePr 的段落（已由 frameGroupLength 分組）排成一個浮動框。
+ * Sprint 169-170：把連續同 framePr 的段落（已由 frameGroupLength 分組）排成一個浮動框。
  *
  * - 子排版：逐段 buildParagraph + breakParagraph、收集行與框內相對座標。
  * - 框寬：framePr.width 顯式 → 用之；否則 auto → 用欄寬（內容 jc 在框內生效）。
  * - 定位：vAnchor（text / margin / page）+ y 偏移決定框頂 y；hAnchor + x / xAlign
  *   決定框左 x。各行以絕對座標 emit 為 LinePageEntry。
- * - 垂直空間：Sprint 169 對 vAnchor=text 採 topAndBottom-like「保留空間」（currentY
- *   推進框高、後續內文落在框下方、不重疊）。Sprint 170 升級為 wrap=around 排除區。
+ * - 垂直空間策略（Sprint 170 依 framePr.wrap 分派）：
+ *   - `around` / `tight` / `through` / 未設 + 顯式 framePr.width + 框寬留得下內文
+ *     → 註冊 activeFloats 排除區、currentY 不推進（後續內文 per-line 側繞、複用 Sprint 6）
+ *   - `notBeside` / auto-width / 框過寬無側繞空間 → 保留垂直空間（topAndBottom-like）
+ *   - `none` → 純浮動、不保留也不排除
  *
  * Scope-down（紀律 #18）：框內不解析 floatImage / numbering 前綴（罕見、過濾後當純內文）；
- * 框本身跨頁留 Sprint 171；vAnchor=page/margin 不保留垂直空間（純浮動、可能與內文重疊、
- * 發 warning）。
+ * 框本身跨頁留 Sprint 171；vAnchor=page/margin 純浮動不影響內文流（Sprint 171）；
+ * auto-width 框維持「保留空間」—— 自然寬度 sizing + 側繞語意依賴 decision B golden、留後續。
  */
 function layFramedParagraphs(
   ctx: PaginateContext,
@@ -959,11 +967,35 @@ function layFramedParagraphs(
     ctx.entries.push(entry);
   }
 
-  // 垂直空間保留（Sprint 169：vAnchor=text 採 topAndBottom-like、後續內文落框下不重疊）
-  if (anchoredToFlow) {
-    ctx.currentY += yOffset + frameHeight;
+  // ── 垂直空間策略（Sprint 170）：依 framePr.wrap 分派保留空間 / 側繞排除區 / 純浮動 ──
+  const wrap = framePr.wrap;
+  if (!anchoredToFlow) {
+    // vAnchor=page/margin：純浮動、不影響內文流（scope-down、Sprint 171 補）
+    ctx.warnings.push(`[paginate] block#${blockIdx} framePr vAnchor=${framePr.vAnchor}：純浮動、未保留垂直空間、可能與內文重疊（Sprint 171 補）。`);
+  } else if (wrap === 'none') {
+    // wrap=none：框浮於內文上、不保留空間也不排除
+    ctx.warnings.push(`[paginate] block#${blockIdx} framePr wrap=none：框浮於內文上、未保留垂直空間。`);
   } else {
-    ctx.warnings.push(`[paginate] block#${blockIdx} framePr vAnchor=${framePr.vAnchor}：純浮動、未保留垂直空間、可能與內文重疊（Sprint 170+ 補排除區）。`);
+    // 側繞條件（全部成立）：非 notBeside + 顯式 framePr.width + 框寬旁留得下內文
+    const frameHSpace = framePr.hSpace ?? FRAME_DEFAULT_HSPACE_PT;
+    const hasExplicitWidth = framePr.width !== undefined && framePr.width > 0;
+    const roomBeside = colWidth - frameWidth - frameHSpace >= FRAME_MIN_WRAP_TEXT_PT;
+    if (wrap !== 'notBeside' && hasExplicitWidth && roomBeside) {
+      // 側繞：註冊 activeFloats 排除區（複用 Sprint 6 wrapSquare 機制）、currentY 不推進
+      const colMid = colX + colWidth / 2;
+      const side: ActiveFloat['side'] = (frameX + frameWidth / 2) <= colMid ? 'left' : 'right';
+      ctx.activeFloats.push({
+        yTop: frameTopY,
+        yBottom: frameTopY + frameHeight,
+        xLeft: frameX,
+        xRight: frameX + frameWidth,
+        side,
+        padding: frameHSpace,
+      });
+    } else {
+      // 保留垂直空間（notBeside / auto-width / 框過寬無側繞空間；Sprint 169 topAndBottom-like）
+      ctx.currentY += yOffset + frameHeight;
+    }
   }
   ctx.lastRowWasImage = false;
 }

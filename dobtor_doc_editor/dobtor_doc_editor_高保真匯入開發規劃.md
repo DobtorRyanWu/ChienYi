@@ -511,7 +511,7 @@ for each block in flow:
 - [ ] 編號的 `<w:lvlText>` 模板解析：`"%1.%2."` 等
 
 #### 4.4 Paragraph 進階（1 週）
-- [ ] `<w:frame>` 段落框（罕用但規格支援）
+- [x] `<w:frame>` 段落框（罕用但規格支援）（Sprint 169-170 — framePr 浮動段落框 layout wire-up：`frameGroup.ts` 連續同 framePr 段落分組 + Paginator `layFramedParagraphs` 子排版/vAnchor·hAnchor 定位/emit 絕對座標 LinePageEntry + `framePr.wrap` 模式分派（around 側繞排除區複用 Sprint 6 activeFloats / notBeside 保留空間 / none 純浮動）；opt-in `LayoutOptions.enableFramePr`、Strategy C、42 fixture VR byte-identical；decision A part 2。auto-width 側繞 + 框跨頁 + page/margin anchor 留 Sprint 171 optional）
 - [ ] `<w:pBdr>` 段落邊框 + 陰影
 - [ ] `<w:tab>` tab stop 進階：leader、alignment (right/center/decimal/bar)
 - [x] `<w:textAlignment>` 基線對齊 (top/center/baseline/bottom/auto)（Sprint 167 — CanvasRenderer wire-up：`computeVerticalAlignShift` 依行內 box 高度差算各 box y 位移、等高行位移恆 0；Strategy C、42 fixture VR byte-identical；decision A part 1，framePr 留 Sprint 168）
