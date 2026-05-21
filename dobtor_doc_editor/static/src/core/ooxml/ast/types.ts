@@ -712,6 +712,25 @@ export interface FootnoteContent {
   content: BlockNode[];
 }
 
+/**
+ * Sprint 176（Phase 5.5 註解）：單則註解內容（OOXML §17.13.4、word/comments.xml）。
+ *
+ * `<w:comment w:id w:author w:date w:initials>` 內含段落 / 表格（同 body 結構）。
+ * document.xml 以 `<w:commentRangeStart/End w:id>` + `<w:commentReference w:id>` 引用。
+ */
+export interface CommentContent {
+  /** `w:id` 註解編號（與 `<w:commentReference>` 對應）。 */
+  id: number;
+  /** `w:author` 註解作者。 */
+  author?: string;
+  /** `w:date` 註解時間（ISO 字串、capture raw）。 */
+  date?: string;
+  /** `w:initials` 作者縮寫。 */
+  initials?: string;
+  /** 註解內容（段落 / 表格、同 body 結構）。 */
+  content: BlockNode[];
+}
+
 // ── 清單編號（Numbering）─────────────────────────────────────────────────────
 
 export interface NumberingLevel {
@@ -805,6 +824,8 @@ export interface DocumentNode {
   footnotes: Map<number, FootnoteContent>;
   /** Sprint 145：endnotes.xml 解析結果（id → 內容）；fixture 0 覆蓋時為空 Map */
   endnotes: Map<number, FootnoteContent>;
+  /** Sprint 176：comments.xml 解析結果（id → 註解內容）；無 comments.xml 時為空 Map */
+  comments: Map<number, CommentContent>;
   /** Sprint 146：settings.xml 解析結果（capture-only、欄位皆 optional、空物件代表「無設定 part」）*/
   settings: DocumentSettings;
   /** Sprint 147：fontTable.xml 解析結果（capture-only、空 Map 代表「無 fontTable.xml」）*/

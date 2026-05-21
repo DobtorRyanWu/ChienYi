@@ -3019,7 +3019,7 @@
          * @throws Error 若 XML 無法解析或缺 <w:body>
          */
         parse(documentXml) {
-            const doc = parseXml$b(documentXml);
+            const doc = parseXml$c(documentXml);
             const root = doc.documentElement;
             if (!root) {
                 throw new Error('DocumentParser: empty document');
@@ -3059,6 +3059,7 @@
                 footers,
                 footnotes: new Map(),
                 endnotes: new Map(),
+                comments: new Map(),
                 settings: {},
                 fontTable: new Map(),
                 webSettings: {},
@@ -3098,7 +3099,7 @@
          * @deprecated 改用 walkBodyAsSections 取得多節切分
          */
         walkBody(documentXml) {
-            const doc = parseXml$b(documentXml);
+            const doc = parseXml$c(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3137,7 +3138,7 @@
          * @internal 給 OoxmlParser orchestrator 用，搭配 SectionParser 產生 SectionNode[]
          */
         walkBodyAsSections(documentXml) {
-            const doc = parseXml$b(documentXml);
+            const doc = parseXml$c(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3184,7 +3185,7 @@
          * @internal
          */
         findAllSectPrs(documentXml) {
-            const doc = parseXml$b(documentXml);
+            const doc = parseXml$c(documentXml);
             const root = doc.documentElement;
             if (!root)
                 return [];
@@ -3258,7 +3259,7 @@
         }
         return undefined;
     }
-    function parseXml$b(xml) {
+    function parseXml$c(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DocumentParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3309,7 +3310,7 @@
                 return out;
             let doc;
             try {
-                doc = parseXml$a(xml);
+                doc = parseXml$b(xml);
             }
             catch {
                 return out;
@@ -3434,7 +3435,7 @@
         }
         return out;
     }
-    function parseXml$a(xml) {
+    function parseXml$b(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FontTableParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3504,7 +3505,7 @@
             if (!xml)
                 return out;
             try {
-                const doc = parseXml$9(xml);
+                const doc = parseXml$a(xml);
                 const root = doc.documentElement;
                 if (!root)
                     return out;
@@ -3562,7 +3563,7 @@
                 return undefined;
         }
     }
-    function parseXml$9(xml) {
+    function parseXml$a(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FootnotesParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3605,7 +3606,7 @@
         parse(xml, rId) {
             let content = [];
             try {
-                const doc = parseXml$8(xml);
+                const doc = parseXml$9(xml);
                 const root = doc.documentElement;
                 if (root) {
                     // <w:hdr> 與 <w:ftr> 內部結構等同 <w:body> — 直接走訪即可
@@ -3620,7 +3621,7 @@
         }
     }
     // ── 共用 XML 解析 ─────────────────────────────────────────────────────────────
-    function parseXml$8(xml) {
+    function parseXml$9(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('HeaderFooterParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3664,7 +3665,7 @@
         resolve(xml) {
             if (!xml)
                 return new Map();
-            const doc = parseXml$7(xml);
+            const doc = parseXml$8(xml);
             const root = doc.documentElement;
             if (!root)
                 return new Map();
@@ -3895,7 +3896,7 @@
         }
         return out;
     }
-    function parseXml$7(xml) {
+    function parseXml$8(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('NumberingResolver: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3940,7 +3941,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$6(xml);
+                doc = parseXml$7(xml);
             }
             catch {
                 return {};
@@ -4084,7 +4085,7 @@
         }
         return out;
     }
-    function parseXml$6(xml) {
+    function parseXml$7(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('SettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4121,7 +4122,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$5(xml);
+                doc = parseXml$6(xml);
             }
             catch {
                 return {};
@@ -4175,7 +4176,7 @@
         }
         return out;
     }
-    function parseXml$5(xml) {
+    function parseXml$6(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('WebSettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4218,7 +4219,7 @@
                 return undefined;
             let doc;
             try {
-                doc = parseXml$4(documentXml);
+                doc = parseXml$5(documentXml);
             }
             catch {
                 return undefined;
@@ -4253,7 +4254,7 @@
         }
         return undefined;
     }
-    function parseXml$4(xml) {
+    function parseXml$5(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('BackgroundParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4299,7 +4300,7 @@
                 return undefined;
             let doc;
             try {
-                doc = parseXml$3(headerXml);
+                doc = parseXml$4(headerXml);
             }
             catch {
                 return undefined;
@@ -4389,7 +4390,7 @@
         }
         return s;
     }
-    function parseXml$3(xml) {
+    function parseXml$4(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('WatermarkParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4397,6 +4398,105 @@
         const errors = doc.getElementsByTagName('parsererror');
         if (errors.length > 0) {
             throw new Error(`WatermarkParser: XML parse error — ${errors[0].textContent}`);
+        }
+        return doc;
+    }
+
+    /**
+     * CommentsParser — 解析 word/comments.xml（OOXML §17.13.4、Phase 5.5 註解）
+     *
+     * Sprint 176（capture-only）：
+     *   Word 註解（「校閱 → 新增註解」）儲存於 comments.xml；document.xml 以
+     *   `<w:commentRangeStart/End w:id>` 標記範圍、`<w:commentReference w:id>` 為錨點。
+     *
+     * comments.xml 結構：
+     *   <w:comments>
+     *     <w:comment w:id="0" w:author="Alice" w:date="2024-..." w:initials="A">
+     *       <w:p>...註解內容...</w:p>
+     *     </w:comment>
+     *   </w:comments>
+     *
+     * 重用 DocumentParser.parseBodyContent 解析註解內部段落 + 表格（同 FootnotesParser /
+     * HeaderFooterParser 模式）。
+     *
+     * Scope-down（紀律 #18）：capture comments.xml 內容；document.xml 的
+     * commentRangeStart/End/Reference 錨點 wire-up + 右側 panel render 留後續 sprint。
+     *
+     * 防禦：undefined / 空 / XML 解析失敗 → 回空 Map（不阻塞 OoxmlParser）。
+     */
+    class CommentsParser {
+        /**
+         * @param documentParser 可選；OoxmlParser orchestrator 注入共用 instance 以重用
+         *                       TableParser 等狀態。不傳則自建一個。
+         */
+        constructor(documentParser) {
+            this.documentParser = documentParser ?? new DocumentParser();
+        }
+        /**
+         * 解析 word/comments.xml 為 Map<id, CommentContent>。
+         *
+         * @param xml comments.xml 完整字串；undefined / 空 → 回空 Map
+         * @returns Map<id, CommentContent>；XML 無法解析時回空 Map（不 throw）
+         */
+        parse(xml) {
+            const out = new Map();
+            if (!xml)
+                return out;
+            let doc;
+            try {
+                doc = parseXml$3(xml);
+            }
+            catch {
+                return out;
+            }
+            const root = doc.documentElement;
+            if (!root)
+                return out;
+            const cs = root.childNodes;
+            for (let i = 0; i < cs.length; i++) {
+                const n = cs[i];
+                if (n.nodeType !== 1)
+                    continue;
+                const el = n;
+                if (el.tagName !== 'w:comment')
+                    continue;
+                const idRaw = el.getAttribute('w:id');
+                if (idRaw === null)
+                    continue;
+                const id = parseInt(idRaw, 10);
+                if (!Number.isFinite(id))
+                    continue;
+                // 內部結構等同 <w:body> — 重用 DocumentParser
+                let content = [];
+                try {
+                    content = this.documentParser.parseBodyContent(el);
+                }
+                catch {
+                    content = [];
+                }
+                const entry = { id, content };
+                const author = el.getAttribute('w:author');
+                if (author)
+                    entry.author = author;
+                const date = el.getAttribute('w:date');
+                if (date)
+                    entry.date = date;
+                const initials = el.getAttribute('w:initials');
+                if (initials)
+                    entry.initials = initials;
+                out.set(id, entry);
+            }
+            return out;
+        }
+    }
+    function parseXml$3(xml) {
+        if (typeof DOMParser === 'undefined') {
+            throw new Error('CommentsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+        }
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const errors = doc.getElementsByTagName('parsererror');
+        if (errors.length > 0) {
+            throw new Error(`CommentsParser: XML parse error — ${errors[0].textContent}`);
         }
         return doc;
     }
@@ -6384,6 +6484,7 @@
     const REL_TYPE_FOOTER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
     const REL_TYPE_FOOTNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
     const REL_TYPE_ENDNOTES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+    const REL_TYPE_COMMENTS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
     const REL_TYPE_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     const REL_TYPE_FONT_TABLE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
     const REL_TYPE_WEB_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
@@ -6418,6 +6519,8 @@
             this.backgroundParser = new BackgroundParser();
             /** Sprint 172：header VML 浮水印 shape capture（Phase 5.6 浮水印 + 背景）*/
             this.watermarkParser = new WatermarkParser();
+            /** Sprint 176：comments.xml 註解 capture（Phase 5.5 註解）*/
+            this.commentsParser = new CommentsParser();
         }
         /**
          * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -6469,6 +6572,9 @@
             //   為將來 user 提供含 footnoteReference 的 fixture 後 wire-up 鋪路。
             const footnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_FOOTNOTES);
             const endnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_ENDNOTES);
+            // Step 6.5b（Sprint 176）：comments.xml — capture-only、無 wire-up（Phase 5.5 註解）
+            //   comment 範圍錨點（commentRangeStart/End/Reference）+ 右側 panel render 留後續。
+            const comments = collectComments(pkg, mainDocPath, this.commentsParser);
             // Step 6.6（Sprint 146）：settings.xml — capture-only、無 wire-up
             //   42/42 fixture 都有 settings.xml、含 zoom / defaultTabStop / characterSpacingControl /
             //   footnotePr / endnotePr / compat 等文件級設定;為將來 wire-up 鋪路。
@@ -6514,6 +6620,7 @@
                 footers,
                 footnotes,
                 endnotes,
+                comments,
                 settings,
                 fontTable,
                 webSettings,
@@ -6610,6 +6717,22 @@
                 footers.set(rel.id, parser.parse(xml, rel.id));
             }
         }
+    }
+    /**
+     * Sprint 176：走訪 mainDoc 的 .rels、抓 comments.xml part 並解析。
+     *
+     * @returns Map<id, CommentContent>；rels 沒指向 comments 時回空 Map
+     */
+    function collectComments(pkg, mainDocPath, parser) {
+        const rels = pkg.relationships.get(mainDocPath);
+        if (!rels)
+            return new Map();
+        for (const rel of rels.values()) {
+            if (rel.targetMode !== 'Internal' || rel.type !== REL_TYPE_COMMENTS)
+                continue;
+            return parser.parse(pkg.partAsText(rel.target));
+        }
+        return new Map();
     }
     /**
      * Sprint 172：走訪所有 header part、capture 第一個浮水印 VML shape。

@@ -44,6 +44,7 @@ import { SettingsParser } from './settings/SettingsParser';
 import { WebSettingsParser } from './web-settings/WebSettingsParser';
 import { BackgroundParser } from './background/BackgroundParser';
 import { WatermarkParser } from './watermark/WatermarkParser';
+import { CommentsParser } from './comments/CommentsParser';
 import {
   PackageReader,
   type OoxmlPackage,
@@ -74,6 +75,8 @@ const REL_TYPE_FOOTNOTES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
 const REL_TYPE_ENDNOTES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+const REL_TYPE_COMMENTS =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
 const REL_TYPE_SETTINGS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
 const REL_TYPE_FONT_TABLE =
@@ -119,6 +122,8 @@ export class OoxmlParser {
   private backgroundParser = new BackgroundParser();
   /** Sprint 172：header VML 浮水印 shape capture（Phase 5.6 浮水印 + 背景）*/
   private watermarkParser = new WatermarkParser();
+  /** Sprint 176：comments.xml 註解 capture（Phase 5.5 註解）*/
+  private commentsParser = new CommentsParser();
 
   /**
    * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -185,6 +190,10 @@ export class OoxmlParser {
     const footnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_FOOTNOTES);
     const endnotes = collectNotes(pkg, mainDocPath, this.footnotesParser, REL_TYPE_ENDNOTES);
 
+    // Step 6.5b（Sprint 176）：comments.xml — capture-only、無 wire-up（Phase 5.5 註解）
+    //   comment 範圍錨點（commentRangeStart/End/Reference）+ 右側 panel render 留後續。
+    const comments = collectComments(pkg, mainDocPath, this.commentsParser);
+
     // Step 6.6（Sprint 146）：settings.xml — capture-only、無 wire-up
     //   42/42 fixture 都有 settings.xml、含 zoom / defaultTabStop / characterSpacingControl /
     //   footnotePr / endnotePr / compat 等文件級設定;為將來 wire-up 鋪路。
@@ -240,6 +249,7 @@ export class OoxmlParser {
       footers,
       footnotes,
       endnotes,
+      comments,
       settings,
       fontTable,
       webSettings,
@@ -349,6 +359,25 @@ function collectHeadersFooters(
       footers.set(rel.id, parser.parse(xml, rel.id));
     }
   }
+}
+
+/**
+ * Sprint 176：走訪 mainDoc 的 .rels、抓 comments.xml part 並解析。
+ *
+ * @returns Map<id, CommentContent>；rels 沒指向 comments 時回空 Map
+ */
+function collectComments(
+  pkg: OoxmlPackage,
+  mainDocPath: string,
+  parser: CommentsParser,
+): Map<number, import('./ast/types').CommentContent> {
+  const rels = pkg.relationships.get(mainDocPath);
+  if (!rels) return new Map();
+  for (const rel of rels.values()) {
+    if (rel.targetMode !== 'Internal' || rel.type !== REL_TYPE_COMMENTS) continue;
+    return parser.parse(pkg.partAsText(rel.target));
+  }
+  return new Map();
 }
 
 /**
