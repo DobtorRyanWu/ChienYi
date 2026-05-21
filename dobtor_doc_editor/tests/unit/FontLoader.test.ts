@@ -266,3 +266,141 @@ describe('Sprint 157 — fontTable.altName fallback', () => {
     expect(fetchCalls.length).toBe(5);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sprint 166 — CJK fallback chain（規畫書 Phase 2 §2.2 wire-up）
+// 主 + altName 都失敗、且 fontTable.charset 判定為 CJK → 試通用 CJK fallback chain
+// ─────────────────────────────────────────────────────────────────────────────
+
+function mkCjkFontTable(
+  entries: Array<{ name: string; altName?: string; charset?: string }>,
+): FontTable {
+  const table: FontTable = new Map();
+  for (const e of entries) {
+    const entry: FontEntry = { name: e.name };
+    if (e.altName !== undefined) entry.altName = e.altName;
+    if (e.charset !== undefined) entry.charset = e.charset;
+    table.set(e.name, entry);
+  }
+  return table;
+}
+
+describe('Sprint 166 — CJK fallback chain', () => {
+  it.skipIf(!LIBERATION_BYTES)(
+    '主 + altName 都 404、charset=88（繁中）→ CJK chain 第一個可用者勝出、用主 family 名註冊',
+    async () => {
+      setupFetchMock({
+        標楷體: '404',
+        'DFKai-SB': '404',
+        思源黑體: LIBERATION_BYTES!, // chain 第一個
+      });
+      const fontTable = mkCjkFontTable([
+        { name: '標楷體', altName: 'DFKai-SB', charset: '88' },
+      ]);
+      const adapter = await loadFontsAndBuildAdapter(['標楷體'], { fontTable });
+
+      expect(adapter.hasFont('標楷體')).toBe(true); // 用主 family 名註冊
+      expect(adapter.hasFont('思源黑體')).toBe(false); // fallback 不單獨註冊
+      // fetch:主(404) + altName(404) + 思源黑體(200) = 3
+      expect(fetchCalls.length).toBe(3);
+    },
+  );
+
+  it.skipIf(!LIBERATION_BYTES)(
+    '主 404、無 altName、charset=86（簡中）→ CJK chain 試',
+    async () => {
+      setupFetchMock({ 宋體: '404', 思源黑體: LIBERATION_BYTES! });
+      const fontTable = mkCjkFontTable([{ name: '宋體', charset: '86' }]);
+      const adapter = await loadFontsAndBuildAdapter(['宋體'], { fontTable });
+
+      expect(adapter.hasFont('宋體')).toBe(true);
+      // fetch:主(404) + 思源黑體(200) = 2（無 altName 不 retry）
+      expect(fetchCalls.length).toBe(2);
+    },
+  );
+
+  it.skipIf(!LIBERATION_BYTES)(
+    '主 404、charset=80（日文 ShiftJIS）→ CJK chain 試（驗 charset 集合涵蓋日文）',
+    async () => {
+      setupFetchMock({ メイリオ: '404', 思源黑體: LIBERATION_BYTES! });
+      const fontTable = mkCjkFontTable([{ name: 'メイリオ', charset: '80' }]);
+      const adapter = await loadFontsAndBuildAdapter(['メイリオ'], { fontTable });
+
+      expect(adapter.hasFont('メイリオ')).toBe(true);
+      expect(fetchCalls.length).toBe(2);
+    },
+  );
+
+  it('charset=00（ANSI 拉丁）→ CJK chain 不試、主 404 即 silent fallback', async () => {
+    setupFetchMock({}); // 全 404
+    const fontTable = mkCjkFontTable([{ name: 'Arial', charset: '00' }]);
+    const adapter = await loadFontsAndBuildAdapter(['Arial'], { fontTable });
+
+    expect(adapter.hasFont('Arial')).toBe(false);
+    expect(fetchCalls.length).toBe(1); // 只試主 family、不套 CJK chain
+  });
+
+  it('fontTable 有 family 但無 charset → CJK chain 不試', async () => {
+    setupFetchMock({});
+    const fontTable = mkCjkFontTable([{ name: '某字型' }]); // 無 charset
+    const adapter = await loadFontsAndBuildAdapter(['某字型'], { fontTable });
+
+    expect(adapter.hasFont('某字型')).toBe(false);
+    expect(fetchCalls.length).toBe(1);
+  });
+
+  it('family 不在 fontTable → CJK chain 不試（與 Sprint 64b/157 行為一致）', async () => {
+    setupFetchMock({});
+    const fontTable = mkCjkFontTable([{ name: '別的字型', charset: '88' }]);
+    const adapter = await loadFontsAndBuildAdapter(['這個字型'], { fontTable });
+
+    expect(adapter.hasFont('這個字型')).toBe(false);
+    expect(fetchCalls.length).toBe(1);
+  });
+
+  it('charset=88 但 CJK chain 全 404 → silent fallback、adapter 未註冊', async () => {
+    setupFetchMock({}); // 主 + chain 全 404
+    const fontTable = mkCjkFontTable([{ name: '怪字型', charset: '88' }]);
+    const adapter = await loadFontsAndBuildAdapter(['怪字型'], { fontTable });
+
+    expect(adapter.hasFont('怪字型')).toBe(false);
+    // fetch:主(1) + 思源黑體 + 微軟正黑體 + 新細明體 = 4
+    expect(fetchCalls.length).toBe(4);
+  });
+
+  it.skipIf(!LIBERATION_BYTES)(
+    'chain 成員等於主 family / altName → 跳過、不重複 fetch',
+    async () => {
+      setupFetchMock({
+        思源黑體: '404', // 主 family 本身就是 chain[0]
+        微軟正黑體: '404', // altName 本身就是 chain[1]
+        新細明體: LIBERATION_BYTES!, // 只有 chain[2] 該被試
+      });
+      const fontTable = mkCjkFontTable([
+        { name: '思源黑體', altName: '微軟正黑體', charset: '88' },
+      ]);
+      const adapter = await loadFontsAndBuildAdapter(['思源黑體'], { fontTable });
+
+      expect(adapter.hasFont('思源黑體')).toBe(true);
+      // fetch:主'思源黑體'(404) + altName'微軟正黑體'(404) + 新細明體(200) = 3
+      // chain[0]'思源黑體'==family 跳過、chain[1]'微軟正黑體'==altName 跳過
+      expect(fetchCalls.length).toBe(3);
+    },
+  );
+
+  it.skipIf(!LIBERATION_BYTES)('主 family 200 → CJK chain 不試（fast path）', async () => {
+    setupFetchMock({ 標楷體: LIBERATION_BYTES! });
+    const fontTable = mkCjkFontTable([{ name: '標楷體', charset: '88' }]);
+    await loadFontsAndBuildAdapter(['標楷體'], { fontTable });
+
+    expect(fetchCalls.length).toBe(1); // 主成功就不套 chain
+  });
+
+  it('不傳 fontTable → CJK chain 不套（backward compat、與 Sprint 157 一致）', async () => {
+    setupFetchMock({});
+    const adapter = await loadFontsAndBuildAdapter(['標楷體']);
+
+    expect(adapter.hasFont('標楷體')).toBe(false);
+    expect(fetchCalls.length).toBe(1);
+  });
+});

@@ -30,15 +30,47 @@
  *   - 任何錯誤（IDB unavailable / fetch 失敗 / opentype.js 解析失敗）→ silent fallback（adapter 該 family 未註冊、pipeline 自動 fallback EstimateMetrics）
  *   - 不做 batch fetch：每個 family 一個 request，便於 Cache-Control 命中
  *   - Sprint 157:altName fallback 只試一層（不遞迴 altName-of-altName）；OOXML §17.8 spec 不定義巢狀 altName
+ *
+ * Sprint 166 — CJK fallback chain wire-up:
+ *   - 對應規畫書 Phase 2 §2.2「CJK fallback 鏈：原字型 → 思源黑體 / 微軟正黑體 → 新細明體 → 預設字型」
+ *   - 主 family + altName 都取不到、且該 family 經 fontTable.charset 判定為 CJK 字型時、
+ *     依序試一條通用 CJK fallback chain
+ *   - 拉丁字型（charset '00' = ANSI）不會誤套 CJK 字型
+ *   - chain 任一成功 → 用「主 family」name 註冊（同 Sprint 157、caller 仍以原 family 查詢）
+ *   - chain 全失敗 → silent fallback（adapter 未註冊、pipeline 自動 fallback EstimateMetrics）
+ *   - 不傳 fontTable / family 非 CJK → 行為與 Sprint 157 完全一致（backward compat、不破 baseline）
  */
 
 import { FontMetricsAdapter } from './layout/FontMetricsAdapter';
-import type { FontTable } from './ooxml/ast/types';
+import type { FontTable, FontEntry } from './ooxml/ast/types';
 
 const DB_NAME = 'dobtor-font-cache';
 const DB_VERSION = 1;
 const STORE = 'fonts';
 const DEFAULT_ENDPOINT = '/dobtor/fonts';
+
+/**
+ * Sprint 166 — CJK fallback chain（規畫書 Phase 2 §2.2）。
+ *
+ * 主 family + altName 都取不到、且該 family 經 fontTable.charset 判定為 CJK 字型時、
+ * 依序試這條通用 CJK fallback chain。對應規畫書 §2.2「原字型 → 思源黑體 / 微軟正黑體
+ * → 新細明體 → 預設字型」（「預設字型」= 整條 chain 失敗後的 silent fallback）。
+ */
+const CJK_FALLBACK_CHAIN: readonly string[] = ['思源黑體', '微軟正黑體', '新細明體'];
+
+/**
+ * OOXML `w:charset` 值（hex 字串）對應 CJK 語系的子集：
+ *   '80' = ShiftJIS（日文）、'81' = Hangul（韓文）、
+ *   '86' = GB2312（簡中）、'88' = ChineseBig5（繁中）。
+ * 只有 fontTable 該 family 的 charset 落在此集合、才套用 CJK fallback chain
+ * （拉丁字型 charset '00' = ANSI 不會誤套思源黑體）。
+ */
+const CJK_CHARSETS: ReadonlySet<string> = new Set(['80', '81', '86', '88']);
+
+/** 依 fontTable 的 `charset` 判斷一個 FontEntry 是否為 CJK 字型。 */
+function isCjkFont(entry: FontEntry): boolean {
+  return entry.charset !== undefined && CJK_CHARSETS.has(entry.charset);
+}
 
 export interface FontLoaderOptions {
   /** 字型 list endpoint（預設 /dobtor/fonts/<family>）；可指向其他 origin / mock server */
@@ -84,9 +116,20 @@ export async function loadFontsAndBuildAdapter(
         // Sprint 157:主 family 取不到 → 試 fontTable[family].altName（若存在）
         // 註冊時用「主 family」name、讓 caller 仍以原 family 名查詢
         if (!bytes && fontTable) {
-          const altName = fontTable.get(family)?.altName;
+          const entry = fontTable.get(family);
+          const altName = entry?.altName;
           if (altName && altName !== family) {
             bytes = await getOrFetchFontBytes(altName, endpoint, timeout);
+          }
+
+          // Sprint 166:主 + altName 都失敗、且 family 經 charset 判定為 CJK 字型
+          // → 依序試通用 CJK fallback chain（跳過已試過的主 family / altName）
+          if (!bytes && entry && isCjkFont(entry)) {
+            for (const fallback of CJK_FALLBACK_CHAIN) {
+              if (fallback === family || fallback === altName) continue;
+              bytes = await getOrFetchFontBytes(fallback, endpoint, timeout);
+              if (bytes) break;
+            }
           }
         }
 

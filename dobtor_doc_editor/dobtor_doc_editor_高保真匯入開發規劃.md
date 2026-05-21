@@ -403,7 +403,7 @@ function resolveVerticalMerges(table: Table): Table {
   - 系統已安裝的直接用
   - 系統沒有的嘗試用 WOFF2 CDN 補（Google Fonts / 中華數位）
   - 仍缺 → fallback 鏈
-- [ ] **CJK fallback 鏈**：原字型 → 思源黑體 / 微軟正黑體 → 新細明體 → 預設字型
+- [x] **CJK fallback 鏈**：原字型 → 思源黑體 / 微軟正黑體 → 新細明體 → 預設字型（Sprint 166 — FontLoader wire-up：主 family + altName 都取不到、且 `fontTable.charset` 判定為 CJK 字型時依序試 chain；charset '80'/'81'/'86'/'88' 才套用、拉丁字型不誤套；chain 全失敗 → silent fallback EstimateMetrics =「預設字型」。FontLoader 為 caller-side infrastructure、production canvas-editor 尚未消費、同 Sprint 157 定位）
 - [ ] 字元涵蓋檢測:每個 codepoint 確認字型支援
 - [ ] Glyph 快取（key: font+codepoint+size）
 
