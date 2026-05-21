@@ -35,7 +35,7 @@ import type {
   LinePageEntry,
 } from '../layout/types';
 import type { Box } from '../layout/types';
-import type { Pt, BorderDef, CellBorders, RunProps } from '../ooxml/ast/types';
+import type { Pt, BorderDef, CellBorders, RunProps, DocumentWatermark } from '../ooxml/ast/types';
 import type { RenderContext, RenderStrokeStyle, RenderTextStyle } from './types';
 import { computeAlignmentShift } from '../layout/alignmentShift';
 import { computeVerticalAlignShift } from '../layout/verticalAlignShift';
@@ -62,9 +62,20 @@ export interface CanvasRenderOptions {
    * `DocumentNode.background?.color`（OOXML `<w:background>`）傳入即生效。
    */
   pageBackgroundColor?: string;
+  /**
+   * Sprint 173：文件浮水印（`DocumentNode.watermark`、OOXML header VML shape）。
+   *
+   * 提供後、每頁於背景之上、內容之下繪浮水印（文字浮水印：旋轉淺灰文字）。
+   * caller 不傳 → 不繪 → 與 Sprint 0-172 byte-identical。
+   * Sprint 173 只繪文字浮水印（kind='text'）；圖片浮水印需 shape 尺寸、留後續。
+   */
+  watermark?: DocumentWatermark;
 }
 
-const DEFAULTS: Required<CanvasRenderOptions> = {
+/** watermark 由 class 另存（無預設值、不進 Required<> defaulting）。 */
+type DefaultedRenderOptions = Required<Omit<CanvasRenderOptions, 'watermark'>>;
+
+const DEFAULTS: DefaultedRenderOptions = {
   fillPageBackground: true,
   drawTableBorders: true,
   drawShading: true,
@@ -76,11 +87,22 @@ const DEFAULTS: Required<CanvasRenderOptions> = {
 /** 文字裝飾線寬：底線 / 刪除線預設 0.5pt（Word 預設 1px @96dpi 約 0.75pt，取近似） */
 const DECORATION_WIDTH_PT = 0.5;
 
+/** Sprint 173：浮水印淺灰色（Word washout 風格；RenderContext 無 alpha、以淺灰近似）。 */
+const WATERMARK_COLOR = 'C8C8C8';
+/** 浮水印文字目標寬度佔頁寬比例。 */
+const WATERMARK_WIDTH_RATIO = 0.7;
+/** 浮水印字寬量測參考字級（pt）。 */
+const WATERMARK_REF_FONT_SIZE = 100;
+/** 浮水印字級上限（pt）。 */
+const WATERMARK_MAX_FONT_SIZE = 130;
+
 export class CanvasRenderer {
-  private opts: Required<CanvasRenderOptions>;
+  private opts: DefaultedRenderOptions;
+  private watermark?: DocumentWatermark;
 
   constructor(private ctx: RenderContext, opts: CanvasRenderOptions = {}) {
     this.opts = { ...DEFAULTS, ...opts };
+    this.watermark = opts.watermark;
   }
 
   /** 走訪整份 layout，逐頁送指令到 RenderContext。 */
@@ -96,6 +118,8 @@ export class CanvasRenderer {
       // Sprint 171：頁底色 = pageBackgroundColor（預設 'FFFFFF'、OOXML <w:background> 來源）
       this.ctx.fillRect(0, 0, page.width, page.height, this.opts.pageBackgroundColor);
     }
+    // Sprint 173：浮水印繪於背景之上、內容之下
+    this.renderWatermark(page);
     for (const entry of page.entries) {
       this.renderEntry(entry);
     }
@@ -104,6 +128,42 @@ export class CanvasRenderer {
       this.renderColumnSeparators(page);
     }
     this.ctx.endPage();
+  }
+
+  /**
+   * Sprint 173：繪文件浮水印（kind='text'）—— 旋轉淺灰文字置中於頁面。
+   *
+   * 字級由文字寬度反推（目標寬約佔頁寬 70%、上限 130pt）；以 save/translate/rotate
+   * 把原點移到頁心、依 `rotation`（度）旋轉、再以 baseline 校正繪文字。
+   * 無浮水印 / 非文字浮水印 → no-op（圖片浮水印需 shape 尺寸、留後續 sprint）。
+   */
+  private renderWatermark(page: Page): void {
+    const wm = this.watermark;
+    if (!wm || wm.kind !== 'text' || !wm.text) return;
+
+    const metrics = new EstimateMetrics();
+    const refWidth = metrics.measureWidth(wm.text, {
+      fontSize: WATERMARK_REF_FONT_SIZE,
+      fontFamily: wm.font,
+    });
+    if (!(refWidth > 0)) return;
+
+    const target = page.width * WATERMARK_WIDTH_RATIO;
+    const fontSize = Math.min(
+      WATERMARK_MAX_FONT_SIZE,
+      (WATERMARK_REF_FONT_SIZE * target) / refWidth,
+    );
+    const props: RunProps = { fontSize, fontFamily: wm.font, color: WATERMARK_COLOR };
+    const textWidth = metrics.measureWidth(wm.text, props);
+
+    this.ctx.save();
+    this.ctx.translate(page.width / 2, page.height / 2);
+    if (wm.rotation) {
+      this.ctx.rotate((wm.rotation * Math.PI) / 180);
+    }
+    // 原點在頁心：x 往左推半個文字寬置中；y 加 fontSize×0.35 把視覺中心對齊基線
+    this.ctx.fillText(wm.text, -textWidth / 2, fontSize * 0.35, runStyle(props, WATERMARK_COLOR));
+    this.ctx.restore();
   }
 
   /** Sprint 10：在多欄頁面相鄰欄之間畫垂直分隔線。 */

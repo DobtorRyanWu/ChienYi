@@ -1229,6 +1229,63 @@ describe('CanvasRenderer — Sprint 167 textAlignment 行內垂直對齊', () =>
   });
 });
 
+describe('CanvasRenderer — Sprint 173 浮水印 render', () => {
+  it('未傳 watermark → 無 save/translate/rotate（byte-identical）', () => {
+    const sec = makeSection([para('內文')]);
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx).render(layoutDocument([sec]));
+    expect(ctx.filter('save').length).toBe(0);
+    expect(ctx.filter('translate').length).toBe(0);
+    expect(ctx.filter('rotate').length).toBe(0);
+  });
+
+  it("文字浮水印 → save + translate + rotate + fillText(浮水印文字) + restore", () => {
+    const sec = makeSection([para('內文')]);
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx, {
+      watermark: { kind: 'text', text: 'DRAFT', rotation: 315 },
+    }).render(layoutDocument([sec]));
+    expect(ctx.filter('save').length).toBe(1);
+    expect(ctx.filter('restore').length).toBe(1);
+    expect(ctx.filter('translate').length).toBe(1);
+    expect(ctx.filter('rotate').length).toBe(1);
+    const wmText = ctx.filter('fillText').find((t) => t.text === 'DRAFT');
+    expect(wmText).toBeDefined();
+  });
+
+  it('浮水印繪於內文之前（behind content）', () => {
+    const sec = makeSection([para('body')]);
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx, {
+      watermark: { kind: 'text', text: 'DRAFT' },
+    }).render(layoutDocument([sec]));
+    const fillTexts = ctx.filter('fillText');
+    // 第一個 fillText = 浮水印（繪於內文之前）
+    expect(fillTexts.length).toBeGreaterThanOrEqual(2);
+    expect(fillTexts[0].text).toBe('DRAFT');
+  });
+
+  it('rotation 未設 → 不送 rotate op', () => {
+    const sec = makeSection([para('內文')]);
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx, {
+      watermark: { kind: 'text', text: '機密' },
+    }).render(layoutDocument([sec]));
+    expect(ctx.filter('rotate').length).toBe(0);
+    expect(ctx.filter('fillText').some((t) => t.text === '機密')).toBe(true);
+  });
+
+  it('圖片浮水印（kind=image）→ Sprint 173 不繪（no-op）', () => {
+    const sec = makeSection([para('內文')]);
+    const ctx = new MockRenderContext();
+    new CanvasRenderer(ctx, {
+      watermark: { kind: 'image', imageRId: 'rId7' },
+    }).render(layoutDocument([sec]));
+    expect(ctx.filter('save').length).toBe(0);
+    expect(ctx.filter('translate').length).toBe(0);
+  });
+});
+
 describe('CanvasRenderer — MockRenderContext counts/reset', () => {
   it('counts() 回傳每類 op 計數', () => {
     const ctx = new MockRenderContext();

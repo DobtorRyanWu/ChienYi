@@ -387,12 +387,14 @@ async function render(
       imageResolver,
     });
     // Sprint 171：OOXML <w:background> 文件背景色 → CanvasRenderer 頁底色
-    //   無 <w:background>（多數 docx）→ bgColor undefined → 不傳 → 預設白底 byte-identical
+    // Sprint 173：OOXML header VML 浮水印 → CanvasRenderer 每頁繪浮水印
+    //   無 <w:background> / 無浮水印（多數 docx）→ 不傳 → 預設行為 byte-identical
     const bgColor = documentNode?.background?.color;
-    const renderer = new CanvasRenderer(
-      browserCtx,
-      bgColor ? { pageBackgroundColor: bgColor } : {},
-    );
+    const wm = documentNode?.watermark;
+    const renderer = new CanvasRenderer(browserCtx, {
+      ...(bgColor ? { pageBackgroundColor: bgColor } : {}),
+      ...(wm ? { watermark: wm } : {}),
+    });
     renderer.render({ pages: [page], warnings: [] });
     canvas.dataset.painted = '1';
   }
