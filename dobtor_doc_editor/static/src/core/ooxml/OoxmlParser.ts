@@ -28,6 +28,7 @@ import type {
   DocumentSettings,
   DocumentWatermark,
   DocumentWebSettings,
+  SmartArtNode,
   FontTable,
   FootnoteContent,
   HeaderFooterContent,
@@ -45,6 +46,7 @@ import { WebSettingsParser } from './web-settings/WebSettingsParser';
 import { BackgroundParser } from './background/BackgroundParser';
 import { WatermarkParser } from './watermark/WatermarkParser';
 import { CommentsParser } from './comments/CommentsParser';
+import { DiagramParser } from './diagram/DiagramParser';
 import {
   PackageReader,
   type OoxmlPackage,
@@ -85,6 +87,8 @@ const REL_TYPE_WEB_SETTINGS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
 const REL_TYPE_IMAGE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+const REL_TYPE_DIAGRAM_DATA =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
 
 const DEFAULT_DOC_PATH = 'word/document.xml';
 
@@ -124,6 +128,8 @@ export class OoxmlParser {
   private watermarkParser = new WatermarkParser();
   /** Sprint 176：comments.xml 註解 capture（Phase 5.5 註解）*/
   private commentsParser = new CommentsParser();
+  /** Sprint 181：SmartArt diagrams/dataN.xml capture（Phase 5.2 SmartArt、mc:Fallback 壓縮）*/
+  private diagramParser = new DiagramParser();
 
   /**
    * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -243,6 +249,12 @@ export class OoxmlParser {
     //   多數 docx 無浮水印 → watermark 為 undefined（紀律 #21）。
     const watermark = collectWatermark(pkg, mainDocPath, this.watermarkParser);
 
+    // Step 8.6（Sprint 181）：SmartArt diagrams/dataN.xml capture（Phase 5.2、mc:Fallback 壓縮）
+    //   走 document.xml.rels 抓所有 type=diagramData 的關係、解析資料模型文字。
+    //   capture-only；render wire-up（線性文字 fallback）留後續 sprint。
+    //   多數 docx 無 SmartArt → smartArts 為空陣列（紀律 #21：空時不掛 key）。
+    const smartArts = collectSmartArts(pkg, mainDocPath, this.diagramParser);
+
     const doc: DocumentNode = {
       type: 'document',
       sections,
@@ -264,6 +276,7 @@ export class OoxmlParser {
       latentStyles,
       ...(background !== undefined ? { background } : {}),
       ...(watermark !== undefined ? { watermark } : {}),
+      ...(smartArts.length > 0 ? { smartArts } : {}),
     };
 
     // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props
@@ -403,6 +416,30 @@ function collectWatermark(
     if (wm) return wm;
   }
   return undefined;
+}
+
+/**
+ * Sprint 181：走訪 mainDoc 的 .rels、抓所有 type=diagramData 的 SmartArt 部件並解析。
+ *
+ * 與 collectWatermark 不同：一份 docx 可含多個 SmartArt（每個各有獨立的
+ * diagramData 部件），故全部收集為陣列；依 rels 走訪順序排列。
+ *
+ * @returns SmartArtNode[]；無 SmartArt 時回空陣列
+ */
+function collectSmartArts(
+  pkg: OoxmlPackage,
+  mainDocPath: string,
+  parser: DiagramParser,
+): SmartArtNode[] {
+  const out: SmartArtNode[] = [];
+  const rels = pkg.relationships.get(mainDocPath);
+  if (!rels) return out;
+  for (const rel of rels.values()) {
+    if (rel.targetMode !== 'Internal' || rel.type !== REL_TYPE_DIAGRAM_DATA) continue;
+    const node = parser.parse(pkg.partAsText(rel.target), rel.id);
+    if (node) out.push(node);
+  }
+  return out;
 }
 
 /**

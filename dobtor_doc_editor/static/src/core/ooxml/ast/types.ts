@@ -866,6 +866,34 @@ export type NumberingMap = Map<number, AbstractNumbering>; // numId → resolved
 
 // ── 文件根節點 ────────────────────────────────────────────────────────────────
 
+/**
+ * Sprint 181（Phase 5.2 SmartArt、mc:Fallback 壓縮、capture-only）：
+ * 單一 SmartArt 圖表（Word「插入 → SmartArt」）。
+ *
+ * SmartArt 在 document.xml 以 `<w:drawing>` 內 `<a:graphicData uri=".../diagram">`
+ * 表示，圖本身不內嵌於 document.xml —— `<dgm:relIds r:dm r:lo r:qs r:cs>` 以 rId
+ * 指向獨立部件：data（資料模型）/ layout / quickStyle / colors。
+ *
+ * 本 capture 取 **資料模型**（`diagrams/dataN.xml`、`<dgm:dataModel>`）的文字內容。
+ * mc:Fallback 壓縮策略（user 2026-05-21 拍板）：接受降級保真度 —— 不重建圖形版面
+ * 與連接線，僅保留語意文字（degraded fidelity，對應 OMML 的線性文字 fallback）。
+ */
+export interface SmartArtNode {
+  /** 對應的 diagramData 關係 rId（document.xml.rels 內 type=diagramData）。 */
+  rId: string;
+  /**
+   * 版面類型識別碼（`<dgm:pt type="doc"><dgm:prSet loTypeId>`），例如
+   * `urn:microsoft.com/office/officeart/2008/layout/VerticalCircleList`。
+   * 無此屬性時不掛 key（紀律 #21）；render wire-up 時用於選版面策略。
+   */
+  layoutType?: string;
+  /**
+   * 圖內文字節點（依 `<dgm:ptLst>` 內容點順序）。
+   * 已過濾 presentation 點（type=pres/parTrans/sibTrans/doc）與空白文字。
+   */
+  texts: string[];
+}
+
 export interface DocumentNode {
   type: 'document';
   sections: SectionNode[];
@@ -978,6 +1006,15 @@ export interface DocumentNode {
    * Sprint 172 為 capture-only；render wire-up（每頁繪旋轉浮水印）留 Sprint 173。
    */
   watermark?: DocumentWatermark;
+  /**
+   * Sprint 181（Phase 5.2 SmartArt、mc:Fallback 壓縮）：文件內所有 SmartArt 圖表。
+   *
+   * 收集自 document.xml.rels 內 type=diagramData 的關係（每個 SmartArt 一筆），
+   * 依 rels 順序排列。capture-only —— render wire-up（線性文字 fallback）留後續 sprint。
+   *
+   * 紀律 #21：optional —— 文件無 SmartArt 時 undefined（多數 docx 無 SmartArt）。
+   */
+  smartArts?: SmartArtNode[];
 }
 
 /** Sprint 171：`<w:background>` 文件頁面背景（OOXML §17.2.1）。 */
