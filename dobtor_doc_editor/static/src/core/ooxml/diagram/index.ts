@@ -1,1 +1,1 @@
-export { DiagramParser } from './DiagramParser';
+export { DiagramParser, smartArtToText } from './DiagramParser';

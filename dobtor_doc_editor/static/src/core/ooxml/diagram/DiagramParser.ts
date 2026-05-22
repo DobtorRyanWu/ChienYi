@@ -82,6 +82,18 @@ export class DiagramParser {
 }
 
 /**
+ * Sprint 183：把 SmartArt 轉為線性文字 fallback（render 用）。
+ *
+ * mc:Fallback 壓縮（user 2026-05-21 拍板）：不重建圖形版面與連接線，
+ * 各內容點文字以 ` / ` 串接呈現（degraded fidelity、對應 OMML 線性文字 fallback）。
+ *
+ * @returns 線性文字；無文字 → 空字串
+ */
+export function smartArtToText(node: SmartArtNode): string {
+  return node.texts.join(' / ');
+}
+
+/**
  * 從 `<dgm:pt type="doc">` 的 `<dgm:prSet loTypeId>` 取版面類型識別碼。
  * 無 prSet 或無 loTypeId → undefined。
  */

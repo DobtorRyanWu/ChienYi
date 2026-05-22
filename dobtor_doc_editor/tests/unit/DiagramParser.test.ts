@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DiagramParser } from '../../static/src/core/ooxml/diagram/DiagramParser';
+import { DiagramParser, smartArtToText } from '../../static/src/core/ooxml/diagram/DiagramParser';
+import type { SmartArtNode } from '../../static/src/core/ooxml/ast/types';
 
 const NS =
   'xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" ' +
@@ -139,5 +140,22 @@ describe('DiagramParser — 版面類型（layoutType）', () => {
       contentPt('內容'),
     );
     expect(parser.parse(xml, 'rId1')?.texts).toEqual(['內容']);
+  });
+});
+
+describe('DiagramParser — Sprint 183 smartArtToText 線性文字 fallback', () => {
+  const make = (texts: string[]): SmartArtNode => ({ rId: 'rId1', texts });
+
+  it('空 texts → 空字串', () => {
+    expect(smartArtToText(make([]))).toBe('');
+  });
+
+  it('單一節點 → 原文字', () => {
+    expect(smartArtToText(make(['系統功能架構圖']))).toBe('系統功能架構圖');
+  });
+
+  it('多節點 → 以 " / " 串接', () => {
+    expect(smartArtToText(make(['登入', '切換模組', '產出報表'])))
+      .toBe('登入 / 切換模組 / 產出報表');
   });
 });

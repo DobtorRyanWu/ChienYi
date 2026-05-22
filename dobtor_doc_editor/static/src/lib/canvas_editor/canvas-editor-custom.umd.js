@@ -96,7 +96,42 @@
         const srcRect = parseSrcRect(el);
         if (srcRect)
             node.srcRect = srcRect;
+        // Sprint 183：偵測 SmartArt（diagram）/ Chart graphic frame —— 圖形不內嵌、
+        // 以 relId 指向獨立部件，render 時做線性文字 fallback。
+        const graphic = parseGraphicFrame(el);
+        if (graphic)
+            node.graphic = graphic;
         return node;
+    }
+    /** `<a:graphicData uri>` 的 SmartArt / Chart 命名空間。 */
+    const GRAPHIC_URI_DIAGRAM = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
+    const GRAPHIC_URI_CHART = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+    /**
+     * Sprint 183：偵測 `<wp:inline>` 內的 SmartArt / Chart graphic frame。
+     *
+     * - SmartArt：`<a:graphicData uri=".../diagram"><dgm:relIds r:dm="rId..">`
+     * - Chart：`<a:graphicData uri=".../chart"><c:chart r:id="rId..">`
+     *
+     * @returns `{ kind, relId }` 或 undefined（非 SmartArt/Chart 的一般圖片）
+     */
+    function parseGraphicFrame(el) {
+        const gds = el.getElementsByTagName('a:graphicData');
+        if (gds.length === 0)
+            return undefined;
+        const uri = gds[0].getAttribute('uri');
+        if (uri === GRAPHIC_URI_DIAGRAM) {
+            const relIds = gds[0].getElementsByTagName('dgm:relIds');
+            const relId = relIds.length > 0 ? relIds[0].getAttribute('r:dm') : null;
+            if (relId)
+                return { kind: 'diagram', relId };
+        }
+        else if (uri === GRAPHIC_URI_CHART) {
+            const charts = gds[0].getElementsByTagName('c:chart');
+            const relId = charts.length > 0 ? charts[0].getAttribute('r:id') : null;
+            if (relId)
+                return { kind: 'chart', relId };
+        }
+        return undefined;
     }
     // ── wp:anchor → FloatImageNode ───────────────────────────────────────────────
     function parseFloatImage(el) {
@@ -4816,6 +4851,17 @@
         }
     }
     /**
+     * Sprint 183：把 SmartArt 轉為線性文字 fallback（render 用）。
+     *
+     * mc:Fallback 壓縮（user 2026-05-21 拍板）：不重建圖形版面與連接線，
+     * 各內容點文字以 ` / ` 串接呈現（degraded fidelity、對應 OMML 線性文字 fallback）。
+     *
+     * @returns 線性文字；無文字 → 空字串
+     */
+    function smartArtToText(node) {
+        return node.texts.join(' / ');
+    }
+    /**
      * 從 `<dgm:pt type="doc">` 的 `<dgm:prSet loTypeId>` 取版面類型識別碼。
      * 無 prSet 或無 loTypeId → undefined。
      */
@@ -4947,6 +4993,34 @@
             }
             return node;
         }
+    }
+    /**
+     * Sprint 183：把圖表轉為線性文字 fallback（render 用）。
+     *
+     * mc:Fallback 壓縮（user 2026-05-21 拍板）：不重繪座標軸與圖形，以
+     * 「標題 數列名: 類別=值, …; …」格式呈現數值快取（degraded fidelity）。
+     *
+     * @returns 線性文字；無數列 → 空字串（或僅標題）
+     */
+    function chartToText(node) {
+        const parts = [];
+        for (const s of node.series) {
+            const pairs = [];
+            for (let i = 0; i < s.categories.length; i++) {
+                const cat = s.categories[i];
+                const val = s.values[i];
+                const hasVal = val !== null && val !== undefined;
+                if (cat === '' && !hasVal)
+                    continue; // 完全空白點 → 跳過
+                pairs.push(hasVal ? `${cat}=${val}` : cat);
+            }
+            const body = pairs.join(', ');
+            const line = s.name ? `${s.name}: ${body}` : body;
+            if (line !== '')
+                parts.push(line);
+        }
+        const joined = parts.join('; ');
+        return node.title ? `${node.title} ${joined}`.trim() : joined;
     }
     /** 從 `<c:chart>` 的 `<c:title>` 取標題文字（拼接所有 `<a:t>`）。空 → undefined。 */
     function readTitle(chart) {
@@ -8125,6 +8199,14 @@
      */
     // ── 對外 Mapper ───────────────────────────────────────────────────────────────
     class ToCanvasEditor {
+        constructor() {
+            /**
+             * Sprint 183：SmartArt / Chart relId → 節點查表（render 用）。
+             * 每次 `convert()` 開頭依當前 DocumentNode 重建，避免跨文件殘留。
+             */
+            this.smartArtsByRId = new Map();
+            this.chartsByRId = new Map();
+        }
         /**
          * 把整份 DocumentNode 轉為 IElement[]。
          *
@@ -8132,6 +8214,9 @@
          * @returns 可直接傳給 `new Editor(container, elements, options)` 的扁平陣列
          */
         convert(doc) {
+            // Sprint 183：建 SmartArt / Chart 查表（graphic frame relId → 節點）
+            this.smartArtsByRId = new Map((doc.smartArts ?? []).map((s) => [s.rId, s]));
+            this.chartsByRId = new Map((doc.charts ?? []).map((c) => [c.rId, c]));
             const elements = [];
             // Sprint 138：跨 section 共用 counter state（OOXML §17.9 預設行為、
             // sectPr 不強制重啟編號；若 fixture 需要可由 future sprint 加 hook）
@@ -8327,6 +8412,18 @@
         }
         // ── Image ─────────────────────────────────────────────────────────────────
         appendImage(out, img, media) {
+            // Sprint 183（Phase 5.2/5.3 render）：SmartArt / Chart graphic frame —— 圖形不
+            //   內嵌，以線性文字 fallback 取代（mc:Fallback 壓縮、degraded fidelity）。
+            if (img.type === 'inlineImage' && img.graphic) {
+                const text = this.graphicFallbackText(img.graphic);
+                if (text !== undefined) {
+                    // 查到對應節點：非空 → append 文字；空內容 → 不 emit（SmartArt/Chart 存在但無文字）
+                    if (text !== '')
+                        this.appendChars(out, text, mapRunProps({}));
+                    return;
+                }
+                // text === undefined：查無對應 SmartArt/Chart 節點 → 落下方一般圖片路徑
+            }
             const dataUrl = img.rId ? media.get(img.rId) : undefined;
             if (!dataUrl) {
                 // 找不到圖片：放空 IElement（值=占位文字）避免下游 crash
@@ -8339,6 +8436,20 @@
                 width: img.width,
                 height: img.height,
             });
+        }
+        /**
+         * Sprint 183：SmartArt / Chart graphic frame 的線性文字 fallback。
+         *
+         * @returns 線性文字（可能為空字串＝節點存在但無內容）；
+         *          undefined＝查無對應 SmartArt/Chart 節點（caller 落一般圖片路徑）
+         */
+        graphicFallbackText(graphic) {
+            if (graphic.kind === 'diagram') {
+                const sa = this.smartArtsByRId.get(graphic.relId);
+                return sa ? smartArtToText(sa) : undefined;
+            }
+            const chart = this.chartsByRId.get(graphic.relId);
+            return chart ? chartToText(chart) : undefined;
         }
         // ── Table → IElement (type='table') ───────────────────────────────────────
         convertTable(table, media, numbering, counter) {

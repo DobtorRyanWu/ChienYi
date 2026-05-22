@@ -1,1 +1,1 @@
-export { ChartParser } from './ChartParser';
+export { ChartParser, chartToText } from './ChartParser';

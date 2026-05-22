@@ -545,3 +545,97 @@ describe('DrawingParser — Sprint 39 wps:bodyPr / wps:spPr 解析', () => {
     expect(node.border).toBeUndefined();
   });
 });
+
+describe('DrawingParser — Sprint 183 SmartArt / Chart graphic frame', () => {
+  const DGM_NS = 'xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"';
+  const C_NS = 'xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"';
+
+  it('SmartArt graphic frame → graphic.kind=diagram + r:dm relId', () => {
+    const drawing = parseFragment(`
+      <w:drawing>
+        <wp:inline>
+          <wp:extent cx="914400" cy="457200"/>
+          <a:graphic>
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+              <dgm:relIds ${DGM_NS} r:dm="rId7" r:lo="rId8" r:qs="rId9" r:cs="rId10"/>
+            </a:graphicData>
+          </a:graphic>
+        </wp:inline>
+      </w:drawing>
+    `);
+    const node = parser.parse(drawing);
+    expect(node.type).toBe('inlineImage');
+    if (node.type === 'inlineImage') {
+      expect(node.graphic).toEqual({ kind: 'diagram', relId: 'rId7' });
+    }
+  });
+
+  it('Chart graphic frame → graphic.kind=chart + r:id relId', () => {
+    const drawing = parseFragment(`
+      <w:drawing>
+        <wp:inline>
+          <wp:extent cx="914400" cy="457200"/>
+          <a:graphic>
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+              <c:chart ${C_NS} r:id="rId5"/>
+            </a:graphicData>
+          </a:graphic>
+        </wp:inline>
+      </w:drawing>
+    `);
+    const node = parser.parse(drawing);
+    expect(node.type).toBe('inlineImage');
+    if (node.type === 'inlineImage') {
+      expect(node.graphic).toEqual({ kind: 'chart', relId: 'rId5' });
+    }
+  });
+
+  it('一般圖片（pic blip）→ 不掛 graphic key（紀律 #21）', () => {
+    const drawing = parseFragment(`
+      <w:drawing>
+        <wp:inline>
+          <wp:extent cx="914400" cy="457200"/>
+          ${BLIP_BLOCK}
+        </wp:inline>
+      </w:drawing>
+    `);
+    const node = parser.parse(drawing);
+    if (node.type === 'inlineImage') {
+      expect('graphic' in node).toBe(false);
+    }
+  });
+
+  it('未知 graphicData uri → 不掛 graphic key', () => {
+    const drawing = parseFragment(`
+      <w:drawing>
+        <wp:inline>
+          <wp:extent cx="914400" cy="457200"/>
+          <a:graphic><a:graphicData uri="urn:unknown:thing"/></a:graphic>
+        </wp:inline>
+      </w:drawing>
+    `);
+    const node = parser.parse(drawing);
+    if (node.type === 'inlineImage') {
+      expect('graphic' in node).toBe(false);
+    }
+  });
+
+  it('diagram graphicData 但缺 r:dm → 不掛 graphic key', () => {
+    const drawing = parseFragment(`
+      <w:drawing>
+        <wp:inline>
+          <wp:extent cx="914400" cy="457200"/>
+          <a:graphic>
+            <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram">
+              <dgm:relIds ${DGM_NS}/>
+            </a:graphicData>
+          </a:graphic>
+        </wp:inline>
+      </w:drawing>
+    `);
+    const node = parser.parse(drawing);
+    if (node.type === 'inlineImage') {
+      expect('graphic' in node).toBe(false);
+    }
+  });
+});

@@ -735,3 +735,84 @@ describe('ToCanvasEditor — Sprint 180 OMML 公式線性文字 render', () => {
     expect(elements.map((e) => e.value).join('')).toBe('一般\n');
   });
 });
+
+describe('ToCanvasEditor — Sprint 183 SmartArt / Chart graphic frame render', () => {
+  /** 把 elements 的字元 value 串接（驗線性文字 fallback）。 */
+  function joinText(elements: ReturnType<typeof mapper.convert>): string {
+    return elements.map((e) => e.value ?? '').join('');
+  }
+
+  it('SmartArt graphic frame → smartArts 查表、render 線性文字', () => {
+    const doc = makeDoc([
+      makeSection([
+        makeParagraph([
+          { type: 'inlineImage', rId: '', width: 100, height: 50,
+            graphic: { kind: 'diagram', relId: 'rId7' } },
+        ]),
+      ]),
+    ]);
+    doc.smartArts = [{ rId: 'rId7', texts: ['登入系統', '切換模組', '產出報表'] }];
+    const elements = mapper.convert(doc);
+    expect(joinText(elements)).toContain('登入系統 / 切換模組 / 產出報表');
+    // 不應產生 image IElement
+    expect(elements.some((e) => e.type === 'image')).toBe(false);
+  });
+
+  it('Chart graphic frame → charts 查表、render 線性文字', () => {
+    const doc = makeDoc([
+      makeSection([
+        makeParagraph([
+          { type: 'inlineImage', rId: '', width: 100, height: 50,
+            graphic: { kind: 'chart', relId: 'rId5' } },
+        ]),
+      ]),
+    ]);
+    doc.charts = [{
+      rId: 'rId5', chartType: 'barChart',
+      series: [{ name: '營收', categories: ['Q1', 'Q2'], values: [10, 20] }],
+    }];
+    const elements = mapper.convert(doc);
+    expect(joinText(elements)).toContain('營收: Q1=10, Q2=20');
+  });
+
+  it('graphic relId 查無對應節點 → 落一般圖片路徑（[圖片缺失]）', () => {
+    const doc = makeDoc([
+      makeSection([
+        makeParagraph([
+          { type: 'inlineImage', rId: '', width: 100, height: 50,
+            graphic: { kind: 'diagram', relId: 'rIdMissing' } },
+        ]),
+      ]),
+    ]);
+    doc.smartArts = [{ rId: 'rId7', texts: ['不相關'] }];
+    const elements = mapper.convert(doc);
+    expect(joinText(elements)).toContain('[圖片缺失]');
+  });
+
+  it('SmartArt 查到但 texts 空 → 不 emit 文字也不 emit 圖片', () => {
+    const doc = makeDoc([
+      makeSection([
+        makeParagraph([
+          { type: 'inlineImage', rId: '', width: 100, height: 50,
+            graphic: { kind: 'diagram', relId: 'rId7' } },
+        ]),
+      ]),
+    ]);
+    doc.smartArts = [{ rId: 'rId7', texts: [] }];
+    const elements = mapper.convert(doc);
+    expect(joinText(elements)).not.toContain('[圖片缺失]');
+    expect(elements.some((e) => e.type === 'image')).toBe(false);
+  });
+
+  it('一般 inlineImage（無 graphic）→ 仍正常 render 圖片', () => {
+    const media = new Map([['rId3', 'data:image/png;base64,AAA']]);
+    const doc = makeDoc(
+      [makeSection([makeParagraph([
+        { type: 'inlineImage', rId: 'rId3', width: 80, height: 40 },
+      ])])],
+      media,
+    );
+    const elements = mapper.convert(doc);
+    expect(elements[0]).toMatchObject({ type: 'image', value: 'data:image/png;base64,AAA' });
+  });
+});

@@ -73,7 +73,41 @@ function parseInlineImage(el: Element): InlineImageNode {
   if (altText) node.altText = altText;
   const srcRect = parseSrcRect(el);
   if (srcRect) node.srcRect = srcRect;
+  // Sprint 183：偵測 SmartArt（diagram）/ Chart graphic frame —— 圖形不內嵌、
+  // 以 relId 指向獨立部件，render 時做線性文字 fallback。
+  const graphic = parseGraphicFrame(el);
+  if (graphic) node.graphic = graphic;
   return node;
+}
+
+/** `<a:graphicData uri>` 的 SmartArt / Chart 命名空間。 */
+const GRAPHIC_URI_DIAGRAM = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
+const GRAPHIC_URI_CHART = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+
+/**
+ * Sprint 183：偵測 `<wp:inline>` 內的 SmartArt / Chart graphic frame。
+ *
+ * - SmartArt：`<a:graphicData uri=".../diagram"><dgm:relIds r:dm="rId..">`
+ * - Chart：`<a:graphicData uri=".../chart"><c:chart r:id="rId..">`
+ *
+ * @returns `{ kind, relId }` 或 undefined（非 SmartArt/Chart 的一般圖片）
+ */
+function parseGraphicFrame(
+  el: Element,
+): { kind: 'diagram' | 'chart'; relId: string } | undefined {
+  const gds = el.getElementsByTagName('a:graphicData');
+  if (gds.length === 0) return undefined;
+  const uri = gds[0].getAttribute('uri');
+  if (uri === GRAPHIC_URI_DIAGRAM) {
+    const relIds = gds[0].getElementsByTagName('dgm:relIds');
+    const relId = relIds.length > 0 ? relIds[0].getAttribute('r:dm') : null;
+    if (relId) return { kind: 'diagram', relId };
+  } else if (uri === GRAPHIC_URI_CHART) {
+    const charts = gds[0].getElementsByTagName('c:chart');
+    const relId = charts.length > 0 ? charts[0].getAttribute('r:id') : null;
+    if (relId) return { kind: 'chart', relId };
+  }
+  return undefined;
 }
 
 // ── wp:anchor → FloatImageNode ───────────────────────────────────────────────

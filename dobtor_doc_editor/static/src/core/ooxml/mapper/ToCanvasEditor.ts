@@ -32,6 +32,7 @@ import type {
   Alignment,
   BlockNode,
   CellNode,
+  ChartNode,
   DocumentNode,
   FieldNode,
   FloatImageNode,
@@ -42,10 +43,13 @@ import type {
   RowNode,
   RunNode,
   RunProps,
+  SmartArtNode,
   TableNode,
 } from '../ast/types';
 import { NumberingCounterState, expandLvlText } from '../numbering';
 import { ommlToLinearText } from '../omml';
+import { smartArtToText } from '../diagram';
+import { chartToText } from '../chart';
 
 // ── canvas-editor 介面（僅必要欄位的本地宣告，避免依賴它的 d.ts 路徑）─────
 
@@ -119,12 +123,23 @@ export interface CEElement {
 
 export class ToCanvasEditor {
   /**
+   * Sprint 183：SmartArt / Chart relId → 節點查表（render 用）。
+   * 每次 `convert()` 開頭依當前 DocumentNode 重建，避免跨文件殘留。
+   */
+  private smartArtsByRId = new Map<string, SmartArtNode>();
+  private chartsByRId = new Map<string, ChartNode>();
+
+  /**
    * 把整份 DocumentNode 轉為 IElement[]。
    *
    * @param doc 由 OoxmlParser.parse() 產出的 DocumentNode
    * @returns 可直接傳給 `new Editor(container, elements, options)` 的扁平陣列
    */
   convert(doc: DocumentNode): CEElement[] {
+    // Sprint 183：建 SmartArt / Chart 查表（graphic frame relId → 節點）
+    this.smartArtsByRId = new Map((doc.smartArts ?? []).map((s) => [s.rId, s]));
+    this.chartsByRId = new Map((doc.charts ?? []).map((c) => [c.rId, c]));
+
     const elements: CEElement[] = [];
     // Sprint 138：跨 section 共用 counter state（OOXML §17.9 預設行為、
     // sectPr 不強制重啟編號；若 fixture 需要可由 future sprint 加 hook）
@@ -356,6 +371,18 @@ export class ToCanvasEditor {
     img: InlineImageNode | FloatImageNode,
     media: Map<string, string>,
   ): void {
+    // Sprint 183（Phase 5.2/5.3 render）：SmartArt / Chart graphic frame —— 圖形不
+    //   內嵌，以線性文字 fallback 取代（mc:Fallback 壓縮、degraded fidelity）。
+    if (img.type === 'inlineImage' && img.graphic) {
+      const text = this.graphicFallbackText(img.graphic);
+      if (text !== undefined) {
+        // 查到對應節點：非空 → append 文字；空內容 → 不 emit（SmartArt/Chart 存在但無文字）
+        if (text !== '') this.appendChars(out, text, mapRunProps({}));
+        return;
+      }
+      // text === undefined：查無對應 SmartArt/Chart 節點 → 落下方一般圖片路徑
+    }
+
     const dataUrl = img.rId ? media.get(img.rId) : undefined;
     if (!dataUrl) {
       // 找不到圖片：放空 IElement（值=占位文字）避免下游 crash
@@ -368,6 +395,23 @@ export class ToCanvasEditor {
       width: img.width,
       height: img.height,
     });
+  }
+
+  /**
+   * Sprint 183：SmartArt / Chart graphic frame 的線性文字 fallback。
+   *
+   * @returns 線性文字（可能為空字串＝節點存在但無內容）；
+   *          undefined＝查無對應 SmartArt/Chart 節點（caller 落一般圖片路徑）
+   */
+  private graphicFallbackText(
+    graphic: { kind: 'diagram' | 'chart'; relId: string },
+  ): string | undefined {
+    if (graphic.kind === 'diagram') {
+      const sa = this.smartArtsByRId.get(graphic.relId);
+      return sa ? smartArtToText(sa) : undefined;
+    }
+    const chart = this.chartsByRId.get(graphic.relId);
+    return chart ? chartToText(chart) : undefined;
   }
 
   // ── Table → IElement (type='table') ───────────────────────────────────────

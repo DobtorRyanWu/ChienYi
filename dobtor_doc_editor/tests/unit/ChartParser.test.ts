@@ -6,7 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ChartParser } from '../../static/src/core/ooxml/chart/ChartParser';
+import { ChartParser, chartToText } from '../../static/src/core/ooxml/chart/ChartParser';
+import type { ChartNode } from '../../static/src/core/ooxml/ast/types';
 
 const NS =
   'xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" ' +
@@ -171,5 +172,53 @@ describe('ChartParser — 快取點對位', () => {
       'rId1',
     );
     expect(node?.series[0].values).toEqual([3.14, -2, 0]);
+  });
+});
+
+describe('ChartParser — Sprint 183 chartToText 線性文字 fallback', () => {
+  const mk = (over: Partial<ChartNode>): ChartNode => ({
+    rId: 'rId1', chartType: 'barChart', series: [], ...over,
+  });
+
+  it('無數列 → 空字串', () => {
+    expect(chartToText(mk({}))).toBe('');
+  });
+
+  it('僅標題、無數列 → 只回標題', () => {
+    expect(chartToText(mk({ title: '季度銷售' }))).toBe('季度銷售');
+  });
+
+  it('單數列：名稱 + 類別=值 配對', () => {
+    expect(chartToText(mk({
+      series: [{ name: '營收', categories: ['Q1', 'Q2'], values: [10, 20] }],
+    }))).toBe('營收: Q1=10, Q2=20');
+  });
+
+  it('標題 + 多數列 → 標題 + "; " 串接', () => {
+    expect(chartToText(mk({
+      title: '進度',
+      series: [
+        { name: '甲', categories: ['a'], values: [1] },
+        { name: '乙', categories: ['a'], values: [2] },
+      ],
+    }))).toBe('進度 甲: a=1; 乙: a=2');
+  });
+
+  it('null 數值 → 只顯示類別（無 =值）', () => {
+    expect(chartToText(mk({
+      series: [{ name: 'S', categories: ['x', 'y'], values: [null, 5] }],
+    }))).toBe('S: x, y=5');
+  });
+
+  it('類別空白且數值 null 的點 → 跳過', () => {
+    expect(chartToText(mk({
+      series: [{ name: 'S', categories: ['a', '', 'c'], values: [1, null, 3] }],
+    }))).toBe('S: a=1, c=3');
+  });
+
+  it('數列無 name → 只回配對', () => {
+    expect(chartToText(mk({
+      series: [{ categories: ['a', 'b'], values: [1, 2] }],
+    }))).toBe('a=1, b=2');
   });
 });

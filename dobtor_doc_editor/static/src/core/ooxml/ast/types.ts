@@ -266,6 +266,17 @@ export interface InlineImageNode {
    * Renderer 將透過 RenderContext.drawImage 第 6 參數傳入做 9-arg drawImage。
    */
   srcRect?: ImageSrcRect;
+  /**
+   * Sprint 183（Phase 5.2/5.3 render）：DrawingML graphic frame 內嵌的非圖片內容。
+   *
+   * `<a:graphicData uri>` 指向 SmartArt（diagram）或 Chart 時，圖形本身不內嵌
+   * document.xml —— `relId` 指向獨立部件（diagram → `<dgm:relIds r:dm>`、
+   * chart → `<c:chart r:id>`）。render 時 ToCanvasEditor 以此 relId 查
+   * `DocumentNode.smartArts` / `charts` 做線性文字 fallback（mc:Fallback 壓縮）。
+   *
+   * 紀律 #21：一般圖片無此欄位（多數 inlineImage 為真實圖片）。
+   */
+  graphic?: { kind: 'diagram' | 'chart'; relId: string };
 }
 
 /** 浮動圖片（wp:anchor）*/

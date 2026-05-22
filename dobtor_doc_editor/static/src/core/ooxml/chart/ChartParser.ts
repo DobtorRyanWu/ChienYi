@@ -90,6 +90,33 @@ export class ChartParser {
   }
 }
 
+/**
+ * Sprint 183：把圖表轉為線性文字 fallback（render 用）。
+ *
+ * mc:Fallback 壓縮（user 2026-05-21 拍板）：不重繪座標軸與圖形，以
+ * 「標題 數列名: 類別=值, …; …」格式呈現數值快取（degraded fidelity）。
+ *
+ * @returns 線性文字；無數列 → 空字串（或僅標題）
+ */
+export function chartToText(node: ChartNode): string {
+  const parts: string[] = [];
+  for (const s of node.series) {
+    const pairs: string[] = [];
+    for (let i = 0; i < s.categories.length; i++) {
+      const cat = s.categories[i];
+      const val = s.values[i];
+      const hasVal = val !== null && val !== undefined;
+      if (cat === '' && !hasVal) continue; // 完全空白點 → 跳過
+      pairs.push(hasVal ? `${cat}=${val}` : cat);
+    }
+    const body = pairs.join(', ');
+    const line = s.name ? `${s.name}: ${body}` : body;
+    if (line !== '') parts.push(line);
+  }
+  const joined = parts.join('; ');
+  return node.title ? `${node.title} ${joined}`.trim() : joined;
+}
+
 /** 從 `<c:chart>` 的 `<c:title>` 取標題文字（拼接所有 `<a:t>`）。空 → undefined。 */
 function readTitle(chart: Element): string | undefined {
   const title = firstByTag(chart, 'c:title');
