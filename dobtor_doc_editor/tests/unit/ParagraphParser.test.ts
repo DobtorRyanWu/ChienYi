@@ -1030,3 +1030,44 @@ describe('ParagraphParser — Sprint 174 追蹤修訂 <w:ins> / <w:del>', () => 
     }
   });
 });
+
+describe('ParagraphParser — Sprint 177 註解錨點 commentRange/commentReference', () => {
+  it('commentRangeStart + commentReference → commentRefs 收集 id', () => {
+    const p = parsePXml(
+      '<w:commentRangeStart w:id="0"/>' +
+      '<w:r><w:t>被註解的文字</w:t></w:r>' +
+      '<w:commentRangeEnd w:id="0"/>' +
+      '<w:r><w:commentReference w:id="0"/></w:r>',
+    );
+    const node = parser.parse(p);
+    expect(node.commentRefs).toEqual([0]);
+  });
+
+  it('多個註解 id → 升序去重', () => {
+    const p = parsePXml(
+      '<w:commentRangeStart w:id="3"/><w:commentRangeStart w:id="1"/>' +
+      '<w:r><w:commentReference w:id="3"/></w:r>' +
+      '<w:r><w:commentReference w:id="1"/></w:r>',
+    );
+    const node = parser.parse(p);
+    expect(node.commentRefs).toEqual([1, 3]);
+  });
+
+  it('無註解 → commentRefs 不掛', () => {
+    const p = parsePXml('<w:r><w:t>一般段落</w:t></w:r>');
+    expect(parser.parse(p).commentRefs).toBeUndefined();
+  });
+
+  it('w:id 非數字 → 跳過', () => {
+    const p = parsePXml('<w:commentRangeStart w:id="abc"/><w:r><w:t>x</w:t></w:r>');
+    expect(parser.parse(p).commentRefs).toBeUndefined();
+  });
+
+  it('hyperlink 內 w:r 的 commentReference 也收集', () => {
+    const p = parsePXml(
+      '<w:hyperlink w:anchor="bm1"><w:r><w:commentReference w:id="5"/>' +
+      '<w:t>連結</w:t></w:r></w:hyperlink>',
+    );
+    expect(parser.parse(p).commentRefs).toEqual([5]);
+  });
+});

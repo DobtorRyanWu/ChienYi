@@ -163,11 +163,17 @@ export class ParagraphParser {
     // ECMA-376 §17.13.6：`<w:bookmarkStart w:id="N" w:name="...">` / `<w:bookmarkEnd w:id="N"/>`
     // 不影響 render（純錨點），但需 capture name 供未來 hyperlink anchor 反查、PDF 內部跳轉。
     const bookmarkNames = new Set<string>();
-    const collectBookmarksFromRun = (r: Element): void => {
+    // Sprint 177：此段落引用的註解 id（`<w:commentReference w:id>` + `<w:commentRangeStart w:id>`）
+    const commentIds = new Set<number>();
+    // 掃單一 w:r 的子元素、收集 bookmark 名稱（Sprint 125）與 commentReference id（Sprint 177）
+    const collectRunAnchors = (r: Element): void => {
       for (const c of directChildren(r)) {
         if (c.tagName === 'w:bookmarkStart') {
           const name = c.getAttribute('w:name');
           if (name) bookmarkNames.add(name);
+        } else if (c.tagName === 'w:commentReference') {
+          const id = parseInt(c.getAttribute('w:id') ?? '', 10);
+          if (Number.isFinite(id)) commentIds.add(id);
         }
         // bookmarkEnd 不帶 name、不收集
       }
@@ -177,7 +183,7 @@ export class ParagraphParser {
       switch (child.tagName) {
         case 'w:r': {
           // Sprint 125：先收集 run 內 bookmark（即使後續走 field path）
-          collectBookmarksFromRun(child);
+          collectRunAnchors(child);
           // Sprint 123：field state machine 入口
           //   - 已在 field 模式 → 全交給 consumeRunIntoField（含 separate / end 切換）
           //   - 未在 field 模式但 r 內含 fldChar begin → 同樣交給 consumeRunIntoField
@@ -199,7 +205,7 @@ export class ParagraphParser {
           // hyperlink 內含 w:r，視同包裹 — 展平 runs 並標記 hyperlink 資訊
           for (const r of effectiveChildren(child)) {
             if (r.tagName !== 'w:r') continue;
-            collectBookmarksFromRun(r);  // Sprint 125：hyperlink 內 w:r 也掃 bookmark
+            collectRunAnchors(r);  // Sprint 125：hyperlink 內 w:r 也掃 bookmark
             for (const node of parseRun(r)) {
               if (linkInfo && node.type === 'run') {
                 node.hyperlink = linkInfo;
@@ -218,6 +224,15 @@ export class ParagraphParser {
         case 'w:bookmarkEnd':
           // bookmarkEnd 純結尾標記、無 name、無內容、不影響 runs
           break;
+        case 'w:commentRangeStart': {
+          // Sprint 177：段落直屬註解範圍起點 `<w:commentRangeStart w:id>`
+          const id = parseInt(child.getAttribute('w:id') ?? '', 10);
+          if (Number.isFinite(id)) commentIds.add(id);
+          break;
+        }
+        case 'w:commentRangeEnd':
+          // commentRangeEnd 純結尾標記、id 與 Start 相同、不重複收集
+          break;
         case 'w:ins':
         case 'w:del': {
           // Sprint 174（Phase 5.4 追蹤修訂）：`<w:ins>` 插入 / `<w:del>` 刪除
@@ -229,7 +244,7 @@ export class ParagraphParser {
           const revision = parseRevision(child, revType);
           for (const r of effectiveChildren(child)) {
             if (r.tagName !== 'w:r') continue;
-            collectBookmarksFromRun(r);
+            collectRunAnchors(r);
             for (const node of parseRun(r)) {
               if (node.type === 'run') node.revision = revision;
               runs.push(node);
@@ -255,6 +270,10 @@ export class ParagraphParser {
     // Sprint 125：bookmarks 只有在有內容時才掛 key、避免 AST diff noise
     if (bookmarkNames.size > 0) {
       node.bookmarks = Array.from(bookmarkNames);
+    }
+    // Sprint 177：commentRefs 同樣只在非空時掛 key（紀律 #21）；升序去重
+    if (commentIds.size > 0) {
+      node.commentRefs = Array.from(commentIds).sort((a, b) => a - b);
     }
     return node;
   }

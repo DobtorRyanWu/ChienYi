@@ -359,6 +359,12 @@ export interface ParagraphNode {
    * Word 自動生成的 `_GoBack` 也會被捕捉、屬正常行為（不影響 render）。
    */
   bookmarks?: string[];
+  /**
+   * Sprint 177（Phase 5.5 註解錨點）— 此段落引用的註解 id 列表（去重、升序）。
+   * 來源：段落內 `<w:commentRangeStart w:id>` + 任一 w:r 內 `<w:commentReference w:id>`。
+   * 對應 `DocumentNode.comments` 的 key；用於把註解內容定位到文件位置。
+   */
+  commentRefs?: number[];
 }
 
 // ── 表格 ──────────────────────────────────────────────────────────────────────
