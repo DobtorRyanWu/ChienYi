@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { BackgroundParser } from '../../static/src/core/ooxml/background/BackgroundParser';
+import { DEFAULT_THEME_MAP } from '../../static/src/core/ooxml/styles/ThemeResolver';
 
 const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
 
@@ -56,6 +57,42 @@ describe('BackgroundParser — w:themeColor', () => {
       wrapDoc('<w:background w:color="00B0F0" w:themeColor="accent5"/>'),
     );
     expect(r).toEqual({ color: '00B0F0', themeColor: 'accent5' });
+  });
+});
+
+describe('BackgroundParser — Sprint 178 themeColor → hex', () => {
+  const HEX6 = /^[0-9A-F]{6}$/;
+
+  it('themeColor + themeMap → color 解析為具體 hex', () => {
+    const r = new BackgroundParser().parse(
+      wrapDoc('<w:background w:themeColor="accent1"/>'), DEFAULT_THEME_MAP,
+    );
+    expect(r?.themeColor).toBe('accent1');
+    expect(r?.color).toMatch(HEX6);
+    expect(r?.color).toBe(DEFAULT_THEME_MAP.colorScheme.accent1);
+  });
+
+  it('themeColor 但未傳 themeMap → color 不解析（只留 themeColor raw）', () => {
+    const r = new BackgroundParser().parse(wrapDoc('<w:background w:themeColor="accent1"/>'));
+    expect(r?.themeColor).toBe('accent1');
+    expect(r?.color).toBeUndefined();
+  });
+
+  it('w:color 與 themeColor 並存 → 不覆寫顯式 w:color', () => {
+    const r = new BackgroundParser().parse(
+      wrapDoc('<w:background w:color="FF0000" w:themeColor="accent1"/>'), DEFAULT_THEME_MAP,
+    );
+    expect(r?.color).toBe('FF0000');
+    expect(r?.themeColor).toBe('accent1');
+  });
+
+  it('themeColor + themeShade → 套變暗、結果仍 6-hex', () => {
+    const r = new BackgroundParser().parse(
+      wrapDoc('<w:background w:themeColor="accent1" w:themeShade="80"/>'), DEFAULT_THEME_MAP,
+    );
+    expect(r?.color).toMatch(HEX6);
+    // 變暗 → 與未套 shade 的 base 不同
+    expect(r?.color).not.toBe(DEFAULT_THEME_MAP.colorScheme.accent1);
   });
 });
 

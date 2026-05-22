@@ -235,7 +235,8 @@ export class OoxmlParser {
     // Step 8.4（Sprint 171）：document.xml `<w:background>` 文件背景（Phase 5.6）
     //   render wire-up：CanvasRenderer 以 pageBackgroundColor 選項消費 background.color。
     //   多數 docx 無此元素 → background 為 undefined（紀律 #21）。
-    const background = this.backgroundParser.parse(documentXml);
+    //   Sprint 178：傳 themeMap、把 w:themeColor 解析為具體 hex 寫入 background.color。
+    const background = this.backgroundParser.parse(documentXml, themeMap);
 
     // Step 8.5（Sprint 172）：header VML 浮水印 shape capture（Phase 5.6）
     //   掃所有 header part、capture 第一個浮水印 shape；capture-only、render 留 Sprint 173。

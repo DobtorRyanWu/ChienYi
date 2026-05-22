@@ -4234,9 +4234,12 @@
          * 解析 word/document.xml 字串、抽出 `<w:background>` 為 DocumentBackground。
          *
          * @param documentXml document.xml 完整字串；undefined / 空 → 回 undefined
+         * @param themeMap    Sprint 178：已解析的 ThemeMap；提供時把 `w:themeColor`
+         *                    （含 themeTint/themeShade）解析為具體 hex 寫入 `color`
+         *                    （`w:color` 已直接給時不覆寫）。
          * @returns DocumentBackground 或 undefined（無背景設定）
          */
-        parse(documentXml) {
+        parse(documentXml, themeMap) {
             if (!documentXml)
                 return undefined;
             let doc;
@@ -4260,6 +4263,13 @@
             const themeColor = bg.getAttribute('w:themeColor');
             if (themeColor) {
                 out.themeColor = themeColor;
+                // Sprint 178：themeColor → 具體 hex（w:color 已直接給時不覆寫）。
+                //   含 themeTint / themeShade（resolveThemeColor 內套變亮 / 變暗）。
+                if (out.color === undefined && themeMap) {
+                    const tint = bg.getAttribute('w:themeTint') ?? undefined;
+                    const shade = bg.getAttribute('w:themeShade') ?? undefined;
+                    out.color = resolveThemeColor(themeMap, themeColor, tint, shade);
+                }
             }
             // 紀律 #21：無有效屬性（如僅 w:color="auto"）→ 不掛空物件
             return Object.keys(out).length > 0 ? out : undefined;
@@ -6630,7 +6640,8 @@
             // Step 8.4（Sprint 171）：document.xml `<w:background>` 文件背景（Phase 5.6）
             //   render wire-up：CanvasRenderer 以 pageBackgroundColor 選項消費 background.color。
             //   多數 docx 無此元素 → background 為 undefined（紀律 #21）。
-            const background = this.backgroundParser.parse(documentXml);
+            //   Sprint 178：傳 themeMap、把 w:themeColor 解析為具體 hex 寫入 background.color。
+            const background = this.backgroundParser.parse(documentXml, themeMap);
             // Step 8.5（Sprint 172）：header VML 浮水印 shape capture（Phase 5.6）
             //   掃所有 header part、capture 第一個浮水印 shape；capture-only、render 留 Sprint 173。
             //   多數 docx 無浮水印 → watermark 為 undefined（紀律 #21）。

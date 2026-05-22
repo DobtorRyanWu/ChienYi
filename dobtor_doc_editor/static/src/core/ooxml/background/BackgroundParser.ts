@@ -17,6 +17,8 @@
  */
 
 import type { DocumentBackground } from '../ast/types';
+import type { ThemeMap } from '../styles/ThemeResolver';
+import { resolveThemeColor } from '../styles/ThemeResolver';
 
 /** OOXML hex 色：6 位 16 進位。 */
 const HEX6_RE = /^[0-9A-Fa-f]{6}$/;
@@ -26,9 +28,12 @@ export class BackgroundParser {
    * 解析 word/document.xml 字串、抽出 `<w:background>` 為 DocumentBackground。
    *
    * @param documentXml document.xml 完整字串；undefined / 空 → 回 undefined
+   * @param themeMap    Sprint 178：已解析的 ThemeMap；提供時把 `w:themeColor`
+   *                    （含 themeTint/themeShade）解析為具體 hex 寫入 `color`
+   *                    （`w:color` 已直接給時不覆寫）。
    * @returns DocumentBackground 或 undefined（無背景設定）
    */
-  parse(documentXml: string | undefined): DocumentBackground | undefined {
+  parse(documentXml: string | undefined, themeMap?: ThemeMap): DocumentBackground | undefined {
     if (!documentXml) return undefined;
 
     let doc: Document;
@@ -52,6 +57,13 @@ export class BackgroundParser {
     const themeColor = bg.getAttribute('w:themeColor');
     if (themeColor) {
       out.themeColor = themeColor;
+      // Sprint 178：themeColor → 具體 hex（w:color 已直接給時不覆寫）。
+      //   含 themeTint / themeShade（resolveThemeColor 內套變亮 / 變暗）。
+      if (out.color === undefined && themeMap) {
+        const tint = bg.getAttribute('w:themeTint') ?? undefined;
+        const shade = bg.getAttribute('w:themeShade') ?? undefined;
+        out.color = resolveThemeColor(themeMap, themeColor, tint, shade);
+      }
     }
 
     // 紀律 #21：無有效屬性（如僅 w:color="auto"）→ 不掛空物件
