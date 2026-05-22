@@ -3244,7 +3244,7 @@
          * @throws Error 若 XML 無法解析或缺 <w:body>
          */
         parse(documentXml) {
-            const doc = parseXml$d(documentXml);
+            const doc = parseXml$e(documentXml);
             const root = doc.documentElement;
             if (!root) {
                 throw new Error('DocumentParser: empty document');
@@ -3324,7 +3324,7 @@
          * @deprecated 改用 walkBodyAsSections 取得多節切分
          */
         walkBody(documentXml) {
-            const doc = parseXml$d(documentXml);
+            const doc = parseXml$e(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3363,7 +3363,7 @@
          * @internal 給 OoxmlParser orchestrator 用，搭配 SectionParser 產生 SectionNode[]
          */
         walkBodyAsSections(documentXml) {
-            const doc = parseXml$d(documentXml);
+            const doc = parseXml$e(documentXml);
             const root = doc.documentElement;
             if (!root)
                 throw new Error('DocumentParser: empty document');
@@ -3410,7 +3410,7 @@
          * @internal
          */
         findAllSectPrs(documentXml) {
-            const doc = parseXml$d(documentXml);
+            const doc = parseXml$e(documentXml);
             const root = doc.documentElement;
             if (!root)
                 return [];
@@ -3484,7 +3484,7 @@
         }
         return undefined;
     }
-    function parseXml$d(xml) {
+    function parseXml$e(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DocumentParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3535,7 +3535,7 @@
                 return out;
             let doc;
             try {
-                doc = parseXml$c(xml);
+                doc = parseXml$d(xml);
             }
             catch {
                 return out;
@@ -3660,7 +3660,7 @@
         }
         return out;
     }
-    function parseXml$c(xml) {
+    function parseXml$d(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FontTableParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3730,7 +3730,7 @@
             if (!xml)
                 return out;
             try {
-                const doc = parseXml$b(xml);
+                const doc = parseXml$c(xml);
                 const root = doc.documentElement;
                 if (!root)
                     return out;
@@ -3788,7 +3788,7 @@
                 return undefined;
         }
     }
-    function parseXml$b(xml) {
+    function parseXml$c(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('FootnotesParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3831,7 +3831,7 @@
         parse(xml, rId) {
             let content = [];
             try {
-                const doc = parseXml$a(xml);
+                const doc = parseXml$b(xml);
                 const root = doc.documentElement;
                 if (root) {
                     // <w:hdr> 與 <w:ftr> 內部結構等同 <w:body> — 直接走訪即可
@@ -3846,7 +3846,7 @@
         }
     }
     // ── 共用 XML 解析 ─────────────────────────────────────────────────────────────
-    function parseXml$a(xml) {
+    function parseXml$b(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('HeaderFooterParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -3890,7 +3890,7 @@
         resolve(xml) {
             if (!xml)
                 return new Map();
-            const doc = parseXml$9(xml);
+            const doc = parseXml$a(xml);
             const root = doc.documentElement;
             if (!root)
                 return new Map();
@@ -4121,7 +4121,7 @@
         }
         return out;
     }
-    function parseXml$9(xml) {
+    function parseXml$a(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('NumberingResolver: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4166,7 +4166,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$8(xml);
+                doc = parseXml$9(xml);
             }
             catch {
                 return {};
@@ -4310,7 +4310,7 @@
         }
         return out;
     }
-    function parseXml$8(xml) {
+    function parseXml$9(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('SettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4347,7 +4347,7 @@
                 return {};
             let doc;
             try {
-                doc = parseXml$7(xml);
+                doc = parseXml$8(xml);
             }
             catch {
                 return {};
@@ -4401,7 +4401,7 @@
         }
         return out;
     }
-    function parseXml$7(xml) {
+    function parseXml$8(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('WebSettingsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4447,7 +4447,7 @@
                 return undefined;
             let doc;
             try {
-                doc = parseXml$6(documentXml);
+                doc = parseXml$7(documentXml);
             }
             catch {
                 return undefined;
@@ -4489,7 +4489,7 @@
         }
         return undefined;
     }
-    function parseXml$6(xml) {
+    function parseXml$7(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('BackgroundParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4535,7 +4535,7 @@
                 return undefined;
             let doc;
             try {
-                doc = parseXml$5(headerXml);
+                doc = parseXml$6(headerXml);
             }
             catch {
                 return undefined;
@@ -4558,7 +4558,7 @@
         const shapeStyle = shape.getAttribute('style');
         const rotation = parseRotation(shapeStyle);
         // 文字浮水印：<v:textpath string="...">
-        const textpath = firstByTag(shape, 'v:textpath');
+        const textpath = firstByTag$1(shape, 'v:textpath');
         if (textpath) {
             const text = textpath.getAttribute('string');
             if (text) {
@@ -4574,7 +4574,7 @@
         // 圖片浮水印：shape id 含 "watermark" + <v:imagedata r:id="...">
         const id = shape.getAttribute('id') ?? '';
         if (/watermark/i.test(id)) {
-            const imagedata = firstByTag(shape, 'v:imagedata');
+            const imagedata = firstByTag$1(shape, 'v:imagedata');
             if (imagedata) {
                 const rId = imagedata.getAttribute('r:id') ?? imagedata.getAttribute('o:relid');
                 const out = { kind: 'image' };
@@ -4588,7 +4588,7 @@
         return undefined;
     }
     /** 取第一個 tagName 相符的後代元素。 */
-    function firstByTag(el, tagName) {
+    function firstByTag$1(el, tagName) {
         const found = el.getElementsByTagName(tagName);
         return found.length > 0 ? found[0] : undefined;
     }
@@ -4625,7 +4625,7 @@
         }
         return s;
     }
-    function parseXml$5(xml) {
+    function parseXml$6(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('WatermarkParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4679,7 +4679,7 @@
                 return out;
             let doc;
             try {
-                doc = parseXml$4(xml);
+                doc = parseXml$5(xml);
             }
             catch {
                 return out;
@@ -4724,7 +4724,7 @@
             return out;
         }
     }
-    function parseXml$4(xml) {
+    function parseXml$5(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('CommentsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4782,7 +4782,7 @@
                 return undefined;
             let doc;
             try {
-                doc = parseXml$3(xml);
+                doc = parseXml$4(xml);
             }
             catch {
                 return undefined;
@@ -4853,7 +4853,7 @@
         const idx = name.indexOf(':');
         return idx >= 0 ? name.slice(idx + 1) : name;
     }
-    function parseXml$3(xml) {
+    function parseXml$4(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('DiagramParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
         }
@@ -4861,6 +4861,187 @@
         const errors = doc.getElementsByTagName('parsererror');
         if (errors.length > 0) {
             throw new Error(`DiagramParser: XML parse error — ${errors[0].textContent}`);
+        }
+        return doc;
+    }
+
+    /**
+     * ChartParser — 解析圖表（`c:` 命名空間、ECMA-376 §21.2、Phase 5.3）
+     *
+     * Sprint 182（capture-only）：
+     *   Word 圖表（「插入 → 圖表」）在 document.xml 以 `<w:drawing>` 內
+     *   `<a:graphicData uri=".../chart"><c:chart r:id="rId..">` 表示，圖本身不內嵌
+     *   document.xml —— `r:id` 以 rId 指向獨立的 `charts/chartN.xml`。
+     *
+     *   chartN.xml 結構（`<c:chartSpace>` root）：
+     *     <c:chartSpace>
+     *       <c:chart>
+     *         <c:title>...<a:t>標題</a:t>...</c:title>          ← 可選
+     *         <c:plotArea>
+     *           <c:barChart>                                    ← 圖表型別元素
+     *             <c:ser>                                       ← 資料數列
+     *               <c:tx><c:strRef><c:strCache>...數列名...</c:strCache></c:strRef></c:tx>
+     *               <c:cat><c:strRef><c:strCache>...類別軸...</c:strCache></c:strRef></c:cat>
+     *               <c:val><c:numRef><c:numCache>...數值...</c:numCache></c:numRef></c:val>
+     *             </c:ser>
+     *           </c:barChart>
+     *         </c:plotArea>
+     *       </c:chart>
+     *     </c:chartSpace>
+     *
+     *   快取（`<c:strCache>` / `<c:numCache>`）是 Word 為離線顯示而存的資料副本：
+     *   `<c:ptCount val="N"/>` 點數 + 0..N 個 `<c:pt idx="i"><c:v>值</c:v></c:pt>`
+     *   （idx 可能稀疏 —— 空白點省略）。
+     *
+     * mc:Fallback 壓縮策略（user 2026-05-21 拍板）：本 capture 取**數值快取**——
+     * 圖表型別 + 標題 + 各數列的類別 / 數值；不重繪座標軸與圖形（degraded fidelity，
+     * 同 SmartArt 取資料模型文字）。座標軸 / 圖例 / 圖形 render 留未來 optional sprint。
+     *
+     * 防禦：undefined / 空 / XML 解析失敗 / root 非 `<c:chartSpace>` → 回 undefined（不 throw）。
+     */
+    /** chart 部件 root 元素 localName。 */
+    const CHART_SPACE_TAG = 'chartSpace';
+    /** 圖表型別元素 localName 字尾（barChart / pieChart / bar3DChart …）。 */
+    const CHART_TYPE_SUFFIX = 'Chart';
+    class ChartParser {
+        /**
+         * 解析 `charts/chartN.xml` 字串為 ChartNode。
+         *
+         * @param xml `charts/chartN.xml` 完整字串；undefined / 空 → 回 undefined
+         * @param rId 對應的 chart 關係 rId（寫入 ChartNode.rId）
+         * @returns ChartNode；XML 無法解析 / root 非 chartSpace / 無圖表型別 → undefined（不 throw）
+         */
+        parse(xml, rId) {
+            if (!xml)
+                return undefined;
+            let doc;
+            try {
+                doc = parseXml$3(xml);
+            }
+            catch {
+                return undefined;
+            }
+            const root = doc.documentElement;
+            if (!root || stripPrefix(root.tagName) !== CHART_SPACE_TAG)
+                return undefined;
+            const chart = firstByTag(root, 'c:chart');
+            if (!chart)
+                return undefined;
+            const plotArea = firstByTag(chart, 'c:plotArea');
+            if (!plotArea)
+                return undefined;
+            // 圖表型別：plotArea 直屬子元素中第一個 localName 以 'Chart' 結尾者
+            const typeEl = directChildren$a(plotArea).find((el) => stripPrefix(el.tagName).endsWith(CHART_TYPE_SUFFIX));
+            if (!typeEl)
+                return undefined;
+            const node = {
+                rId,
+                chartType: stripPrefix(typeEl.tagName),
+                series: [],
+            };
+            const title = readTitle(chart);
+            if (title)
+                node.title = title;
+            for (const ser of tagChildren(typeEl, 'c:ser')) {
+                node.series.push(readSeries(ser));
+            }
+            return node;
+        }
+    }
+    /** 從 `<c:chart>` 的 `<c:title>` 取標題文字（拼接所有 `<a:t>`）。空 → undefined。 */
+    function readTitle(chart) {
+        const title = firstByTag(chart, 'c:title');
+        if (!title)
+            return undefined;
+        const ts = title.getElementsByTagName('a:t');
+        let out = '';
+        for (let i = 0; i < ts.length; i++)
+            out += ts[i].textContent ?? '';
+        return out.trim() || undefined;
+    }
+    /** 解析單一 `<c:ser>` 為 ChartSeries。 */
+    function readSeries(ser) {
+        const series = { categories: [], values: [] };
+        // 數列名稱：<c:tx> 內快取的第一個 <c:v>
+        const tx = firstByTag(ser, 'c:tx');
+        if (tx) {
+            const v = firstByTag(tx, 'c:v');
+            const name = v?.textContent?.trim();
+            if (name)
+                series.name = name;
+        }
+        // 類別軸：<c:cat> 快取（字串）
+        const cat = firstByTag(ser, 'c:cat');
+        if (cat) {
+            const { count, pts } = readCachePoints(cat);
+            series.categories = Array.from({ length: count }, (_, i) => pts.get(i) ?? '');
+        }
+        // 數值：<c:val> numCache
+        const val = firstByTag(ser, 'c:val');
+        if (val) {
+            const { count, pts } = readCachePoints(val);
+            series.values = Array.from({ length: count }, (_, i) => {
+                const raw = pts.get(i);
+                if (raw === undefined || raw === '')
+                    return null;
+                const n = Number(raw);
+                return Number.isFinite(n) ? n : null;
+            });
+        }
+        return series;
+    }
+    /**
+     * 從 `<c:cat>` / `<c:val>` / `<c:tx>` 容器內的 `<c:strCache>` / `<c:numCache>`
+     * 讀取點資料。
+     *
+     * @returns count = `<c:ptCount val>`（缺則用最大 idx+1）；pts = idx → `<c:v>` 文字
+     */
+    function readCachePoints(container) {
+        const pts = new Map();
+        let maxIdx = -1;
+        const ptEls = container.getElementsByTagName('c:pt');
+        for (let i = 0; i < ptEls.length; i++) {
+            const pt = ptEls[i];
+            const idx = parseInt(pt.getAttribute('idx') ?? '', 10);
+            if (!Number.isFinite(idx) || idx < 0)
+                continue;
+            const v = firstByTag(pt, 'c:v');
+            pts.set(idx, v?.textContent ?? '');
+            if (idx > maxIdx)
+                maxIdx = idx;
+        }
+        // ptCount 優先；缺漏時退回最大 idx + 1
+        let count = maxIdx + 1;
+        const ptCountEls = container.getElementsByTagName('c:ptCount');
+        if (ptCountEls.length > 0) {
+            const n = parseInt(ptCountEls[0].getAttribute('val') ?? '', 10);
+            if (Number.isFinite(n) && n >= 0)
+                count = n;
+        }
+        return { count, pts };
+    }
+    /** 取第一個 localName 相符的後代元素（含命名空間前綴比對）。 */
+    function firstByTag(el, qualifiedName) {
+        const list = el.getElementsByTagName(qualifiedName);
+        return list.length > 0 ? list[0] : undefined;
+    }
+    /** 取直屬子元素中 tagName 相符者。 */
+    function tagChildren(el, qualifiedName) {
+        return directChildren$a(el).filter((c) => c.tagName === qualifiedName);
+    }
+    /** 去掉標籤名的命名空間前綴（`c:` / `a:` 等），回傳 localName。 */
+    function stripPrefix(name) {
+        const idx = name.indexOf(':');
+        return idx >= 0 ? name.slice(idx + 1) : name;
+    }
+    function parseXml$3(xml) {
+        if (typeof DOMParser === 'undefined') {
+            throw new Error('ChartParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
+        }
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        const errors = doc.getElementsByTagName('parsererror');
+        if (errors.length > 0) {
+            throw new Error(`ChartParser: XML parse error — ${errors[0].textContent}`);
         }
         return doc;
     }
@@ -6854,6 +7035,7 @@
     const REL_TYPE_WEB_SETTINGS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
     const REL_TYPE_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
     const REL_TYPE_DIAGRAM_DATA = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+    const REL_TYPE_CHART = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
     const DEFAULT_DOC_PATH = 'word/document.xml';
     class OoxmlParser {
         constructor() {
@@ -6888,6 +7070,8 @@
             this.commentsParser = new CommentsParser();
             /** Sprint 181：SmartArt diagrams/dataN.xml capture（Phase 5.2 SmartArt、mc:Fallback 壓縮）*/
             this.diagramParser = new DiagramParser();
+            /** Sprint 182：Chart charts/chartN.xml capture（Phase 5.3 Charts、mc:Fallback 壓縮）*/
+            this.chartParser = new ChartParser();
         }
         /**
          * 把 .docx ArrayBuffer 解析為 DocumentNode。
@@ -6986,6 +7170,11 @@
             //   capture-only；render wire-up（線性文字 fallback）留後續 sprint。
             //   多數 docx 無 SmartArt → smartArts 為空陣列（紀律 #21：空時不掛 key）。
             const smartArts = collectSmartArts(pkg, mainDocPath, this.diagramParser);
+            // Step 8.7（Sprint 182）：Chart charts/chartN.xml capture（Phase 5.3、mc:Fallback 壓縮）
+            //   走 document.xml.rels 抓所有 type=chart 的關係、解析數值快取。
+            //   capture-only；render wire-up 留後續 sprint。
+            //   多數 docx 無圖表 → charts 為空陣列（紀律 #21：空時不掛 key）。
+            const charts = collectCharts(pkg, mainDocPath, this.chartParser);
             const doc = {
                 type: 'document',
                 sections,
@@ -7008,6 +7197,7 @@
                 ...(background !== undefined ? { background } : {}),
                 ...(watermark !== undefined ? { watermark } : {}),
                 ...(smartArts.length > 0 ? { smartArts } : {}),
+                ...(charts.length > 0 ? { charts } : {}),
             };
             // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props
             //   - StyleResolver 已展開繼承鏈為 StyleMap
@@ -7145,6 +7335,28 @@
             return out;
         for (const rel of rels.values()) {
             if (rel.targetMode !== 'Internal' || rel.type !== REL_TYPE_DIAGRAM_DATA)
+                continue;
+            const node = parser.parse(pkg.partAsText(rel.target), rel.id);
+            if (node)
+                out.push(node);
+        }
+        return out;
+    }
+    /**
+     * Sprint 182：走訪 mainDoc 的 .rels、抓所有 type=chart 的圖表部件並解析。
+     *
+     * 比照 collectSmartArts：一份 docx 可含多個圖表、全部收集為陣列、依 rels
+     * 走訪順序排列。
+     *
+     * @returns ChartNode[]；無圖表時回空陣列
+     */
+    function collectCharts(pkg, mainDocPath, parser) {
+        const out = [];
+        const rels = pkg.relationships.get(mainDocPath);
+        if (!rels)
+            return out;
+        for (const rel of rels.values()) {
+            if (rel.targetMode !== 'Internal' || rel.type !== REL_TYPE_CHART)
                 continue;
             const node = parser.parse(pkg.partAsText(rel.target), rel.id);
             if (node)

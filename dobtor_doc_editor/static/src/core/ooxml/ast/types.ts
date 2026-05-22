@@ -894,6 +894,40 @@ export interface SmartArtNode {
   texts: string[];
 }
 
+/**
+ * Sprint 182（Phase 5.3 Charts、mc:Fallback 壓縮、capture-only）：圖表內單一資料數列。
+ */
+export interface ChartSeries {
+  /** 數列名稱（`<c:ser><c:tx>` 快取文字）；無則省略（紀律 #21）。 */
+  name?: string;
+  /** 類別軸標籤（`<c:cat>` 快取，依 `<c:pt idx>` 對位、缺漏點為空字串）。 */
+  categories: string[];
+  /** 數值（`<c:val>` numCache，依 `<c:pt idx>` 對位、缺漏點為 null）。 */
+  values: (number | null)[];
+}
+
+/**
+ * Sprint 182（Phase 5.3 Charts、mc:Fallback 壓縮、capture-only）：單一圖表。
+ *
+ * Chart 在 document.xml 以 `<w:drawing>` 內 `<a:graphicData uri=".../chart">`
+ * 表示，圖本身不內嵌 —— `<c:chart r:id>` 以 rId 指向獨立的 `charts/chartN.xml`
+ * （`<c:chartSpace>` root）。
+ *
+ * 本 capture 取 `chartN.xml` 內嵌的**數值快取**（`<c:numCache>` / `<c:strCache>`，
+ * Word 為離線顯示而存的資料副本）。mc:Fallback 壓縮策略（user 2026-05-21 拍板）：
+ * 不重繪座標軸與圖形，僅保留型別 + 數列資料（degraded fidelity）。
+ */
+export interface ChartNode {
+  /** 對應的 chart 關係 rId（document.xml.rels 內 type=chart）。 */
+  rId: string;
+  /** 圖表型別（`<c:plotArea>` 內首個 `*Chart` 元素 localName，例如 barChart / bar3DChart / pieChart / lineChart）。 */
+  chartType: string;
+  /** 圖表標題（`<c:title>` 內文字）；無則省略（紀律 #21）。 */
+  title?: string;
+  /** 資料數列（依 `<c:ser>` 出現順序）。 */
+  series: ChartSeries[];
+}
+
 export interface DocumentNode {
   type: 'document';
   sections: SectionNode[];
@@ -1015,6 +1049,15 @@ export interface DocumentNode {
    * 紀律 #21：optional —— 文件無 SmartArt 時 undefined（多數 docx 無 SmartArt）。
    */
   smartArts?: SmartArtNode[];
+  /**
+   * Sprint 182（Phase 5.3 Charts、mc:Fallback 壓縮）：文件內所有圖表。
+   *
+   * 收集自 document.xml.rels 內 type=chart 的關係（每個圖表一筆），依 rels 順序
+   * 排列。capture-only —— render wire-up 留後續 sprint。
+   *
+   * 紀律 #21：optional —— 文件無圖表時 undefined（多數 docx 無圖表）。
+   */
+  charts?: ChartNode[];
 }
 
 /** Sprint 171：`<w:background>` 文件頁面背景（OOXML §17.2.1）。 */
