@@ -45,6 +45,7 @@ import type {
   TableNode,
 } from '../ast/types';
 import { NumberingCounterState, expandLvlText } from '../numbering';
+import { ommlToLinearText } from '../omml';
 
 // ── canvas-editor 介面（僅必要欄位的本地宣告，避免依賴它的 d.ts 路徑）─────
 
@@ -200,6 +201,21 @@ export class ToCanvasEditor {
 
     for (const node of para.runs) {
       this.appendInlineNode(paraElements, node, media);
+    }
+
+    // Sprint 180（Phase 5.1 OMML render）：段落內數學公式（`para.math` 側陣列）
+    //   以線性文字 fallback 渲染（分數 a/b、根號 √(x)、上下標 x_(n) 等）。
+    //   capture-only 階段 math 未保留行內精確位置 → 一律 append 於段落 runs 之後
+    //   （多數公式為 math-only 段落、此近似可接受；inline-mixed 精確位置 + KaTeX
+    //   全保真排版留未來 optional sprint）。display / inline 皆同樣線性化。
+    if (para.math && para.math.length > 0) {
+      const mathBaseProps: RunProps =
+        (para.runs.find((r): r is RunNode => r.type === 'run')?.props) ?? {};
+      const mathStyle = mapRunProps(mathBaseProps);
+      for (const mathNode of para.math) {
+        const linear = ommlToLinearText(mathNode.omml);
+        if (linear !== '') this.appendChars(paraElements, linear, mathStyle);
+      }
     }
 
     // 把 rowFlex / rowMargin 套用到段內所有 IElement（canvas-editor 段落樣式套法）

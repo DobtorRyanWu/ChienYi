@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { parseOmmlChildren } from '../../static/src/core/ooxml/omml';
+import { parseOmmlChildren, ommlToLinearText } from '../../static/src/core/ooxml/omml';
 
 const M_NS_DECL =
   'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"';
@@ -127,5 +127,80 @@ describe('OmmlParser — 結構元素遞迴', () => {
       '<m:r><m:t>a</m:t></m:r><m:r><m:t>+</m:t></m:r><m:r><m:t>b</m:t></m:r>',
     ));
     expect(tree.map((n) => n.children?.[0].text)).toEqual(['a', '+', 'b']);
+  });
+});
+
+describe('OmmlParser — Sprint 180 屬性捕捉', () => {
+  it('元素屬性 → attrs（去 m: 前綴）', () => {
+    const tree = parseOmmlChildren(parseOMath('<m:naryPr><m:chr m:val="∑"/></m:naryPr>'));
+    expect(tree[0].children?.[0]).toEqual({ tag: 'chr', attrs: { val: '∑' } });
+  });
+
+  it('無屬性元素 → 不掛 attrs key（紀律 #21）', () => {
+    const tree = parseOmmlChildren(parseOMath('<m:f/>'));
+    expect('attrs' in tree[0]).toBe(false);
+  });
+
+  it('xmlns 宣告不計入 attrs', () => {
+    const tree = parseOmmlChildren(parseOMath('<m:r><m:t>x</m:t></m:r>'));
+    // m:oMath 本身帶 xmlns:m，子節點 m:r 無屬性
+    expect('attrs' in tree[0]).toBe(false);
+  });
+});
+
+describe('OmmlParser — Sprint 180 ommlToLinearText 線性化', () => {
+  const lin = (inner: string): string => ommlToLinearText(parseOmmlChildren(parseOMath(inner)));
+
+  it('空樹 → 空字串', () => {
+    expect(ommlToLinearText([])).toBe('');
+  });
+
+  it('純文字 run → 原文字', () => {
+    expect(lin('<m:r><m:t>x+1</m:t></m:r>')).toBe('x+1');
+  });
+
+  it('分數 → num/den', () => {
+    expect(lin(
+      '<m:f><m:num><m:r><m:t>a</m:t></m:r></m:num>' +
+      '<m:den><m:r><m:t>b</m:t></m:r></m:den></m:f>',
+    )).toBe('a/b');
+  });
+
+  it('根號（無 deg）→ √(x)', () => {
+    expect(lin('<m:rad><m:deg/><m:e><m:r><m:t>9</m:t></m:r></m:e></m:rad>')).toBe('√(9)');
+  });
+
+  it('n 元運算（含 chr 屬性）→ 運算子 + 上下限', () => {
+    expect(lin(
+      '<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr>' +
+      '<m:sub><m:r><m:t>i=0</m:t></m:r></m:sub>' +
+      '<m:sup><m:r><m:t>n</m:t></m:r></m:sup>' +
+      '<m:e><m:r><m:t>i</m:t></m:r></m:e></m:nary>',
+    )).toBe('∑_(i=0)^(n)(i)');
+  });
+
+  it('n 元運算無 chr 屬性 → 預設積分符號 ∫', () => {
+    expect(lin('<m:nary><m:e><m:r><m:t>f</m:t></m:r></m:e></m:nary>')).toBe('∫(f)');
+  });
+
+  it('上下標 sSubSup → x_(1)^(2)', () => {
+    expect(lin(
+      '<m:sSubSup><m:e><m:r><m:t>x</m:t></m:r></m:e>' +
+      '<m:sub><m:r><m:t>1</m:t></m:r></m:sub>' +
+      '<m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSubSup>',
+    )).toBe('x_(1)^(2)');
+  });
+
+  it('矩陣 → [a, b; c, d]', () => {
+    expect(lin(
+      '<m:m>' +
+      '<m:mr><m:e><m:r><m:t>1</m:t></m:r></m:e><m:e><m:r><m:t>2</m:t></m:r></m:e></m:mr>' +
+      '<m:mr><m:e><m:r><m:t>3</m:t></m:r></m:e><m:e><m:r><m:t>4</m:t></m:r></m:e></m:mr>' +
+      '</m:m>',
+    )).toBe('[1, 2; 3, 4]');
+  });
+
+  it('屬性容器 rPr → 不產生文字', () => {
+    expect(lin('<m:r><m:rPr><m:sty m:val="p"/></m:rPr><m:t>z</m:t></m:r>')).toBe('z');
   });
 });

@@ -1,1 +1,1 @@
-export { parseOmmlChildren } from './OmmlParser';
+export { parseOmmlChildren, ommlToLinearText } from './OmmlParser';

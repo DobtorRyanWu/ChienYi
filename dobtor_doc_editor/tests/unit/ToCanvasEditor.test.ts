@@ -680,3 +680,58 @@ describe('ToCanvasEditor — Sprint 160 v2 instrText render wire-up', () => {
   });
 });
 
+
+describe('ToCanvasEditor — Sprint 180 OMML 公式線性文字 render', () => {
+  /** 建一個帶 math 的段落（math-only paragraph）。 */
+  function mathParagraph(omml: ParagraphNode['math']): ParagraphNode {
+    return { type: 'paragraph', runs: [], props: {}, math: omml };
+  }
+
+  it('行內分數公式 → 線性文字 a/b', () => {
+    const fraction = {
+      tag: 'f',
+      children: [
+        { tag: 'num', children: [{ tag: 'r', children: [{ tag: 't', text: 'a' }] }] },
+        { tag: 'den', children: [{ tag: 'r', children: [{ tag: 't', text: 'b' }] }] },
+      ],
+    };
+    const doc = makeDoc([
+      makeSection([mathParagraph([{ display: false, omml: [fraction] }])]),
+    ]);
+    const elements = mapper.convert(doc);
+    expect(elements.map((e) => e.value).join('')).toBe('a/b\n');
+  });
+
+  it('display 公式（根號）→ 線性文字 √(9)', () => {
+    const radical = {
+      tag: 'rad',
+      children: [
+        { tag: 'deg' },
+        { tag: 'e', children: [{ tag: 'r', children: [{ tag: 't', text: '9' }] }] },
+      ],
+    };
+    const doc = makeDoc([
+      makeSection([mathParagraph([{ display: true, omml: [radical] }])]),
+    ]);
+    const elements = mapper.convert(doc);
+    expect(elements.map((e) => e.value).join('')).toBe('√(9)\n');
+  });
+
+  it('公式與一般 run 混排 → 文字在前、公式線性文字接在後', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph',
+      runs: [makeRun('值=')],
+      props: {},
+      math: [{ display: false, omml: [{ tag: 'r', children: [{ tag: 't', text: 'x+1' }] }] }],
+    };
+    const doc = makeDoc([makeSection([para])]);
+    const elements = mapper.convert(doc);
+    expect(elements.map((e) => e.value).join('')).toBe('值=x+1\n');
+  });
+
+  it('無 math 的段落 → 不受影響', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('一般')])])]);
+    const elements = mapper.convert(doc);
+    expect(elements.map((e) => e.value).join('')).toBe('一般\n');
+  });
+});

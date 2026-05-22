@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 179 結尾）
+## 1. 當前指標一覽（Sprint 180 結尾）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1561 passed + 1 skipped**（`npm test` 全套口徑＝tests/unit + tests/integration；Sprint 179 +21：13 OmmlParser + 8 ParagraphParser）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
-| VR mean | **0.073191**（Sprint 65 promote、第 39 次連續 byte-identical；Sprint 167-179 textAlignment / framePr / background / watermark / 追蹤修訂 / 註解 / OMML 皆 Strategy C 或 capture-only、42 fixture byte-identical） |
+| vitest | **1577 passed + 1 skipped**（`npm test` 全套口徑＝tests/unit + tests/integration；Sprint 180 +16：12 OmmlParser + 4 ToCanvasEditor）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| VR mean | **0.073191**（Sprint 65 promote、第 40 次連續 byte-identical；Sprint 167-180 textAlignment / framePr / background / watermark / 追蹤修訂 / 註解 / OMML 皆 Strategy C 或 capture-only、42 fixture byte-identical） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 179（最新 sprint179_omml_capture.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 180（最新 sprint180_omml_render.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
 
 ---
@@ -58,7 +58,7 @@
 | Phase 3 Layout Engine | 93% | page count 100% / VR mean 0.073191;Sprint 44-49 突破紀錄;Sprint 161-162 tab stop wire-up（LineBreaker 引擎 + layoutDocument/Paginator/TableLayout 接線 + VR opt-in 量測；Strategy C、aggregate delta 可忽略） |
 | Phase 4 Style Theme | 91% | Sprint 19 style merge;Sprint 130 §Phase 4.1 HSL;Sprint 131 §Phase 4.2 tblStylePr/tcPr;Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）;Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY;Sprint 134 §Phase 4.4 textAlignment + framePr capture;Sprint 137-139 numbering wire-up Strategy C;**Sprint 167 §Phase 4.4 textAlignment render wire-up（decision A part 1）**;**Sprint 168 framePr probe → user 選 opt-in 路徑**;**Sprint 169-170 §Phase 4.4 framePr 浮動段落框 layout wire-up（decision A part 2、frameGroup.ts + Paginator layFramedParagraphs + framePr.wrap 模式分派 around 側繞排除區/notBeside 保留空間/none 純浮動、opt-in enableFramePr、Strategy C、VR byte-identical）**;**決策 A（textAlignment + framePr）完成**;framePr auto-width 側繞 + 框跨頁 + page/margin anchor 留 Sprint 171 optional |
 | Phase 4.5 產品化基礎建設 | 100% | 詳見 [phase4_5_completed.md](phase4_5_completed.md) |
-| Phase 5+（註腳 / 追蹤修訂 / OMML） | 進行中（5.6 背景 done） | Sprint 142 probe → user 2026-05-21 GO 全 6 子功能;**Sprint 171 §Phase 5.6「背景」完成**（`<w:background>` parse + render wire-up）;**Sprint 172-173 §Phase 5.6「浮水印」完成**（Sprint 172 WatermarkParser capture header VML `<v:shape>` 文字/圖片浮水印;Sprint 173 CanvasRenderer renderWatermark 文字浮水印旋轉淺灰繪製、opt-in Strategy C、VR byte-identical;圖片浮水印 render 留後續）;**Phase 5.6「浮水印 + 背景」收尾**;**Sprint 174-175 §Phase 5.4「追蹤修訂」收尾**（capture + render、Strategy C）;**Sprint 176 §Phase 5.5「註解」capture**（`comments.xml` CommentsParser → `DocumentNode.comments`、比照 FootnotesParser、capture-only、VR byte-identical）;**決策 C 可控部分（5.4+5.5+5.6）全數完成**;**Sprint 177 §Phase 5.5 註解錨點 capture**（`<w:commentRangeStart>`/`<w:commentReference>` → `ParagraphNode.commentRefs`、capture-only）;**Sprint 178 §Phase 5.6 background themeColor→hex**（`BackgroundParser` 加 themeMap 參數、`resolveThemeColor` 解析、theme-based 背景可 render）;**Sprint 179 §Phase 5.1 OMML capture**（`omml/OmmlParser.ts` `parseOmmlChildren` 遞迴樹解析 → `ParagraphNode.math`、`<m:oMath>` 行內 / `<m:oMathPara>` display、capture-only、VR byte-identical;6 omml synthetic fixture 入庫）;5.1 OMML render（→ KaTeX）留 Sprint 180;5.2 SmartArt / 5.3 Charts capture 待續（fixture 已就緒） |
+| Phase 5+（註腳 / 追蹤修訂 / OMML） | 進行中（5.6 背景 done） | Sprint 142 probe → user 2026-05-21 GO 全 6 子功能;**Sprint 171 §Phase 5.6「背景」完成**（`<w:background>` parse + render wire-up）;**Sprint 172-173 §Phase 5.6「浮水印」完成**（Sprint 172 WatermarkParser capture header VML `<v:shape>` 文字/圖片浮水印;Sprint 173 CanvasRenderer renderWatermark 文字浮水印旋轉淺灰繪製、opt-in Strategy C、VR byte-identical;圖片浮水印 render 留後續）;**Phase 5.6「浮水印 + 背景」收尾**;**Sprint 174-175 §Phase 5.4「追蹤修訂」收尾**（capture + render、Strategy C）;**Sprint 176 §Phase 5.5「註解」capture**（`comments.xml` CommentsParser → `DocumentNode.comments`、比照 FootnotesParser、capture-only、VR byte-identical）;**決策 C 可控部分（5.4+5.5+5.6）全數完成**;**Sprint 177 §Phase 5.5 註解錨點 capture**（`<w:commentRangeStart>`/`<w:commentReference>` → `ParagraphNode.commentRefs`、capture-only）;**Sprint 178 §Phase 5.6 background themeColor→hex**（`BackgroundParser` 加 themeMap 參數、`resolveThemeColor` 解析、theme-based 背景可 render）;**Sprint 179 §Phase 5.1 OMML capture**（`omml/OmmlParser.ts` `parseOmmlChildren` 遞迴樹解析 → `ParagraphNode.math`、`<m:oMath>` 行內 / `<m:oMathPara>` display、capture-only、VR byte-identical;6 omml synthetic fixture 入庫）;**Sprint 180 §Phase 5.1 OMML render**（`OmmlNode` 補 attrs + `ommlToLinearText` 線性文字 fallback + ToCanvasEditor 接線;KaTeX 全保真留未來 optional、依 Sprint 128 bundle 取捨 + user mc:Fallback 決策）;**Phase 5.1 OMML 完成**（capture 179 + render 180）;5.2 SmartArt / 5.3 Charts capture 待續（fixture 已就緒） |
 | Phase 6 Export 對稱性 | 0% | 未開始 |
 | Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe（Sprint 60 GREEN） |
 | Phase 8 Template UI Builder | Phase 1 + 2.1 已驗證 / 2.2 未啟動 | ADR-022 落地（2026-05-19）、非 docx 匯入、工時 / VR mean 與 Phase 0-7 分開計算；Phase 1 視覺 + Phase 2.1 inline control 程式碼於 ADR-022 當日落地、2026-05-20 端到端驗證通過（vitest 1358 / 後端 6 test / 瀏覽器實測 0 console error、欄位插入刪除全通），詳見 [phase8_verification_2026-05-20.md](phase8_verification_2026-05-20.md)；Phase 2.2 overlay 依 ADR-022 條件啟動、未動工 |

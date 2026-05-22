@@ -359,6 +359,12 @@ export interface OmmlNode {
   tag: string;
   /** 文字內容（僅 `m:t` 有值；其餘結構元素無）。 */
   text?: string;
+  /**
+   * Sprint 180：元素屬性 localName → 值（去 `m:` 前綴）。
+   * n 元運算子 `<m:chr m:val="∑">`、分數型別 `<m:type m:val="bar">` 等的語意載於屬性，
+   * 渲染（linearize）需用。無屬性時不掛 key（紀律 #21）。
+   */
+  attrs?: Record<string, string>;
   /** 子節點（遞迴）；無子節點時不掛 key（紀律 #21）。 */
   children?: OmmlNode[];
 }
