@@ -50,11 +50,17 @@ interface Fingerprint {
   textSha1: string;
 }
 
+/**
+ * Sprint 179：Phase 5 大三項 fixture 目錄（OMML / SmartArt / Charts parser 驗證用）。
+ * 非 VR baseline 的「42 fixture」成員 —— AST 結構快照不納入。
+ */
+const PHASE5_FIXTURE_DIRS = new Set(['07_chart', '08_smartart', '09_omml']);
+
 function listFixtures(): string[] {
   const out: string[] = [];
   for (const cat of readdirSync(FIXTURE_ROOT)) {
     const catDir = resolve(FIXTURE_ROOT, cat);
-    if (!statSync(catDir).isDirectory()) continue;
+    if (PHASE5_FIXTURE_DIRS.has(cat) || !statSync(catDir).isDirectory()) continue;
     for (const f of readdirSync(catDir)) {
       if (f.endsWith('.docx')) {
         out.push(`${cat}/${f}`);

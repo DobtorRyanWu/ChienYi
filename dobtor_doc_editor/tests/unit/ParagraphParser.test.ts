@@ -1071,3 +1071,89 @@ describe('ParagraphParser — Sprint 177 註解錨點 commentRange/commentRefere
     expect(parser.parse(p).commentRefs).toEqual([5]);
   });
 });
+
+describe('ParagraphParser — Sprint 179 OMML 數學公式 <m:oMath>', () => {
+  const M_NS = 'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"';
+
+  /** 建 `<w:p>`（含 w: 與 m: 兩命名空間）並解析。 */
+  function parsePXmlM(innerPXml: string): Element {
+    const xml = `<?xml version="1.0"?><w:p ${W_NS_DECL} ${M_NS}>${innerPXml}</w:p>`;
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    return doc.documentElement;
+  }
+
+  it('段落直屬 <m:oMath> → math 行內公式（display=false）', () => {
+    const p = parsePXmlM('<m:oMath><m:r><m:t>x</m:t></m:r></m:oMath>');
+    const node = parser.parse(p);
+    expect(node.math).toHaveLength(1);
+    expect(node.math?.[0].display).toBe(false);
+    expect(node.math?.[0].omml).toEqual([
+      { tag: 'r', children: [{ tag: 't', text: 'x' }] },
+    ]);
+  });
+
+  it('<m:oMathPara> 包裹 <m:oMath> → display 公式（display=true）', () => {
+    const p = parsePXmlM(
+      '<m:oMathPara><m:oMath><m:r><m:t>E</m:t></m:r></m:oMath></m:oMathPara>',
+    );
+    const node = parser.parse(p);
+    expect(node.math).toHaveLength(1);
+    expect(node.math?.[0].display).toBe(true);
+  });
+
+  it('分數公式 <m:f> → omml 樹保留 num/den 結構', () => {
+    const p = parsePXmlM(
+      '<m:oMath><m:f>' +
+      '<m:num><m:r><m:t>a</m:t></m:r></m:num>' +
+      '<m:den><m:r><m:t>b</m:t></m:r></m:den>' +
+      '</m:f></m:oMath>',
+    );
+    const node = parser.parse(p);
+    expect(node.math?.[0].omml[0].tag).toBe('f');
+    expect(node.math?.[0].omml[0].children?.map((c) => c.tag)).toEqual(['num', 'den']);
+  });
+
+  it('<m:oMathPara> 含多個 <m:oMath> → 各自一個 display MathNode', () => {
+    const p = parsePXmlM(
+      '<m:oMathPara>' +
+      '<m:oMath><m:r><m:t>1</m:t></m:r></m:oMath>' +
+      '<m:oMath><m:r><m:t>2</m:t></m:r></m:oMath>' +
+      '</m:oMathPara>',
+    );
+    const node = parser.parse(p);
+    expect(node.math).toHaveLength(2);
+    expect(node.math?.every((m) => m.display)).toBe(true);
+  });
+
+  it('公式與一般 run 混排 → runs 不受影響、math 收進側陣列', () => {
+    const p = parsePXmlM(
+      '<w:r><w:t>前</w:t></w:r>' +
+      '<m:oMath><m:r><m:t>y</m:t></m:r></m:oMath>' +
+      '<w:r><w:t>後</w:t></w:r>',
+    );
+    const node = parser.parse(p);
+    expect(node.runs.map((r) => (r.type === 'run' ? r.text : null))).toEqual(['前', '後']);
+    expect(node.math).toHaveLength(1);
+  });
+
+  it('多個行內 <m:oMath> → 順序保留', () => {
+    const p = parsePXmlM(
+      '<m:oMath><m:r><m:t>P</m:t></m:r></m:oMath>' +
+      '<m:oMath><m:r><m:t>Q</m:t></m:r></m:oMath>',
+    );
+    const node = parser.parse(p);
+    expect(node.math?.map((m) => m.omml[0].children?.[0].text)).toEqual(['P', 'Q']);
+  });
+
+  it('無公式段落 → math 不掛 key（紀律 #21）', () => {
+    const p = parsePXmlM('<w:r><w:t>一般段落</w:t></w:r>');
+    expect(parser.parse(p).math).toBeUndefined();
+  });
+
+  it('空 <m:oMath> → math 收一個 omml 為空的 MathNode', () => {
+    const p = parsePXmlM('<m:oMath/>');
+    const node = parser.parse(p);
+    expect(node.math).toHaveLength(1);
+    expect(node.math?.[0].omml).toEqual([]);
+  });
+});

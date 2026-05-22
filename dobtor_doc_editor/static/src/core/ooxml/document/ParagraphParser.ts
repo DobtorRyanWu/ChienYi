@@ -23,6 +23,7 @@ import { DrawingParser } from '../drawing/DrawingParser';
 import { effectiveChildren } from '../utils/dom';
 import { resolveColorElement } from '../styles/colorResolver';
 import { parseParagraphBorders, parseShading } from '../styles/borderShading';
+import { parseOmmlChildren } from '../omml';
 import type { ThemeMap } from '../styles/ThemeResolver';
 import type {
   Alignment,
@@ -31,6 +32,7 @@ import type {
   HyperlinkInfo,
   InlineNode,
   LineSpacingRule,
+  MathNode,
   ParagraphNode,
   ParagraphProps,
   Pt,
@@ -165,6 +167,8 @@ export class ParagraphParser {
     const bookmarkNames = new Set<string>();
     // Sprint 177：此段落引用的註解 id（`<w:commentReference w:id>` + `<w:commentRangeStart w:id>`）
     const commentIds = new Set<number>();
+    // Sprint 179（Phase 5.1 OMML）：此段落內的數學公式（capture-only、行內 + display）
+    const mathNodes: MathNode[] = [];
     // 掃單一 w:r 的子元素、收集 bookmark 名稱（Sprint 125）與 commentReference id（Sprint 177）
     const collectRunAnchors = (r: Element): void => {
       for (const c of directChildren(r)) {
@@ -252,6 +256,21 @@ export class ParagraphParser {
           }
           break;
         }
+        case 'm:oMath': {
+          // Sprint 179（Phase 5.1 OMML）：段落直屬 `<m:oMath>` = 行內公式。
+          //   capture-only：遞迴解 OMML 樹、不解語意、不轉 KaTeX（留 Sprint 180）。
+          mathNodes.push({ display: false, omml: parseOmmlChildren(child) });
+          break;
+        }
+        case 'm:oMathPara': {
+          // Sprint 179：`<m:oMathPara>` 包裹獨立置中公式（display math）。
+          //   可含 `<m:oMathParaPr>` 屬性 + 一或多個 `<m:oMath>`；逐 `<m:oMath>` 收集。
+          for (const m of effectiveChildren(child)) {
+            if (m.tagName !== 'm:oMath') continue;
+            mathNodes.push({ display: true, omml: parseOmmlChildren(m) });
+          }
+          break;
+        }
         // w:pPr 已先處理；其他子節點 (w:proofErr) 暫時忽略
       }
     }
@@ -274,6 +293,10 @@ export class ParagraphParser {
     // Sprint 177：commentRefs 同樣只在非空時掛 key（紀律 #21）；升序去重
     if (commentIds.size > 0) {
       node.commentRefs = Array.from(commentIds).sort((a, b) => a - b);
+    }
+    // Sprint 179：math 只在非空時掛 key（紀律 #21）；capture-only、layout 不消費
+    if (mathNodes.length > 0) {
+      node.math = mathNodes;
     }
     return node;
   }

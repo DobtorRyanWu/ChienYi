@@ -87,12 +87,18 @@ function parseArgs(argv) {
   return args;
 }
 
+// Sprint 179：Phase 5 大三項 fixture 目錄（OMML / SmartArt / Charts parser 驗證用）。
+// 非 VR baseline 的「42 fixture」成員、無 golden —— VR 不納入。
+// Sprint 180+ 待 OMML / SmartArt / Charts render + golden 就緒後再評估納入。
+const PHASE5_FIXTURE_DIRS = new Set(['07_chart', '08_smartart', '09_omml']);
+
 function listFixtures(filter) {
   const out = [];
   for (const cat of readdirSync(FIXTURE_ROOT)) {
     const catDir = resolve(FIXTURE_ROOT, cat);
     if (!statSync(catDir).isDirectory()) continue;
     if (cat.startsWith('.')) continue;
+    if (PHASE5_FIXTURE_DIRS.has(cat)) continue;
     for (const f of readdirSync(catDir)) {
       if (!f.endsWith('.docx')) continue;
       const rel = `${cat}/${f}`;

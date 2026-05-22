@@ -345,6 +345,38 @@ export interface FloatTextBoxNode {
 
 export type InlineNode = RunNode | FieldNode | BreakNode | InlineImageNode | FloatImageNode | FloatTextBoxNode;
 
+/**
+ * Sprint 179（Phase 5.1 OMML 數學公式）：OMML 元素樹的通用節點（capture-only）。
+ *
+ * OMML（Office Math Markup Language、ECMA-376 §22.1）以 `m:` 命名空間描述數學公式
+ * （分數 `m:f` / 根號 `m:rad` / n 元運算 `m:nary` / 上下標 `m:sSub` 等 / 矩陣 `m:m`）。
+ *
+ * capture-only 階段以遞迴通用樹保留完整結構 —— 不解語意、不轉 MathML / KaTeX。
+ * 渲染（OMML → KaTeX）留 Sprint 180。
+ */
+export interface OmmlNode {
+  /** OOXML 標籤 localName（去 `m:` 前綴），例如 'f'（分數）/ 'rad'（根號）/ 'r'（math run）/ 't'（文字）。 */
+  tag: string;
+  /** 文字內容（僅 `m:t` 有值；其餘結構元素無）。 */
+  text?: string;
+  /** 子節點（遞迴）；無子節點時不掛 key（紀律 #21）。 */
+  children?: OmmlNode[];
+}
+
+/**
+ * Sprint 179：段落內一段數學公式（`<m:oMath>`、ECMA-376 §22.1.2.77）。
+ *
+ * 來源兩種：
+ *   - `<m:oMathPara>` 包裹的獨立置中公式（display math）→ display = true
+ *   - 段落直屬 `<m:oMath>`（行內公式、inline math）→ display = false
+ */
+export interface MathNode {
+  /** display = true：`<m:oMathPara>` 包裹的獨立公式；false：行內公式。 */
+  display: boolean;
+  /** `<m:oMath>` 子元素解析出的 OMML 樹。 */
+  omml: OmmlNode[];
+}
+
 /** 段落 */
 export interface ParagraphNode {
   type: 'paragraph';
@@ -365,6 +397,13 @@ export interface ParagraphNode {
    * 對應 `DocumentNode.comments` 的 key；用於把註解內容定位到文件位置。
    */
   commentRefs?: number[];
+  /**
+   * Sprint 179（Phase 5.1 OMML）— 此段落內的數學公式列表（capture-only）。
+   * 來源：段落直屬 `<m:oMath>`（行內）+ `<m:oMathPara>` 包裹的 `<m:oMath>`（display）。
+   * capture-only —— layout / render 不消費；非空才掛 key（紀律 #21）。
+   * 渲染（OMML → KaTeX）+ 行內位置 wire-up 留 Sprint 180。
+   */
+  math?: MathNode[];
 }
 
 // ── 表格 ──────────────────────────────────────────────────────────────────────
