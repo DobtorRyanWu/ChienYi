@@ -21,7 +21,7 @@
  * 防禦：undefined / 空 / XML 解析失敗 → 回空 Map（不阻塞 OoxmlParser）。
  */
 
-import type { BlockNode, CommentContent } from '../ast/types';
+import type { BlockNode, CommentContent, RunNode } from '../ast/types';
 import { DocumentParser } from '../document/DocumentParser';
 
 export class CommentsParser {
@@ -86,6 +86,42 @@ export class CommentsParser {
 
     return out;
   }
+}
+
+/**
+ * Sprint 184：把註解內容轉為純文字（render 用）。
+ *
+ * mc:Fallback 壓縮（同 OMML / SmartArt / Chart 線性文字 fallback）：不重建 Word
+ * 右側註解 panel，僅把註解段落文字攤平 —— ToCanvasEditor 以此在被註解段落後
+ * append `[註解 …]` 標記（degraded fidelity）。
+ *
+ * @returns 註解段落文字（多段落以空白串接）；無文字 → 空字串
+ */
+export function commentToText(comment: CommentContent): string {
+  return blocksToText(comment.content);
+}
+
+/** 遞迴攤平 BlockNode[] 為純文字：段落取 run 文字、表格遞迴 cell。 */
+function blocksToText(blocks: BlockNode[]): string {
+  const lines: string[] = [];
+  for (const b of blocks) {
+    if (b.type === 'paragraph') {
+      const t = b.runs
+        .filter((r): r is RunNode => r.type === 'run')
+        .map((r) => r.text)
+        .join('');
+      if (t !== '') lines.push(t);
+    } else {
+      // 表格 → 遞迴每個 cell 內容
+      for (const row of b.rows) {
+        for (const cell of row.cells) {
+          const t = blocksToText(cell.content);
+          if (t !== '') lines.push(t);
+        }
+      }
+    }
+  }
+  return lines.join(' ');
 }
 
 function parseXml(xml: string): Document {

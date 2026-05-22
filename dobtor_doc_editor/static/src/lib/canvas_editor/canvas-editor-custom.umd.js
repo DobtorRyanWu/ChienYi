@@ -4759,6 +4759,43 @@
             return out;
         }
     }
+    /**
+     * Sprint 184：把註解內容轉為純文字（render 用）。
+     *
+     * mc:Fallback 壓縮（同 OMML / SmartArt / Chart 線性文字 fallback）：不重建 Word
+     * 右側註解 panel，僅把註解段落文字攤平 —— ToCanvasEditor 以此在被註解段落後
+     * append `[註解 …]` 標記（degraded fidelity）。
+     *
+     * @returns 註解段落文字（多段落以空白串接）；無文字 → 空字串
+     */
+    function commentToText(comment) {
+        return blocksToText(comment.content);
+    }
+    /** 遞迴攤平 BlockNode[] 為純文字：段落取 run 文字、表格遞迴 cell。 */
+    function blocksToText(blocks) {
+        const lines = [];
+        for (const b of blocks) {
+            if (b.type === 'paragraph') {
+                const t = b.runs
+                    .filter((r) => r.type === 'run')
+                    .map((r) => r.text)
+                    .join('');
+                if (t !== '')
+                    lines.push(t);
+            }
+            else {
+                // 表格 → 遞迴每個 cell 內容
+                for (const row of b.rows) {
+                    for (const cell of row.cells) {
+                        const t = blocksToText(cell.content);
+                        if (t !== '')
+                            lines.push(t);
+                    }
+                }
+            }
+        }
+        return lines.join(' ');
+    }
     function parseXml$5(xml) {
         if (typeof DOMParser === 'undefined') {
             throw new Error('CommentsParser: DOMParser not available — Node tests must use vitest setup with @xmldom/xmldom');
@@ -8206,6 +8243,11 @@
              */
             this.smartArtsByRId = new Map();
             this.chartsByRId = new Map();
+            /**
+             * Sprint 184：註解 id → 內容查表（render 用）。
+             * 每次 `convert()` 開頭依當前 DocumentNode 重設，避免跨文件殘留。
+             */
+            this.comments = new Map();
         }
         /**
          * 把整份 DocumentNode 轉為 IElement[]。
@@ -8217,6 +8259,8 @@
             // Sprint 183：建 SmartArt / Chart 查表（graphic frame relId → 節點）
             this.smartArtsByRId = new Map((doc.smartArts ?? []).map((s) => [s.rId, s]));
             this.chartsByRId = new Map((doc.charts ?? []).map((c) => [c.rId, c]));
+            // Sprint 184：註解查表（commentRefs id → 內容）
+            this.comments = doc.comments;
             const elements = [];
             // Sprint 138：跨 section 共用 counter state（OOXML §17.9 預設行為、
             // sectPr 不強制重啟編號；若 fixture 需要可由 future sprint 加 hook）
@@ -8287,6 +8331,24 @@
                     const linear = ommlToLinearText(mathNode.omml);
                     if (linear !== '')
                         this.appendChars(paraElements, linear, mathStyle);
+                }
+            }
+            // Sprint 184（Phase 5.5 註解 render）：被註解段落（`para.commentRefs` 側陣列）
+            //   canvas-editor 無 Word 右側註解 panel 對應 → 線性文字 fallback：在段落 runs
+            //   後 append `[註解 作者: 內容]` 標記（mc:Fallback 壓縮、degraded fidelity；
+            //   精確錨點範圍 highlight + 互動 panel 留未來 optional sprint）。
+            if (para.commentRefs && para.commentRefs.length > 0) {
+                const cmtBaseProps = (para.runs.find((r) => r.type === 'run')?.props) ?? {};
+                const cmtStyle = mapRunProps(cmtBaseProps);
+                for (const id of para.commentRefs) {
+                    const cmt = this.comments.get(id);
+                    if (!cmt)
+                        continue;
+                    const body = commentToText(cmt);
+                    const marker = cmt.author
+                        ? `[註解 ${cmt.author}: ${body}]`
+                        : `[註解: ${body}]`;
+                    this.appendChars(paraElements, marker, cmtStyle);
                 }
             }
             // 把 rowFlex / rowMargin 套用到段內所有 IElement（canvas-editor 段落樣式套法）

@@ -57,6 +57,7 @@ function makeDoc(
     footers: new Map(),
     footnotes: new Map(),
     endnotes: new Map(),
+    comments: new Map(),
     settings: {},
     fontTable: new Map(),
     webSettings: {},
@@ -814,5 +815,66 @@ describe('ToCanvasEditor — Sprint 183 SmartArt / Chart graphic frame render', 
     );
     const elements = mapper.convert(doc);
     expect(elements[0]).toMatchObject({ type: 'image', value: 'data:image/png;base64,AAA' });
+  });
+});
+
+describe('ToCanvasEditor — Sprint 184 註解 render wire-up', () => {
+  function joinText(elements: ReturnType<typeof mapper.convert>): string {
+    return elements.map((e) => e.value ?? '').join('');
+  }
+
+  it('被註解段落 → runs 後 append [註解 作者: 內容]', () => {
+    const para = makeParagraph([makeRun('需修改的句子')]);
+    para.commentRefs = [0];
+    const doc = makeDoc([makeSection([para])]);
+    doc.comments = new Map([[0, {
+      id: 0, author: 'Alice',
+      content: [{ type: 'paragraph', props: {}, runs: [makeRun('這裡要補充')] }],
+    }]]);
+    const text = joinText(mapper.convert(doc));
+    expect(text).toContain('需修改的句子');
+    expect(text).toContain('[註解 Alice: 這裡要補充]');
+  });
+
+  it('註解無 author → [註解: 內容]', () => {
+    const para = makeParagraph([makeRun('x')]);
+    para.commentRefs = [5];
+    const doc = makeDoc([makeSection([para])]);
+    doc.comments = new Map([[5, {
+      id: 5,
+      content: [{ type: 'paragraph', props: {}, runs: [makeRun('無名註解')] }],
+    }]]);
+    expect(joinText(mapper.convert(doc))).toContain('[註解: 無名註解]');
+  });
+
+  it('commentRefs 多個 id → 依序 append', () => {
+    const para = makeParagraph([makeRun('y')]);
+    para.commentRefs = [1, 2];
+    const doc = makeDoc([makeSection([para])]);
+    doc.comments = new Map([
+      [1, { id: 1, author: 'A', content: [{ type: 'paragraph', props: {}, runs: [makeRun('甲')] }] }],
+      [2, { id: 2, author: 'B', content: [{ type: 'paragraph', props: {}, runs: [makeRun('乙')] }] }],
+    ]);
+    const text = joinText(mapper.convert(doc));
+    expect(text.indexOf('[註解 A: 甲]')).toBeLessThan(text.indexOf('[註解 B: 乙]'));
+  });
+
+  it('commentRefs id 查無對應註解 → 跳過（不 crash、不 emit）', () => {
+    const para = makeParagraph([makeRun('z')]);
+    para.commentRefs = [99];
+    const doc = makeDoc([makeSection([para])]);
+    const text = joinText(mapper.convert(doc));
+    expect(text).toContain('z');
+    expect(text).not.toContain('[註解');
+  });
+
+  it('無 commentRefs 的段落 → 不受影響', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('純文字')])])]);
+    doc.comments = new Map([[0, {
+      id: 0, author: 'A', content: [{ type: 'paragraph', props: {}, runs: [makeRun('不該出現')] }],
+    }]]);
+    const text = joinText(mapper.convert(doc));
+    expect(text).not.toContain('[註解');
+    expect(text).not.toContain('不該出現');
   });
 });

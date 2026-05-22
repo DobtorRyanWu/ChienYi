@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { CommentsParser } from '../../static/src/core/ooxml/comments/CommentsParser';
+import { CommentsParser, commentToText } from '../../static/src/core/ooxml/comments/CommentsParser';
 
 const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
 
@@ -95,5 +95,45 @@ describe('CommentsParser — 防禦邊界', () => {
       '<w:other/><w:comment w:id="0" w:author="A"><w:p/></w:comment>',
     ));
     expect(r.size).toBe(1);
+  });
+});
+
+describe('CommentsParser — Sprint 184 commentToText 純文字攤平', () => {
+  const parse = (inner: string) => new CommentsParser().parse(wrap(inner));
+
+  it('單段落註解 → 段落文字', () => {
+    const c = parse('<w:comment w:id="0"><w:p><w:r><w:t>這段需要修改</w:t></w:r></w:p></w:comment>').get(0)!;
+    expect(commentToText(c)).toBe('這段需要修改');
+  });
+
+  it('同段落多 run → 拼接', () => {
+    const c = parse(
+      '<w:comment w:id="0"><w:p><w:r><w:t>請</w:t></w:r><w:r><w:t>補充</w:t></w:r></w:p></w:comment>',
+    ).get(0)!;
+    expect(commentToText(c)).toBe('請補充');
+  });
+
+  it('多段落 → 以空白串接', () => {
+    const c = parse(
+      '<w:comment w:id="0">' +
+      '<w:p><w:r><w:t>第一段</w:t></w:r></w:p>' +
+      '<w:p><w:r><w:t>第二段</w:t></w:r></w:p></w:comment>',
+    ).get(0)!;
+    expect(commentToText(c)).toBe('第一段 第二段');
+  });
+
+  it('註解內表格 → 遞迴 cell 文字', () => {
+    const c = parse(
+      '<w:comment w:id="0"><w:tbl>' +
+      '<w:tr><w:tc><w:p><w:r><w:t>格一</w:t></w:r></w:p></w:tc>' +
+      '<w:tc><w:p><w:r><w:t>格二</w:t></w:r></w:p></w:tc></w:tr>' +
+      '</w:tbl></w:comment>',
+    ).get(0)!;
+    expect(commentToText(c)).toBe('格一 格二');
+  });
+
+  it('空註解內容 → 空字串', () => {
+    const c = parse('<w:comment w:id="0"><w:p/></w:comment>').get(0)!;
+    expect(commentToText(c)).toBe('');
   });
 });
