@@ -1149,24 +1149,37 @@ export class DocEditor extends Component {
         const origLeft = parseFloat(overlayEl.style.left) || 0;
         const origTop = parseFloat(overlayEl.style.top) || 0;
         const scale = this.state.currentZoomScale || 1;
+        // Sprint F：越界 clamp — workspace 邊界相對於 overlay-layer
+        const overlayLayer = overlayEl.parentElement;
+        const layerRect = overlayLayer?.getBoundingClientRect();
+        const fieldW = parseFloat(overlayEl.style.width) || 160;
+        const fieldH = parseFloat(overlayEl.style.height) || 32;
+        const maxX = layerRect ? Math.max(0, layerRect.width / scale - fieldW) : Number.MAX_VALUE;
+        const maxY = layerRect ? Math.max(0, layerRect.height / scale - fieldH) : Number.MAX_VALUE;
         overlayEl.classList.add("is-dragging");
         // 選中該欄位讓 inspector 顯示
         this.state.selectedFieldId = fieldId;
 
+        const clamp = (x, y) => ({
+            x: Math.max(0, Math.min(maxX, x)),
+            y: Math.max(0, Math.min(maxY, y)),
+        });
+
         const onMove = (mv) => {
-            // dx/dy 是螢幕 px；overlay 用「邏輯 px」（在 canvas-editor 縮放下的座標），
-            // 所以要除以 currentZoomScale 還原邏輯 delta
             const dx = (mv.clientX - startX) / scale;
             const dy = (mv.clientY - startY) / scale;
-            overlayEl.style.left = `${origLeft + dx}px`;
-            overlayEl.style.top = `${origTop + dy}px`;
+            const { x, y } = clamp(origLeft + dx, origTop + dy);
+            overlayEl.style.left = `${x}px`;
+            overlayEl.style.top = `${y}px`;
         };
         const onUp = async (up) => {
             document.removeEventListener("mousemove", onMove);
             document.removeEventListener("mouseup", onUp);
             overlayEl.classList.remove("is-dragging");
-            const newX = origLeft + (up.clientX - startX) / scale;
-            const newY = origTop + (up.clientY - startY) / scale;
+            const { x: newX, y: newY } = clamp(
+                origLeft + (up.clientX - startX) / scale,
+                origTop + (up.clientY - startY) / scale,
+            );
             // save 到後端 + 更新 cache
             try {
                 const result = await rpc("/dobtor_doc/template_fields/save_field", {
@@ -1200,6 +1213,59 @@ export class DocEditor extends Component {
         if (this.state.selectedFieldId !== fieldId) {
             this.state.selectedFieldId = fieldId;
         }
+    }
+
+    /**
+     * Sprint F：overlay field 右下角 resize handle mousedown → mousemove 改 width/height →
+     *           mouseup save_field 持久化。
+     *
+     * stopPropagation 必要 — 避免冒泡到 .doc-overlay-field 的 onOverlayMouseDown 觸發拖曳。
+     */
+    onOverlayResizeMouseDown(ev, fieldId) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        const overlayEl = ev.currentTarget.closest(".doc-overlay-field");
+        if (!overlayEl) return;
+        const startX = ev.clientX;
+        const startY = ev.clientY;
+        const origWidth = parseFloat(overlayEl.style.width) || 160;
+        const origHeight = parseFloat(overlayEl.style.height) || 32;
+        const scale = this.state.currentZoomScale || 1;
+        const MIN_W = 40;
+        const MIN_H = 20;
+        overlayEl.classList.add("is-resizing");
+        this.state.selectedFieldId = fieldId;
+
+        const onMove = (mv) => {
+            const dw = (mv.clientX - startX) / scale;
+            const dh = (mv.clientY - startY) / scale;
+            overlayEl.style.width = `${Math.max(MIN_W, origWidth + dw)}px`;
+            overlayEl.style.height = `${Math.max(MIN_H, origHeight + dh)}px`;
+        };
+        const onUp = async (up) => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            overlayEl.classList.remove("is-resizing");
+            const newW = Math.max(MIN_W, origWidth + (up.clientX - startX) / scale);
+            const newH = Math.max(MIN_H, origHeight + (up.clientY - startY) / scale);
+            try {
+                const result = await rpc("/dobtor_doc/template_fields/save_field", {
+                    doc_id: this.state.docId,
+                    field: { id: fieldId, width: newW, height: newH },
+                });
+                if (result?.success) {
+                    const f = (this._templateFieldsCache || []).find((x) => x.id === fieldId);
+                    if (f) {
+                        f.width = newW;
+                        f.height = newH;
+                    }
+                }
+            } catch (e) {
+                console.warn("[DocEditor] overlay resize save failed", e);
+            }
+        };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
     }
 
     /**
@@ -1931,6 +1997,7 @@ export class DocEditor extends Component {
     /**
      * Inspector 內欄位變動時呼叫，debounce 500ms 後送後端 save_field。
      * key: 'placeholder_text' | 'required' | 'font_size' | 'odoo_field_name' | 'signer_id'
+     *      | 'pos_x' | 'pos_y' | 'width' | 'height'（Sprint F：overlay 模式可改）
      */
     onInspectorFieldChange(key, value) {
         const field = this.selectedField;
@@ -1940,6 +2007,14 @@ export class DocEditor extends Component {
             field[key] = !!value;
         } else if (key === "font_size" || key === "signer_id") {
             field[key] = parseInt(value, 10) || field[key];
+        } else if (key === "pos_x" || key === "pos_y" || key === "width" || key === "height") {
+            // Sprint F：浮點數，但 user 輸入整數即可
+            const n = parseFloat(value);
+            if (Number.isFinite(n)) {
+                field[key] = Math.max(0, n);
+            }
+            // 強制 OWL re-render overlay layer 以反映新位置/尺寸
+            this.state.overlayFieldsRev++;
         } else {
             field[key] = value;
         }
@@ -1957,6 +2032,11 @@ export class DocEditor extends Component {
                     placeholder_text: field.placeholder_text,
                     font_size: field.font_size,
                     odoo_field_name: field.odoo_field_name,
+                    // Sprint F：overlay 幾何屬性
+                    pos_x: field.pos_x,
+                    pos_y: field.pos_y,
+                    width: field.width,
+                    height: field.height,
                 };
                 const result = await rpc("/dobtor_doc/template_fields/save_field", {
                     doc_id: this.state.docId,

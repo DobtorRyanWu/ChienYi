@@ -348,7 +348,8 @@
                             放開以插入欄位到此位置
                         </div>
                     </div>
-                    <!-- Sprint D：Overlay layer — 絕對定位浮動欄位，依 pos_x/pos_y 渲染 -->
+                    <!-- Sprint D：Overlay layer — 絕對定位浮動欄位，依 pos_x/pos_y 渲染
+                         Sprint F：加右下角 resize handle、selected 時顯示 -->
                     <div class="doc-overlay-layer"
                          t-att-class="state.layoutMode === 'overlay' ? 'is-active' : ''"
                          aria-label="浮動欄位層">
@@ -359,9 +360,14 @@
                                  t-attf-style="left:#{of.pos_x}px; top:#{of.pos_y}px; width:#{of.width}px; height:#{of.height}px; transform:scale(#{state.currentZoomScale});"
                                  t-on-mousedown="(ev) => this.onOverlayMouseDown(ev, of.id)"
                                  t-on-click="() => this.onOverlayFieldClick(of.id)"
-                                 t-attf-title="浮動欄位：#{of.placeholder_text or of.field_type}（拖曳調整位置）">
+                                 t-attf-title="浮動欄位：#{of.placeholder_text or of.field_type}（拖曳調整位置、右下角縮放）">
                                 <i class="fa fa-arrows doc-overlay-field-grip" aria-hidden="true"/>
                                 <span class="doc-overlay-field-label" t-esc="of.placeholder_text or of.field_type"/>
+                                <!-- Sprint F：右下角 resize handle，只在 selected 時顯示可拖 -->
+                                <div class="doc-overlay-resize-handle"
+                                     t-on-mousedown="(ev) => this.onOverlayResizeMouseDown(ev, of.id)"
+                                     aria-label="調整尺寸"
+                                     title="拖曳調整寬度與高度"/>
                             </div>
                         </t>
                     </div>
@@ -422,6 +428,39 @@
                                 <input type="text" placeholder="如 partner_id.name"
                                        t-att-value="selectedField.odoo_field_name or ''"
                                        t-on-input="(ev) => this.onInspectorFieldChange('odoo_field_name', ev.target.value)"/>
+                            </div>
+                        </t>
+
+                        <!-- Sprint F：Overlay 模式專屬欄位（X/Y/W/H 數字輸入） -->
+                        <t t-if="selectedField.layout_mode === 'overlay'">
+                            <div class="doc-inspector-section-label">
+                                <i class="fa fa-arrows me-1"/>浮動位置與尺寸
+                            </div>
+                            <div class="doc-inspector-grid-2col">
+                                <div class="doc-inspector-field">
+                                    <label>X (px)</label>
+                                    <input type="number" step="1"
+                                           t-att-value="Math.round(selectedField.pos_x or 0)"
+                                           t-on-change="(ev) => this.onInspectorFieldChange('pos_x', ev.target.value)"/>
+                                </div>
+                                <div class="doc-inspector-field">
+                                    <label>Y (px)</label>
+                                    <input type="number" step="1"
+                                           t-att-value="Math.round(selectedField.pos_y or 0)"
+                                           t-on-change="(ev) => this.onInspectorFieldChange('pos_y', ev.target.value)"/>
+                                </div>
+                                <div class="doc-inspector-field">
+                                    <label>寬度 (px)</label>
+                                    <input type="number" step="1" min="40"
+                                           t-att-value="Math.round(selectedField.width or 120)"
+                                           t-on-change="(ev) => this.onInspectorFieldChange('width', ev.target.value)"/>
+                                </div>
+                                <div class="doc-inspector-field">
+                                    <label>高度 (px)</label>
+                                    <input type="number" step="1" min="20"
+                                           t-att-value="Math.round(selectedField.height or 24)"
+                                           t-on-change="(ev) => this.onInspectorFieldChange('height', ev.target.value)"/>
+                                </div>
                             </div>
                         </t>
 

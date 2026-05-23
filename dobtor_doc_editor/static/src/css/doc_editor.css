@@ -1305,3 +1305,54 @@
 .doc-workspace {
     position: relative;
 }
+
+/* ─── Sprint F：Resize handle + Inspector 幾何輸入 ─── */
+
+/* 右下角 resize handle：只在 selected 時可見 */
+.doc-overlay-resize-handle {
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 14px;
+    height: 14px;
+    background: #714B67;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: nwse-resize;
+    pointer-events: auto;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 2;
+}
+
+.doc-overlay-field:hover .doc-overlay-resize-handle,
+.doc-overlay-field.is-selected .doc-overlay-resize-handle {
+    opacity: 1;
+}
+
+.doc-overlay-field.is-resizing {
+    opacity: 0.7;
+    box-shadow: 0 4px 12px rgba(113, 75, 103, 0.4);
+}
+
+/* Inspector：版面模式 section label */
+.doc-inspector-section-label {
+    font-size: 0.8rem;
+    color: #714B67;
+    font-weight: 600;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    padding-top: 8px;
+    border-top: 1px solid #e9ecef;
+}
+
+/* Inspector 2 欄 grid（X/Y/W/H）*/
+.doc-inspector-grid-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.doc-inspector-grid-2col .doc-inspector-field {
+    margin-bottom: 0;
+}
