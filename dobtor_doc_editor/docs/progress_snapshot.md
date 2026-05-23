@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 184 結尾）
+## 1. 當前指標一覽（Sprint 185 結尾）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1651 passed + 1 skipped**（`npm test` 全套口徑＝tests/unit + tests/integration；Sprint 184 +10：5 CommentsParser + 5 ToCanvasEditor）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
-| VR mean | **0.073191**（Sprint 65 promote、第 44 次連續 byte-identical；Sprint 167-184 textAlignment / framePr / background / watermark / 追蹤修訂 / 註解 / OMML / SmartArt / Charts render 皆 Strategy C 或 capture-only、42 fixture byte-identical） |
+| vitest | **1676 passed + 1 skipped**（`npm test` 全套口徑＝tests/unit + tests/integration；Sprint 185 +25：16 OoxmlWriter + 9 round-trip）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| VR mean | **0.073191**（Sprint 65 promote、第 45 次連續 byte-identical；Sprint 167-185 textAlignment / framePr / background / watermark / 追蹤修訂 / 註解 / OMML / SmartArt / Charts / export 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 184（最新 sprint184_comment_render.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 185（最新 sprint185_export_mvs.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
 
 ---
@@ -59,7 +59,7 @@
 | Phase 4 Style Theme | 91% | Sprint 19 style merge;Sprint 130 §Phase 4.1 HSL;Sprint 131 §Phase 4.2 tblStylePr/tcPr;Sprint 132 §Phase 4.3 numberingFormatter（wire-up defer）;Sprint 133 §Phase 4.4 pBdr + shd + borderShading DRY;Sprint 134 §Phase 4.4 textAlignment + framePr capture;Sprint 137-139 numbering wire-up Strategy C;**Sprint 167 §Phase 4.4 textAlignment render wire-up（decision A part 1）**;**Sprint 168 framePr probe → user 選 opt-in 路徑**;**Sprint 169-170 §Phase 4.4 framePr 浮動段落框 layout wire-up（decision A part 2、frameGroup.ts + Paginator layFramedParagraphs + framePr.wrap 模式分派 around 側繞排除區/notBeside 保留空間/none 純浮動、opt-in enableFramePr、Strategy C、VR byte-identical）**;**決策 A（textAlignment + framePr）完成**;framePr auto-width 側繞 + 框跨頁 + page/margin anchor 留 Sprint 171 optional |
 | Phase 4.5 產品化基礎建設 | 100% | 詳見 [phase4_5_completed.md](phase4_5_completed.md) |
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 5.1-5.6 capture+render 全完成（互動 panel optional） | Sprint 142 probe → user 2026-05-21 GO 全 6 子功能;**Sprint 171 §Phase 5.6「背景」完成**（`<w:background>` parse + render wire-up）;**Sprint 172-173 §Phase 5.6「浮水印」完成**（Sprint 172 WatermarkParser capture header VML `<v:shape>` 文字/圖片浮水印;Sprint 173 CanvasRenderer renderWatermark 文字浮水印旋轉淺灰繪製、opt-in Strategy C、VR byte-identical;圖片浮水印 render 留後續）;**Phase 5.6「浮水印 + 背景」收尾**;**Sprint 174-175 §Phase 5.4「追蹤修訂」收尾**（capture + render、Strategy C）;**Sprint 176 §Phase 5.5「註解」capture**（`comments.xml` CommentsParser → `DocumentNode.comments`、比照 FootnotesParser、capture-only、VR byte-identical）;**決策 C 可控部分（5.4+5.5+5.6）全數完成**;**Sprint 177 §Phase 5.5 註解錨點 capture**（`<w:commentRangeStart>`/`<w:commentReference>` → `ParagraphNode.commentRefs`、capture-only）;**Sprint 178 §Phase 5.6 background themeColor→hex**（`BackgroundParser` 加 themeMap 參數、`resolveThemeColor` 解析、theme-based 背景可 render）;**Sprint 179 §Phase 5.1 OMML capture**（`omml/OmmlParser.ts` `parseOmmlChildren` 遞迴樹解析 → `ParagraphNode.math`、`<m:oMath>` 行內 / `<m:oMathPara>` display、capture-only、VR byte-identical;6 omml synthetic fixture 入庫）;**Sprint 180 §Phase 5.1 OMML render**（`OmmlNode` 補 attrs + `ommlToLinearText` 線性文字 fallback + ToCanvasEditor 接線;KaTeX 全保真留未來 optional、依 Sprint 128 bundle 取捨 + user mc:Fallback 決策）;**Phase 5.1 OMML 完成**（capture 179 + render 180）;**Sprint 181 §Phase 5.2 SmartArt capture**（新模組 `diagram/DiagramParser.ts` 解析 `diagrams/dataN.xml` `<dgm:dataModel>` → `DocumentNode.smartArts?`：內容點文字 + `loTypeId` 版面類型;勘查 4 個真實 fixture 確認**皆無 `<mc:Fallback>` 內嵌圖**、SmartArt 走 dgm 資料模型 + `drawingN.xml` 預渲染 shape → mc:Fallback 壓縮的實際對應 = 取資料模型語意文字;capture-only、VR byte-identical 第 41 連;17 DiagramParser unit + 4 真實 fixture integration test）;**Sprint 182 §Phase 5.3 Chart capture**（新模組 `chart/ChartParser.ts` 解析 `charts/chartN.xml` `<c:chartSpace>` → `DocumentNode.charts?`：圖表型別 + 標題 + 各數列的類別/數值快取;`<c:strCache>`/`<c:numCache>` 稀疏 `<c:pt idx>` 對位、cat↔val 同長;勘查 8 個真實 fixture 同確認皆無 `<mc:Fallback>` 圖;capture-only、VR byte-identical 第 42 連;18 ChartParser unit + 5 真實 fixture integration test）;**Sprint 183 §Phase 5.2/5.3 SmartArt+Chart render wire-up**（`InlineImageNode.graphic?` + DrawingParser `parseGraphicFrame` 偵測 `<a:graphicData uri=".../diagram｜chart">` → relId;`smartArtToText`/`chartToText` 線性文字函式;ToCanvasEditor `appendImage` graphic frame 分支查 `smartArtsByRId`/`chartsByRId` → 線性文字 fallback;Strategy C、0/42 fixture 含 graphic frame → byte-identical 第 43 連;+20 test）;**Phase 5 大三項（5.1 OMML / 5.2 SmartArt / 5.3 Charts）capture + render 全數完成**;**Sprint 184 §Phase 5.5 註解 render wire-up**（`commentToText` 攤平 `CommentContent` BlockNode[] → 純文字;ToCanvasEditor `appendParagraph` 加 `commentRefs` 分支、被註解段落後 append `[註解 作者: 內容]`;Strategy C、byte-identical 第 44 連;+10 test）;**Phase 5 全 6 子功能（5.1-5.6）capture + render 全數完成**;精確錨點 highlight + 互動 panel（回覆/解決狀態）列為未來 optional** |
-| Phase 6 Export 對稱性 | 0% | 未開始 |
+| Phase 6 Export 對稱性 | MVS 切片完成（純文字 round-trip） | Sprint 185 走通端到端骨架：新模組 `export/OoxmlWriter.ts` per-part writer + fflate `zipSync`、規畫書 §6「import(export(doc)) ≅ doc」黃金測試骨架建立；RunProps/表格/樣式/Phase 5 子功能等留 Sprint 186+；預估 10-12 sprint 達 100% |
 | Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe（Sprint 60 GREEN） |
 | Phase 8 Template UI Builder | Phase 1 + 2.1 已驗證 / 2.2 未啟動 | ADR-022 落地（2026-05-19）、非 docx 匯入、工時 / VR mean 與 Phase 0-7 分開計算；Phase 1 視覺 + Phase 2.1 inline control 程式碼於 ADR-022 當日落地、2026-05-20 端到端驗證通過（vitest 1358 / 後端 6 test / 瀏覽器實測 0 console error、欄位插入刪除全通），詳見 [phase8_verification_2026-05-20.md](phase8_verification_2026-05-20.md)；Phase 2.2 overlay 依 ADR-022 條件啟動、未動工 |
 
