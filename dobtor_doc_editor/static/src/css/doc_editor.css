@@ -567,6 +567,19 @@
     color: #fff;
 }
 
+/* Sprint G：批次掃描變數按鈕，視覺次於 Odoo 欄位（藍色 vs 紫色），暗示「自動化輔助」 */
+.doc-field-btn-scan {
+    background: #e0f2fe;
+    border-color: #0284c7;
+    color: #0369a1;
+    font-weight: 500;
+}
+
+.doc-field-btn-scan:hover {
+    background: #0284c7;
+    color: #fff;
+}
+
 /* ─── Row 5：Signer bar ─── */
 .doc-signer-bar {
     display: flex;

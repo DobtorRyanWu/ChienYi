@@ -214,6 +214,15 @@
                     Odoo 欄位
                 </button>
 
+                <!-- Sprint G：批次掃描文件內 {{ var }} 自動建 Odoo 欄位 record -->
+                <button class="doc-field-btn doc-field-btn-scan"
+                        t-on-click="onScanVariablesClick"
+                        title="掃描文件內所有 {{ }} 變數、批次建立 Odoo 欄位 record"
+                        aria-label="掃描變數">
+                    <i class="fa fa-magic" aria-hidden="true"/>
+                    掃描變數
+                </button>
+
                 <!-- Sprint D：版面模式切換（inline / overlay） -->
                 <div class="doc-field-toolbar-sep" role="separator" aria-hidden="true"/>
                 <div class="doc-layout-mode-group" role="group" aria-label="版面模式">

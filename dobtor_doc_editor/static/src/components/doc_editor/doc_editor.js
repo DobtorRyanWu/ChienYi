@@ -18,6 +18,7 @@ import { OfflineManager } from "../../core/offline_manager";
 import { installGlobalErrorReporting, mark, reportError } from "../../core/telemetry";
 import { DocVersionPanel } from "../doc_version_panel/doc_version_panel";
 import { DocFieldPickerDialog } from "../doc_field_picker/doc_field_picker";
+import { scanJinja2Variables } from "./jinja2_scanner";
 
 /**
  * Phase 8 Template UI Builder（ADR-022）— Phase 1 視覺風格靠攏。
@@ -1798,6 +1799,157 @@ export class DocEditor extends Component {
                 }
             },
         });
+    }
+
+    /**
+     * Sprint G：批次掃描文件內所有 `{{ var }}` jinja2 變數，為每個 unique 變數
+     * 建立 doc.template.field record（field_type='odoo_field' + odoo_field_name=var）。
+     *
+     * 解決 Sprint E 留下的痛點：「舊文件內既有 `{{ var }}` 文字無法自動轉」——
+     * 以前要手動逐個刪掉舊文字再點 Odoo 欄位按鈕重插，5 個變數要點 5 次。
+     * 現在點一次「掃描變數」按鈕、後端批次建好 record，user 直接在 inspector 編輯。
+     *
+     * 設計取捨：
+     *   - **不做 in-place text → control 替換**：canvas-editor 的 IElement 位置操作易碎，
+     *     替換失敗會破壞文件結構。MVP 只建 record、不動原文，user 在 inspector 看
+     *     到後可決定要不要手動刪除舊文字。完整 in-place 替換留 Sprint H+ 視需求加。
+     *   - **跳過已存在的 odoo_field_name**：避免重複掃描重複建檔。
+     *   - **逐個 save_field 而非 batch 端點**：5-10 個變數的場景下 N 次 RPC 仍 < 1s，
+     *     無需新增後端端點。若未來掃 50+ 變數頻繁卡頓再加 batch。
+     */
+    async onScanVariablesClick() {
+        if (!this.editor) {
+            this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        if (!this.state.docId) {
+            this.notification.add("請先儲存文件後再執行掃描", { type: "warning" });
+            return;
+        }
+        if (!this._hasTemplate) {
+            this.notification.add(
+                "此文件未關聯範本。請先在後台 doc.document.template_id 設定範本後再回來。",
+                { type: "warning" }
+            );
+            return;
+        }
+
+        // 取出當前 canvas-editor 完整資料，掃描 main / header / footer
+        let data;
+        try {
+            data = this.editor.command.getValue().data;
+        } catch (e) {
+            console.error("[DocEditor] onScanVariablesClick getValue failed", e);
+            this.notification.add(`讀取文件內容失敗：${e.message || e}`, { type: "danger" });
+            return;
+        }
+        const scanned = scanJinja2Variables(data);
+        if (scanned.length === 0) {
+            this.notification.add(
+                "未找到任何 `{{ var }}` 變數。如需新增，請點「Odoo 欄位」按鈕。",
+                { type: "info" }
+            );
+            return;
+        }
+
+        // 已註冊 odoo_field_name 清單（避免重複建檔）
+        const existingNames = new Set(
+            (this._templateFieldsCache || [])
+                .filter(f => f.field_type === "odoo_field" && f.odoo_field_name)
+                .map(f => f.odoo_field_name)
+        );
+        const toCreate = scanned.filter(v => !existingNames.has(v.varName));
+        const skipCount = scanned.length - toCreate.length;
+
+        if (toCreate.length === 0) {
+            this.notification.add(
+                `找到 ${scanned.length} 個變數，但全部已是 Odoo 欄位 record（在 Inspector 中可編輯）。`,
+                { type: "info" }
+            );
+            return;
+        }
+
+        // 使用 window.confirm 而非自訂 dialog：portal 環境 dialog service 可能不可用，
+        // 且這是一次性確認、不需要複雜 UI。列出將建檔的變數名讓 user 確認。
+        const previewList = toCreate
+            .slice(0, 10)
+            .map(v => `  • ${v.varName}（${v.occurrences} 次）`)
+            .join("\n");
+        const moreSuffix = toCreate.length > 10 ? `\n  ... 還有 ${toCreate.length - 10} 個` : "";
+        const skipMsg = skipCount > 0 ? `\n\n（${skipCount} 個已是 Odoo 欄位、自動略過）` : "";
+        const ok = window.confirm(
+            `將為以下 ${toCreate.length} 個 jinja2 變數建立 Odoo 欄位 record：\n\n${previewList}${moreSuffix}${skipMsg}\n\n建立後可在右側 Inspector 編輯填寫者、必填、字型大小等屬性。\n\n確定要繼續嗎？`
+        );
+        if (!ok) return;
+
+        // 先確保 active signer 存在（同 onOdooFieldClick 流程）
+        const signer = await this._ensureSignerExists(this.state.activeSignerId);
+        if (!signer) return;
+
+        // 逐個 save_field（並行可能造成 race，序列化才安全）
+        const created = [];
+        const failed = [];
+        let lastSaveResult = null;
+        for (const v of toCreate) {
+            const payload = {
+                signer_id: signer.id,
+                field_type: "odoo_field",
+                page_no: this.state.pageNo || 1,
+                required: false,
+                placeholder_text: `{{ ${v.varName} }}`,
+                font_size: 12,
+                odoo_field_name: v.varName,
+            };
+            try {
+                const resp = await rpc("/dobtor_doc/template_fields/save_field", {
+                    doc_id: this.state.docId,
+                    field: payload,
+                });
+                if (!resp.success) {
+                    failed.push({ varName: v.varName, error: resp.error || "未知錯誤" });
+                    continue;
+                }
+                created.push({ id: resp.id, varName: v.varName });
+                lastSaveResult = resp;
+                // push cache 讓 inspector 立即看得到
+                if (!this._templateFieldsCache) this._templateFieldsCache = [];
+                this._templateFieldsCache.push({
+                    id: resp.id,
+                    ...payload,
+                    width: 120,
+                    height: 24,
+                    pos_x: 0,
+                    pos_y: 0,
+                });
+            } catch (e) {
+                console.error("[DocEditor] onScanVariablesClick save_field failed", v.varName, e);
+                failed.push({ varName: v.varName, error: e.message || String(e) });
+            }
+        }
+
+        // 用最後一次的 signer_field_counts / field_count 更新 chips（已涵蓋所有新增）
+        if (lastSaveResult) {
+            this._applySignerCounts(lastSaveResult.signer_field_counts);
+            this.state.fieldCount = lastSaveResult.field_count;
+        }
+
+        // 結果通知
+        if (failed.length === 0) {
+            this.notification.add(
+                `已批次建立 ${created.length} 個 Odoo 欄位 record。請至右側 Inspector 編輯詳細屬性。`,
+                { type: "success" }
+            );
+        } else if (created.length === 0) {
+            this.notification.add(
+                `批次建立失敗：${failed.map(f => f.varName).join(", ")}`,
+                { type: "danger" }
+            );
+        } else {
+            this.notification.add(
+                `成功 ${created.length} 個、失敗 ${failed.length} 個（${failed.map(f => f.varName).join(", ")}）。`,
+                { type: "warning" }
+            );
+        }
     }
 
     onSignerClick(signerId) {
