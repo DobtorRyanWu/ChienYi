@@ -332,3 +332,129 @@ describe('OoxmlWriter — Sprint 186 RunProps 序列化', () => {
     expect(szIdx).toBeLessThan(uIdx);
   });
 });
+
+describe('OoxmlWriter — Sprint 187 ParagraphProps 序列化', () => {
+  function paraWith(props: ParagraphNode['props'], styleId?: string): ParagraphNode {
+    const para: ParagraphNode = { type: 'paragraph', runs: [makeRun('x')], props };
+    if (styleId) para.styleId = styleId;
+    return para;
+  }
+  function getDocXml(para: ParagraphNode): string {
+    return unzipToText(writer.write(makeDoc([makeSection([para])])))['word/document.xml'];
+  }
+
+  it('無 props 與 styleId → 不輸出 <w:pPr>（紀律 #21）', () => {
+    const xml = getDocXml(paraWith({}));
+    expect(xml).not.toContain('<w:pPr>');
+  });
+
+  it('styleId → <w:pStyle w:val>（pPr 第一個子元素）', () => {
+    const xml = getDocXml(paraWith({}, 'Heading1'));
+    expect(xml).toContain('<w:pStyle w:val="Heading1"/>');
+    expect(xml.indexOf('<w:pStyle')).toBeLessThan(xml.indexOf('<w:r>'));
+  });
+
+  it('keepNext / keepLines / pageBreakBefore toggle properties', () => {
+    const xml = getDocXml(paraWith({
+      keepNext: true, keepLines: true, pageBreakBefore: true,
+    }));
+    expect(xml).toContain('<w:keepNext/>');
+    expect(xml).toContain('<w:keepLines/>');
+    expect(xml).toContain('<w:pageBreakBefore/>');
+  });
+
+  it('keepNext false → 顯式 w:val="0"', () => {
+    const xml = getDocXml(paraWith({ keepNext: false }));
+    expect(xml).toContain('<w:keepNext w:val="0"/>');
+  });
+
+  it('numId + ilvl → <w:numPr><w:ilvl/><w:numId/></w:numPr>', () => {
+    const xml = getDocXml(paraWith({ numId: 5, ilvl: 2 }));
+    expect(xml).toContain('<w:numPr>');
+    expect(xml).toContain('<w:ilvl w:val="2"/>');
+    expect(xml).toContain('<w:numId w:val="5"/>');
+    // ilvl 在 numId 之前
+    expect(xml.indexOf('<w:ilvl')).toBeLessThan(xml.indexOf('<w:numId'));
+  });
+
+  it('alignment → <w:jc w:val>', () => {
+    for (const a of ['left', 'center', 'right', 'justify'] as const) {
+      const xml = getDocXml(paraWith({ alignment: a }));
+      expect(xml).toContain(`<w:jc w:val="${a}"/>`);
+    }
+  });
+
+  it('indent 四欄位 → <w:ind w:left w:right w:firstLine w:hanging>（pt→twips）', () => {
+    const xml = getDocXml(paraWith({
+      indent: { left: 36, right: 36, firstLine: 18, hanging: 12 },
+    }));
+    // 36pt × 20 = 720 twips, 18pt × 20 = 360, 12pt × 20 = 240
+    expect(xml).toContain('w:left="720"');
+    expect(xml).toContain('w:right="720"');
+    expect(xml).toContain('w:firstLine="360"');
+    expect(xml).toContain('w:hanging="240"');
+  });
+
+  it('spacing before/after/line（auto rule、240 分母）', () => {
+    const xml = getDocXml(paraWith({
+      spacing: { before: 6, after: 6, line: { rule: 'auto', value: 1.5 } },
+    }));
+    // 6pt × 20 = 120 twips
+    expect(xml).toContain('w:before="120"');
+    expect(xml).toContain('w:after="120"');
+    // 1.5 × 240 = 360
+    expect(xml).toContain('w:line="360"');
+    expect(xml).toContain('w:lineRule="auto"');
+  });
+
+  it('spacing line exact rule → twips 換算', () => {
+    const xml = getDocXml(paraWith({
+      spacing: { line: { rule: 'exact', value: 14 } },
+    }));
+    // 14pt × 20 = 280 twips
+    expect(xml).toContain('w:line="280"');
+    expect(xml).toContain('w:lineRule="exact"');
+  });
+
+  it('tabs → <w:tabs><w:tab w:val w:pos w:leader/></w:tabs>', () => {
+    const xml = getDocXml(paraWith({
+      tabs: [
+        { pos: 100, align: 'left' },
+        { pos: 200, align: 'right', leader: 'dot' },
+      ],
+    }));
+    expect(xml).toContain('<w:tabs>');
+    expect(xml).toContain('<w:tab w:val="left" w:pos="2000"/>');
+    expect(xml).toContain('<w:tab w:val="right" w:pos="4000" w:leader="dot"/>');
+  });
+
+  it('textAlignment → <w:textAlignment w:val>', () => {
+    const xml = getDocXml(paraWith({ textAlignment: 'center' }));
+    expect(xml).toContain('<w:textAlignment w:val="center"/>');
+  });
+
+  it('snapToGrid toggle', () => {
+    expect(getDocXml(paraWith({ snapToGrid: true }))).toContain('<w:snapToGrid/>');
+    expect(getDocXml(paraWith({ snapToGrid: false }))).toContain('<w:snapToGrid w:val="0"/>');
+  });
+
+  it('子元素順序：pStyle → keepNext → numPr → spacing → ind → jc → textAlignment', () => {
+    const xml = getDocXml(paraWith({
+      keepNext: true, numId: 1, ilvl: 0,
+      spacing: { before: 6 }, indent: { left: 10 },
+      alignment: 'left', textAlignment: 'auto',
+    }, 'MyStyle'));
+    const indices = [
+      ['<w:pStyle', xml.indexOf('<w:pStyle')],
+      ['<w:keepNext', xml.indexOf('<w:keepNext')],
+      ['<w:numPr', xml.indexOf('<w:numPr')],
+      ['<w:spacing', xml.indexOf('<w:spacing')],
+      ['<w:ind ', xml.indexOf('<w:ind ')],
+      ['<w:jc ', xml.indexOf('<w:jc ')],
+      ['<w:textAlignment', xml.indexOf('<w:textAlignment')],
+    ] as const;
+    for (let i = 1; i < indices.length; i++) {
+      expect(indices[i][1]).toBeGreaterThan(indices[i - 1][1]);
+    }
+  });
+});

@@ -260,3 +260,124 @@ describe('Sprint 186 — Phase 6 export round-trip（RunProps）', () => {
     expect(back.vertAlign).toBe('superscript');
   });
 });
+
+describe('Sprint 187 — Phase 6 export round-trip（ParagraphProps）', () => {
+  function firstParaProps(doc: DocumentNode): ParagraphNode['props'] {
+    const block = doc.sections[0].body[0];
+    if (block.type !== 'paragraph') throw new Error('expected paragraph');
+    return block.props;
+  }
+  function firstParaStyleId(doc: DocumentNode): string | undefined {
+    const block = doc.sections[0].body[0];
+    if (block.type !== 'paragraph') throw new Error('expected paragraph');
+    return block.styleId;
+  }
+  function paraWith(props: ParagraphNode['props'], styleId?: string): ParagraphNode {
+    const p: ParagraphNode = { type: 'paragraph', runs: [makeRun('x')], props };
+    if (styleId) p.styleId = styleId;
+    return p;
+  }
+
+  it('alignment round-trip（left / center / right / justify）', () => {
+    for (const a of ['left', 'center', 'right', 'justify'] as const) {
+      const doc = makeDoc([makeSection([paraWith({ alignment: a })])]);
+      expect(firstParaProps(roundTrip(doc)).alignment).toBe(a);
+    }
+  });
+
+  it('styleId round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({}, 'Heading1')])]);
+    expect(firstParaStyleId(roundTrip(doc))).toBe('Heading1');
+  });
+
+  it('numId + ilvl round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({ numId: 5, ilvl: 2 })])]);
+    const back = firstParaProps(roundTrip(doc));
+    expect(back.numId).toBe(5);
+    expect(back.ilvl).toBe(2);
+  });
+
+  it('indent 四欄位 round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      indent: { left: 36, right: 24, firstLine: 18, hanging: 12 },
+    })])]);
+    const back = firstParaProps(roundTrip(doc)).indent;
+    expect(back?.left).toBeCloseTo(36, 1);
+    expect(back?.right).toBeCloseTo(24, 1);
+    expect(back?.firstLine).toBeCloseTo(18, 1);
+    expect(back?.hanging).toBeCloseTo(12, 1);
+  });
+
+  it('spacing before/after/line auto round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      spacing: { before: 6, after: 12, line: { rule: 'auto', value: 1.5 } },
+    })])]);
+    const back = firstParaProps(roundTrip(doc)).spacing;
+    expect(back?.before).toBeCloseTo(6, 1);
+    expect(back?.after).toBeCloseTo(12, 1);
+    expect(back?.line?.rule).toBe('auto');
+    expect(back?.line?.value).toBeCloseTo(1.5, 2);
+  });
+
+  it('spacing line exact round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      spacing: { line: { rule: 'exact', value: 14 } },
+    })])]);
+    const back = firstParaProps(roundTrip(doc)).spacing;
+    expect(back?.line?.rule).toBe('exact');
+    expect(back?.line?.value).toBeCloseTo(14, 1);
+  });
+
+  it('keepNext / keepLines / pageBreakBefore toggle round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      keepNext: true, keepLines: true, pageBreakBefore: true,
+    })])]);
+    const back = firstParaProps(roundTrip(doc));
+    expect(back.keepNext).toBe(true);
+    expect(back.keepLines).toBe(true);
+    expect(back.pageBreakBefore).toBe(true);
+  });
+
+  it('tabs round-trip（多 tab + leader）', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      tabs: [
+        { pos: 100, align: 'left' },
+        { pos: 200, align: 'right', leader: 'dot' },
+      ],
+    })])]);
+    const back = firstParaProps(roundTrip(doc)).tabs;
+    expect(back).toHaveLength(2);
+    expect(back?.[0].pos).toBeCloseTo(100, 1);
+    expect(back?.[0].align).toBe('left');
+    expect(back?.[1].pos).toBeCloseTo(200, 1);
+    expect(back?.[1].align).toBe('right');
+    expect(back?.[1].leader).toBe('dot');
+  });
+
+  it('textAlignment round-trip', () => {
+    for (const v of ['auto', 'top', 'center', 'baseline', 'bottom'] as const) {
+      const doc = makeDoc([makeSection([paraWith({ textAlignment: v })])]);
+      expect(firstParaProps(roundTrip(doc)).textAlignment).toBe(v);
+    }
+  });
+
+  it('多 ParagraphProps 組合 round-trip', () => {
+    const props = {
+      alignment: 'center' as const,
+      indent: { left: 24, firstLine: 12 },
+      spacing: { before: 6, after: 6, line: { rule: 'auto' as const, value: 1.0 } },
+      keepNext: true,
+      numId: 1, ilvl: 0,
+    };
+    const doc = makeDoc([makeSection([paraWith(props, 'Body')])]);
+    const back = roundTrip(doc);
+    const props2 = firstParaProps(back);
+    expect(firstParaStyleId(back)).toBe('Body');
+    expect(props2.alignment).toBe('center');
+    expect(props2.indent?.left).toBeCloseTo(24, 1);
+    expect(props2.spacing?.before).toBeCloseTo(6, 1);
+    expect(props2.keepNext).toBe(true);
+    expect(props2.numId).toBe(1);
+    expect(props2.ilvl).toBe(0);
+  });
+});

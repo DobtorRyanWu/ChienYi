@@ -27,6 +27,7 @@ import { zipSync, strToU8 } from 'fflate';
 import type {
   DocumentNode,
   ParagraphNode,
+  ParagraphProps,
   RunNode,
   RunProps,
   SectionNode,
@@ -49,6 +50,8 @@ const REL_TYPE_STYLES =
 const TWIPS_PER_PT = 20;
 /** 1 pt = 2 half-points（`<w:sz>` 用半 pt 單位、OOXML §17.3.2.39）。 */
 const HALF_POINTS_PER_PT = 2;
+/** `w:line` 的 auto 規則分母（240 = 單行、360 = 1.5 行；OOXML §17.3.1.33）。 */
+const LINE_SPACING_AUTO_BASE = 240;
 
 /** A4 直式預設頁面尺寸（pt），section.page 缺漏時 fallback。 */
 const DEFAULT_PAGE_WIDTH_PT = 595.3;
@@ -139,13 +142,109 @@ function writeDocument(doc: DocumentNode): string {
     '</w:document>';
 }
 
-/** 單一段落 `<w:p>`：MVS 僅輸出 RunNode（其他 InlineNode 型別跳過）。 */
+/**
+ * 單一段落 `<w:p>`：可選 `<w:pPr>` + 各 RunNode。
+ *
+ * Sprint 187：加 ParagraphProps + styleId 序列化、`<w:pPr>` 子元素依 CT_PPr
+ * schema 順序輸出（pStyle → keepNext → keepLines → pageBreakBefore → numPr →
+ * tabs → spacing → ind → jc → textAlignment → snapToGrid）。
+ */
 function writeParagraph(para: ParagraphNode): string {
+  const pPr = writePPr(para.props, para.styleId);
   const runs: string[] = [];
   for (const node of para.runs) {
     if (node.type === 'run') runs.push(writeRun(node));
   }
-  return `<w:p>${runs.join('')}</w:p>`;
+  return `<w:p>${pPr}${runs.join('')}</w:p>`;
+}
+
+/**
+ * Sprint 187：把 ParagraphProps + styleId 序列化為 `<w:pPr>` 屬性容器。
+ *
+ * 子元素順序依 OOXML CT_PPr schema（§17.3.1）大致排序。紀律 #21：欄位皆
+ * optional、無值不掛子元素；props 全空且無 styleId → 回空字串
+ * （不輸出 `<w:pPr>` 標籤、與 parser「無 pPr 視為無 props」對稱）。
+ *
+ * 本 sprint 覆蓋：pStyle / keepNext / keepLines / pageBreakBefore / numPr
+ * (numId+ilvl) / tabs / spacing / ind / jc / textAlignment / snapToGrid。
+ * 留後續：borders（pBdr）/ shading（shd）/ framePr。
+ */
+function writePPr(props: ParagraphProps, styleId: string | undefined): string {
+  const parts: string[] = [];
+
+  // 1. <w:pStyle> — 段落樣式 ID（CT_PPr schema 第一個子元素）
+  if (styleId !== undefined && styleId !== '') {
+    parts.push(`<w:pStyle w:val="${escapeXml(styleId)}"/>`);
+  }
+
+  // 2-4. toggle properties（true=空 element、false=w:val="0" 顯式覆蓋 style）
+  if (props.keepNext === true) parts.push('<w:keepNext/>');
+  else if (props.keepNext === false) parts.push('<w:keepNext w:val="0"/>');
+  if (props.keepLines === true) parts.push('<w:keepLines/>');
+  else if (props.keepLines === false) parts.push('<w:keepLines w:val="0"/>');
+  if (props.pageBreakBefore === true) parts.push('<w:pageBreakBefore/>');
+  else if (props.pageBreakBefore === false) parts.push('<w:pageBreakBefore w:val="0"/>');
+
+  // 5. <w:numPr>：清單編號（ilvl + numId 兩子元素）
+  if (props.numId !== undefined || props.ilvl !== undefined) {
+    const inner: string[] = [];
+    if (props.ilvl !== undefined) inner.push(`<w:ilvl w:val="${props.ilvl}"/>`);
+    if (props.numId !== undefined) inner.push(`<w:numId w:val="${props.numId}"/>`);
+    parts.push(`<w:numPr>${inner.join('')}</w:numPr>`);
+  }
+
+  // 6. <w:tabs>：tab stop 陣列
+  if (props.tabs && props.tabs.length > 0) {
+    const tabEls = props.tabs.map((t) => {
+      const attrs = [`w:val="${t.align}"`, `w:pos="${ptToTwips(t.pos)}"`];
+      if (t.leader) attrs.push(`w:leader="${escapeXml(t.leader)}"`);
+      return `<w:tab ${attrs.join(' ')}/>`;
+    });
+    parts.push(`<w:tabs>${tabEls.join('')}</w:tabs>`);
+  }
+
+  // 7. <w:spacing>：段前 / 段後 / 行距
+  if (props.spacing) {
+    const attrs: string[] = [];
+    if (props.spacing.before !== undefined) attrs.push(`w:before="${ptToTwips(props.spacing.before)}"`);
+    if (props.spacing.after !== undefined) attrs.push(`w:after="${ptToTwips(props.spacing.after)}"`);
+    if (props.spacing.line) {
+      const { rule, value } = props.spacing.line;
+      // auto 規則用 240 分母（Word 慣例）；其餘 rule = twips
+      const lineVal = rule === 'auto'
+        ? Math.round(value * LINE_SPACING_AUTO_BASE)
+        : ptToTwips(value);
+      attrs.push(`w:line="${lineVal}"`);
+      attrs.push(`w:lineRule="${rule}"`);
+    }
+    if (attrs.length > 0) parts.push(`<w:spacing ${attrs.join(' ')}/>`);
+  }
+
+  // 8. <w:ind>：縮排
+  if (props.indent) {
+    const attrs: string[] = [];
+    if (props.indent.left !== undefined) attrs.push(`w:left="${ptToTwips(props.indent.left)}"`);
+    if (props.indent.right !== undefined) attrs.push(`w:right="${ptToTwips(props.indent.right)}"`);
+    if (props.indent.firstLine !== undefined) attrs.push(`w:firstLine="${ptToTwips(props.indent.firstLine)}"`);
+    if (props.indent.hanging !== undefined) attrs.push(`w:hanging="${ptToTwips(props.indent.hanging)}"`);
+    if (attrs.length > 0) parts.push(`<w:ind ${attrs.join(' ')}/>`);
+  }
+
+  // 9. <w:jc>：水平對齊
+  if (props.alignment !== undefined) {
+    parts.push(`<w:jc w:val="${props.alignment}"/>`);
+  }
+
+  // 10. <w:textAlignment>：行內垂直對齊
+  if (props.textAlignment !== undefined) {
+    parts.push(`<w:textAlignment w:val="${props.textAlignment}"/>`);
+  }
+
+  // 11. <w:snapToGrid>：是否貼齊 docGrid
+  if (props.snapToGrid === true) parts.push('<w:snapToGrid/>');
+  else if (props.snapToGrid === false) parts.push('<w:snapToGrid w:val="0"/>');
+
+  return parts.length > 0 ? `<w:pPr>${parts.join('')}</w:pPr>` : '';
 }
 
 /**
