@@ -64,6 +64,8 @@ Dobtor Doc Editor v2.1
             # Odoo 欄位選擇器 Dialog（Phase 8 ADR-022 復活，必須在 doc_editor.js 之前）
             'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.xml',
             'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.js',
+            # Sprint G/H：jinja2 變數掃描器（純函式 util，必須在 doc_editor.js 之前）
+            'dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js',
             # 主編輯器 Component
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.xml',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',
@@ -108,6 +110,8 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor.umd.min.js',
             'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor-shim.js',
             'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor-plugin-docx.umd.js',
+            # Sprint G/H：jinja2 變數掃描器（純函式 util，必須在 doc_editor.js 之前）
+            'dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js',
             # 主編輯器 Component
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.xml',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',
