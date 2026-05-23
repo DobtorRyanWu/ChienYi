@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 196 結尾）
+## 1. 當前指標一覽（Sprint 197 結尾 — Final audit 完成）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1893 passed + 1 skipped**（`npm test` 全套口徑＝tests/unit + tests/integration；Sprint 196 +10：7 OoxmlWriter watermark + 3 round-trip）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **1906 passed + 1 skipped**（`npm test` 全套口徑＝tests/unit + tests/integration；Sprint 197 docs-only、未動測試；計數差 1893→1906 來自 fixture-driven 動態測試自然重發）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 56 次連續 byte-identical；Sprint 167-196 textAlignment / framePr / background / watermark / 追蹤修訂 / 註解 / OMML / SmartArt / Charts / export 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 196（最新 sprint196_export_watermark.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 197（最新 sprint197_final_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
 
 ---
@@ -60,7 +60,7 @@
 | Phase 4.5 產品化基礎建設 | 100% | 詳見 [phase4_5_completed.md](phase4_5_completed.md) |
 | Phase 5+（註腳 / 追蹤修訂 / OMML） | 5.1-5.6 capture+render 全完成（互動 panel optional） | Sprint 142 probe → user 2026-05-21 GO 全 6 子功能;**Sprint 171 §Phase 5.6「背景」完成**（`<w:background>` parse + render wire-up）;**Sprint 172-173 §Phase 5.6「浮水印」完成**（Sprint 172 WatermarkParser capture header VML `<v:shape>` 文字/圖片浮水印;Sprint 173 CanvasRenderer renderWatermark 文字浮水印旋轉淺灰繪製、opt-in Strategy C、VR byte-identical;圖片浮水印 render 留後續）;**Phase 5.6「浮水印 + 背景」收尾**;**Sprint 174-175 §Phase 5.4「追蹤修訂」收尾**（capture + render、Strategy C）;**Sprint 176 §Phase 5.5「註解」capture**（`comments.xml` CommentsParser → `DocumentNode.comments`、比照 FootnotesParser、capture-only、VR byte-identical）;**決策 C 可控部分（5.4+5.5+5.6）全數完成**;**Sprint 177 §Phase 5.5 註解錨點 capture**（`<w:commentRangeStart>`/`<w:commentReference>` → `ParagraphNode.commentRefs`、capture-only）;**Sprint 178 §Phase 5.6 background themeColor→hex**（`BackgroundParser` 加 themeMap 參數、`resolveThemeColor` 解析、theme-based 背景可 render）;**Sprint 179 §Phase 5.1 OMML capture**（`omml/OmmlParser.ts` `parseOmmlChildren` 遞迴樹解析 → `ParagraphNode.math`、`<m:oMath>` 行內 / `<m:oMathPara>` display、capture-only、VR byte-identical;6 omml synthetic fixture 入庫）;**Sprint 180 §Phase 5.1 OMML render**（`OmmlNode` 補 attrs + `ommlToLinearText` 線性文字 fallback + ToCanvasEditor 接線;KaTeX 全保真留未來 optional、依 Sprint 128 bundle 取捨 + user mc:Fallback 決策）;**Phase 5.1 OMML 完成**（capture 179 + render 180）;**Sprint 181 §Phase 5.2 SmartArt capture**（新模組 `diagram/DiagramParser.ts` 解析 `diagrams/dataN.xml` `<dgm:dataModel>` → `DocumentNode.smartArts?`：內容點文字 + `loTypeId` 版面類型;勘查 4 個真實 fixture 確認**皆無 `<mc:Fallback>` 內嵌圖**、SmartArt 走 dgm 資料模型 + `drawingN.xml` 預渲染 shape → mc:Fallback 壓縮的實際對應 = 取資料模型語意文字;capture-only、VR byte-identical 第 41 連;17 DiagramParser unit + 4 真實 fixture integration test）;**Sprint 182 §Phase 5.3 Chart capture**（新模組 `chart/ChartParser.ts` 解析 `charts/chartN.xml` `<c:chartSpace>` → `DocumentNode.charts?`：圖表型別 + 標題 + 各數列的類別/數值快取;`<c:strCache>`/`<c:numCache>` 稀疏 `<c:pt idx>` 對位、cat↔val 同長;勘查 8 個真實 fixture 同確認皆無 `<mc:Fallback>` 圖;capture-only、VR byte-identical 第 42 連;18 ChartParser unit + 5 真實 fixture integration test）;**Sprint 183 §Phase 5.2/5.3 SmartArt+Chart render wire-up**（`InlineImageNode.graphic?` + DrawingParser `parseGraphicFrame` 偵測 `<a:graphicData uri=".../diagram｜chart">` → relId;`smartArtToText`/`chartToText` 線性文字函式;ToCanvasEditor `appendImage` graphic frame 分支查 `smartArtsByRId`/`chartsByRId` → 線性文字 fallback;Strategy C、0/42 fixture 含 graphic frame → byte-identical 第 43 連;+20 test）;**Phase 5 大三項（5.1 OMML / 5.2 SmartArt / 5.3 Charts）capture + render 全數完成**;**Sprint 184 §Phase 5.5 註解 render wire-up**（`commentToText` 攤平 `CommentContent` BlockNode[] → 純文字;ToCanvasEditor `appendParagraph` 加 `commentRefs` 分支、被註解段落後 append `[註解 作者: 內容]`;Strategy C、byte-identical 第 44 連;+10 test）;**Phase 5 全 6 子功能（5.1-5.6）capture + render 全數完成**;精確錨點 highlight + 互動 panel（回覆/解決狀態）列為未來 optional** |
 | Phase 6 Export 對稱性 | **~100%（完成）** | Sprint 185-195 + **196 watermark export**（合成 watermark header 部件、`<w:hdr><w:p><w:r><w:pict><v:shape type="#_x0000_t136"><v:textpath string font-family>`、無 default header section 注入 WATERMARK_HEADER_RID 為 default headerReference、有 default 的保留原 default 為 honest sub-gap、Content_Types/rels 自動擴充、文字浮水印 text/font/rotation round-trip 對稱）；**Phase 6「docx export 對稱性」全 7 子目標達成**（MVS / RunProps / ParagraphProps / Styles / 表格 / 多 section + numbering / 圖片 / 頁首頁尾 + sectPr / OMML / 追蹤修訂 / 註解 / background / SmartArt / Chart / watermark） |
-| Phase 7 效能優化 | 84% | cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe（Sprint 60 GREEN） |
+| Phase 7 效能優化 | 84%（剩餘屬大 scope cluster、單 sprint 不可收）| cache 五連發 + LayoutCache + path coalescing + OffscreenCanvas probe（Sprint 60 GREEN）；**剩餘 cluster**（每個 2-3 sprint、合計 ~10 sprint）：OffscreenCanvas worker render / Web Worker parse / 50+頁 fixture / 大檔 benchmark / 邊緣相容性 audit。**Sprint 197 final audit 判定**：ChienYi 監造文件實際 20-50p、cache 五連發已達 7× warm path 加速、worker 改造收益與成本比 marginal、留長期 optional |
 | Phase 8 Template UI Builder | Phase 1 + 2.1 + Sprint A-E 收口 8/8 UI 缺口（方案 1 完成） | ADR-022 落地（2026-05-19）、非 docx 匯入、工時 / VR mean 與 Phase 0-7 分開計算；Phase 1 視覺 + Phase 2.1 inline control 程式碼於 ADR-022 當日落地、2026-05-20 端到端驗證通過，詳見 [phase8_verification_2026-05-20.md](phase8_verification_2026-05-20.md)；**Sprint A+B+C（2026-05-23）一口氣收口 7/8 UI 缺口（方案 1）**：Sprint A sub-nav 三分頁（儀表板/請求/設定）解封 + 預覽鈕接 `/dobtor_doc/template_preview` jinja2 sandbox；Sprint B `intersectionPageNoChange`/`pageSizeChange`/`pageScaleChange` 三 listener + `_scrollToPage` 用 `<canvas>` scrollIntoView 換頁 + fit-width/page DOM 量測；Sprint C canvas.toDataURL 縮圖 200×283 JPEG@0.5、debounce 800ms 重生、點縮圖跳頁；92 backend test + 1722 vitest 全綠（0 regression）、詳見 [phase8_sprint_a_2026-05-23.md](phase8_sprint_a_2026-05-23.md) / [phase8_sprint_b_2026-05-23.md](phase8_sprint_b_2026-05-23.md) / [phase8_sprint_c_2026-05-23.md](phase8_sprint_c_2026-05-23.md)；**Sprint D（2026-05-23 同日）MVP Phase 8.2.2 overlay 絕對定位**：model 加 `layout_mode` Selection、工具列 inline/overlay toggle、overlay layer 渲染 + mousedown/move/up 拖曳 + `transform:scale` 縮放聯動 + inline/overlay 共存；**Sprint E** Odoo 欄位按鈕重寫接後端 field 紀錄；92 backend tests + 1800 vitest + **13 Playwright E2E** 全綠（0 regression）、詳見 [phase8_sprint_d_2026-05-23.md](phase8_sprint_d_2026-05-23.md) / [phase8_sprint_e_2026-05-23.md](phase8_sprint_e_2026-05-23.md)；Sprint D resize 控制點 + 越界限制 + 多選對齊輔助線留 polish sprint |
 
 ---
@@ -79,6 +79,26 @@
 每個 sprint 的 audit doc（[INDEX.md](INDEX.md)）含三層 SOP 的具體數據。完整紀律集合見 [../CONTRIBUTING.md §5 + §6](../CONTRIBUTING.md)。
 
 **自 Sprint 159 起紀律 #14.b 嚴格 enforce**:每個 sprint commit 前 `git status -s addons/dobtor_doc_editor/` 必須 0 modified 0 untracked、否則先補 commit 殘留(避免 working tree drift 累積、Sprint 158 P0 prep 揭發 Sprint 0-157 期間 353 件 backfill 是反例)。
+
+---
+
+## 6. Sprint 197 — Final audit 結論（2026-05-24）
+
+詳見 [sprint197_final_audit.md](sprint197_final_audit.md)。
+
+**整體進度**：~89% 加權平均（Phase 1-7 主線 + Phase 4.5 / Phase 8 並行）。
+
+**達 100% / MVP 的 Phase**：0、1、4.5、5、6、8（方案 1）。
+
+**達商用 B+ 級的 Phase**：3（VR mean 0.073191）、4（決策 A 完成）。
+
+**外部依賴卡住的 Phase**：2（HarfBuzz 整合需 canvas-editor patch）。
+
+**剩餘為大 scope cluster 的 Phase**：7（OffscreenCanvas worker / Web Worker parse / 大檔 fixture / benchmark / 邊緣相容性 audit）。
+
+**對 ChienYi 監造系統實際價值**：docx 匯入 / 編輯 / export / PDF 產出 / Portal 整合**全部達商用標準**。無高影響 honest gap。
+
+**後續建議 ROI 排序**：邊緣相容性 audit（高）> 合成 50p fixture + benchmark（中）> Phase 8 多選對齊輔助線（低）> OffscreenCanvas worker（不建議）。
 
 ---
 
