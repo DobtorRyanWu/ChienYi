@@ -127,6 +127,8 @@ export class DocEditor extends Component {
             // 請求分頁：填寫請求清單（lazy-load）
             requests: [],
             requestsLoading: false,
+            // ─── Sprint B：canvas-editor 當前縮放比例（由 pageScaleChange listener 同步） ───
+            currentZoomScale: 1,
         });
         // 切到 requests tab 時才 load 一次
         this._requestsLoaded = false;
@@ -455,6 +457,56 @@ export class DocEditor extends Component {
                 // 不要讓 listener 抛例外破壞 canvas-editor 內部流程
             }
         };
+
+        // Sprint B：同步 canvas-editor 頁碼狀態到 state，讓 pager / dashboard 即時反映。
+        //   intersectionPageNoChange → 滾動時 viewport 可見頁變更
+        //   pageSizeChange → 文件分頁數變更（新增/刪除內容導致分頁變化）
+        //   pageScaleChange → 縮放比例變更（user 操作或 fit 模式觸發）
+        this.editor.listener.intersectionPageNoChange = (pageNo) => {
+            try {
+                // canvas-editor 用 0-based pageNo；UI 顯示 1-based
+                const oneBased = typeof pageNo === "number" ? pageNo + 1 : 1;
+                if (this.state.pageNo !== oneBased) {
+                    this.state.pageNo = oneBased;
+                }
+            } catch (e) {
+                // 不要讓 listener 抛例外破壞 canvas-editor 內部流程
+            }
+        };
+        this.editor.listener.pageSizeChange = () => {
+            try {
+                const total = typeof this.editor.command.getPageCount === "function"
+                    ? this.editor.command.getPageCount()
+                    : null;
+                if (typeof total === "number" && total >= 1 && this.state.totalPages !== total) {
+                    this.state.totalPages = total;
+                }
+            } catch (e) {
+                // 容錯：API 不存在或拋例外時保留現有 state.totalPages
+            }
+        };
+        this.editor.listener.pageScaleChange = (scale) => {
+            try {
+                if (typeof scale === "number" && Number.isFinite(scale)) {
+                    this.state.currentZoomScale = scale;
+                }
+            } catch (e) {
+                // 容錯
+            }
+        };
+        // 初始化時讀一次總頁數（避免 listener 沒觸發前 dashboard 顯示 1）
+        try {
+            const total = typeof this.editor.command.getPageCount === "function"
+                ? this.editor.command.getPageCount()
+                : 1;
+            this.state.totalPages = total || 1;
+            const cur = typeof this.editor.command.getPageNo === "function"
+                ? this.editor.command.getPageNo()
+                : 0;
+            this.state.pageNo = (cur || 0) + 1;
+        } catch (e) {
+            // 容錯
+        }
     }
 
     // ─── 資料載入 ────────────────────────────────────────────────────
@@ -1405,27 +1457,118 @@ export class DocEditor extends Component {
         this.state.activeSignerId = signerId;
     }
 
+    /**
+     * Sprint B：縮放模式切換。
+     *   auto  → executePageScaleRecovery（canvas-editor 預設值，通常 = 1）
+     *   width → 計算 workspace_width / page_native_width × 0.95 後呼叫 executePageScale
+     *   page  → min(workspace_w/page_w, workspace_h/page_h) × 0.95
+     *
+     * canvas-editor 沒有原生 fit-to-width，靠 DOM 量測 + executePageScale 達成。
+     */
     onZoomFitChange(event) {
         const mode = event.target.value;
         this.state.zoomFit = mode;
-        // canvas-editor 有 executePageScale(number) 但沒有真正的 fit-to-width 概念。
-        // Phase 1 把「自動縮放」對應到 1.0、其餘已在 toolbar zoom 處理。
-        if (this.editor && mode === "auto") {
-            try {
-                this.editor.command.executePageScale(1);
-            } catch (e) {
-                // 忽略
+        if (!this.editor) {
+            return;
+        }
+        try {
+            if (mode === "auto") {
+                if (typeof this.editor.command.executePageScaleRecovery === "function") {
+                    this.editor.command.executePageScaleRecovery();
+                } else {
+                    this.editor.command.executePageScale(1);
+                }
+                return;
             }
+            const workspaceEl = this.canvasContainer?.el?.closest(".doc-workspace")
+                || this.canvasContainer?.el?.parentElement;
+            if (!workspaceEl) {
+                this.notification.add("無法取得工作區尺寸，縮放未變更。", { type: "warning" });
+                return;
+            }
+            // 找出實際 page canvas 量測原生尺寸（每頁有一個 <canvas>）
+            const pageCanvas = this.canvasContainer.el.querySelector("canvas");
+            if (!pageCanvas) {
+                this.notification.add("找不到頁面元素，縮放未變更。", { type: "warning" });
+                return;
+            }
+            // canvas-editor 用 devicePixelRatio 放大 canvas backing store；
+            // pageCanvas.width/.height 是 backing pixels，需除以 pixelRatio 還原邏輯尺寸
+            const ratio = (typeof this.editor.command.getPagePixelRatio === "function"
+                ? this.editor.command.getPagePixelRatio()
+                : (window.devicePixelRatio || 1)) || 1;
+            // 當前縮放：state.currentZoomScale 由 pageScaleChange listener 同步
+            const currentScale = this.state.currentZoomScale || 1;
+            const logicalPageWidth = pageCanvas.width / ratio / currentScale;
+            const logicalPageHeight = pageCanvas.height / ratio / currentScale;
+            const workspaceRect = workspaceEl.getBoundingClientRect();
+            // 預留 5% margin 給 scrollbar 與視覺留白
+            const PADDING = 0.95;
+            let newScale = 1;
+            if (mode === "width") {
+                newScale = (workspaceRect.width * PADDING) / logicalPageWidth;
+            } else if (mode === "page") {
+                newScale = Math.min(
+                    (workspaceRect.width * PADDING) / logicalPageWidth,
+                    (workspaceRect.height * PADDING) / logicalPageHeight,
+                );
+            }
+            // canvas-editor executePageScale 範圍：0.5 ~ 3
+            newScale = Math.max(0.5, Math.min(3, newScale));
+            this.editor.command.executePageScale(newScale);
+        } catch (e) {
+            console.warn("[DocEditor] onZoomFitChange failed", e);
+            this.notification.add(`縮放切換失敗：${e.message || e}`, { type: "warning" });
         }
     }
 
+    /**
+     * Sprint B：上一頁／下一頁。
+     *
+     * canvas-editor 沒有暴露 `editor.command.executePageNo`，但每頁渲染為獨立
+     * `<canvas>` 元素於容器內。透過 `scrollIntoView` 把對應頁滾入視野，
+     * 隨後由 `intersectionPageNoChange` listener 回寫 state.pageNo。
+     */
     onPrevPage() {
-        if (this.state.pageNo > 1) this.state.pageNo -= 1;
-        // Phase 2：editor.command.executePageNo(this.state.pageNo)（若 API 存在）
+        if (this.state.pageNo > 1) {
+            this._scrollToPage(this.state.pageNo - 1);
+        }
     }
 
     onNextPage() {
-        if (this.state.pageNo < this.state.totalPages) this.state.pageNo += 1;
+        if (this.state.pageNo < this.state.totalPages) {
+            this._scrollToPage(this.state.pageNo + 1);
+        }
+    }
+
+    /**
+     * Sprint B 共用：把指定頁（1-based）滾入視野。
+     */
+    _scrollToPage(targetPageOneBased) {
+        if (!this.editor || !this.canvasContainer?.el) {
+            return;
+        }
+        const target = parseInt(targetPageOneBased, 10);
+        if (!Number.isFinite(target) || target < 1) {
+            return;
+        }
+        try {
+            // canvas-editor 每頁渲染為一個 <canvas>；用 nth-of-type 選第 N 個
+            const pageCanvases = this.canvasContainer.el.querySelectorAll("canvas");
+            const idx = target - 1;
+            if (idx < 0 || idx >= pageCanvases.length) {
+                this.notification.add(
+                    `第 ${target} 頁不存在（文件共 ${pageCanvases.length} 頁）`,
+                    { type: "warning" }
+                );
+                return;
+            }
+            pageCanvases[idx].scrollIntoView({ behavior: "smooth", block: "start" });
+            // 樂觀更新 state.pageNo；intersectionPageNoChange listener 隨後會校正
+            this.state.pageNo = target;
+        } catch (e) {
+            console.warn("[DocEditor] _scrollToPage failed", e);
+        }
     }
 
     // ─── 版本管理（W7-8 P1-1）─────────────────────────────────────
