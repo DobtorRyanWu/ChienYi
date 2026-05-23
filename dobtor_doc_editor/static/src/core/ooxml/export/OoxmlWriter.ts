@@ -28,6 +28,7 @@ import type {
   DocumentNode,
   ParagraphNode,
   RunNode,
+  RunProps,
   SectionNode,
 } from '../ast/types';
 
@@ -46,6 +47,8 @@ const REL_TYPE_STYLES =
 
 /** 1 pt = 20 twips（OOXML 度量單位、§17.18.85）。 */
 const TWIPS_PER_PT = 20;
+/** 1 pt = 2 half-points（`<w:sz>` 用半 pt 單位、OOXML §17.3.2.39）。 */
+const HALF_POINTS_PER_PT = 2;
 
 /** A4 直式預設頁面尺寸（pt），section.page 缺漏時 fallback。 */
 const DEFAULT_PAGE_WIDTH_PT = 595.3;
@@ -145,10 +148,72 @@ function writeParagraph(para: ParagraphNode): string {
   return `<w:p>${runs.join('')}</w:p>`;
 }
 
-/** 單一文字 run `<w:r><w:t>`：MVS 不輸出 `<w:rPr>`（樣式留後續）。 */
+/**
+ * 單一文字 run `<w:r>`：含可選 `<w:rPr>` + `<w:t>`。
+ *
+ * Sprint 186：加 RunProps 序列化（粗體 / 斜體 / 刪除線 / 底線 / 字級 / 顏色 /
+ * 字型 / 高亮 / 上下標 / 字距 / 語言）。紀律 #21：無 props 時不輸出 `<w:rPr>`。
+ */
 function writeRun(run: RunNode): string {
-  // `xml:space="preserve"` 保留前後空白（OOXML §17.3.3.31）；MVS 一律帶上
-  return `<w:r><w:t xml:space="preserve">${escapeXml(run.text)}</w:t></w:r>`;
+  const rPr = writeRPr(run.props);
+  // `xml:space="preserve"` 保留前後空白（OOXML §17.3.3.31）；一律帶上
+  return `<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(run.text)}</w:t></w:r>`;
+}
+
+/**
+ * Sprint 186：把 RunProps 序列化為 `<w:rPr>` 屬性容器。
+ *
+ * 子元素順序大致依 OOXML CT_RPr schema（§17.3.2）：
+ *   rFonts → b → i → strike → dstrike → color → spacing → sz → highlight →
+ *   u → vertAlign → lang
+ *
+ * 紀律 #21：所有欄位皆 optional、無值不掛、props 全空 → 回空字串（不輸出
+ * `<w:rPr/>` 標籤、與 parser 「無 rPr 就視為無 props」對稱）。
+ */
+function writeRPr(props: RunProps): string {
+  if (!props || Object.keys(props).length === 0) return '';
+  const parts: string[] = [];
+
+  // w:rFonts ascii / eastAsia / hAnsi / cs（缺漏屬性跳過）
+  const fontAttrs: string[] = [];
+  if (props.fontFamily !== undefined) fontAttrs.push(`w:ascii="${escapeXml(props.fontFamily)}"`);
+  if (props.fontFamilyEastAsia !== undefined) fontAttrs.push(`w:eastAsia="${escapeXml(props.fontFamilyEastAsia)}"`);
+  if (props.fontFamilyHAnsi !== undefined) fontAttrs.push(`w:hAnsi="${escapeXml(props.fontFamilyHAnsi)}"`);
+  if (props.fontFamilyCs !== undefined) fontAttrs.push(`w:cs="${escapeXml(props.fontFamilyCs)}"`);
+  if (fontAttrs.length > 0) parts.push(`<w:rFonts ${fontAttrs.join(' ')}/>`);
+
+  // toggle properties：true → 空 element、false → w:val="0"（顯式關閉、覆蓋 style）
+  if (props.bold === true) parts.push('<w:b/>');
+  else if (props.bold === false) parts.push('<w:b w:val="0"/>');
+  if (props.italic === true) parts.push('<w:i/>');
+  else if (props.italic === false) parts.push('<w:i w:val="0"/>');
+  if (props.strike === true) parts.push('<w:strike/>');
+  else if (props.strike === false) parts.push('<w:strike w:val="0"/>');
+  if (props.dstrike === true) parts.push('<w:dstrike/>');
+  else if (props.dstrike === false) parts.push('<w:dstrike w:val="0"/>');
+
+  // w:color w:val="RRGGBB"（或 auto / themeColor、本 sprint 只支援具體 hex）
+  if (props.color !== undefined) parts.push(`<w:color w:val="${escapeXml(props.color)}"/>`);
+
+  // w:spacing w:val（字元間距、單位 = 20 倍 pt = twips；可正可負）
+  if (props.spacing !== undefined) parts.push(`<w:spacing w:val="${ptToTwips(props.spacing)}"/>`);
+
+  // w:sz w:val（half-points、12pt = 24）
+  if (props.fontSize !== undefined) parts.push(`<w:sz w:val="${ptToHalfPoints(props.fontSize)}"/>`);
+
+  // w:highlight w:val（具名色 yellow / cyan / red…；HexColor 型別也可能裝具名色字串）
+  if (props.highlight !== undefined) parts.push(`<w:highlight w:val="${escapeXml(props.highlight)}"/>`);
+
+  // w:u w:val（none / single / double / words / thick / wave / 自訂…）
+  if (props.underline !== undefined) parts.push(`<w:u w:val="${escapeXml(props.underline)}"/>`);
+
+  // w:vertAlign w:val（baseline / superscript / subscript）
+  if (props.vertAlign !== undefined) parts.push(`<w:vertAlign w:val="${escapeXml(props.vertAlign)}"/>`);
+
+  // w:lang w:val（zh-TW / en-US / ja-JP…）
+  if (props.lang !== undefined) parts.push(`<w:lang w:val="${escapeXml(props.lang)}"/>`);
+
+  return parts.length > 0 ? `<w:rPr>${parts.join('')}</w:rPr>` : '';
 }
 
 /**
@@ -191,4 +256,9 @@ function escapeXml(s: string): string {
 /** pt → twips（四捨五入到整數、OOXML 要求整數）。 */
 function ptToTwips(pt: number): number {
   return Math.round(pt * TWIPS_PER_PT);
+}
+
+/** pt → half-points（`<w:sz>` 單位、12pt = 24、四捨五入到整數）。 */
+function ptToHalfPoints(pt: number): number {
+  return Math.round(pt * HALF_POINTS_PER_PT);
 }

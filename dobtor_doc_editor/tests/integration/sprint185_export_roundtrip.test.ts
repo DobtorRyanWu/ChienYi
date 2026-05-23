@@ -155,3 +155,108 @@ describe('Sprint 185 — Phase 6 export round-trip（純文字段落）', () => 
     expect(back.sections[0].margins.left).toBeCloseTo(72, 1);
   });
 });
+
+describe('Sprint 186 — Phase 6 export round-trip（RunProps）', () => {
+  /** 從 round-trip 後的 doc 取第一段第一個 run 的 props。 */
+  function firstRunProps(doc: DocumentNode): RunNode['props'] {
+    const sec = doc.sections[0];
+    const para = sec.body[0];
+    if (para.type !== 'paragraph') throw new Error('expected paragraph');
+    const run = para.runs[0];
+    if (run.type !== 'run') throw new Error('expected run');
+    return run.props;
+  }
+
+  function makeRunWithProps(text: string, props: RunNode['props']): RunNode {
+    return { type: 'run', text, props };
+  }
+
+  it('粗體 / 斜體 / 刪除線 round-trip', () => {
+    const doc = makeDoc([makeSection([makeParagraph([
+      makeRunWithProps('x', { bold: true, italic: true, strike: true }),
+    ])])]);
+    const back = firstRunProps(roundTrip(doc));
+    expect(back.bold).toBe(true);
+    expect(back.italic).toBe(true);
+    expect(back.strike).toBe(true);
+  });
+
+  it('字級 fontSize round-trip（half-points 精度）', () => {
+    const doc = makeDoc([makeSection([makeParagraph([
+      makeRunWithProps('x', { fontSize: 14 }),
+    ])])]);
+    expect(firstRunProps(roundTrip(doc)).fontSize).toBe(14);
+  });
+
+  it('顏色 hex round-trip（大寫正規化由 parser 處理）', () => {
+    const doc = makeDoc([makeSection([makeParagraph([
+      makeRunWithProps('x', { color: 'FF0000' }),
+    ])])]);
+    const back = firstRunProps(roundTrip(doc));
+    expect(back.color?.toUpperCase()).toBe('FF0000');
+  });
+
+  it('底線 underline round-trip', () => {
+    for (const u of ['single', 'double', 'wave'] as const) {
+      const doc = makeDoc([makeSection([makeParagraph([
+        makeRunWithProps('x', { underline: u }),
+      ])])]);
+      expect(firstRunProps(roundTrip(doc)).underline).toBe(u);
+    }
+  });
+
+  it('上下標 vertAlign round-trip', () => {
+    for (const v of ['superscript', 'subscript'] as const) {
+      const doc = makeDoc([makeSection([makeParagraph([
+        makeRunWithProps('x', { vertAlign: v }),
+      ])])]);
+      expect(firstRunProps(roundTrip(doc)).vertAlign).toBe(v);
+    }
+  });
+
+  it('字型 rFonts 四欄位 round-trip', () => {
+    const doc = makeDoc([makeSection([makeParagraph([
+      makeRunWithProps('x', {
+        fontFamily: 'Arial',
+        fontFamilyEastAsia: '微軟正黑體',
+        fontFamilyHAnsi: 'Calibri',
+        fontFamilyCs: 'Arial',
+      }),
+    ])])]);
+    const back = firstRunProps(roundTrip(doc));
+    expect(back.fontFamily).toBe('Arial');
+    expect(back.fontFamilyEastAsia).toBe('微軟正黑體');
+    expect(back.fontFamilyHAnsi).toBe('Calibri');
+    expect(back.fontFamilyCs).toBe('Arial');
+  });
+
+  it('高亮 highlight round-trip（具名色）', () => {
+    const doc = makeDoc([makeSection([makeParagraph([
+      makeRunWithProps('x', { highlight: 'yellow' }),
+    ])])]);
+    expect(firstRunProps(roundTrip(doc)).highlight).toBe('yellow');
+  });
+
+  it('語言 lang round-trip', () => {
+    const doc = makeDoc([makeSection([makeParagraph([
+      makeRunWithProps('x', { lang: 'zh-TW' }),
+    ])])]);
+    expect(firstRunProps(roundTrip(doc)).lang).toBe('zh-TW');
+  });
+
+  it('多 props 組合 round-trip', () => {
+    const props = {
+      bold: true, italic: true, fontSize: 16, color: 'FF0000',
+      underline: 'single' as const, fontFamily: 'Arial', vertAlign: 'superscript' as const,
+    };
+    const doc = makeDoc([makeSection([makeParagraph([makeRunWithProps('x', props)])])]);
+    const back = firstRunProps(roundTrip(doc));
+    expect(back.bold).toBe(true);
+    expect(back.italic).toBe(true);
+    expect(back.fontSize).toBe(16);
+    expect(back.color?.toUpperCase()).toBe('FF0000');
+    expect(back.underline).toBe('single');
+    expect(back.fontFamily).toBe('Arial');
+    expect(back.vertAlign).toBe('superscript');
+  });
+});

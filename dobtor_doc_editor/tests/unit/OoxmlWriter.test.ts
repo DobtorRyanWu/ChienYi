@@ -226,3 +226,109 @@ describe('OoxmlWriter — 輸出格式', () => {
     expect(() => unzipSync(bytes)).not.toThrow();
   });
 });
+
+describe('OoxmlWriter — Sprint 186 RunProps 序列化', () => {
+  function runWithProps(text: string, props: RunNode['props']): RunNode {
+    return { type: 'run', text, props };
+  }
+
+  function getDocXml(runs: RunNode[]): string {
+    const doc = makeDoc([makeSection([makeParagraph(runs)])]);
+    return unzipToText(writer.write(doc))['word/document.xml'];
+  }
+
+  it('無 props → 不輸出 <w:rPr>（紀律 #21）', () => {
+    const xml = getDocXml([runWithProps('x', {})]);
+    expect(xml).not.toContain('<w:rPr>');
+  });
+
+  it('粗體 true → <w:b/>', () => {
+    const xml = getDocXml([runWithProps('x', { bold: true })]);
+    expect(xml).toContain('<w:rPr><w:b/></w:rPr>');
+  });
+
+  it('粗體 false → <w:b w:val="0"/>（顯式關閉、覆蓋 style）', () => {
+    const xml = getDocXml([runWithProps('x', { bold: false })]);
+    expect(xml).toContain('<w:b w:val="0"/>');
+  });
+
+  it('斜體 / 刪除線 / 雙刪除線', () => {
+    const xml = getDocXml([runWithProps('x', { italic: true, strike: true, dstrike: true })]);
+    expect(xml).toContain('<w:i/>');
+    expect(xml).toContain('<w:strike/>');
+    expect(xml).toContain('<w:dstrike/>');
+  });
+
+  it('字級 fontSize → <w:sz w:val=>（half-points、12pt = 24）', () => {
+    const xml = getDocXml([runWithProps('x', { fontSize: 12 })]);
+    expect(xml).toContain('<w:sz w:val="24"/>');
+  });
+
+  it('顏色 → <w:color w:val="RRGGBB"/>', () => {
+    const xml = getDocXml([runWithProps('x', { color: 'FF0000' })]);
+    expect(xml).toContain('<w:color w:val="FF0000"/>');
+  });
+
+  it('高亮 → <w:highlight w:val>', () => {
+    const xml = getDocXml([runWithProps('x', { highlight: 'yellow' })]);
+    expect(xml).toContain('<w:highlight w:val="yellow"/>');
+  });
+
+  it('底線 → <w:u w:val>（含複雜列舉值）', () => {
+    for (const u of ['single', 'double', 'wave']) {
+      const xml = getDocXml([runWithProps('x', { underline: u as 'single' })]);
+      expect(xml).toContain(`<w:u w:val="${u}"/>`);
+    }
+  });
+
+  it('上下標 vertAlign → <w:vertAlign w:val>', () => {
+    expect(getDocXml([runWithProps('x', { vertAlign: 'superscript' })]))
+      .toContain('<w:vertAlign w:val="superscript"/>');
+    expect(getDocXml([runWithProps('x', { vertAlign: 'subscript' })]))
+      .toContain('<w:vertAlign w:val="subscript"/>');
+  });
+
+  it('字型 rFonts → ascii / eastAsia / hAnsi / cs 屬性', () => {
+    const xml = getDocXml([runWithProps('x', {
+      fontFamily: 'Arial', fontFamilyEastAsia: '微軟正黑體',
+      fontFamilyHAnsi: 'Arial', fontFamilyCs: 'Arial',
+    })]);
+    expect(xml).toContain('w:ascii="Arial"');
+    expect(xml).toContain('w:eastAsia="微軟正黑體"');
+    expect(xml).toContain('w:hAnsi="Arial"');
+    expect(xml).toContain('w:cs="Arial"');
+  });
+
+  it('部分字型欄位 → 只輸出有值的 attribute', () => {
+    const xml = getDocXml([runWithProps('x', { fontFamily: 'Arial' })]);
+    expect(xml).toContain('<w:rFonts w:ascii="Arial"/>');
+    expect(xml).not.toContain('w:eastAsia');
+    expect(xml).not.toContain('w:hAnsi');
+  });
+
+  it('字距 spacing → <w:spacing w:val=>（twips、pt × 20）', () => {
+    const xml = getDocXml([runWithProps('x', { spacing: 1 })]);
+    expect(xml).toContain('<w:spacing w:val="20"/>');
+  });
+
+  it('語言 lang → <w:lang w:val>', () => {
+    const xml = getDocXml([runWithProps('x', { lang: 'zh-TW' })]);
+    expect(xml).toContain('<w:lang w:val="zh-TW"/>');
+  });
+
+  it('多 prop 組合 → 依 schema 大致順序輸出（rFonts → b → color → sz → u）', () => {
+    const xml = getDocXml([runWithProps('x', {
+      bold: true, color: 'FF0000', fontSize: 14, underline: 'single', fontFamily: 'Arial',
+    })]);
+    // 驗證順序
+    const rFontsIdx = xml.indexOf('<w:rFonts');
+    const bIdx = xml.indexOf('<w:b/>');
+    const colorIdx = xml.indexOf('<w:color');
+    const szIdx = xml.indexOf('<w:sz');
+    const uIdx = xml.indexOf('<w:u ');
+    expect(rFontsIdx).toBeLessThan(bIdx);
+    expect(bIdx).toBeLessThan(colorIdx);
+    expect(colorIdx).toBeLessThan(szIdx);
+    expect(szIdx).toBeLessThan(uIdx);
+  });
+});
