@@ -812,6 +812,20 @@
     border-radius: 2px;
 }
 
+/* Sprint C：縮圖 img — canvas.toDataURL 產生的真實頁面內容 */
+.doc-thumbnail-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 2px;
+    background: #fff;
+    object-fit: contain;
+    /* 防止 img 拖曳被瀏覽器當成下載操作 */
+    -webkit-user-drag: none;
+    user-select: none;
+}
+
 .doc-thumbnail-num {
     display: inline-flex;
     align-items: center;

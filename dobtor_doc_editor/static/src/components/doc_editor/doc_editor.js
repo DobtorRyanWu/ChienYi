@@ -129,7 +129,11 @@ export class DocEditor extends Component {
             requestsLoading: false,
             // ─── Sprint B：canvas-editor 當前縮放比例（由 pageScaleChange listener 同步） ───
             currentZoomScale: 1,
+            // ─── Sprint C：頁面縮圖清單（debounced，由 _rebuildThumbnails 維護）───
+            thumbnails: [],
         });
+        // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
+        this._thumbnailTimer = null;
         // 切到 requests tab 時才 load 一次
         this._requestsLoaded = false;
 
@@ -430,6 +434,8 @@ export class DocEditor extends Component {
             }
             // Phase 8 Del 同步：setTimeout 解耦，先讓 autoSave 入隊再做 diff
             setTimeout(() => this._syncDeletedControls(), 0);
+            // Sprint C：debounced 重生縮圖（800ms 避免逐字打抖動）
+            this._scheduleRebuildThumbnails(800);
         };
 
         // Phase 2.1 補項：監聽選區變動 → 反查 control.conceptId → 設 selectedFieldId
@@ -484,6 +490,8 @@ export class DocEditor extends Component {
             } catch (e) {
                 // 容錯：API 不存在或拋例外時保留現有 state.totalPages
             }
+            // Sprint C：分頁數變更時必更新縮圖
+            this._scheduleRebuildThumbnails(600);
         };
         this.editor.listener.pageScaleChange = (scale) => {
             try {
@@ -506,6 +514,77 @@ export class DocEditor extends Component {
             this.state.pageNo = (cur || 0) + 1;
         } catch (e) {
             // 容錯
+        }
+
+        // Sprint C：縮圖 panel 初始化 + 後續變更時 debounce 重生
+        this._scheduleRebuildThumbnails(50);  // 初次延遲 50ms 等 canvas 真渲染
+    }
+
+    // ─── Sprint C：頁面縮圖（debounced）─────────────────────────────
+    //
+    // 設計：每頁 canvas-editor 渲染為獨立 <canvas> 元素，直接用 toDataURL
+    // 取縮圖（壓縮品質 0.5 + max 200x283 ≈ A4 縮影）。
+    // 重生時機：
+    //   1. 初次 _initCanvasEditor 完（50ms 延遲等 canvas 真渲染）
+    //   2. contentChange listener 觸發後（已內部 debounce、再加 thumbnail 自家 800ms debounce 避免抖動）
+    //   3. pageSizeChange listener（分頁數變更時必更新）
+
+    _scheduleRebuildThumbnails(delayMs = 800) {
+        if (this._thumbnailTimer) {
+            clearTimeout(this._thumbnailTimer);
+        }
+        this._thumbnailTimer = setTimeout(() => {
+            this._thumbnailTimer = null;
+            this._rebuildThumbnails();
+        }, delayMs);
+    }
+
+    _rebuildThumbnails() {
+        if (!this.canvasContainer?.el) {
+            return;
+        }
+        try {
+            const pageCanvases = this.canvasContainer.el.querySelectorAll("canvas");
+            const MAX_W = 200;
+            const thumbs = [];
+            for (let i = 0; i < pageCanvases.length; i++) {
+                const c = pageCanvases[i];
+                // 跳過 0-size canvas（cursor canvas、隱藏 canvas）
+                if (!c.width || !c.height) continue;
+                let dataUrl;
+                try {
+                    // canvas-editor 主 page canvas 通常很大（A4 @ 96DPI × pixelRatio）
+                    // 直接 toDataURL 對 100 頁文件會卡 UI；用 OffscreenCanvas 縮小
+                    if (typeof OffscreenCanvas !== "undefined") {
+                        const ratio = MAX_W / c.width;
+                        const w = Math.max(1, Math.floor(c.width * ratio));
+                        const h = Math.max(1, Math.floor(c.height * ratio));
+                        const off = new OffscreenCanvas(w, h);
+                        const ctx = off.getContext("2d");
+                        ctx.drawImage(c, 0, 0, w, h);
+                        // OffscreenCanvas.convertToBlob 是 async；用 toDataURL 退而求其次
+                        // → 走 sync 路徑：建臨時 HTMLCanvasElement
+                        const tmp = document.createElement("canvas");
+                        tmp.width = w;
+                        tmp.height = h;
+                        tmp.getContext("2d").drawImage(c, 0, 0, w, h);
+                        dataUrl = tmp.toDataURL("image/jpeg", 0.5);
+                    } else {
+                        dataUrl = c.toDataURL("image/jpeg", 0.3);
+                    }
+                } catch (toDataErr) {
+                    // SecurityError / tainted canvas：跳過該頁
+                    continue;
+                }
+                thumbs.push({
+                    pageNo: thumbs.length + 1,
+                    dataUrl: dataUrl,
+                    fieldCount: 0,  // 後續可從 _templateFieldsCache 對應頁數 group by 算
+                });
+            }
+            this.state.thumbnails = thumbs;
+        } catch (e) {
+            console.warn("[DocEditor] _rebuildThumbnails failed", e);
         }
     }
 

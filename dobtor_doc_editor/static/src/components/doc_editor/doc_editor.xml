@@ -269,17 +269,35 @@
                  在非「範本」分頁時隱藏。dashboard/requests/settings 分頁則接著在後方渲染。 -->
             <div class="doc-main"
                  t-att-style="state.activeSubNav === 'templates' ? '' : 'display: none;'">
-                <!-- 左：頁面縮圖 panel（Phase 2 接 canvas-editor 縮圖 API） -->
+                <!-- 左：頁面縮圖 panel — Sprint C 接 canvas.toDataURL 真實縮圖 -->
                 <aside class="doc-thumbnail-panel" aria-label="頁面縮圖">
                     <div class="doc-thumbnail-panel-header">頁面</div>
                     <div class="doc-thumbnail-list">
-                        <t t-foreach="[1]" t-as="i" t-key="i">
+                        <t t-if="!state.thumbnails.length">
+                            <!-- Fallback：縮圖未生成時顯示佔位（保留視覺結構） -->
                             <div class="doc-thumbnail-item active">
                                 <div class="doc-thumbnail-page"/>
                                 <span class="doc-thumbnail-num">
                                     1<span class="doc-thumbnail-badge" t-esc="state.fieldCount"/>
                                 </span>
                             </div>
+                        </t>
+                        <t t-else="">
+                            <t t-foreach="state.thumbnails" t-as="thumb" t-key="thumb.pageNo">
+                                <div class="doc-thumbnail-item"
+                                     t-att-class="thumb.pageNo === state.pageNo ? 'active' : ''"
+                                     t-on-click="() => this._scrollToPage(thumb.pageNo)"
+                                     t-attf-title="跳到第 #{thumb.pageNo} 頁"
+                                     t-attf-aria-label="跳到第 #{thumb.pageNo} 頁">
+                                    <img class="doc-thumbnail-img"
+                                         t-att-src="thumb.dataUrl"
+                                         t-attf-alt="第 #{thumb.pageNo} 頁縮圖"
+                                         loading="lazy"/>
+                                    <span class="doc-thumbnail-num">
+                                        <t t-esc="thumb.pageNo"/>
+                                    </span>
+                                </div>
+                            </t>
                         </t>
                     </div>
                 </aside>
