@@ -1165,3 +1165,139 @@ describe('OoxmlWriter — Sprint 192 圖片 / media export', () => {
     expect(xml2).toContain('id="1"');
   });
 });
+
+describe('OoxmlWriter — Sprint 193 頁首頁尾 export', () => {
+  function makeHF(content: BlockNode[]): { rId: string; content: BlockNode[] } {
+    return { rId: '', content };  // rId 由 Map key 提供、欄位不重要
+  }
+  function getParts(headers: Map<string, ReturnType<typeof makeHF>>, footers: Map<string, ReturnType<typeof makeHF>>, secRefs?: Partial<SectionNode>): Record<string, string> {
+    const sec = makeSection([makeParagraph([makeRun('body')])]);
+    if (secRefs) Object.assign(sec, secRefs);
+    const doc = makeDoc([sec]);
+    doc.headers = headers as DocumentNode['headers'];
+    doc.footers = footers as DocumentNode['footers'];
+    return unzipToText(writer.write(doc));
+  }
+
+  // ── 部件寫入 ────────────────────────────────────────────────────────────
+
+  it('單一 header → word/header1.xml 寫入 + <w:hdr> 結構', () => {
+    const headers = new Map([['rIdH1', makeHF([makeParagraph([makeRun('頁首文字')])])]]);
+    const parts = getParts(headers, new Map());
+    expect(parts['word/header1.xml']).toBeDefined();
+    expect(parts['word/header1.xml']).toContain('<w:hdr ');
+    expect(parts['word/header1.xml']).toContain('xmlns:w=');
+    expect(parts['word/header1.xml']).toContain('xmlns:r=');
+    expect(parts['word/header1.xml']).toContain('>頁首文字<');
+    expect(parts['word/header1.xml']).toContain('</w:hdr>');
+  });
+
+  it('單一 footer → word/footer1.xml 寫入 + <w:ftr> 結構', () => {
+    const footers = new Map([['rIdF1', makeHF([makeParagraph([makeRun('頁尾文字')])])]]);
+    const parts = getParts(new Map(), footers);
+    expect(parts['word/footer1.xml']).toBeDefined();
+    expect(parts['word/footer1.xml']).toContain('<w:ftr ');
+    expect(parts['word/footer1.xml']).toContain('>頁尾文字<');
+  });
+
+  it('多 header/footer → 流水號 headerN/footerN', () => {
+    const headers = new Map([
+      ['rIdH1', makeHF([makeParagraph([makeRun('一')])])],
+      ['rIdH2', makeHF([makeParagraph([makeRun('二')])])],
+    ]);
+    const footers = new Map([
+      ['rIdF1', makeHF([makeParagraph([makeRun('甲')])])],
+    ]);
+    const parts = getParts(headers, footers);
+    expect(parts['word/header1.xml']).toBeDefined();
+    expect(parts['word/header2.xml']).toBeDefined();
+    expect(parts['word/footer1.xml']).toBeDefined();
+    expect(parts['word/header1.xml']).toContain('>一<');
+    expect(parts['word/header2.xml']).toContain('>二<');
+  });
+
+  it('header 內含表格 → BlockNode 遞迴 dispatcher 正確輸出', () => {
+    const headers = new Map([['rIdH1', makeHF([
+      makeParagraph([makeRun('文字')]),
+      { type: 'table', grid: [100], rows: [], props: {} },
+    ])]]);
+    const parts = getParts(headers, new Map());
+    expect(parts['word/header1.xml']).toContain('<w:p>');
+    expect(parts['word/header1.xml']).toContain('<w:tbl>');
+  });
+
+  // ── Content_Types / rels ─────────────────────────────────────────────────
+
+  it('Content_Types 含 header/footer override', () => {
+    const headers = new Map([['rIdH1', makeHF([makeParagraph([])])]]);
+    const footers = new Map([['rIdF1', makeHF([makeParagraph([])])]]);
+    const ct = getParts(headers, footers)['[Content_Types].xml'];
+    expect(ct).toContain('PartName="/word/header1.xml"');
+    expect(ct).toContain('PartName="/word/footer1.xml"');
+    expect(ct).toContain('wordprocessingml.header+xml');
+    expect(ct).toContain('wordprocessingml.footer+xml');
+  });
+
+  it('document rels 含 header/footer relationship（rId 保留）', () => {
+    const headers = new Map([['rIdH1', makeHF([])]]);
+    const footers = new Map([['rIdF1', makeHF([])]]);
+    const rels = getParts(headers, footers)['word/_rels/document.xml.rels'];
+    expect(rels).toContain('Id="rIdH1"');
+    expect(rels).toContain('Target="header1.xml"');
+    expect(rels).toContain('relationships/header');
+    expect(rels).toContain('Id="rIdF1"');
+    expect(rels).toContain('Target="footer1.xml"');
+    expect(rels).toContain('relationships/footer');
+  });
+
+  // ── sectPr references ─────────────────────────────────────────────────
+
+  it('sectPr 含 <w:headerReference> + <w:footerReference>（依 default/first/even）', () => {
+    const headers = new Map([['rIdHdef', makeHF([])]]);
+    const footers = new Map([
+      ['rIdFdef', makeHF([])],
+      ['rIdFfirst', makeHF([])],
+    ]);
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('x')])])]);
+    doc.headers = headers as DocumentNode['headers'];
+    doc.footers = footers as DocumentNode['footers'];
+    // 手動設置 refs
+    doc.sections[0].headerRefs = { default: 'rIdHdef' };
+    doc.sections[0].footerRefs = { default: 'rIdFdef', first: 'rIdFfirst' };
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('<w:headerReference w:type="default" r:id="rIdHdef"/>');
+    expect(xml).toContain('<w:footerReference w:type="default" r:id="rIdFdef"/>');
+    expect(xml).toContain('<w:footerReference w:type="first" r:id="rIdFfirst"/>');
+  });
+
+  it('section.titlePage = true → sectPr 內 <w:titlePg/>', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('x')])])]);
+    doc.sections[0].titlePage = true;
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('<w:titlePg/>');
+  });
+
+  it('document.xml root 含 xmlns:r 宣告（給 headerReference r:id 用）', () => {
+    const xml = unzipToText(writer.write(makeDoc([makeSection([])])))['word/document.xml'];
+    expect(xml).toMatch(/<w:document[^>]*xmlns:r=/);
+  });
+
+  it('schema 順序：headerReference / footerReference 在 pgSz 之前', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('x')])])]);
+    doc.headers = new Map([['rIdH', makeHF([])]]) as DocumentNode['headers'];
+    doc.sections[0].headerRefs = { default: 'rIdH' };
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml.indexOf('<w:headerReference')).toBeLessThan(xml.indexOf('<w:pgSz'));
+  });
+
+  // ── 無 header/footer → 不寫入 ──────────────────────────────────────────
+
+  it('無 header/footer → 不輸出對應部件、Content_Types/rels 無條目', () => {
+    const parts = getParts(new Map(), new Map());
+    expect(parts['word/header1.xml']).toBeUndefined();
+    expect(parts['word/footer1.xml']).toBeUndefined();
+    expect(parts['[Content_Types].xml']).not.toContain('header+xml');
+    expect(parts['[Content_Types].xml']).not.toContain('footer+xml');
+    expect(parts['word/_rels/document.xml.rels']).not.toContain('relationships/header');
+  });
+});

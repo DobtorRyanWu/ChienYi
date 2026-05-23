@@ -966,3 +966,79 @@ describe('Sprint 192 — Phase 6 export round-trip（圖片 / media）', () => {
     }
   });
 });
+
+describe('Sprint 193 — Phase 6 export round-trip（頁首頁尾）', () => {
+  function makeHF(content: BlockNode[]): { rId: string; content: BlockNode[] } {
+    return { rId: '', content };
+  }
+
+  it('單一 header round-trip → doc.headers 保留', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('body')])])]);
+    doc.headers = new Map([['rIdH1', makeHF([makeParagraph([makeRun('頁首')])])]]);
+    doc.sections[0].headerRefs = { default: 'rIdH1' };
+    const back = roundTrip(doc);
+    expect(back.headers.size).toBe(1);
+    const hKey = Array.from(back.headers.keys())[0];
+    const hf = back.headers.get(hKey)!;
+    const para = hf.content[0];
+    expect(para.type).toBe('paragraph');
+    if (para.type === 'paragraph') {
+      const run = para.runs[0];
+      expect(run.type === 'run' && run.text).toBe('頁首');
+    }
+  });
+
+  it('單一 footer round-trip → doc.footers 保留', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('body')])])]);
+    doc.footers = new Map([['rIdF1', makeHF([makeParagraph([makeRun('頁尾')])])]]);
+    doc.sections[0].footerRefs = { default: 'rIdF1' };
+    const back = roundTrip(doc);
+    expect(back.footers.size).toBe(1);
+    const fKey = Array.from(back.footers.keys())[0];
+    const hf = back.footers.get(fKey)!;
+    const para = hf.content[0];
+    if (para.type === 'paragraph') {
+      const run = para.runs[0];
+      expect(run.type === 'run' && run.text).toBe('頁尾');
+    }
+  });
+
+  it('headerRefs default round-trip → section 引用保留', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('body')])])]);
+    doc.headers = new Map([['rIdH1', makeHF([makeParagraph([makeRun('h')])])]]);
+    doc.sections[0].headerRefs = { default: 'rIdH1' };
+    const back = roundTrip(doc);
+    expect(back.sections[0].headerRefs.default).toBeDefined();
+  });
+
+  it('multi-type refs round-trip（default + first）', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('x')])])]);
+    doc.headers = new Map([
+      ['rIdHd', makeHF([makeParagraph([makeRun('預設頁首')])])],
+      ['rIdHf', makeHF([makeParagraph([makeRun('首頁頁首')])])],
+    ]);
+    doc.sections[0].headerRefs = { default: 'rIdHd', first: 'rIdHf' };
+    const back = roundTrip(doc);
+    expect(back.headers.size).toBe(2);
+    expect(back.sections[0].headerRefs.default).toBeDefined();
+    expect(back.sections[0].headerRefs.first).toBeDefined();
+  });
+
+  it('titlePage round-trip', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('x')])])]);
+    doc.sections[0].titlePage = true;
+    const back = roundTrip(doc);
+    expect(back.sections[0].titlePage).toBe(true);
+  });
+
+  it('header + footer 同時 round-trip', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('body')])])]);
+    doc.headers = new Map([['rIdH', makeHF([makeParagraph([makeRun('H')])])]]);
+    doc.footers = new Map([['rIdF', makeHF([makeParagraph([makeRun('F')])])]]);
+    doc.sections[0].headerRefs = { default: 'rIdH' };
+    doc.sections[0].footerRefs = { default: 'rIdF' };
+    const back = roundTrip(doc);
+    expect(back.headers.size).toBe(1);
+    expect(back.footers.size).toBe(1);
+  });
+});

@@ -60,6 +60,12 @@ const REL_TYPE_NUMBERING =
 /** image 關係型別（document.xml.rels → media/imageN.ext）。 */
 const REL_TYPE_IMAGE =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+/** header 關係型別（document.xml.rels → headerN.xml）。 */
+const REL_TYPE_HEADER =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
+/** footer 關係型別（document.xml.rels → footerN.xml）。 */
+const REL_TYPE_FOOTER =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
 
 /** DrawingML 命名空間：wordprocessingDrawing（wp）。 */
 const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
@@ -106,10 +112,13 @@ export class OoxmlWriter {
     const mediaItems = collectMedia(doc.media);
     const imageExtensions = new Set(mediaItems.map((m) => m.ext));
 
+    // Sprint 193：收集 headers / footers（每個 rId 配一個 wordpath）
+    const hfItems = collectHeadersFooters(doc);
+
     const parts: { [path: string]: Uint8Array } = {
-      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions)),
+      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions, hfItems)),
       '_rels/.rels': strToU8(writeRootRels()),
-      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems)),
+      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems, hfItems)),
       'word/document.xml': strToU8(writeDocument(doc)),
       'word/styles.xml': strToU8(writeStyles(doc)),
       'word/numbering.xml': strToU8(writeNumbering(doc)),
@@ -117,6 +126,10 @@ export class OoxmlWriter {
     // Sprint 192：把每張 media 圖片的 bytes 寫進 zip
     for (const m of mediaItems) {
       parts[m.target] = m.bytes;
+    }
+    // Sprint 193：把每個 header/footer 部件寫進 zip
+    for (const hf of hfItems) {
+      parts[hf.filename] = strToU8(writeHeaderFooterPart(hf));
     }
     return zipSync(parts);
   }
@@ -131,12 +144,22 @@ export class OoxmlWriter {
  * （`<Default Extension="png" ContentType="image/png"/>` 等）。Word 對未宣告
  * 副檔名的 part 會回退到「未知」處理、可能丟失。
  */
-function writeContentTypes(imageExtensions: Set<string>): string {
+function writeContentTypes(
+  imageExtensions: Set<string>,
+  hfItems: HeaderFooterItem[],
+): string {
   const imageDefaults: string[] = [];
   for (const ext of imageExtensions) {
     const ct = mimeForExtension(ext);
     imageDefaults.push(`<Default Extension="${escapeXml(ext)}" ContentType="${ct}"/>`);
   }
+  // Sprint 193：每個 header / footer 部件加 Override
+  const hfOverrides = hfItems.map((hf) => {
+    const ct = hf.kind === 'header'
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml'
+      : 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
+    return `<Override PartName="/${hf.filename}" ContentType="${ct}"/>`;
+  }).join('');
   return xmlDecl() +
     `<Types xmlns="${CT_NS}">` +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
@@ -145,6 +168,7 @@ function writeContentTypes(imageExtensions: Set<string>): string {
     '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
     '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
     '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
+    hfOverrides +
     '</Types>';
 }
 
@@ -163,7 +187,10 @@ function writeRootRels(): string {
  * 與 image rIds 的數字命名空間衝突（image rIds 從 doc.media 原樣帶入、可能
  * 是 "rId1" 等）。
  */
-function writeDocumentRels(mediaItems: MediaItem[]): string {
+function writeDocumentRels(
+  mediaItems: MediaItem[],
+  hfItems: HeaderFooterItem[],
+): string {
   const imageRels: string[] = [];
   for (const m of mediaItems) {
     // Target 為相對 word/ 目錄：去掉 'word/' 前綴
@@ -172,11 +199,18 @@ function writeDocumentRels(mediaItems: MediaItem[]): string {
       `<Relationship Id="${escapeXml(m.rId)}" Type="${REL_TYPE_IMAGE}" Target="${escapeXml(target)}"/>`,
     );
   }
+  // Sprint 193：header / footer rels（rId 從 doc.headers/footers Map keys 取）
+  const hfRels = hfItems.map((hf) => {
+    const target = hf.filename.startsWith('word/') ? hf.filename.slice('word/'.length) : hf.filename;
+    const type = hf.kind === 'header' ? REL_TYPE_HEADER : REL_TYPE_FOOTER;
+    return `<Relationship Id="${escapeXml(hf.rId)}" Type="${type}" Target="${escapeXml(target)}"/>`;
+  }).join('');
   return xmlDecl() +
     `<Relationships xmlns="${REL_NS}">` +
     `<Relationship Id="rIdStyles" Type="${REL_TYPE_STYLES}" Target="styles.xml"/>` +
     `<Relationship Id="rIdNumbering" Type="${REL_TYPE_NUMBERING}" Target="numbering.xml"/>` +
     imageRels.join('') +
+    hfRels +
     '</Relationships>';
 }
 
@@ -259,7 +293,7 @@ function writeDocument(doc: DocumentNode): string {
   bodyParts.push(writeSectPr(n > 0 ? doc.sections[n - 1] : undefined));
 
   return xmlDecl() +
-    `<w:document xmlns:w="${W_NS}">` +
+    `<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}">` +
     '<w:body>' +
     bodyParts.join('') +
     '</w:body>' +
@@ -539,9 +573,21 @@ function writeRPr(props: RunProps): string {
 }
 
 /**
- * `<w:sectPr>` 含 pgSz / pgMar（pt → twips）。section 缺漏 → A4 + Word 預設邊距。
+ * `<w:sectPr>` —— section 屬性容器（OOXML §17.6.17 CT_SectPr）。
+ *
+ * 子元素依 schema 順序：headerReference / footerReference / pgSz / pgMar /
+ * titlePg。Sprint 193 加 headerRefs / footerRefs / titlePage 序列化。
  */
 function writeSectPr(section: SectionNode | undefined): string {
+  const parts: string[] = [];
+
+  // Sprint 193：headerReference / footerReference（schema 順序最前）
+  if (section) {
+    parts.push(...writeRefs('w:headerReference', section.headerRefs));
+    parts.push(...writeRefs('w:footerReference', section.footerRefs));
+  }
+
+  // pgSz / pgMar（section 缺漏 → A4 + Word 預設邊距）
   const page = section?.page;
   const margins = section?.margins;
   const w = ptToTwips(page?.width ?? DEFAULT_PAGE_WIDTH_PT);
@@ -550,12 +596,36 @@ function writeSectPr(section: SectionNode | undefined): string {
   const right = ptToTwips(margins?.right ?? DEFAULT_MARGIN_LR_PT);
   const bottom = ptToTwips(margins?.bottom ?? DEFAULT_MARGIN_TB_PT);
   const left = ptToTwips(margins?.left ?? DEFAULT_MARGIN_LR_PT);
-  const header = ptToTwips(margins?.header ?? DEFAULT_MARGIN_HF_PT);
-  const footer = ptToTwips(margins?.footer ?? DEFAULT_MARGIN_HF_PT);
-  return '<w:sectPr>' +
-    `<w:pgSz w:w="${w}" w:h="${h}"/>` +
-    `<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="${header}" w:footer="${footer}" w:gutter="0"/>` +
-    '</w:sectPr>';
+  const headerMargin = ptToTwips(margins?.header ?? DEFAULT_MARGIN_HF_PT);
+  const footerMargin = ptToTwips(margins?.footer ?? DEFAULT_MARGIN_HF_PT);
+  parts.push(`<w:pgSz w:w="${w}" w:h="${h}"/>`);
+  parts.push(`<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="${headerMargin}" w:footer="${footerMargin}" w:gutter="0"/>`);
+
+  // titlePg（在 pgMar 之後、docGrid 之前依 CT_SectPr schema）
+  if (section?.titlePage) parts.push('<w:titlePg/>');
+
+  return '<w:sectPr>' + parts.join('') + '</w:sectPr>';
+}
+
+/**
+ * Sprint 193：生成 `<w:headerReference>` 或 `<w:footerReference>` 元素陣列。
+ * 三種 type（default / first / even）—— 各自 optional、有 rId 才 emit。
+ */
+function writeRefs(
+  elementName: string,
+  refs: { default?: string; first?: string; even?: string },
+): string[] {
+  const out: string[] = [];
+  if (refs.default !== undefined) {
+    out.push(`<${elementName} w:type="default" r:id="${escapeXml(refs.default)}"/>`);
+  }
+  if (refs.first !== undefined) {
+    out.push(`<${elementName} w:type="first" r:id="${escapeXml(refs.first)}"/>`);
+  }
+  if (refs.even !== undefined) {
+    out.push(`<${elementName} w:type="even" r:id="${escapeXml(refs.even)}"/>`);
+  }
+  return out;
 }
 
 // ── Sprint 190：表格序列化 ────────────────────────────────────────────────────
@@ -989,6 +1059,57 @@ function writeInlineImageRun(img: InlineImageNode | FloatImageNode): string {
 /** pt → EMU（四捨五入為整數、OOXML drawing 屬性要求整數）。 */
 function ptToEmu(pt: number): number {
   return Math.round(pt * EMU_PER_PT);
+}
+
+// ── Sprint 193：頁首 / 頁尾序列化 ────────────────────────────────────────────
+
+/**
+ * 單一 header / footer 部件資訊（由 collectHeadersFooters 從 doc.headers/footers 建立）。
+ *
+ * rId 從 Map 原樣帶入；filename 為新生成的 word/headerN.xml / word/footerN.xml
+ * 路徑（與原 docx 的 target 無關、export 端自由命名）。
+ */
+interface HeaderFooterItem {
+  kind: 'header' | 'footer';
+  rId: string;
+  filename: string;
+  content: BlockNode[];
+}
+
+/**
+ * 把 doc.headers 與 doc.footers 整理為 HeaderFooterItem[]、賦予新檔名。
+ *
+ * 檔名用序號流水（header1.xml / header2.xml；footer1.xml / footer2.xml…）
+ * 與 image collectMedia 同模式。
+ */
+function collectHeadersFooters(doc: DocumentNode): HeaderFooterItem[] {
+  const out: HeaderFooterItem[] = [];
+  let hN = 0, fN = 0;
+  for (const [rId, hf] of doc.headers) {
+    hN += 1;
+    out.push({ kind: 'header', rId, filename: `word/header${hN}.xml`, content: hf.content });
+  }
+  for (const [rId, hf] of doc.footers) {
+    fN += 1;
+    out.push({ kind: 'footer', rId, filename: `word/footer${fN}.xml`, content: hf.content });
+  }
+  return out;
+}
+
+/**
+ * 寫單一 header / footer 部件的 XML 字串。
+ *
+ * 結構：`<w:hdr>` 或 `<w:ftr>` 包住 BlockNode[]（reuse writeBlock dispatcher
+ * → 段落 / 表格 / 巢狀皆自然支援）。`xmlns:r` 一併宣告以備內含 hyperlink /
+ * image / 其他 r:id 引用。
+ */
+function writeHeaderFooterPart(hf: HeaderFooterItem): string {
+  const rootTag = hf.kind === 'header' ? 'w:hdr' : 'w:ftr';
+  const blocks = hf.content.map(writeBlock).join('');
+  return xmlDecl() +
+    `<${rootTag} xmlns:w="${W_NS}" xmlns:r="${R_NS}">` +
+    blocks +
+    `</${rootTag}>`;
 }
 
 // ── 工具 ─────────────────────────────────────────────────────────────────────
