@@ -553,3 +553,165 @@ describe('Sprint 189 — Phase 6 export round-trip（Styles.xml）', () => {
     expect(back.styles.get('Heading1')?.rProps?.fontSize).toBe(18);
   });
 });
+
+describe('Sprint 190 — Phase 6 export round-trip（表格）', () => {
+  function makeCell(content: BlockNode[], props: CellNode['props'] = {}, opts: Partial<CellNode> = {}): CellNode {
+    return {
+      type: 'cell', gridCol: opts.gridCol ?? 0, gridSpan: opts.gridSpan ?? 1,
+      rowSpan: opts.rowSpan ?? 1, isContinuation: opts.isContinuation ?? false,
+      content, props,
+    };
+  }
+  function makeRow(cells: CellNode[], props: Partial<RowNode['props']> = {}): RowNode {
+    return { type: 'row', cells, props: { isHeader: false, cantSplit: false, ...props } };
+  }
+  function makeTable(grid: number[], rows: RowNode[], props: TableNode['props'] = {}, styleId?: string): TableNode {
+    const t: TableNode = { type: 'table', grid, rows, props };
+    if (styleId) t.styleId = styleId;
+    return t;
+  }
+
+  function firstTable(doc: DocumentNode): TableNode {
+    const block = doc.sections[0].body[0];
+    if (block.type !== 'table') throw new Error('expected table');
+    return block;
+  }
+
+  it('空表格 round-trip', () => {
+    const doc = makeDoc([makeSection([makeTable([], [])])]);
+    const back = roundTrip(doc);
+    const t = back.sections[0].body[0];
+    expect(t.type).toBe('table');
+  });
+
+  it('grid 寬度 round-trip', () => {
+    const doc = makeDoc([makeSection([makeTable([100, 200, 300], [])])]);
+    const t = firstTable(roundTrip(doc));
+    expect(t.grid).toHaveLength(3);
+    expect(t.grid[0]).toBeCloseTo(100, 1);
+    expect(t.grid[1]).toBeCloseTo(200, 1);
+    expect(t.grid[2]).toBeCloseTo(300, 1);
+  });
+
+  it('單列單格 + cell 內文字 round-trip', () => {
+    const c = makeCell([{ type: 'paragraph', runs: [makeRun('Hello')], props: {} }]);
+    const doc = makeDoc([makeSection([makeTable([100], [makeRow([c])])])]);
+    const t = firstTable(roundTrip(doc));
+    const cell = t.rows[0].cells[0];
+    const para = cell.content[0];
+    if (para.type !== 'paragraph') throw new Error('expected paragraph');
+    const run = para.runs[0];
+    expect(run.type === 'run' && run.text).toBe('Hello');
+  });
+
+  it('tblPr：styleId / alignment / indent round-trip', () => {
+    const doc = makeDoc([makeSection([
+      makeTable([100], [], { alignment: 'center', indent: 36 }, 'TableGrid'),
+    ])]);
+    const t = firstTable(roundTrip(doc));
+    expect(t.styleId).toBe('TableGrid');
+    expect(t.props.alignment).toBe('center');
+    expect(t.props.indent).toBeCloseTo(36, 1);
+  });
+
+  it('tblW dxa round-trip', () => {
+    const doc = makeDoc([makeSection([
+      makeTable([], [], { width: 500, widthType: 'dxa' }),
+    ])]);
+    const t = firstTable(roundTrip(doc));
+    expect(t.props.widthType).toBe('dxa');
+    expect(t.props.width).toBeCloseTo(500, 1);
+  });
+
+  it('tblBorders + tblCellMar round-trip', () => {
+    const doc = makeDoc([makeSection([makeTable([100], [], {
+      borders: { top: { style: 'single', width: 0.5, color: '000000' } },
+      cellMargins: { top: 4, left: 8 },
+    })])]);
+    const t = firstTable(roundTrip(doc));
+    expect(t.props.borders?.top?.style).toBe('single');
+    expect(t.props.cellMargins?.top).toBeCloseTo(4, 1);
+    expect(t.props.cellMargins?.left).toBeCloseTo(8, 1);
+  });
+
+  it('trPr：trHeight / heightRule / isHeader / cantSplit round-trip', () => {
+    const c = makeCell([{ type: 'paragraph', runs: [], props: {} }]);
+    const row = makeRow([c], { height: 20, heightRule: 'exact', isHeader: true, cantSplit: true });
+    const doc = makeDoc([makeSection([makeTable([100], [row])])]);
+    const t = firstTable(roundTrip(doc));
+    const r = t.rows[0];
+    expect(r.props.height).toBeCloseTo(20, 1);
+    expect(r.props.heightRule).toBe('exact');
+    expect(r.props.isHeader).toBe(true);
+    expect(r.props.cantSplit).toBe(true);
+  });
+
+  it('tcPr：width / vAlign / textDirection round-trip', () => {
+    const c = makeCell([{ type: 'paragraph', runs: [], props: {} }], {
+      width: 80, vAlign: 'center', textDirection: 'tbRlV',
+    });
+    const doc = makeDoc([makeSection([makeTable([80], [makeRow([c])])])]);
+    const t = firstTable(roundTrip(doc));
+    const cell = t.rows[0].cells[0];
+    expect(cell.props.width).toBeCloseTo(80, 1);
+    expect(cell.props.vAlign).toBe('center');
+    expect(cell.props.textDirection).toBe('tbRlV');
+  });
+
+  it('tcPr：tcBorders + shading round-trip', () => {
+    const c = makeCell([{ type: 'paragraph', runs: [], props: {} }], {
+      borders: { top: { style: 'single', width: 0.5, color: 'FF0000' } },
+      shading: { fill: 'DEEAF6' },
+    });
+    const doc = makeDoc([makeSection([makeTable([100], [makeRow([c])])])]);
+    const t = firstTable(roundTrip(doc));
+    const cell = t.rows[0].cells[0];
+    expect(cell.props.borders?.top?.style).toBe('single');
+    expect(cell.props.borders?.top?.color?.toUpperCase()).toBe('FF0000');
+    expect(cell.props.shading?.fill?.toUpperCase()).toBe('DEEAF6');
+  });
+
+  it('gridSpan round-trip', () => {
+    const c = makeCell([{ type: 'paragraph', runs: [], props: {} }], {}, { gridSpan: 3 });
+    const doc = makeDoc([makeSection([makeTable([50, 50, 50], [makeRow([c])])])]);
+    const t = firstTable(roundTrip(doc));
+    expect(t.rows[0].cells[0].gridSpan).toBe(3);
+  });
+
+  it('2×2 表格 round-trip（4 cells、文字內容）', () => {
+    const c = (text: string) => makeCell([{ type: 'paragraph', runs: [makeRun(text)], props: {} }]);
+    const doc = makeDoc([makeSection([makeTable([100, 100], [
+      makeRow([c('A'), c('B')]),
+      makeRow([c('C'), c('D')]),
+    ])])]);
+    const t = firstTable(roundTrip(doc));
+    expect(t.rows).toHaveLength(2);
+    expect(t.rows[0].cells).toHaveLength(2);
+    const getText = (cell: CellNode) => {
+      const p = cell.content[0];
+      if (p.type !== 'paragraph') return '';
+      const r = p.runs[0];
+      return r.type === 'run' ? r.text : '';
+    };
+    expect(getText(t.rows[0].cells[0])).toBe('A');
+    expect(getText(t.rows[0].cells[1])).toBe('B');
+    expect(getText(t.rows[1].cells[0])).toBe('C');
+    expect(getText(t.rows[1].cells[1])).toBe('D');
+  });
+
+  it('巢狀表格 round-trip（cell 內含 inner table、含文字）', () => {
+    const inner = makeTable([50], [makeRow([
+      makeCell([{ type: 'paragraph', runs: [makeRun('inner')], props: {} }]),
+    ])]);
+    const outerCell = makeCell([inner]);
+    const doc = makeDoc([makeSection([makeTable([100], [makeRow([outerCell])])])]);
+    const t = firstTable(roundTrip(doc));
+    const innerBlock = t.rows[0].cells[0].content[0];
+    expect(innerBlock.type).toBe('table');
+    if (innerBlock.type === 'table') {
+      const innerCell = innerBlock.rows[0].cells[0];
+      const innerPara = innerCell.content[0];
+      expect(innerPara.type === 'paragraph' && (innerPara.runs[0].type === 'run' && innerPara.runs[0].text)).toBe('inner');
+    }
+  });
+});

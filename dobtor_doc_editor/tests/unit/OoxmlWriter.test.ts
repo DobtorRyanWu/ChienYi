@@ -9,10 +9,14 @@ import { describe, expect, it } from 'vitest';
 import { unzipSync, strFromU8 } from 'fflate';
 import { OoxmlWriter } from '../../static/src/core/ooxml/export/OoxmlWriter';
 import type {
+  BlockNode,
+  CellNode,
   DocumentNode,
   ParagraphNode,
+  RowNode,
   RunNode,
   SectionNode,
+  TableNode,
 } from '../../static/src/core/ooxml/ast/types';
 
 const writer = new OoxmlWriter();
@@ -166,14 +170,15 @@ describe('OoxmlWriter — 段落與 Run 輸出', () => {
     expect(xml).not.toContain('<w:br');
   });
 
-  it('表格 BlockNode → MVS 跳過（後續 sprint 補）', () => {
+  it('Sprint 190：表格 BlockNode → 與段落並存輸出（Sprint 185 「跳過」已升級）', () => {
     const doc = makeDoc([makeSection([
       makeParagraph([makeRun('段落')]),
-      { type: 'table', grid: [], rows: [] } as Parameters<typeof writer.write>[0]['sections'][number]['body'][number],
+      { type: 'table', grid: [], rows: [], props: {} },
     ])]);
     const xml = unzipToText(writer.write(doc))['word/document.xml'];
     expect(xml).toContain('>段落<');
-    expect(xml).not.toContain('<w:tbl');
+    expect(xml).toContain('<w:tbl>');
+    expect(xml).toContain('<w:tblGrid>');
   });
 });
 
@@ -668,5 +673,192 @@ describe('OoxmlWriter — Sprint 189 Styles.xml 輸出', () => {
     ]));
     expect(xml).not.toContain('<w:docDefaults');
     expect(xml).not.toContain('<w:basedOn');
+  });
+});
+
+describe('OoxmlWriter — Sprint 190 表格 export', () => {
+  function makeCell(content: BlockNode[], props: CellNode['props'] = {}, opts: Partial<CellNode> = {}): CellNode {
+    return {
+      type: 'cell', gridCol: opts.gridCol ?? 0, gridSpan: opts.gridSpan ?? 1,
+      rowSpan: opts.rowSpan ?? 1, isContinuation: opts.isContinuation ?? false,
+      content, props,
+    };
+  }
+  function makeRow(cells: CellNode[], props: Partial<RowNode['props']> = {}): RowNode {
+    return { type: 'row', cells, props: { isHeader: false, cantSplit: false, ...props } };
+  }
+  function makeTable(grid: number[], rows: RowNode[], props: TableNode['props'] = {}, styleId?: string): TableNode {
+    const t: TableNode = { type: 'table', grid, rows, props };
+    if (styleId) t.styleId = styleId;
+    return t;
+  }
+  function getDocXml(blocks: BlockNode[]): string {
+    return unzipToText(writer.write(makeDoc([makeSection(blocks)])))['word/document.xml'];
+  }
+
+  // ── 基本結構 ────────────────────────────────────────────────────────────────
+
+  it('空表格 → <w:tbl><w:tblPr>...</w:tblPr><w:tblGrid/></w:tbl>', () => {
+    const xml = getDocXml([makeTable([], [])]);
+    expect(xml).toContain('<w:tbl>');
+    expect(xml).toContain('<w:tblPr>');
+    expect(xml).toContain('<w:tblGrid>');
+    expect(xml).toContain('</w:tbl>');
+  });
+
+  it('tblGrid 由 grid array 寫出 gridCol（pt → twips）', () => {
+    const xml = getDocXml([makeTable([100, 200, 300], [])]);
+    expect(xml).toContain('<w:gridCol w:w="2000"/>');
+    expect(xml).toContain('<w:gridCol w:w="4000"/>');
+    expect(xml).toContain('<w:gridCol w:w="6000"/>');
+  });
+
+  // ── 單一儲存格 ─────────────────────────────────────────────────────────────
+
+  it('單列單格含段落 → <w:tr><w:tc>...<w:p>...</w:p></w:tc></w:tr>', () => {
+    const cell = makeCell([{ type: 'paragraph', runs: [makeRun('A')], props: {} }]);
+    const xml = getDocXml([makeTable([100], [makeRow([cell])])]);
+    expect(xml).toContain('<w:tr>');
+    expect(xml).toContain('<w:tc>');
+    expect(xml).toContain('>A<');
+    expect(xml).toContain('</w:tc>');
+    expect(xml).toContain('</w:tr>');
+  });
+
+  it('空 cell content → 自動補 <w:p/>（OOXML 規範每個 tc 必含至少一 block）', () => {
+    const cell = makeCell([]);
+    const xml = getDocXml([makeTable([100], [makeRow([cell])])]);
+    expect(xml).toContain('<w:tc><w:p/></w:tc>');
+  });
+
+  // ── 表格層級屬性 ─────────────────────────────────────────────────────────
+
+  it('tblPr：tblStyle / tblW / jc / tblInd / tblLook', () => {
+    const table = makeTable([100], [], {
+      width: 500, widthType: 'dxa',
+      alignment: 'center', indent: 36,
+      look: '04A0',
+    }, 'TableGrid');
+    const xml = getDocXml([table]);
+    expect(xml).toContain('<w:tblStyle w:val="TableGrid"/>');
+    expect(xml).toContain('<w:tblW w:w="10000" w:type="dxa"/>');
+    expect(xml).toContain('<w:jc w:val="center"/>');
+    expect(xml).toContain('<w:tblInd w:w="720" w:type="dxa"/>');
+    expect(xml).toContain('<w:tblLook w:val="04A0"/>');
+  });
+
+  it('tblW 非 dxa 型別（pct/auto/nil）→ w:w="0"（與 parser 對稱）', () => {
+    for (const t of ['pct', 'auto', 'nil'] as const) {
+      const xml = getDocXml([makeTable([], [], { widthType: t })]);
+      expect(xml).toContain(`<w:tblW w:w="0" w:type="${t}"/>`);
+    }
+  });
+
+  it('tblBorders / tblCellMar', () => {
+    const table = makeTable([], [], {
+      borders: {
+        top: { style: 'single', width: 0.5, color: '000000' },
+        insideH: { style: 'single', width: 0.5, color: '808080' },
+      },
+      cellMargins: { top: 4, left: 8, bottom: 4, right: 8 },
+    });
+    const xml = getDocXml([table]);
+    expect(xml).toContain('<w:tblBorders>');
+    expect(xml).toContain('<w:top w:val="single" w:sz="4" w:color="000000"/>');
+    expect(xml).toContain('<w:insideH ');
+    expect(xml).toContain('<w:tblCellMar>');
+    expect(xml).toContain('<w:left w:w="160" w:type="dxa"/>');
+  });
+
+  // ── trPr ───────────────────────────────────────────────────────────────────
+
+  it('trPr：trHeight + heightRule / tblHeader / cantSplit', () => {
+    const cell = makeCell([{ type: 'paragraph', runs: [], props: {} }]);
+    const row = makeRow([cell], { height: 20, heightRule: 'exact', isHeader: true, cantSplit: true });
+    const xml = getDocXml([makeTable([100], [row])]);
+    expect(xml).toContain('<w:trHeight w:val="400" w:hRule="exact"/>');
+    expect(xml).toContain('<w:tblHeader/>');
+    expect(xml).toContain('<w:cantSplit/>');
+  });
+
+  // ── tcPr ───────────────────────────────────────────────────────────────────
+
+  it('tcPr：tcW / vAlign / noWrap / textDirection', () => {
+    const cell = makeCell([{ type: 'paragraph', runs: [], props: {} }], {
+      width: 80, vAlign: 'center', noWrap: true, textDirection: 'tbRlV',
+    });
+    const xml = getDocXml([makeTable([80], [makeRow([cell])])]);
+    expect(xml).toContain('<w:tcW w:w="1600" w:type="dxa"/>');
+    expect(xml).toContain('<w:vAlign w:val="center"/>');
+    expect(xml).toContain('<w:noWrap/>');
+    expect(xml).toContain('<w:textDirection w:val="tbRlV"/>');
+  });
+
+  it('tcPr：tcBorders + shading + margins', () => {
+    const cell = makeCell([{ type: 'paragraph', runs: [], props: {} }], {
+      borders: { top: { style: 'single', width: 0.5, color: '000000' } },
+      shading: { fill: 'DEEAF6', pattern: 'clear' },
+      margins: { top: 4, left: 8 },
+    });
+    const xml = getDocXml([makeTable([100], [makeRow([cell])])]);
+    expect(xml).toContain('<w:tcBorders>');
+    expect(xml).toContain('<w:shd ');
+    expect(xml).toContain('w:fill="DEEAF6"');
+    expect(xml).toContain('<w:tcMar>');
+  });
+
+  // ── gridSpan / vMerge ───────────────────────────────────────────────────
+
+  it('gridSpan > 1 → <w:gridSpan w:val>', () => {
+    const cell = makeCell([{ type: 'paragraph', runs: [], props: {} }], {}, { gridSpan: 3 });
+    const xml = getDocXml([makeTable([100, 100, 100], [makeRow([cell])])]);
+    expect(xml).toContain('<w:gridSpan w:val="3"/>');
+  });
+
+  it('gridSpan = 1 → 不輸出 gridSpan（紀律 #21）', () => {
+    const cell = makeCell([{ type: 'paragraph', runs: [], props: {} }]);
+    const xml = getDocXml([makeTable([100], [makeRow([cell])])]);
+    expect(xml).not.toContain('<w:gridSpan');
+  });
+
+  it('vMerge restart（rowSpan>1 且非延續）→ <w:vMerge w:val="restart"/>', () => {
+    const cell = makeCell([{ type: 'paragraph', runs: [], props: {} }], {}, { rowSpan: 2 });
+    const xml = getDocXml([makeTable([100], [makeRow([cell])])]);
+    expect(xml).toContain('<w:vMerge w:val="restart"/>');
+  });
+
+  it('vMerge continue（isContinuation=true）→ <w:vMerge/>（無 val、預設 continue）', () => {
+    const cell = makeCell([], {}, { isContinuation: true });
+    const xml = getDocXml([makeTable([100], [makeRow([cell])])]);
+    expect(xml).toContain('<w:vMerge/>');
+    // 自動補空段落
+    expect(xml).toContain('<w:p/>');
+  });
+
+  // ── 巢狀表格 ───────────────────────────────────────────────────────────
+
+  it('巢狀表格：cell 內含 inner TableNode → 遞迴輸出', () => {
+    const inner = makeTable([50], [makeRow([
+      makeCell([{ type: 'paragraph', runs: [makeRun('inner')], props: {} }]),
+    ])]);
+    const outerCell = makeCell([inner]);
+    const xml = getDocXml([makeTable([100], [makeRow([outerCell])])]);
+    // 兩層 <w:tbl>
+    expect((xml.match(/<w:tbl>/g) ?? []).length).toBe(2);
+    expect(xml).toContain('>inner<');
+  });
+
+  // ── 多列多格 ───────────────────────────────────────────────────────────
+
+  it('2 列 × 2 格 → <w:tr> × 2、每列 <w:tc> × 2', () => {
+    const c = (text: string) => makeCell([{ type: 'paragraph', runs: [makeRun(text)], props: {} }]);
+    const xml = getDocXml([makeTable([100, 100], [
+      makeRow([c('A'), c('B')]),
+      makeRow([c('C'), c('D')]),
+    ])]);
+    expect((xml.match(/<w:tr>/g) ?? []).length).toBe(2);
+    expect((xml.match(/<w:tc>/g) ?? []).length).toBe(4);
+    expect(xml).toContain('>A<');
+    expect(xml).toContain('>D<');
   });
 });

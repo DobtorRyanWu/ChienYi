@@ -25,12 +25,17 @@
 
 import { zipSync, strToU8 } from 'fflate';
 import type {
+  BlockNode,
+  CellBorders,
+  CellNode,
   DocumentNode,
   ParagraphNode,
   ParagraphProps,
+  RowNode,
   RunNode,
   RunProps,
   SectionNode,
+  TableNode,
 } from '../ast/types';
 
 /** OOXML wordprocessingml 命名空間 URI。 */
@@ -164,13 +169,10 @@ function writeStyleEntry(styleId: string, entry: { pProps?: ParagraphProps; rPro
  * （多 section 區隔資訊有損；後續 sprint 補）。
  */
 function writeDocument(doc: DocumentNode): string {
-  const paragraphs: string[] = [];
+  const blocks: string[] = [];
   for (const sec of doc.sections) {
     for (const block of sec.body) {
-      // MVS：只處理段落、其他 BlockNode 型別（表格）跳過、後續 sprint 補
-      if (block.type === 'paragraph') {
-        paragraphs.push(writeParagraph(block));
-      }
+      blocks.push(writeBlock(block));
     }
   }
   const sectPr = writeSectPr(doc.sections[doc.sections.length - 1]);
@@ -178,10 +180,18 @@ function writeDocument(doc: DocumentNode): string {
   return xmlDecl() +
     `<w:document xmlns:w="${W_NS}">` +
     '<w:body>' +
-    paragraphs.join('') +
+    blocks.join('') +
     sectPr +
     '</w:body>' +
     '</w:document>';
+}
+
+/**
+ * Sprint 190：把 BlockNode（paragraph / table）序列化。
+ * 巢狀表格用 —— cell.content 內亦呼叫此函式遞迴處理。
+ */
+function writeBlock(block: BlockNode): string {
+  return block.type === 'paragraph' ? writeParagraph(block) : writeTable(block);
 }
 
 /**
@@ -458,6 +468,201 @@ function writeSectPr(section: SectionNode | undefined): string {
     `<w:pgSz w:w="${w}" w:h="${h}"/>` +
     `<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="${header}" w:footer="${footer}" w:gutter="0"/>` +
     '</w:sectPr>';
+}
+
+// ── Sprint 190：表格序列化 ────────────────────────────────────────────────────
+
+/**
+ * Sprint 190：把 TableNode 序列化為 `<w:tbl>`（OOXML §17.4）。
+ *
+ * 結構：`<w:tbl><w:tblPr>...</w:tblPr><w:tblGrid>...</w:tblGrid>0..N <w:tr>...</w:tr></w:tbl>`。
+ */
+function writeTable(table: TableNode): string {
+  const tblPr = writeTblPr(table.props, table.styleId);
+  const tblGrid = writeTblGrid(table.grid);
+  const rows = table.rows.map(writeRow).join('');
+  return `<w:tbl>${tblPr}${tblGrid}${rows}</w:tbl>`;
+}
+
+/**
+ * `<w:tblPr>` — 表格層級屬性（OOXML §17.4.59）。
+ *
+ * 子元素順序（CT_TblPrBase schema）：tblStyle → tblpPr → tblOverlap → bidiVisual →
+ * tblStyleRowBandSize → tblStyleColBandSize → tblW → jc → tblCellSpacing →
+ * tblInd → tblBorders → shd → tblLayout → tblCellMar → tblLook → tblCaption →
+ * tblDescription → tblPrChange
+ */
+function writeTblPr(props: TableNode['props'], styleId: string | undefined): string {
+  const parts: string[] = [];
+  if (styleId !== undefined && styleId !== '') {
+    parts.push(`<w:tblStyle w:val="${escapeXml(styleId)}"/>`);
+  }
+  parts.push(writeTblW(props.width, props.widthType));
+  if (props.alignment !== undefined) parts.push(`<w:jc w:val="${props.alignment}"/>`);
+  if (props.indent !== undefined) {
+    parts.push(`<w:tblInd w:w="${ptToTwips(props.indent)}" w:type="dxa"/>`);
+  }
+  if (props.borders) parts.push(writeBorderSet(props.borders, 'w:tblBorders'));
+  if (props.cellMargins) parts.push(writeTblCellMar(props.cellMargins));
+  if (props.look !== undefined) parts.push(`<w:tblLook w:val="${escapeXml(props.look)}"/>`);
+  return parts.length > 0 ? `<w:tblPr>${parts.filter((p) => p !== '').join('')}</w:tblPr>` : '';
+}
+
+/** `<w:tblW>` / `<w:tcW>` 共用：width(Pt) + widthType → twips + w:type 屬性。 */
+function writeTblW(
+  width: number | undefined,
+  widthType: TableNode['props']['widthType'],
+): string {
+  // 預設 type = 'dxa'；其餘 pct/auto/nil 時 w 用 0（與 parser 對稱、parser 對非 dxa 不讀 width）
+  const type = widthType ?? 'dxa';
+  const wVal = type === 'dxa' && width !== undefined ? ptToTwips(width) : 0;
+  return `<w:tblW w:w="${wVal}" w:type="${type}"/>`;
+}
+
+/** `<w:tcW>` (same encoding as tblW but element name 不同)。 */
+function writeTcW(width: number | undefined): string {
+  if (width === undefined) return '';
+  return `<w:tcW w:w="${ptToTwips(width)}" w:type="dxa"/>`;
+}
+
+/** `<w:tblCellMar>` 表格層級預設 cell 邊距。 */
+function writeTblCellMar(m: NonNullable<TableNode['props']['cellMargins']>): string {
+  const parts: string[] = [];
+  if (m.top !== undefined) parts.push(`<w:top w:w="${ptToTwips(m.top)}" w:type="dxa"/>`);
+  if (m.left !== undefined) parts.push(`<w:left w:w="${ptToTwips(m.left)}" w:type="dxa"/>`);
+  if (m.bottom !== undefined) parts.push(`<w:bottom w:w="${ptToTwips(m.bottom)}" w:type="dxa"/>`);
+  if (m.right !== undefined) parts.push(`<w:right w:w="${ptToTwips(m.right)}" w:type="dxa"/>`);
+  return parts.length > 0 ? `<w:tblCellMar>${parts.join('')}</w:tblCellMar>` : '';
+}
+
+/** `<w:tcMar>` cell 層級邊距（與 tblCellMar 同結構）。 */
+function writeTcMar(m: NonNullable<CellNode['props']['margins']>): string {
+  const parts: string[] = [];
+  if (m.top !== undefined) parts.push(`<w:top w:w="${ptToTwips(m.top)}" w:type="dxa"/>`);
+  if (m.left !== undefined) parts.push(`<w:left w:w="${ptToTwips(m.left)}" w:type="dxa"/>`);
+  if (m.bottom !== undefined) parts.push(`<w:bottom w:w="${ptToTwips(m.bottom)}" w:type="dxa"/>`);
+  if (m.right !== undefined) parts.push(`<w:right w:w="${ptToTwips(m.right)}" w:type="dxa"/>`);
+  return parts.length > 0 ? `<w:tcMar>${parts.join('')}</w:tcMar>` : '';
+}
+
+/**
+ * CellBorders → `<w:tblBorders>` 或 `<w:tcBorders>`（依 wrapper 名）。
+ *
+ * 子元素 top / left / bottom / right / insideH / insideV，皆 BorderDef 結構：
+ * w:val / w:sz (1/8 pt) / w:color / w:space。
+ */
+function writeBorderSet(borders: CellBorders, wrapper: string): string {
+  const sides: Array<keyof CellBorders> = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'];
+  const parts: string[] = [];
+  for (const side of sides) {
+    const b = borders[side];
+    if (!b) continue;
+    const attrs = [
+      `w:val="${escapeXml(b.style)}"`,
+      `w:sz="${Math.round(b.width * BORDER_EIGHTHS_PER_PT)}"`,
+      `w:color="${escapeXml(b.color)}"`,
+    ];
+    if (b.space !== undefined) attrs.push(`w:space="${Math.round(b.space)}"`);
+    parts.push(`<w:${side} ${attrs.join(' ')}/>`);
+  }
+  return parts.length > 0 ? `<${wrapper}>${parts.join('')}</${wrapper}>` : '';
+}
+
+/** `<w:tblGrid><w:gridCol w:w="N"/>...</w:tblGrid>`：欄寬定義（皆 twips）。 */
+function writeTblGrid(grid: TableNode['grid']): string {
+  const cols = grid.map((w) => `<w:gridCol w:w="${ptToTwips(w)}"/>`).join('');
+  return `<w:tblGrid>${cols}</w:tblGrid>`;
+}
+
+/** `<w:tr>` 單一列。 */
+function writeRow(row: RowNode): string {
+  const trPr = writeTrPr(row.props);
+  const cells = row.cells.map(writeCell).join('');
+  return `<w:tr>${trPr}${cells}</w:tr>`;
+}
+
+/** `<w:trPr>` — 列屬性（OOXML §17.4.81）：trHeight / tblHeader / cantSplit。 */
+function writeTrPr(props: RowNode['props']): string {
+  const parts: string[] = [];
+  if (props.height !== undefined) {
+    const rule = props.heightRule ?? 'auto';
+    parts.push(`<w:trHeight w:val="${ptToTwips(props.height)}" w:hRule="${rule}"/>`);
+  }
+  if (props.isHeader) parts.push('<w:tblHeader/>');
+  if (props.cantSplit) parts.push('<w:cantSplit/>');
+  return parts.length > 0 ? `<w:trPr>${parts.join('')}</w:trPr>` : '';
+}
+
+/**
+ * `<w:tc>` 單一儲存格。
+ *
+ * isContinuation=true 的 cell（vMerge 延續格）仍要輸出 `<w:tc>` —— OOXML 的
+ * vMerge 機制需要每個邏輯列都有對應 cell、第二列以後的延續格用 `<w:vMerge/>`
+ * （無 w:val、預設 = continue）；最上格用 `<w:vMerge w:val="restart"/>` 開始合併。
+ *
+ * cell content 為 BlockNode[]（可含巢狀表格）→ writeBlock 遞迴。
+ */
+function writeCell(cell: CellNode): string {
+  const tcPr = writeTcPr(cell);
+  const content = cell.content.map(writeBlock).join('');
+  // 即使 isContinuation = true、cell 內容仍需有至少一個 <w:p>（OOXML 規範：
+  // 每個 <w:tc> 必含一個 block-level child）。若 content 空 → 補空段落。
+  const body = content !== '' ? content : '<w:p/>';
+  return `<w:tc>${tcPr}${body}</w:tc>`;
+}
+
+/** `<w:tcPr>` — cell 屬性（OOXML §17.4.70）：寬 / gridSpan / vMerge / borders / shd / margins / vAlign / textDirection / noWrap。 */
+function writeTcPr(cell: CellNode): string {
+  const parts: string[] = [];
+  const p = cell.props;
+
+  // w:tcW
+  const tcW = writeTcW(p.width);
+  if (tcW !== '') parts.push(tcW);
+
+  // w:gridSpan（>1 才掛）
+  if (cell.gridSpan > 1) parts.push(`<w:gridSpan w:val="${cell.gridSpan}"/>`);
+
+  // w:vMerge：rowSpan>1 的起始 cell → restart；isContinuation=true → 預設 continue
+  if (cell.isContinuation) {
+    parts.push('<w:vMerge/>');
+  } else if (cell.rowSpan > 1) {
+    parts.push('<w:vMerge w:val="restart"/>');
+  }
+
+  // w:tcBorders
+  if (p.borders) parts.push(writeBorderSet(p.borders, 'w:tcBorders'));
+
+  // w:shd
+  if (p.shading) {
+    const attrs: string[] = [];
+    if (p.shading.pattern !== undefined) attrs.push(`w:val="${escapeXml(p.shading.pattern)}"`);
+    if (p.shading.fill !== undefined) attrs.push(`w:fill="${escapeXml(p.shading.fill)}"`);
+    if (p.shading.color !== undefined) attrs.push(`w:color="${escapeXml(p.shading.color)}"`);
+    if (attrs.length > 0) parts.push(`<w:shd ${attrs.join(' ')}/>`);
+  }
+
+  // w:noWrap
+  if (p.noWrap === true) parts.push('<w:noWrap/>');
+
+  // w:tcMar
+  if (p.margins) {
+    const tcMar = writeTcMar(p.margins);
+    if (tcMar !== '') parts.push(tcMar);
+  }
+
+  // w:textDirection
+  if (p.textDirection !== undefined) {
+    parts.push(`<w:textDirection w:val="${p.textDirection}"/>`);
+  }
+
+  // w:vAlign
+  if (p.vAlign !== undefined) parts.push(`<w:vAlign w:val="${p.vAlign}"/>`);
+
+  // w:tcFitText（OOXML §17.4.65）
+  if (p.fitText === true) parts.push('<w:tcFitText/>');
+
+  return parts.length > 0 ? `<w:tcPr>${parts.join('')}</w:tcPr>` : '';
 }
 
 // ── 工具 ─────────────────────────────────────────────────────────────────────
