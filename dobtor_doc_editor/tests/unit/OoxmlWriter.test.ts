@@ -154,11 +154,11 @@ describe('OoxmlWriter — 段落與 Run 輸出', () => {
     expect(xml).toContain('xml:space="preserve"');
   });
 
-  it('非 run 的 InlineNode（image / break / field）→ MVS 跳過', () => {
+  it('Sprint 192：image 升級為輸出 <w:drawing>，break/field 仍跳過', () => {
     const doc = makeDoc([makeSection([
       makeParagraph([
         makeRun('前'),
-        { type: 'inlineImage', rId: 'rId1', width: 100, height: 50 },
+        { type: 'inlineImage', rId: 'rIdImg1', width: 100, height: 50 },
         { type: 'break', breakType: 'line' },
         makeRun('後'),
       ]),
@@ -166,8 +166,9 @@ describe('OoxmlWriter — 段落與 Run 輸出', () => {
     const xml = unzipToText(writer.write(doc))['word/document.xml'];
     expect(xml).toContain('>前<');
     expect(xml).toContain('>後<');
-    // MVS 不輸出 image / break
-    expect(xml).not.toContain('<w:drawing');
+    // Sprint 192：image 現在會輸出 <w:drawing>
+    expect(xml).toContain('<w:drawing>');
+    // break 仍未實作
     expect(xml).not.toContain('<w:br');
   });
 
@@ -1010,5 +1011,157 @@ describe('OoxmlWriter — Sprint 191 多 section + numbering.xml', () => {
     expect((xml.match(/<w:num /g) ?? []).length).toBe(2);
     expect(xml).toContain('w:numId="1"');
     expect(xml).toContain('w:numId="2"');
+  });
+});
+
+describe('OoxmlWriter — Sprint 192 圖片 / media export', () => {
+  // 1x1 透明 PNG（已知有效、用於測試）
+  const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=';
+  const PNG_DATA_URL = `data:image/png;base64,${PNG_B64}`;
+  // 最小 JPEG（白色 1x1，僅供測試 mime 多樣性）
+  const JPG_DATA_URL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/2wBDAP//';
+
+  function imageRun(rId: string, width = 50, height = 50, altText?: string) {
+    const n: { type: 'inlineImage'; rId: string; width: number; height: number; altText?: string } =
+      { type: 'inlineImage', rId, width, height };
+    if (altText) n.altText = altText;
+    return n;
+  }
+
+  function getDocXml(media: Map<string, string>, runs: ReturnType<typeof imageRun>[] = []): string {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [makeRun('text'), ...runs], props: {} },
+    ])]);
+    doc.media = media;
+    return unzipToText(writer.write(doc))['word/document.xml'];
+  }
+
+  function getAllParts(media: Map<string, string>) {
+    const doc = makeDoc([makeSection([])]);
+    doc.media = media;
+    return unzipToText(writer.write(doc));
+  }
+
+  // ── zip 結構 ────────────────────────────────────────────────────────────
+
+  it('無 media → 仍是 6 part（無 media 檔加入）', () => {
+    const parts = getAllParts(new Map());
+    expect(Object.keys(parts).filter((p) => p.startsWith('word/media/'))).toHaveLength(0);
+  });
+
+  it('單張 PNG → word/media/image1.png 寫入 zip', () => {
+    const parts = getAllParts(new Map([['rId10', PNG_DATA_URL]]));
+    expect(parts['word/media/image1.png']).toBeDefined();
+    // PNG 簽名：89 50 4E 47
+    const bin = unzipSync(writer.write(((): DocumentNode => {
+      const d = makeDoc([makeSection([])]); d.media = new Map([['rId10', PNG_DATA_URL]]); return d;
+    })()));
+    const png = bin['word/media/image1.png'];
+    expect(png[0]).toBe(0x89);
+    expect(png[1]).toBe(0x50);
+    expect(png[2]).toBe(0x4E);
+    expect(png[3]).toBe(0x47);
+  });
+
+  it('Content Types 含 image 副檔名 Default（png）', () => {
+    const parts = getAllParts(new Map([['rId1', PNG_DATA_URL]]));
+    expect(parts['[Content_Types].xml']).toContain('<Default Extension="png" ContentType="image/png"/>');
+  });
+
+  it('多種 mime → 各自 Default + 各自檔名（image1.png / image2.jpeg）', () => {
+    const parts = getAllParts(new Map([
+      ['rIdA', PNG_DATA_URL],
+      ['rIdB', JPG_DATA_URL],
+    ]));
+    expect(parts['[Content_Types].xml']).toContain('Extension="png"');
+    expect(parts['[Content_Types].xml']).toContain('Extension="jpeg"');
+    expect(parts['word/media/image1.png']).toBeDefined();
+    expect(parts['word/media/image2.jpeg']).toBeDefined();
+  });
+
+  it('document.xml.rels 含 image relationship + styles/numbering 改用具名 Id', () => {
+    const parts = getAllParts(new Map([['rIdImg', PNG_DATA_URL]]));
+    const rels = parts['word/_rels/document.xml.rels'];
+    expect(rels).toContain('Id="rIdStyles"');
+    expect(rels).toContain('Id="rIdNumbering"');
+    expect(rels).toContain('Id="rIdImg"');
+    expect(rels).toContain('Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"');
+    expect(rels).toContain('Target="media/image1.png"');
+  });
+
+  it('非 image/* 的 data URL → 跳過（不寫入 zip、不影響其他 part）', () => {
+    const parts = getAllParts(new Map([
+      ['rIdTxt', 'data:text/plain;base64,SGVsbG8='],
+      ['rIdImg', PNG_DATA_URL],
+    ]));
+    // 只有 image 那筆會輸出
+    expect(parts['word/media/image1.png']).toBeDefined();
+    // text/plain 不在
+    const rels = parts['word/_rels/document.xml.rels'];
+    expect(rels).toContain('rIdImg');
+    expect(rels).not.toContain('rIdTxt');
+  });
+
+  // ── document.xml 內 <w:drawing> ────────────────────────────────────────
+
+  it('InlineImageNode → <w:r><w:drawing><wp:inline>...<a:blip r:embed=...>', () => {
+    const media = new Map([['rId7', PNG_DATA_URL]]);
+    const xml = getDocXml(media, [imageRun('rId7', 100, 50)]);
+    expect(xml).toContain('<w:drawing>');
+    expect(xml).toContain('<wp:inline ');
+    expect(xml).toContain('r:embed="rId7"');
+    expect(xml).toContain('<pic:pic ');
+    expect(xml).toContain('<a:prstGeom prst="rect"');
+  });
+
+  it('extent cx/cy 換 EMU（100pt × 12700 = 1270000）', () => {
+    const media = new Map([['rId1', PNG_DATA_URL]]);
+    const xml = getDocXml(media, [imageRun('rId1', 100, 50)]);
+    expect(xml).toContain('cx="1270000"');
+    expect(xml).toContain('cy="635000"');
+  });
+
+  it('altText → wp:docPr descr 屬性', () => {
+    const media = new Map([['rId1', PNG_DATA_URL]]);
+    const xml = getDocXml(media, [imageRun('rId1', 50, 50, '示意圖')]);
+    expect(xml).toContain('descr="示意圖"');
+  });
+
+  it('多張圖片 → docPr id 遞增', () => {
+    const media = new Map([['rIdA', PNG_DATA_URL], ['rIdB', PNG_DATA_URL]]);
+    const xml = getDocXml(media, [imageRun('rIdA'), imageRun('rIdB')]);
+    expect(xml).toContain('id="1"');
+    expect(xml).toContain('id="2"');
+  });
+
+  it('FloatImageNode → 降級為 inline（同樣輸出 <wp:inline>、posH/posV 不輸出）', () => {
+    const media = new Map([['rIdF', PNG_DATA_URL]]);
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [{
+        type: 'floatImage', rId: 'rIdF', width: 80, height: 60,
+        posH: { relativeFrom: 'column' }, posV: { relativeFrom: 'paragraph' },
+        wrapType: 'square',
+      }], props: {} },
+    ])]);
+    doc.media = media;
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('<wp:inline ');
+    expect(xml).not.toContain('<wp:anchor');
+    expect(xml).toContain('r:embed="rIdF"');
+  });
+
+  // ── 計數器重置 ────────────────────────────────────────────────────────
+
+  it('多次 write → docPr 計數器重置（不會累加）', () => {
+    const media = new Map([['rIdX', PNG_DATA_URL]]);
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [imageRun('rIdX')], props: {} },
+    ])]);
+    doc.media = media;
+    const xml1 = unzipToText(writer.write(doc))['word/document.xml'];
+    const xml2 = unzipToText(writer.write(doc))['word/document.xml'];
+    // 兩次都從 id="1" 開始
+    expect(xml1).toContain('id="1"');
+    expect(xml2).toContain('id="1"');
   });
 });

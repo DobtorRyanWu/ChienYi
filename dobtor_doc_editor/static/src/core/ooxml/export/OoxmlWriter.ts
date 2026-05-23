@@ -30,6 +30,8 @@ import type {
   CellBorders,
   CellNode,
   DocumentNode,
+  FloatImageNode,
+  InlineImageNode,
   NumberingLevel,
   ParagraphNode,
   ParagraphProps,
@@ -55,6 +57,20 @@ const REL_TYPE_STYLES =
 /** numbering 關係型別（document.xml.rels → numbering.xml）。 */
 const REL_TYPE_NUMBERING =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+/** image 關係型別（document.xml.rels → media/imageN.ext）。 */
+const REL_TYPE_IMAGE =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+/** DrawingML 命名空間：wordprocessingDrawing（wp）。 */
+const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+/** DrawingML 命名空間：main（a）。 */
+const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+/** DrawingML 命名空間：picture（pic）。 */
+const PIC_NS = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+/** officeDocument relationships 命名空間（r:embed）。 */
+const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+/** `<a:graphicData uri>` for picture。 */
+const A_GRAPHIC_PICTURE_URI = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
 
 /** 1 pt = 20 twips（OOXML 度量單位、§17.18.85）。 */
 const TWIPS_PER_PT = 20;
@@ -64,6 +80,8 @@ const HALF_POINTS_PER_PT = 2;
 const LINE_SPACING_AUTO_BASE = 240;
 /** 邊框寬度單位：`<w:sz>` 為 1/8 pt（OOXML §17.3.1.23 CT_Border）。 */
 const BORDER_EIGHTHS_PER_PT = 8;
+/** EMU per pt：1 inch = 914400 EMU = 72 pt → 1 pt = 12700 EMU（OOXML §20.1）。 */
+const EMU_PER_PT = 12700;
 
 /** A4 直式預設頁面尺寸（pt），section.page 缺漏時 fallback。 */
 const DEFAULT_PAGE_WIDTH_PT = 595.3;
@@ -81,26 +99,49 @@ export class OoxmlWriter {
    * @returns .docx 的 Uint8Array；caller 可 `.buffer` 取 ArrayBuffer 寫檔
    */
   write(doc: DocumentNode): Uint8Array {
+    // Sprint 192：重置每次 write 的內部計數器（docPr 序號）
+    resetDocPrCounter();
+
+    // Sprint 192：收集 media（base64 data URL → bytes + 檔名）
+    const mediaItems = collectMedia(doc.media);
+    const imageExtensions = new Set(mediaItems.map((m) => m.ext));
+
     const parts: { [path: string]: Uint8Array } = {
-      '[Content_Types].xml': strToU8(writeContentTypes()),
+      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions)),
       '_rels/.rels': strToU8(writeRootRels()),
-      'word/_rels/document.xml.rels': strToU8(writeDocumentRels()),
+      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems)),
       'word/document.xml': strToU8(writeDocument(doc)),
       'word/styles.xml': strToU8(writeStyles(doc)),
       'word/numbering.xml': strToU8(writeNumbering(doc)),
     };
+    // Sprint 192：把每張 media 圖片的 bytes 寫進 zip
+    for (const m of mediaItems) {
+      parts[m.target] = m.bytes;
+    }
     return zipSync(parts);
   }
 }
 
 // ── 各 part 寫出函式 ─────────────────────────────────────────────────────────
 
-/** `[Content_Types].xml`：宣告 MVS 範圍內的 part MIME 型別。 */
-function writeContentTypes(): string {
+/**
+ * `[Content_Types].xml`：宣告 part MIME 型別。
+ *
+ * Sprint 192：依 doc 內出現的圖片副檔名集合新增 Default entries
+ * （`<Default Extension="png" ContentType="image/png"/>` 等）。Word 對未宣告
+ * 副檔名的 part 會回退到「未知」處理、可能丟失。
+ */
+function writeContentTypes(imageExtensions: Set<string>): string {
+  const imageDefaults: string[] = [];
+  for (const ext of imageExtensions) {
+    const ct = mimeForExtension(ext);
+    imageDefaults.push(`<Default Extension="${escapeXml(ext)}" ContentType="${ct}"/>`);
+  }
   return xmlDecl() +
     `<Types xmlns="${CT_NS}">` +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
     '<Default Extension="xml" ContentType="application/xml"/>' +
+    imageDefaults.join('') +
     '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
     '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
     '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
@@ -115,12 +156,27 @@ function writeRootRels(): string {
     '</Relationships>';
 }
 
-/** `word/_rels/document.xml.rels`：document 關係（styles + numbering）。 */
-function writeDocumentRels(): string {
+/**
+ * `word/_rels/document.xml.rels`：document 關係（styles + numbering + images）。
+ *
+ * Sprint 192：styles / numbering 用具名 Id（rIdStyles / rIdNumbering）以避免
+ * 與 image rIds 的數字命名空間衝突（image rIds 從 doc.media 原樣帶入、可能
+ * 是 "rId1" 等）。
+ */
+function writeDocumentRels(mediaItems: MediaItem[]): string {
+  const imageRels: string[] = [];
+  for (const m of mediaItems) {
+    // Target 為相對 word/ 目錄：去掉 'word/' 前綴
+    const target = m.target.startsWith('word/') ? m.target.slice('word/'.length) : m.target;
+    imageRels.push(
+      `<Relationship Id="${escapeXml(m.rId)}" Type="${REL_TYPE_IMAGE}" Target="${escapeXml(target)}"/>`,
+    );
+  }
   return xmlDecl() +
     `<Relationships xmlns="${REL_NS}">` +
-    `<Relationship Id="rId1" Type="${REL_TYPE_STYLES}" Target="styles.xml"/>` +
-    `<Relationship Id="rId2" Type="${REL_TYPE_NUMBERING}" Target="numbering.xml"/>` +
+    `<Relationship Id="rIdStyles" Type="${REL_TYPE_STYLES}" Target="styles.xml"/>` +
+    `<Relationship Id="rIdNumbering" Type="${REL_TYPE_NUMBERING}" Target="numbering.xml"/>` +
+    imageRels.join('') +
     '</Relationships>';
 }
 
@@ -229,7 +285,15 @@ function writeParagraph(para: ParagraphNode): string {
   const pPr = writePPr(para.props, para.styleId);
   const runs: string[] = [];
   for (const node of para.runs) {
-    if (node.type === 'run') runs.push(writeRun(node));
+    if (node.type === 'run') {
+      runs.push(writeRun(node));
+    } else if (node.type === 'inlineImage' || node.type === 'floatImage') {
+      // Sprint 192：圖片 → `<w:r><w:drawing><wp:inline>...`
+      // floatImage 降級為 inline（與 ToCanvasEditor 一致：canvas-editor
+      // 浮動繞排支援不完整、production pipeline 已將 float 視為 inline）
+      runs.push(writeInlineImageRun(node));
+    }
+    // break / field 仍跳過、留後續 sprint
   }
   return `<w:p>${pPr}${runs.join('')}</w:p>`;
 }
@@ -761,6 +825,170 @@ function writeLvl(level: NumberingLevel): string {
   }
 
   return `<w:lvl w:ilvl="${level.ilvl}">${parts.join('')}</w:lvl>`;
+}
+
+// ── Sprint 192：圖片 / media 序列化 ──────────────────────────────────────────
+
+/**
+ * 單一 media 項目：rId / 副檔名 / mime / 解碼後 bytes / zip 內路徑。
+ * 由 `collectMedia` 從 `DocumentNode.media`（rId → base64 data URL）建立。
+ */
+interface MediaItem {
+  rId: string;
+  ext: string;        // 'png' / 'jpeg' / 'gif' / ...
+  mime: string;       // 'image/png' / 'image/jpeg' / ...
+  bytes: Uint8Array;
+  target: string;     // 'word/media/imageN.ext'
+}
+
+/**
+ * 把 `DocumentNode.media`（Map<rId, data URL>）轉為 MediaItem[]。
+ *
+ * - data URL 格式：`data:<mime>;base64,<base64-bytes>`
+ * - 非 image/* 或解析失敗的條目 → 跳過
+ * - 檔名用序列流水號 imageN.ext 避免 rId 字串衝突
+ */
+function collectMedia(media: Map<string, string>): MediaItem[] {
+  const items: MediaItem[] = [];
+  let counter = 0;
+  for (const [rId, dataUrl] of media) {
+    const parsed = parseDataUrl(dataUrl);
+    if (!parsed) continue; // 非 base64 data URL / 解碼失敗
+    if (!parsed.mime.startsWith('image/')) continue; // 非圖片 → 跳過
+    counter++;
+    const ext = extensionForMime(parsed.mime);
+    items.push({
+      rId,
+      ext,
+      mime: parsed.mime,
+      bytes: parsed.bytes,
+      target: `word/media/image${counter}.${ext}`,
+    });
+  }
+  return items;
+}
+
+/**
+ * 解析 `data:<mime>;base64,<...>` 為 mime + bytes。
+ * 非 base64 或格式錯誤 → undefined。
+ */
+function parseDataUrl(dataUrl: string): { mime: string; bytes: Uint8Array } | undefined {
+  if (!dataUrl.startsWith('data:')) return undefined;
+  const commaIdx = dataUrl.indexOf(',');
+  if (commaIdx < 0) return undefined;
+  const header = dataUrl.slice(5, commaIdx); // skip 'data:'
+  const b64Body = dataUrl.slice(commaIdx + 1);
+  // header 形如 "image/png;base64" 或 "image/png"（無 base64）
+  const semi = header.indexOf(';');
+  const mime = semi >= 0 ? header.slice(0, semi) : header;
+  const isBase64 = semi >= 0 && header.slice(semi + 1).toLowerCase().includes('base64');
+  if (!isBase64) return undefined;
+  try {
+    return { mime, bytes: base64ToBytes(b64Body) };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * base64 字串 → Uint8Array。Node 用 Buffer、瀏覽器用 atob 後備。
+ */
+function base64ToBytes(b64: string): Uint8Array {
+  const g = globalThis as {
+    Buffer?: { from(s: string, enc: string): { length: number; [k: number]: number } };
+    atob?: (s: string) => string;
+  };
+  if (g.Buffer && typeof g.Buffer.from === 'function') {
+    const buf = g.Buffer.from(b64, 'base64');
+    return new Uint8Array(buf as unknown as ArrayBuffer);
+  }
+  if (typeof g.atob === 'function') {
+    const bin = g.atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  throw new Error('OoxmlWriter: no base64 decoder available (need Buffer or atob)');
+}
+
+/** mime 'image/png' → 副檔名 'png'；'image/x-emf' → 'emf'；'image/svg+xml' → 'svg'。 */
+function extensionForMime(mime: string): string {
+  const slash = mime.indexOf('/');
+  if (slash < 0) return 'bin';
+  let ext = mime.slice(slash + 1);
+  // 去掉 +xml 等後綴
+  const plus = ext.indexOf('+');
+  if (plus >= 0) ext = ext.slice(0, plus);
+  // 去掉 'x-' 前綴
+  if (ext.startsWith('x-')) ext = ext.slice(2);
+  return ext.toLowerCase();
+}
+
+/** 副檔名 → MIME（Content_Types Default 用）。未知副檔名 fallback 為 `image/${ext}`。 */
+function mimeForExtension(ext: string): string {
+  switch (ext) {
+    case 'png': return 'image/png';
+    case 'jpeg':
+    case 'jpg': return 'image/jpeg';
+    case 'gif': return 'image/gif';
+    case 'bmp': return 'image/bmp';
+    case 'tiff':
+    case 'tif': return 'image/tiff';
+    case 'webp': return 'image/webp';
+    case 'svg': return 'image/svg+xml';
+    case 'emf': return 'image/x-emf';
+    case 'wmf': return 'image/x-wmf';
+    default: return `image/${ext}`;
+  }
+}
+
+// ── docPr id 計數器（每次 write 重置） ────────────────────────────────────
+
+let _docPrCounter = 0;
+function resetDocPrCounter(): void { _docPrCounter = 0; }
+function nextDocPrId(): number { _docPrCounter += 1; return _docPrCounter; }
+
+/**
+ * Sprint 192：把 InlineImageNode / FloatImageNode 序列化為 `<w:r><w:drawing><wp:inline>`。
+ *
+ * FloatImageNode 降級為 inline 輸出（與 ToCanvasEditor 一致：production pipeline
+ * 已把浮動圖片視為 inline）。posH / posV / wrap / srcRect 等屬性 lossy 留後續。
+ *
+ * 結構：`<w:r><w:drawing><wp:inline>` 含 wp:extent（EMU 換算）+ wp:docPr + a:graphic
+ * → a:graphicData uri=picture → pic:pic（nvPicPr + blipFill + spPr）。
+ */
+function writeInlineImageRun(img: InlineImageNode | FloatImageNode): string {
+  const cx = ptToEmu(img.width);
+  const cy = ptToEmu(img.height);
+  const docPrId = nextDocPrId();
+  const descrAttr = img.altText ? ` descr="${escapeXml(img.altText)}"` : '';
+  return '<w:r><w:drawing>' +
+    `<wp:inline xmlns:wp="${WP_NS}" distT="0" distB="0" distL="0" distR="0">` +
+    `<wp:extent cx="${cx}" cy="${cy}"/>` +
+    `<wp:docPr id="${docPrId}" name="Image${docPrId}"${descrAttr}/>` +
+    '<wp:cNvGraphicFramePr/>' +
+    `<a:graphic xmlns:a="${A_NS}">` +
+    `<a:graphicData uri="${A_GRAPHIC_PICTURE_URI}">` +
+    `<pic:pic xmlns:pic="${PIC_NS}">` +
+    `<pic:nvPicPr><pic:cNvPr id="${docPrId}" name="Image${docPrId}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    '<pic:blipFill>' +
+    `<a:blip xmlns:r="${R_NS}" r:embed="${escapeXml(img.rId)}"/>` +
+    '<a:stretch><a:fillRect/></a:stretch>' +
+    '</pic:blipFill>' +
+    '<pic:spPr>' +
+    `<a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' +
+    '</pic:spPr>' +
+    '</pic:pic>' +
+    '</a:graphicData>' +
+    '</a:graphic>' +
+    '</wp:inline>' +
+    '</w:drawing></w:r>';
+}
+
+/** pt → EMU（四捨五入為整數、OOXML drawing 屬性要求整數）。 */
+function ptToEmu(pt: number): number {
+  return Math.round(pt * EMU_PER_PT);
 }
 
 // ── 工具 ─────────────────────────────────────────────────────────────────────

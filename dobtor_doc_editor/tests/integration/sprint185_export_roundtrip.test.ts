@@ -860,3 +860,109 @@ describe('Sprint 191 — Phase 6 export round-trip（多 section + numbering）'
     expect(back.numbering.get(1)?.levels[0].text).toBe('%1.');
   });
 });
+
+describe('Sprint 192 — Phase 6 export round-trip（圖片 / media）', () => {
+  const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=';
+  const PNG_DATA_URL = `data:image/png;base64,${PNG_B64}`;
+
+  function firstParagraph(doc: DocumentNode): ParagraphNode {
+    const block = doc.sections[0].body[0];
+    if (block.type !== 'paragraph') throw new Error('expected paragraph');
+    return block;
+  }
+
+  it('單張內嵌圖片 round-trip → 段落中 inlineImage 還原（width/height/rId）', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [
+        makeRun('前'),
+        { type: 'inlineImage', rId: 'rIdImg1', width: 100, height: 50 },
+        makeRun('後'),
+      ], props: {} },
+    ])]);
+    doc.media = new Map([['rIdImg1', PNG_DATA_URL]]);
+    const back = roundTrip(doc);
+    const para = firstParagraph(back);
+    const imgNode = para.runs.find((r) => r.type === 'inlineImage');
+    expect(imgNode).toBeDefined();
+    if (imgNode && imgNode.type === 'inlineImage') {
+      expect(imgNode.rId).toBe('rIdImg1');
+      expect(imgNode.width).toBeCloseTo(100, 0);
+      expect(imgNode.height).toBeCloseTo(50, 0);
+    }
+    // media map 保留該 rId
+    expect(back.media.has('rIdImg1')).toBe(true);
+  });
+
+  it('圖片 bytes 在 round-trip 後保留（PNG 簽名）', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [
+        { type: 'inlineImage', rId: 'rIdImg1', width: 50, height: 50 },
+      ], props: {} },
+    ])]);
+    doc.media = new Map([['rIdImg1', PNG_DATA_URL]]);
+    const back = roundTrip(doc);
+    const dataUrl = back.media.get('rIdImg1');
+    expect(dataUrl).toBeDefined();
+    expect(dataUrl).toMatch(/^data:image\/png;base64,/);
+    // base64 部分相同
+    expect(dataUrl).toContain(PNG_B64);
+  });
+
+  it('altText round-trip', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [
+        { type: 'inlineImage', rId: 'rIdImg1', width: 50, height: 50, altText: '監造照片' },
+      ], props: {} },
+    ])]);
+    doc.media = new Map([['rIdImg1', PNG_DATA_URL]]);
+    const back = roundTrip(doc);
+    const img = firstParagraph(back).runs.find((r) => r.type === 'inlineImage');
+    if (img && img.type === 'inlineImage') {
+      expect(img.altText).toBe('監造照片');
+    }
+  });
+
+  it('多張圖片 round-trip（rId 各自還原）', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [
+        { type: 'inlineImage', rId: 'rIdA', width: 30, height: 30 },
+        { type: 'inlineImage', rId: 'rIdB', width: 40, height: 40 },
+        { type: 'inlineImage', rId: 'rIdC', width: 50, height: 50 },
+      ], props: {} },
+    ])]);
+    doc.media = new Map([
+      ['rIdA', PNG_DATA_URL],
+      ['rIdB', PNG_DATA_URL],
+      ['rIdC', PNG_DATA_URL],
+    ]);
+    const back = roundTrip(doc);
+    const para = firstParagraph(back);
+    const images = para.runs.filter((r) => r.type === 'inlineImage');
+    expect(images).toHaveLength(3);
+    expect(images.map((i) => i.type === 'inlineImage' && i.rId).sort())
+      .toEqual(['rIdA', 'rIdB', 'rIdC']);
+    expect(back.media.size).toBe(3);
+  });
+
+  it('FloatImageNode 降級為 inline 後 round-trip → 還原為 inlineImage', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [{
+        type: 'floatImage', rId: 'rIdF', width: 80, height: 60,
+        posH: { relativeFrom: 'column' },
+        posV: { relativeFrom: 'paragraph' },
+        wrapType: 'square',
+      }], props: {} },
+    ])]);
+    doc.media = new Map([['rIdF', PNG_DATA_URL]]);
+    const back = roundTrip(doc);
+    const img = firstParagraph(back).runs.find((r) =>
+      r.type === 'inlineImage' || r.type === 'floatImage',
+    );
+    // 降級為 inline
+    expect(img?.type).toBe('inlineImage');
+    if (img && img.type === 'inlineImage') {
+      expect(img.rId).toBe('rIdF');
+      expect(img.width).toBeCloseTo(80, 0);
+    }
+  });
+});
