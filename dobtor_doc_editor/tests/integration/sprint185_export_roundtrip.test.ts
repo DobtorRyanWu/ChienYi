@@ -134,15 +134,17 @@ describe('Sprint 185 — Phase 6 export round-trip（純文字段落）', () => 
     expect(extractText(roundTrip(doc))).toBe(txt);
   });
 
-  it('round-trip 後仍只有 1 個 section（MVS 多 section 退化為單）', () => {
+  it('Sprint 191：多 section round-trip → 2 個 section、anchor paragraph 拆分還原', () => {
     const doc = makeDoc([
       makeSection([makeParagraph([makeRun('A')])]),
       makeSection([makeParagraph([makeRun('B')])]),
     ]);
     const back = roundTrip(doc);
-    expect(back.sections).toHaveLength(1);
-    // 兩 section 的段落都在
-    expect(extractText(back)).toBe('A\nB');
+    expect(back.sections).toHaveLength(2);
+    // 兩 section 的段落都在（anchor para 可能變空段、不影響文字內容）
+    const text = extractText(back);
+    expect(text).toContain('A');
+    expect(text).toContain('B');
   });
 
   it('section page / margins round-trip（pt → twips → pt 量化、A4 + 72pt）', () => {
@@ -713,5 +715,148 @@ describe('Sprint 190 — Phase 6 export round-trip（表格）', () => {
       const innerPara = innerCell.content[0];
       expect(innerPara.type === 'paragraph' && (innerPara.runs[0].type === 'run' && innerPara.runs[0].text)).toBe('inner');
     }
+  });
+});
+
+describe('Sprint 191 — Phase 6 export round-trip（多 section + numbering）', () => {
+  // ── 多 section round-trip ────────────────────────────────────────────────
+
+  it('3 個 section round-trip → 3 個 section、各自段落保留', () => {
+    const doc = makeDoc([
+      makeSection([makeParagraph([makeRun('一')])]),
+      makeSection([makeParagraph([makeRun('二')])]),
+      makeSection([makeParagraph([makeRun('三')])]),
+    ]);
+    const back = roundTrip(doc);
+    expect(back.sections).toHaveLength(3);
+    expect(extractText(back)).toContain('一');
+    expect(extractText(back)).toContain('二');
+    expect(extractText(back)).toContain('三');
+  });
+
+  it('多 section 各自 page 屬性 round-trip', () => {
+    const portrait = makeSection([makeParagraph([makeRun('P')])]);
+    const landscape = {
+      ...makeSection([makeParagraph([makeRun('L')])]),
+      page: { width: 841.9, height: 595.3, orientation: 'landscape' as const },
+    };
+    const doc = makeDoc([portrait, landscape]);
+    const back = roundTrip(doc);
+    expect(back.sections).toHaveLength(2);
+    expect(back.sections[0].page.width).toBeCloseTo(595.3, 0);
+    expect(back.sections[1].page.width).toBeCloseTo(841.9, 0);
+  });
+
+  // ── numbering round-trip ─────────────────────────────────────────────────
+
+  it('空 numbering map round-trip', () => {
+    const doc = makeDoc([makeSection([])]);
+    expect(roundTrip(doc).numbering.size).toBe(0);
+  });
+
+  it('單一 numbering entry round-trip（含 level start/numFmt/lvlText）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.numbering = new Map([[1, {
+      abstractNumId: 5,
+      levels: [{ ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1 }],
+    }]]);
+    const back = roundTrip(doc).numbering;
+    expect(back.size).toBe(1);
+    const entry = back.get(1);
+    expect(entry).toBeDefined();
+    expect(entry?.levels).toHaveLength(1);
+    expect(entry?.levels[0].ilvl).toBe(0);
+    expect(entry?.levels[0].numFmt).toBe('decimal');
+    expect(entry?.levels[0].text).toBe('%1.');
+    expect(entry?.levels[0].start).toBe(1);
+    // abstractNumId 用 numId（lossy 設計、其他欄位保留）
+    expect(entry?.abstractNumId).toBe(1);
+  });
+
+  it('多 levels round-trip（ilvl 0/1/2、不同 numFmt）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.numbering = new Map([[1, {
+      abstractNumId: 0,
+      levels: [
+        { ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1 },
+        { ilvl: 1, numFmt: 'lowerLetter', text: '%2)', start: 2 },
+        { ilvl: 2, numFmt: 'lowerRoman', text: '%3.', start: 3 },
+      ],
+    }]]);
+    const entry = roundTrip(doc).numbering.get(1)!;
+    expect(entry.levels).toHaveLength(3);
+    expect(entry.levels[1].numFmt).toBe('lowerLetter');
+    expect(entry.levels[1].start).toBe(2);
+    expect(entry.levels[2].numFmt).toBe('lowerRoman');
+  });
+
+  it('level lvlRestart / isLegal round-trip', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.numbering = new Map([[1, {
+      abstractNumId: 0,
+      levels: [{ ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1, lvlRestart: 0, isLegal: true }],
+    }]]);
+    const lvl = roundTrip(doc).numbering.get(1)!.levels[0];
+    expect(lvl.lvlRestart).toBe(0);
+    expect(lvl.isLegal).toBe(true);
+  });
+
+  it('level indent round-trip（parser 分離欄位）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.numbering = new Map([[1, {
+      abstractNumId: 0,
+      levels: [{
+        ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1,
+        indent: { left: 36, hanging: 18 },
+      }],
+    }]]);
+    const lvl = roundTrip(doc).numbering.get(1)!.levels[0];
+    expect(lvl.indent?.left).toBeCloseTo(36, 1);
+    expect(lvl.indent?.hanging).toBeCloseTo(18, 1);
+  });
+
+  it('level runProps round-trip', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.numbering = new Map([[1, {
+      abstractNumId: 0,
+      levels: [{
+        ilvl: 0, numFmt: 'bullet', text: '•', start: 1,
+        runProps: { bold: true, fontFamily: 'Symbol' },
+      }],
+    }]]);
+    const lvl = roundTrip(doc).numbering.get(1)!.levels[0];
+    expect(lvl.runProps?.bold).toBe(true);
+    expect(lvl.runProps?.fontFamily).toBe('Symbol');
+  });
+
+  it('多 numId entry round-trip（Map 各 key 獨立）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.numbering = new Map([
+      [1, { abstractNumId: 0, levels: [{ ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1 }] }],
+      [2, { abstractNumId: 1, levels: [{ ilvl: 0, numFmt: 'bullet', text: '•', start: 1 }] }],
+    ]);
+    const back = roundTrip(doc).numbering;
+    expect(back.size).toBe(2);
+    expect(back.get(1)?.levels[0].numFmt).toBe('decimal');
+    expect(back.get(2)?.levels[0].numFmt).toBe('bullet');
+  });
+
+  it('paragraph 引用 numId+ilvl + 對應 numbering round-trip 端到端', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph',
+      runs: [makeRun('item')],
+      props: { numId: 1, ilvl: 0 },
+    };
+    const doc = makeDoc([makeSection([para])]);
+    doc.numbering = new Map([[1, {
+      abstractNumId: 0,
+      levels: [{ ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1 }],
+    }]]);
+    const back = roundTrip(doc);
+    const backPara = back.sections[0].body[0];
+    if (backPara.type !== 'paragraph') throw new Error('expected paragraph');
+    expect(backPara.props.numId).toBe(1);
+    expect(backPara.props.ilvl).toBe(0);
+    expect(back.numbering.get(1)?.levels[0].text).toBe('%1.');
   });
 });

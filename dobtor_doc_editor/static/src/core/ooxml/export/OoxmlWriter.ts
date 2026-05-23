@@ -25,10 +25,12 @@
 
 import { zipSync, strToU8 } from 'fflate';
 import type {
+  AbstractNumbering,
   BlockNode,
   CellBorders,
   CellNode,
   DocumentNode,
+  NumberingLevel,
   ParagraphNode,
   ParagraphProps,
   RowNode,
@@ -50,6 +52,9 @@ const REL_TYPE_OFFICE_DOCUMENT =
 /** styles 關係型別（document.xml.rels → styles.xml）。 */
 const REL_TYPE_STYLES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles';
+/** numbering 關係型別（document.xml.rels → numbering.xml）。 */
+const REL_TYPE_NUMBERING =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
 
 /** 1 pt = 20 twips（OOXML 度量單位、§17.18.85）。 */
 const TWIPS_PER_PT = 20;
@@ -82,6 +87,7 @@ export class OoxmlWriter {
       'word/_rels/document.xml.rels': strToU8(writeDocumentRels()),
       'word/document.xml': strToU8(writeDocument(doc)),
       'word/styles.xml': strToU8(writeStyles(doc)),
+      'word/numbering.xml': strToU8(writeNumbering(doc)),
     };
     return zipSync(parts);
   }
@@ -97,6 +103,7 @@ function writeContentTypes(): string {
     '<Default Extension="xml" ContentType="application/xml"/>' +
     '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
     '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
+    '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
     '</Types>';
 }
 
@@ -108,11 +115,12 @@ function writeRootRels(): string {
     '</Relationships>';
 }
 
-/** `word/_rels/document.xml.rels`：document 的關係（MVS 僅 styles）。 */
+/** `word/_rels/document.xml.rels`：document 關係（styles + numbering）。 */
 function writeDocumentRels(): string {
   return xmlDecl() +
     `<Relationships xmlns="${REL_NS}">` +
     `<Relationship Id="rId1" Type="${REL_TYPE_STYLES}" Target="styles.xml"/>` +
+    `<Relationship Id="rId2" Type="${REL_TYPE_NUMBERING}" Target="numbering.xml"/>` +
     '</Relationships>';
 }
 
@@ -168,20 +176,36 @@ function writeStyleEntry(styleId: string, entry: { pProps?: ParagraphProps; rPro
  * page/margins 作為 trailing `<w:sectPr>`。多 section 場景退化為單 section
  * （多 section 區隔資訊有損；後續 sprint 補）。
  */
+/**
+ * `word/document.xml`：把 DocumentNode 序列化為 `<w:document>`。
+ *
+ * Sprint 191：完整支援多 section（OOXML §17.6）。對 N 個 section：
+ *   - section 0..N-2：emit blocks、之後追加「anchor paragraph」
+ *     `<w:p><w:pPr><w:sectPr>...</w:sectPr></w:pPr></w:p>` 結束該 section
+ *   - section N-1：emit blocks、之後 body 末端追加 `<w:sectPr>`
+ *
+ * （parser walkBodyAsSections 支援兩種 sectPr 位置：段內 pPr 或 body 末端。）
+ */
 function writeDocument(doc: DocumentNode): string {
-  const blocks: string[] = [];
-  for (const sec of doc.sections) {
+  const bodyParts: string[] = [];
+  const n = doc.sections.length;
+  for (let i = 0; i < n; i++) {
+    const sec = doc.sections[i];
     for (const block of sec.body) {
-      blocks.push(writeBlock(block));
+      bodyParts.push(writeBlock(block));
+    }
+    if (i < n - 1) {
+      // 非最後 section：anchor paragraph 把 sectPr 嵌入 pPr 內、結束該 section
+      bodyParts.push(`<w:p><w:pPr>${writeSectPr(sec)}</w:pPr></w:p>`);
     }
   }
-  const sectPr = writeSectPr(doc.sections[doc.sections.length - 1]);
+  // 最後 section（或無 section 時 fallback）：body 末端 sectPr
+  bodyParts.push(writeSectPr(n > 0 ? doc.sections[n - 1] : undefined));
 
   return xmlDecl() +
     `<w:document xmlns:w="${W_NS}">` +
     '<w:body>' +
-    blocks.join('') +
-    sectPr +
+    bodyParts.join('') +
     '</w:body>' +
     '</w:document>';
 }
@@ -663,6 +687,80 @@ function writeTcPr(cell: CellNode): string {
   if (p.fitText === true) parts.push('<w:tcFitText/>');
 
   return parts.length > 0 ? `<w:tcPr>${parts.join('')}</w:tcPr>` : '';
+}
+
+// ── Sprint 191：numbering.xml 序列化 ─────────────────────────────────────────
+
+/**
+ * `word/numbering.xml`：序列化 DocumentNode.numbering。
+ *
+ * 對稱性設計：parser 把 `<w:num numId>` → `<w:abstractNumId>` → `<w:abstractNum>`
+ * 的關係 resolve 後、每個 numId 在 NumberingMap 內存一份完整 levels 副本。
+ *
+ * Export 策略：**用 numId 直接當 abstractNumId**（保證唯一、避免「多個 numId
+ * 共用 abstractNumId 但 levels 不同」場景在 re-parse 時被 Map 覆蓋）。
+ * `entry.abstractNumId` 欄位於 round-trip 後變為 numId（acceptable lossy；
+ * parser 不靠此值來解析 levels）。
+ *
+ * 空 NumberingMap → 空 `<w:numbering/>` 骨架（parser 接受、與 Sprint 185 MVS 相容）。
+ */
+function writeNumbering(doc: DocumentNode): string {
+  if (doc.numbering.size === 0) {
+    return xmlDecl() + `<w:numbering xmlns:w="${W_NS}"/>`;
+  }
+  const abstractNums: string[] = [];
+  const numEntries: string[] = [];
+  for (const [numId, entry] of doc.numbering) {
+    // 用 numId 作為 abstractNumId（唯一性保證）
+    abstractNums.push(writeAbstractNum(numId, entry));
+    numEntries.push(
+      `<w:num w:numId="${numId}"><w:abstractNumId w:val="${numId}"/></w:num>`,
+    );
+  }
+  return xmlDecl() +
+    `<w:numbering xmlns:w="${W_NS}">` +
+    abstractNums.join('') +
+    numEntries.join('') +
+    '</w:numbering>';
+}
+
+/** 單一 `<w:abstractNum>` element + 內含 0..9 個 `<w:lvl>`。 */
+function writeAbstractNum(abstractNumId: number, entry: AbstractNumbering): string {
+  const lvls = entry.levels.map(writeLvl).join('');
+  return `<w:abstractNum w:abstractNumId="${abstractNumId}">${lvls}</w:abstractNum>`;
+}
+
+/**
+ * 單一 `<w:lvl w:ilvl="N">`：start / numFmt / lvlText / lvlRestart / isLgl /
+ * pPr / rPr（OOXML §17.9.6 CT_Lvl）。
+ *
+ * indent 合併到 pPr：parser 把 `<w:ind w:left w:hanging>` 抽出為獨立 `indent`
+ * 欄位（firstLine / right 留在 pProps.indent）；export 時把兩者 merge 回 pPr。
+ */
+function writeLvl(level: NumberingLevel): string {
+  const parts: string[] = [];
+  parts.push(`<w:start w:val="${level.start}"/>`);
+  parts.push(`<w:numFmt w:val="${escapeXml(level.numFmt)}"/>`);
+  parts.push(`<w:lvlText w:val="${escapeXml(level.text)}"/>`);
+  if (level.lvlRestart !== undefined) {
+    parts.push(`<w:lvlRestart w:val="${level.lvlRestart}"/>`);
+  }
+  if (level.isLegal === true) parts.push('<w:isLgl/>');
+
+  // 合併 indent + pProps、輸出 pPr
+  const mergedPProps: ParagraphProps = { ...(level.pProps ?? {}) };
+  if (level.indent) {
+    mergedPProps.indent = { ...(mergedPProps.indent ?? {}), ...level.indent };
+  }
+  const pPrXml = writePPr(mergedPProps, undefined);
+  if (pPrXml !== '') parts.push(pPrXml);
+
+  if (level.runProps) {
+    const rPrXml = writeRPr(level.runProps);
+    if (rPrXml !== '') parts.push(rPrXml);
+  }
+
+  return `<w:lvl w:ilvl="${level.ilvl}">${parts.join('')}</w:lvl>`;
 }
 
 // ── 工具 ─────────────────────────────────────────────────────────────────────

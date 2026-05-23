@@ -76,7 +76,7 @@ function unzipToText(bytes: Uint8Array): Record<string, string> {
 }
 
 describe('OoxmlWriter — 5 必要 part', () => {
-  it('空文件 → zip 含 [Content_Types].xml / _rels/.rels / document.xml / styles.xml / document.xml.rels', () => {
+  it('空文件 → zip 含 6 必要 part（Sprint 191：含 numbering.xml）', () => {
     const bytes = writer.write(makeDoc([makeSection([])]));
     const files = unzipToText(bytes);
     expect(Object.keys(files).sort()).toEqual([
@@ -84,6 +84,7 @@ describe('OoxmlWriter — 5 必要 part', () => {
       '_rels/.rels',
       'word/_rels/document.xml.rels',
       'word/document.xml',
+      'word/numbering.xml',
       'word/styles.xml',
     ]);
   });
@@ -194,7 +195,7 @@ describe('OoxmlWriter — sectPr', () => {
     expect(xml).toContain('w:left="1440"');
   });
 
-  it('多 section → 使用最後一個 section 的 sectPr（MVS 退化為單 section）', () => {
+  it('Sprint 191：多 section → 中間 section anchor paragraph 內嵌 sectPr、末 section body 尾', () => {
     const secA = makeSection([makeParagraph([makeRun('A')])]);
     const secB = {
       ...makeSection([makeParagraph([makeRun('B')])]),
@@ -202,11 +203,16 @@ describe('OoxmlWriter — sectPr', () => {
     };
     const doc = makeDoc([secA, secB]);
     const xml = unzipToText(writer.write(doc))['word/document.xml'];
-    // 末 sectPr = 橫式（841.9 × 20 = 16838）
+    // 兩個 sectPr：A 在 anchor para 內、B 在 body 尾
+    expect((xml.match(/<w:sectPr>/g) ?? []).length).toBe(2);
+    // section A: 直式 11906；section B: 橫式 16838
+    expect(xml).toContain('w:w="11906"');
     expect(xml).toContain('w:w="16838"');
     // 兩 section 的段落都有
     expect(xml).toContain('>A<');
     expect(xml).toContain('>B<');
+    // anchor paragraph 結構驗證：<w:p><w:pPr><w:sectPr>
+    expect(xml).toContain('<w:p><w:pPr><w:sectPr>');
   });
 
   it('無 section 時用 A4 + Word 預設邊距 fallback', () => {
@@ -860,5 +866,149 @@ describe('OoxmlWriter — Sprint 190 表格 export', () => {
     expect((xml.match(/<w:tc>/g) ?? []).length).toBe(4);
     expect(xml).toContain('>A<');
     expect(xml).toContain('>D<');
+  });
+});
+
+describe('OoxmlWriter — Sprint 191 多 section + numbering.xml', () => {
+  // ── 多 section ───────────────────────────────────────────────────────────
+
+  it('多 section anchor paragraph 結構 + sectPr 順序', () => {
+    const doc = makeDoc([
+      makeSection([makeParagraph([makeRun('一')])]),
+      makeSection([makeParagraph([makeRun('二')])]),
+      makeSection([makeParagraph([makeRun('三')])]),
+    ]);
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    // 3 sections → 2 個 anchor + 1 個 body 尾 = 3 個 sectPr
+    expect((xml.match(/<w:sectPr>/g) ?? []).length).toBe(3);
+    // 2 個 anchor paragraph 結構
+    expect((xml.match(/<w:p><w:pPr><w:sectPr>/g) ?? []).length).toBe(2);
+    // 三段文字皆存在
+    expect(xml).toContain('>一<');
+    expect(xml).toContain('>二<');
+    expect(xml).toContain('>三<');
+  });
+
+  it('單一 section → 仍只有 body 尾的 sectPr、無 anchor paragraph', () => {
+    const doc = makeDoc([makeSection([makeParagraph([makeRun('only')])])]);
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect((xml.match(/<w:sectPr>/g) ?? []).length).toBe(1);
+    expect(xml).not.toContain('<w:p><w:pPr><w:sectPr>');
+  });
+
+  // ── numbering.xml ───────────────────────────────────────────────────────
+
+  function getNumberingXml(numbering: DocumentNode['numbering']): string {
+    const doc = makeDoc([makeSection([])]);
+    doc.numbering = numbering;
+    return unzipToText(writer.write(doc))['word/numbering.xml'];
+  }
+
+  it('空 numbering map → 空 <w:numbering/> 骨架', () => {
+    const xml = getNumberingXml(new Map());
+    expect(xml).toMatch(/<w:numbering[^>]*\/>/);
+    expect(xml).not.toContain('<w:abstractNum');
+  });
+
+  it('Content Types 含 numbering override + document rels 含 numbering 關係', () => {
+    const bytes = writer.write(makeDoc([makeSection([])]));
+    const files = unzipToText(bytes);
+    expect(files['[Content_Types].xml']).toContain('PartName="/word/numbering.xml"');
+    expect(files['[Content_Types].xml']).toContain('wordprocessingml.numbering+xml');
+    expect(files['word/_rels/document.xml.rels']).toContain('Target="numbering.xml"');
+    expect(files['word/_rels/document.xml.rels']).toContain('relationships/numbering');
+  });
+
+  it('單一 numId/entry → <w:abstractNum> + <w:num>', () => {
+    const numbering: DocumentNode['numbering'] = new Map([
+      [1, {
+        abstractNumId: 5,
+        levels: [{ ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1 }],
+      }],
+    ]);
+    const xml = getNumberingXml(numbering);
+    // 用 numId 當 abstractNumId（=1、不是原 5）保證唯一
+    expect(xml).toContain('<w:abstractNum w:abstractNumId="1">');
+    expect(xml).toContain('<w:lvl w:ilvl="0">');
+    expect(xml).toContain('<w:start w:val="1"/>');
+    expect(xml).toContain('<w:numFmt w:val="decimal"/>');
+    expect(xml).toContain('<w:lvlText w:val="%1."/>');
+    expect(xml).toContain('<w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>');
+  });
+
+  it('多層 levels（ilvl 0/1/2）→ 依序輸出', () => {
+    const numbering: DocumentNode['numbering'] = new Map([
+      [1, {
+        abstractNumId: 0,
+        levels: [
+          { ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1 },
+          { ilvl: 1, numFmt: 'lowerLetter', text: '%2)', start: 1 },
+          { ilvl: 2, numFmt: 'lowerRoman', text: '%3.', start: 1 },
+        ],
+      }],
+    ]);
+    const xml = getNumberingXml(numbering);
+    expect((xml.match(/<w:lvl /g) ?? []).length).toBe(3);
+    expect(xml).toContain('w:ilvl="0"');
+    expect(xml).toContain('w:ilvl="1"');
+    expect(xml).toContain('w:ilvl="2"');
+    expect(xml).toContain('w:val="lowerLetter"');
+    expect(xml).toContain('w:val="lowerRoman"');
+  });
+
+  it('lvlRestart / isLegal toggle 輸出', () => {
+    const numbering: DocumentNode['numbering'] = new Map([
+      [1, {
+        abstractNumId: 0,
+        levels: [{ ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1, lvlRestart: 0, isLegal: true }],
+      }],
+    ]);
+    const xml = getNumberingXml(numbering);
+    expect(xml).toContain('<w:lvlRestart w:val="0"/>');
+    expect(xml).toContain('<w:isLgl/>');
+  });
+
+  it('indent 合併進 pPr（parser 分離 indent 與 pProps）', () => {
+    const numbering: DocumentNode['numbering'] = new Map([
+      [1, {
+        abstractNumId: 0,
+        levels: [{
+          ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1,
+          indent: { left: 36, hanging: 18 },
+        }],
+      }],
+    ]);
+    const xml = getNumberingXml(numbering);
+    expect(xml).toContain('<w:pPr>');
+    expect(xml).toContain('w:left="720"');   // 36pt × 20
+    expect(xml).toContain('w:hanging="360"'); // 18pt × 20
+  });
+
+  it('level runProps → <w:rPr>', () => {
+    const numbering: DocumentNode['numbering'] = new Map([
+      [1, {
+        abstractNumId: 0,
+        levels: [{
+          ilvl: 0, numFmt: 'bullet', text: '•', start: 1,
+          runProps: { bold: true, fontFamily: 'Symbol' },
+        }],
+      }],
+    ]);
+    const xml = getNumberingXml(numbering);
+    expect(xml).toContain('<w:rPr>');
+    expect(xml).toContain('<w:b/>');
+    expect(xml).toContain('w:ascii="Symbol"');
+  });
+
+  it('多 entry → 各自 abstractNum + num', () => {
+    const numbering: DocumentNode['numbering'] = new Map([
+      [1, { abstractNumId: 0, levels: [{ ilvl: 0, numFmt: 'decimal', text: '%1.', start: 1 }] }],
+      [2, { abstractNumId: 1, levels: [{ ilvl: 0, numFmt: 'bullet', text: '•', start: 1 }] }],
+    ]);
+    const xml = getNumberingXml(numbering);
+    expect((xml.match(/<w:abstractNum /g) ?? []).length).toBe(2);
+    expect((xml.match(/<w:num /g) ?? []).length).toBe(2);
+    expect(xml).toContain('w:numId="1"');
+    expect(xml).toContain('w:numId="2"');
   });
 });
