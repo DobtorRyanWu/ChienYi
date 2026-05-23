@@ -1560,6 +1560,7 @@ class DocEditorController(http.Controller):
             'id', 'signer_id', 'field_type', 'page_no', 'required',
             'placeholder_text', 'font_size', 'odoo_field_name',
             'width', 'height', 'pos_x', 'pos_y',
+            'layout_mode',  # Sprint D
         ])
         # signer_id 從 Odoo Many2one [id, display_name] tuple 簡化為純 id
         for f in fields_list:
@@ -1604,6 +1605,7 @@ class DocEditorController(http.Controller):
             'signer_id', 'field_type', 'page_no', 'required',
             'placeholder_text', 'font_size', 'odoo_field_name',
             'width', 'height', 'pos_x', 'pos_y',
+            'layout_mode',  # Sprint D
         }
         vals = {k: v for k, v in field.items() if k in ALLOWED}
         FieldModel = request.env['doc.template.field']

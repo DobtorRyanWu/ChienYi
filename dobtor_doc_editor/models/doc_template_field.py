@@ -3,8 +3,12 @@ Phase 8 Template UI Builder（ADR-022）— 範本欄位定位。
 
 Phase 2.1 inline control 模式：
 - 欄位插入「目前游標位置」（canvas-editor `executeInsertControl`）
-- pos_x / pos_y / width / height **本階段不使用**，但保留以承接 Phase 2.2 overlay 絕對定位
 - canvas-editor control 的 conceptId 寫入本記錄的 id（前端 ↔ 後端對應）
+
+Phase 2.2 / Sprint D overlay 絕對定位模式：
+- 欄位浮動在頁面 (pos_x, pos_y) 座標、不依賴文字流
+- 切換模式由 layout_mode 欄位控制（預設 inline，既有資料無影響）
+- 縮放 / 切頁時 overlay 在前端用 CSS 跟著聯動
 
 field_type 對應前端 FIELD_TYPES（doc_editor.js）。新增類型時兩邊都要同步。
 """
@@ -24,6 +28,11 @@ FIELD_TYPE_SELECTION = [
     ('signature',  '簽名'),
     ('initial',    '繕寫簽名'),
     ('odoo_field', 'Odoo 欄位'),
+]
+
+LAYOUT_MODE_SELECTION = [
+    ('inline',  '行內（隨文字流）'),
+    ('overlay', '浮動（絕對定位）'),
 ]
 
 
@@ -52,10 +61,17 @@ class DocTemplateField(models.Model):
         required=True,
         default='text',
     )
-    # Phase 2.2 overlay 預留（Phase 2.1 inline control 不使用）
+    # Sprint D：layout_mode 切換 inline / overlay
+    layout_mode = fields.Selection(
+        LAYOUT_MODE_SELECTION,
+        string='版面模式',
+        required=True,
+        default='inline',
+        help='inline：隨文字流插入 control；overlay：依 (pos_x, pos_y) 絕對定位浮動於頁面',
+    )
     page_no = fields.Integer(string='頁碼', default=1)
-    pos_x = fields.Float(string='X 座標', default=0.0, help='Phase 2.2 overlay 用，inline control 階段忽略')
-    pos_y = fields.Float(string='Y 座標', default=0.0, help='Phase 2.2 overlay 用，inline control 階段忽略')
+    pos_x = fields.Float(string='X 座標', default=0.0, help='overlay 模式專用，相對於頁面左上角的 CSS px')
+    pos_y = fields.Float(string='Y 座標', default=0.0, help='overlay 模式專用，相對於頁面左上角的 CSS px')
     width = fields.Float(string='寬度', default=120.0)
     height = fields.Float(string='高度', default=24.0)
     required = fields.Boolean(string='必填', default=False)

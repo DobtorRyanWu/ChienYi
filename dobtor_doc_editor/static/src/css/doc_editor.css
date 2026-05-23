@@ -1185,3 +1185,123 @@
     font-size: 0.8rem;
     color: #6c757d;
 }
+
+/* ================================================================
+   Sprint D — Overlay 絕對定位浮動欄位
+   ================================================================ */
+
+/* 版面模式 toggle group（field-toolbar 內）*/
+.doc-layout-mode-group {
+    display: inline-flex;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-left: 4px;
+}
+
+.doc-layout-mode-btn {
+    background: #fff;
+    border: none;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    color: #495057;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.doc-layout-mode-btn:not(:last-child) {
+    border-right: 1px solid #e9ecef;
+}
+
+.doc-layout-mode-btn:hover {
+    background: #f1f3f5;
+}
+
+.doc-layout-mode-btn.active {
+    background: #714B67;  /* Odoo 紫，與 thumbnail active 一致 */
+    color: #fff;
+}
+
+.doc-layout-mode-btn.active:hover {
+    background: #5e3d56;
+}
+
+/* Overlay layer：疊在 canvas-editor-container 之上 */
+.doc-overlay-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;  /* 預設不擋 canvas-editor 互動，只有 .doc-overlay-field 重新啟用 */
+    z-index: 5;
+}
+
+/* overlay 模式啟用時：layer 半透明高亮，提示 user 切到浮動模式 */
+.doc-overlay-layer.is-active {
+    background: rgba(113, 75, 103, 0.04);
+    border: 2px dashed rgba(113, 75, 103, 0.25);
+    box-sizing: border-box;
+}
+
+/* 單一浮動欄位 */
+.doc-overlay-field {
+    position: absolute;
+    pointer-events: auto;
+    background: rgba(113, 75, 103, 0.10);
+    border: 1.5px solid #714B67;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: move;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: #4b3148;
+    transform-origin: top left;
+    transition: box-shadow 0.15s, border-color 0.15s;
+    min-width: 60px;
+    min-height: 24px;
+    box-sizing: border-box;
+}
+
+.doc-overlay-field:hover {
+    background: rgba(113, 75, 103, 0.18);
+    box-shadow: 0 2px 6px rgba(113, 75, 103, 0.25);
+}
+
+.doc-overlay-field.is-selected {
+    border-color: #5e3d56;
+    border-width: 2px;
+    background: rgba(113, 75, 103, 0.22);
+    box-shadow: 0 0 0 3px rgba(113, 75, 103, 0.18);
+}
+
+.doc-overlay-field.is-dragging {
+    opacity: 0.7;
+    cursor: grabbing;
+    box-shadow: 0 4px 12px rgba(113, 75, 103, 0.4);
+    z-index: 10;
+}
+
+.doc-overlay-field-grip {
+    color: #714B67;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
+.doc-overlay-field-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+/* doc-workspace 變 position:relative 才能讓 overlay layer 正確絕對定位 */
+.doc-workspace {
+    position: relative;
+}

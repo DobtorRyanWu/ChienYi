@@ -131,6 +131,11 @@ export class DocEditor extends Component {
             currentZoomScale: 1,
             // ─── Sprint C：頁面縮圖清單（debounced，由 _rebuildThumbnails 維護）───
             thumbnails: [],
+            // ─── Sprint D：當前欄位插入模式（inline / overlay）───
+            layoutMode: "inline",
+            // overlay field 變動計數器：push/drag-end/load 時 ++ 強制 OWL re-render
+            // （drag 過程不更新此值，靠 DOM transform 避免高頻 render）
+            overlayFieldsRev: 0,
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -1097,6 +1102,106 @@ export class DocEditor extends Component {
         }
     }
 
+    // ─── Sprint D：Overlay 絕對定位 ──────────────────────────────────
+
+    /**
+     * Sprint D：當前頁的 overlay fields（layout_mode='overlay' + page_no=當前）。
+     * 依 state.overlayFieldsRev 強制重新計算（OWL 偵測到 state 變動才會 re-render）。
+     */
+    get overlayFields() {
+        // 觸發 OWL 依賴追蹤
+        // eslint-disable-next-line no-unused-vars
+        const _rev = this.state.overlayFieldsRev;
+        const list = this._templateFieldsCache || [];
+        const currentPage = this.state.pageNo || 1;
+        return list.filter(
+            (f) => f.layout_mode === "overlay" && (f.page_no || 1) === currentPage,
+        );
+    }
+
+    /**
+     * Sprint D：切換插入模式（inline / overlay）。
+     */
+    onLayoutModeToggle(mode) {
+        if (mode !== "inline" && mode !== "overlay") return;
+        this.state.layoutMode = mode;
+        this.notification.add(
+            mode === "overlay"
+                ? "已切到「浮動」模式：點欄位按鈕後可拖曳到頁面任意位置。"
+                : "已切回「行內」模式：點欄位按鈕將插入游標位置。",
+            { type: "info" }
+        );
+    }
+
+    /**
+     * Sprint D：overlay field mousedown → 拖曳到新位置 → mouseup 存後端。
+     *
+     * 設計：拖曳期間直接改 DOM style.left/top（避開 OWL re-render 抖動），
+     * mouseup 時才呼叫 save_field 並更新 _templateFieldsCache。
+     */
+    onOverlayMouseDown(ev, fieldId) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        const overlayEl = ev.currentTarget;
+        if (!overlayEl) return;
+        const startX = ev.clientX;
+        const startY = ev.clientY;
+        const origLeft = parseFloat(overlayEl.style.left) || 0;
+        const origTop = parseFloat(overlayEl.style.top) || 0;
+        const scale = this.state.currentZoomScale || 1;
+        overlayEl.classList.add("is-dragging");
+        // 選中該欄位讓 inspector 顯示
+        this.state.selectedFieldId = fieldId;
+
+        const onMove = (mv) => {
+            // dx/dy 是螢幕 px；overlay 用「邏輯 px」（在 canvas-editor 縮放下的座標），
+            // 所以要除以 currentZoomScale 還原邏輯 delta
+            const dx = (mv.clientX - startX) / scale;
+            const dy = (mv.clientY - startY) / scale;
+            overlayEl.style.left = `${origLeft + dx}px`;
+            overlayEl.style.top = `${origTop + dy}px`;
+        };
+        const onUp = async (up) => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            overlayEl.classList.remove("is-dragging");
+            const newX = origLeft + (up.clientX - startX) / scale;
+            const newY = origTop + (up.clientY - startY) / scale;
+            // save 到後端 + 更新 cache
+            try {
+                const result = await rpc("/dobtor_doc/template_fields/save_field", {
+                    doc_id: this.state.docId,
+                    field: { id: fieldId, pos_x: newX, pos_y: newY },
+                });
+                if (result?.success) {
+                    const f = (this._templateFieldsCache || []).find((x) => x.id === fieldId);
+                    if (f) {
+                        f.pos_x = newX;
+                        f.pos_y = newY;
+                    }
+                } else {
+                    this.notification.add(
+                        `儲存位置失敗：${result?.error || "未知錯誤"}`,
+                        { type: "warning" }
+                    );
+                }
+            } catch (e) {
+                console.warn("[DocEditor] overlay drag save failed", e);
+            }
+        };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    }
+
+    /**
+     * Sprint D：點 overlay field（不是 drag）→ 設為 selected、inspector 顯示。
+     */
+    onOverlayFieldClick(fieldId) {
+        if (this.state.selectedFieldId !== fieldId) {
+            this.state.selectedFieldId = fieldId;
+        }
+    }
+
     /**
      * Sprint A：設定分頁 — 切換自動儲存。
      */
@@ -1148,6 +1253,8 @@ export class DocEditor extends Component {
             const signer = await this._ensureSignerExists(this.state.activeSignerId);
             if (!signer) return;
 
+            // Sprint D：依 state.layoutMode 決定 inline 或 overlay
+            const isOverlay = this.state.layoutMode === "overlay";
             const fieldPayload = {
                 signer_id: signer.id,
                 field_type: field.key,
@@ -1155,6 +1262,11 @@ export class DocEditor extends Component {
                 required: false,
                 placeholder_text: field.label,
                 font_size: 12,
+                layout_mode: isOverlay ? "overlay" : "inline",
+                pos_x: isOverlay ? 80 : 0,
+                pos_y: isOverlay ? 80 : 0,
+                width: 160,
+                height: 32,
             };
             const saveResult = await rpc("/dobtor_doc/template_fields/save_field", {
                 doc_id: this.state.docId,
@@ -1164,25 +1276,31 @@ export class DocEditor extends Component {
                 this.notification.add(`新增欄位失敗：${saveResult.error}`, { type: "danger" });
                 return;
             }
-            // 後端寫入成功 → 在 canvas-editor 插入 inline control
-            this._insertControlForField(saveResult.id, field, signer);
+            // Inline 模式才插入 canvas-editor control；overlay 由 overlay layer 渲染
+            if (!isOverlay) {
+                this._insertControlForField(saveResult.id, field, signer);
+            }
 
-            // 把新建的 field 紀錄 push 進本地 cache，供 Inspector 立即顯示
+            // 把新建的 field 紀錄 push 進本地 cache
             if (!this._templateFieldsCache) this._templateFieldsCache = [];
             this._templateFieldsCache.push({
                 id: saveResult.id,
                 ...fieldPayload,
                 odoo_field_name: "",
-                width: 120,
-                height: 24,
-                pos_x: 0,
-                pos_y: 0,
             });
 
             // 同步 state 計數
             this._applySignerCounts(saveResult.signer_field_counts);
             this.state.fieldCount = saveResult.field_count;
             this.state.selectedFieldId = saveResult.id;
+            // 觸發 OWL 重 render overlay layer
+            if (isOverlay) {
+                this.state.overlayFieldsRev++;
+                this.notification.add(
+                    `已加入浮動 ${field.label} 欄位，請拖曳到目標位置。`,
+                    { type: "info" }
+                );
+            }
         } catch (e) {
             console.error("[DocEditor] onFieldButtonClick failed", e);
             this.notification.add(`新增欄位失敗：${e.message || e}`, { type: "danger" });
@@ -1404,6 +1522,8 @@ export class DocEditor extends Component {
             this._lastControlIds = new Set(
                 this._templateFieldsCache.map(f => f.id)
             );
+            // Sprint D：觸發 overlay layer re-render
+            this.state.overlayFieldsRev++;
         } catch (e) {
             console.warn("[DocEditor] _loadTemplateFields failed", e);
             // 不擋編輯流程：載入失敗時保留 Phase 1 的 placeholder signers

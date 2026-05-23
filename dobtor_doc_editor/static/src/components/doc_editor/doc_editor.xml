@@ -213,6 +213,25 @@
                     <i class="fa fa-database" aria-hidden="true"/>
                     Odoo 欄位
                 </button>
+
+                <!-- Sprint D：版面模式切換（inline / overlay） -->
+                <div class="doc-field-toolbar-sep" role="separator" aria-hidden="true"/>
+                <div class="doc-layout-mode-group" role="group" aria-label="版面模式">
+                    <button class="doc-layout-mode-btn"
+                            t-att-class="state.layoutMode === 'inline' ? 'active' : ''"
+                            t-on-click="() => this.onLayoutModeToggle('inline')"
+                            title="行內模式：插入游標位置、隨文字流動">
+                        <i class="fa fa-align-left" aria-hidden="true"/>
+                        行內
+                    </button>
+                    <button class="doc-layout-mode-btn"
+                            t-att-class="state.layoutMode === 'overlay' ? 'active' : ''"
+                            t-on-click="() => this.onLayoutModeToggle('overlay')"
+                            title="浮動模式：絕對定位、可拖曳到頁面任意位置">
+                        <i class="fa fa-arrows" aria-hidden="true"/>
+                        浮動
+                    </button>
+                </div>
             </div>
             </t>
 
@@ -328,6 +347,23 @@
                         <div class="doc-workspace-drop-hint-text">
                             放開以插入欄位到此位置
                         </div>
+                    </div>
+                    <!-- Sprint D：Overlay layer — 絕對定位浮動欄位，依 pos_x/pos_y 渲染 -->
+                    <div class="doc-overlay-layer"
+                         t-att-class="state.layoutMode === 'overlay' ? 'is-active' : ''"
+                         aria-label="浮動欄位層">
+                        <t t-foreach="overlayFields" t-as="of" t-key="of.id">
+                            <div class="doc-overlay-field"
+                                 t-att-data-field-id="of.id"
+                                 t-att-class="state.selectedFieldId === of.id ? 'is-selected' : ''"
+                                 t-attf-style="left:#{of.pos_x}px; top:#{of.pos_y}px; width:#{of.width}px; height:#{of.height}px; transform:scale(#{state.currentZoomScale});"
+                                 t-on-mousedown="(ev) => this.onOverlayMouseDown(ev, of.id)"
+                                 t-on-click="() => this.onOverlayFieldClick(of.id)"
+                                 t-attf-title="浮動欄位：#{of.placeholder_text or of.field_type}（拖曳調整位置）">
+                                <i class="fa fa-arrows doc-overlay-field-grip" aria-hidden="true"/>
+                                <span class="doc-overlay-field-label" t-esc="of.placeholder_text or of.field_type"/>
+                            </div>
+                        </t>
                     </div>
                 </section>
 
