@@ -76,13 +76,14 @@ function unzipToText(bytes: Uint8Array): Record<string, string> {
 }
 
 describe('OoxmlWriter — 5 必要 part', () => {
-  it('空文件 → zip 含 6 必要 part（Sprint 191：含 numbering.xml）', () => {
+  it('空文件 → zip 含 7 必要 part（Sprint 194：含 comments.xml）', () => {
     const bytes = writer.write(makeDoc([makeSection([])]));
     const files = unzipToText(bytes);
     expect(Object.keys(files).sort()).toEqual([
       '[Content_Types].xml',
       '_rels/.rels',
       'word/_rels/document.xml.rels',
+      'word/comments.xml',
       'word/document.xml',
       'word/numbering.xml',
       'word/styles.xml',
@@ -1299,5 +1300,194 @@ describe('OoxmlWriter — Sprint 193 頁首頁尾 export', () => {
     expect(parts['[Content_Types].xml']).not.toContain('header+xml');
     expect(parts['[Content_Types].xml']).not.toContain('footer+xml');
     expect(parts['word/_rels/document.xml.rels']).not.toContain('relationships/header');
+  });
+});
+
+describe('OoxmlWriter — Sprint 194 Phase 5 子功能 export', () => {
+  // ── OMML ───────────────────────────────────────────────────────────────
+
+  function paraMath(math: ParagraphNode['math']): ParagraphNode {
+    const p: ParagraphNode = { type: 'paragraph', runs: [makeRun('x')], props: {} };
+    if (math) p.math = math;
+    return p;
+  }
+  function getDocXmlFromBlocks(blocks: BlockNode[]): string {
+    return unzipToText(writer.write(makeDoc([makeSection(blocks)])))['word/document.xml'];
+  }
+
+  it('OMML inline 公式 → 段落內 <m:oMath>（無 oMathPara 包裹）', () => {
+    const math = [{
+      display: false,
+      omml: [{ tag: 'r', children: [{ tag: 't', text: 'x+1' }] }],
+    }];
+    const xml = getDocXmlFromBlocks([paraMath(math)]);
+    expect(xml).toContain('<m:oMath ');
+    expect(xml).not.toContain('<m:oMathPara');
+    expect(xml).toContain('<m:r>');
+    expect(xml).toContain('<m:t>x+1</m:t>');
+  });
+
+  it('OMML display 公式 → <m:oMathPara><m:oMath>', () => {
+    const math = [{
+      display: true,
+      omml: [{ tag: 'r', children: [{ tag: 't', text: 'y' }] }],
+    }];
+    const xml = getDocXmlFromBlocks([paraMath(math)]);
+    expect(xml).toContain('<m:oMathPara ');
+    expect(xml).toContain('<m:oMath ');
+  });
+
+  it('OMML 結構元素（分數）+ attrs 寫回', () => {
+    const math = [{
+      display: false,
+      omml: [{
+        tag: 'f',
+        children: [
+          { tag: 'num', children: [{ tag: 'r', children: [{ tag: 't', text: 'a' }] }] },
+          { tag: 'den', children: [{ tag: 'r', children: [{ tag: 't', text: 'b' }] }] },
+        ],
+      }],
+    }];
+    const xml = getDocXmlFromBlocks([paraMath(math)]);
+    expect(xml).toContain('<m:f>');
+    expect(xml).toContain('<m:num>');
+    expect(xml).toContain('<m:den>');
+  });
+
+  it('OMML attrs（n 元運算子 chr）寫回', () => {
+    const math = [{
+      display: false,
+      omml: [{
+        tag: 'nary',
+        children: [{
+          tag: 'naryPr',
+          children: [{ tag: 'chr', attrs: { val: '∑' } }],
+        }],
+      }],
+    }];
+    const xml = getDocXmlFromBlocks([paraMath(math)]);
+    expect(xml).toContain('<m:chr m:val="∑"/>');
+  });
+
+  it('OMML 無 children 無 text → self-closing', () => {
+    const math = [{
+      display: false,
+      omml: [{ tag: 'r' }],
+    }];
+    const xml = getDocXmlFromBlocks([paraMath(math)]);
+    expect(xml).toContain('<m:r/>');
+  });
+
+  // ── 追蹤修訂 ─────────────────────────────────────────────────────────────
+
+  function runWithRev(text: string, type: 'ins' | 'del', meta?: { id?: number; author?: string; date?: string }): RunNode {
+    return {
+      type: 'run', text, props: {},
+      revision: { type, ...meta } as RunNode['revision'],
+    };
+  }
+
+  it('追蹤修訂 ins → <w:ins> 包裹 <w:r><w:t>', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph',
+      runs: [runWithRev('插入內容', 'ins', { id: 5, author: 'Alice', date: '2024-01-01T00:00:00Z' })],
+      props: {},
+    };
+    const xml = getDocXmlFromBlocks([para]);
+    expect(xml).toContain('<w:ins ');
+    expect(xml).toContain('w:id="5"');
+    expect(xml).toContain('w:author="Alice"');
+    expect(xml).toContain('w:date="2024-01-01T00:00:00Z"');
+    expect(xml).toContain('<w:t xml:space="preserve">插入內容</w:t>');
+    expect(xml).toContain('</w:ins>');
+  });
+
+  it('追蹤修訂 del → <w:del> + 內部 <w:delText>（不是 <w:t>）', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph',
+      runs: [runWithRev('要刪的字', 'del', { id: 7, author: 'Bob' })],
+      props: {},
+    };
+    const xml = getDocXmlFromBlocks([para]);
+    expect(xml).toContain('<w:del ');
+    expect(xml).toContain('w:author="Bob"');
+    expect(xml).toContain('<w:delText xml:space="preserve">要刪的字</w:delText>');
+    expect(xml).not.toContain('<w:t xml:space="preserve">要刪的字</w:t>');
+  });
+
+  it('追蹤修訂 id / author / date 缺漏屬性 → 不掛 attribute（id 用 0 fallback）', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph',
+      runs: [runWithRev('x', 'ins')],
+      props: {},
+    };
+    const xml = getDocXmlFromBlocks([para]);
+    expect(xml).toContain('w:id="0"');
+    expect(xml).not.toContain('w:author=');
+    expect(xml).not.toContain('w:date=');
+  });
+
+  // ── 註解錨點 ─────────────────────────────────────────────────────────────
+
+  it('para.commentRefs → <w:commentRangeStart> + <w:commentReference> + <w:commentRangeEnd>', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph',
+      runs: [makeRun('被註解的句子')],
+      props: {},
+      commentRefs: [0, 1],
+    };
+    const xml = getDocXmlFromBlocks([para]);
+    expect(xml).toContain('<w:commentRangeStart w:id="0"/>');
+    expect(xml).toContain('<w:commentRangeStart w:id="1"/>');
+    expect(xml).toContain('<w:commentRangeEnd w:id="0"/>');
+    expect(xml).toContain('<w:commentRangeEnd w:id="1"/>');
+    expect(xml).toContain('<w:r><w:commentReference w:id="0"/></w:r>');
+    expect(xml).toContain('<w:r><w:commentReference w:id="1"/></w:r>');
+    // 順序：rangeStart 在 runs 之前、rangeEnd 在 runs 之後
+    expect(xml.indexOf('<w:commentRangeStart')).toBeLessThan(xml.indexOf('被註解的句子'));
+    expect(xml.indexOf('被註解的句子')).toBeLessThan(xml.indexOf('<w:commentRangeEnd'));
+  });
+
+  it('comments.xml 含 <w:comments>（即使空 Map）', () => {
+    const parts = unzipToText(writer.write(makeDoc([makeSection([])])));
+    expect(parts['word/comments.xml']).toContain('<w:comments');
+  });
+
+  it('comments.xml 寫出 doc.comments entries', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.comments = new Map([[0, {
+      id: 0, author: 'Alice', date: '2024-01-01T00:00:00Z', initials: 'A',
+      content: [{ type: 'paragraph', props: {}, runs: [makeRun('註解內容')] }],
+    }]]);
+    const xml = unzipToText(writer.write(doc))['word/comments.xml'];
+    expect(xml).toContain('<w:comment ');
+    expect(xml).toContain('w:id="0"');
+    expect(xml).toContain('w:author="Alice"');
+    expect(xml).toContain('w:date="2024-01-01T00:00:00Z"');
+    expect(xml).toContain('w:initials="A"');
+    expect(xml).toContain('>註解內容<');
+  });
+
+  it('Content_Types 含 comments override + rels 含 comments 關係', () => {
+    const parts = unzipToText(writer.write(makeDoc([makeSection([])])));
+    expect(parts['[Content_Types].xml']).toContain('PartName="/word/comments.xml"');
+    expect(parts['[Content_Types].xml']).toContain('wordprocessingml.comments+xml');
+    expect(parts['word/_rels/document.xml.rels']).toContain('Target="comments.xml"');
+    expect(parts['word/_rels/document.xml.rels']).toContain('relationships/comments');
+  });
+
+  // ── background ───────────────────────────────────────────────────────────
+
+  it('background → <w:background w:color> 在 <w:body> 之前', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.background = { color: 'FFFF00' };
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('<w:background w:color="FFFF00"/>');
+    expect(xml.indexOf('<w:background')).toBeLessThan(xml.indexOf('<w:body>'));
+  });
+
+  it('無 background → 不輸出 <w:background>', () => {
+    const xml = unzipToText(writer.write(makeDoc([makeSection([])])))['word/document.xml'];
+    expect(xml).not.toContain('<w:background');
   });
 });

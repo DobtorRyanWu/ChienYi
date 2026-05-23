@@ -1042,3 +1042,136 @@ describe('Sprint 193 — Phase 6 export round-trip（頁首頁尾）', () => {
     expect(back.footers.size).toBe(1);
   });
 });
+
+describe('Sprint 194 — Phase 6 export round-trip（Phase 5 子功能）', () => {
+  function firstParagraph(doc: DocumentNode): ParagraphNode {
+    const block = doc.sections[0].body[0];
+    if (block.type !== 'paragraph') throw new Error('expected paragraph');
+    return block;
+  }
+
+  // ── OMML round-trip ───────────────────────────────────────────────────
+
+  it('OMML 行內公式 round-trip → para.math 保留', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph',
+      runs: [makeRun('x')],
+      props: {},
+      math: [{
+        display: false,
+        omml: [{ tag: 'r', children: [{ tag: 't', text: 'x+1' }] }],
+      }],
+    };
+    const doc = makeDoc([makeSection([para])]);
+    const back = firstParagraph(roundTrip(doc));
+    expect(back.math).toBeDefined();
+    expect(back.math).toHaveLength(1);
+    expect(back.math![0].display).toBe(false);
+    expect(back.math![0].omml[0].tag).toBe('r');
+  });
+
+  it('OMML display 公式 round-trip → display=true 保留', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph', runs: [], props: {},
+      math: [{
+        display: true,
+        omml: [{ tag: 'r', children: [{ tag: 't', text: 'y' }] }],
+      }],
+    };
+    const doc = makeDoc([makeSection([para])]);
+    const back = firstParagraph(roundTrip(doc));
+    expect(back.math![0].display).toBe(true);
+  });
+
+  it('OMML 分數結構 round-trip', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph', runs: [], props: {},
+      math: [{
+        display: false,
+        omml: [{
+          tag: 'f',
+          children: [
+            { tag: 'num', children: [{ tag: 'r', children: [{ tag: 't', text: 'a' }] }] },
+            { tag: 'den', children: [{ tag: 'r', children: [{ tag: 't', text: 'b' }] }] },
+          ],
+        }],
+      }],
+    };
+    const doc = makeDoc([makeSection([para])]);
+    const back = firstParagraph(roundTrip(doc));
+    const f = back.math![0].omml[0];
+    expect(f.tag).toBe('f');
+    expect(f.children?.map((c) => c.tag)).toEqual(['num', 'den']);
+  });
+
+  // ── 追蹤修訂 round-trip ───────────────────────────────────────────────
+
+  it('追蹤修訂 ins round-trip → run.revision 保留', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph', props: {},
+      runs: [{
+        type: 'run', text: '插入', props: {},
+        revision: { type: 'ins', id: 5, author: 'Alice', date: '2024-01-01T00:00:00Z' },
+      }],
+    };
+    const doc = makeDoc([makeSection([para])]);
+    const back = firstParagraph(roundTrip(doc));
+    const run = back.runs.find((r) => r.type === 'run');
+    if (run && run.type === 'run') {
+      expect(run.revision?.type).toBe('ins');
+      expect(run.revision?.author).toBe('Alice');
+      expect(run.revision?.date).toBe('2024-01-01T00:00:00Z');
+      expect(run.text).toBe('插入');
+    }
+  });
+
+  it('追蹤修訂 del round-trip → revision.type=del + 文字保留', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph', props: {},
+      runs: [{
+        type: 'run', text: '刪除', props: {},
+        revision: { type: 'del', id: 7, author: 'Bob' },
+      }],
+    };
+    const doc = makeDoc([makeSection([para])]);
+    const back = firstParagraph(roundTrip(doc));
+    const run = back.runs.find((r) => r.type === 'run');
+    if (run && run.type === 'run') {
+      expect(run.revision?.type).toBe('del');
+      expect(run.text).toBe('刪除');
+    }
+  });
+
+  // ── 註解錨點 + comments.xml round-trip ──────────────────────────────
+
+  it('comments + commentRefs 端到端 round-trip', () => {
+    const para: ParagraphNode = {
+      type: 'paragraph',
+      runs: [makeRun('被註解')],
+      props: {},
+      commentRefs: [0],
+    };
+    const doc = makeDoc([makeSection([para])]);
+    doc.comments = new Map([[0, {
+      id: 0, author: 'Alice',
+      content: [{ type: 'paragraph', props: {}, runs: [makeRun('註解內容')] }],
+    }]]);
+    const back = roundTrip(doc);
+    // commentRefs 在段落
+    const backPara = firstParagraph(back);
+    expect(backPara.commentRefs).toContain(0);
+    // comments.xml 保留
+    expect(back.comments.has(0)).toBe(true);
+    const cmt = back.comments.get(0)!;
+    expect(cmt.author).toBe('Alice');
+  });
+
+  // ── background round-trip ───────────────────────────────────────────
+
+  it('background round-trip → 顏色保留', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.background = { color: 'FFFF00' };
+    const back = roundTrip(doc);
+    expect(back.background?.color?.toUpperCase()).toBe('FFFF00');
+  });
+});

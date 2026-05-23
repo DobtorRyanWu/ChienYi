@@ -29,10 +29,13 @@ import type {
   BlockNode,
   CellBorders,
   CellNode,
+  CommentContent,
   DocumentNode,
   FloatImageNode,
   InlineImageNode,
+  MathNode,
   NumberingLevel,
+  OmmlNode,
   ParagraphNode,
   ParagraphProps,
   RowNode,
@@ -66,6 +69,11 @@ const REL_TYPE_HEADER =
 /** footer 關係型別（document.xml.rels → footerN.xml）。 */
 const REL_TYPE_FOOTER =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
+/** comments 關係型別（document.xml.rels → comments.xml）。 */
+const REL_TYPE_COMMENTS =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+/** OMML 命名空間（ECMA-376 §22.1）。 */
+const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 
 /** DrawingML 命名空間：wordprocessingDrawing（wp）。 */
 const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
@@ -122,6 +130,8 @@ export class OoxmlWriter {
       'word/document.xml': strToU8(writeDocument(doc)),
       'word/styles.xml': strToU8(writeStyles(doc)),
       'word/numbering.xml': strToU8(writeNumbering(doc)),
+      // Sprint 194：comments.xml 永遠 emit（空 Map → 空 <w:comments/>）
+      'word/comments.xml': strToU8(writeComments(doc)),
     };
     // Sprint 192：把每張 media 圖片的 bytes 寫進 zip
     for (const m of mediaItems) {
@@ -168,6 +178,7 @@ function writeContentTypes(
     '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
     '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
     '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
+    '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' +
     hfOverrides +
     '</Types>';
 }
@@ -209,6 +220,7 @@ function writeDocumentRels(
     `<Relationships xmlns="${REL_NS}">` +
     `<Relationship Id="rIdStyles" Type="${REL_TYPE_STYLES}" Target="styles.xml"/>` +
     `<Relationship Id="rIdNumbering" Type="${REL_TYPE_NUMBERING}" Target="numbering.xml"/>` +
+    `<Relationship Id="rIdComments" Type="${REL_TYPE_COMMENTS}" Target="comments.xml"/>` +
     imageRels.join('') +
     hfRels +
     '</Relationships>';
@@ -292,12 +304,29 @@ function writeDocument(doc: DocumentNode): string {
   // 最後 section（或無 section 時 fallback）：body 末端 sectPr
   bodyParts.push(writeSectPr(n > 0 ? doc.sections[n - 1] : undefined));
 
+  // Sprint 194：`<w:background>` 為 `<w:document>` 直接子（在 `<w:body>` 之前）
+  const backgroundEl = writeBackground(doc.background);
+
   return xmlDecl() +
     `<w:document xmlns:w="${W_NS}" xmlns:r="${R_NS}">` +
+    backgroundEl +
     '<w:body>' +
     bodyParts.join('') +
     '</w:body>' +
     '</w:document>';
+}
+
+/**
+ * Sprint 194：`<w:background>` 文件背景（OOXML §17.2.1）。
+ *
+ * 為 `<w:document>` 的直接子元素（`<w:body>` 之 sibling）、表頁面背景色。
+ * 紀律 #21：無 background → 回空字串。
+ */
+function writeBackground(bg: DocumentNode['background']): string {
+  if (!bg) return '';
+  const color = bg.color;
+  if (!color) return '';
+  return `<w:background w:color="${escapeXml(color)}"/>`;
 }
 
 /**
@@ -317,10 +346,21 @@ function writeBlock(block: BlockNode): string {
  */
 function writeParagraph(para: ParagraphNode): string {
   const pPr = writePPr(para.props, para.styleId);
+
+  // Sprint 194：commentRangeStart 在 runs 之前
+  const commentRefs = para.commentRefs ?? [];
+  const rangeStarts = commentRefs.map((id) => `<w:commentRangeStart w:id="${id}"/>`).join('');
+  const rangeEnds = commentRefs.map((id) => `<w:commentRangeEnd w:id="${id}"/>`).join('');
+  // commentReference 元素需放在 `<w:r>` 內、放於段落末以代表 comment 錨點位置
+  const commentReferences = commentRefs
+    .map((id) => `<w:r><w:commentReference w:id="${id}"/></w:r>`)
+    .join('');
+
   const runs: string[] = [];
   for (const node of para.runs) {
     if (node.type === 'run') {
-      runs.push(writeRun(node));
+      // Sprint 194：追蹤修訂 `<w:ins>` / `<w:del>` 包裹 run
+      runs.push(node.revision ? writeRevisedRun(node) : writeRun(node));
     } else if (node.type === 'inlineImage' || node.type === 'floatImage') {
       // Sprint 192：圖片 → `<w:r><w:drawing><wp:inline>...`
       // floatImage 降級為 inline（與 ToCanvasEditor 一致：canvas-editor
@@ -329,7 +369,12 @@ function writeParagraph(para: ParagraphNode): string {
     }
     // break / field 仍跳過、留後續 sprint
   }
-  return `<w:p>${pPr}${runs.join('')}</w:p>`;
+
+  // Sprint 194：para.math 線性 fallback → 同 Sprint 180 ToCanvasEditor 邏輯、
+  // 但這裡寫回完整 OMML 樹（高保真 round-trip）而非線性化文字
+  const mathXml = writeParagraphMath(para.math);
+
+  return `<w:p>${pPr}${rangeStarts}${runs.join('')}${mathXml}${commentReferences}${rangeEnds}</w:p>`;
 }
 
 /**
@@ -510,10 +555,29 @@ function writeShd(shading: ParagraphProps['shading']): string {
  * Sprint 186：加 RunProps 序列化（粗體 / 斜體 / 刪除線 / 底線 / 字級 / 顏色 /
  * 字型 / 高亮 / 上下標 / 字距 / 語言）。紀律 #21：無 props 時不輸出 `<w:rPr>`。
  */
-function writeRun(run: RunNode): string {
+function writeRun(run: RunNode, useDelText = false): string {
   const rPr = writeRPr(run.props);
   // `xml:space="preserve"` 保留前後空白（OOXML §17.3.3.31）；一律帶上
-  return `<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(run.text)}</w:t></w:r>`;
+  // Sprint 194：`<w:del>` 包裹的 run 用 `<w:delText>` 而非 `<w:t>`
+  const textTag = useDelText ? 'w:delText' : 'w:t';
+  return `<w:r>${rPr}<${textTag} xml:space="preserve">${escapeXml(run.text)}</${textTag}></w:r>`;
+}
+
+/**
+ * Sprint 194：把 run.revision 序列化為 `<w:ins>` 或 `<w:del>` 包裹的 run
+ * （OOXML §17.13.5 / §17.13.5.14）。
+ *
+ * - ins：`<w:ins w:id w:author? w:date?><w:r>...</w:r></w:ins>`
+ * - del：`<w:del w:id w:author? w:date?><w:r>...<w:delText>...</w:delText></w:r></w:del>`
+ */
+function writeRevisedRun(run: RunNode): string {
+  const rev = run.revision!;
+  const tag = rev.type === 'ins' ? 'w:ins' : 'w:del';
+  const attrs: string[] = [`w:id="${rev.id ?? 0}"`];
+  if (rev.author !== undefined) attrs.push(`w:author="${escapeXml(rev.author)}"`);
+  if (rev.date !== undefined) attrs.push(`w:date="${escapeXml(rev.date)}"`);
+  const inner = writeRun(run, rev.type === 'del');
+  return `<${tag} ${attrs.join(' ')}>${inner}</${tag}>`;
 }
 
 /**
@@ -1110,6 +1174,96 @@ function writeHeaderFooterPart(hf: HeaderFooterItem): string {
     `<${rootTag} xmlns:w="${W_NS}" xmlns:r="${R_NS}">` +
     blocks +
     `</${rootTag}>`;
+}
+
+// ── Sprint 194：OMML 數學公式序列化 ──────────────────────────────────────────
+
+/**
+ * 把 `ParagraphNode.math?: MathNode[]` 序列化為 0..N 個 `<m:oMath>` /
+ * `<m:oMathPara>` 元素。
+ *
+ * - display = true → `<m:oMathPara><m:oMath>...</m:oMath></m:oMathPara>`（獨立置中公式）
+ * - display = false → 段落直屬 `<m:oMath>`（行內公式）
+ *
+ * 每個 `<m:oMath>` / `<m:oMathPara>` 自帶 `xmlns:m`（為簡化、不在 root 統一宣告）。
+ * 紀律 #21：math 為 undefined / 空陣列 → 回空字串。
+ */
+function writeParagraphMath(math: MathNode[] | undefined): string {
+  if (!math || math.length === 0) return '';
+  return math.map((m) => {
+    const oMath = `<m:oMath xmlns:m="${M_NS}">${writeOmmlChildren(m.omml)}</m:oMath>`;
+    return m.display ? `<m:oMathPara xmlns:m="${M_NS}">${oMath}</m:oMathPara>` : oMath;
+  }).join('');
+}
+
+/** 序列化 OmmlNode 陣列（遞迴）。 */
+function writeOmmlChildren(nodes: OmmlNode[]): string {
+  return nodes.map(writeOmmlNode).join('');
+}
+
+/**
+ * 序列化單一 OmmlNode 為 `<m:tag>` 元素。
+ *
+ * - tag 自動加 `m:` 前綴（parser 解析時去除、export 時還原）
+ * - attrs 同 `m:` 前綴
+ * - text 葉節點（`<m:t>`）→ `<m:t>text</m:t>`
+ * - 含 children → 遞迴
+ * - 無 text 也無 children → self-closing
+ */
+function writeOmmlNode(node: OmmlNode): string {
+  const tag = `m:${node.tag}`;
+  const attrs = node.attrs
+    ? Object.entries(node.attrs)
+        .map(([k, v]) => ` m:${escapeXml(k)}="${escapeXml(v)}"`)
+        .join('')
+    : '';
+  if (node.text !== undefined) {
+    return `<${tag}${attrs}>${escapeXml(node.text)}</${tag}>`;
+  }
+  if (node.children && node.children.length > 0) {
+    return `<${tag}${attrs}>${writeOmmlChildren(node.children)}</${tag}>`;
+  }
+  return `<${tag}${attrs}/>`;
+}
+
+// ── Sprint 194：comments.xml 序列化 ──────────────────────────────────────────
+
+/**
+ * `word/comments.xml`：序列化 `DocumentNode.comments`。
+ *
+ * 結構（OOXML §17.13.4）：
+ *   <w:comments>
+ *     <w:comment w:id="0" w:author="..." w:date="..." w:initials="...">
+ *       <w:p>...</w:p>+ | <w:tbl>...</w:tbl>+
+ *     </w:comment>
+ *     ...
+ *   </w:comments>
+ *
+ * content 透過 writeBlock dispatcher（reuse 段落 / 表格 / 巢狀邏輯）。
+ * 空 Map → 空 `<w:comments/>` 骨架。
+ */
+function writeComments(doc: DocumentNode): string {
+  if (doc.comments.size === 0) {
+    return xmlDecl() + `<w:comments xmlns:w="${W_NS}"/>`;
+  }
+  const comments: string[] = [];
+  for (const [, c] of doc.comments) {
+    comments.push(writeCommentEntry(c));
+  }
+  return xmlDecl() +
+    `<w:comments xmlns:w="${W_NS}">` +
+    comments.join('') +
+    '</w:comments>';
+}
+
+/** 序列化單一 `<w:comment>`。 */
+function writeCommentEntry(c: CommentContent): string {
+  const attrs: string[] = [`w:id="${c.id}"`];
+  if (c.author !== undefined) attrs.push(`w:author="${escapeXml(c.author)}"`);
+  if (c.date !== undefined) attrs.push(`w:date="${escapeXml(c.date)}"`);
+  if (c.initials !== undefined) attrs.push(`w:initials="${escapeXml(c.initials)}"`);
+  const body = c.content.map(writeBlock).join('') || '<w:p/>';
+  return `<w:comment ${attrs.join(' ')}>${body}</w:comment>`;
 }
 
 // ── 工具 ─────────────────────────────────────────────────────────────────────
