@@ -1272,10 +1272,17 @@ export class DocEditor extends Component {
     /**
      * 在 canvas-editor 游標處插入對應 field 的 inline control。
      * conceptId = field.id（字串），日後可從 control 反查 doc.template.field。
+     *
+     * Sprint E：對 Odoo 欄位（field.key === 'odoo_field'）走特殊 placeholder
+     *   `{{ partner_id.name }}` 風格，讓 user 在文件上一眼看出這是動態變數
+     *   （與既有 docxtpl `{{ object.xxx }}` jinja2 風格一致）。
      */
     _insertControlForField(fieldId, field, signer) {
         const conceptId = String(fieldId);
-        const placeholder = `[${signer.name}/${field.label}]`;
+        let placeholder = `[${signer.name}/${field.label}]`;
+        if (field.key === "odoo_field" && field.odooFieldName) {
+            placeholder = `{{ ${field.odooFieldName} }}`;
+        }
         // canvas-editor control type 對應（FIELD_TYPES 的 ctrlType）
         const controlPayload = {
             type: field.ctrlType || "text",
@@ -1499,11 +1506,18 @@ export class DocEditor extends Component {
     }
 
     /**
-     * 開啟 Odoo 欄位選擇器 Dialog（DocFieldPickerDialog 復活 from Sprint 89）。
-     * 選中欄位後在游標位置插入 `{{ object.field_name }}` 表達式——這是既有 docxtpl
-     * 範本流程的延伸（不是新建 doc.template.field），與 isTemplateMode 共用。
+     * Sprint E：開啟 Odoo 欄位選擇器 Dialog，user 選好 Odoo 欄位後**建立可編輯的
+     * `doc.template.field` 紀錄**（field_type='odoo_field' + odoo_field_name）並
+     * 插入帶 conceptId 的 inline control。
+     *
+     * 與舊版差異：
+     *   舊版（Sprint 89 復活）：只插入 `{{ object.partner_id.name }}` 純文字字串，
+     *                          無法在 inspector 編輯、無法統計到 signer/field count。
+     *   新版（Sprint E）：     完整走 save_field + insertControl 流程，
+     *                          user 可在右側 inspector 改填寫者/必填/佔位符/字型大小、
+     *                          以及最關鍵的「Odoo 欄位名稱」（XML 已有對應輸入框）。
      */
-    onOdooFieldClick() {
+    async onOdooFieldClick() {
         if (!this.dialog) {
             this.notification.add("Dialog service 未就緒", { type: "warning" });
             return;
@@ -1512,21 +1526,89 @@ export class DocEditor extends Component {
             this.notification.add("編輯器尚未初始化", { type: "warning" });
             return;
         }
+        if (!this.state.docId) {
+            this.notification.add("請先儲存文件後再新增 Odoo 欄位", { type: "warning" });
+            return;
+        }
+        if (!this._hasTemplate) {
+            this.notification.add(
+                "此文件未關聯範本。請先在後台 doc.document.template_id 設定範本後再回來。",
+                { type: "warning" }
+            );
+            return;
+        }
         // 取得當前文件綁定的 model_name（_loadDocument 已寫入 state）。
-        // Phase 1 為了讓按鈕始終可點，沒有 modelName 也讓 dialog 開啟並提示。
         const modelName = this._loadedModelName || null;
         this.dialog.add(DocFieldPickerDialog, {
             modelName: modelName,
             docId: this.state.docId,
-            onInsert: (expression /* , label */) => {
-                // 用 canvas-editor 在游標處插入文字（最簡作法）。
-                // canvas-editor 沒有純粹的 "insert text" 命令，用 executeInsertElementList 包裝。
+            onInsert: async (expression, label) => {
+                // expression 形如 `{{ object.partner_id.name }}`；label 形如 `partner_id.name`。
+                // 我們只要 label（純欄位路徑）存到 doc.template.field.odoo_field_name。
+                const odooFieldName = (label || "").trim()
+                    || (expression || "").replace(/[{}]/g, "").replace(/^\s*object\.\s*/, "").trim();
+                if (!odooFieldName) {
+                    this.notification.add("欄位名稱解析失敗", { type: "danger" });
+                    return;
+                }
                 try {
-                    const elements = expression.split("").map(ch => ({ value: ch }));
-                    this.editor.command.executeInsertElementList(elements);
+                    const signer = await this._ensureSignerExists(this.state.activeSignerId);
+                    if (!signer) return;
+
+                    const fieldPayload = {
+                        signer_id: signer.id,
+                        field_type: "odoo_field",
+                        page_no: this.state.pageNo || 1,
+                        required: false,
+                        placeholder_text: `{{ ${odooFieldName} }}`,
+                        font_size: 12,
+                        odoo_field_name: odooFieldName,
+                    };
+                    const saveResult = await rpc("/dobtor_doc/template_fields/save_field", {
+                        doc_id: this.state.docId,
+                        field: fieldPayload,
+                    });
+                    if (!saveResult.success) {
+                        this.notification.add(
+                            `新增 Odoo 欄位失敗：${saveResult.error}`,
+                            { type: "danger" }
+                        );
+                        return;
+                    }
+                    // 插入 inline control（_insertControlForField 對 odoo_field 走 `{{ x.y }}` placeholder）
+                    this._insertControlForField(
+                        saveResult.id,
+                        {
+                            key: "odoo_field",
+                            label: `Odoo: ${odooFieldName}`,
+                            ctrlType: "text",
+                            odooFieldName: odooFieldName,
+                        },
+                        signer,
+                    );
+                    // push cache 讓 Inspector 立即顯示
+                    if (!this._templateFieldsCache) this._templateFieldsCache = [];
+                    this._templateFieldsCache.push({
+                        id: saveResult.id,
+                        ...fieldPayload,
+                        width: 120,
+                        height: 24,
+                        pos_x: 0,
+                        pos_y: 0,
+                    });
+                    this._applySignerCounts(saveResult.signer_field_counts);
+                    this.state.fieldCount = saveResult.field_count;
+                    this.state.selectedFieldId = saveResult.id;
+                    this.notification.add(
+                        `已插入 Odoo 欄位「${odooFieldName}」，可在右側 inspector 編輯。`,
+                        { type: "success" }
+                    );
                 } catch (e) {
-                    console.error("[DocEditor] 插入 Odoo 欄位失敗：", e);
-                    this.notification.add(`插入失敗：${e.message || e}`, { type: "danger" });
+                    console.error("[DocEditor] onOdooFieldClick insert failed", e);
+                    this.notification.add(
+                        `新增 Odoo 欄位失敗：${e.message || e}`,
+                        { type: "danger" }
+                    );
                 }
             },
         });
