@@ -1175,3 +1175,83 @@ describe('Sprint 194 — Phase 6 export round-trip（Phase 5 子功能）', () =
     expect(back.background?.color?.toUpperCase()).toBe('FFFF00');
   });
 });
+
+describe('Sprint 195 — Phase 6 export round-trip（SmartArt + Chart）', () => {
+  it('SmartArt round-trip → doc.smartArts 文字 + layoutType 保留', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', props: {}, runs: [{
+        type: 'inlineImage', rId: 'rIdSA1', width: 200, height: 100,
+        graphic: { kind: 'diagram', relId: 'rIdSA1' },
+      }] },
+    ])]);
+    doc.smartArts = [{
+      rId: 'rIdSA1',
+      layoutType: 'urn:test:circleList',
+      texts: ['前置作業', '施工檢核', '驗收交付'],
+    }];
+    const back = roundTrip(doc);
+    expect(back.smartArts).toBeDefined();
+    expect(back.smartArts).toHaveLength(1);
+    const sa = back.smartArts![0];
+    expect(sa.texts).toContain('前置作業');
+    expect(sa.texts).toContain('施工檢核');
+    expect(sa.texts).toContain('驗收交付');
+    expect(sa.layoutType).toBe('urn:test:circleList');
+  });
+
+  it('Chart round-trip → doc.charts 型別+series 保留', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', props: {}, runs: [{
+        type: 'inlineImage', rId: 'rIdCh1', width: 200, height: 150,
+        graphic: { kind: 'chart', relId: 'rIdCh1' },
+      }] },
+    ])]);
+    doc.charts = [{
+      rId: 'rIdCh1', chartType: 'barChart', title: '進度統計',
+      series: [{ name: '完成', categories: ['Q1', 'Q2'], values: [10, 20] }],
+    }];
+    const back = roundTrip(doc);
+    expect(back.charts).toBeDefined();
+    expect(back.charts).toHaveLength(1);
+    const ch = back.charts![0];
+    expect(ch.chartType).toBe('barChart');
+    expect(ch.title).toBe('進度統計');
+    expect(ch.series).toHaveLength(1);
+    expect(ch.series[0].name).toBe('完成');
+    expect(ch.series[0].categories).toEqual(['Q1', 'Q2']);
+    expect(ch.series[0].values).toEqual([10, 20]);
+  });
+
+  it('Chart 多 series round-trip', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.charts = [{
+      rId: 'rId1', chartType: 'lineChart',
+      series: [
+        { name: 'A', categories: ['x'], values: [1] },
+        { name: 'B', categories: ['x'], values: [2] },
+        { name: 'C', categories: ['x'], values: [3] },
+      ],
+    }];
+    const back = roundTrip(doc);
+    expect(back.charts![0].series).toHaveLength(3);
+    expect(back.charts![0].series.map((s) => s.name)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('Chart null 值（稀疏）round-trip', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.charts = [{
+      rId: 'rId1', chartType: 'barChart',
+      series: [{
+        name: 'X',
+        categories: ['a', 'b', 'c', 'd'],
+        values: [1, null, 3, null],
+      }],
+    }];
+    const back = roundTrip(doc);
+    const vals = back.charts![0].series[0].values;
+    expect(vals[0]).toBe(1);
+    expect(vals[1]).toBeNull();
+    expect(vals[2]).toBe(3);
+    expect(vals[3]).toBeNull();
+  });
+});

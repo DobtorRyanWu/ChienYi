@@ -29,6 +29,7 @@ import type {
   BlockNode,
   CellBorders,
   CellNode,
+  ChartNode,
   CommentContent,
   DocumentNode,
   FloatImageNode,
@@ -42,6 +43,7 @@ import type {
   RunNode,
   RunProps,
   SectionNode,
+  SmartArtNode,
   TableNode,
 } from '../ast/types';
 
@@ -74,6 +76,20 @@ const REL_TYPE_COMMENTS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
 /** OMML 命名空間（ECMA-376 §22.1）。 */
 const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+/** Sprint 195：SmartArt diagram data 關係型別。 */
+const REL_TYPE_DIAGRAM_DATA =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
+/** Sprint 195：Chart 關係型別。 */
+const REL_TYPE_CHART =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+/** Sprint 195：SmartArt graphicData uri。 */
+const A_GRAPHIC_DIAGRAM_URI = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
+/** Sprint 195：Chart graphicData uri。 */
+const A_GRAPHIC_CHART_URI = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+/** Sprint 195：DrawingML diagram 命名空間（dgm）。 */
+const DGM_NS = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
+/** Sprint 195：DrawingML chart 命名空間（c）。 */
+const C_NS = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
 
 /** DrawingML 命名空間：wordprocessingDrawing（wp）。 */
 const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
@@ -123,10 +139,14 @@ export class OoxmlWriter {
     // Sprint 193：收集 headers / footers（每個 rId 配一個 wordpath）
     const hfItems = collectHeadersFooters(doc);
 
+    // Sprint 195：收集 SmartArt / Chart 部件（依 doc.smartArts / doc.charts）
+    const smartArtItems = collectSmartArts(doc);
+    const chartItems = collectCharts(doc);
+
     const parts: { [path: string]: Uint8Array } = {
-      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions, hfItems)),
+      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions, hfItems, smartArtItems, chartItems)),
       '_rels/.rels': strToU8(writeRootRels()),
-      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems, hfItems)),
+      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems, hfItems, smartArtItems, chartItems)),
       'word/document.xml': strToU8(writeDocument(doc)),
       'word/styles.xml': strToU8(writeStyles(doc)),
       'word/numbering.xml': strToU8(writeNumbering(doc)),
@@ -140,6 +160,14 @@ export class OoxmlWriter {
     // Sprint 193：把每個 header/footer 部件寫進 zip
     for (const hf of hfItems) {
       parts[hf.filename] = strToU8(writeHeaderFooterPart(hf));
+    }
+    // Sprint 195：SmartArt diagram data 部件
+    for (const sa of smartArtItems) {
+      parts[sa.filename] = strToU8(writeSmartArtPart(sa));
+    }
+    // Sprint 195：Chart 部件
+    for (const ch of chartItems) {
+      parts[ch.filename] = strToU8(writeChartPart(ch));
     }
     return zipSync(parts);
   }
@@ -157,6 +185,8 @@ export class OoxmlWriter {
 function writeContentTypes(
   imageExtensions: Set<string>,
   hfItems: HeaderFooterItem[],
+  smartArtItems: SmartArtPartItem[] = [],
+  chartItems: ChartPartItem[] = [],
 ): string {
   const imageDefaults: string[] = [];
   for (const ext of imageExtensions) {
@@ -170,6 +200,13 @@ function writeContentTypes(
       : 'application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml';
     return `<Override PartName="/${hf.filename}" ContentType="${ct}"/>`;
   }).join('');
+  // Sprint 195：SmartArt diagram data / Chart 部件 Override
+  const smartArtOverrides = smartArtItems.map((sa) =>
+    `<Override PartName="/${sa.filename}" ContentType="application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml"/>`
+  ).join('');
+  const chartOverrides = chartItems.map((ch) =>
+    `<Override PartName="/${ch.filename}" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`
+  ).join('');
   return xmlDecl() +
     `<Types xmlns="${CT_NS}">` +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
@@ -180,6 +217,8 @@ function writeContentTypes(
     '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
     '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' +
     hfOverrides +
+    smartArtOverrides +
+    chartOverrides +
     '</Types>';
 }
 
@@ -201,6 +240,8 @@ function writeRootRels(): string {
 function writeDocumentRels(
   mediaItems: MediaItem[],
   hfItems: HeaderFooterItem[],
+  smartArtItems: SmartArtPartItem[] = [],
+  chartItems: ChartPartItem[] = [],
 ): string {
   const imageRels: string[] = [];
   for (const m of mediaItems) {
@@ -216,6 +257,15 @@ function writeDocumentRels(
     const type = hf.kind === 'header' ? REL_TYPE_HEADER : REL_TYPE_FOOTER;
     return `<Relationship Id="${escapeXml(hf.rId)}" Type="${type}" Target="${escapeXml(target)}"/>`;
   }).join('');
+  // Sprint 195：SmartArt diagram data / Chart rels（rId 從 doc.smartArts/charts node.rId 取）
+  const smartArtRels = smartArtItems.map((sa) => {
+    const target = sa.filename.startsWith('word/') ? sa.filename.slice('word/'.length) : sa.filename;
+    return `<Relationship Id="${escapeXml(sa.rId)}" Type="${REL_TYPE_DIAGRAM_DATA}" Target="${escapeXml(target)}"/>`;
+  }).join('');
+  const chartRels = chartItems.map((ch) => {
+    const target = ch.filename.startsWith('word/') ? ch.filename.slice('word/'.length) : ch.filename;
+    return `<Relationship Id="${escapeXml(ch.rId)}" Type="${REL_TYPE_CHART}" Target="${escapeXml(target)}"/>`;
+  }).join('');
   return xmlDecl() +
     `<Relationships xmlns="${REL_NS}">` +
     `<Relationship Id="rIdStyles" Type="${REL_TYPE_STYLES}" Target="styles.xml"/>` +
@@ -223,6 +273,8 @@ function writeDocumentRels(
     `<Relationship Id="rIdComments" Type="${REL_TYPE_COMMENTS}" Target="comments.xml"/>` +
     imageRels.join('') +
     hfRels +
+    smartArtRels +
+    chartRels +
     '</Relationships>';
 }
 
@@ -1096,17 +1148,31 @@ function writeInlineImageRun(img: InlineImageNode | FloatImageNode): string {
   const cy = ptToEmu(img.height);
   const docPrId = nextDocPrId();
   const descrAttr = img.altText ? ` descr="${escapeXml(img.altText)}"` : '';
+
+  // Sprint 195：依 img.graphic.kind 選 graphicData 內容（SmartArt / Chart / 一般圖片）
+  const graphicData = img.type === 'inlineImage' && img.graphic
+    ? writeGraphicDataForGraphicFrame(img.graphic, cx, cy, docPrId)
+    : writeGraphicDataForPicture(img.rId, cx, cy, docPrId);
+
   return '<w:r><w:drawing>' +
     `<wp:inline xmlns:wp="${WP_NS}" distT="0" distB="0" distL="0" distR="0">` +
     `<wp:extent cx="${cx}" cy="${cy}"/>` +
     `<wp:docPr id="${docPrId}" name="Image${docPrId}"${descrAttr}/>` +
     '<wp:cNvGraphicFramePr/>' +
     `<a:graphic xmlns:a="${A_NS}">` +
-    `<a:graphicData uri="${A_GRAPHIC_PICTURE_URI}">` +
+    graphicData +
+    '</a:graphic>' +
+    '</wp:inline>' +
+    '</w:drawing></w:r>';
+}
+
+/** 一般圖片 graphicData：`<pic:pic>` 包 blipFill + spPr。 */
+function writeGraphicDataForPicture(rId: string, cx: number, cy: number, docPrId: number): string {
+  return `<a:graphicData uri="${A_GRAPHIC_PICTURE_URI}">` +
     `<pic:pic xmlns:pic="${PIC_NS}">` +
     `<pic:nvPicPr><pic:cNvPr id="${docPrId}" name="Image${docPrId}"/><pic:cNvPicPr/></pic:nvPicPr>` +
     '<pic:blipFill>' +
-    `<a:blip xmlns:r="${R_NS}" r:embed="${escapeXml(img.rId)}"/>` +
+    `<a:blip xmlns:r="${R_NS}" r:embed="${escapeXml(rId)}"/>` +
     '<a:stretch><a:fillRect/></a:stretch>' +
     '</pic:blipFill>' +
     '<pic:spPr>' +
@@ -1114,10 +1180,36 @@ function writeInlineImageRun(img: InlineImageNode | FloatImageNode): string {
     '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>' +
     '</pic:spPr>' +
     '</pic:pic>' +
-    '</a:graphicData>' +
-    '</a:graphic>' +
-    '</wp:inline>' +
-    '</w:drawing></w:r>';
+    '</a:graphicData>';
+}
+
+/**
+ * Sprint 195：SmartArt / Chart graphicData。
+ *
+ * - diagram → `<a:graphicData uri=".../diagram"><dgm:relIds r:dm="rId..."/>`
+ *   `r:dm` 是必需的 data relationship；r:lo/r:qs/r:cs 在 capture 已資料丟失、
+ *   export 重指向 r:dm 同 rId（lossy 但 parser 仍能解析）
+ * - chart → `<a:graphicData uri=".../chart"><c:chart r:id="rId..."/>`
+ */
+function writeGraphicDataForGraphicFrame(
+  graphic: { kind: 'diagram' | 'chart'; relId: string },
+  _cx: number,
+  _cy: number,
+  _docPrId: number,
+): string {
+  const uri = graphic.kind === 'diagram' ? A_GRAPHIC_DIAGRAM_URI : A_GRAPHIC_CHART_URI;
+  if (graphic.kind === 'diagram') {
+    // dgm:relIds 需要 dm/lo/qs/cs 四個 rId；本實作用同 relId 作所有四個
+    // （只有 dm 是 parser 必讀；其他三個指向不存在的 rId 也不影響解析）
+    return `<a:graphicData uri="${uri}">` +
+      `<dgm:relIds xmlns:dgm="${DGM_NS}" xmlns:r="${R_NS}" ` +
+      `r:dm="${escapeXml(graphic.relId)}" r:lo="${escapeXml(graphic.relId)}" ` +
+      `r:qs="${escapeXml(graphic.relId)}" r:cs="${escapeXml(graphic.relId)}"/>` +
+      '</a:graphicData>';
+  }
+  return `<a:graphicData uri="${uri}">` +
+    `<c:chart xmlns:c="${C_NS}" xmlns:r="${R_NS}" r:id="${escapeXml(graphic.relId)}"/>` +
+    '</a:graphicData>';
 }
 
 /** pt → EMU（四捨五入為整數、OOXML drawing 屬性要求整數）。 */
@@ -1264,6 +1356,134 @@ function writeCommentEntry(c: CommentContent): string {
   if (c.initials !== undefined) attrs.push(`w:initials="${escapeXml(c.initials)}"`);
   const body = c.content.map(writeBlock).join('') || '<w:p/>';
   return `<w:comment ${attrs.join(' ')}>${body}</w:comment>`;
+}
+
+// ── Sprint 195：SmartArt diagram data 部件 ───────────────────────────────────
+
+interface SmartArtPartItem {
+  rId: string;          // 對應 graphic.relId
+  filename: string;     // 'word/diagrams/data1.xml' 等
+  node: SmartArtNode;
+}
+
+/**
+ * 從 doc.smartArts 整理為 SmartArtPartItem[]、檔名用流水序號。
+ *
+ * Sprint 195：parser 把 4 個 SmartArt 部件（data/layout/quickStyle/colors）
+ * 摺成一個 SmartArtNode、export 端只需寫 data 部件（parser 走 type=diagramData
+ * 解析）；layout/quickStyle/colors 留 後續。
+ */
+function collectSmartArts(doc: DocumentNode): SmartArtPartItem[] {
+  const out: SmartArtPartItem[] = [];
+  if (!doc.smartArts) return out;
+  let n = 0;
+  for (const sa of doc.smartArts) {
+    n += 1;
+    out.push({ rId: sa.rId, filename: `word/diagrams/data${n}.xml`, node: sa });
+  }
+  return out;
+}
+
+/**
+ * 寫單一 `diagrams/dataN.xml`（OOXML §21.4 `<dgm:dataModel>`）。
+ *
+ * 為 SmartArt 內容點（content pt）逐一 emit `<dgm:pt><dgm:t><a:p><a:r><a:t>`
+ * 結構；doc 點（type='doc'）含 `<dgm:prSet loTypeId>` 帶版面類型識別碼。
+ * 紀律 #18 scope-down：不重建 cxnLst 連接資訊（parser 不消費、無需 round-trip）。
+ */
+function writeSmartArtPart(item: SmartArtPartItem): string {
+  const sa = item.node;
+  const docPt = sa.layoutType
+    ? `<dgm:pt modelId="{doc}" type="doc"><dgm:prSet loTypeId="${escapeXml(sa.layoutType)}"/></dgm:pt>`
+    : '';
+  const contentPts = sa.texts.map((t, i) =>
+    `<dgm:pt modelId="{N${i}}"><dgm:t><a:p><a:r><a:t>${escapeXml(t)}</a:t></a:r></a:p></dgm:t></dgm:pt>`,
+  ).join('');
+  return xmlDecl() +
+    `<dgm:dataModel xmlns:dgm="${DGM_NS}" xmlns:a="${A_NS}">` +
+    '<dgm:ptLst>' +
+    docPt +
+    contentPts +
+    '</dgm:ptLst>' +
+    '</dgm:dataModel>';
+}
+
+// ── Sprint 195：Chart 部件 ─────────────────────────────────────────────────
+
+interface ChartPartItem {
+  rId: string;          // 對應 graphic.relId
+  filename: string;     // 'word/charts/chart1.xml' 等
+  node: ChartNode;
+}
+
+/**
+ * 從 doc.charts 整理為 ChartPartItem[]、檔名用流水序號。
+ */
+function collectCharts(doc: DocumentNode): ChartPartItem[] {
+  const out: ChartPartItem[] = [];
+  if (!doc.charts) return out;
+  let n = 0;
+  for (const ch of doc.charts) {
+    n += 1;
+    out.push({ rId: ch.rId, filename: `word/charts/chart${n}.xml`, node: ch });
+  }
+  return out;
+}
+
+/**
+ * 寫單一 `charts/chartN.xml`（OOXML §21.2 `<c:chartSpace>`）。
+ *
+ * 結構：`<c:chartSpace><c:chart><c:title>?<c:plotArea><c:{chartType}><c:ser>...`
+ * 每 `<c:ser>` 含 tx (name) + cat (strCache) + val (numCache)。
+ */
+function writeChartPart(item: ChartPartItem): string {
+  const ch = item.node;
+  const title = ch.title
+    ? `<c:title><c:tx><c:rich><a:p><a:r><a:t>${escapeXml(ch.title)}</a:t></a:r></a:p></c:rich></c:tx></c:title>`
+    : '';
+  const seriesXml = ch.series.map(writeChartSeries).join('');
+  const chartType = ch.chartType || 'barChart';
+  return xmlDecl() +
+    `<c:chartSpace xmlns:c="${C_NS}" xmlns:a="${A_NS}">` +
+    '<c:chart>' +
+    title +
+    '<c:plotArea>' +
+    `<c:${chartType}>` +
+    seriesXml +
+    `</c:${chartType}>` +
+    '</c:plotArea>' +
+    '</c:chart>' +
+    '</c:chartSpace>';
+}
+
+/** 序列化單一 ChartSeries 為 `<c:ser>`。 */
+function writeChartSeries(s: { name?: string; categories: string[]; values: (number | null)[] }): string {
+  const tx = s.name
+    ? `<c:tx><c:strRef><c:f>x</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${escapeXml(s.name)}</c:v></c:pt></c:strCache></c:strRef></c:tx>`
+    : '';
+  const cat = writeChartStrCache('cat', s.categories);
+  const val = writeChartNumCache('val', s.values);
+  return `<c:ser>${tx}${cat}${val}</c:ser>`;
+}
+
+/** `<c:cat>` 或 `<c:tx>` 內字串快取結構。 */
+function writeChartStrCache(elementName: string, values: string[]): string {
+  const pts = values
+    .map((v, i) => v !== '' ? `<c:pt idx="${i}"><c:v>${escapeXml(v)}</c:v></c:pt>` : '')
+    .join('');
+  return `<c:${elementName}><c:strRef><c:f>x</c:f><c:strCache>` +
+    `<c:ptCount val="${values.length}"/>${pts}` +
+    `</c:strCache></c:strRef></c:${elementName}>`;
+}
+
+/** `<c:val>` 數值快取結構（null 視為缺漏點、不 emit `<c:pt>`）。 */
+function writeChartNumCache(elementName: string, values: (number | null)[]): string {
+  const pts = values
+    .map((v, i) => v !== null && v !== undefined ? `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>` : '')
+    .join('');
+  return `<c:${elementName}><c:numRef><c:f>x</c:f><c:numCache>` +
+    `<c:ptCount val="${values.length}"/>${pts}` +
+    `</c:numCache></c:numRef></c:${elementName}>`;
 }
 
 // ── 工具 ─────────────────────────────────────────────────────────────────────

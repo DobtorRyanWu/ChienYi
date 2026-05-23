@@ -1491,3 +1491,130 @@ describe('OoxmlWriter — Sprint 194 Phase 5 子功能 export', () => {
     expect(xml).not.toContain('<w:background');
   });
 });
+
+describe('OoxmlWriter — Sprint 195 SmartArt + Chart export', () => {
+  // ── SmartArt ────────────────────────────────────────────────────────
+
+  it('SmartArt → word/diagrams/data1.xml + Content_Types Override + rels', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', props: {}, runs: [{
+        type: 'inlineImage', rId: 'rIdSA1', width: 200, height: 100,
+        graphic: { kind: 'diagram', relId: 'rIdSA1' },
+      }] },
+    ])]);
+    doc.smartArts = [{
+      rId: 'rIdSA1',
+      layoutType: 'urn:test:layout',
+      texts: ['Step 1', 'Step 2', 'Step 3'],
+    }];
+    const parts = unzipToText(writer.write(doc));
+    expect(parts['word/diagrams/data1.xml']).toBeDefined();
+    expect(parts['word/diagrams/data1.xml']).toContain('<dgm:dataModel ');
+    expect(parts['word/diagrams/data1.xml']).toContain('loTypeId="urn:test:layout"');
+    expect(parts['word/diagrams/data1.xml']).toContain('>Step 1<');
+    expect(parts['word/diagrams/data1.xml']).toContain('>Step 3<');
+    expect(parts['[Content_Types].xml']).toContain('PartName="/word/diagrams/data1.xml"');
+    expect(parts['[Content_Types].xml']).toContain('drawingml.diagramData+xml');
+    expect(parts['word/_rels/document.xml.rels']).toContain('Id="rIdSA1"');
+    expect(parts['word/_rels/document.xml.rels']).toContain('Target="diagrams/data1.xml"');
+    expect(parts['word/_rels/document.xml.rels']).toContain('relationships/diagramData');
+  });
+
+  it('SmartArt graphicData → <dgm:relIds r:dm>（非 pic:pic）', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', props: {}, runs: [{
+        type: 'inlineImage', rId: 'rIdSA1', width: 100, height: 50,
+        graphic: { kind: 'diagram', relId: 'rIdSA1' },
+      }] },
+    ])]);
+    doc.smartArts = [{ rId: 'rIdSA1', texts: ['x'] }];
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('<dgm:relIds ');
+    expect(xml).toContain('r:dm="rIdSA1"');
+    expect(xml).not.toContain('<pic:pic');
+  });
+
+  // ── Chart ─────────────────────────────────────────────────────────
+
+  it('Chart → word/charts/chart1.xml + Content_Types + rels', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', props: {}, runs: [{
+        type: 'inlineImage', rId: 'rIdCh1', width: 200, height: 150,
+        graphic: { kind: 'chart', relId: 'rIdCh1' },
+      }] },
+    ])]);
+    doc.charts = [{
+      rId: 'rIdCh1', chartType: 'barChart', title: '銷售額',
+      series: [{ name: 'Q1', categories: ['A', 'B'], values: [10, 20] }],
+    }];
+    const parts = unzipToText(writer.write(doc));
+    expect(parts['word/charts/chart1.xml']).toBeDefined();
+    expect(parts['word/charts/chart1.xml']).toContain('<c:chartSpace ');
+    expect(parts['word/charts/chart1.xml']).toContain('<c:barChart>');
+    expect(parts['word/charts/chart1.xml']).toContain('>銷售額<');
+    expect(parts['word/charts/chart1.xml']).toContain('>Q1<');
+    expect(parts['word/charts/chart1.xml']).toContain('>10<');
+    expect(parts['[Content_Types].xml']).toContain('PartName="/word/charts/chart1.xml"');
+    expect(parts['[Content_Types].xml']).toContain('drawingml.chart+xml');
+    expect(parts['word/_rels/document.xml.rels']).toContain('Id="rIdCh1"');
+    expect(parts['word/_rels/document.xml.rels']).toContain('Target="charts/chart1.xml"');
+  });
+
+  it('Chart graphicData → <c:chart r:id>（非 pic:pic）', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', props: {}, runs: [{
+        type: 'inlineImage', rId: 'rIdCh1', width: 100, height: 100,
+        graphic: { kind: 'chart', relId: 'rIdCh1' },
+      }] },
+    ])]);
+    doc.charts = [{ rId: 'rIdCh1', chartType: 'barChart', series: [] }];
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('<c:chart ');
+    expect(xml).toContain('r:id="rIdCh1"');
+    expect(xml).not.toContain('<pic:pic');
+  });
+
+  it('Chart 數列 cat/val 對位（含稀疏 null 跳過）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.charts = [{
+      rId: 'rId1', chartType: 'lineChart',
+      series: [{
+        name: 'S',
+        categories: ['a', 'b', 'c', 'd'],
+        values: [1, null, 3, null],
+      }],
+    }];
+    const xml = unzipToText(writer.write(doc))['word/charts/chart1.xml'];
+    expect(xml).toContain('<c:lineChart>');
+    expect(xml).toContain('<c:ptCount val="4"/>');
+    // null 點不 emit
+    expect(xml).toContain('>1<');
+    expect(xml).toContain('>3<');
+    // 不應為 2 或 4（null 對應位置）
+  });
+
+  it('多個 SmartArt + Chart → 各自編號', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.smartArts = [
+      { rId: 'rIdSA1', texts: ['A'] },
+      { rId: 'rIdSA2', texts: ['B'] },
+    ];
+    doc.charts = [
+      { rId: 'rIdCh1', chartType: 'barChart', series: [] },
+      { rId: 'rIdCh2', chartType: 'pieChart', series: [] },
+    ];
+    const parts = unzipToText(writer.write(doc));
+    expect(parts['word/diagrams/data1.xml']).toBeDefined();
+    expect(parts['word/diagrams/data2.xml']).toBeDefined();
+    expect(parts['word/charts/chart1.xml']).toBeDefined();
+    expect(parts['word/charts/chart2.xml']).toBeDefined();
+  });
+
+  it('無 SmartArt/Chart → 不輸出對應部件、Content_Types/rels 無條目', () => {
+    const parts = unzipToText(writer.write(makeDoc([makeSection([])])));
+    expect(parts['word/diagrams/data1.xml']).toBeUndefined();
+    expect(parts['word/charts/chart1.xml']).toBeUndefined();
+    expect(parts['[Content_Types].xml']).not.toContain('diagramData');
+    expect(parts['[Content_Types].xml']).not.toContain('drawingml.chart+xml');
+  });
+});
