@@ -1255,3 +1255,30 @@ describe('Sprint 195 — Phase 6 export round-trip（SmartArt + Chart）', () =>
     expect(vals[3]).toBeNull();
   });
 });
+
+describe('Sprint 196 — Phase 6 export round-trip（watermark）', () => {
+  it('文字浮水印 round-trip → kind/text/font/rotation 全保留', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.watermark = { kind: 'text', text: '機密', font: '標楷體', rotation: 315 };
+    const back = roundTrip(doc);
+    expect(back.watermark).toBeDefined();
+    expect(back.watermark!.kind).toBe('text');
+    expect(back.watermark!.text).toBe('機密');
+    expect(back.watermark!.font).toBe('標楷體');
+    expect(back.watermark!.rotation).toBe(315);
+  });
+
+  it('文字浮水印 round-trip → 不同 text 內容（DRAFT）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.watermark = { kind: 'text', text: 'DRAFT' };
+    const back = roundTrip(doc);
+    expect(back.watermark!.kind).toBe('text');
+    expect(back.watermark!.text).toBe('DRAFT');
+  });
+
+  it('無 watermark round-trip → back.watermark undefined（紀律 #21）', () => {
+    const doc = makeDoc([makeSection([])]);
+    const back = roundTrip(doc);
+    expect(back.watermark).toBeUndefined();
+  });
+});

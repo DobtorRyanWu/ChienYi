@@ -1618,3 +1618,77 @@ describe('OoxmlWriter — Sprint 195 SmartArt + Chart export', () => {
     expect(parts['[Content_Types].xml']).not.toContain('drawingml.chart+xml');
   });
 });
+
+describe('OoxmlWriter — Sprint 196 watermark export', () => {
+  const writer = new OoxmlWriter();
+
+  it('文字浮水印 → word/watermarkHeader.xml 含 v:textpath + Content_Types Override + rels', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.watermark = { kind: 'text', text: '機密', font: '標楷體', rotation: 315 };
+    const parts = unzipToText(writer.write(doc));
+    expect(parts['word/watermarkHeader.xml']).toBeDefined();
+    expect(parts['word/watermarkHeader.xml']).toContain('<v:shape ');
+    expect(parts['word/watermarkHeader.xml']).toContain('type="#_x0000_t136"');
+    expect(parts['word/watermarkHeader.xml']).toContain('rotation:315');
+    expect(parts['word/watermarkHeader.xml']).toContain('<v:textpath ');
+    expect(parts['word/watermarkHeader.xml']).toContain('string="機密"');
+    expect(parts['word/watermarkHeader.xml']).toContain('標楷體');
+    expect(parts['[Content_Types].xml']).toContain('PartName="/word/watermarkHeader.xml"');
+    expect(parts['[Content_Types].xml']).toContain('wordprocessingml.header+xml');
+    expect(parts['word/_rels/document.xml.rels']).toContain('Id="rIdWatermarkHdr"');
+    expect(parts['word/_rels/document.xml.rels']).toContain('Target="watermarkHeader.xml"');
+    expect(parts['word/_rels/document.xml.rels']).toContain('relationships/header');
+  });
+
+  it('無 default header 的 section → 注入 watermark rId 為 default headerReference', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.watermark = { kind: 'text', text: 'DRAFT' };
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('<w:headerReference w:type="default" r:id="rIdWatermarkHdr"/>');
+  });
+
+  it('已有 default header 的 section → 保留原 default、不覆寫（honest sub-gap）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.sections[0].headerRefs = { default: 'rIdExistingH' };
+    doc.watermark = { kind: 'text', text: 'X' };
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('<w:headerReference w:type="default" r:id="rIdExistingH"/>');
+    expect(xml).not.toContain('r:id="rIdWatermarkHdr"');
+  });
+
+  it('multi-section：有 default 的不覆寫、無 default 的注入', () => {
+    const sec1 = makeSection([]);
+    sec1.headerRefs = { default: 'rIdH1' };
+    const sec2 = makeSection([]);
+    sec2.headerRefs = {};
+    const doc = makeDoc([sec1, sec2]);
+    doc.watermark = { kind: 'text', text: 'W' };
+    const xml = unzipToText(writer.write(doc))['word/document.xml'];
+    expect(xml).toContain('r:id="rIdH1"');
+    expect(xml).toContain('r:id="rIdWatermarkHdr"');
+  });
+
+  it('圖片浮水印 → emit v:imagedata r:id（kind=image）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.watermark = { kind: 'image', imageRId: 'rIdImg1' };
+    const partXml = unzipToText(writer.write(doc))['word/watermarkHeader.xml'];
+    expect(partXml).toContain('<v:imagedata ');
+    expect(partXml).toContain('r:id="rIdImg1"');
+    expect(partXml).not.toContain('<v:textpath');
+  });
+
+  it('文字浮水印 rotation 缺漏 → fallback 315 度（Word 預設對角）', () => {
+    const doc = makeDoc([makeSection([])]);
+    doc.watermark = { kind: 'text', text: 'X' };
+    const partXml = unzipToText(writer.write(doc))['word/watermarkHeader.xml'];
+    expect(partXml).toContain('rotation:315');
+  });
+
+  it('無 watermark → 不輸出 watermarkHeader.xml、Content_Types/rels 無條目、section 無注入', () => {
+    const parts = unzipToText(writer.write(makeDoc([makeSection([])])));
+    expect(parts['word/watermarkHeader.xml']).toBeUndefined();
+    expect(parts['[Content_Types].xml']).not.toContain('watermarkHeader.xml');
+    expect(parts['word/_rels/document.xml.rels']).not.toContain('rIdWatermarkHdr');
+    expect(parts['word/document.xml']).not.toContain('rIdWatermarkHdr');
+  });
+});

@@ -90,6 +90,20 @@ const A_GRAPHIC_CHART_URI = 'http://schemas.openxmlformats.org/drawingml/2006/ch
 const DGM_NS = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
 /** Sprint 195：DrawingML chart 命名空間（c）。 */
 const C_NS = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+/** Sprint 196：VML 命名空間（urn:schemas-microsoft-com:vml）—— watermark `<v:shape>`。 */
+const V_NS = 'urn:schemas-microsoft-com:vml';
+/** Sprint 196：Office 命名空間（urn:schemas-microsoft-com:office:office）—— `<o:lock>` 等。 */
+const O_NS = 'urn:schemas-microsoft-com:office:office';
+/** Sprint 196：文字浮水印 WordArt shape type（OOXML §17、Word 內建 type #_x0000_t136）。 */
+const WATERMARK_SHAPE_TYPE = '#_x0000_t136';
+/** Sprint 196：合成 watermark header 部件的 rId（避開原 doc.headers/footers rId 數字命名空間）。 */
+const WATERMARK_HEADER_RID = 'rIdWatermarkHdr';
+/** Sprint 196：合成 watermark header 部件檔名。 */
+const WATERMARK_HEADER_FILENAME = 'word/watermarkHeader.xml';
+/** Sprint 196：文字浮水印 default rotation（Word 「設計 → 浮水印」對角預設）。 */
+const WATERMARK_DEFAULT_ROTATION = 315;
+/** Sprint 196：文字浮水印 default fill 顏色（Word 內建灰）。 */
+const WATERMARK_DEFAULT_FILLCOLOR = '#C0C0C0';
 
 /** DrawingML 命名空間：wordprocessingDrawing（wp）。 */
 const WP_NS = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
@@ -143,11 +157,14 @@ export class OoxmlWriter {
     const smartArtItems = collectSmartArts(doc);
     const chartItems = collectCharts(doc);
 
+    // Sprint 196：收集 watermark header 部件（依 doc.watermark）
+    const watermarkItem = collectWatermark(doc);
+
     const parts: { [path: string]: Uint8Array } = {
-      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions, hfItems, smartArtItems, chartItems)),
+      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions, hfItems, smartArtItems, chartItems, watermarkItem)),
       '_rels/.rels': strToU8(writeRootRels()),
-      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems, hfItems, smartArtItems, chartItems)),
-      'word/document.xml': strToU8(writeDocument(doc)),
+      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems, hfItems, smartArtItems, chartItems, watermarkItem)),
+      'word/document.xml': strToU8(writeDocument(doc, watermarkItem)),
       'word/styles.xml': strToU8(writeStyles(doc)),
       'word/numbering.xml': strToU8(writeNumbering(doc)),
       // Sprint 194：comments.xml 永遠 emit（空 Map → 空 <w:comments/>）
@@ -169,6 +186,10 @@ export class OoxmlWriter {
     for (const ch of chartItems) {
       parts[ch.filename] = strToU8(writeChartPart(ch));
     }
+    // Sprint 196：watermark header 部件
+    if (watermarkItem) {
+      parts[watermarkItem.filename] = strToU8(writeWatermarkHeaderPart(watermarkItem));
+    }
     return zipSync(parts);
   }
 }
@@ -187,6 +208,7 @@ function writeContentTypes(
   hfItems: HeaderFooterItem[],
   smartArtItems: SmartArtPartItem[] = [],
   chartItems: ChartPartItem[] = [],
+  watermarkItem: WatermarkHeaderItem | undefined = undefined,
 ): string {
   const imageDefaults: string[] = [];
   for (const ext of imageExtensions) {
@@ -207,6 +229,10 @@ function writeContentTypes(
   const chartOverrides = chartItems.map((ch) =>
     `<Override PartName="/${ch.filename}" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`
   ).join('');
+  // Sprint 196：watermark header 部件用 header MIME 同 hfOverrides
+  const watermarkOverride = watermarkItem
+    ? `<Override PartName="/${watermarkItem.filename}" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>`
+    : '';
   return xmlDecl() +
     `<Types xmlns="${CT_NS}">` +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
@@ -219,6 +245,7 @@ function writeContentTypes(
     hfOverrides +
     smartArtOverrides +
     chartOverrides +
+    watermarkOverride +
     '</Types>';
 }
 
@@ -242,6 +269,7 @@ function writeDocumentRels(
   hfItems: HeaderFooterItem[],
   smartArtItems: SmartArtPartItem[] = [],
   chartItems: ChartPartItem[] = [],
+  watermarkItem: WatermarkHeaderItem | undefined = undefined,
 ): string {
   const imageRels: string[] = [];
   for (const m of mediaItems) {
@@ -266,6 +294,10 @@ function writeDocumentRels(
     const target = ch.filename.startsWith('word/') ? ch.filename.slice('word/'.length) : ch.filename;
     return `<Relationship Id="${escapeXml(ch.rId)}" Type="${REL_TYPE_CHART}" Target="${escapeXml(target)}"/>`;
   }).join('');
+  // Sprint 196：watermark header 部件 rels 條目（REL_TYPE_HEADER）
+  const watermarkRel = watermarkItem
+    ? `<Relationship Id="${escapeXml(watermarkItem.rId)}" Type="${REL_TYPE_HEADER}" Target="${escapeXml(watermarkItem.filename.startsWith('word/') ? watermarkItem.filename.slice('word/'.length) : watermarkItem.filename)}"/>`
+    : '';
   return xmlDecl() +
     `<Relationships xmlns="${REL_NS}">` +
     `<Relationship Id="rIdStyles" Type="${REL_TYPE_STYLES}" Target="styles.xml"/>` +
@@ -275,6 +307,7 @@ function writeDocumentRels(
     hfRels +
     smartArtRels +
     chartRels +
+    watermarkRel +
     '</Relationships>';
 }
 
@@ -340,7 +373,7 @@ function writeStyleEntry(styleId: string, entry: { pProps?: ParagraphProps; rPro
  *
  * （parser walkBodyAsSections 支援兩種 sectPr 位置：段內 pPr 或 body 末端。）
  */
-function writeDocument(doc: DocumentNode): string {
+function writeDocument(doc: DocumentNode, watermarkItem: WatermarkHeaderItem | undefined = undefined): string {
   const bodyParts: string[] = [];
   const n = doc.sections.length;
   for (let i = 0; i < n; i++) {
@@ -350,11 +383,11 @@ function writeDocument(doc: DocumentNode): string {
     }
     if (i < n - 1) {
       // 非最後 section：anchor paragraph 把 sectPr 嵌入 pPr 內、結束該 section
-      bodyParts.push(`<w:p><w:pPr>${writeSectPr(sec)}</w:pPr></w:p>`);
+      bodyParts.push(`<w:p><w:pPr>${writeSectPr(sec, watermarkItem)}</w:pPr></w:p>`);
     }
   }
   // 最後 section（或無 section 時 fallback）：body 末端 sectPr
-  bodyParts.push(writeSectPr(n > 0 ? doc.sections[n - 1] : undefined));
+  bodyParts.push(writeSectPr(n > 0 ? doc.sections[n - 1] : undefined, watermarkItem));
 
   // Sprint 194：`<w:background>` 為 `<w:document>` 直接子（在 `<w:body>` 之前）
   const backgroundEl = writeBackground(doc.background);
@@ -694,13 +727,24 @@ function writeRPr(props: RunProps): string {
  * 子元素依 schema 順序：headerReference / footerReference / pgSz / pgMar /
  * titlePg。Sprint 193 加 headerRefs / footerRefs / titlePage 序列化。
  */
-function writeSectPr(section: SectionNode | undefined): string {
+function writeSectPr(section: SectionNode | undefined, watermarkItem: WatermarkHeaderItem | undefined = undefined): string {
   const parts: string[] = [];
 
   // Sprint 193：headerReference / footerReference（schema 順序最前）
+  // Sprint 196：對「無既有 default header」的 section 注入 watermark rId 為 default；
+  //            「有既有 default header」的 section 仍走原 default（honest sub-gap：
+  //            watermark 視覺不出現於這些 section、但 watermark header 部件仍 emit、
+  //            round-trip 保 watermark capture 對稱性）。
   if (section) {
-    parts.push(...writeRefs('w:headerReference', section.headerRefs));
+    const headerRefs = section.headerRefs;
+    const injectedHeaderRefs = watermarkItem && headerRefs.default === undefined
+      ? { ...headerRefs, default: watermarkItem.rId }
+      : headerRefs;
+    parts.push(...writeRefs('w:headerReference', injectedHeaderRefs));
     parts.push(...writeRefs('w:footerReference', section.footerRefs));
+  } else if (watermarkItem) {
+    // 無 section（極少見、僅 fallback）：仍 emit 一筆 default headerReference 指向 watermark
+    parts.push(`<w:headerReference w:type="default" r:id="${escapeXml(watermarkItem.rId)}"/>`);
   }
 
   // pgSz / pgMar（section 缺漏 → A4 + Word 預設邊距）
@@ -1266,6 +1310,95 @@ function writeHeaderFooterPart(hf: HeaderFooterItem): string {
     `<${rootTag} xmlns:w="${W_NS}" xmlns:r="${R_NS}">` +
     blocks +
     `</${rootTag}>`;
+}
+
+// ── Sprint 196：watermark export（合成 header VML） ──────────────────────────
+
+/**
+ * Sprint 196：合成 watermark header 部件資訊。
+ *
+ * Word「設計 → 浮水印」實作為 header part 內 `<w:pict>` 包 VML
+ * `<v:shape type="#_x0000_t136">` WordArt（文字浮水印）或 `<v:imagedata>`
+ * （圖片浮水印）。export 端用 dedicated synthetic header part 攜帶浮水印，
+ * 對「無既有 default header」的 section 注入該 rId 為 default。
+ *
+ * 紀律 #21：doc.watermark 為 undefined → 不產出 watermark header（此 type
+ * 不存在於 hfItems）。
+ */
+interface WatermarkHeaderItem {
+  /** 合成 rId（不與既有 doc.headers/footers rId 衝突）。 */
+  rId: string;
+  /** 合成檔名（word/watermarkHeader.xml）。 */
+  filename: string;
+  /** 浮水印 capture 來源（kind / text / font / rotation / imageRId）。 */
+  watermark: NonNullable<DocumentNode['watermark']>;
+}
+
+/**
+ * 從 doc.watermark 整理出 watermark header 部件；無浮水印 → undefined。
+ *
+ * 紀律 #21：watermark 為 undefined → 不輸出部件、Content_Types / rels / section
+ * headerRefs 都不掛此 rId（無 watermark 文件零開銷）。
+ */
+function collectWatermark(doc: DocumentNode): WatermarkHeaderItem | undefined {
+  if (!doc.watermark) return undefined;
+  return {
+    rId: WATERMARK_HEADER_RID,
+    filename: WATERMARK_HEADER_FILENAME,
+    watermark: doc.watermark,
+  };
+}
+
+/**
+ * 把 WatermarkHeaderItem 序列化為 header part XML 字串。
+ *
+ * 結構：`<w:hdr><w:p><w:r><w:pict><v:shape ...>` 包 textpath / imagedata。
+ *   - 文字浮水印：`<v:shape type="#_x0000_t136" style="...rotation:N">` +
+ *                 `<v:fill color=...>` + `<v:textpath string="..." style="font-family:...">`
+ *   - 圖片浮水印：`<v:shape id="WordPictureWatermark..." style="...">` +
+ *                 `<v:imagedata r:id="..."/>`（rId 來自 doc.media 對應的圖片）
+ *
+ * 紀律 #18 scope-down：fill / stroke 等視覺屬性走 Word 預設值；style 只攜帶
+ * width / height / rotation（其餘 absolute / margin-* 等留後續）。
+ */
+function writeWatermarkHeaderPart(item: WatermarkHeaderItem): string {
+  const wm = item.watermark;
+  const rotation = wm.rotation ?? WATERMARK_DEFAULT_ROTATION;
+  // VML shape style：用 Word 浮水印慣例（width/height 採點數、rotation 度數）
+  const shapeStyle = `position:absolute;margin-left:0;margin-top:0;width:468pt;height:117pt;rotation:${rotation};z-index:-251658752`;
+
+  let shapeInner: string;
+  if (wm.kind === 'text') {
+    const text = wm.text ?? '';
+    const font = wm.font ?? '標楷體';
+    const textpathStyle = `font-family:&quot;${escapeXml(font)}&quot;;font-size:1pt`;
+    shapeInner =
+      `<v:fill color="${WATERMARK_DEFAULT_FILLCOLOR}"/>` +
+      `<v:textpath xmlns:v="${V_NS}" style="${textpathStyle}" string="${escapeXml(text)}"/>`;
+  } else {
+    // image watermark — 引用 doc.media 對應的圖片 rId
+    const imageRId = wm.imageRId ?? '';
+    shapeInner = `<v:imagedata r:id="${escapeXml(imageRId)}" o:title="WordPictureWatermark"/>`;
+  }
+
+  // VML shape id 含 "watermark" 字串（parser kind='image' 判定條件）；
+  // type='#_x0000_t136' 為文字 WordArt（parser kind='text' 判定條件 = 有 textpath）
+  const shapeAttrs = wm.kind === 'text'
+    ? `id="PowerPlusWaterMarkObject" type="${WATERMARK_SHAPE_TYPE}" style="${shapeStyle}"`
+    : `id="WordPictureWatermark" style="${shapeStyle}"`;
+
+  return xmlDecl() +
+    `<w:hdr xmlns:w="${W_NS}" xmlns:r="${R_NS}" xmlns:v="${V_NS}" xmlns:o="${O_NS}">` +
+    '<w:p>' +
+    '<w:r>' +
+    '<w:pict>' +
+    `<v:shape ${shapeAttrs}>` +
+    shapeInner +
+    '</v:shape>' +
+    '</w:pict>' +
+    '</w:r>' +
+    '</w:p>' +
+    '</w:hdr>';
 }
 
 // ── Sprint 194：OMML 數學公式序列化 ──────────────────────────────────────────
