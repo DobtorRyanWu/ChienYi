@@ -121,7 +121,15 @@ export class DocEditor extends Component {
             zoomFit: "auto",
             // Phase 2.2a 拖放新增欄位：當前是否有欄位被拖入 workspace
             isDropTarget: false,
+            // ─── Sprint A：Sub-nav 分頁殼資料 ───────────────────────
+            // 設定分頁：自動儲存開關（預設啟用）
+            autoSaveEnabled: true,
+            // 請求分頁：填寫請求清單（lazy-load）
+            requests: [],
+            requestsLoading: false,
         });
+        // 切到 requests tab 時才 load 一次
+        this._requestsLoaded = false;
 
         // 暫存從後端載入的 content_json，供 _initCanvasEditor 使用
         this._loadedContentJson = null;
@@ -849,25 +857,132 @@ export class DocEditor extends Component {
         history.back();
     }
 
-    // ─── Phase 8 Template UI Builder（ADR-022） ─────────────────────
+    // ─── Phase 8 Template UI Builder（ADR-022）/ Sprint A 收口 ──────
     //
-    // Phase 1 視覺風格靠攏：以下 handler 多為 placeholder（彈 toast 或更新 state），
-    // Phase 2 才真正接 canvas-editor `executeInsertControl` / doc.template.field 後端。
-    // 這樣設計的原因：Phase 1 改完，畫面立刻可看、舊功能不掉一個，
-    // Phase 2 進來時 handler 殼已就位、只動內部實作不再動 template 結構。
+    // Sprint A：4 個分頁全部開放、預覽接後端 template_preview 端點。
+    // 各分頁殼內容見 doc_editor.xml 的 doc-subnav-panel 區塊。
 
     onSubNavClick(tab) {
-        // 目前只允許切到 "templates"，其餘 WIP（按鈕 disabled 由 template 控）。
-        if (tab !== "templates") {
-            this.notification.add(`「${tab}」分頁尚未開放（Phase 8 路線圖）`, { type: "info" });
+        const allowed = ["dashboard", "requests", "templates", "settings"];
+        if (!allowed.includes(tab)) {
             return;
         }
         this.state.activeSubNav = tab;
+        // 切到「請求」時 lazy-load 一次填寫請求清單
+        if (tab === "requests" && !this._requestsLoaded) {
+            this._loadRequests();
+        }
     }
 
-    onPreviewClick() {
-        // Phase 2 預期：開新分頁顯示套用範本後的填值預覽。
-        this.notification.add("預覽功能將在 Phase 2 接後端 fill_template 端點", { type: "info" });
+    /**
+     * Sprint A：開新分頁顯示填值後的範本內容。
+     *
+     * 流程：
+     *   1. 從 state.contextJson 取 user 提供的填值資料（可選）
+     *   2. POST /dobtor_doc/template_preview 取得渲染後 HTML
+     *   3. window.open 開新分頁、寫入 HTML
+     */
+    async onPreviewClick() {
+        if (!this.state.docId) {
+            this.notification.add("請先儲存文件後再預覽。", { type: "warning" });
+            return;
+        }
+        // 解析 user 提供的 context（容錯：解析失敗用空 dict）
+        let contextDict = {};
+        const ctxRaw = (this.state.contextJson || "").trim();
+        if (ctxRaw) {
+            try {
+                contextDict = JSON.parse(ctxRaw);
+            } catch (e) {
+                this.notification.add(
+                    "Context JSON 格式錯誤，將以空填值預覽。",
+                    { type: "warning" }
+                );
+            }
+        }
+        try {
+            const result = await rpc("/dobtor_doc/template_preview", {
+                doc_id: this.state.docId,
+                context: contextDict,
+            });
+            if (!result || !result.success) {
+                this.notification.add(
+                    `預覽失敗：${(result && result.error) || "未知錯誤"}`,
+                    { type: "danger" }
+                );
+                return;
+            }
+            const w = window.open("", "_blank", "noopener,noreferrer");
+            if (!w) {
+                this.notification.add(
+                    "瀏覽器阻擋新分頁。請允許彈出視窗後重試。",
+                    { type: "warning" }
+                );
+                return;
+            }
+            w.document.open();
+            w.document.write(result.html);
+            w.document.close();
+            w.document.title = `預覽：${this.state.docName || "文件"}`;
+        } catch (e) {
+            console.error("[DocEditor] onPreviewClick failed", e);
+            this.notification.add(`預覽失敗：${e.message || e}`, { type: "danger" });
+        }
+    }
+
+    /**
+     * Sprint A：載入此範本的填寫請求清單（lazy，切到 requests tab 時觸發一次）。
+     */
+    async _loadRequests() {
+        if (!this.state.docId) {
+            this.state.requests = [];
+            this._requestsLoaded = true;
+            return;
+        }
+        this.state.requestsLoading = true;
+        try {
+            const result = await rpc("/dobtor_doc/template_requests/list", {
+                doc_id: this.state.docId,
+            });
+            this.state.requests = (result && result.requests) || [];
+            this._requestsLoaded = true;
+        } catch (e) {
+            console.error("[DocEditor] load requests failed", e);
+            this.state.requests = [];
+            this._requestsLoaded = true;
+        } finally {
+            this.state.requestsLoading = false;
+        }
+    }
+
+    /**
+     * Sprint A：設定分頁 — 切換預設簽約人角色（沿用 onSignerClick 的 state 變動，
+     * 但獨立 handler 避免未來分歧）。
+     */
+    onDefaultSignerChange(event) {
+        const newId = parseInt(event.target.value, 10);
+        if (!Number.isNaN(newId)) {
+            this.state.activeSignerId = newId;
+        }
+    }
+
+    /**
+     * Sprint A：設定分頁 — 切換自動儲存。
+     */
+    onAutoSaveToggle(event) {
+        const enabled = !!event.target.checked;
+        this.state.autoSaveEnabled = enabled;
+        if (this._autoSaveManager) {
+            if (enabled && typeof this._autoSaveManager.enable === "function") {
+                this._autoSaveManager.enable();
+            } else if (!enabled && typeof this._autoSaveManager.disable === "function") {
+                this._autoSaveManager.disable();
+            }
+        }
+        this.notification.add(
+            enabled ? "已啟用自動儲存。" : "已關閉自動儲存（請手動按儲存）。",
+            { type: "info" }
+        );
     }
 
     /**

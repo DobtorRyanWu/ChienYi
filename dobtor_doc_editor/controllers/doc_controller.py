@@ -1699,3 +1699,139 @@ class DocEditorController(http.Controller):
         except Exception as e:
             return {'success': False, 'error': str(e)}
         return {'success': True, 'id': signer_id}
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Sprint A —— Sub-nav 預覽 / 請求清單端點
+    #
+    # 設計：兩個端點都 doc-centric（前端傳 doc_id）；預覽端點用 jinja2 sandbox
+    # 渲染 doc.content_html，避開既有 fill_template 對 LibreOffice 的硬依賴。
+    # 請求端點目前回傳殼資料；未來接上 doc.fill.request model 後改回真實清單。
+    # ──────────────────────────────────────────────────────────────────────
+
+    @http.route('/dobtor_doc/template_preview', type='json', auth='user', methods=['POST'])
+    def template_preview(self, doc_id, context=None, **kw):
+        """以 user 提供的 context 渲染 doc.content_html，回傳完整 HTML 頁面供新分頁顯示。
+
+        參數：
+            doc_id：doc.document id
+            context：{變數名稱: 值} dict（對應 content_html 中的 {{ var }}）
+
+        回傳：
+            { success: bool, html: str, warnings: list[str], error?: str }
+        """
+        try:
+            doc = request.env['doc.document'].browse(int(doc_id))
+            doc.check_access_rule('read')
+        except Exception as e:
+            return {'success': False, 'error': f'文件存取失敗：{e}'}
+
+        content_html = doc.get_content_html() or '<p><em>（文件無內容）</em></p>'
+        warnings = []
+        ctx = context if isinstance(context, dict) else {}
+
+        # 用 jinja2 sandbox 渲染（與 doc.render.mixin._render_template 同樣的 sandbox）
+        rendered_body = content_html
+        if ctx:
+            try:
+                from jinja2.sandbox import SandboxedEnvironment
+                from jinja2 import StrictUndefined, UndefinedError
+                env = SandboxedEnvironment(undefined=StrictUndefined)
+                tpl = env.from_string(content_html)
+                try:
+                    rendered_body = tpl.render(**ctx, object=doc, user=request.env.user)
+                except UndefinedError as ue:
+                    warnings.append(f'缺少變數：{ue}（已用空白替代）')
+                    env_lax = SandboxedEnvironment()
+                    rendered_body = env_lax.from_string(content_html).render(
+                        **ctx, object=doc, user=request.env.user
+                    )
+            except Exception as e:
+                warnings.append(f'渲染警告：{e}')
+                rendered_body = content_html
+
+        # 包成完整 HTML 頁面（含列印樣式）
+        page_format = doc.page_format or 'A4'
+        doc_name = html_mod.escape(doc.name or '未命名文件')
+        # html_mod.escape on warnings (avoid XSS via warning text)
+        warnings_html = ''.join(
+            f'<li>{html_mod.escape(w)}</li>' for w in warnings
+        )
+        warnings_block = (
+            f'<aside class="preview-warnings" role="alert">'
+            f'<strong>預覽提示</strong><ul>{warnings_html}</ul></aside>'
+        ) if warnings else ''
+
+        html = (
+            '<!DOCTYPE html>'
+            '<html lang="zh-Hant">'
+            '<head>'
+            '<meta charset="utf-8"/>'
+            f'<title>預覽：{doc_name}</title>'
+            '<style>'
+            'body{font-family:"Microsoft JhengHei","PingFang TC",sans-serif;'
+            'margin:0;padding:24px;background:#f3f4f6;color:#111827;}'
+            '.preview-page{background:#fff;max-width:794px;margin:0 auto 16px;'
+            'padding:48px 56px;box-shadow:0 1px 3px rgba(0,0,0,.1);'
+            'border-radius:4px;line-height:1.6;}'
+            '.preview-header{max-width:794px;margin:0 auto 16px;'
+            'display:flex;justify-content:space-between;align-items:center;'
+            'color:#4b5563;font-size:14px;}'
+            '.preview-warnings{max-width:794px;margin:0 auto 16px;'
+            'padding:12px 16px;background:#fef3c7;border-left:4px solid #f59e0b;'
+            'border-radius:4px;color:#92400e;}'
+            '.preview-warnings ul{margin:8px 0 0;padding-left:20px;}'
+            '@media print{body{background:#fff;padding:0;}'
+            '.preview-page{box-shadow:none;border:none;margin:0;}'
+            '.preview-header,.preview-warnings{display:none;}}'
+            '</style>'
+            '</head>'
+            '<body>'
+            '<div class="preview-header">'
+            f'<span>{doc_name}</span><span>{page_format} ｜ 預覽（非正式輸出）</span>'
+            '</div>'
+            f'{warnings_block}'
+            f'<article class="preview-page">{rendered_body}</article>'
+            '</body></html>'
+        )
+        return {'success': True, 'html': html, 'warnings': warnings}
+
+    @http.route('/dobtor_doc/template_requests/list', type='json', auth='user', methods=['POST'])
+    def template_requests_list(self, doc_id, **kw):
+        """列出此文件範本的填寫請求清單。
+
+        目前 doc.fill.request model 尚未實作；先回傳空陣列作為殼，
+        前端 Sprint A 的「請求」分頁能正常顯示「目前沒有填寫請求」空態。
+        未來接上 model 後改成 search_read。
+        """
+        try:
+            doc = request.env['doc.document'].browse(int(doc_id))
+            doc.check_access_rule('read')
+        except Exception as e:
+            return {'success': False, 'error': f'文件存取失敗：{e}', 'requests': []}
+
+        FillRequest = request.env.get('doc.fill.request')
+        if FillRequest is None:
+            return {'success': True, 'requests': []}
+
+        # model 已實作時走真實 search_read
+        try:
+            records = FillRequest.sudo().search_read(
+                domain=[('doc_id', '=', doc.id)],
+                fields=['id', 'recipient_name', 'state', 'sent_at', 'completed_at'],
+                order='sent_at desc',
+            )
+            STATE_LABELS = {
+                'draft': '草稿',
+                'sent': '已送出',
+                'opened': '已開啟',
+                'completed': '已完成',
+                'expired': '已過期',
+            }
+            for r in records:
+                r['state_label'] = STATE_LABELS.get(r.get('state'), r.get('state') or '—')
+                r['sent_at'] = (r.get('sent_at') and str(r['sent_at'])) or None
+                r['completed_at'] = (r.get('completed_at') and str(r['completed_at'])) or None
+            return {'success': True, 'requests': records}
+        except Exception as e:
+            _logger.warning('template_requests_list fallback: %s', e)
+            return {'success': True, 'requests': []}

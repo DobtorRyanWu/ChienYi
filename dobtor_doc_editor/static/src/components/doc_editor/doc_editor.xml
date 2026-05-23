@@ -30,7 +30,7 @@
                 <div class="doc-header-bar-right">
                     <button class="doc-header-btn"
                             t-on-click="onPreviewClick"
-                            title="預覽（Phase 2）"
+                            title="開新分頁預覽填值結果"
                             aria-label="預覽">
                         <i class="fa fa-external-link" aria-hidden="true"/>
                         <span class="d-none d-md-inline">預覽</span>
@@ -56,33 +56,31 @@
                 </div>
             </div>
 
-            <!-- ═══ Row 2：Sub-nav（儀表板/請求/範本/設定）═══ -->
+            <!-- ═══ Row 2：Sub-nav（儀表板/請求/範本/設定）═══
+                 Sprint A：4 個分頁全部解封；每個分頁渲染對應內容（見 Row 6 後方）。 -->
             <nav class="doc-subnav" role="navigation" aria-label="模組分頁">
                 <button class="doc-subnav-btn"
                         t-att-class="state.activeSubNav === 'dashboard' ? 'active' : ''"
                         t-on-click="() => this.onSubNavClick('dashboard')"
-                        disabled="disabled"
-                        title="儀表板（Phase 8 路線圖未開放）">
+                        title="儀表板：範本欄位統計與最近修改">
                     <i class="fa fa-tachometer me-1"/>儀表板
                 </button>
                 <button class="doc-subnav-btn"
                         t-att-class="state.activeSubNav === 'requests' ? 'active' : ''"
                         t-on-click="() => this.onSubNavClick('requests')"
-                        disabled="disabled"
-                        title="請求（Phase 8 路線圖未開放）">
+                        title="請求：本範本的填寫請求清單">
                     <i class="fa fa-paper-plane me-1"/>請求
                 </button>
                 <button class="doc-subnav-btn"
                         t-att-class="state.activeSubNav === 'templates' ? 'active' : ''"
                         t-on-click="() => this.onSubNavClick('templates')"
-                        title="範本">
+                        title="範本：欄位拖曳與屬性編輯">
                     <i class="fa fa-file-text me-1"/>範本
                 </button>
                 <button class="doc-subnav-btn"
                         t-att-class="state.activeSubNav === 'settings' ? 'active' : ''"
                         t-on-click="() => this.onSubNavClick('settings')"
-                        disabled="disabled"
-                        title="設定（Phase 8 路線圖未開放）">
+                        title="設定：頁面格式與自動儲存">
                     <i class="fa fa-cog me-1"/>設定
                 </button>
             </nav>
@@ -180,7 +178,9 @@
                 </div>
             </div>
 
-            <!-- ═══ Row 4：Field toolbar（欄位類型按鈕 + Odoo 欄位）═══ -->
+            <!-- ═══ Row 4：Field toolbar（欄位類型按鈕 + Odoo 欄位）═══
+                 Sprint A：僅在「範本」分頁顯示 -->
+            <t t-if="state.activeSubNav === 'templates'">
             <div class="doc-field-toolbar"
                  role="toolbar"
                  aria-label="範本欄位工具列">
@@ -214,8 +214,11 @@
                     Odoo 欄位
                 </button>
             </div>
+            </t>
 
-            <!-- ═══ Row 5：Signer bar（簽約人 chip + 頁碼 + zoom fit）═══ -->
+            <!-- ═══ Row 5：Signer bar（簽約人 chip + 頁碼 + zoom fit）═══
+                 Sprint A：僅在「範本」分頁顯示 -->
+            <t t-if="state.activeSubNav === 'templates'">
             <div class="doc-signer-bar">
                 <span class="doc-signer-bar-label">簽約人：</span>
                 <t t-foreach="state.signers" t-as="signer" t-key="signer.id">
@@ -259,9 +262,13 @@
                     <option value="page">符合頁面</option>
                 </select>
             </div>
+            </t>
 
-            <!-- ═══ Row 6：Main grid（thumbnails / workspace / inspector）═══ -->
-            <div class="doc-main">
+            <!-- ═══ Row 6：Main grid（thumbnails / workspace / inspector）═══
+                 Sprint A：canvas-editor 不能被 t-if unmount（會炸），改用 inline style
+                 在非「範本」分頁時隱藏。dashboard/requests/settings 分頁則接著在後方渲染。 -->
+            <div class="doc-main"
+                 t-att-style="state.activeSubNav === 'templates' ? '' : 'display: none;'">
                 <!-- 左：頁面縮圖 panel（Phase 2 接 canvas-editor 縮圖 API） -->
                 <aside class="doc-thumbnail-panel" aria-label="頁面縮圖">
                     <div class="doc-thumbnail-panel-header">頁面</div>
@@ -383,6 +390,170 @@
                     </t>
                 </aside>
             </div>
+
+            <!-- ═══ Sprint A：Sub-nav 「儀表板」分頁殼 ═══ -->
+            <t t-if="state.activeSubNav === 'dashboard'">
+                <div class="doc-subnav-panel doc-dashboard-panel" role="region" aria-label="儀表板">
+                    <header class="doc-subnav-panel-header">
+                        <h2><i class="fa fa-tachometer me-2"/>範本儀表板</h2>
+                        <p class="text-muted">當前範本的欄位與簽約人總覽。</p>
+                    </header>
+
+                    <div class="doc-dashboard-cards">
+                        <div class="doc-dashboard-card">
+                            <div class="doc-dashboard-card-label">總欄位數</div>
+                            <div class="doc-dashboard-card-value" t-esc="state.fieldCount"/>
+                            <div class="doc-dashboard-card-hint">所有頁面合計</div>
+                        </div>
+                        <div class="doc-dashboard-card">
+                            <div class="doc-dashboard-card-label">簽約人</div>
+                            <div class="doc-dashboard-card-value" t-esc="state.signers.length"/>
+                            <div class="doc-dashboard-card-hint">含 placeholder</div>
+                        </div>
+                        <div class="doc-dashboard-card">
+                            <div class="doc-dashboard-card-label">頁數</div>
+                            <div class="doc-dashboard-card-value" t-esc="state.totalPages"/>
+                            <div class="doc-dashboard-card-hint"><t t-esc="state.pageFormat"/></div>
+                        </div>
+                        <div class="doc-dashboard-card">
+                            <div class="doc-dashboard-card-label">文件狀態</div>
+                            <div class="doc-dashboard-card-value">
+                                <t t-if="state.isSaving">儲存中</t>
+                                <t t-else=""><t t-esc="state.statusMsg"/></t>
+                            </div>
+                            <div class="doc-dashboard-card-hint">
+                                <t t-if="state.docId">ID #<t t-esc="state.docId"/></t>
+                                <t t-else="">尚未儲存</t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <section class="doc-dashboard-section">
+                        <h3>簽約人分配</h3>
+                        <table class="doc-dashboard-table">
+                            <thead>
+                                <tr>
+                                    <th>角色</th>
+                                    <th class="text-end">欄位數</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.signers" t-as="signer" t-key="signer.id">
+                                    <tr>
+                                        <td>
+                                            <span class="doc-signer-chip-dot" t-att-style="'background-color: ' + signer.color"/>
+                                            <span t-esc="signer.name"/>
+                                        </td>
+                                        <td class="text-end" t-esc="signer.count"/>
+                                    </tr>
+                                </t>
+                                <t t-if="!state.signers.length">
+                                    <tr><td colspan="2" class="text-muted text-center">（尚未配置簽約人）</td></tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+            </t>
+
+            <!-- ═══ Sprint A：Sub-nav 「請求」分頁殼 ═══ -->
+            <t t-if="state.activeSubNav === 'requests'">
+                <div class="doc-subnav-panel doc-requests-panel" role="region" aria-label="填寫請求">
+                    <header class="doc-subnav-panel-header">
+                        <h2><i class="fa fa-paper-plane me-2"/>填寫請求</h2>
+                        <p class="text-muted">針對此範本發出的填寫請求清單。</p>
+                    </header>
+
+                    <t t-if="state.requestsLoading">
+                        <div class="text-center py-5 text-muted">
+                            <i class="fa fa-spinner fa-spin fa-2x mb-2"/>
+                            <div>載入中...</div>
+                        </div>
+                    </t>
+                    <t t-elif="!state.requests || !state.requests.length">
+                        <div class="doc-subnav-panel-empty">
+                            <i class="fa fa-inbox fa-3x text-muted mb-3"/>
+                            <p class="text-muted mb-1">目前沒有填寫請求</p>
+                            <p class="text-muted small">將範本送出給簽約人後，請求會列在這裡。</p>
+                        </div>
+                    </t>
+                    <t t-else="">
+                        <table class="doc-requests-table">
+                            <thead>
+                                <tr>
+                                    <th>請求對象</th>
+                                    <th>狀態</th>
+                                    <th>發出時間</th>
+                                    <th>完成時間</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="state.requests" t-as="req" t-key="req.id">
+                                    <tr>
+                                        <td t-esc="req.recipient_name or '—'"/>
+                                        <td><span class="doc-request-badge" t-att-data-state="req.state" t-esc="req.state_label"/></td>
+                                        <td t-esc="req.sent_at or '—'"/>
+                                        <td t-esc="req.completed_at or '—'"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </t>
+                </div>
+            </t>
+
+            <!-- ═══ Sprint A：Sub-nav 「設定」分頁殼 ═══ -->
+            <t t-if="state.activeSubNav === 'settings'">
+                <div class="doc-subnav-panel doc-settings-panel" role="region" aria-label="範本設定">
+                    <header class="doc-subnav-panel-header">
+                        <h2><i class="fa fa-cog me-2"/>範本設定</h2>
+                        <p class="text-muted">頁面格式、自動儲存與預設行為。</p>
+                    </header>
+
+                    <div class="doc-settings-grid">
+                        <div class="doc-settings-field">
+                            <label>預設紙張</label>
+                            <select t-on-change="onPageFormatChange">
+                                <option value="A4" t-att-selected="state.pageFormat === 'A4' ? 'selected' : ''">A4</option>
+                                <option value="A3" t-att-selected="state.pageFormat === 'A3' ? 'selected' : ''">A3</option>
+                                <option value="A5" t-att-selected="state.pageFormat === 'A5' ? 'selected' : ''">A5</option>
+                                <option value="letter" t-att-selected="state.pageFormat === 'letter' ? 'selected' : ''">Letter</option>
+                                <option value="legal" t-att-selected="state.pageFormat === 'legal' ? 'selected' : ''">Legal</option>
+                            </select>
+                            <div class="doc-settings-hint">影響新頁面的尺寸與列印輸出。</div>
+                        </div>
+
+                        <div class="doc-settings-field">
+                            <label>自動儲存</label>
+                            <label class="doc-settings-toggle">
+                                <input type="checkbox"
+                                       t-att-checked="state.autoSaveEnabled !== false ? 'checked' : ''"
+                                       t-on-change="onAutoSaveToggle"/>
+                                啟用（編輯後 1.5 秒自動儲存）
+                            </label>
+                            <div class="doc-settings-hint">關閉後需手動按「儲存」按鈕。</div>
+                        </div>
+
+                        <div class="doc-settings-field">
+                            <label>預設簽約人角色</label>
+                            <select t-on-change="onDefaultSignerChange">
+                                <t t-foreach="state.signers" t-as="signer" t-key="signer.id">
+                                    <option t-att-value="signer.id"
+                                            t-att-selected="signer.id === state.activeSignerId ? 'selected' : ''"
+                                            t-esc="signer.name"/>
+                                </t>
+                            </select>
+                            <div class="doc-settings-hint">新增欄位時預設指派的簽約人。</div>
+                        </div>
+
+                        <div class="doc-settings-field">
+                            <label>文件 ID</label>
+                            <input type="text" readonly="readonly" t-att-value="state.docId or '（尚未儲存）'"/>
+                            <div class="doc-settings-hint">系統識別碼（唯讀）。</div>
+                        </div>
+                    </div>
+                </div>
+            </t>
 
             <!-- ═══ 模板變數面板（既有 isTemplateMode）═══ -->
             <t t-if="state.isTemplateMode">
