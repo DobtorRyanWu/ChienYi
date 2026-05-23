@@ -458,3 +458,140 @@ describe('OoxmlWriter — Sprint 187 ParagraphProps 序列化', () => {
     }
   });
 });
+
+describe('OoxmlWriter — Sprint 188 ParagraphProps 進階（pBdr / shd / framePr）', () => {
+  function paraWith(props: ParagraphNode['props']): ParagraphNode {
+    return { type: 'paragraph', runs: [makeRun('x')], props };
+  }
+  function getDocXml(para: ParagraphNode): string {
+    return unzipToText(writer.write(makeDoc([makeSection([para])])))['word/document.xml'];
+  }
+
+  // ── pBdr ────────────────────────────────────────────────────────────────────
+
+  it('borders 全四邊 → <w:pBdr> 含 top/bottom/left/right', () => {
+    const xml = getDocXml(paraWith({
+      borders: {
+        top:    { style: 'single', width: 0.5, color: '000000' },
+        bottom: { style: 'single', width: 0.5, color: '000000' },
+        left:   { style: 'double', width: 1, color: 'FF0000' },
+        right:  { style: 'double', width: 1, color: 'FF0000' },
+      },
+    }));
+    expect(xml).toContain('<w:pBdr>');
+    expect(xml).toContain('<w:top ');
+    expect(xml).toContain('<w:bottom ');
+    expect(xml).toContain('<w:left ');
+    expect(xml).toContain('<w:right ');
+  });
+
+  it('borders w:sz 單位為 1/8 pt（width 0.5pt → sz=4、width 1pt → sz=8）', () => {
+    const xml = getDocXml(paraWith({
+      borders: { top: { style: 'single', width: 0.5, color: '000000' } },
+    }));
+    expect(xml).toContain('w:sz="4"');
+    const xml2 = getDocXml(paraWith({
+      borders: { top: { style: 'single', width: 1, color: '000000' } },
+    }));
+    expect(xml2).toContain('w:sz="8"');
+  });
+
+  it('borders space → w:space 屬性（缺漏跳過）', () => {
+    const xml = getDocXml(paraWith({
+      borders: { top: { style: 'single', width: 0.5, color: '000000', space: 4 } },
+    }));
+    expect(xml).toContain('w:space="4"');
+    const xml2 = getDocXml(paraWith({
+      borders: { top: { style: 'single', width: 0.5, color: '000000' } },
+    }));
+    expect(xml2).not.toContain('w:space=');
+  });
+
+  it('borders 僅單邊 → 只輸出該邊', () => {
+    const xml = getDocXml(paraWith({
+      borders: { bottom: { style: 'single', width: 0.5, color: '000000' } },
+    }));
+    expect(xml).toContain('<w:bottom ');
+    expect(xml).not.toContain('<w:top ');
+    expect(xml).not.toContain('<w:left ');
+    expect(xml).not.toContain('<w:right ');
+  });
+
+  // ── shd ─────────────────────────────────────────────────────────────────────
+
+  it('shading fill/color/pattern → <w:shd>', () => {
+    const xml = getDocXml(paraWith({
+      shading: { fill: 'DEEAF6', color: 'auto', pattern: 'clear' },
+    }));
+    expect(xml).toContain('<w:shd ');
+    expect(xml).toContain('w:val="clear"');
+    expect(xml).toContain('w:fill="DEEAF6"');
+    expect(xml).toContain('w:color="auto"');
+  });
+
+  it('shading 部分欄位 → 缺漏屬性跳過', () => {
+    const xml = getDocXml(paraWith({ shading: { fill: 'FFFF00' } }));
+    expect(xml).toContain('w:fill="FFFF00"');
+    expect(xml).not.toContain('w:val=');
+    expect(xml).not.toContain('w:color=');
+  });
+
+  // ── framePr ─────────────────────────────────────────────────────────────────
+
+  it('framePr 完整屬性 → <w:framePr/>（w/h/hSpace/vSpace 為 twips）', () => {
+    const xml = getDocXml(paraWith({
+      framePr: {
+        width: 100, height: 50, hRule: 'exact', hSpace: 4, vSpace: 4,
+        wrap: 'around', hAnchor: 'page', vAnchor: 'margin',
+        xAlign: 'center', yAlign: 'top', x: 10, y: 20,
+      },
+    }));
+    expect(xml).toContain('w:w="2000"');         // 100pt × 20
+    expect(xml).toContain('w:h="1000"');         // 50pt × 20
+    expect(xml).toContain('w:hRule="exact"');
+    expect(xml).toContain('w:hSpace="80"');      // 4pt × 20
+    expect(xml).toContain('w:vSpace="80"');
+    expect(xml).toContain('w:wrap="around"');
+    expect(xml).toContain('w:hAnchor="page"');
+    expect(xml).toContain('w:vAnchor="margin"');
+    expect(xml).toContain('w:xAlign="center"');
+    expect(xml).toContain('w:yAlign="top"');
+    expect(xml).toContain('w:x="200"');
+    expect(xml).toContain('w:y="400"');
+  });
+
+  it('framePr 部分欄位 → 缺漏屬性跳過', () => {
+    const xml = getDocXml(paraWith({ framePr: { wrap: 'around', hAnchor: 'page' } }));
+    // 取出 <w:framePr ... /> 區段（避開 sectPr 的 pgSz w:w）
+    const m = xml.match(/<w:framePr[^/]*\/>/);
+    expect(m).not.toBeNull();
+    const frameXml = m![0];
+    expect(frameXml).toContain('w:wrap="around"');
+    expect(frameXml).toContain('w:hAnchor="page"');
+    // framePr 自身不應含 width/height 屬性
+    expect(frameXml).not.toMatch(/\bw:w="/);
+    expect(frameXml).not.toMatch(/\bw:h="/);
+  });
+
+  // ── schema 順序 ─────────────────────────────────────────────────────────────
+
+  it('schema 順序：framePr → numPr → pBdr → shd → tabs', () => {
+    const xml = getDocXml(paraWith({
+      framePr: { wrap: 'around' },
+      numId: 1, ilvl: 0,
+      borders: { top: { style: 'single', width: 0.5, color: '000000' } },
+      shading: { fill: 'FFFF00' },
+      tabs: [{ pos: 100, align: 'left' }],
+    }));
+    const indices = [
+      ['framePr', xml.indexOf('<w:framePr')],
+      ['numPr', xml.indexOf('<w:numPr')],
+      ['pBdr', xml.indexOf('<w:pBdr')],
+      ['shd', xml.indexOf('<w:shd ')],
+      ['tabs', xml.indexOf('<w:tabs')],
+    ] as const;
+    for (let i = 1; i < indices.length; i++) {
+      expect(indices[i][1]).toBeGreaterThan(indices[i - 1][1]);
+    }
+  });
+});

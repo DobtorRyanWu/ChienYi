@@ -381,3 +381,105 @@ describe('Sprint 187 — Phase 6 export round-trip（ParagraphProps）', () => {
     expect(props2.ilvl).toBe(0);
   });
 });
+
+describe('Sprint 188 — Phase 6 export round-trip（ParagraphProps 進階）', () => {
+  function firstParaProps(doc: DocumentNode): ParagraphNode['props'] {
+    const block = doc.sections[0].body[0];
+    if (block.type !== 'paragraph') throw new Error('expected paragraph');
+    return block.props;
+  }
+  function paraWith(props: ParagraphNode['props']): ParagraphNode {
+    return { type: 'paragraph', runs: [makeRun('x')], props };
+  }
+
+  // ── pBdr ──────────────────────────────────────────────────────────────────
+
+  it('borders 全四邊 round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      borders: {
+        top:    { style: 'single', width: 0.5, color: '000000' },
+        bottom: { style: 'single', width: 0.5, color: '000000' },
+        left:   { style: 'double', width: 1, color: 'FF0000' },
+        right:  { style: 'double', width: 1, color: 'FF0000' },
+      },
+    })])]);
+    const back = firstParaProps(roundTrip(doc)).borders;
+    expect(back?.top?.style).toBe('single');
+    expect(back?.top?.width).toBeCloseTo(0.5, 2);
+    expect(back?.top?.color?.toUpperCase()).toBe('000000');
+    expect(back?.left?.style).toBe('double');
+    expect(back?.left?.width).toBeCloseTo(1, 2);
+    expect(back?.left?.color?.toUpperCase()).toBe('FF0000');
+  });
+
+  it('borders space round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      borders: { bottom: { style: 'single', width: 0.5, color: '000000', space: 4 } },
+    })])]);
+    expect(firstParaProps(roundTrip(doc)).borders?.bottom?.space).toBeCloseTo(4, 0);
+  });
+
+  // ── shd ──────────────────────────────────────────────────────────────────
+
+  it('shading fill/pattern round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      shading: { fill: 'DEEAF6', pattern: 'clear', color: 'auto' },
+    })])]);
+    const back = firstParaProps(roundTrip(doc)).shading;
+    expect(back?.fill?.toUpperCase()).toBe('DEEAF6');
+    expect(back?.pattern).toBe('clear');
+    expect(back?.color).toBe('auto');
+  });
+
+  // ── framePr ──────────────────────────────────────────────────────────────
+
+  it('framePr 完整 round-trip', () => {
+    const fp = {
+      width: 100, height: 50, hRule: 'exact' as const,
+      hSpace: 4, vSpace: 4,
+      wrap: 'around' as const,
+      hAnchor: 'page' as const, vAnchor: 'margin' as const,
+      xAlign: 'center' as const, yAlign: 'top' as const,
+      x: 10, y: 20,
+    };
+    const doc = makeDoc([makeSection([paraWith({ framePr: fp })])]);
+    const back = firstParaProps(roundTrip(doc)).framePr;
+    expect(back?.width).toBeCloseTo(100, 1);
+    expect(back?.height).toBeCloseTo(50, 1);
+    expect(back?.hRule).toBe('exact');
+    expect(back?.hSpace).toBeCloseTo(4, 1);
+    expect(back?.vSpace).toBeCloseTo(4, 1);
+    expect(back?.wrap).toBe('around');
+    expect(back?.hAnchor).toBe('page');
+    expect(back?.vAnchor).toBe('margin');
+    expect(back?.xAlign).toBe('center');
+    expect(back?.yAlign).toBe('top');
+    expect(back?.x).toBeCloseTo(10, 1);
+    expect(back?.y).toBeCloseTo(20, 1);
+  });
+
+  it('framePr 部分欄位 round-trip（無值欄位不掛 key）', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      framePr: { wrap: 'around', hAnchor: 'page' },
+    })])]);
+    const back = firstParaProps(roundTrip(doc)).framePr;
+    expect(back?.wrap).toBe('around');
+    expect(back?.hAnchor).toBe('page');
+    expect(back?.width).toBeUndefined();
+    expect(back?.height).toBeUndefined();
+  });
+
+  // ── 複合 round-trip ───────────────────────────────────────────────────────
+
+  it('pBdr + shd + framePr 同段落 round-trip', () => {
+    const doc = makeDoc([makeSection([paraWith({
+      framePr: { wrap: 'around', hAnchor: 'page' },
+      borders: { top: { style: 'single', width: 0.5, color: '000000' } },
+      shading: { fill: 'FFFF00' },
+    })])]);
+    const back = firstParaProps(roundTrip(doc));
+    expect(back.framePr?.wrap).toBe('around');
+    expect(back.borders?.top?.style).toBe('single');
+    expect(back.shading?.fill?.toUpperCase()).toBe('FFFF00');
+  });
+});

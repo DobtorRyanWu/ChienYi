@@ -52,6 +52,8 @@ const TWIPS_PER_PT = 20;
 const HALF_POINTS_PER_PT = 2;
 /** `w:line` 的 auto 規則分母（240 = 單行、360 = 1.5 行；OOXML §17.3.1.33）。 */
 const LINE_SPACING_AUTO_BASE = 240;
+/** 邊框寬度單位：`<w:sz>` 為 1/8 pt（OOXML §17.3.1.23 CT_Border）。 */
+const BORDER_EIGHTHS_PER_PT = 8;
 
 /** A4 直式預設頁面尺寸（pt），section.page 缺漏時 fallback。 */
 const DEFAULT_PAGE_WIDTH_PT = 595.3;
@@ -185,7 +187,11 @@ function writePPr(props: ParagraphProps, styleId: string | undefined): string {
   if (props.pageBreakBefore === true) parts.push('<w:pageBreakBefore/>');
   else if (props.pageBreakBefore === false) parts.push('<w:pageBreakBefore w:val="0"/>');
 
-  // 5. <w:numPr>：清單編號（ilvl + numId 兩子元素）
+  // 5. <w:framePr>：段落框（CT_PPr schema 在 pageBreakBefore 與 numPr 之間）
+  const framePrXml = writeFramePr(props.framePr);
+  if (framePrXml) parts.push(framePrXml);
+
+  // 6. <w:numPr>：清單編號（ilvl + numId 兩子元素）
   if (props.numId !== undefined || props.ilvl !== undefined) {
     const inner: string[] = [];
     if (props.ilvl !== undefined) inner.push(`<w:ilvl w:val="${props.ilvl}"/>`);
@@ -193,7 +199,15 @@ function writePPr(props: ParagraphProps, styleId: string | undefined): string {
     parts.push(`<w:numPr>${inner.join('')}</w:numPr>`);
   }
 
-  // 6. <w:tabs>：tab stop 陣列
+  // 7. <w:pBdr>：段落邊框（CT_PPr schema 在 numPr 之後、tabs 之前）
+  const pBdrXml = writePBdr(props.borders);
+  if (pBdrXml) parts.push(pBdrXml);
+
+  // 8. <w:shd>：段落底色 / 圖案（CT_PPr schema 在 pBdr 之後）
+  const shdXml = writeShd(props.shading);
+  if (shdXml) parts.push(shdXml);
+
+  // 9. <w:tabs>：tab stop 陣列
   if (props.tabs && props.tabs.length > 0) {
     const tabEls = props.tabs.map((t) => {
       const attrs = [`w:val="${t.align}"`, `w:pos="${ptToTwips(t.pos)}"`];
@@ -203,7 +217,7 @@ function writePPr(props: ParagraphProps, styleId: string | undefined): string {
     parts.push(`<w:tabs>${tabEls.join('')}</w:tabs>`);
   }
 
-  // 7. <w:spacing>：段前 / 段後 / 行距
+  // 10. <w:spacing>：段前 / 段後 / 行距
   if (props.spacing) {
     const attrs: string[] = [];
     if (props.spacing.before !== undefined) attrs.push(`w:before="${ptToTwips(props.spacing.before)}"`);
@@ -220,7 +234,7 @@ function writePPr(props: ParagraphProps, styleId: string | undefined): string {
     if (attrs.length > 0) parts.push(`<w:spacing ${attrs.join(' ')}/>`);
   }
 
-  // 8. <w:ind>：縮排
+  // 11. <w:ind>：縮排
   if (props.indent) {
     const attrs: string[] = [];
     if (props.indent.left !== undefined) attrs.push(`w:left="${ptToTwips(props.indent.left)}"`);
@@ -230,21 +244,92 @@ function writePPr(props: ParagraphProps, styleId: string | undefined): string {
     if (attrs.length > 0) parts.push(`<w:ind ${attrs.join(' ')}/>`);
   }
 
-  // 9. <w:jc>：水平對齊
+  // 12. <w:jc>：水平對齊
   if (props.alignment !== undefined) {
     parts.push(`<w:jc w:val="${props.alignment}"/>`);
   }
 
-  // 10. <w:textAlignment>：行內垂直對齊
+  // 13. <w:textAlignment>：行內垂直對齊
   if (props.textAlignment !== undefined) {
     parts.push(`<w:textAlignment w:val="${props.textAlignment}"/>`);
   }
 
-  // 11. <w:snapToGrid>：是否貼齊 docGrid
+  // 14. <w:snapToGrid>：是否貼齊 docGrid
   if (props.snapToGrid === true) parts.push('<w:snapToGrid/>');
   else if (props.snapToGrid === false) parts.push('<w:snapToGrid w:val="0"/>');
 
   return parts.length > 0 ? `<w:pPr>${parts.join('')}</w:pPr>` : '';
+}
+
+/**
+ * Sprint 188：把 `ParagraphProps.framePr` 序列化為 `<w:framePr/>`（自閉合）。
+ *
+ * 屬性順序對 Word reader 不重要、本實作依 OOXML §17.3.1.11 文件出現順序輸出
+ * （w / h / hRule / hSpace / vSpace / wrap / hAnchor / vAnchor / xAlign /
+ * yAlign / x / y）。w/h/hSpace/vSpace/x/y 為 twips、其餘列舉值原樣輸出。
+ *
+ * 紀律 #21：framePr undefined 或所有欄位皆空 → 回空字串、不輸出 `<w:framePr/>`。
+ */
+function writeFramePr(framePr: ParagraphProps['framePr']): string {
+  if (!framePr) return '';
+  const attrs: string[] = [];
+  if (framePr.width !== undefined) attrs.push(`w:w="${ptToTwips(framePr.width)}"`);
+  if (framePr.height !== undefined) attrs.push(`w:h="${ptToTwips(framePr.height)}"`);
+  if (framePr.hRule !== undefined) attrs.push(`w:hRule="${framePr.hRule}"`);
+  if (framePr.hSpace !== undefined) attrs.push(`w:hSpace="${ptToTwips(framePr.hSpace)}"`);
+  if (framePr.vSpace !== undefined) attrs.push(`w:vSpace="${ptToTwips(framePr.vSpace)}"`);
+  if (framePr.wrap !== undefined) attrs.push(`w:wrap="${framePr.wrap}"`);
+  if (framePr.hAnchor !== undefined) attrs.push(`w:hAnchor="${framePr.hAnchor}"`);
+  if (framePr.vAnchor !== undefined) attrs.push(`w:vAnchor="${framePr.vAnchor}"`);
+  if (framePr.xAlign !== undefined) attrs.push(`w:xAlign="${framePr.xAlign}"`);
+  if (framePr.yAlign !== undefined) attrs.push(`w:yAlign="${framePr.yAlign}"`);
+  if (framePr.x !== undefined) attrs.push(`w:x="${ptToTwips(framePr.x)}"`);
+  if (framePr.y !== undefined) attrs.push(`w:y="${ptToTwips(framePr.y)}"`);
+  return attrs.length > 0 ? `<w:framePr ${attrs.join(' ')}/>` : '';
+}
+
+/**
+ * Sprint 188：把 `ParagraphProps.borders` 序列化為 `<w:pBdr>`（OOXML §17.3.1.24）。
+ *
+ * 子元素：`<w:top w:val w:sz w:color w:space/>`、bottom / left / right 同結構。
+ * `w:sz` 單位 = 1/8 pt（內部 `BorderDef.width: Pt` × 8、四捨五入）。
+ * between / bar 子元素本 sprint 不支援（types.ts 也未含、後續若需要再補）。
+ *
+ * 紀律 #21：無 borders 或所有邊都 undefined → 回空字串。
+ */
+function writePBdr(borders: ParagraphProps['borders']): string {
+  if (!borders) return '';
+  const sides: Array<keyof NonNullable<ParagraphProps['borders']>> = ['top', 'bottom', 'left', 'right'];
+  const inner: string[] = [];
+  for (const side of sides) {
+    const b = borders[side];
+    if (!b) continue;
+    const attrs = [
+      `w:val="${escapeXml(b.style)}"`,
+      `w:sz="${Math.round(b.width * BORDER_EIGHTHS_PER_PT)}"`,
+      `w:color="${escapeXml(b.color)}"`,
+    ];
+    if (b.space !== undefined) attrs.push(`w:space="${Math.round(b.space)}"`);
+    inner.push(`<w:${side} ${attrs.join(' ')}/>`);
+  }
+  return inner.length > 0 ? `<w:pBdr>${inner.join('')}</w:pBdr>` : '';
+}
+
+/**
+ * Sprint 188：把 `ParagraphProps.shading` 序列化為 `<w:shd/>`（OOXML §17.3.5.34）。
+ *
+ * `shading.pattern` → `w:val`（"clear" / "solid" / "pct10" 等圖案）；
+ * `shading.fill` → `w:fill`（背景 hex）；`shading.color` → `w:color`（前景 hex）。
+ *
+ * 紀律 #21：無 shading 或所有欄位空 → 回空字串。
+ */
+function writeShd(shading: ParagraphProps['shading']): string {
+  if (!shading) return '';
+  const attrs: string[] = [];
+  if (shading.pattern !== undefined) attrs.push(`w:val="${escapeXml(shading.pattern)}"`);
+  if (shading.fill !== undefined) attrs.push(`w:fill="${escapeXml(shading.fill)}"`);
+  if (shading.color !== undefined) attrs.push(`w:color="${escapeXml(shading.color)}"`);
+  return attrs.length > 0 ? `<w:shd ${attrs.join(' ')}/>` : '';
 }
 
 /**
