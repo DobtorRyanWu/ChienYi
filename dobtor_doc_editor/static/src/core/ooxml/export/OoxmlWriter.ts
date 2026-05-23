@@ -76,7 +76,7 @@ export class OoxmlWriter {
       '_rels/.rels': strToU8(writeRootRels()),
       'word/_rels/document.xml.rels': strToU8(writeDocumentRels()),
       'word/document.xml': strToU8(writeDocument(doc)),
-      'word/styles.xml': strToU8(writeStyles()),
+      'word/styles.xml': strToU8(writeStyles(doc)),
     };
     return zipSync(parts);
   }
@@ -111,9 +111,49 @@ function writeDocumentRels(): string {
     '</Relationships>';
 }
 
-/** `word/styles.xml`：MVS 為空骨架（rels 指向但內容空、Parser 接受）。 */
-function writeStyles(): string {
-  return xmlDecl() + `<w:styles xmlns:w="${W_NS}"/>`;
+/**
+ * `word/styles.xml`：Sprint 189 完整輸出 DocumentNode.styles。
+ *
+ * 序列化策略（與 parser StyleResolver 對稱）：
+ *   - DocumentNode.styles 為 StyleMap = Map<styleId, StyleEntry>。
+ *   - StyleResolver 在 parse 時把 docDefaults → basedOn 鏈 → current props 全部
+ *     flatten 進 entry.pProps / entry.rProps，故 export **不需**輸出
+ *     `<w:docDefaults>` 與 `<w:basedOn>`（re-parse 時 resolver 看不到 docDefaults
+ *     與 basedOn、entry 的 flat props 原樣保留 → round-trip 等價）。
+ *   - 每個 style 統一 `w:type="paragraph"`（StyleEntry 不保留 type、type 在
+ *     re-parse 時不影響 pProps/rProps 解析結果）。
+ *   - StyleEntry.name / conditional table styles 留後續 sprint。
+ *
+ * 空 StyleMap → 空 `<w:styles/>` 骨架（與 Sprint 185 MVS 相容）。
+ */
+function writeStyles(doc: DocumentNode): string {
+  if (doc.styles.size === 0) {
+    return xmlDecl() + `<w:styles xmlns:w="${W_NS}"/>`;
+  }
+  const entries: string[] = [];
+  for (const [styleId, entry] of doc.styles) {
+    entries.push(writeStyleEntry(styleId, entry));
+  }
+  return xmlDecl() +
+    `<w:styles xmlns:w="${W_NS}">` +
+    entries.join('') +
+    '</w:styles>';
+}
+
+/**
+ * Sprint 189：序列化單一 StyleEntry 為 `<w:style w:type="paragraph" w:styleId="...">`。
+ *
+ * 內容：可選 `<w:pPr>` + `<w:rPr>`。pProps / rProps 皆無 → 空 body（`<w:style/>`）；
+ * 保持 styleId 鍵的存在性以便 round-trip Map 大小一致。
+ */
+function writeStyleEntry(styleId: string, entry: { pProps?: ParagraphProps; rProps?: RunProps }): string {
+  const pPrXml = writePPr(entry.pProps ?? {}, undefined);
+  const rPrXml = writeRPr(entry.rProps ?? {});
+  const inner = pPrXml + rPrXml;
+  const attrs = `w:type="paragraph" w:styleId="${escapeXml(styleId)}"`;
+  return inner === ''
+    ? `<w:style ${attrs}/>`
+    : `<w:style ${attrs}>${inner}</w:style>`;
 }
 
 /**

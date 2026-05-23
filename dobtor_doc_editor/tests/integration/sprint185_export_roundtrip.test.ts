@@ -483,3 +483,73 @@ describe('Sprint 188 — Phase 6 export round-trip（ParagraphProps 進階）', 
     expect(back.shading?.fill?.toUpperCase()).toBe('FFFF00');
   });
 });
+
+describe('Sprint 189 — Phase 6 export round-trip（Styles.xml）', () => {
+  function roundTripStyles(styles: DocumentNode['styles']): DocumentNode['styles'] {
+    const doc = makeDoc([makeSection([])]);
+    doc.styles = styles;
+    return roundTrip(doc).styles;
+  }
+
+  it('空 styles map → round-trip 仍空', () => {
+    const back = roundTripStyles(new Map());
+    expect(back.size).toBe(0);
+  });
+
+  it('單一空 entry → round-trip 保留 styleId（Map 大小 1）', () => {
+    const back = roundTripStyles(new Map([['Heading1', {}]]));
+    expect(back.has('Heading1')).toBe(true);
+  });
+
+  it('entry pProps round-trip', () => {
+    const back = roundTripStyles(new Map([
+      ['Body', { pProps: { alignment: 'center', keepNext: true } }],
+    ]));
+    expect(back.get('Body')?.pProps?.alignment).toBe('center');
+    expect(back.get('Body')?.pProps?.keepNext).toBe(true);
+  });
+
+  it('entry rProps round-trip', () => {
+    const back = roundTripStyles(new Map([
+      ['Emphasis', { rProps: { bold: true, italic: true, fontSize: 14 } }],
+    ]));
+    expect(back.get('Emphasis')?.rProps?.bold).toBe(true);
+    expect(back.get('Emphasis')?.rProps?.italic).toBe(true);
+    expect(back.get('Emphasis')?.rProps?.fontSize).toBe(14);
+  });
+
+  it('entry pProps + rProps 同時 round-trip', () => {
+    const back = roundTripStyles(new Map([
+      ['Title', { pProps: { alignment: 'center' }, rProps: { bold: true, fontSize: 24 } }],
+    ]));
+    const entry = back.get('Title');
+    expect(entry?.pProps?.alignment).toBe('center');
+    expect(entry?.rProps?.bold).toBe(true);
+    expect(entry?.rProps?.fontSize).toBe(24);
+  });
+
+  it('多 entry round-trip（Map 大小 + 各鍵內容）', () => {
+    const back = roundTripStyles(new Map([
+      ['A', { rProps: { bold: true } }],
+      ['B', { rProps: { italic: true } }],
+      ['C', { pProps: { alignment: 'right' } }],
+    ]));
+    expect(back.size).toBe(3);
+    expect(back.get('A')?.rProps?.bold).toBe(true);
+    expect(back.get('B')?.rProps?.italic).toBe(true);
+    expect(back.get('C')?.pProps?.alignment).toBe('right');
+  });
+
+  it('paragraph 引用 styleId → 連同 styles 一起 round-trip', () => {
+    const doc = makeDoc([makeSection([
+      { type: 'paragraph', runs: [makeRun('Title')], props: {}, styleId: 'Heading1' },
+    ])]);
+    doc.styles = new Map([['Heading1', { rProps: { bold: true, fontSize: 18 } }]]);
+    const back = roundTrip(doc);
+    const block = back.sections[0].body[0];
+    if (block.type !== 'paragraph') throw new Error('expected paragraph');
+    expect(block.styleId).toBe('Heading1');
+    expect(back.styles.get('Heading1')?.rProps?.bold).toBe(true);
+    expect(back.styles.get('Heading1')?.rProps?.fontSize).toBe(18);
+  });
+});

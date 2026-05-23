@@ -595,3 +595,78 @@ describe('OoxmlWriter — Sprint 188 ParagraphProps 進階（pBdr / shd / frameP
     }
   });
 });
+
+describe('OoxmlWriter — Sprint 189 Styles.xml 輸出', () => {
+  function getStylesXml(styles: DocumentNode['styles']): string {
+    const doc = makeDoc([makeSection([])]);
+    doc.styles = styles;
+    return unzipToText(writer.write(doc))['word/styles.xml'];
+  }
+
+  it('空 styles map → 空 <w:styles/> 骨架（與 MVS 相容）', () => {
+    const xml = getStylesXml(new Map());
+    expect(xml).toContain('<w:styles xmlns:w=');
+    expect(xml).toMatch(/<w:styles[^>]*\/>/);
+    expect(xml).not.toContain('<w:style ');
+  });
+
+  it('單一空 entry → <w:style w:type="paragraph" w:styleId="X"/>（self-closing）', () => {
+    const xml = getStylesXml(new Map([['Heading1', {}]]));
+    expect(xml).toContain('<w:style w:type="paragraph" w:styleId="Heading1"/>');
+  });
+
+  it('entry 含 pProps → <w:style ...><w:pPr>...</w:pPr></w:style>', () => {
+    const xml = getStylesXml(new Map([
+      ['Heading1', { pProps: { alignment: 'center', keepNext: true } }],
+    ]));
+    expect(xml).toContain('<w:style w:type="paragraph" w:styleId="Heading1">');
+    expect(xml).toContain('<w:pPr>');
+    expect(xml).toContain('<w:jc w:val="center"/>');
+    expect(xml).toContain('<w:keepNext/>');
+    expect(xml).toContain('</w:style>');
+  });
+
+  it('entry 含 rProps → <w:style ...><w:rPr>...</w:rPr></w:style>', () => {
+    const xml = getStylesXml(new Map([
+      ['Strong', { rProps: { bold: true, fontSize: 14 } }],
+    ]));
+    expect(xml).toContain('<w:rPr>');
+    expect(xml).toContain('<w:b/>');
+    expect(xml).toContain('<w:sz w:val="28"/>');  // 14pt × 2 half-points
+  });
+
+  it('entry 同時含 pProps 與 rProps → 兩者皆輸出', () => {
+    const xml = getStylesXml(new Map([
+      ['Title', { pProps: { alignment: 'center' }, rProps: { bold: true } }],
+    ]));
+    expect(xml).toContain('<w:pPr>');
+    expect(xml).toContain('<w:rPr>');
+    expect(xml.indexOf('<w:pPr>')).toBeLessThan(xml.indexOf('<w:rPr>'));
+  });
+
+  it('多 entry → 依 Map 順序輸出', () => {
+    const xml = getStylesXml(new Map([
+      ['A', { rProps: { bold: true } }],
+      ['B', { rProps: { italic: true } }],
+      ['C', { pProps: { alignment: 'right' } }],
+    ]));
+    const aIdx = xml.indexOf('w:styleId="A"');
+    const bIdx = xml.indexOf('w:styleId="B"');
+    const cIdx = xml.indexOf('w:styleId="C"');
+    expect(aIdx).toBeLessThan(bIdx);
+    expect(bIdx).toBeLessThan(cIdx);
+  });
+
+  it('styleId 內含 XML 特殊字元 → 跳脫', () => {
+    const xml = getStylesXml(new Map([['A&B<C', {}]]));
+    expect(xml).toContain('w:styleId="A&amp;B&lt;C"');
+  });
+
+  it('不輸出 docDefaults / basedOn（parser 已 flatten）', () => {
+    const xml = getStylesXml(new Map([
+      ['X', { pProps: { alignment: 'left' }, rProps: { bold: true } }],
+    ]));
+    expect(xml).not.toContain('<w:docDefaults');
+    expect(xml).not.toContain('<w:basedOn');
+  });
+});
