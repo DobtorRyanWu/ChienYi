@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 // 從 OWL 元件資料夾匯入 .js scanner（vitest bundler resolver 支援 .js）
 // @ts-expect-error -- 沒附型別宣告，純函式 OK
-import { scanJinja2Variables, flattenElementsToText } from "../../static/src/components/doc_editor/jinja2_scanner.js";
+import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions } from "../../static/src/components/doc_editor/jinja2_scanner.js";
 
 /** 把字串展開為 canvas-editor 的單字元 IElement[]（測試 fixture helper） */
 function textToElements(text: string) {
@@ -175,6 +175,129 @@ describe("scanJinja2Variables", () => {
     it("防禦：main 不是陣列", () => {
         expect(scanJinja2Variables({ main: "not an array" } as any)).toEqual([]);
         expect(scanJinja2Variables({ main: null } as any)).toEqual([]);
+    });
+});
+
+describe("scanJinja2VariablesWithPositions (Sprint H)", () => {
+    it("回傳 main 流的逐筆匹配 + 元素索引", () => {
+        // "Hi {{ a }} bye" 共 14 字元，每個元素 1 字元
+        const main = textToElements("Hi {{ a }} bye");
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toHaveLength(1);
+        expect(result[0].varName).toBe("a");
+        expect(result[0].fullMatch).toBe("{{ a }}");
+        // "Hi " 佔 0-2，"{{ a }}" 佔 3-9
+        expect(result[0].startIdx).toBe(3);
+        expect(result[0].endIdx).toBe(9);
+    });
+
+    it("多個變數按文件順序回傳（不去重）", () => {
+        const main = textToElements("{{ a }} 和 {{ b }} 還有 {{ a }}");
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toHaveLength(3);
+        expect(result.map((r: any) => r.varName)).toEqual(["a", "b", "a"]);
+        // 確認位置嚴格遞增
+        expect(result[0].endIdx).toBeLessThan(result[1].startIdx);
+        expect(result[1].endIdx).toBeLessThan(result[2].startIdx);
+    });
+
+    it("跨 control 元素的 match 作廢（不會跨越 unsafe sentinel）", () => {
+        const main = [
+            ...textToElements("{{ "),
+            { type: "control", value: "X", placeholder: "" },
+            ...textToElements("name }}"),
+        ];
+        const result = scanJinja2VariablesWithPositions(main);
+        // `{{ ` + control + `name }}` 不應產生 match
+        expect(result).toEqual([]);
+    });
+
+    it("跨 table 元素的 match 作廢", () => {
+        const main = [
+            ...textToElements("{{ "),
+            { type: "table", trList: [{ tdList: [{ value: textToElements("X") }] }] },
+            ...textToElements("a }}"),
+        ];
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toEqual([]);
+    });
+
+    it("跨 multi-char value 元素的 match 作廢（無法精確設 range）", () => {
+        const main = [
+            ...textToElements("{{ "),
+            { value: "abc" }, // multi-char value
+            ...textToElements(" }}"),
+        ];
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toEqual([]);
+    });
+
+    it("complex element 不會打斷其外圍的 match", () => {
+        // "ok {{ a }} sep {{ b }} done"
+        // 中間夾一個 control 元素在 sep 之後，b 的 match 應該仍然有效
+        const main = [
+            ...textToElements("ok {{ a }} sep "),
+            { type: "control", value: "X" },
+            ...textToElements(" {{ b }} done"),
+        ];
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toHaveLength(2);
+        expect(result[0].varName).toBe("a");
+        expect(result[1].varName).toBe("b");
+    });
+
+    it("剝 `object.` 前綴與 Sprint G 對齊", () => {
+        const main = textToElements("{{ object.partner_id.name }}");
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toHaveLength(1);
+        expect(result[0].varName).toBe("partner_id.name");
+        // fullMatch 不剝（保留原文用於 search）
+        expect(result[0].fullMatch).toBe("{{ object.partner_id.name }}");
+    });
+
+    it("變數內空白容錯", () => {
+        const main = textToElements("{{name}} and {{  spacey  }}");
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result.map((r: any) => r.varName)).toEqual(["name", "spacey"]);
+    });
+
+    it("帶點路徑變數", () => {
+        const main = textToElements("{{ partner_id.name }}");
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toHaveLength(1);
+        expect(result[0].varName).toBe("partner_id.name");
+        expect(result[0].startIdx).toBe(0);
+        // "{{ partner_id.name }}" 共 21 字元，endIdx = 20
+        expect(result[0].endIdx).toBe(20);
+    });
+
+    it("變數內含非法字元（如 |filter）不收", () => {
+        const main = textToElements("{{ a|upper }} {{ b }}");
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toHaveLength(1);
+        expect(result[0].varName).toBe("b");
+    });
+
+    it("沒找到變數時回空陣列", () => {
+        const main = textToElements("just plain text no variables");
+        expect(scanJinja2VariablesWithPositions(main)).toEqual([]);
+    });
+
+    it("防禦：非陣列回空", () => {
+        expect(scanJinja2VariablesWithPositions(null as any)).toEqual([]);
+        expect(scanJinja2VariablesWithPositions(undefined as any)).toEqual([]);
+        expect(scanJinja2VariablesWithPositions({} as any)).toEqual([]);
+    });
+
+    it("位置精度可用於 setRange：startIdx..endIdx 的元素串接 = fullMatch", () => {
+        const main = textToElements("prefix {{ project_name }} suffix");
+        const result = scanJinja2VariablesWithPositions(main);
+        expect(result).toHaveLength(1);
+        const { startIdx, endIdx, fullMatch } = result[0];
+        // 對 mainElements[startIdx..endIdx] 取 value 串起來、應該 = fullMatch
+        const reconstructed = main.slice(startIdx, endIdx + 1)
+            .map((el: any) => el.value).join("");
+        expect(reconstructed).toBe(fullMatch);
     });
 });
 

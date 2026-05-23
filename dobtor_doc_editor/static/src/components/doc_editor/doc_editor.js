@@ -18,7 +18,7 @@ import { OfflineManager } from "../../core/offline_manager";
 import { installGlobalErrorReporting, mark, reportError } from "../../core/telemetry";
 import { DocVersionPanel } from "../doc_version_panel/doc_version_panel";
 import { DocFieldPickerDialog } from "../doc_field_picker/doc_field_picker";
-import { scanJinja2Variables } from "./jinja2_scanner";
+import { scanJinja2Variables, scanJinja2VariablesWithPositions } from "./jinja2_scanner";
 
 /**
  * Phase 8 Template UI Builder（ADR-022）— Phase 1 視覺風格靠攏。
@@ -1950,6 +1950,196 @@ export class DocEditor extends Component {
                 { type: "warning" }
             );
         }
+    }
+
+    /**
+     * Sprint H：掃描 + 建 record + **in-place 替換**。
+     *
+     * 在 Sprint G 的基礎上多做一步：對 main 流的每個 `{{ var }}` match，用
+     * setRange + backspace + executeInsertControl 把純文字替換為帶 conceptId
+     * 的可編輯 control。完成後 user 點文件上的 control 即可在 inspector 編輯，
+     * 視覺與 Sprint E onOdooFieldClick 插入的 control 完全一致。
+     *
+     * 標註為「實驗性」原因：
+     *   - canvas-editor 的 setRange + backspace + insertControl 組合在巢狀結構
+     *     （table / list / title）內可能失敗、破壞文件結構。本實作只處理 main 流，
+     *     跨巢狀結構的 match 在 scanJinja2VariablesWithPositions 已過濾（會在
+     *     掃描階段被作廢、不會嘗試替換）。
+     *   - 替換過程任何一步丟例外都會中斷後續、但**前面已成功的替換不會回滾**
+     *     （canvas-editor 沒提供 transaction API）。確認失敗時 user 可用 Ctrl+Z
+     *     回退。
+     *   - 萬一 reverse-order 操作仍導致位置失準（極端罕見），fallback 是依靠
+     *     vitest 已驗證的位置精度測試 + 第二道 sentinel 防線。
+     */
+    async onScanAndReplaceClick() {
+        if (!this.editor) {
+            this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        if (!this.state.docId) {
+            this.notification.add("請先儲存文件後再執行掃描", { type: "warning" });
+            return;
+        }
+        if (!this._hasTemplate) {
+            this.notification.add(
+                "此文件未關聯範本。請先在後台 doc.document.template_id 設定範本後再回來。",
+                { type: "warning" }
+            );
+            return;
+        }
+
+        let data;
+        try {
+            data = this.editor.command.getValue().data;
+        } catch (e) {
+            console.error("[DocEditor] onScanAndReplaceClick getValue failed", e);
+            this.notification.add(`讀取文件內容失敗：${e.message || e}`, { type: "danger" });
+            return;
+        }
+
+        // Sprint G 用的去重清單（含 header/footer/巢狀）— 給 user 看的總數
+        const scannedAll = scanJinja2Variables(data);
+        // Sprint H 用的位置清單（**只**含 main 流可替換的單字元元素）
+        const positions = scanJinja2VariablesWithPositions(data.main || []);
+
+        if (scannedAll.length === 0) {
+            this.notification.add(
+                "未找到任何 `{{ var }}` 變數。",
+                { type: "info" }
+            );
+            return;
+        }
+        if (positions.length === 0) {
+            this.notification.add(
+                `找到 ${scannedAll.length} 個變數，但都位於 table/list/title 或多字元元素內，無法在 main 流替換。請改用「掃描變數」（只建 record）。`,
+                { type: "warning" }
+            );
+            return;
+        }
+
+        // 唯一 var 集合（從可替換的 positions 出發，避免建了 record 卻無對應替換）
+        const uniqueVars = Array.from(new Set(positions.map(p => p.varName))).sort();
+
+        // 過濾已建檔的（避免重複 save_field）
+        const existingNames = new Set(
+            (this._templateFieldsCache || [])
+                .filter(f => f.field_type === "odoo_field" && f.odoo_field_name)
+                .map(f => f.odoo_field_name)
+        );
+        const toCreate = uniqueVars.filter(v => !existingNames.has(v));
+
+        // 確認 dialog（user 必須意識到「會替換文件內容」）
+        const previewList = uniqueVars
+            .slice(0, 10)
+            .map(v => `  • ${v}`)
+            .join("\n");
+        const moreSuffix = uniqueVars.length > 10 ? `\n  ... 還有 ${uniqueVars.length - 10} 個` : "";
+        const tableNote = scannedAll.length > positions.length
+            ? `\n\n注意：另有 ${scannedAll.length - uniqueVars.length} 個變數位於 table/list/title，**不會**被替換（僅 main 流）。`
+            : "";
+        const skipNote = toCreate.length < uniqueVars.length
+            ? `\n（${uniqueVars.length - toCreate.length} 個變數的 record 已存在、會被沿用）`
+            : "";
+        const ok = window.confirm(
+            `【實驗性功能】將為以下 ${uniqueVars.length} 個變數建立 record，並把 main 流內的 ${positions.length} 處 \`{{ var }}\` 文字替換為可編輯的 control：\n\n${previewList}${moreSuffix}${skipNote}${tableNote}\n\n⚠️ 替換為不可回復操作（無 transaction）。如需先建 record 不替換，請按取消後改用「掃描變數」按鈕。\n\n確定要繼續嗎？`
+        );
+        if (!ok) return;
+
+        // 確保 signer 存在
+        const signer = await this._ensureSignerExists(this.state.activeSignerId);
+        if (!signer) return;
+
+        // === Phase 1: 建 record ===
+        const fieldIdByVarName = new Map();
+        // 先把已存在的塞進 map
+        for (const f of (this._templateFieldsCache || [])) {
+            if (f.field_type === "odoo_field" && f.odoo_field_name && !fieldIdByVarName.has(f.odoo_field_name)) {
+                fieldIdByVarName.set(f.odoo_field_name, f.id);
+            }
+        }
+        const createFailed = [];
+        let lastSaveResult = null;
+        for (const varName of toCreate) {
+            const payload = {
+                signer_id: signer.id,
+                field_type: "odoo_field",
+                page_no: this.state.pageNo || 1,
+                required: false,
+                placeholder_text: `{{ ${varName} }}`,
+                font_size: 12,
+                odoo_field_name: varName,
+            };
+            try {
+                const resp = await rpc("/dobtor_doc/template_fields/save_field", {
+                    doc_id: this.state.docId,
+                    field: payload,
+                });
+                if (!resp.success) {
+                    createFailed.push({ varName, error: resp.error || "未知錯誤" });
+                    continue;
+                }
+                fieldIdByVarName.set(varName, resp.id);
+                lastSaveResult = resp;
+                if (!this._templateFieldsCache) this._templateFieldsCache = [];
+                this._templateFieldsCache.push({
+                    id: resp.id,
+                    ...payload,
+                    width: 120,
+                    height: 24,
+                    pos_x: 0,
+                    pos_y: 0,
+                });
+            } catch (e) {
+                console.error("[DocEditor] onScanAndReplaceClick save_field failed", varName, e);
+                createFailed.push({ varName, error: e.message || String(e) });
+            }
+        }
+        if (lastSaveResult) {
+            this._applySignerCounts(lastSaveResult.signer_field_counts);
+            this.state.fieldCount = lastSaveResult.field_count;
+        }
+
+        // === Phase 2: in-place 替換（reverse order）===
+        // 必須 reverse：每次替換會改變後面元素的 index，從尾巴開始才能保持前面位置有效。
+        // 同時跳過沒有對應 fieldId 的 match（建 record 失敗、無法插入）。
+        let replaced = 0;
+        const replaceFailed = [];
+        const sorted = positions.slice().sort((a, b) => b.startIdx - a.startIdx);
+        for (const pos of sorted) {
+            const fieldId = fieldIdByVarName.get(pos.varName);
+            if (!fieldId) {
+                replaceFailed.push({ varName: pos.varName, reason: "no_field_id" });
+                continue;
+            }
+            try {
+                this.editor.command.setRange(pos.startIdx, pos.endIdx + 1);
+                this.editor.command.backspace();
+                this._insertControlForField(
+                    fieldId,
+                    {
+                        key: "odoo_field",
+                        label: `Odoo: ${pos.varName}`,
+                        ctrlType: "text",
+                        odooFieldName: pos.varName,
+                    },
+                    signer,
+                );
+                replaced++;
+            } catch (e) {
+                console.error("[DocEditor] onScanAndReplaceClick replace failed", pos, e);
+                replaceFailed.push({ varName: pos.varName, reason: e.message || String(e) });
+            }
+        }
+
+        // === 結果通知 ===
+        const parts = [];
+        if (replaced > 0) parts.push(`已替換 ${replaced} 處文字為可編輯 control`);
+        if (toCreate.length > 0) parts.push(`新建 ${toCreate.length - createFailed.length}/${toCreate.length} 個 record`);
+        if (createFailed.length > 0) parts.push(`record 建立失敗：${createFailed.map(f => f.varName).join(", ")}`);
+        if (replaceFailed.length > 0) parts.push(`替換失敗 ${replaceFailed.length} 處（${replaceFailed.map(r => r.varName).slice(0, 3).join(", ")}${replaceFailed.length > 3 ? "..." : ""}）`);
+        const summary = parts.join("；") || "未做任何變動";
+        const ntype = (createFailed.length || replaceFailed.length) > 0 ? "warning" : "success";
+        this.notification.add(`【掃描並替換】${summary}。`, { type: ntype });
     }
 
     onSignerClick(signerId) {

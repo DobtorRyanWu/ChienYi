@@ -217,10 +217,19 @@
                 <!-- Sprint G：批次掃描文件內 {{ var }} 自動建 Odoo 欄位 record -->
                 <button class="doc-field-btn doc-field-btn-scan"
                         t-on-click="onScanVariablesClick"
-                        title="掃描文件內所有 {{ }} 變數、批次建立 Odoo 欄位 record"
+                        title="掃描文件內所有 {{ }} 變數、批次建立 Odoo 欄位 record（不替換文字）"
                         aria-label="掃描變數">
                     <i class="fa fa-magic" aria-hidden="true"/>
                     掃描變數
+                </button>
+
+                <!-- Sprint H：掃描 + 建 record + 文字替換為 control（實驗性） -->
+                <button class="doc-field-btn doc-field-btn-scan-replace"
+                        t-on-click="onScanAndReplaceClick"
+                        title="掃描文件內 {{ }} 變數、建立 record、並將 main 流內文字替換為可編輯 control（實驗性，不可回復）"
+                        aria-label="掃描並替換">
+                    <i class="fa fa-magic" aria-hidden="true"/>
+                    掃描並替換
                 </button>
 
                 <!-- Sprint D：版面模式切換（inline / overlay） -->
