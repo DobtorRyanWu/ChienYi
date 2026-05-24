@@ -24,6 +24,9 @@ import {
     scanJinja2VariablesInTables,
     analyzeScanResults,
     computeOrphanRecordIds,
+    // normalizeMultiCharElements{,InTables} 留在 scanner module 內供未來重啟此方向時使用
+    // （目前 Sprint T 因 canvas-editor auto-merge 無法用、見 doc_editor.js
+    // onScanAndReplaceClick 內註解與 docs/phase8_sprint_t_2026-05-24.md）
 } from "./jinja2_scanner";
 
 /**
@@ -435,6 +438,9 @@ export class DocEditor extends Component {
 
         // 暫時掛載全域，方便 DevTools 除錯（console 輸入 window._docEditor.command.getValue().data）
         window._docEditor = this.editor;
+        // Sprint T 除錯後保留：暴露 OWL component instance，方便 E2E 探查 state / cache
+        // （Playwright spec 可用 window._docEditorCmp.state.docId 等驗證 state）
+        window._docEditorCmp = this;
 
         // Phase 8 Del 鍵同步：追蹤目前文件上所有 control 的 conceptId 集合，
         // contentChange 觸發時 diff 出消失的 id，批次呼叫後端 delete_field 同步紀錄。
@@ -2019,6 +2025,15 @@ export class DocEditor extends Component {
         const mainPositions = scanJinja2VariablesWithPositions(data.main || []);
         // Sprint J 用的位置清單（table 內 td.value 可替換的單字元元素）
         const tablePositions = scanJinja2VariablesInTables(data.main || []);
+
+        // Sprint T (revert): canvas-editor 的 executeSetValue 會自動把連續同樣式的
+        // single-char elements **合併**回 multi-char run（measured behavior：傳入
+        // [{X},{Y},{Z}] 出來 [{XYZ}]）。所以「normalize 後 setValue 回去 + 再 scan」
+        // 不可行。Sprint H/J 對 HTML-imported 內容仍會早退（mainPos=0），這是已知
+        // 限制——詳見 docs/phase8_sprint_t_2026-05-24.md。Workaround：user 用
+        // 「掃描變數」（Sprint G）建 record，或在 canvas-editor 內手動 type 變數
+        // （typed content 是 per-char element、可被 Sprint H/J 替換）。
+
         // Sprint Q：用純函式 analyzeScanResults 算 positions / uniqueVars / toCreate
         const existingNames = (this._templateFieldsCache || [])
             .filter(f => f.field_type === "odoo_field" && f.odoo_field_name)

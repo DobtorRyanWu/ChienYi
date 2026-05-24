@@ -115,6 +115,84 @@ export function scanJinja2Variables(editorData) {
 }
 
 /**
+ * Sprint T：把 main 流內 value 長度 > 1 的 text 元素拆成 1 字元 / element。
+ *
+ * 為什麼必要：canvas-editor 載入 content_html 時、會把 `<p>text</p>` 整段
+ * 文字塞成單一 IElement（value 多字元）。Sprint H 的 scanner 對 multi-char
+ * 元素視為 unsafe sentinel（無法精確 setRange 對齊字元邊界），結果整個段落
+ * 的 `{{ var }}` 都被略過 → onScanAndReplaceClick 早退 → 0 record。
+ *
+ * 解法：handler 在 scan 前先呼叫此函式 normalize、再 executeSetValue
+ * 回 canvas-editor。normalize 後每個字元都是獨立元素，scanner 就能找到位置。
+ *
+ * 設計：
+ *   - 只拆 main 流（table 內 td.value 在 scanJinja2VariablesInTables 之前先拆
+ *     是另一回事，目前先 cover main；table 由 scanJinja2VariablesInTables 對
+ *     每個 td.value 跑 scanJinja2VariablesWithPositions 時連帶處理）
+ *   - 保留所有非 value 屬性（font/size/color 等格式靠 spread）
+ *   - 非 text 元素 / 複合元素（type === 'control' / 'table' / valueList）原樣回傳
+ *
+ * @param {Array} elements - main flow IElement[]
+ * @returns {Array} 新陣列（multi-char 拆成 single-char）；原陣列不變動
+ */
+export function normalizeMultiCharElements(elements) {
+    if (!Array.isArray(elements)) return [];
+    const result = [];
+    for (const el of elements) {
+        if (!el || typeof el !== "object") {
+            result.push(el);
+            continue;
+        }
+        const type = el.type;
+        // 複合元素 / control / table 不拆（內部 td.value 由 scanInTables 各自處理）
+        if (
+            type === "control" ||
+            type === "table" ||
+            type === "list" ||
+            type === "title" ||
+            Array.isArray(el.valueList) ||
+            Array.isArray(el.trList)
+        ) {
+            result.push(el);
+            continue;
+        }
+        // text 元素：value 多字元 → 拆成 single-char、保留其他屬性
+        if (typeof el.value === "string" && el.value.length > 1) {
+            for (const ch of el.value) {
+                result.push({ ...el, value: ch });
+            }
+            continue;
+        }
+        result.push(el);
+    }
+    return result;
+}
+
+/**
+ * Sprint T：對 table 內每個 td.value 也跑同樣的 normalize（多字元 → 單字元）。
+ * 回傳新的 main elements，table 結構保留、td.value 內部正規化。
+ */
+export function normalizeMultiCharElementsInTables(mainElements) {
+    if (!Array.isArray(mainElements)) return [];
+    return mainElements.map((el) => {
+        if (!el || el.type !== "table" || !Array.isArray(el.trList)) return el;
+        return {
+            ...el,
+            trList: el.trList.map((tr) => {
+                if (!tr || !Array.isArray(tr.tdList)) return tr;
+                return {
+                    ...tr,
+                    tdList: tr.tdList.map((td) => {
+                        if (!td || !Array.isArray(td.value)) return td;
+                        return { ...td, value: normalizeMultiCharElements(td.value) };
+                    }),
+                };
+            }),
+        };
+    });
+}
+
+/**
  * Sprint Q：從掃描結果與 cache 算出「待建 / 沿用 / 跳過」分析。
  *
  * 純函式（無 IO、無 side-effect），可在 vitest 直接測試。把 onScanAndReplaceClick

@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 // 從 OWL 元件資料夾匯入 .js scanner（vitest bundler resolver 支援 .js）
 // @ts-expect-error -- 沒附型別宣告，純函式 OK
-import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds } from "../../static/src/components/doc_editor/jinja2_scanner.js";
+import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds, normalizeMultiCharElements, normalizeMultiCharElementsInTables } from "../../static/src/components/doc_editor/jinja2_scanner.js";
 
 /** 把字串展開為 canvas-editor 的單字元 IElement[]（測試 fixture helper） */
 function textToElements(text: string) {
@@ -587,6 +587,122 @@ describe("computeOrphanRecordIds (Sprint Q)", () => {
         const cache = [{ id: 1 }, { id: 2 }];
         const orphans = computeOrphanRecordIds(cache, null as any);
         expect(orphans).toEqual(new Set([1, 2]));
+    });
+});
+
+describe("normalizeMultiCharElements (Sprint T)", () => {
+    it("多字元 value 拆成單字元 elements、保留其他屬性", () => {
+        const input = [{ value: "Hello", size: 16, color: "#000" }];
+        const result = normalizeMultiCharElements(input);
+        expect(result).toHaveLength(5);
+        expect(result.map((e: any) => e.value)).toEqual(["H", "e", "l", "l", "o"]);
+        // 其他屬性 (size/color) 應被 spread 保留
+        for (const el of result) {
+            expect(el.size).toBe(16);
+            expect(el.color).toBe("#000");
+        }
+    });
+
+    it("單字元 element 原樣回傳", () => {
+        const input = [{ value: "x" }, { value: "y" }];
+        const result = normalizeMultiCharElements(input);
+        expect(result).toEqual(input);
+    });
+
+    it("control / table / list / title / valueList / trList 不拆", () => {
+        const input = [
+            { type: "control", value: "ABC" },           // 不拆
+            { type: "table", trList: [] },                // 不拆
+            { type: "list", valueList: [] },              // 不拆
+            { type: "title", valueList: [{ value: "x" }] }, // 不拆
+            { valueList: [{ value: "y" }] },              // 不拆 (僅靠 valueList)
+            { trList: [{ tdList: [] }] },                 // 不拆 (僅靠 trList)
+        ];
+        const result = normalizeMultiCharElements(input);
+        expect(result).toEqual(input);
+    });
+
+    it("混合：多字元 text + control + 單字元 → 只拆 multi-char text", () => {
+        const input = [
+            { value: "Hi" },                       // 拆
+            { type: "control", value: "X" },       // 不拆
+            { value: "z" },                        // 不拆
+        ];
+        const result = normalizeMultiCharElements(input);
+        expect(result.map((e: any) => e.value)).toEqual(["H", "i", "X", "z"]);
+    });
+
+    it("含 jinja2 變數的段落被拆成可掃描的單字元", () => {
+        const input = [{ value: "Hello {{ name }} world", size: 12 }];
+        const result = normalizeMultiCharElements(input);
+        // 拆完後 scanJinja2VariablesWithPositions 應該能找到 `{{ name }}`
+        const positions = scanJinja2VariablesWithPositions(result);
+        expect(positions).toHaveLength(1);
+        expect(positions[0].varName).toBe("name");
+        expect(positions[0].fullMatch).toBe("{{ name }}");
+    });
+
+    it("非陣列防禦", () => {
+        expect(normalizeMultiCharElements(null as any)).toEqual([]);
+        expect(normalizeMultiCharElements(undefined as any)).toEqual([]);
+        expect(normalizeMultiCharElements({} as any)).toEqual([]);
+    });
+
+    it("非物件元素原樣帶過", () => {
+        const input = [null, undefined, "stringy"];
+        const result = normalizeMultiCharElements(input as any);
+        expect(result).toEqual(input);
+    });
+});
+
+describe("normalizeMultiCharElementsInTables (Sprint T)", () => {
+    it("遞迴 normalize td.value 內的多字元元素，table 結構保留", () => {
+        const input = [
+            {
+                type: "table",
+                id: "t1",
+                trList: [
+                    {
+                        tdList: [
+                            { value: [{ value: "Hi" }, { value: "x" }] },
+                            { value: [{ value: "{{ name }}" }] },
+                        ],
+                    },
+                ],
+            },
+        ];
+        const result = normalizeMultiCharElementsInTables(input);
+        // table 結構保留
+        expect(result[0].type).toBe("table");
+        expect(result[0].id).toBe("t1");
+        // 第一個 td.value: "Hi" 拆成 2 + "x" 保留 = 3 elements
+        expect(result[0].trList[0].tdList[0].value).toHaveLength(3);
+        expect(result[0].trList[0].tdList[0].value.map((e: any) => e.value))
+            .toEqual(["H", "i", "x"]);
+        // 第二個 td.value: "{{ name }}" 拆成 10 elements
+        expect(result[0].trList[0].tdList[1].value).toHaveLength(10);
+        // 拆完後 scanJinja2VariablesInTables 應該能找到 name
+        const positions = scanJinja2VariablesInTables(result);
+        expect(positions).toHaveLength(1);
+        expect(positions[0].varName).toBe("name");
+    });
+
+    it("非 table 元素原樣帶過", () => {
+        const input = [{ value: "Hello" }, { type: "paragraph", value: "x" }];
+        const result = normalizeMultiCharElementsInTables(input);
+        expect(result).toEqual(input);
+    });
+
+    it("table 無 trList 或無 tdList 防禦", () => {
+        expect(normalizeMultiCharElementsInTables([{ type: "table" }])).toEqual([{ type: "table" }]);
+        expect(normalizeMultiCharElementsInTables([
+            { type: "table", trList: [{ /* no tdList */ }] }
+        ])).toEqual([{ type: "table", trList: [{ }] }]);
+    });
+
+    it("非陣列防禦", () => {
+        expect(normalizeMultiCharElementsInTables(null as any)).toEqual([]);
+        expect(normalizeMultiCharElementsInTables(undefined as any)).toEqual([]);
     });
 });
 
