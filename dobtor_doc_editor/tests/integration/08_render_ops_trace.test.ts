@@ -38,7 +38,8 @@ const FROZEN_METADATA = {
  * Sprint 179：Phase 5 大三項 fixture 目錄（OMML / SmartArt / Charts parser 驗證用）。
  * 非 VR baseline 的「42 fixture」成員 —— renderer ops fingerprint 不納入。
  */
-const PHASE5_FIXTURE_DIRS = new Set(['07_chart', '08_smartart', '09_omml']);
+// Sprint 202：11_perf_synthetic_large 為大檔 perf 量測用、render ops trace 不納入。
+const PHASE5_FIXTURE_DIRS = new Set(['07_chart', '08_smartart', '09_omml', '11_perf_synthetic_large']);
 
 function listFixtures(): string[] {
   const out: string[] = [];

@@ -90,7 +90,8 @@ function parseArgs(argv) {
 // Sprint 179：Phase 5 大三項 fixture 目錄（OMML / SmartArt / Charts parser 驗證用）。
 // 非 VR baseline 的「42 fixture」成員、無 golden —— VR 不納入。
 // Sprint 180+ 待 OMML / SmartArt / Charts render + golden 就緒後再評估納入。
-const PHASE5_FIXTURE_DIRS = new Set(['07_chart', '08_smartart', '09_omml']);
+// Sprint 202：11_perf_synthetic_large 為大檔 perf 量測用、VR 不納入（無 golden）。
+const PHASE5_FIXTURE_DIRS = new Set(['07_chart', '08_smartart', '09_omml', '11_perf_synthetic_large']);
 
 function listFixtures(filter) {
   const out = [];

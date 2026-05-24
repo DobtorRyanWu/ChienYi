@@ -53,8 +53,9 @@ interface Fingerprint {
 /**
  * Sprint 179：Phase 5 大三項 fixture 目錄（OMML / SmartArt / Charts parser 驗證用）。
  * 非 VR baseline 的「42 fixture」成員 —— AST 結構快照不納入。
+ * Sprint 202：11_perf_synthetic_large 為 Phase 7 大檔 perf 量測用合成 fixture、AST snapshot 不納入。
  */
-const PHASE5_FIXTURE_DIRS = new Set(['07_chart', '08_smartart', '09_omml']);
+const PHASE5_FIXTURE_DIRS = new Set(['07_chart', '08_smartart', '09_omml', '11_perf_synthetic_large']);
 
 function listFixtures(): string[] {
   const out: string[] = [];
