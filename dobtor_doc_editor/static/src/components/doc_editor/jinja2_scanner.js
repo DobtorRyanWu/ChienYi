@@ -330,6 +330,70 @@ export function scanJinja2VariablesInTables(mainElements) {
  *   逐筆匹配按文件順序，未去重。startIdx / endIdx 為 mainElements 內的元素
  *   索引（含），即 setRange(startIdx, endIdx + 1) 會選中整個 match。
  */
+/**
+ * Sprint W：對 main 流以「flat char-offset」找指定 marker 字串的所有出現位置。
+ *
+ * 與 `scanJinja2VariablesWithPositions` 的差別：
+ *   - 後者要求每個 char 是獨立 IElement（typed content）、回傳的 idx 是 IElement 索引
+ *   - 本函式不要求 per-char element、回傳的 idx 是 **flat char-offset**，直接吃進
+ *     `setRange(start, end)`。canvas-editor 的 setRange 對 multi-char 元素也以
+ *     字元為步長（probe-search-control-insertion.spec.ts 已驗證 setRange(3, 20)
+ *     對 single multi-char element 的 char 3..19 範圍正確 backspace）。
+ *
+ * 用途：Sprint W 兩階段替換的 Stage 2 入口。Stage 1 先用 canvas-editor 的
+ *   executeSearch + executeReplace(text) 把 `{{ var }}` 換成 unique marker，
+ *   Stage 2 用本函式找 marker 位置 → setRange + executeBackspace + executeInsertControl。
+ *
+ * 規則：
+ *   - text 元素（type 非 control/table/list/title、無 valueList/trList）的 value 字串
+ *     原樣計入 flat string
+ *   - 非 text / 複合元素一律記成 1 個 NUL 占位（canvas-editor 對 control 也以 1 步計算
+ *     游標移動，所以 NUL 占位後續 setRange 仍對齊）
+ *
+ * @param {Array} mainElements - editor.command.getValue().data.main
+ * @param {string} marker - 要尋找的字串（必須非空）
+ * @returns {Array<{startIdx: number, endIdx: number}>}
+ *   每個 marker 出現位置；endIdx 為 exclusive（setRange(startIdx, endIdx) 即可選中 marker）
+ */
+export function findMarkerPositionsInMain(mainElements, marker) {
+    if (!Array.isArray(mainElements) || typeof marker !== "string" || !marker) return [];
+    const NUL = " ";
+    const buf = [];
+    for (const el of mainElements) {
+        if (!el || typeof el !== "object") {
+            buf.push(NUL);
+            continue;
+        }
+        const type = el.type;
+        const isComplex =
+            type === "control" ||
+            type === "table" ||
+            type === "list" ||
+            type === "title" ||
+            Array.isArray(el.valueList) ||
+            Array.isArray(el.trList);
+        if (isComplex) {
+            buf.push(NUL);
+            continue;
+        }
+        if (typeof el.value === "string") {
+            buf.push(el.value);
+            continue;
+        }
+        buf.push(NUL);
+    }
+    const concat = buf.join("");
+    const positions = [];
+    let from = 0;
+    while (true) {
+        const i = concat.indexOf(marker, from);
+        if (i < 0) break;
+        positions.push({ startIdx: i, endIdx: i + marker.length });
+        from = i + marker.length;
+    }
+    return positions;
+}
+
 export function scanJinja2VariablesWithPositions(mainElements) {
     if (!Array.isArray(mainElements)) return [];
 

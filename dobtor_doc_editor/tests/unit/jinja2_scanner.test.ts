@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 // 從 OWL 元件資料夾匯入 .js scanner（vitest bundler resolver 支援 .js）
 // @ts-expect-error -- 沒附型別宣告，純函式 OK
-import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds, normalizeMultiCharElements, normalizeMultiCharElementsInTables } from "../../static/src/components/doc_editor/jinja2_scanner.js";
+import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds, normalizeMultiCharElements, normalizeMultiCharElementsInTables, findMarkerPositionsInMain } from "../../static/src/components/doc_editor/jinja2_scanner.js";
 
 /** 把字串展開為 canvas-editor 的單字元 IElement[]（測試 fixture helper） */
 function textToElements(text: string) {
@@ -741,5 +741,65 @@ describe("flattenElementsToText", () => {
             },
         ];
         expect(flattenElementsToText(elements)).toBe("XY");
+    });
+});
+
+describe("findMarkerPositionsInMain (Sprint W)", () => {
+    it("找到單一 multi-char element 內的 marker", () => {
+        // 單一元素：value="專案：__M0__" → marker `__M0__` 在 char 3..9
+        const main = [{ value: "專案：__M0__" }];
+        expect(findMarkerPositionsInMain(main, "__M0__")).toEqual([
+            { startIdx: 3, endIdx: 9 },
+        ]);
+    });
+
+    it("跨多個 multi-char element 累計 char offset 找到 marker", () => {
+        // [專案：(3) ] [__M0__(6)] = 元素邊界 char 3
+        const main = [
+            { value: "專案：" },
+            { value: "__M0__" },
+        ];
+        expect(findMarkerPositionsInMain(main, "__M0__")).toEqual([
+            { startIdx: 3, endIdx: 9 },
+        ]);
+    });
+
+    it("找到多個 marker 出現", () => {
+        const main = [{ value: "__M0__ 與 __M1__" }];
+        expect(findMarkerPositionsInMain(main, "__M0__")).toEqual([{ startIdx: 0, endIdx: 6 }]);
+        expect(findMarkerPositionsInMain(main, "__M1__")).toEqual([{ startIdx: 9, endIdx: 15 }]);
+    });
+
+    it("同 marker 多次出現都回傳", () => {
+        const main = [{ value: "A__M__B__M__C" }];
+        expect(findMarkerPositionsInMain(main, "__M__")).toEqual([
+            { startIdx: 1, endIdx: 6 },
+            { startIdx: 7, endIdx: 12 },
+        ]);
+    });
+
+    it("控制元素以 1 char 占位", () => {
+        const main = [
+            { value: "A" },
+            { type: "control", value: null },
+            { value: "B__M__" },
+        ];
+        // flat 字串：A + (placeholder NUL 1 char) + B__M__ = 8 chars
+        // marker `__M__` 起始於 char 3
+        expect(findMarkerPositionsInMain(main, "__M__")).toEqual([
+            { startIdx: 3, endIdx: 8 },
+        ]);
+    });
+
+    it("空 input / 空 marker 回傳空陣列", () => {
+        expect(findMarkerPositionsInMain([], "__M__")).toEqual([]);
+        expect(findMarkerPositionsInMain(null as any, "__M__")).toEqual([]);
+        expect(findMarkerPositionsInMain([{ value: "abc" }], "")).toEqual([]);
+        expect(findMarkerPositionsInMain([{ value: "abc" }], null as any)).toEqual([]);
+    });
+
+    it("marker 不存在回傳空", () => {
+        const main = [{ value: "abc def" }];
+        expect(findMarkerPositionsInMain(main, "__MISSING__")).toEqual([]);
     });
 });

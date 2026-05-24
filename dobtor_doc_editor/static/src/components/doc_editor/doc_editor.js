@@ -30,6 +30,7 @@ import {
     scanJinja2VariablesInTables,
     analyzeScanResults,
     computeOrphanRecordIds,
+    findMarkerPositionsInMain,
 } from "./jinja2_scanner";
 
 /**
@@ -2072,11 +2073,20 @@ export class DocEditor extends Component {
             return;
         }
         if (positions.length === 0) {
-            this.notification.add(
-                `找到 ${scannedAll.length} 個變數，但都位於 list/title 或多字元元素內，無法替換。請改用「掃描變數」（只建 record）。`,
-                { type: "warning" }
-            );
-            return;
+            // Sprint W：Sprint H/J 對 HTML-imported（multi-char）內容會早退。
+            // 改走兩階段路徑：先用 canvas-editor 內建的 executeSearch+executeReplace 把
+            // `{{ var }}` 文字換成 unique marker，再用 marker 位置 setRange + executeBackspace
+            // + executeInsertControl 把 marker 換成 odoo_field control。
+            //
+            // 為什麼可行（與 Sprint T setValue auto-merge 失敗對比）：
+            //   - search/replace 在 element value 字串層替換、不重建 element list
+            //   - setRange 對 multi-char element 也以 char 為步長（probe 已驗證 setRange(3, 20)
+            //     對 single multi-char element 的 char 3..19 範圍正確 backspace）
+            //   - 不經 setValue → 不觸發 canvas-editor 的 single-char element 自動合併
+            //
+            // 限制：本路徑目前**僅處理 main 流**。table cell 內 `{{ var }}` 仍跳過
+            // （留待 Sprint X：multi-arg setRange 對 td 的 char-offset 簽名探路）。
+            return await this._sprintWScanAndReplace(scannedAll);
         }
 
         // 確認 dialog（user 必須意識到「會替換文件內容」）
@@ -2308,8 +2318,19 @@ export class DocEditor extends Component {
         if (!ok) return;
 
         // Step 1: 還原文件
+        // 注意：snap.docData 經 OWL state 包裝後是 Proxy；canvas-editor 內部會
+        // 呼叫 structuredClone()，structuredClone 不接受 Proxy 會 DataCloneError。
+        // 先用 JSON 深拷一份純物件交給 setValue。
+        let plainDocData;
         try {
-            this.editor.command.executeSetValue(snap.docData);
+            plainDocData = JSON.parse(JSON.stringify(snap.docData));
+        } catch (e) {
+            console.error("[DocEditor] onRollbackScanReplaceClick deep-clone snap failed", e);
+            this.notification.add(`快照解封失敗：${e.message || e}`, { type: "danger" });
+            return;
+        }
+        try {
+            this.editor.command.executeSetValue(plainDocData);
         } catch (e) {
             console.error("[DocEditor] onRollbackScanReplaceClick setValue failed", e);
             this.notification.add(`還原文件失敗：${e.message || e}`, { type: "danger" });
@@ -2363,6 +2384,239 @@ export class DocEditor extends Component {
                 { type: "warning" }
             );
         }
+    }
+
+    /**
+     * Sprint W：對 HTML-imported（multi-char element）內容的「掃描並替換」
+     * 兩階段路徑。被 onScanAndReplaceClick 在 Sprint H 位置陣列為空時 dispatch。
+     *
+     * Stage 1：對每個 unique varName，呼叫 canvas-editor 的 executeSearch + executeReplace
+     *   把所有 `{{ varName }}` 出現處換成 unique marker 字串。canvas-editor 的 replace 在
+     *   element value 字串層做替換、不重建 element list，因此不會觸發 Sprint T 發現的
+     *   setValue auto-merge 問題。
+     *
+     * Stage 2：getValue 拿 marker-含 main，用 findMarkerPositionsInMain 找各 marker 的
+     *   flat char-offset。reverse order 對每個 marker 做：
+     *     setRange(start, end) → executeBackspace() → executeInsertControl(controlPayload)
+     *   probe-search-control-insertion.spec.ts 證實這組合在 multi-char element 內 work。
+     *
+     * 限制（留待 Sprint X+）：
+     *   - 不處理 table cell 內 `{{ var }}`（setRange 的 td 簽名需以 td-internal char offset 為單位）
+     *   - 不處理 list / title 內變數（valueList 結構複雜，setRange 簽名待研究）
+     *   - 不處理 header / footer
+     */
+    async _sprintWScanAndReplace(scannedAll) {
+        const cmd = this.editor.command;
+
+        // 抓 main 流的 unique varNames（只看 main、不含 header/footer/table 內變數）
+        let data;
+        try {
+            data = cmd.getValue().data;
+        } catch (e) {
+            this.notification.add(`讀取文件內容失敗：${e.message || e}`, { type: "danger" });
+            return;
+        }
+        const mainOnlyAll = scanJinja2Variables({ main: data.main });
+        const mainVarNames = mainOnlyAll.map(v => v.varName);
+        if (mainVarNames.length === 0) {
+            this.notification.add(
+                `找到 ${scannedAll.length} 個變數，但都不在 main 流（可能在 table / list / title 內）。Sprint W 目前只處理 main 流，請改用「掃描變數」（只建 record）或留待 Sprint X 補 table。`,
+                { type: "warning" }
+            );
+            return;
+        }
+
+        // 確認 dialog
+        const previewList = mainVarNames.slice(0, 10).map(v => `  • ${v}`).join("\n");
+        const more = mainVarNames.length > 10 ? `\n  ... 還有 ${mainVarNames.length - 10} 個` : "";
+        const tableNote = mainVarNames.length < scannedAll.length
+            ? `\n\n注意：另有約 ${scannedAll.length - mainVarNames.length} 個變數位於 table / list / title 內，**不會**被替換（限制留待 Sprint X+）。`
+            : "";
+        const ok = window.confirm(
+            `【Sprint W — HTML-imported 替換】將 ${mainVarNames.length} 個變數的所有出現處替換為可編輯 control：\n\n${previewList}${more}${tableNote}\n\n⚠️ 此操作會修改文件內容（如需復原請用右上角「復原」按鈕）。\n\n確定要繼續嗎？`
+        );
+        if (!ok) return;
+
+        // signer
+        const signer = await this._ensureSignerExists(this.state.activeSignerId);
+        if (!signer) return;
+
+        // Snapshot for Sprint N rollback
+        let preReplaceSnapshot = null;
+        try {
+            preReplaceSnapshot = JSON.parse(JSON.stringify(data));
+        } catch (e) {
+            console.warn("[DocEditor.Sprint W] snapshot 捕捉失敗（rollback 不可用）", e);
+        }
+
+        // Phase 1: 建/沿用 record
+        const fieldIdByVarName = new Map();
+        for (const f of (this._templateFieldsCache || [])) {
+            if (f.field_type === "odoo_field" && f.odoo_field_name && !fieldIdByVarName.has(f.odoo_field_name)) {
+                fieldIdByVarName.set(f.odoo_field_name, f.id);
+            }
+        }
+        const toCreate = mainVarNames.filter(v => !fieldIdByVarName.has(v));
+        const createFailed = [];
+        let lastSaveResult = null;
+        for (const varName of toCreate) {
+            const payload = {
+                signer_id: signer.id,
+                field_type: "odoo_field",
+                page_no: this.state.pageNo || 1,
+                required: false,
+                placeholder_text: `{{ ${varName} }}`,
+                font_size: 12,
+                odoo_field_name: varName,
+            };
+            try {
+                const resp = await rpc("/dobtor_doc/template_fields/save_field", {
+                    doc_id: this.state.docId,
+                    field: payload,
+                });
+                if (!resp.success) {
+                    createFailed.push({ varName, error: resp.error || "未知錯誤" });
+                    continue;
+                }
+                fieldIdByVarName.set(varName, resp.id);
+                lastSaveResult = resp;
+                if (!this._templateFieldsCache) this._templateFieldsCache = [];
+                this._templateFieldsCache.push({
+                    id: resp.id,
+                    ...payload,
+                    width: 120,
+                    height: 24,
+                    pos_x: 0,
+                    pos_y: 0,
+                });
+            } catch (e) {
+                console.error("[DocEditor.Sprint W] save_field failed", varName, e);
+                createFailed.push({ varName, error: e.message || String(e) });
+            }
+        }
+        if (lastSaveResult) {
+            this._applySignerCounts(lastSaveResult.signer_field_counts);
+            this.state.fieldCount = lastSaveResult.field_count;
+        }
+
+        // Phase 2 / Stage 1: search/replace `{{ var }}` → unique marker per var
+        // 用迴圈 + 防無窮跑（最多每變數 50 次 / 出現過 var 名相同 marker 即不重複）
+        const markerByVar = new Map();   // varName -> markerText
+        // 用全 ASCII marker：避免不可見字（如 U+2063）被 canvas-editor 正規化掉、
+        // 也避免與使用者中文內容衝突。`__` 開頭 + `__` 結尾不會在 jinja2 var 中
+        // 出現，sanitize-過的 var 名（只允許 `[A-Za-z_][\w]*`）也不會包含 `__CYSWM__` 前後綴
+        for (const varName of mainVarNames) {
+            // 安全 varName 含 `[\w.]` ⊆ ASCII，組合後 marker 為純 ASCII
+            const safe = varName.replace(/[^A-Za-z0-9_.]/g, "_");
+            markerByVar.set(varName, `__CYSWM__${safe}__`);
+        }
+        const REPLACE_SAFE_GUARD = 50;
+        for (const varName of mainVarNames) {
+            const marker = markerByVar.get(varName);
+            const searchText = `{{ ${varName} }}`;
+            for (let i = 0; i < REPLACE_SAFE_GUARD; i++) {
+                // 檢查還有沒有 `{{ varName }}` 文字（用 main 的 flat string 查）
+                const curMain = cmd.getValue().data.main || [];
+                let flat = "";
+                for (const el of curMain) {
+                    if (el && typeof el.value === "string") flat += el.value;
+                }
+                if (flat.indexOf(searchText) < 0) break;
+                try {
+                    cmd.executeSearch(searchText);
+                    cmd.executeReplace(marker);
+                } catch (e) {
+                    console.error("[DocEditor.Sprint W] search/replace failed", varName, e);
+                    break;
+                }
+            }
+        }
+
+        // Stage 2: 用 marker 位置 setRange + backspace + insertControl
+        let replaced = 0;
+        const replaceFailed = [];
+        // 累計每 var 的位置（多 var 各自掃）→ 合併後按 startIdx 倒排（後面動前面不影響）
+        const allMarkerPositions = [];
+        // re-fetch main（前面 search/replace 已改）
+        let curMain;
+        try {
+            curMain = cmd.getValue().data.main || [];
+        } catch (e) {
+            console.error("[DocEditor.Sprint W] getValue after stage 1 failed", e);
+            this.notification.add(`Stage 1 後讀取文件失敗：${e.message || e}`, { type: "danger" });
+            return;
+        }
+        for (const varName of mainVarNames) {
+            const marker = markerByVar.get(varName);
+            const positions = findMarkerPositionsInMain(curMain, marker);
+            for (const pos of positions) {
+                allMarkerPositions.push({ ...pos, varName });
+            }
+        }
+        allMarkerPositions.sort((a, b) => b.startIdx - a.startIdx);
+
+        // Sprint W：直接 inline 插入（用 canvas-editor 正式 IElement-with-control 包裝）。
+        // 為什麼不走既有 _insertControlForField：它把 IControlBasic 直接當 payload 傳，
+        // canvas-editor 把它寫入 main 變成 `type: "text"` 而非 `type: "control"`，
+        // 結果 getControlList 看不到、Sprint M 孤兒檢查永遠把它判為孤兒。Sprint W 用
+        // 正式結構 `{type: "control", control: {...}}` 解此問題（probe-sprint-w-handler
+        // 已驗證 getControlList 數量正確）。Sprint E 的 _insertControlForField 暫不動、
+        // 留到後續 sprint 對齊（風險：怕影響 user 手動點按鈕已生產的文件）。
+        for (const pos of allMarkerPositions) {
+            const fieldId = fieldIdByVarName.get(pos.varName);
+            if (!fieldId) {
+                replaceFailed.push({ varName: pos.varName, reason: "no_field_id" });
+                continue;
+            }
+            try {
+                cmd.executeSetRange ? cmd.executeSetRange(pos.startIdx, pos.endIdx) : cmd.setRange(pos.startIdx, pos.endIdx);
+                cmd.executeBackspace();
+                const placeholder = `{{ ${pos.varName} }}`;
+                cmd.executeInsertControl({
+                    type: "control",
+                    value: null,
+                    control: {
+                        type: "text",
+                        value: null,
+                        placeholder,
+                        conceptId: String(fieldId),
+                        deletable: true,
+                        disabled: false,
+                    },
+                });
+                replaced++;
+            } catch (e) {
+                console.error("[DocEditor.Sprint W] setRange/backspace/insertControl failed", pos, e);
+                replaceFailed.push({ varName: pos.varName, reason: e.message || String(e) });
+            }
+        }
+
+        // Sprint N snapshot
+        if (preReplaceSnapshot && (replaced > 0 || toCreate.length > 0)) {
+            const createdIds = [];
+            for (const varName of toCreate) {
+                const id = fieldIdByVarName.get(varName);
+                if (id) createdIds.push(id);
+            }
+            this.state.lastScanReplaceSnapshot = {
+                docData: preReplaceSnapshot,
+                createdFieldIds: createdIds,
+                replacedCount: replaced,
+                timestamp: Date.now(),
+            };
+        }
+
+        // 結果通知
+        const parts = [];
+        if (replaced > 0) parts.push(`已替換 ${replaced} 處 \`{{ var }}\` 為 control`);
+        if (toCreate.length > 0) parts.push(`新建 ${toCreate.length - createFailed.length}/${toCreate.length} 個 record`);
+        if (createFailed.length > 0) parts.push(`record 失敗：${createFailed.map(f => f.varName).join(", ")}`);
+        if (replaceFailed.length > 0) parts.push(`替換失敗 ${replaceFailed.length} 處`);
+        const summary = parts.join("；") || "未做任何變動";
+        const ntype = (createFailed.length || replaceFailed.length) > 0 ? "warning" : "success";
+        const hint = (this.state.lastScanReplaceSnapshot && (replaced > 0 || toCreate.length > 0))
+            ? "（如需復原請點右上角『復原』按鈕）" : "";
+        this.notification.add(`【Sprint W 掃描並替換】${summary}${hint ? "。" + hint : "。"}`, { type: ntype });
     }
 
     /**
