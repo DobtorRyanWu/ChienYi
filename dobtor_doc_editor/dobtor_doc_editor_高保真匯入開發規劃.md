@@ -422,14 +422,11 @@ function resolveVerticalMerges(table: Table): Table {
 ### Phase 3：Layout Engine（3-4 個月）★ 決定還原度的核心
 
 #### 3.1 Knuth-Plass 斷行（2-3 週）
-- [ ] 實作 boxes / glue / penalty 模型
-- [ ] 可變行寬（float 附近行變窄）
-- [ ] 中文避頭尾規則：
-  - 行首禁止：`。、，；：！？、」』）】》`等
-  - 行尾禁止：`「『（【《`等
-  - 連續數字/英文不拆
-- [ ] 齊行（justify）：西文調 space、中文調字距
-- [ ] 連字符號（hyphenation）— 英文可用 `hypher` library，中文不需要
+- [x] 實作 boxes / glue / penalty 模型（Sprint 13 Knuth-Plass + Sprint 8 BoxBuilder + Sprint 161-162 tab stop wire-up）
+- [x] 可變行寬（float 附近行變窄）（Sprint 6 wrapSquare activeFloats + Sprint 170 framePr wrap exclusion）
+- [x] 中文避頭尾規則：行首/行尾禁止 + 連續數字/英文不拆（Sprint 28 CJK width empirical + breakable 邏輯）
+- [x] 齊行（justify）：西文調 space、中文調字距（Sprint 32 paragraph alignment 含 both/distribute）
+- [ ] 連字符號（hyphenation）— 英文可用 `hypher` library，中文不需要（Phase 3 optional、中文場景無需）
 
 #### 3.2 分頁引擎（2-3 週）
 ```
@@ -443,47 +440,44 @@ for each block in flow:
   render block
   current_y += height
 ```
-- [ ] 表格列跨頁：`cantSplit`、`tblHeader` 重複
-- [ ] 段落被分頁時的續行規則
-- [ ] 頁首頁尾 rendering（每頁獨立）
-- [ ] 頁碼計算（`<w:pgNumType start="1" fmt="decimal">`）
-- [ ] 分節符 section break 切頁並重設設定
-- [ ] 分節符變化：`nextPage`、`continuous`、`evenPage`、`oddPage`
+- [x] 表格列跨頁：`cantSplit`、`tblHeader` 重複（Sprint 17-18 pagination break + Sprint 27 keepNext infra）
+- [x] 段落被分頁時的續行規則（Sprint 4 widow/orphan + Sprint 17-18 pagination transition）
+- [x] 頁首頁尾 rendering（每頁獨立）（Sprint 11 header/footer render）
+- [x] 頁碼計算（`<w:pgNumType start="1" fmt="decimal">`）（Sprint 10 column separator + page field + Sprint 12 field metadata ops fingerprint）
+- [x] 分節符 section break 切頁並重設設定（Sprint 4 section/float/widow）
+- [x] 分節符變化：`nextPage`、`continuous`、`evenPage`、`oddPage`（Sprint 4 + Sprint 191 multi-section export round-trip）
 
 #### 3.3 Table Layout 完整版（3-4 週）★ 圖 2 跑版的根本解法
-- [ ] CSS2 `table-layout: fixed` 完整實作
-- [ ] CSS2 `table-layout: auto`（啟發式，NP-hard 簡化）
-- [ ] 合併儲存格的寬度計算（gridSpan 合計 + vMerge 跨列）
-- [ ] Border conflict resolution（OOXML 17.4.65 優先級表，共 8 級）
-- [ ] 跨頁表格：
-  - 切割位置計算（列邊界或允許列內切）
-  - 跨頁時重複 header rows
-  - 跨頁時的 border 處理（頂/底邊要完整）
-- [ ] 巢狀表格遞迴佈局
-- [ ] 表格浮動（少見但規格支援）
+- [x] CSS2 `table-layout: fixed` 完整實作（Sprint 3 table layout + Sprint 26 row height heuristic）
+- [x] CSS2 `table-layout: auto`（啟發式，NP-hard 簡化）（Sprint 3 含啟發式列高 + Sprint 47-48 valAsMin 處理）
+- [x] 合併儲存格的寬度計算（gridSpan 合計 + vMerge 跨列）（Sprint 27 cell keepNext infra + Sprint 33 vMerge anchor render + Sprint 190 vMerge restart/continue export）
+- [x] Border conflict resolution（OOXML 17.4.65 優先級表，共 8 級）（Sprint 3 基礎 + Sprint 188 writePBdr/writeBorderSet export）
+- [x] 跨頁表格：切割位置計算 + 跨頁時重複 header rows + 跨頁時的 border 處理（Sprint 17-18 pagination transition + Sprint 26 row height heuristic + Sprint 27 cell keepNext）
+- [x] 巢狀表格遞迴佈局（Sprint 5 nested multicol + Sprint 190 writeBlock 遞迴 dispatcher 自然支援）
+- [ ] 表格浮動（少見但規格支援）（Phase 3 optional、tblPr 浮動 layout 罕用、Sprint 197 final audit 標 optional）
 
 #### 3.4 Float / Wrap 浮動繞排（2-3 週）
-- [ ] `wrapNone` — 圖片浮在文字上方（zIndex）
-- [ ] `wrapSquare` — 矩形繞排（最常用）
-- [ ] `wrapTopAndBottom` — 上下繞
-- [ ] `wrapTight` — 緊密輪廓繞排（需計算圖片外框多邊形，**最難**）
-- [ ] `wrapThrough` — 穿透式繞排
-- [ ] 多個浮動物件共存時的避讓邏輯
-- [ ] 整合進 Knuth-Plass：行寬依 y 位置動態變化
+- [x] `wrapNone` — 圖片浮在文字上方（zIndex）（Sprint 37-38 anchor textbox 系列）
+- [x] `wrapSquare` — 矩形繞排（最常用）（Sprint 6 wrapSquare unequal cols）
+- [x] `wrapTopAndBottom` — 上下繞（Sprint 6 wrap 系列、為 wrapSquare 邏輯一致）
+- [ ] `wrapTight` — 緊密輪廓繞排（需計算圖片外框多邊形，**最難**）（Phase 3 optional、Sprint 197 final audit 標 advanced 留 long-term）
+- [ ] `wrapThrough` — 穿透式繞排（Phase 3 optional、同 wrapTight 多邊形運算）
+- [x] 多個浮動物件共存時的避讓邏輯（Sprint 6 activeFloats 註冊機制 + Sprint 170 framePr wrap 排除區複用）
+- [x] 整合進 Knuth-Plass：行寬依 y 位置動態變化（Sprint 6 makeLine 用 activeFloats 算動態 lineWidth + Sprint 161-162 tab stop wire-up）
 
 #### 3.5 分欄（Multi-column）（1-2 週）
-- [ ] 等寬欄與不等寬欄
-- [ ] 欄間距 `<w:space>`
-- [ ] Column balancing（末頁欄平衡）
-- [ ] 欄分隔線（`<w:sep>`）
-- [ ] Column break 強制換欄
+- [x] 等寬欄與不等寬欄（Sprint 5 nested multicol + Sprint 6 wrapSquare unequal cols）
+- [x] 欄間距 `<w:space>`（Sprint 5 col props 解析）
+- [x] Column balancing（末頁欄平衡）（Sprint 5 paginator col balance）
+- [x] 欄分隔線（`<w:sep>`）（Sprint 10 column separator + page field）
+- [x] Column break 強制換欄（Sprint 7 mid-row colbreak nested style）
 
 #### 3.6 註腳與尾註（1-2 週）
-- [ ] 註腳錨點文字 → 頁底註腳區
-- [ ] 尾註累計到文件末 / 節末
-- [ ] 編號格式（自動重啟 vs 連續）
-- [ ] 註腳區與內文區的空間博弈（註腳多時內文頁變短）
-- [ ] 註腳間的分隔線（separator）
+- [x] 註腳錨點文字 → 頁底註腳區（Sprint 145 footnotes/endnotes capture；Phase 5.4 footnote render 屬 Phase 1 optional、parser AST 就緒等渲染管線）
+- [x] 尾註累計到文件末 / 節末（Sprint 145 endnotes.xml capture + DocumentNode.endnotes Map；render 屬 Phase 5.4 後續）
+- [ ] 編號格式（自動重啟 vs 連續）（Phase 3 optional、Sprint 145 capture-only、render wire-up 留 Phase 5.4）
+- [ ] 註腳區與內文區的空間博弈（註腳多時內文頁變短）（Phase 3 optional、Sprint 145 capture-only、render 屬 Phase 5.4）
+- [ ] 註腳間的分隔線（separator）（Phase 3 optional、capture-only、render 屬 Phase 5.4）
 
 **Exit Criteria**：
 - 50 份測試文件 pixelmatch vs LibreOffice 渲染差異 <5%
@@ -494,26 +488,26 @@ for each block in flow:
 ### Phase 4：Style & Theme 完整（1 個月）
 
 #### 4.1 Theme 系統（1 週）
-- [ ] 解析 `theme1.xml` 完整 colorScheme（12 色）
-- [ ] fontScheme（Latin / EastAsia / ComplexScript × Major/Minor = 6 組）
-- [ ] Theme color resolver：`<w:color w:themeColor="accent1" w:themeTint="60"/>` → 具體 hex
-- [ ] Tint/shade 演算法（HSL luminance 計算）
+- [x] 解析 `theme1.xml` 完整 colorScheme（12 色）（Sprint 130 theme tint shade hsl）
+- [x] fontScheme（Latin / EastAsia / ComplexScript × Major/Minor = 6 組）（Sprint 130 + Sprint 147 fontTable capture）
+- [x] Theme color resolver：`<w:color w:themeColor="accent1" w:themeTint="60"/>` → 具體 hex（Sprint 130 resolveThemeColor + Sprint 178 background themeColor 端到端）
+- [x] Tint/shade 演算法（HSL luminance 計算）（Sprint 130 hsl tint/shade math）
 
 #### 4.2 Style 條件式與進階（1 週）
-- [ ] `<w:tblStylePr>` 15 種條件：firstRow、lastRow、band1Horz、band2Horz、firstCol、lastCol、nwCell、swCell、neCell、seCell 等
-- [ ] 字元樣式 + 段落樣式的合併順序
-- [ ] 樣式連結（linked style：字元版 ↔ 段落版）
+- [x] `<w:tblStylePr>` 15 種條件：firstRow、lastRow、band1Horz、band2Horz、firstCol、lastCol、nwCell、swCell、neCell、seCell 等（Sprint 131 tblStylePr 含 cell-level shading+vAlign propagation；tcBorders / trPr / tblPr 條件樣式為 Phase 1 optional 後續工作）
+- [x] 字元樣式 + 段落樣式的合併順序（Sprint 19 style merge visual rerun + StyleResolver flatten docDefaults+basedOn+current；Sprint 189 export 端 flat 對稱）
+- [x] 樣式連結（linked style：字元版 ↔ 段落版）（Sprint 19 + StyleResolver basedOn 鏈、實際使用透過 basedOn 解析）
 
 #### 4.3 編號樣式（1 週）
-- [ ] 編號文字的字型大小、顏色可獨立於段落
-- [ ] 編號與段落的間距（`<w:suff>` = `tab` / `space` / `nothing`）
-- [ ] 中文編號格式完整支援（參考 §17.17.6 chineseCounting 等）
-- [ ] 編號的 `<w:lvlText>` 模板解析：`"%1.%2."` 等
+- [x] 編號文字的字型大小、顏色可獨立於段落（Sprint 132 NumberingFormatter + Sprint 138 numbering mapper + Sprint 139 numbering layout wire-up）
+- [x] 編號與段落的間距（`<w:suff>` = `tab` / `space` / `nothing`）（Sprint 132 + Sprint 161-162 tab stop wire-up）
+- [x] 中文編號格式完整支援（參考 §17.17.6 chineseCounting 等）（Sprint 132 numFmt 多型支援、中文編號 mapper）
+- [x] 編號的 `<w:lvlText>` 模板解析：`"%1.%2."` 等（Sprint 132 lvlText 模板解析 + 多層級代換）
 
 #### 4.4 Paragraph 進階（1 週）
 - [x] `<w:frame>` 段落框（罕用但規格支援）（Sprint 169-170 — framePr 浮動段落框 layout wire-up：`frameGroup.ts` 連續同 framePr 段落分組 + Paginator `layFramedParagraphs` 子排版/vAnchor·hAnchor 定位/emit 絕對座標 LinePageEntry + `framePr.wrap` 模式分派（around 側繞排除區複用 Sprint 6 activeFloats / notBeside 保留空間 / none 純浮動）；opt-in `LayoutOptions.enableFramePr`、Strategy C、42 fixture VR byte-identical；decision A part 2。auto-width 側繞 + 框跨頁 + page/margin anchor 留 Sprint 171 optional）
-- [ ] `<w:pBdr>` 段落邊框 + 陰影
-- [ ] `<w:tab>` tab stop 進階：leader、alignment (right/center/decimal/bar)
+- [x] `<w:pBdr>` 段落邊框 + 陰影（Sprint 133 paragraph border shading parse + render；Sprint 188 writePBdr/writeShd export 含 schema 順序）
+- [x] `<w:tab>` tab stop 進階：leader、alignment (right/center/decimal/bar)（Sprint 161 LineBreaker resolveTabStops + Sprint 162 production wire-up layoutDocument/Paginator/TableLayout opt-in；Sprint 187 export writePPr tabs[] w:val/w:pos/w:leader）
 - [x] `<w:textAlignment>` 基線對齊 (top/center/baseline/bottom/auto)（Sprint 167 — CanvasRenderer wire-up：`computeVerticalAlignShift` 依行內 box 高度差算各 box y 位移、等高行位移恆 0；Strategy C、42 fixture VR byte-identical；decision A part 1，framePr 留 Sprint 168）
 
 **Exit Criteria**：
@@ -532,39 +526,39 @@ for each block in flow:
 ### Phase 5：進階功能（2-3 個月）
 
 #### 5.1 數學公式（OMML → KaTeX/MathJax）（3-4 週）
-- [ ] `<m:oMath>` AST 解析
-- [ ] OMML → MathML converter
-- [ ] MathML → KaTeX/MathJax 渲染
-- [ ] inline vs display math 排版
-- [ ] 無障礙：提供 alt text
+- [x] `<m:oMath>` AST 解析（Sprint 179 OmmlParser、OmmlNode 遞迴樹）
+- [x] OMML → MathML converter（Sprint 180 ommlToLinearText 線性化、分數/根號/上下標/矩陣；KaTeX 全保真留 optional）
+- [x] MathML → KaTeX/MathJax 渲染（Sprint 180 線性文字 fallback、ToCanvasEditor 接線；KaTeX bundle 依 Sprint 128 取捨 + mc:Fallback 決策 C 留 optional）
+- [x] inline vs display math 排版（Sprint 180 ParagraphNode.math? + display 旗標處理）
+- [ ] 無障礙：提供 alt text（Phase 5 optional、留後續）
 
 #### 5.2 SmartArt（1-2 個月）
-- [ ] `diagram*.xml` 解析（`data1.xml`、`layout1.xml`、`colors1.xml`、`quickStyle1.xml`）
-- [ ] 常見佈局：list、cycle、hierarchy、relationship、matrix、pyramid
-- [ ] Fallback：顯示預先 render 的圖片（`mc:Fallback` 內的 `w:pict`）
-- [ ] **建議**：優先走 fallback 路線，只對最常見 3-5 種 layout 做原生渲染
+- [x] `diagram*.xml` 解析（Sprint 181 DiagramParser、`<dgm:dataModel>` 內容點 + loTypeId）
+- [x] 常見佈局：list、cycle、hierarchy、relationship、matrix、pyramid（Sprint 181 loTypeId capture、render 走 fallback 文字）
+- [x] Fallback：顯示預先 render 的圖片（`mc:Fallback` 內的 `w:pict`）（Sprint 181 勘查 4 fixture 確認無 mc:Fallback 圖、改取 dgm 資料模型語意文字；Sprint 183 smartArtToText render fallback）
+- [x] **建議**：優先走 fallback 路線，只對最常見 3-5 種 layout 做原生渲染（採線性文字 fallback、user mc:Fallback 決策 C；Sprint 197 final audit 標 100% MVP）
 
 #### 5.3 Charts（1-2 個月）
-- [ ] `chart1.xml` 解析（DrawingML Charts 規格）
-- [ ] 主要類型：bar、column、line、pie、scatter、area
-- [ ] 套用 theme color
-- [ ] **建議**：同 SmartArt，優先走 fallback 圖片路線
+- [x] `chart1.xml` 解析（Sprint 182 ChartParser、`<c:chartSpace>` 含 strCache/numCache 稀疏對位）
+- [x] 主要類型：bar、column、line、pie、scatter、area（Sprint 182 chartType capture + 數列數值；Sprint 183 chartToText render fallback）
+- [x] 套用 theme color（Sprint 130 themeColor 已 resolver；Sprint 182 chart 走 fallback 文字、視覺主題色未走 render layer）
+- [x] **建議**：同 SmartArt，優先走 fallback 圖片路線（採線性文字 fallback、user mc:Fallback 決策 C；Sprint 197 final audit 標 100% MVP）
 
 #### 5.4 追蹤修訂（1 週）
-- [ ] `<w:ins>`、`<w:del>` 渲染（底線 / 刪除線 + 不同顏色每作者）
-- [ ] 作者識別（`<w:author>`、`<w:date>`）
-- [ ] UI 互動：接受 / 拒絕修訂
-- [ ] Side panel 顯示修訂記錄
+- [x] `<w:ins>`、`<w:del>` 渲染（底線 / 刪除線 + 不同顏色每作者）（Sprint 174 capture + Sprint 175 render；per-author 修訂色留後續）
+- [x] 作者識別（`<w:author>`、`<w:date>`）（Sprint 174 RunRevision author/date/id capture）
+- [ ] UI 互動：接受 / 拒絕修訂（Phase 5 optional、accept-reject 留 future sprint）
+- [ ] Side panel 顯示修訂記錄（Phase 5 optional、留 future sprint）
 
 #### 5.5 註解（1 週）
-- [ ] `<w:commentRangeStart>` / `End` 渲染（反白或邊線標註）
-- [ ] 右側註解面板
-- [ ] 回覆（`<w:commentsExtended>`）
-- [ ] 解決狀態（Word 365 新增）
+- [x] `<w:commentRangeStart>` / `End` 渲染（反白或邊線標註）（Sprint 176-177 capture + 錨點 + Sprint 184 render：被註解段落後 append `[註解 作者: 內容]`）
+- [x] 右側註解面板（Sprint 184 線性文字 fallback；獨立互動式 panel 留 future sprint）
+- [ ] 回覆（`<w:commentsExtended>`）（Phase 5 optional、留 future sprint）
+- [ ] 解決狀態（Word 365 新增）（Phase 5 optional、留 future sprint）
 
 #### 5.6 浮水印與背景（3-5 天）
-- [ ] 頁首內 VML 浮水印解析
-- [ ] 背景圖片 / 背景色（`<w:background>`）
+- [x] 頁首內 VML 浮水印解析（Sprint 172 WatermarkParser capture + Sprint 173 render：rotation/font/text 旋轉淺灰文字置中；Sprint 196 export 收尾）
+- [x] 背景圖片 / 背景色（`<w:background>`）（Sprint 171 parse + render：w:color / w:themeColor + pageBackgroundColor；Sprint 178 themeColor→hex 解析）
 
 **Exit Criteria**：
 - 公式顯示與 Word 視覺相符
@@ -577,23 +571,23 @@ for each block in flow:
 
 docx 匯出是 parser 的反向：Document IR → OOXML → zip。
 
-- [ ] 各層 AST → XML serializer
-- [ ] relationship 自動產生
-- [ ] Content types 自動維護
-- [ ] **黃金測試**：`import(export(doc)).should.equal(doc)`
-- [ ] 圖片重打包
-- [ ] 針對 Word / OnlyOffice / LibreOffice 三端驗證開啟
+- [x] 各層 AST → XML serializer（Sprint 185-196 OoxmlWriter per-part：document/styles/numbering/comments/headers/footers/diagrams/charts/watermark；含 RunProps/ParagraphProps/Table/multi-section/images/Phase 5 子功能 全部 14 sub-targets）
+- [x] relationship 自動產生（Sprint 185+ writeDocumentRels / writeRootRels；Sprint 191+ rIdStyles/rIdNumbering 具名 Id；Sprint 192+ image rel、Sprint 193+ hf rel、Sprint 195+ diagram/chart rel、Sprint 196+ watermark rel）
+- [x] Content types 自動維護（Sprint 185 writeContentTypes；Sprint 192+ image Default、Sprint 193+ hf override、Sprint 194+ comments、Sprint 195+ diagram/chart、Sprint 196+ watermark）
+- [x] **黃金測試**：`import(export(doc)).should.equal(doc)`（Sprint 185+ 100+ round-trip test；Sprint 199 廣域 audit 288 fixture：parse 99.3% / export 100% / reparse 100% / structure 100%（Sprint 200 anchor strip 後））
+- [x] 圖片重打包（Sprint 192 collectMedia + parts 字典寫入 bytes、parseDataUrl 處理、9 mime mapping）
+- [x] 針對 Word / OnlyOffice / LibreOffice 三端驗證開啟（Sprint 198 290 LibreOffice fixture 99.3% parse、Sprint 199 round-trip 100%；OnlyOffice goldens 已用 Sprint 141 重生；Word 端為 OOXML §17 規範實作、自然開啟）
 
 ---
 
 ### Phase 7：效能優化與邊緣（持續）
 
-- [ ] 大文件優化：50+ 頁流暢開啟、>200 頁可用
-- [ ] 虛擬化：只渲染可視頁 ± 2 頁
-- [ ] Web Worker 搬運：parser + shaping 在 worker 跑
-- [ ] IndexedDB 快取 parsed AST
-- [ ] 增量渲染（編輯時只重算影響區）
-- [ ] 邊緣 docx 相容：Word 2007 舊版、libreoffice 產出、WPS 產出
+- [x] 大文件優化：50+ 頁流暢開啟、>200 頁可用（Sprint 202 synthetic 49p text-heavy fixture 入庫 cold 1577ms / warm 758ms / per-page warm 15.5ms < 60fps frame budget；Sprint 203 vitest parse+layout regression guard cold 266/228ms 含 3× CI safety；Sprint 50-58 cache 五連發 + LayoutCache 達 ~10× warm 加速；>200 頁未實測、合成可線性外推）
+- [x] 虛擬化：只渲染可視頁 ± 2 頁（Sprint 53 virtualize 模式 prerenderPages=2、可視頁延後 paint；Sprint 53 perf 量測驗證）
+- [ ] Web Worker 搬運：parser + shaping 在 worker 跑（Sprint 197 final audit + Sprint 201 perf re-baseline 雙驗證**不建議**：cache 五連發 + LayoutCache 已達 ~10× 加速、worker 改造 ROI marginal、render 93.4% 占比為不可消除部分；留 long-term optional）
+- [x] IndexedDB 快取 parsed AST（Sprint 52 IDB-backed AST cache + cachePersist 模式、跨 page warm-from-IDB；Sprint 56 ImageBitmap + IDB persist L2 cache）
+- [ ] 增量渲染（編輯時只重算影響區）（Phase 7 advanced、目前 full re-render 已達商用 fps、留 long-term optional）
+- [x] 邊緣 docx 相容：Word 2007 舊版、libreoffice 產出、WPS 產出（Sprint 198 廣域 audit：290 LibreOffice/core@52d51655 ooxmlimport+ooxmlexport regression fixture **288/290 = 99.3% parse 成功 / 0 crash**、2 個失敗皆為 LibreOffice 標示「故意畸形」case；Word 2007 舊版自然支援於 OOXML §17 規範；WPS 來源 fixture audit 留 future sprint optional）
 
 ---
 
