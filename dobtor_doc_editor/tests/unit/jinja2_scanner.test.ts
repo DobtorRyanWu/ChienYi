@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 // 從 OWL 元件資料夾匯入 .js scanner（vitest bundler resolver 支援 .js）
 // @ts-expect-error -- 沒附型別宣告，純函式 OK
-import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds, normalizeMultiCharElements, normalizeMultiCharElementsInTables, findMarkerPositionsInMain } from "../../static/src/components/doc_editor/jinja2_scanner.js";
+import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds, normalizeMultiCharElements, normalizeMultiCharElementsInTables, findMarkerPositionsInMain, rewriteTdValueWithControls } from "../../static/src/components/doc_editor/jinja2_scanner.js";
 
 /** 把字串展開為 canvas-editor 的單字元 IElement[]（測試 fixture helper） */
 function textToElements(text: string) {
@@ -801,5 +801,93 @@ describe("findMarkerPositionsInMain (Sprint W)", () => {
     it("marker 不存在回傳空", () => {
         const main = [{ value: "abc def" }];
         expect(findMarkerPositionsInMain(main, "__MISSING__")).toEqual([]);
+    });
+});
+
+describe("rewriteTdValueWithControls (Sprint X)", () => {
+    const mkControl = (varName: string, fieldId: string | number) => ({
+        type: "control",
+        value: null,
+        control: {
+            type: "text",
+            value: null,
+            placeholder: `{{ ${varName} }}`,
+            conceptId: String(fieldId),
+            deletable: true,
+            disabled: false,
+        },
+    });
+
+    it("拆 multi-char element 內單一 marker → 前段+control", () => {
+        const td = [{ value: "__M_a__ 尾巴", size: 20 }];
+        const map = new Map([["__M_a__", { fieldId: 7, varName: "a" }]]);
+        const { newValue, replaced } = rewriteTdValueWithControls(td, map, mkControl);
+        expect(replaced).toBe(1);
+        expect(newValue.length).toBe(2);
+        expect(newValue[0].type).toBe("control");
+        expect(newValue[0].control.conceptId).toBe("7");
+        expect(newValue[1].value).toBe(" 尾巴");
+    });
+
+    it("拆 marker 在中間 → 前段+control+尾段", () => {
+        const td = [{ value: "頭__M_a__尾", size: 20 }];
+        const map = new Map([["__M_a__", { fieldId: 7, varName: "a" }]]);
+        const { newValue, replaced } = rewriteTdValueWithControls(td, map, mkControl);
+        expect(replaced).toBe(1);
+        expect(newValue.length).toBe(3);
+        expect(newValue[0].value).toBe("頭");
+        expect(newValue[1].type).toBe("control");
+        expect(newValue[2].value).toBe("尾");
+    });
+
+    it("同 element 多個 marker", () => {
+        const td = [{ value: "X__M_a__Y__M_b__Z", size: 20 }];
+        const map = new Map([
+            ["__M_a__", { fieldId: 7, varName: "a" }],
+            ["__M_b__", { fieldId: 8, varName: "b" }],
+        ]);
+        const { newValue, replaced } = rewriteTdValueWithControls(td, map, mkControl);
+        expect(replaced).toBe(2);
+        expect(newValue.length).toBe(5);
+        expect(newValue.map((el: any) => el.type || "text")).toEqual([
+            "text", "control", "text", "control", "text",
+        ]);
+        expect(newValue[1].control.conceptId).toBe("7");
+        expect(newValue[3].control.conceptId).toBe("8");
+    });
+
+    it("非 text element 原樣保留", () => {
+        const ctrlEl = { type: "control", value: null, control: { type: "text", placeholder: "x" } };
+        const td = [ctrlEl, { value: "__M_a__", size: 20 }];
+        const map = new Map([["__M_a__", { fieldId: 7, varName: "a" }]]);
+        const { newValue, replaced } = rewriteTdValueWithControls(td, map, mkControl);
+        expect(replaced).toBe(1);
+        expect(newValue[0]).toBe(ctrlEl);
+        expect(newValue[1].type).toBe("control");
+    });
+
+    it("沒 marker 的 element 原樣保留", () => {
+        const a = { value: "abc", size: 20 };
+        const b = { value: "def", size: 20 };
+        const td = [a, b];
+        const map = new Map([["__M_x__", { fieldId: 7, varName: "x" }]]);
+        const { newValue, replaced } = rewriteTdValueWithControls(td, map, mkControl);
+        expect(replaced).toBe(0);
+        expect(newValue).toEqual([a, b]);
+    });
+
+    it("空 td.value / 空 map / 非 Array 防禦", () => {
+        const map = new Map([["__M__", { fieldId: 1, varName: "x" }]]);
+        expect(rewriteTdValueWithControls([], map, mkControl).newValue).toEqual([]);
+        expect(rewriteTdValueWithControls([{ value: "abc" }], new Map(), mkControl).newValue).toEqual([{ value: "abc" }]);
+        expect(rewriteTdValueWithControls(null as any, map, mkControl).newValue).toEqual([]);
+    });
+
+    it("保留 text element 的其他樣式屬性", () => {
+        const td = [{ value: "X__M_a__Y", size: 24, bold: true, color: "red" }];
+        const map = new Map([["__M_a__", { fieldId: 7, varName: "a" }]]);
+        const { newValue } = rewriteTdValueWithControls(td, map, mkControl);
+        expect(newValue[0]).toEqual({ value: "X", size: 24, bold: true, color: "red" });
+        expect(newValue[2]).toEqual({ value: "Y", size: 24, bold: true, color: "red" });
     });
 });

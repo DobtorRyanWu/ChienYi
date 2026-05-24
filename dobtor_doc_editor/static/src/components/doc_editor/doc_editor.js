@@ -31,6 +31,8 @@ import {
     analyzeScanResults,
     computeOrphanRecordIds,
     findMarkerPositionsInMain,
+    rewriteTdValueWithControls,
+    flattenElementsToText,
 } from "./jinja2_scanner";
 
 /**
@@ -2420,7 +2422,7 @@ export class DocEditor extends Component {
         const mainVarNames = mainOnlyAll.map(v => v.varName);
         if (mainVarNames.length === 0) {
             this.notification.add(
-                `找到 ${scannedAll.length} 個變數，但都不在 main 流（可能在 table / list / title 內）。Sprint W 目前只處理 main 流，請改用「掃描變數」（只建 record）或留待 Sprint X 補 table。`,
+                `找到 ${scannedAll.length} 個變數，但都不在 main 流（可能在 list / title 內）。請改用「掃描變數」（只建 record）。`,
                 { type: "warning" }
             );
             return;
@@ -2429,11 +2431,11 @@ export class DocEditor extends Component {
         // 確認 dialog
         const previewList = mainVarNames.slice(0, 10).map(v => `  • ${v}`).join("\n");
         const more = mainVarNames.length > 10 ? `\n  ... 還有 ${mainVarNames.length - 10} 個` : "";
-        const tableNote = mainVarNames.length < scannedAll.length
-            ? `\n\n注意：另有約 ${scannedAll.length - mainVarNames.length} 個變數位於 table / list / title 內，**不會**被替換（限制留待 Sprint X+）。`
+        const skipNote = mainVarNames.length < scannedAll.length
+            ? `\n\n注意：另有約 ${scannedAll.length - mainVarNames.length} 個變數位於 list / title 內，**不會**被替換（main + table 皆會處理）。`
             : "";
         const ok = window.confirm(
-            `【Sprint W — HTML-imported 替換】將 ${mainVarNames.length} 個變數的所有出現處替換為可編輯 control：\n\n${previewList}${more}${tableNote}\n\n⚠️ 此操作會修改文件內容（如需復原請用右上角「復原」按鈕）。\n\n確定要繼續嗎？`
+            `【Sprint W/X — HTML-imported 替換】將 ${mainVarNames.length} 個變數的所有出現處替換為可編輯 control（main + table cell 皆支援）：\n\n${previewList}${more}${skipNote}\n\n⚠️ 此操作會修改文件內容（如需復原請用右上角「復原」按鈕）。\n\n確定要繼續嗎？`
         );
         if (!ok) return;
 
@@ -2515,12 +2517,12 @@ export class DocEditor extends Component {
             const marker = markerByVar.get(varName);
             const searchText = `{{ ${varName} }}`;
             for (let i = 0; i < REPLACE_SAFE_GUARD; i++) {
-                // 檢查還有沒有 `{{ varName }}` 文字（用 main 的 flat string 查）
+                // 檢查還有沒有 `{{ varName }}` 文字。必須用 flattenElementsToText 遞迴
+                // 含 table cells（Sprint X bug：原本只看 top-level main IElements 的 .value，
+                // 漏了 td.value 內的 marker → table-only vars safe-guard 直接 break、
+                // search/replace 沒跑、Stage 2b 找不到 marker → 0 control）
                 const curMain = cmd.getValue().data.main || [];
-                let flat = "";
-                for (const el of curMain) {
-                    if (el && typeof el.value === "string") flat += el.value;
-                }
+                const flat = flattenElementsToText(curMain);
                 if (flat.indexOf(searchText) < 0) break;
                 try {
                     cmd.executeSearch(searchText);
@@ -2591,6 +2593,73 @@ export class DocEditor extends Component {
             }
         }
 
+        // ── Sprint X Stage 2b：table cell 內 marker 直接 mutate td.value + setValue ──
+        // Stage 2a 走的 setRange+executeBackspace+executeInsertControl 路徑在 table cell
+        // 第二次 insert 後會丟 "Cannot read properties of undefined (reading 'controlId')"
+        // （probe-sprint-x-table 驗證、原因見 jinja2_scanner.js rewriteTdValueWithControls 註解）。
+        // 改用直接 IElement 陣列 mutate + executeSetValue：對 table cell 4/4 OK。
+        //
+        // 注意：setValue 會 reset 整份 data，所以這段必須在 Stage 2a（main setRange+insert
+        // 已完成、control 已在 data 內）之後做、用 getValue 取最新 data 為基礎、不能 reuse
+        // preReplaceSnapshot（那是掃描前狀態、會丟掉 main 已插入的 control）。
+        let tableReplaced = 0;
+        const tableReplaceFailed = [];
+        try {
+            const latestData = cmd.getValue().data;
+            // 反向 markerByVar → markerToField，給 rewriteTdValueWithControls 用
+            const markerToField = new Map();
+            for (const [varName, marker] of markerByVar.entries()) {
+                const fieldId = fieldIdByVarName.get(varName);
+                if (fieldId) markerToField.set(marker, { fieldId, varName });
+            }
+            const buildControlElement = (varName, fieldId) => ({
+                type: "control",
+                value: null,
+                control: {
+                    type: "text",
+                    value: null,
+                    placeholder: `{{ ${varName} }}`,
+                    conceptId: String(fieldId),
+                    deletable: true,
+                    disabled: false,
+                },
+            });
+            // 深拷主流（避免 OWL state Proxy + 也避免 setValue 動到原物件）
+            const mutatedMain = JSON.parse(JSON.stringify(latestData.main || []));
+            let anyTableChanged = false;
+            for (const el of mutatedMain) {
+                if (!el || el.type !== "table" || !Array.isArray(el.trList)) continue;
+                for (const tr of el.trList) {
+                    if (!tr || !Array.isArray(tr.tdList)) continue;
+                    for (const td of tr.tdList) {
+                        if (!td || !Array.isArray(td.value)) continue;
+                        const { newValue, replaced: nRepl } = rewriteTdValueWithControls(
+                            td.value, markerToField, buildControlElement,
+                        );
+                        if (nRepl > 0) {
+                            td.value = newValue;
+                            tableReplaced += nRepl;
+                            anyTableChanged = true;
+                        }
+                    }
+                }
+            }
+            if (anyTableChanged) {
+                // 同樣深拷整個 data：避免 OWL Proxy + structuredClone DataCloneError（Sprint W 教訓）
+                const plainData = {
+                    ...latestData,
+                    main: mutatedMain,
+                };
+                // header / footer / graffiti 若是 Proxy，executeSetValue 內部 structuredClone 也會炸
+                const safePlain = JSON.parse(JSON.stringify(plainData));
+                cmd.executeSetValue(safePlain);
+            }
+        } catch (e) {
+            console.error("[DocEditor.Sprint X] table cell rewrite failed", e);
+            tableReplaceFailed.push({ reason: e.message || String(e) });
+        }
+        replaced += tableReplaced;
+
         // Sprint N snapshot
         if (preReplaceSnapshot && (replaced > 0 || toCreate.length > 0)) {
             const createdIds = [];
@@ -2608,15 +2677,16 @@ export class DocEditor extends Component {
 
         // 結果通知
         const parts = [];
-        if (replaced > 0) parts.push(`已替換 ${replaced} 處 \`{{ var }}\` 為 control`);
+        if (replaced > 0) parts.push(`已替換 ${replaced} 處 \`{{ var }}\` 為 control（含 table ${tableReplaced} 處）`);
         if (toCreate.length > 0) parts.push(`新建 ${toCreate.length - createFailed.length}/${toCreate.length} 個 record`);
         if (createFailed.length > 0) parts.push(`record 失敗：${createFailed.map(f => f.varName).join(", ")}`);
-        if (replaceFailed.length > 0) parts.push(`替換失敗 ${replaceFailed.length} 處`);
+        if (replaceFailed.length > 0) parts.push(`main 替換失敗 ${replaceFailed.length} 處`);
+        if (tableReplaceFailed.length > 0) parts.push(`table 替換失敗`);
         const summary = parts.join("；") || "未做任何變動";
-        const ntype = (createFailed.length || replaceFailed.length) > 0 ? "warning" : "success";
+        const ntype = (createFailed.length || replaceFailed.length || tableReplaceFailed.length) > 0 ? "warning" : "success";
         const hint = (this.state.lastScanReplaceSnapshot && (replaced > 0 || toCreate.length > 0))
             ? "（如需復原請點右上角『復原』按鈕）" : "";
-        this.notification.add(`【Sprint W 掃描並替換】${summary}${hint ? "。" + hint : "。"}`, { type: ntype });
+        this.notification.add(`【Sprint W/X 掃描並替換】${summary}${hint ? "。" + hint : "。"}`, { type: ntype });
     }
 
     /**

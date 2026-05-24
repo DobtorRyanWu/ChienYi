@@ -460,3 +460,74 @@ export function scanJinja2VariablesWithPositions(mainElements) {
     }
     return matches;
 }
+
+/**
+ * Sprint X：對 table cell 內的 td.value 陣列做「marker text element → control element」的純函式
+ * 替換、回傳新 td.value。不修改 input（純函式）。
+ *
+ * 為什麼不用 setRange + executeBackspace + executeInsertControl 路徑（Sprint W main 用的）：
+ *   Sprint X probe 證明 executeInsertControl 在 table cell 內第二次以後會丟
+ *   "Cannot read properties of undefined (reading 'controlId')"
+ *   原因：canvas-editor 內部對 control insertion 的 range tracking 在表格內第一次 insert
+ *   完成後落入 stuck state、後續 setRange 無法 reset。
+ *   改走直接 IElement 陣列 mutate + executeSetValue 路徑（probe-sprint-x-table 驗證 4/4 OK）。
+ *   setValue 對 control element（type:'control'）不會 auto-merge（Sprint T 的 auto-merge 限於
+ *   連續同樣式 text），所以這條路徑安全。
+ *
+ * @param {Array} tdValue - canvas-editor td.value 陣列（IElement[]）
+ * @param {Map<string, {fieldId: string|number, varName: string}>} markerToField
+ *   marker 字串 → {fieldId, varName} 的對應；用 fieldId 當 conceptId 寫入 control
+ * @param {function(string, string|number): object} buildControlElement
+ *   給 varName + fieldId 回傳 control IElement（讓呼叫方控制 placeholder/style/etc）
+ * @returns {{newValue: Array, replaced: number}} 新陣列 + 替換次數
+ */
+export function rewriteTdValueWithControls(tdValue, markerToField, buildControlElement) {
+    if (!Array.isArray(tdValue)) return { newValue: [], replaced: 0 };
+    if (!(markerToField instanceof Map) || markerToField.size === 0) {
+        return { newValue: tdValue.slice(), replaced: 0 };
+    }
+    let replaced = 0;
+    const result = [];
+    for (const el of tdValue) {
+        if (!el || typeof el.value !== "string" || el.value.length === 0) {
+            result.push(el);
+            continue;
+        }
+        // 在 el.value 內搜所有 marker；按出現順序處理
+        // 找出第一個 hit 位置最小的 marker，然後切；剩下 part 進入下一輪
+        let remaining = el.value;
+        let madeAnyCut = false;
+        while (remaining.length > 0) {
+            let bestIdx = -1;
+            let bestMarker = null;
+            for (const marker of markerToField.keys()) {
+                const i = remaining.indexOf(marker);
+                if (i < 0) continue;
+                if (bestIdx === -1 || i < bestIdx) {
+                    bestIdx = i;
+                    bestMarker = marker;
+                }
+            }
+            if (bestIdx === -1) {
+                // 沒 marker 了；剩下整段保留為 text element（沿用原 el 屬性）
+                if (madeAnyCut) {
+                    result.push({ ...el, value: remaining });
+                } else {
+                    result.push(el);
+                }
+                break;
+            }
+            // 前段 text
+            if (bestIdx > 0) {
+                result.push({ ...el, value: remaining.slice(0, bestIdx) });
+            }
+            // control element
+            const info = markerToField.get(bestMarker);
+            result.push(buildControlElement(info.varName, info.fieldId));
+            replaced++;
+            remaining = remaining.slice(bestIdx + bestMarker.length);
+            madeAnyCut = true;
+        }
+    }
+    return { newValue: result, replaced };
+}
