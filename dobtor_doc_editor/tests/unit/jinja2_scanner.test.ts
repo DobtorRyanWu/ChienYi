@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 // 從 OWL 元件資料夾匯入 .js scanner（vitest bundler resolver 支援 .js）
 // @ts-expect-error -- 沒附型別宣告，純函式 OK
-import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables } from "../../static/src/components/doc_editor/jinja2_scanner.js";
+import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables, analyzeScanResults, computeOrphanRecordIds } from "../../static/src/components/doc_editor/jinja2_scanner.js";
 
 /** 把字串展開為 canvas-editor 的單字元 IElement[]（測試 fixture helper） */
 function textToElements(text: string) {
@@ -424,6 +424,169 @@ describe("scanJinja2VariablesInTables (Sprint J)", () => {
         expect(scanJinja2VariablesInTables(null as any)).toEqual([]);
         expect(scanJinja2VariablesInTables(undefined as any)).toEqual([]);
         expect(scanJinja2VariablesInTables({} as any)).toEqual([]);
+    });
+});
+
+describe("analyzeScanResults (Sprint Q)", () => {
+    it("合併 main + table positions、去重 + 排序 uniqueVars", () => {
+        const result = analyzeScanResults({
+            scannedAll: [
+                { varName: "b", occurrences: 1 },
+                { varName: "a", occurrences: 1 },
+                { varName: "c", occurrences: 1 },
+            ],
+            mainPositions: [
+                { varName: "b", startIdx: 0, endIdx: 6 },
+                { varName: "a", startIdx: 10, endIdx: 16 },
+            ],
+            tablePositions: [
+                { varName: "c", startIdx: 0, endIdx: 6, tableId: "t1" },
+            ],
+            existingOdooFieldNames: [],
+        });
+        expect(result.positions).toHaveLength(3);
+        expect(result.uniqueVars).toEqual(["a", "b", "c"]);
+        expect(result.toCreate).toEqual(["a", "b", "c"]);
+        expect(result.cacheHitCount).toBe(0);
+        expect(result.skippedCount).toBe(0);
+    });
+
+    it("toCreate 過濾掉 existingOdooFieldNames", () => {
+        const result = analyzeScanResults({
+            scannedAll: [
+                { varName: "name", occurrences: 1 },
+                { varName: "email", occurrences: 1 },
+            ],
+            mainPositions: [
+                { varName: "name", startIdx: 0, endIdx: 6 },
+                { varName: "email", startIdx: 10, endIdx: 16 },
+            ],
+            tablePositions: [],
+            existingOdooFieldNames: ["name"],
+        });
+        expect(result.uniqueVars).toEqual(["email", "name"]);
+        expect(result.toCreate).toEqual(["email"]);
+        expect(result.cacheHitCount).toBe(1);
+    });
+
+    it("skippedCount = scannedAll 數 − uniqueVars 數 (粗略 list/title proxy)", () => {
+        const result = analyzeScanResults({
+            scannedAll: [
+                { varName: "a", occurrences: 1 },
+                { varName: "b", occurrences: 1 },
+                { varName: "c", occurrences: 1 },
+                { varName: "d", occurrences: 1 },
+            ],
+            mainPositions: [
+                { varName: "a", startIdx: 0, endIdx: 6 },
+                { varName: "b", startIdx: 10, endIdx: 16 },
+            ],
+            tablePositions: [],
+            existingOdooFieldNames: [],
+        });
+        // 4 scanned − 2 replaceable = 2 skipped (c 與 d 可能在 list/title/header)
+        expect(result.skippedCount).toBe(2);
+    });
+
+    it("uniqueVars 計算只看 positions 不看 scannedAll", () => {
+        // scannedAll 含 5 個 var、但 positions 只有 2 個
+        const result = analyzeScanResults({
+            scannedAll: [
+                { varName: "a", occurrences: 1 },
+                { varName: "b", occurrences: 1 },
+                { varName: "c", occurrences: 1 },
+                { varName: "d", occurrences: 1 },
+                { varName: "e", occurrences: 1 },
+            ],
+            mainPositions: [{ varName: "a", startIdx: 0, endIdx: 6 }],
+            tablePositions: [{ varName: "b", startIdx: 0, endIdx: 6, tableId: "t" }],
+            existingOdooFieldNames: [],
+        });
+        expect(result.uniqueVars).toEqual(["a", "b"]);
+        expect(result.skippedCount).toBe(3);
+    });
+
+    it("同一變數在 main + table 重複出現只算一次（dedup）", () => {
+        const result = analyzeScanResults({
+            scannedAll: [{ varName: "x", occurrences: 3 }],
+            mainPositions: [
+                { varName: "x", startIdx: 0, endIdx: 6 },
+                { varName: "x", startIdx: 10, endIdx: 16 },
+            ],
+            tablePositions: [
+                { varName: "x", startIdx: 0, endIdx: 6, tableId: "t" },
+            ],
+            existingOdooFieldNames: [],
+        });
+        expect(result.positions).toHaveLength(3); // 不 dedup positions
+        expect(result.uniqueVars).toEqual(["x"]);  // 但 dedup uniqueVars
+        expect(result.toCreate).toEqual(["x"]);
+    });
+
+    it("空輸入 → 空結果", () => {
+        const result = analyzeScanResults({
+            scannedAll: [],
+            mainPositions: [],
+            tablePositions: [],
+            existingOdooFieldNames: [],
+        });
+        expect(result.positions).toEqual([]);
+        expect(result.uniqueVars).toEqual([]);
+        expect(result.toCreate).toEqual([]);
+        expect(result.cacheHitCount).toBe(0);
+        expect(result.skippedCount).toBe(0);
+    });
+
+    it("防禦：非陣列輸入退化為空陣列", () => {
+        const result = analyzeScanResults({
+            scannedAll: null as any,
+            mainPositions: undefined as any,
+            tablePositions: "not array" as any,
+            existingOdooFieldNames: { not: "array" } as any,
+        });
+        expect(result.positions).toEqual([]);
+        expect(result.uniqueVars).toEqual([]);
+    });
+});
+
+describe("computeOrphanRecordIds (Sprint Q)", () => {
+    it("回傳在 cache 但不在 controlIds 的 id", () => {
+        const cache = [{ id: 1 }, { id: 2 }, { id: 3 }];
+        const controlIds = new Set([1, 3]);
+        const orphans = computeOrphanRecordIds(cache, controlIds);
+        expect(orphans).toEqual(new Set([2]));
+    });
+
+    it("空 cache → 空 orphans", () => {
+        expect(computeOrphanRecordIds([], new Set([1, 2]))).toEqual(new Set());
+    });
+
+    it("空 controlIds → 全部 cache 都是孤兒", () => {
+        const cache = [{ id: 10 }, { id: 20 }];
+        expect(computeOrphanRecordIds(cache, new Set())).toEqual(new Set([10, 20]));
+    });
+
+    it("接受 Array 而非 Set 的 controlIds（自動轉換）", () => {
+        const cache = [{ id: 1 }, { id: 2 }, { id: 3 }];
+        const orphans = computeOrphanRecordIds(cache, [1]);
+        expect(orphans).toEqual(new Set([2, 3]));
+    });
+
+    it("cache 含無 id 欄位的元素 → 跳過", () => {
+        const cache: any[] = [{ id: 1 }, {}, { id: 3 }, null];
+        const orphans = computeOrphanRecordIds(cache, new Set([1]));
+        expect(orphans).toEqual(new Set([3]));
+    });
+
+    it("防禦：非陣列 cache 回空", () => {
+        expect(computeOrphanRecordIds(null as any, new Set([1]))).toEqual(new Set());
+        expect(computeOrphanRecordIds(undefined as any, new Set([1]))).toEqual(new Set());
+    });
+
+    it("防禦：非 Set/Array controlIds 回 cache 全部（無 id 在空集合中）", () => {
+        const cache = [{ id: 1 }, { id: 2 }];
+        const orphans = computeOrphanRecordIds(cache, null as any);
+        expect(orphans).toEqual(new Set([1, 2]));
     });
 });
 

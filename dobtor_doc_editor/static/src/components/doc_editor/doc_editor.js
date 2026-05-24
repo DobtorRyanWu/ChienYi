@@ -18,7 +18,13 @@ import { OfflineManager } from "../../core/offline_manager";
 import { installGlobalErrorReporting, mark, reportError } from "../../core/telemetry";
 import { DocVersionPanel } from "../doc_version_panel/doc_version_panel";
 import { DocFieldPickerDialog } from "../doc_field_picker/doc_field_picker";
-import { scanJinja2Variables, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables } from "./jinja2_scanner";
+import {
+    scanJinja2Variables,
+    scanJinja2VariablesWithPositions,
+    scanJinja2VariablesInTables,
+    analyzeScanResults,
+    computeOrphanRecordIds,
+} from "./jinja2_scanner";
 
 /**
  * Phase 8 Template UI Builder（ADR-022）— Phase 1 視覺風格靠攏。
@@ -2013,9 +2019,17 @@ export class DocEditor extends Component {
         const mainPositions = scanJinja2VariablesWithPositions(data.main || []);
         // Sprint J 用的位置清單（table 內 td.value 可替換的單字元元素）
         const tablePositions = scanJinja2VariablesInTables(data.main || []);
-        // 合併 main + table 為一份可替換清單。注意：呼叫 setRange 時需要根據
-        // 是否含 tableId 走不同簽名（reverse-order 處理時依此分派）
-        const positions = [...mainPositions, ...tablePositions];
+        // Sprint Q：用純函式 analyzeScanResults 算 positions / uniqueVars / toCreate
+        const existingNames = (this._templateFieldsCache || [])
+            .filter(f => f.field_type === "odoo_field" && f.odoo_field_name)
+            .map(f => f.odoo_field_name);
+        const analysis = analyzeScanResults({
+            scannedAll,
+            mainPositions,
+            tablePositions,
+            existingOdooFieldNames: existingNames,
+        });
+        const { positions, uniqueVars, toCreate } = analysis;
 
         if (scannedAll.length === 0) {
             this.notification.add(
@@ -2031,17 +2045,6 @@ export class DocEditor extends Component {
             );
             return;
         }
-
-        // 唯一 var 集合（從可替換的 positions 出發，避免建了 record 卻無對應替換）
-        const uniqueVars = Array.from(new Set(positions.map(p => p.varName))).sort();
-
-        // 過濾已建檔的（避免重複 save_field）
-        const existingNames = new Set(
-            (this._templateFieldsCache || [])
-                .filter(f => f.field_type === "odoo_field" && f.odoo_field_name)
-                .map(f => f.odoo_field_name)
-        );
-        const toCreate = uniqueVars.filter(v => !existingNames.has(v));
 
         // 確認 dialog（user 必須意識到「會替換文件內容」）
         const previewList = uniqueVars
@@ -2700,6 +2703,7 @@ export class DocEditor extends Component {
     get orphanRecordIds() {
         const cache = this._templateFieldsCache || [];
         if (cache.length === 0) return new Set();
+        // 從 canvas-editor 抽當前 control list 的 conceptId 集合（IO 部分）
         let controlIds;
         try {
             const list = this.editor?.command?.getControlList?.() || [];
@@ -2716,11 +2720,8 @@ export class DocEditor extends Component {
             // getControlList 在某些 canvas-editor 版本可能 throw → 退化：不標孤兒
             return new Set();
         }
-        const orphans = new Set();
-        for (const f of cache) {
-            if (!controlIds.has(f.id)) orphans.add(f.id);
-        }
-        return orphans;
+        // 純函式做 diff（Sprint Q 抽出至 jinja2_scanner.js，方便單測）
+        return computeOrphanRecordIds(cache, controlIds);
     }
 
     /**
