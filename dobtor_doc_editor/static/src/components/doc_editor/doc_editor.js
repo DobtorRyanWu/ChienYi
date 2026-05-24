@@ -18,7 +18,7 @@ import { OfflineManager } from "../../core/offline_manager";
 import { installGlobalErrorReporting, mark, reportError } from "../../core/telemetry";
 import { DocVersionPanel } from "../doc_version_panel/doc_version_panel";
 import { DocFieldPickerDialog } from "../doc_field_picker/doc_field_picker";
-import { scanJinja2Variables, scanJinja2VariablesWithPositions } from "./jinja2_scanner";
+import { scanJinja2Variables, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables } from "./jinja2_scanner";
 
 /**
  * Phase 8 Template UI Builder（ADR-022）— Phase 1 視覺風格靠攏。
@@ -1999,8 +1999,13 @@ export class DocEditor extends Component {
 
         // Sprint G 用的去重清單（含 header/footer/巢狀）— 給 user 看的總數
         const scannedAll = scanJinja2Variables(data);
-        // Sprint H 用的位置清單（**只**含 main 流可替換的單字元元素）
-        const positions = scanJinja2VariablesWithPositions(data.main || []);
+        // Sprint H 用的位置清單（main 流可替換的單字元元素）
+        const mainPositions = scanJinja2VariablesWithPositions(data.main || []);
+        // Sprint J 用的位置清單（table 內 td.value 可替換的單字元元素）
+        const tablePositions = scanJinja2VariablesInTables(data.main || []);
+        // 合併 main + table 為一份可替換清單。注意：呼叫 setRange 時需要根據
+        // 是否含 tableId 走不同簽名（reverse-order 處理時依此分派）
+        const positions = [...mainPositions, ...tablePositions];
 
         if (scannedAll.length === 0) {
             this.notification.add(
@@ -2011,7 +2016,7 @@ export class DocEditor extends Component {
         }
         if (positions.length === 0) {
             this.notification.add(
-                `找到 ${scannedAll.length} 個變數，但都位於 table/list/title 或多字元元素內，無法在 main 流替換。請改用「掃描變數」（只建 record）。`,
+                `找到 ${scannedAll.length} 個變數，但都位於 list/title 或多字元元素內，無法替換。請改用「掃描變數」（只建 record）。`,
                 { type: "warning" }
             );
             return;
@@ -2034,14 +2039,20 @@ export class DocEditor extends Component {
             .map(v => `  • ${v}`)
             .join("\n");
         const moreSuffix = uniqueVars.length > 10 ? `\n  ... 還有 ${uniqueVars.length - 10} 個` : "";
-        const tableNote = scannedAll.length > positions.length
-            ? `\n\n注意：另有 ${scannedAll.length - uniqueVars.length} 個變數位於 table/list/title，**不會**被替換（僅 main 流）。`
+        // 巢狀（list/title/multi-char）的變數總量 = scannedAll 含的 var 數 − 我們能替換的 uniqueVars 數
+        // 注意：scannedAll 計次但去重後與 uniqueVars 數不同；這裡只給粗略提示
+        const skippedCount = scannedAll.length - uniqueVars.length;
+        const skipReasonNote = skippedCount > 0
+            ? `\n\n注意：另有約 ${skippedCount} 個變數位於 list/title 或多字元元素，**不會**被替換（僅 main + table cells）。`
             : "";
-        const skipNote = toCreate.length < uniqueVars.length
+        const cacheNote = toCreate.length < uniqueVars.length
             ? `\n（${uniqueVars.length - toCreate.length} 個變數的 record 已存在、會被沿用）`
             : "";
+        const sourceNote = tablePositions.length > 0
+            ? `\n包含：main 流 ${mainPositions.length} 處、table 內 ${tablePositions.length} 處。`
+            : "";
         const ok = window.confirm(
-            `【實驗性功能】將為以下 ${uniqueVars.length} 個變數建立 record，並把 main 流內的 ${positions.length} 處 \`{{ var }}\` 文字替換為可編輯的 control：\n\n${previewList}${moreSuffix}${skipNote}${tableNote}\n\n⚠️ 替換為不可回復操作（無 transaction）。如需先建 record 不替換，請按取消後改用「掃描變數」按鈕。\n\n確定要繼續嗎？`
+            `【實驗性功能】將為以下 ${uniqueVars.length} 個變數建立 record，並替換 ${positions.length} 處 \`{{ var }}\` 文字為可編輯 control：${sourceNote}\n\n${previewList}${moreSuffix}${cacheNote}${skipReasonNote}\n\n⚠️ 替換為不可回復操作（無 transaction）。如需先建 record 不替換，請按取消後改用「掃描變數」按鈕。\n\n確定要繼續嗎？`
         );
         if (!ok) return;
 
@@ -2100,12 +2111,69 @@ export class DocEditor extends Component {
         }
 
         // === Phase 2: in-place 替換（reverse order）===
-        // 必須 reverse：每次替換會改變後面元素的 index，從尾巴開始才能保持前面位置有效。
-        // 同時跳過沒有對應 fieldId 的 match（建 record 失敗、無法插入）。
+        // 必須 reverse：每次替換改變後續 index、從尾巴開始才能保持前面位置有效。
+        // 分兩段處理：
+        //   2a. table 內位置（用 multi-arg setRange、按 (tableElementIdx, trIdx, tdIdx, startIdx) 全字典序倒排）
+        //   2b. main 流位置（用 2-arg setRange、按 startIdx 倒排）
+        // 為什麼分段：table 改動不影響 main element index、main 改動不影響 table 內部
+        //   index，但**互相**不安全（如果 main 替換先做、table 元素整個移位、tableElementIdx
+        //   失效）。先處理 table（內部）、後處理 main 是安全的單向。
         let replaced = 0;
         const replaceFailed = [];
-        const sorted = positions.slice().sort((a, b) => b.startIdx - a.startIdx);
-        for (const pos of sorted) {
+
+        const doReplace = (pos, fieldId) => {
+            this._insertControlForField(
+                fieldId,
+                {
+                    key: "odoo_field",
+                    label: `Odoo: ${pos.varName}`,
+                    ctrlType: "text",
+                    odooFieldName: pos.varName,
+                },
+                signer,
+            );
+        };
+
+        // Phase 2a: table 位置（reverse 全字典序：table 大→小、tr 大→小、td 大→小、startIdx 大→小）
+        const tableSorted = tablePositions.slice().sort((a, b) => {
+            if (b.tableElementIdx !== a.tableElementIdx) return b.tableElementIdx - a.tableElementIdx;
+            if (b.trIdx !== a.trIdx) return b.trIdx - a.trIdx;
+            if (b.tdIdx !== a.tdIdx) return b.tdIdx - a.tdIdx;
+            return b.startIdx - a.startIdx;
+        });
+        for (const pos of tableSorted) {
+            const fieldId = fieldIdByVarName.get(pos.varName);
+            if (!fieldId) {
+                replaceFailed.push({ varName: pos.varName, reason: "no_field_id" });
+                continue;
+            }
+            if (!pos.tableId) {
+                // canvas-editor 沒給 table id → setRange 多參數簽名無法用
+                replaceFailed.push({ varName: pos.varName, reason: "no_table_id" });
+                continue;
+            }
+            try {
+                this.editor.command.setRange(
+                    pos.startIdx,
+                    pos.endIdx + 1,
+                    pos.tableId,
+                    pos.tdIdx,
+                    pos.tdIdx,
+                    pos.trIdx,
+                    pos.trIdx,
+                );
+                this.editor.command.backspace();
+                doReplace(pos, fieldId);
+                replaced++;
+            } catch (e) {
+                console.error("[DocEditor] onScanAndReplaceClick table replace failed", pos, e);
+                replaceFailed.push({ varName: pos.varName, reason: e.message || String(e) });
+            }
+        }
+
+        // Phase 2b: main 位置（reverse startIdx）
+        const mainSorted = mainPositions.slice().sort((a, b) => b.startIdx - a.startIdx);
+        for (const pos of mainSorted) {
             const fieldId = fieldIdByVarName.get(pos.varName);
             if (!fieldId) {
                 replaceFailed.push({ varName: pos.varName, reason: "no_field_id" });
@@ -2114,19 +2182,10 @@ export class DocEditor extends Component {
             try {
                 this.editor.command.setRange(pos.startIdx, pos.endIdx + 1);
                 this.editor.command.backspace();
-                this._insertControlForField(
-                    fieldId,
-                    {
-                        key: "odoo_field",
-                        label: `Odoo: ${pos.varName}`,
-                        ctrlType: "text",
-                        odooFieldName: pos.varName,
-                    },
-                    signer,
-                );
+                doReplace(pos, fieldId);
                 replaced++;
             } catch (e) {
-                console.error("[DocEditor] onScanAndReplaceClick replace failed", pos, e);
+                console.error("[DocEditor] onScanAndReplaceClick main replace failed", pos, e);
                 replaceFailed.push({ varName: pos.varName, reason: e.message || String(e) });
             }
         }

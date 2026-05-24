@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 // 從 OWL 元件資料夾匯入 .js scanner（vitest bundler resolver 支援 .js）
 // @ts-expect-error -- 沒附型別宣告，純函式 OK
-import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions } from "../../static/src/components/doc_editor/jinja2_scanner.js";
+import { scanJinja2Variables, flattenElementsToText, scanJinja2VariablesWithPositions, scanJinja2VariablesInTables } from "../../static/src/components/doc_editor/jinja2_scanner.js";
 
 /** 把字串展開為 canvas-editor 的單字元 IElement[]（測試 fixture helper） */
 function textToElements(text: string) {
@@ -298,6 +298,132 @@ describe("scanJinja2VariablesWithPositions (Sprint H)", () => {
         const reconstructed = main.slice(startIdx, endIdx + 1)
             .map((el: any) => el.value).join("");
         expect(reconstructed).toBe(fullMatch);
+    });
+});
+
+describe("scanJinja2VariablesInTables (Sprint J)", () => {
+    it("找到 table cell 內的變數，含 table/tr/td 座標", () => {
+        const main = [
+            ...textToElements("前文 "),
+            {
+                type: "table",
+                id: "tbl_1",
+                trList: [
+                    {
+                        tdList: [
+                            { value: textToElements("姓名：{{ name }}") },
+                            { value: textToElements("公司：{{ company }}") },
+                        ],
+                    },
+                ],
+            },
+        ];
+        const result = scanJinja2VariablesInTables(main);
+        expect(result).toHaveLength(2);
+        expect(result[0]).toMatchObject({
+            varName: "name",
+            tableElementIdx: 3,  // "前文 " 佔 3 個 element
+            trIdx: 0,
+            tdIdx: 0,
+            tableId: "tbl_1",
+        });
+        expect(result[1]).toMatchObject({
+            varName: "company",
+            tableElementIdx: 3,
+            trIdx: 0,
+            tdIdx: 1,
+            tableId: "tbl_1",
+        });
+    });
+
+    it("多列多欄 table，座標正確", () => {
+        const main = [
+            {
+                type: "table",
+                id: "tbl_x",
+                trList: [
+                    {
+                        tdList: [
+                            { value: textToElements("{{ a }}") },
+                            { value: textToElements("{{ b }}") },
+                        ],
+                    },
+                    {
+                        tdList: [
+                            { value: textToElements("{{ c }}") },
+                        ],
+                    },
+                ],
+            },
+        ];
+        const result = scanJinja2VariablesInTables(main);
+        expect(result).toHaveLength(3);
+        expect(result.map((r: any) => [r.trIdx, r.tdIdx, r.varName])).toEqual([
+            [0, 0, "a"],
+            [0, 1, "b"],
+            [1, 0, "c"],
+        ]);
+    });
+
+    it("table 無 id 時仍回傳（tableId=null，呼叫者要 fallback）", () => {
+        const main = [
+            {
+                type: "table",
+                trList: [{ tdList: [{ value: textToElements("{{ x }}") }] }],
+            },
+        ];
+        const result = scanJinja2VariablesInTables(main);
+        expect(result).toHaveLength(1);
+        expect(result[0].tableId).toBeNull();
+    });
+
+    it("td.value 內含 control 的 match 作廢（複用 main flow 的 sentinel 邏輯）", () => {
+        const main = [
+            {
+                type: "table",
+                id: "t1",
+                trList: [{
+                    tdList: [{
+                        value: [
+                            ...textToElements("{{ "),
+                            { type: "control", value: "X" },
+                            ...textToElements("a }}"),
+                        ],
+                    }],
+                }],
+            },
+        ];
+        expect(scanJinja2VariablesInTables(main)).toEqual([]);
+    });
+
+    it("非 table 元素跳過、不影響其他 table 處理", () => {
+        const main = [
+            ...textToElements("nope"),
+            { type: "image", value: "" },
+            {
+                type: "table",
+                id: "tt",
+                trList: [{ tdList: [{ value: textToElements("{{ ok }}") }] }],
+            },
+        ];
+        const result = scanJinja2VariablesInTables(main);
+        expect(result).toHaveLength(1);
+        expect(result[0].varName).toBe("ok");
+    });
+
+    it("空 / 缺失 trList / tdList 防禦", () => {
+        expect(scanJinja2VariablesInTables([])).toEqual([]);
+        expect(scanJinja2VariablesInTables([{ type: "table" }])).toEqual([]);
+        expect(scanJinja2VariablesInTables([{ type: "table", trList: [] }])).toEqual([]);
+        expect(scanJinja2VariablesInTables([{ type: "table", trList: [{}] }])).toEqual([]);
+        expect(scanJinja2VariablesInTables([{ type: "table", trList: [{ tdList: [] }] }])).toEqual([]);
+        expect(scanJinja2VariablesInTables([{ type: "table", trList: [{ tdList: [{}] }] }])).toEqual([]);
+    });
+
+    it("防禦：非陣列回空", () => {
+        expect(scanJinja2VariablesInTables(null as any)).toEqual([]);
+        expect(scanJinja2VariablesInTables(undefined as any)).toEqual([]);
+        expect(scanJinja2VariablesInTables({} as any)).toEqual([]);
     });
 });
 
