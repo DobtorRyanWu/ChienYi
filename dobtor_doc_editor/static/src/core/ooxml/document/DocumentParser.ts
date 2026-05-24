@@ -218,11 +218,16 @@ export class DocumentParser {
     for (const child of effectiveChildren(body)) {
       switch (child.tagName) {
         case 'w:p': {
-          // 段落本身屬於當前 section；先加入
-          currentBlocks.push(this.paragraphParser.parse(child));
-          // 段內 sectPr 表示當前 section 在此段落結束
+          // Sprint 200：識別 writer Sprint 191 emit 的 anchor paragraph
+          // （無 run + pPr 只含 sectPr）→ skip 不加入 blocks、保 round-trip 對稱
           const pPr = directChild(child, 'w:pPr');
           const innerSectPr = directChild(pPr, 'w:sectPr');
+          const isAnchor = innerSectPr !== undefined && isWriterAnchorParagraph(child, pPr);
+          if (!isAnchor) {
+            // 一般段落（含原始 docx 含 sectPr 的「最後段帶內容」case）：先加入
+            currentBlocks.push(this.paragraphParser.parse(child));
+          }
+          // 段內 sectPr 表示當前 section 在此段落結束
           if (innerSectPr) {
             sections.push({ sectPrEl: innerSectPr, blocks: currentBlocks });
             currentBlocks = [];
@@ -311,6 +316,46 @@ function makeSectionPlaceholder(
 }
 
 // ── 共用工具 ──────────────────────────────────────────────────────────────────
+
+/**
+ * Sprint 200：辨識 writer Sprint 191 emit 的「anchor paragraph」簽名。
+ *
+ * Sprint 191 的多 section 寫法：對非最後 section、emit
+ *   `<w:p><w:pPr><w:sectPr>...</w:sectPr></w:pPr></w:p>`
+ * 把該 section 的 sectPr 嵌在一個空的 anchor paragraph 中（OOXML 規範允許）。
+ *
+ * 但這個 anchor paragraph 在 round-trip 時若被當成實際段落收入，section.body
+ * 段落數會 +1（每個非最後 section）、破壞 round-trip 結構對稱性
+ * （Sprint 199 audit 揭出：section 結構保留率 46%）。
+ *
+ * 嚴格簽名（不誤判 LibreOffice / Word 自然 emit 的「最後段帶 sectPr」case）：
+ *   - paragraph 元素沒有任何 run-like 子節點
+ *     （w:r / w:ins / w:del / w:hyperlink / w:fldSimple / w:smartTag）
+ *   - w:pPr 存在
+ *   - w:pPr 直接子元素只有一個、且為 w:sectPr
+ *
+ * 真實 docx 若用空段落結尾 section、通常 pPr 還會有 w:rPr 帶字型大小等屬性、
+ * 不會走入此分支。
+ */
+function isWriterAnchorParagraph(pEl: Element, pPr: Element | undefined): boolean {
+  if (!pPr) return false;
+  // paragraph 不可有任何 run-like 子節點
+  for (const c of directChildren(pEl)) {
+    switch (c.tagName) {
+      case 'w:r':
+      case 'w:ins':
+      case 'w:del':
+      case 'w:hyperlink':
+      case 'w:fldSimple':
+      case 'w:smartTag':
+        return false;
+    }
+  }
+  // pPr 子元素必須剛好一個、且為 sectPr
+  const pPrKids = directChildren(pPr);
+  if (pPrKids.length !== 1) return false;
+  return pPrKids[0].tagName === 'w:sectPr';
+}
 
 function directChildren(el: Element): Element[] {
   const out: Element[] = [];

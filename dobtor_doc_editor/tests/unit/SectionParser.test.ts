@@ -157,6 +157,52 @@ describe('DocumentParser.walkBodyAsSections — 多節切分', () => {
     expect(sections[0].blocks).toHaveLength(1);
   });
 
+  // Sprint 200：writer Sprint 191 emit 的 anchor paragraph 應被 skip
+  it('Sprint 200：writer anchor paragraph (無 run + pPr 只含 sectPr) 不計入 blocks', () => {
+    const xml = wrap(
+      '<w:p><w:r><w:t>A</w:t></w:r></w:p>' +
+        // Anchor paragraph：空段含 sectPr——Sprint 191 writer emit 格式
+        '<w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:pPr></w:p>' +
+        '<w:p><w:r><w:t>B</w:t></w:r></w:p>' +
+        '<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/></w:sectPr>',
+    );
+    const sections = docParser.walkBodyAsSections(xml);
+    expect(sections).toHaveLength(2);
+    // 第一節：只 A、anchor 段被 skip（不像 Sprint 191 前會看到 [A, anchor]）
+    expect(sections[0].blocks).toHaveLength(1);
+    expect(sections[0].sectPrEl).toBeDefined();
+    // 第二節：B
+    expect(sections[1].blocks).toHaveLength(1);
+  });
+
+  // Sprint 200：真實 docx 的「最後段帶 run + sectPr」必須保留為實段（非 anchor）
+  it('Sprint 200：含 run 的最後段帶 sectPr 不視為 anchor、計入 blocks', () => {
+    const xml = wrap(
+      // 真實 Word case：最後段有 run + 段內 sectPr
+      '<w:p><w:pPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:pPr><w:r><w:t>Last</w:t></w:r></w:p>' +
+        '<w:p><w:r><w:t>Next</w:t></w:r></w:p>' +
+        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>',
+    );
+    const sections = docParser.walkBodyAsSections(xml);
+    expect(sections).toHaveLength(2);
+    // 第一節：保留含 run 的段
+    expect(sections[0].blocks).toHaveLength(1);
+    expect(sections[1].blocks).toHaveLength(1);
+  });
+
+  // Sprint 200：空段但 pPr 含 rPr 等非 sectPr 屬性 → 不視為 anchor（保留視覺意圖）
+  it('Sprint 200：pPr 含 rPr 等其他屬性的空段不視為 anchor', () => {
+    const xml = wrap(
+      '<w:p><w:r><w:t>A</w:t></w:r></w:p>' +
+        // pPr 含 rPr + sectPr（非單一 sectPr 子）→ 保留
+        '<w:p><w:pPr><w:rPr><w:sz w:val="24"/></w:rPr><w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:pPr></w:p>' +
+        '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr>',
+    );
+    const sections = docParser.walkBodyAsSections(xml);
+    expect(sections).toHaveLength(2);
+    expect(sections[0].blocks).toHaveLength(2); // A + 含 rPr 的空段
+  });
+
   // Sprint 29：docGrid 解析
   it('w:docGrid type=lines linePitch=364 → 解析 lines + 18.2pt', () => {
     const el = parseSectPrFragment('<w:docGrid w:type="lines" w:linePitch="364"/>');
