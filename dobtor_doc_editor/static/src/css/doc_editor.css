@@ -928,6 +928,28 @@
     font-weight: 600;
     color: #495057;
     padding: 2px 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Sprint M：清理孤兒按鈕（只在 orphan > 0 時顯示，警示橙、靠右） */
+.doc-inspector-cleanup-orphans-btn {
+    margin-left: auto;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    color: #b45309;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 2px 8px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.doc-inspector-cleanup-orphans-btn:hover {
+    background: #f59e0b;
+    color: #fff;
 }
 
 .doc-inspector-fields-list-items {
@@ -980,6 +1002,31 @@
 .doc-inspector-fields-list-item.is-selected .doc-inspector-fields-list-item-id {
     color: #714B67;
     background: rgba(255, 255, 255, 0.95);
+}
+
+/* Sprint M：孤兒 row — 警示橙底、文字稍灰、icon 提示 */
+.doc-inspector-fields-list-item.is-orphan {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.doc-inspector-fields-list-item.is-orphan:hover {
+    background: #fde68a;
+}
+
+.doc-inspector-fields-list-item.is-orphan.is-selected {
+    background: #b45309;
+    color: #fff;
+}
+
+.doc-inspector-fields-list-item-orphan-icon {
+    color: #f59e0b;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+}
+
+.doc-inspector-fields-list-item.is-orphan.is-selected .doc-inspector-fields-list-item-orphan-icon {
+    color: #fde68a;
 }
 
 .doc-inspector-field-id {

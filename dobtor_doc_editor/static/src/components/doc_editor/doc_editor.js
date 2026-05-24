@@ -2461,6 +2461,118 @@ export class DocEditor extends Component {
     }
 
     /**
+     * Sprint M：在 _templateFieldsCache 中、但沒有對應 control 在文件內的
+     * field id 集合（孤兒 record）。
+     *
+     * 形成原因：
+     *   1. user 用 Sprint G「掃描變數」只建 record、文件仍是純 `{{ var }}` 文字
+     *   2. user 手動刪掉某個 control 但 Phase 8 Del 同步因故沒同步（極罕見 race）
+     *   3. record 透過 inspector「刪除」清掉、但對應 control 還在（反向 race）
+     *
+     * 效能：每次 render 都會走 getControlList() + Set.has() × cache.length。
+     *      10-50 個 control 的常態下 < 1ms；> 500 時可改用 state.controlListRev
+     *      memoize（目前 KISS）。
+     */
+    get orphanRecordIds() {
+        const cache = this._templateFieldsCache || [];
+        if (cache.length === 0) return new Set();
+        let controlIds;
+        try {
+            const list = this.editor?.command?.getControlList?.() || [];
+            controlIds = new Set();
+            for (const item of list) {
+                const cid = item?.control?.conceptId
+                         || item?.conceptId
+                         || item?.element?.control?.conceptId;
+                if (!cid) continue;
+                const n = parseInt(cid, 10);
+                if (Number.isFinite(n)) controlIds.add(n);
+            }
+        } catch (e) {
+            // getControlList 在某些 canvas-editor 版本可能 throw → 退化：不標孤兒
+            return new Set();
+        }
+        const orphans = new Set();
+        for (const f of cache) {
+            if (!controlIds.has(f.id)) orphans.add(f.id);
+        }
+        return orphans;
+    }
+
+    /**
+     * Sprint M：批次刪除所有孤兒 record。
+     *   - 列出將被刪的 id + 變數名（top 5）讓 user 確認
+     *   - Promise.all 並行 delete_field
+     *   - 從 cache / _lastControlIds / selectedFieldId 移除
+     *   - 用最後一次 success response 更新 signer count + field count
+     */
+    async onCleanupOrphansClick() {
+        if (!this.state.docId || !this._hasTemplate) {
+            this.notification.add("此文件未關聯範本", { type: "warning" });
+            return;
+        }
+        const orphans = this.orphanRecordIds;
+        if (orphans.size === 0) {
+            this.notification.add("沒有孤兒 record 需要清理。", { type: "info" });
+            return;
+        }
+        const cache = this._templateFieldsCache || [];
+        const orphanFields = cache.filter(f => orphans.has(f.id));
+        const preview = orphanFields
+            .slice(0, 5)
+            .map(f => `  • ${f.odoo_field_name || f.placeholder_text || f.field_type} (#${f.id})`)
+            .join("\n");
+        const moreSuffix = orphanFields.length > 5 ? `\n  ... 還有 ${orphanFields.length - 5} 個` : "";
+        const ok = window.confirm(
+            `將刪除 ${orphans.size} 個沒有文件內 control 對應的孤兒 record：\n\n${preview}${moreSuffix}\n\n確定要繼續嗎？`
+        );
+        if (!ok) return;
+
+        const ids = [...orphans];
+        let lastSuccess = null;
+        const failed = [];
+        const results = await Promise.all(ids.map(async (id) => {
+            try {
+                const r = await rpc("/dobtor_doc/template_fields/delete_field", {
+                    doc_id: this.state.docId,
+                    field_id: id,
+                });
+                if (r && r.success) {
+                    lastSuccess = r;
+                    return { id, ok: true };
+                }
+                failed.push({ id, error: r?.error || "未知錯誤" });
+                return { id, ok: false };
+            } catch (e) {
+                failed.push({ id, error: e?.message || String(e) });
+                return { id, ok: false };
+            }
+        }));
+
+        const deleted = results.filter(r => r.ok).map(r => r.id);
+        if (deleted.length > 0) {
+            this._templateFieldsCache = (this._templateFieldsCache || [])
+                .filter(f => !deleted.includes(f.id));
+            for (const id of deleted) this._lastControlIds?.delete(id);
+            if (this.state.selectedFieldId && deleted.includes(this.state.selectedFieldId)) {
+                this.state.selectedFieldId = null;
+            }
+            if (lastSuccess) {
+                this._applySignerCounts(lastSuccess.signer_field_counts);
+                this.state.fieldCount = lastSuccess.field_count;
+            }
+        }
+        if (failed.length === 0) {
+            this.notification.add(`已清理 ${deleted.length} 個孤兒 record。`, { type: "success" });
+        } else {
+            this.notification.add(
+                `清理 ${deleted.length}/${orphans.size} 個，${failed.length} 個失敗（${failed.map(f => `#${f.id}`).slice(0, 3).join(", ")}${failed.length > 3 ? "..." : ""}）`,
+                { type: "warning" }
+            );
+        }
+    }
+
+    /**
      * Sprint L：點 inspector 欄位列表的 row 時觸發。
      *   1. 設 selectedFieldId（讓下方屬性區顯示該 field 的編輯欄位）
      *   2. 呼叫 canvas-editor locationControl(conceptId) 把游標 / 視窗
