@@ -1436,10 +1436,17 @@ function writeOmmlChildren(nodes: OmmlNode[]): string {
  * - 無 text 也無 children → self-closing
  */
 function writeOmmlNode(node: OmmlNode): string {
-  const tag = `m:${node.tag}`;
+  // Sprint 199 修法：parser stripMathPrefix 只去 `m:` 前綴、其他 namespace 子元素
+  // （如 OMML 內嵌的 `<w:rPr>`、`<w:rFonts>`）原樣保留 `w:` 前綴。writer 若一律
+  // 前綴 `m:` 會產生 `m:w:rPr` invalid XML（nested colon）→ re-parse 全失敗。
+  // 規則：tag / 屬性 key 已含 `:` 表已帶 namespace、不再前綴。
+  const tag = node.tag.includes(':') ? node.tag : `m:${node.tag}`;
   const attrs = node.attrs
     ? Object.entries(node.attrs)
-        .map(([k, v]) => ` m:${escapeXml(k)}="${escapeXml(v)}"`)
+        .map(([k, v]) => {
+          const fullName = k.includes(':') ? k : `m:${k}`;
+          return ` ${escapeXml(fullName)}="${escapeXml(v)}"`;
+        })
         .join('')
     : '';
   if (node.text !== undefined) {
