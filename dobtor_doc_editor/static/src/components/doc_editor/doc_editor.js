@@ -2201,6 +2201,61 @@ export class DocEditor extends Component {
         this.notification.add(`【掃描並替換】${summary}。`, { type: ntype });
     }
 
+    /**
+     * Sprint K：預覽變數 — 用 canvas-editor 的 search() API 把所有 `{{ var }}`
+     * 在文件內加上高亮，**不做任何破壞性修改**。
+     *
+     * 用途：在按「掃描變數」/「掃描並替換」前先看一眼「哪些位置會被掃到」。
+     * 補位 Sprint H/J 的破壞性操作的可見性缺口。
+     *
+     * 行為：
+     *   - 已高亮 → 清除（toggle）
+     *   - 未高亮 → 用 regex `\{\{\s*\w+(?:\.\w+)*\s*\}\}` 搜尋並高亮
+     *   - 通知：「找到 N 個變數，已高亮。再按一次清除高亮。」
+     *
+     * 不需要 docId / template / signer——純文件內搜尋。
+     */
+    onPreviewVariablesClick() {
+        if (!this.editor) {
+            this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        // toggle：用實例旗標記住目前是高亮中還是清除中
+        if (this._previewVarsActive) {
+            try {
+                this.editor.command.search(null);  // 清除高亮
+            } catch (e) {
+                console.error("[DocEditor] onPreviewVariablesClick clear failed", e);
+            }
+            this._previewVarsActive = false;
+            this.notification.add("已清除變數高亮。", { type: "info" });
+            return;
+        }
+        try {
+            this.editor.command.search(
+                "\\{\\{\\s*[A-Za-z_][\\w]*(?:\\.[A-Za-z_][\\w]*)*\\s*\\}\\}",
+                { isRegEnable: true },
+            );
+            this._previewVarsActive = true;
+            // 也跑一次掃描算數量、給 user 知道找到幾個
+            try {
+                const data = this.editor.command.getValue().data;
+                const all = scanJinja2Variables(data);
+                const total = all.reduce((sum, v) => sum + v.occurrences, 0);
+                this.notification.add(
+                    `找到 ${all.length} 個變數（共 ${total} 處）已高亮。再按一次清除高亮。`,
+                    { type: "success" }
+                );
+            } catch (e) {
+                // search 已成功，計數失敗時只給簡單通知
+                this.notification.add("已高亮所有 `{{ var }}`。再按一次清除高亮。", { type: "success" });
+            }
+        } catch (e) {
+            console.error("[DocEditor] onPreviewVariablesClick search failed", e);
+            this.notification.add(`預覽失敗：${e.message || e}`, { type: "danger" });
+        }
+    }
+
     onSignerClick(signerId) {
         this.state.activeSignerId = signerId;
     }

@@ -593,6 +593,19 @@
     color: #fff;
 }
 
+/* Sprint K：預覽變數（中性灰，純讀、無破壞性） */
+.doc-field-btn-preview-vars {
+    background: #f1f5f9;
+    border-color: #64748b;
+    color: #475569;
+    font-weight: 500;
+}
+
+.doc-field-btn-preview-vars:hover {
+    background: #475569;
+    color: #fff;
+}
+
 /* ─── Row 5：Signer bar ─── */
 .doc-signer-bar {
     display: flex;

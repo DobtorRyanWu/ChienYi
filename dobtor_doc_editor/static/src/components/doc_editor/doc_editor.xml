@@ -226,10 +226,19 @@
                 <!-- Sprint H：掃描 + 建 record + 文字替換為 control（實驗性） -->
                 <button class="doc-field-btn doc-field-btn-scan-replace"
                         t-on-click="onScanAndReplaceClick"
-                        title="掃描文件內 {{ }} 變數、建立 record、並將 main 流內文字替換為可編輯 control（實驗性，不可回復）"
+                        title="掃描文件內 {{ }} 變數、建立 record、並將 main + table 內文字替換為可編輯 control（實驗性，不可回復）"
                         aria-label="掃描並替換">
                     <i class="fa fa-magic" aria-hidden="true"/>
                     掃描並替換
+                </button>
+
+                <!-- Sprint K：預覽變數（toggle 高亮，純讀、安全） -->
+                <button class="doc-field-btn doc-field-btn-preview-vars"
+                        t-on-click="onPreviewVariablesClick"
+                        title="在文件內高亮所有 {{ }} 變數（toggle、純讀、不修改文件）"
+                        aria-label="預覽變數">
+                    <i class="fa fa-search" aria-hidden="true"/>
+                    預覽變數
                 </button>
 
                 <!-- Sprint D：版面模式切換（inline / overlay） -->
