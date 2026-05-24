@@ -606,6 +606,19 @@
     color: #fff;
 }
 
+/* Sprint N：復原（只在 snapshot 存在時顯示，綠色強調可逆性） */
+.doc-field-btn-rollback {
+    background: #d1fae5;
+    border-color: #10b981;
+    color: #065f46;
+    font-weight: 500;
+}
+
+.doc-field-btn-rollback:hover {
+    background: #10b981;
+    color: #fff;
+}
+
 /* ─── Row 5：Signer bar ─── */
 .doc-signer-bar {
     display: flex;

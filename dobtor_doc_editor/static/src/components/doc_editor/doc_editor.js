@@ -137,6 +137,10 @@ export class DocEditor extends Component {
             // overlay field 變動計數器：push/drag-end/load 時 ++ 強制 OWL re-render
             // （drag 過程不更新此值，靠 DOM transform 避免高頻 render）
             overlayFieldsRev: 0,
+            // ─── Sprint N：最近一次「掃描並替換」的 snapshot（供 rollback）───
+            // null = 沒可復原的操作；object = {docData, createdFieldIds, replacedCount, timestamp}
+            // 覆蓋式單層 undo；rollback 成功 / 再次掃描並替換時被覆蓋
+            lastScanReplaceSnapshot: null,
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -2060,6 +2064,16 @@ export class DocEditor extends Component {
         const signer = await this._ensureSignerExists(this.state.activeSignerId);
         if (!signer) return;
 
+        // === Sprint N: 動工前捕捉文件快照（給「復原最近一次掃描並替換」用）===
+        // JSON 序列化深拷貝避免後續操作意外動到 snapshot
+        // 失敗（如循環引用）→ 不捕捉、不擋流程；rollback 按鈕只在 snapshot 存在時顯示
+        let preReplaceSnapshot = null;
+        try {
+            preReplaceSnapshot = JSON.parse(JSON.stringify(data));
+        } catch (e) {
+            console.warn("[DocEditor] scan-replace snapshot 捕捉失敗（rollback 不可用）", e);
+        }
+
         // === Phase 1: 建 record ===
         const fieldIdByVarName = new Map();
         // 先把已存在的塞進 map
@@ -2190,6 +2204,22 @@ export class DocEditor extends Component {
             }
         }
 
+        // === Sprint N: 存 snapshot + 本輪新建 field id 列表，供 rollback ===
+        // 只在「至少 replaced 或 toCreate 有變動」時才存（避免 user 反覆按沒變動的「掃描並替換」覆寫之前有效的 snapshot）
+        if (preReplaceSnapshot && (replaced > 0 || toCreate.length > 0)) {
+            const createdIds = [];
+            for (const varName of toCreate) {
+                const id = fieldIdByVarName.get(varName);
+                if (id) createdIds.push(id);
+            }
+            this.state.lastScanReplaceSnapshot = {
+                docData: preReplaceSnapshot,
+                createdFieldIds: createdIds,
+                replacedCount: replaced,
+                timestamp: Date.now(),
+            };
+        }
+
         // === 結果通知 ===
         const parts = [];
         if (replaced > 0) parts.push(`已替換 ${replaced} 處文字為可編輯 control`);
@@ -2198,7 +2228,99 @@ export class DocEditor extends Component {
         if (replaceFailed.length > 0) parts.push(`替換失敗 ${replaceFailed.length} 處（${replaceFailed.map(r => r.varName).slice(0, 3).join(", ")}${replaceFailed.length > 3 ? "..." : ""}）`);
         const summary = parts.join("；") || "未做任何變動";
         const ntype = (createFailed.length || replaceFailed.length) > 0 ? "warning" : "success";
-        this.notification.add(`【掃描並替換】${summary}。`, { type: ntype });
+        const rollbackHint = (this.state.lastScanReplaceSnapshot && (replaced > 0 || toCreate.length > 0))
+            ? "（如需復原請點右上角『復原』按鈕）"
+            : "";
+        this.notification.add(`【掃描並替換】${summary}${rollbackHint ? "。" + rollbackHint : "。"}`, { type: ntype });
+    }
+
+    /**
+     * Sprint N：復原最近一次掃描並替換。
+     *
+     * 兩步驟：
+     *   1. setValue(snapshot.docData) → 把文件還原到掃描前狀態（control 變回 {{ var }} 文字）
+     *   2. delete_field(每個 createdFieldIds) → 刪掉本次新建的 record
+     *      （Sprint H/J 已存在的 record 不動，避免吞掉 user 之前手動建的）
+     *
+     * 限制：只支援單層 undo（覆蓋式 snapshot）。snapshot 在以下情況清除：
+     *   - rollback 成功後（不可再次 rollback）
+     *   - user 再按一次「掃描並替換」（snapshot 被覆蓋）
+     *   - editor reload（state 重置）
+     *
+     * 不處理：snapshot 之後的 autosave / 其他 edit。canvas-editor undo stack
+     *   會被 setValue 清空（這是 canvas-editor 本身的行為、不在我們控制範圍）。
+     */
+    async onRollbackScanReplaceClick() {
+        const snap = this.state.lastScanReplaceSnapshot;
+        if (!snap) {
+            this.notification.add("沒有可復原的掃描並替換操作。", { type: "info" });
+            return;
+        }
+        const ageSec = Math.round((Date.now() - snap.timestamp) / 1000);
+        const ok = window.confirm(
+            `將復原最近一次「掃描並替換」：\n\n` +
+            `  • 還原文件內容到掃描前狀態（${snap.replacedCount} 處 control 變回 {{ var }} 文字）\n` +
+            `  • 刪除本次新建的 ${snap.createdFieldIds.length} 個 record\n\n` +
+            `（執行於 ${ageSec} 秒前；本操作會覆寫期間其他編輯）\n\n確定要復原嗎？`
+        );
+        if (!ok) return;
+
+        // Step 1: 還原文件
+        try {
+            this.editor.command.executeSetValue(snap.docData);
+        } catch (e) {
+            console.error("[DocEditor] onRollbackScanReplaceClick setValue failed", e);
+            this.notification.add(`還原文件失敗：${e.message || e}`, { type: "danger" });
+            return;
+        }
+
+        // Step 2: 刪除本次新建的 record
+        let deleted = 0;
+        const failed = [];
+        let lastSuccess = null;
+        for (const id of snap.createdFieldIds) {
+            try {
+                const r = await rpc("/dobtor_doc/template_fields/delete_field", {
+                    doc_id: this.state.docId,
+                    field_id: id,
+                });
+                if (r && r.success) {
+                    deleted++;
+                    lastSuccess = r;
+                } else {
+                    failed.push({ id, error: r?.error || "未知錯誤" });
+                }
+            } catch (e) {
+                failed.push({ id, error: e?.message || String(e) });
+            }
+        }
+        // 從 cache / _lastControlIds / selectedFieldId 同步移除
+        const deletedSet = new Set(snap.createdFieldIds.filter((_, i) => i < deleted));
+        this._templateFieldsCache = (this._templateFieldsCache || [])
+            .filter(f => !snap.createdFieldIds.includes(f.id));
+        for (const id of snap.createdFieldIds) this._lastControlIds?.delete(id);
+        if (this.state.selectedFieldId && snap.createdFieldIds.includes(this.state.selectedFieldId)) {
+            this.state.selectedFieldId = null;
+        }
+        if (lastSuccess) {
+            this._applySignerCounts(lastSuccess.signer_field_counts);
+            this.state.fieldCount = lastSuccess.field_count;
+        }
+
+        // 清 snapshot
+        this.state.lastScanReplaceSnapshot = null;
+
+        if (failed.length === 0) {
+            this.notification.add(
+                `已復原：文件還原 + ${deleted} 個 record 刪除。`,
+                { type: "success" }
+            );
+        } else {
+            this.notification.add(
+                `部分復原：文件已還原、${deleted}/${snap.createdFieldIds.length} 個 record 刪除成功、${failed.length} 個失敗。`,
+                { type: "warning" }
+            );
+        }
     }
 
     /**

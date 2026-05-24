@@ -241,6 +241,17 @@
                     預覽變數
                 </button>
 
+                <!-- Sprint N：復原最近一次掃描並替換（只在 snapshot 存在時顯示） -->
+                <t t-if="state.lastScanReplaceSnapshot">
+                    <button class="doc-field-btn doc-field-btn-rollback"
+                            t-on-click="onRollbackScanReplaceClick"
+                            title="復原最近一次「掃描並替換」（還原文件 + 刪除本次新建的 record）"
+                            aria-label="復原掃描並替換">
+                        <i class="fa fa-undo" aria-hidden="true"/>
+                        復原
+                    </button>
+                </t>
+
                 <!-- Sprint D：版面模式切換（inline / overlay） -->
                 <div class="doc-field-toolbar-sep" role="separator" aria-hidden="true"/>
                 <div class="doc-layout-mode-group" role="group" aria-label="版面模式">
