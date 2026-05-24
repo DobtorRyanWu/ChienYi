@@ -144,6 +144,9 @@ export class DocEditor extends Component {
             // ─── Sprint O：inspector 欄位列表 search filter（substring，case-insensitive）───
             // 空字串 = 不過濾；對 odoo_field_name / placeholder_text / field_type 做包含比對
             fieldListFilter: "",
+            // ─── Sprint P：inspector 列表的鍵盤焦點 index（在 filteredFieldsList 中）───
+            // -1 = 沒焦點；0..length-1 = 對應 row。filter/cache 變動時要 reset
+            focusedListIndex: -1,
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -2611,9 +2614,74 @@ export class DocEditor extends Component {
     /**
      * Sprint O：filter input 變更時觸發。直接寫 state，OWL 自動 re-render。
      * 不做 debounce —— 純記憶體 substring 比對在 < 500 fields 規模下 < 0.1ms。
+     *
+     * Sprint P：filter 變動時 reset focusedListIndex（避免指向不存在的 row）。
      */
     onFieldListFilterInput(value) {
         this.state.fieldListFilter = value || "";
+        this.state.focusedListIndex = -1;
+    }
+
+    /**
+     * Sprint P：inspector 列表的鍵盤導航。
+     *
+     * 綁在 ul.doc-inspector-fields-list-items 的 keydown listener 上：
+     *   - ↓ / ↑   ：focusedListIndex ± 1（clamp 到 [0, length-1]）；scrollIntoView
+     *   - Home    ：focusedListIndex = 0
+     *   - End     ：focusedListIndex = length - 1
+     *   - Enter   ：呼叫 onFieldListRowClick(filteredFieldsList[focused].id)
+     *   - Escape  ：focusedListIndex = -1，blur ul
+     *
+     * 設計：focusedListIndex 與 selectedFieldId 分離 —— 鍵盤導覽時可以「先標
+     * 在某 row 上不選」（focused），按 Enter 才真正 select + locateControl。
+     * 與 selectedFieldId 視覺對比：focused = 藍框 / selected = 紫底。
+     */
+    onFieldListKeyDown(ev) {
+        const list = this.filteredFieldsList;
+        if (!list || list.length === 0) return;
+        const cur = this.state.focusedListIndex;
+        let next = cur;
+        switch (ev.key) {
+            case "ArrowDown":
+                next = cur < 0 ? 0 : Math.min(cur + 1, list.length - 1);
+                break;
+            case "ArrowUp":
+                next = cur < 0 ? list.length - 1 : Math.max(cur - 1, 0);
+                break;
+            case "Home":
+                next = 0;
+                break;
+            case "End":
+                next = list.length - 1;
+                break;
+            case "Enter":
+                if (cur >= 0 && cur < list.length) {
+                    this.onFieldListRowClick(list[cur].id);
+                    ev.preventDefault();
+                }
+                return;
+            case "Escape":
+                this.state.focusedListIndex = -1;
+                ev.target?.blur?.();
+                ev.preventDefault();
+                return;
+            default:
+                return;  // 其他鍵不擋（讓 user 輸入到 filter 走別的 listener）
+        }
+        if (next !== cur) {
+            this.state.focusedListIndex = next;
+            ev.preventDefault();
+            // scrollIntoView：等下次 microtask、DOM 更新後再 scroll
+            Promise.resolve().then(() => {
+                try {
+                    const ul = ev.currentTarget;
+                    const li = ul?.querySelectorAll?.("li.doc-inspector-fields-list-item")?.[next];
+                    li?.scrollIntoView?.({ block: "nearest" });
+                } catch (e) {
+                    // 任何 DOM 操作失敗都不擋
+                }
+            });
+        }
     }
 
     /**

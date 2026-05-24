@@ -1049,6 +1049,24 @@
     color: #fff;
 }
 
+/* Sprint P：鍵盤 focused（與 selected 視覺分離；selected=紫底、focused=藍框） */
+.doc-inspector-fields-list-item.is-focused {
+    outline: 2px solid #0284c7;
+    outline-offset: -2px;
+}
+
+/* focused + selected 同時 → 藍框 + 紫底 */
+.doc-inspector-fields-list-item.is-focused.is-selected {
+    outline-color: #38bdf8;
+}
+
+/* ul 本身 focus 時的視覺提示（淡淡的邊框、不擾人） */
+.doc-inspector-fields-list-items:focus {
+    outline: 1px solid #cbd5e1;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
 .doc-inspector-fields-list-item-name {
     flex: 1;
     overflow: hidden;
