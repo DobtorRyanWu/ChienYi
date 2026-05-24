@@ -2441,6 +2441,52 @@ export class DocEditor extends Component {
     }
 
     /**
+     * Sprint L：給 inspector 上方顯示「所有欄位」列表用的 getter。
+     *
+     * 從 _templateFieldsCache 取出排序穩定的列表：
+     *   - 主排序：page_no 升冪（一頁文件、跨頁範本對齊瀏覽順序）
+     *   - 次排序：id 升冪（同頁照建檔順序，新建檔的排後）
+     *
+     * 不做 dedup（每個 record 都是獨立欄位、即便 odoo_field_name 相同也代表
+     * 文件內多處對應）。
+     */
+    get fieldsList() {
+        const list = this._templateFieldsCache || [];
+        return [...list].sort((a, b) => {
+            const pa = a.page_no || 1;
+            const pb = b.page_no || 1;
+            if (pa !== pb) return pa - pb;
+            return (a.id || 0) - (b.id || 0);
+        });
+    }
+
+    /**
+     * Sprint L：點 inspector 欄位列表的 row 時觸發。
+     *   1. 設 selectedFieldId（讓下方屬性區顯示該 field 的編輯欄位）
+     *   2. 呼叫 canvas-editor locationControl(conceptId) 把游標 / 視窗
+     *      跳到文件內對應 control 位置（reverse 上：原本是「點 control 跳
+     *      inspector」、此處反向「點 inspector 跳 control」）
+     *
+     * 容錯：locationControl 在某些 canvas-editor 版本可能不存在或 throw、
+     *       靜默 catch、selectedFieldId 仍會被設好（inspector 編輯仍可用）。
+     */
+    onFieldListRowClick(fieldId) {
+        if (!fieldId) return;
+        // 設 selectedFieldId（讓 inspector 屬性區顯示此欄位）
+        if (this.state.selectedFieldId !== fieldId) {
+            this.state.selectedFieldId = fieldId;
+        }
+        // 跳到文件內對應 control
+        try {
+            this.editor?.command?.locationControl?.(String(fieldId));
+        } catch (e) {
+            // 該 fieldId 在文件內沒有對應 control（記錄存在但 control 未插入
+            // 或已被刪），locationControl 會 throw、靜默忽略
+            console.debug("[DocEditor] locationControl skipped for field", fieldId, e?.message);
+        }
+    }
+
+    /**
      * 從 FIELD_TYPES 拿到選中 field 的 label（顯示在 inspector header）。
      */
     get selectedFieldLabel() {

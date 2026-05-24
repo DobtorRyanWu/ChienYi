@@ -911,6 +911,77 @@
     border-bottom: 1px solid #f0f0f0;
 }
 
+/* Sprint L：欄位列表（inspector 頂部，點 row 跳到 document 內 control） */
+.doc-inspector-fields-list {
+    background: #fafafa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 8px;
+    max-height: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.doc-inspector-fields-list-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #495057;
+    padding: 2px 4px;
+}
+
+.doc-inspector-fields-list-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.doc-inspector-fields-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #2c2c2c;
+    transition: background 0.12s ease;
+}
+
+.doc-inspector-fields-list-item:hover {
+    background: #f3eaf0;
+}
+
+.doc-inspector-fields-list-item.is-selected {
+    background: #714B67;
+    color: #fff;
+}
+
+.doc-inspector-fields-list-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.doc-inspector-fields-list-item-id {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #adb5bd;
+    background: #fff;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+.doc-inspector-fields-list-item.is-selected .doc-inspector-fields-list-item-id {
+    color: #714B67;
+    background: rgba(255, 255, 255, 0.95);
+}
+
 .doc-inspector-field-id {
     margin-left: auto;
     font-size: 0.7rem;
