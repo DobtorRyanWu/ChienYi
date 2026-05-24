@@ -141,6 +141,9 @@ export class DocEditor extends Component {
             // null = 沒可復原的操作；object = {docData, createdFieldIds, replacedCount, timestamp}
             // 覆蓋式單層 undo；rollback 成功 / 再次掃描並替換時被覆蓋
             lastScanReplaceSnapshot: null,
+            // ─── Sprint O：inspector 欄位列表 search filter（substring，case-insensitive）───
+            // 空字串 = 不過濾；對 odoo_field_name / placeholder_text / field_type 做包含比對
+            fieldListFilter: "",
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -2580,6 +2583,37 @@ export class DocEditor extends Component {
             if (pa !== pb) return pa - pb;
             return (a.id || 0) - (b.id || 0);
         });
+    }
+
+    /**
+     * Sprint O：套用 state.fieldListFilter 對 fieldsList 做 substring filter。
+     *
+     * 三個欄位都會被比對（case-insensitive）：
+     *   - odoo_field_name（如 `partner_id.name`）
+     *   - placeholder_text（如 `{{ project_name }}`）
+     *   - field_type（如 `odoo_field`、`text`、`signature`）
+     *
+     * 空字串 → 回 fieldsList 原樣（不過濾）。
+     */
+    get filteredFieldsList() {
+        const filter = (this.state.fieldListFilter || "").trim().toLowerCase();
+        if (!filter) return this.fieldsList;
+        return this.fieldsList.filter((f) => {
+            const haystack = [
+                f.odoo_field_name || "",
+                f.placeholder_text || "",
+                f.field_type || "",
+            ].join(" ").toLowerCase();
+            return haystack.includes(filter);
+        });
+    }
+
+    /**
+     * Sprint O：filter input 變更時觸發。直接寫 state，OWL 自動 re-render。
+     * 不做 debounce —— 純記憶體 substring 比對在 < 500 fields 規模下 < 0.1ms。
+     */
+    onFieldListFilterInput(value) {
+        this.state.fieldListFilter = value || "";
     }
 
     /**

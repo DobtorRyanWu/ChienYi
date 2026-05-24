@@ -973,6 +973,60 @@
     flex: 1;
 }
 
+/* Sprint O：filter input（>5 fields 時顯示） */
+.doc-inspector-fields-list-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.doc-inspector-fields-list-filter > .fa-search {
+    color: #adb5bd;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.doc-inspector-fields-list-filter input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 0.85rem;
+    color: #2c2c2c;
+    min-width: 0;
+}
+
+.doc-inspector-fields-list-filter input::placeholder {
+    color: #adb5bd;
+    font-size: 0.8rem;
+}
+
+.doc-inspector-fields-list-filter-clear {
+    border: none;
+    background: transparent;
+    color: #adb5bd;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+.doc-inspector-fields-list-filter-clear:hover {
+    color: #714B67;
+}
+
+.doc-inspector-fields-list-empty {
+    padding: 12px 8px;
+    text-align: center;
+    color: #adb5bd;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
 .doc-inspector-fields-list-item {
     display: flex;
     align-items: center;

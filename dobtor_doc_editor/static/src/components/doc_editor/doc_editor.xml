@@ -414,12 +414,13 @@
                 <!-- 右：Inspector panel — Phase 2.1 補項：雙向綁定 selectedField -->
                 <aside class="doc-inspector-panel" aria-label="欄位屬性">
                     <!-- Sprint L：所有欄位清單（點 row 跳到 document 對應 control）
-                         Sprint M：標出孤兒 record + 提供批次清理按鈕 -->
+                         Sprint M：標出孤兒 record + 提供批次清理按鈕
+                         Sprint O：search filter input（>5 fields 才顯示） -->
                     <t t-if="fieldsList.length > 0">
                         <div class="doc-inspector-fields-list">
                             <div class="doc-inspector-fields-list-header">
                                 <i class="fa fa-list me-1" aria-hidden="true"/>
-                                <span>所有欄位 (<t t-esc="fieldsList.length"/>)</span>
+                                <span>所有欄位 (<t t-esc="filteredFieldsList.length"/><t t-if="filteredFieldsList.length !== fieldsList.length"> / <t t-esc="fieldsList.length"/></t>)</span>
                                 <t t-if="orphanRecordIds.size > 0">
                                     <button class="doc-inspector-cleanup-orphans-btn"
                                             t-on-click="onCleanupOrphansClick"
@@ -430,8 +431,26 @@
                                     </button>
                                 </t>
                             </div>
+                            <t t-if="fieldsList.length > 5">
+                                <div class="doc-inspector-fields-list-filter">
+                                    <i class="fa fa-search" aria-hidden="true"/>
+                                    <input type="text"
+                                           placeholder="篩選欄位名稱..."
+                                           t-att-value="state.fieldListFilter"
+                                           t-on-input="(ev) => this.onFieldListFilterInput(ev.target.value)"
+                                           aria-label="篩選欄位"/>
+                                    <t t-if="state.fieldListFilter">
+                                        <button class="doc-inspector-fields-list-filter-clear"
+                                                t-on-click="() => this.onFieldListFilterInput('')"
+                                                title="清除篩選"
+                                                aria-label="清除篩選">
+                                            <i class="fa fa-times" aria-hidden="true"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
                             <ul class="doc-inspector-fields-list-items" role="listbox">
-                                <t t-foreach="fieldsList" t-as="fl" t-key="fl.id">
+                                <t t-foreach="filteredFieldsList" t-as="fl" t-key="fl.id">
                                     <li t-attf-class="doc-inspector-fields-list-item #{state.selectedFieldId === fl.id ? 'is-selected' : ''} #{orphanRecordIds.has(fl.id) ? 'is-orphan' : ''}"
                                         role="option"
                                         t-att-aria-selected="state.selectedFieldId === fl.id ? 'true' : 'false'"
@@ -443,6 +462,11 @@
                                         <span class="doc-inspector-fields-list-item-name"
                                               t-esc="fl.odoo_field_name or fl.placeholder_text or fl.field_type"/>
                                         <span class="doc-inspector-fields-list-item-id">#<t t-esc="fl.id"/></span>
+                                    </li>
+                                </t>
+                                <t t-if="filteredFieldsList.length === 0">
+                                    <li class="doc-inspector-fields-list-empty">
+                                        無符合篩選條件的欄位
                                     </li>
                                 </t>
                             </ul>
