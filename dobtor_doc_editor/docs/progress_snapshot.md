@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 205 結尾 — Phase 7 真實 ChienYi 大檔 perf guard 擴展、三層完整 coverage）
+## 1. 當前指標一覽（Sprint 206 結尾 — Phase 6 ChienYi 真實 fixture round-trip 42/42 全 100% commercial-grade 驗證）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1960 passed + 1 skipped**（`npm test` 全套口徑；Sprint 205 +3 sprint205 perf guard +11 自 Sprint 204 後 Phase 8 平行 sprint 累積）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **1962 passed + 1 skipped**（`npm test` 全套口徑；Sprint 206 +2 sprint206 round-trip audit）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 58 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 202 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 205（最新 sprint205_real_fixture_perf_guard.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 206（最新 sprint206_chienyi_roundtrip_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
