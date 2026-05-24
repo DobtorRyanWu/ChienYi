@@ -18,15 +18,18 @@ import { OfflineManager } from "../../core/offline_manager";
 import { installGlobalErrorReporting, mark, reportError } from "../../core/telemetry";
 import { DocVersionPanel } from "../doc_version_panel/doc_version_panel";
 import { DocFieldPickerDialog } from "../doc_field_picker/doc_field_picker";
+// 注意：normalizeMultiCharElements{,InTables} 留在 scanner module 內供未來重啟此方向時使用
+// （目前 Sprint T 因 canvas-editor auto-merge 無法用、見 onScanAndReplaceClick 內註解
+//  與 docs/phase8_sprint_t_2026-05-24.md）
+// IMPORTANT：不要把以上註解搬回 import {} 內部 — Odoo asset compiler 解析 import 解構
+// 賦值時不會 strip 行內註解，會輸出 `require({)` 直接讓整個 web.assets_web bundle parse fail
+// （Sprint V 才發現的；症狀 = SPA 完全不啟動、console 只有 "Unexpected token ')'"）。
 import {
     scanJinja2Variables,
     scanJinja2VariablesWithPositions,
     scanJinja2VariablesInTables,
     analyzeScanResults,
     computeOrphanRecordIds,
-    // normalizeMultiCharElements{,InTables} 留在 scanner module 內供未來重啟此方向時使用
-    // （目前 Sprint T 因 canvas-editor auto-merge 無法用、見 doc_editor.js
-    // onScanAndReplaceClick 內註解與 docs/phase8_sprint_t_2026-05-24.md）
 } from "./jinja2_scanner";
 
 /**
@@ -201,13 +204,28 @@ export class DocEditor extends Component {
         // 取得 doc_id 優先順序：
         //   1. this.props.docId — portal mount 模式（<owl-component props='{"docId":...}'>）
         //   2. backend client action context.doc_id
-        //   3. sessionStorage F5 恢復（backend 內按 F5 刷新時用）
+        //   3. URL query string ?doc_id=N — Sprint V：給 E2E / bookmark / share 用
+        //      （client action URL 預設不接 context，這層 fallback 讓
+        //       /odoo/action-dobtor_doc_editor.action_doc_editor?doc_id=N 能 work）
+        //   4. sessionStorage F5 恢復（backend 內按 F5 刷新時用）
         const context = this.props.action?.context || {};
         const _SESSION_KEY = "dobtor_doc_editor_last_id";
-        const docId = this.props.docId || context.doc_id || (() => {
-            const stored = sessionStorage.getItem(_SESSION_KEY);
-            return stored ? parseInt(stored, 10) : null;
-        })();
+        let _urlDocId = null;
+        try {
+            const _v = new URLSearchParams(window.location.search).get("doc_id");
+            const _n = _v ? parseInt(_v, 10) : 0;
+            if (_n > 0) {
+                _urlDocId = _n;
+            }
+        } catch (e) {
+            // ignore — fall through to next fallback
+        }
+        let _storedDocId = null;
+        const _stored = sessionStorage.getItem(_SESSION_KEY);
+        if (_stored) {
+            _storedDocId = parseInt(_stored, 10);
+        }
+        const docId = this.props.docId || context.doc_id || _urlDocId || _storedDocId;
 
         // ── AutoSaveManager（以 content_json 為儲存單位）──
         this._autoSave = new AutoSaveManager({
