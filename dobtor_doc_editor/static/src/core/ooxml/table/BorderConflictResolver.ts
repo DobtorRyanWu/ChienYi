@@ -121,6 +121,11 @@ function isNil(b: BorderDef | undefined): boolean {
   return b.style === 'nil' || b.style === 'none';
 }
 
+/** 取 cell 的 leftmost gridCol（用於 pair key、辨識 unique cell 對）。 */
+function cellGridColOf(cell: CellNode): number {
+  return cell.gridCol;
+}
+
 /**
  * 對單一 cell 計算其四邊 effective borders。
  *
@@ -238,22 +243,69 @@ export function resolveTableBorders(table: TableNode): void {
     }
   }
 
-  // 跨列上下相鄰
-  for (let r = 0; r < totalRows - 1; r++) {
-    for (let c = 0; c < totalCols; c++) {
-      const top = cellAt[r][c];
-      const bottom = cellAt[r + 1][c];
-      if (!top || !bottom) continue;
-      if (top === bottom) continue; // vMerge anchor 跨多 row 視為同 cell
-      // 若 top 是 vMerge anchor 且 bottom 是 continuation：bottom 不渲染，跳過協調
-      if (bottom.isContinuation && bottom === cellAt[r][c]) continue;
-      const winner = resolveCellEdge(top.props.borders?.bottom, bottom.props.borders?.top);
-      if (winner) {
-        if (!top.props.borders) top.props.borders = {};
-        if (!bottom.props.borders) bottom.props.borders = {};
-        top.props.borders.bottom = winner;
-        bottom.props.borders.top = winner;
+  // 跨列上下相鄰（Sprint 219 修：迭代收斂到 fixed point、確保 round-trip 對稱）
+  //
+  // 原 bug：寬 cell（gridSpan>1）跨多 column 對應不同 below neighbor、
+  // 直接 mutate 同一 cell 之 bottom 於每次 iteration、結果同一條 horizontal
+  // edge 兩側值不一致、reparse 後 Pass 1 拿到的 initial_top 已是寫出之最終值、
+  // Stage A 再次傳播到 above neighbor、round-trip 後漂移。
+  //
+  // 修法：迭代收斂——
+  //   alternate Stage A（cell.bottom ← max(self, below neighbors.top)）
+  //              + Stage B（cell.top ← max(self, above neighbors.bottom)）
+  //   直到無變動。每 iteration 使用 CURRENT values（不 snapshot Pass 1）。
+  //   收斂條件：所有 horizontal edge 兩側 cell.bottom == cell.top（fixed point）。
+  //   實證：通常 1-3 iteration 收斂。安全上界 10。
+  function borderEquals(a: BorderDef | undefined, b: BorderDef | undefined): boolean {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    return a.style === b.style && a.width === b.width && a.color === b.color &&
+      (a.space ?? 0) === (b.space ?? 0);
+  }
+  const MAX_ITER = 10;
+  for (let iter = 0; iter < MAX_ITER; iter++) {
+    let changed = false;
+    // Stage A: bottom propagation
+    for (let r = 0; r < totalRows; r++) {
+      for (const cell of table.rows[r].cells) {
+        if (cell.isContinuation) continue;
+        let agg: BorderDef | undefined = cell.props.borders?.bottom;
+        if (r + 1 < totalRows) {
+          for (let c = cell.gridCol; c < cell.gridCol + cell.gridSpan && c < totalCols; c++) {
+            const nb = cellAt[r + 1][c];
+            if (!nb || nb === cell) continue;
+            if (nb.isContinuation) continue;
+            const w = resolveCellEdge(agg, nb.props.borders?.top);
+            if (w) agg = w;
+          }
+        }
+        if (agg && !borderEquals(agg, cell.props.borders?.bottom)) {
+          if (!cell.props.borders) cell.props.borders = {};
+          cell.props.borders.bottom = agg;
+          changed = true;
+        }
       }
     }
+    // Stage B: top propagation
+    for (let r = 0; r < totalRows; r++) {
+      for (const cell of table.rows[r].cells) {
+        if (cell.isContinuation) continue;
+        let agg: BorderDef | undefined = cell.props.borders?.top;
+        if (r > 0) {
+          for (let c = cell.gridCol; c < cell.gridCol + cell.gridSpan && c < totalCols; c++) {
+            const ab = cellAt[r - 1][c];
+            if (!ab || ab === cell) continue;
+            const w = resolveCellEdge(agg, ab.props.borders?.bottom);
+            if (w) agg = w;
+          }
+        }
+        if (agg && !borderEquals(agg, cell.props.borders?.top)) {
+          if (!cell.props.borders) cell.props.borders = {};
+          cell.props.borders.top = agg;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
   }
 }

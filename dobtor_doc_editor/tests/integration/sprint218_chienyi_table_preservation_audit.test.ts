@@ -43,12 +43,12 @@ const CHIENYI_CATEGORIES = ['01_simple', '02_std_table', '03_complex_table', '04
 const EXPECTED_FIXTURE_COUNT = 42;
 
 /**
- * Phase 6 writeTable 設計**原以為**為對等 path、但本 sprint 首次量測至此
- * 層級揭發 10/42 fixture 在 cell border width 上有 0.5pt → 0.75pt 漂移
- * （全屬 05_header_footer 自主檢查表系列）；honest 閾值設 75%（實測 76.19%）、
- * Sprint 219+ 真實開發修法。
+ * Phase 6 writeTable + BorderConflictResolver 設計為對等 path。
+ * Sprint 218 首次量測揭發 cell border width 0.5pt → 0.75pt 漂移（10/42
+ * fixture）、Sprint 219 修法（BorderConflictResolver 改為迭代收斂到 fixed
+ * point）後達 42/42 全 100%。閾值恢復為 95%（迭代法保有安全餘裕）。
  */
-const MIN_TABLE_MATCH_RATE_PCT = 75;
+const MIN_TABLE_MATCH_RATE_PCT = 95;
 
 function deepStableStringify(value: unknown): string {
   if (value === null || value === undefined) return JSON.stringify(value);
