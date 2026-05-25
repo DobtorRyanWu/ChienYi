@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 226 結尾 — LibreOffice SectionProps 跨 95% commercial-grade 閾值 ⭐⭐⭐⭐⭐ / Sprint 218→219 模式重現第四次 / writer 補完 `<w:cols>` + `<w:type>` 序列化 / LibreOffice 87.5% → 95.1% +22 fixture / LibreOffice 六層全 ≥ 95%）
+## 1. 當前指標一覽（Sprint 229 結尾 — 三 corpus 七層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐⭐ / HeaderFooterContent ChienYi 100% + LibreOffice 90.6% + Phase 5 100% trivially / 合計 192 HF slots / 完整覆蓋 page-level + section-level + header/footer block-level）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1998 passed + 1 skipped**（`npm test` 全套口徑；Sprint 223+224+225 +3 SectionProps audit 三 corpus、Sprint 222 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **2001 passed + 1 skipped**（`npm test` 全套口徑；Sprint 227+228+229 +3 HeaderFooterContent 第七層 audit 三 corpus；Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223 writer docGrid fix + Sprint 225 writer gutter 條件 emit fix + Sprint 226 writer `<w:cols>`/`<w:type>` 補完皆不觸 import path、VR 第 68 連 maintained；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 226（最新 sprint226_libreoffice_section_writer_cols_type_fix.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 229（最新 sprint227_to_229_chienyi_libreoffice_phase5_headerfooter_audit.md 合併三 sprint；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -140,6 +140,9 @@ Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix�
 | **224** | **LibreOffice 286 SectionProps audit（合 Sp225 + gutter fix）** | **252/288 / 87.5% / 328 sections（83.0% → 87.5% +4.5pp）** |
 | **225** | **Phase 5 18 SectionProps audit + writer gutter 條件 emit fix** | **0/18 → 18/18 / 100% / 18 sections ⭐⭐⭐⭐⭐ — 三 corpus 六層矩陣完備、+3 行 production code、VR 第 67 連 maintained** |
 | **226** | **LibreOffice writer 補完 `<w:cols>` + `<w:type>` 序列化** | **87.5% → 95.1% / +22 fixture / +7.6pp / 274/288 / 328 sections ⭐⭐⭐⭐⭐ — Sprint 218→219 模式重現第四次、LibreOffice 六層全 ≥ 95% commercial-grade、+23 行 production code、VR 第 68 連 maintained** |
+| **227** | **ChienYi HeaderFooterContent 第七層 audit** | **42/42 / 100% / 16 slots ⭐ — header/footer block content SHA-256 對等性、不依賴 rId 用 slot 類型為 canonical key** |
+| **228** | **LibreOffice 286 HeaderFooterContent 第七層 audit** | **261/288 / 90.6% / 176 slots（過 80% 閾值 +10.6pp / 27 drift 為 chart-in-footer/hyperlink/border/tdf* 邊緣 case）** |
+| **229** | **Phase 5 18 HeaderFooterContent 第七層 audit** | **18/18 / 100% / 0 slots trivially ⭐⭐⭐⭐⭐⭐ — 三 corpus 七層矩陣完備** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -317,6 +320,37 @@ text / RunProps / ParagraphProps 100% + TableProps 97.6% + SectionProps
 95.1%）。LibreOffice 從「過 80% 閾值 edge tolerance」**升級為「過 95%
 閾值 commercial-grade」**——比 Sprint 225 三 corpus 六層完備再進一步、
 邊緣 corpus 也達 production-grade。
+
+**Sprint 227+228+229 HeaderFooterContent 第七層 byte-identical 對稱矩陣
+完備** ⭐⭐⭐⭐⭐⭐：
+
+- Sprint 223-226 SectionProps 第六層 audit 只比對 headerRefs/footerRefs
+  **slot 存在性**（default/first/even keys）、不比對實際 header/footer
+  block 內容；本三 sprint 補完第七層 content-level 對等驗證。
+- Serialize 策略：對每 section 的 default/first/even header/footer slot、
+  解析 rId → `doc.headers/footers.get(rId).content`、`deepStableStringify`
+  遞迴序列化 BlockNode[]、串接 SHA-256 對照；**不依賴 rId 字串**（writer
+  可能重排）、用 slot 類型為 canonical key。
+- Sprint 227 ChienYi 42：42/42 (100%) / 16 slots ⭐
+- Sprint 228 LibreOffice 286：261/288 (90.6%) / 176 slots（過 80% 閾值
+  +10.6pp / 27 drift 為 chart-in-footer / hyperlink in footer / header
+  paragraph border / tdf* 故意畸形 edge case、對 ChienYi v1 release 無影響）
+- Sprint 229 Phase 5 18：18/18 (100%) / 0 slots trivially（Phase 5 主體為
+  chart/smartart/omml inline、無 hf slot）
+- 合計 192 HF slots byte-identical（16 + 176 + 0）
+- 三層 SOP：vitest 1998→2001（+3 audit）/ VR v14 byte-identical **第 68
+  連** unchanged（test-only 不觸 import path）/ perf baseline 維持
+- 紀律：#1.b Strategy C 0 行 production code、#18 不修 LibreOffice 27
+  drift edge case
+- 過程記錄：跨 2026-05-25 → 2026-05-26 午夜實作；Sprint 228+229 首次嘗試
+  遇 WSL ENOMEM（stale vitest worker ~20min 卡住 2.2GB 不釋放）、待
+  memory 恢復至 4311MB available 後重跑成功
+
+**三 corpus 七層 byte-identical 對稱矩陣完備** ⭐⭐⭐⭐⭐⭐：347 fixture /
+11645 runs + 5335 paragraphs + 127 tables + 408 sections + **192 HF slots**
+byte-identical（涵蓋 OOXML CT_SectPr + headers/footers parts 完整對等）；
+ChienYi v1 release docx 匯入子系統最終 sign-off **GO（七層升級確認
+⭐⭐⭐⭐⭐⭐）**。
 
 ---
 
