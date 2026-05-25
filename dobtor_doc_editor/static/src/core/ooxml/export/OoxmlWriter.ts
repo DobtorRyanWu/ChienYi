@@ -759,7 +759,11 @@ function writeSectPr(section: SectionNode | undefined, watermarkItem: WatermarkH
   const headerMargin = ptToTwips(margins?.header ?? DEFAULT_MARGIN_HF_PT);
   const footerMargin = ptToTwips(margins?.footer ?? DEFAULT_MARGIN_HF_PT);
   parts.push(`<w:pgSz w:w="${w}" w:h="${h}"/>`);
-  parts.push(`<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="${headerMargin}" w:footer="${footerMargin}" w:gutter="0"/>`);
+  // Sprint 225：gutter 條件 emit—— parser 對缺 attr 不存 gutter、若 writer
+  // 硬寫 "0" 會讓「source 無 gutter」的 fixture 在 round-trip 被注入
+  // gutter=0、reparse 對等性破壞。
+  const gutterAttr = margins?.gutter !== undefined ? ` w:gutter="${ptToTwips(margins.gutter)}"` : '';
+  parts.push(`<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="${headerMargin}" w:footer="${footerMargin}"${gutterAttr}/>`);
 
   // titlePg（在 pgMar 之後、docGrid 之前依 CT_SectPr schema）
   if (section?.titlePage) parts.push('<w:titlePg/>');

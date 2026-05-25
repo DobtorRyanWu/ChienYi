@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 223 結尾 — ChienYi production corpus 達六層 byte-identical 對稱 ⭐⭐⭐⭐ / Sprint 218→219 模式重現 / writer docGrid serializer 修法 14/42 → 42/42 / 62 sections）
+## 1. 當前指標一覽（Sprint 225 結尾 — 三 corpus 六層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐ / Sprint 218→219 模式重現第三次 / writer gutter 條件 emit 修法 0/18 → 18/18 + 83.0% → 87.5% + ChienYi 100% 維持 / 408 sections 全綠）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1996 passed + 1 skipped**（`npm test` 全套口徑；Sprint 223 +1 ChienYi SectionProps audit、Sprint 222 docs-only 不增；註：Sprint 220+221 對應 audit doc 與本檔之間 vitest 計數先後存在 ±2 差異、以本 Sprint 223 修法後實測為準）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
-| VR mean | **0.073191**（Sprint 65 promote、第 66 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223 writer docGrid fix 不觸 import path、VR 第 66 連 maintained；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
+| vitest | **1998 passed + 1 skipped**（`npm test` 全套口徑；Sprint 223+224+225 +3 SectionProps audit 三 corpus、Sprint 222 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| VR mean | **0.073191**（Sprint 65 promote、第 67 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223 writer docGrid fix + Sprint 225 writer gutter 條件 emit fix 不觸 import path、VR 第 67 連 maintained；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 223（最新 sprint223_chienyi_section_preservation_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 225（最新 sprint224_225_libreoffice_phase5_section_audit_plus_gutter_fix.md 合併兩 sprint；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -137,6 +137,8 @@ Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix�
 | **221** | **Phase 5 18 TableProps audit** | **18/18 全 100% / 0 tables trivially ⭐⭐⭐ — 三 corpus 五層矩陣完備** |
 | **222** | **ChienYi v1 commercial-grade attestation v2** | **docs-only / 升級確認 GO ⭐⭐⭐ — Sprint 198-222 25 sprint 完整收口** |
 | **223** | **ChienYi SectionProps 第六層 audit + writer docGrid fix** | **14/42 → 42/42 / 100% / 62 sections ⭐⭐⭐⭐ — Sprint 218→219 模式重現、+10 行 production code、VR 第 66 連 maintained** |
+| **224** | **LibreOffice 286 SectionProps audit（合 Sp225 + gutter fix）** | **252/288 / 87.5% / 328 sections（83.0% → 87.5% +4.5pp）** |
+| **225** | **Phase 5 18 SectionProps audit + writer gutter 條件 emit fix** | **0/18 → 18/18 / 100% / 18 sections ⭐⭐⭐⭐⭐ — 三 corpus 六層矩陣完備、+3 行 production code、VR 第 67 連 maintained** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -257,6 +259,35 @@ docx 匯入子系統最終 sign-off **GO（升級確認 ⭐⭐⭐）**。
 222 v2 attestation 五層再升一層）：structure + text + RunProps +
 ParagraphProps + TableProps + **SectionProps**。LibreOffice + Phase 5
 第六層留 Sprint 224 / 225 後續展開。
+
+**Sprint 224+225 SectionProps 第六層 三 corpus 矩陣完備 + writer gutter
+條件 emit fix（Sprint 218→219 模式重現第三次）** ⭐⭐⭐⭐⭐：
+
+- Sprint 224 LibreOffice 286 v1（修 gutter 前）：239/288 (83.0%)
+- Sprint 225 Phase 5 18 v1（修 gutter 前）：0/18 (0%) ⚠️⚠️⚠️ — 揭發
+  Sprint 223 之後第二個 root cause
+- Diagnostic 命中 root cause #2：`OoxmlWriter.writeSectPr` 對 pgMar 屬性
+  硬寫 `w:gutter="0"`、無視 source XML 原本是否有 `w:gutter` 屬性、
+  parser 對缺 attr 不存 `margins.gutter`、round-trip 注入 gutter=0 破壞
+  對等性
+- 修法：`writeSectPr` pgMar gutter 條件 emit（+3 行 production code、
+  `margins.gutter !== undefined` 才 emit `w:gutter="..."` attribute）
+- Sprint 223 ChienYi 修後 100% **維持** ✓（明寫 gutter="0" 的 fixture
+  round-trip 對等不受新行為影響）
+- Sprint 224 LibreOffice 修後：252/288 (87.5%)、+4.5pp、+13 fixture 修復
+- Sprint 225 Phase 5 修後：18/18 (100%) ⭐⭐⭐⭐ — 0% → 100% 完全消除 drift
+- 三層 SOP：vitest 1996→1998（+2 sprint224+225）/ VR v14 byte-identical
+  **第 67 連** maintained（42/42 / 126 pages / 0 failures）/ perf baseline
+  維持
+- 紀律 #18 scope-down：不修 LibreOffice 餘 36 個 drift 推測（cols /
+  sectionBreakType / 罕用 sectPr 子元素）— 對 ChienYi v1 release 無影響
+
+**三 corpus 六層 byte-identical 對稱矩陣完備** ⭐⭐⭐⭐⭐——347 fixture /
+11645 runs + 5335 paragraphs + 127 tables + **408 sections** byte-identical
+（涵蓋 page size / margins / columns / docGrid / sectionBreakType /
+titlePage / evenAndOddHeaders / header+footer slots 8 個 CT_SectPr 主要
+欄位）；ChienYi v1 release docx 匯入子系統最終 sign-off **GO（六層升級
+確認 ⭐⭐⭐⭐⭐）**。
 
 ---
 
