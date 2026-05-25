@@ -8,7 +8,7 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 221 結尾 — 三 corpus 五層 byte-identical 對稱矩陣完備 ⭐⭐⭐ / 347 fixture / 11645 runs + 5335 paragraphs + 127 tables 全綠）
+## 1. 當前指標一覽（Sprint 222 結尾 — ChienYi v1 release commercial-grade attestation v2 升級確認 GO ⭐⭐⭐ / 三 corpus 五層 byte-identical 對稱矩陣完備 / 347 fixture / 11645 runs + 5335 paragraphs + 127 tables 全綠）
 
 | 指標 | 數值 |
 |---|---|
@@ -19,7 +19,7 @@
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 221（最新 sprint221_phase5_table_preservation_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 222（最新 sprint222_chienyi_v1_commercial_grade_attestation_v2.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -104,10 +104,11 @@
 
 ---
 
-## 7. Sprint 198-221 — Audit + 真實修法 + 三 corpus 五層 byte-identical 對稱矩陣完備 ⭐⭐⭐（2026-05-24 → 2026-05-25）
+## 7. Sprint 198-222 — Audit + 真實修法 + 三 corpus 五層 byte-identical 對稱矩陣完備 + v2 attestation 升級確認 ⭐⭐⭐（2026-05-24 → 2026-05-25）
 
-Sprint 198-221 共 24 個 sprint（23 audit + 1 真實 production code fix）、
-建立完整端到端品質量化體系、**三 corpus 五層 byte-identical 對稱矩陣完備**：
+Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix）、
+建立完整端到端品質量化體系、**三 corpus 五層 byte-identical 對稱矩陣完備
++ ChienYi v1 release commercial-grade attestation v2 升級確認 GO**：
 
 | Sprint | 範疇 | 結果 |
 |---|---|---|
@@ -134,6 +135,7 @@ Sprint 198-221 共 24 個 sprint（23 audit + 1 真實 production code fix）、
 | 219 | BorderConflictResolver 迭代收斂修法 | 42/42 全 100% / 71 tables ⭐ — Sprint 218 honest gap 完全消除 |
 | 220 | LibreOffice 286 TableProps audit | 281/288 / 97.6% / 56 tables — Sprint 219 修法在 edge corpus 成立 |
 | **221** | **Phase 5 18 TableProps audit** | **18/18 全 100% / 0 tables trivially ⭐⭐⭐ — 三 corpus 五層矩陣完備** |
+| **222** | **ChienYi v1 commercial-grade attestation v2** | **docs-only / 升級確認 GO ⭐⭐⭐ — Sprint 198-222 25 sprint 完整收口** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -209,6 +211,28 @@ byte-identical。7 個 LibreOffice 邊緣 case（misc/tdf*、cell-btlr、
 cell-sdt-redline）為故意畸形 / 罕用 typography drift、對 ChienYi v1 release
 工作流無影響。ChienYi v1 release commercial-grade 端到端對稱性驗證**最終
 完整覆蓋**。
+
+**Sprint 222 v2 attestation 升級確認 GO** ⭐⭐⭐：詳見
+[sprint222_chienyi_v1_commercial_grade_attestation_v2.md](sprint222_chienyi_v1_commercial_grade_attestation_v2.md)。
+v1 attestation（Sprint 213）至 v2 增量整合 Sprint 214-221 八個 sprint：
+- Sprint 214 >200p perf 實測（193p / 644ms / 8.0% 閾值使用率、attestation
+  v1 「未實測」風險點完全消除）
+- Sprint 215-217 ParagraphProps 三 corpus 四層 byte-identical 對稱矩陣
+  完備（5335 paragraphs、14 欄位 + 5 nested objects、deepStableStringify
+  遞迴排序處理）
+- Sprint 218 TableProps 第五層首次揭發 honest gap（ChienYi 32/42 / 76.19%、
+  cell border width 0.5pt → 0.75pt drift）
+- Sprint 219 BorderConflictResolver 迭代收斂修法（**首次離開 audit-only
+  nature**、Pass 2 改為 fixed-point iteration、+44 行 -23 行 production
+  code、Strategy C 例外、VR render-safe 雙驗）
+- Sprint 220-221 TableProps LibreOffice + Phase 5 三 corpus 五層完備
+  （127 tables / 281/288 edge corpus 97.6% + advanced corpus 0 tables
+  trivially）
+
+v2 加權平均完成度 **~94-96% 商用 B+ 級**（v1 ~93-95% → v2 +1pp）。
+剩餘 38+7 unchecked / honest gap 全 v2 盤點完備、對 ChienYi 監造文件工作
+流無實質影響。Sprint 198-222 共 25 sprint 完整收口、ChienYi v1 release
+docx 匯入子系統最終 sign-off **GO（升級確認 ⭐⭐⭐）**。
 
 ---
 
