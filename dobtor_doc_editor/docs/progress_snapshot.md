@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 214 結尾 — Phase 7 200p+ 實測 193 頁 / 644ms / 8.0% 閾值使用率、線性外推實證、attestation「>200p 未實測」風險消除）
+## 1. 當前指標一覽（Sprint 215 結尾 — ChienYi production 達 structure + text + RunProps + ParagraphProps 四層對稱 / 3384 paragraphs 全 100%）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1978 passed + 1 skipped**（`npm test` 全套口徑；Sprint 214 +2 sprint214 200p generator + perf guard）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
-| VR mean | **0.073191**（Sprint 65 promote、第 61 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 202 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline；Sprint 214 200p fixture 落入已排除目錄） |
+| vitest | **1990 passed + 1 skipped**（`npm test` 全套口徑；Sprint 215 +1 sprint215 ChienYi ParagraphProps preservation audit）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| VR mean | **0.073191**（Sprint 65 promote、第 62 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 214（最新 sprint214_synthetic_200p_perf_guard.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 215（最新 sprint215_chienyi_pprops_preservation_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -104,10 +104,11 @@
 
 ---
 
-## 7. Sprint 198-214 — Audit pipeline 完整覆蓋 + attestation GO + 200p 線性外推實測（2026-05-24 → 2026-05-25）
+## 7. Sprint 198-215 — Audit pipeline 完整覆蓋 + attestation GO + 200p 實測 + ParagraphProps 四層對稱（2026-05-24 → 2026-05-25）
 
-Sprint 198-214 共 17 個 audit sprint，建立完整覆蓋的端到端品質量化體系、
-**ChienYi v1 release sign-off attestation 認定 GO + Phase 7「>200 頁」實測 fact**：
+Sprint 198-215 共 18 個 audit sprint，建立完整覆蓋的端到端品質量化體系、
+**ChienYi v1 release sign-off + Phase 7「>200 頁」實測 + ParagraphProps
+四層對稱**：
 
 | Sprint | 範疇 | 結果 |
 |---|---|---|
@@ -126,7 +127,8 @@ Sprint 198-214 共 17 個 audit sprint，建立完整覆蓋的端到端品質量
 | 211 | LibreOffice 288 **RunProps SHA-256** | **100% / 2114 runs** ⭐ |
 | 212 | Phase 5 18 RunProps SHA-256 | 100% / 23 runs ⭐ — 三 corpus 矩陣完備 |
 | 213 | ChienYi v1 commercial-grade attestation | docs-only / 認定 GO ⭐ |
-| **214** | **200p+ synthetic perf 實測（線性外推實證）** | **193 頁 / 644ms / 8.0% 閾值使用率 ⭐** |
+| 214 | 200p+ synthetic perf 實測（線性外推實證） | 193 頁 / 644ms / 8.0% 閾值使用率 ⭐ |
+| **215** | **ChienYi ParagraphProps SHA-256（段落格式對稱）** | **42/42 全 100% / 3384 paragraphs ⭐** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -153,6 +155,14 @@ Phase 7 不推薦 2 + Phase 8 deferred 1+ 候選）；剩餘風險（WPS audit /
 與 49p ×4 線性外推偏差 ±33% 以內、attestation「>200p 未實測」風險點完全
 消除。剩餘風險縮減為 WPS audit + HarfBuzz blocked 2 項、皆對 ChienYi 監造
 場景無實質影響。
+
+**Sprint 215 ChienYi production ParagraphProps 段落層級格式對稱** ⭐：
+42/42 全 100% / **3384 paragraphs 全 byte-identical**、涵蓋 alignment /
+indent / spacing / borders / shading / numId+ilvl / tabs / textAlignment /
+framePr 14 個 ParagraphProps 欄位含 5 個 nested objects（用
+`deepStableStringify` 遞迴排序處理）。Phase 6 黃金測試 ChienYi production
+達 **structure + text + RunProps + ParagraphProps 四層對稱**。
+LibreOffice 286 + Phase 5 18 ParagraphProps 留 Sprint 216-217 補完三 corpus 矩陣。
 
 ---
 
