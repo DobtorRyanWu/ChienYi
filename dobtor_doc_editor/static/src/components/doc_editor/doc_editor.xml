@@ -369,10 +369,14 @@
                          t-on-dragleave="onWorkspaceDragLeave"
                          t-on-drop="onWorkspaceDrop"
                          aria-busy="state.editorReady ? 'false' : 'true'">
-                    <!-- Sprint Y：尺規（CSS-only 公分刻度，純視覺、不阻擋互動） -->
-                    <div class="doc-ruler" aria-hidden="true">
+                    <!-- Sprint Y/Y2：尺規（CSS-only 公分刻度，純視覺、不阻擋互動）
+                         Y2：t-att-style 注入 ruler-cm-px CSS variable 跟 zoom 同步、
+                         t-foreach rulerTicks 跟 paper size 同步 -->
+                    <div class="doc-ruler"
+                         t-att-style="rulerStyle"
+                         aria-hidden="true">
                         <div class="doc-ruler-labels">
-                            <t t-foreach="[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]" t-as="cm" t-key="cm">
+                            <t t-foreach="rulerTicks" t-as="cm" t-key="cm">
                                 <span class="doc-ruler-tick"><t t-esc="cm"/></span>
                             </t>
                         </div>

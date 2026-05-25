@@ -183,3 +183,39 @@ Phase 8 Sprint R — Sprint G/H/M/N E2E smoke
 1. **canvas-editor 對 parent flex 方向有隱性依賴**：不能把 doc-workspace 從 row 改 column。新 element 要加在 workspace 內必須用 absolute / fixed 浮層方式，不能改 row flow。
 2. **CSS-only ruler 可行**：用 `repeating-linear-gradient` 畫刻度 + flex `flex: 0 0 <cm-px>` 撐 label tick 寬度，零 JS 就能做出 Google Docs 風尺規。
 3. **CSS override section（不改既有規則）是最低風險的 skin pass**：CSS variable 駕馭主色票、所有 override 集中在檔尾，回退簡單（git revert 末段即可）、E2E 零干擾。
+
+---
+
+## 8. Sprint Y2 增補 — ruler 動態跟 zoom + paper size 同步
+
+### 改動
+
+- `doc_editor.js` 加 3 個 getter：
+  - `_paperWidthCm` — A4/A3/A5/letter/legal → 公分寬度查表
+  - `rulerTicks` — `[1..ceil(paperWidthCm)]` 動態 tick 陣列
+  - `rulerStyle` — inline `--ruler-cm-px: <37.795 * currentZoomScale>px;`
+- `doc_editor.xml` — `t-foreach` 改吃 `rulerTicks`、`t-att-style="rulerStyle"`
+- OWL state.currentZoomScale 早就有 `pageScaleChange` listener 同步、state.pageFormat 在 onPageFormatChange 內 update → getter 全自動 reactive，無需多餘 listener
+
+### XML 註解 `--` 陷阱
+
+第一版註解寫 `t-att-style 注入 --ruler-cm-px 跟 zoom 同步` —— OWL XML parser 直接炸 `"Invalid XML template: Comment must not contain '--' (double-hyphen)"`，整個 backend SPA 500。改寫成 `... 注入 ruler-cm-px CSS variable 跟 zoom 同步` 繞過。
+
+教訓：XML 註解內**不可有任何 `--` 雙連字符**（即使 CSS variable 名稱 `--xxx`），因為 W3C XML 1.0 spec 明文禁止。
+
+### 驗證
+
+| 情境 | 期望 | 實測 |
+|---|---|---|
+| A4 + 100% zoom | tick=21、width=21×37.8=794px | 21 ticks、795.7px ✓ |
+| A4 + 200% zoom | cm-px=75.6、width=1588px | 75.59px、1589.1px ✓ |
+| A3 + 200% zoom | tick=30 (29.7cm 取整)、width=30×75.6=2268px | 30 ticks、2269.3px ✓ |
+
+E2E G.1+HN.1+J.1 全 3 pass (1.5m)、零 selector 破壞。
+
+### Sprint Y2 commit 內含 vs Sprint Y1 (67c60ae)
+
+Y1 + Y2 合一個 logical sprint「UI 視覺改造」，後續 commit 直接 amend 或單獨 commit。本次 Y2 改動：
+- `doc_editor.js`：+45 行（3 getter）
+- `doc_editor.xml`：+2 attr，−1 行（hardcoded 21-tick array → t-foreach rulerTicks）
+- 本 doc 末尾追加本段

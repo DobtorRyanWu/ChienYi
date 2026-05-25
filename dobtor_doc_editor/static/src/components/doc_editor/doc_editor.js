@@ -3297,6 +3297,45 @@ export class DocEditor extends Component {
     get offlineBadge() {
         return !this.state.isOnline;
     }
+
+    // ─── Sprint Y2：ruler 動態跟 paper size + zoom 同步 ──────────────
+    /**
+     * 目前 paper width（公分）。1cm = 96/2.54 ≈ 37.795 px @ 96 DPI；
+     * 反算現有 onPageFormatChange 的 PAGE_SIZES px → cm。
+     */
+    get _paperWidthCm() {
+        const PAPER_W_CM = {
+            A4: 21.0,
+            A3: 29.7,
+            A5: 14.8,
+            letter: 21.59,
+            legal: 21.59,
+        };
+        return PAPER_W_CM[this.state.pageFormat] || 21.0;
+    }
+
+    /**
+     * ruler tick label 陣列（1, 2, ..., ceil(paperWidthCm)）。
+     * 取整數公分，最後一格可能略超出紙張寬（視覺無妨）。
+     */
+    get rulerTicks() {
+        const n = Math.ceil(this._paperWidthCm);
+        const out = [];
+        for (let i = 1; i <= n; i++) out.push(i);
+        return out;
+    }
+
+    /**
+     * ruler inline style：`--ruler-cm-px` 跟 zoom scale 同步（37.8px × zoom）。
+     * CSS 用 `flex: 0 0 var(--ruler-cm-px)` 撐每個 tick 寬、整個 ruler 寬度
+     * = ticks × cm-px = 跟 canvas 紙張視覺寬同步。
+     */
+    get rulerStyle() {
+        const CM_PX_BASE = 37.795;   // 96 DPI / 2.54
+        const scale = this.state.currentZoomScale || 1;
+        const cmPx = (CM_PX_BASE * scale).toFixed(2);
+        return `--ruler-cm-px: ${cmPx}px;`;
+    }
 }
 
 registry.category("actions").add("dobtor_doc_editor.action_doc_editor", DocEditor);
