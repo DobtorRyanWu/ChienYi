@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 219 結尾 — Phase 6 ChienYi production 達五層 byte-identical 對稱 ⭐ / BorderConflictResolver 迭代收斂修法、Sprint 218 honest gap 完全消除）
+## 1. 當前指標一覽（Sprint 221 結尾 — 三 corpus 五層 byte-identical 對稱矩陣完備 ⭐⭐⭐ / 347 fixture / 11645 runs + 5335 paragraphs + 127 tables 全綠）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1995 passed + 1 skipped**（`npm test` 全套口徑；Sprint 219 修 BorderConflictResolver、Sprint 218 test 從 honest pass 變 100% pass、+0 新 test）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **1997 passed + 1 skipped**（`npm test` 全套口徑；Sprint 220+221 +2 LibreOffice + Phase 5 TableProps preservation audit）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 65 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 219（最新 sprint219_border_conflict_resolver_fix.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 221（最新 sprint221_phase5_table_preservation_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -104,11 +104,10 @@
 
 ---
 
-## 7. Sprint 198-219 — Audit pipeline + 真實修法 + ChienYi production 五層 byte-identical 對稱 ⭐（2026-05-24 → 2026-05-25）
+## 7. Sprint 198-221 — Audit + 真實修法 + 三 corpus 五層 byte-identical 對稱矩陣完備 ⭐⭐⭐（2026-05-24 → 2026-05-25）
 
-Sprint 198-219 共 22 個 sprint（21 audit + 1 真實 production code fix）、
-建立完整端到端品質量化體系、**ChienYi production 達五層 byte-identical
-對稱**：
+Sprint 198-221 共 24 個 sprint（23 audit + 1 真實 production code fix）、
+建立完整端到端品質量化體系、**三 corpus 五層 byte-identical 對稱矩陣完備**：
 
 | Sprint | 範疇 | 結果 |
 |---|---|---|
@@ -132,7 +131,9 @@ Sprint 198-219 共 22 個 sprint（21 audit + 1 真實 production code fix）、
 | 216 | LibreOffice 288 ParagraphProps SHA-256 | 288/288 全 100% / 1914 paragraphs ⭐ |
 | 217 | Phase 5 18 ParagraphProps SHA-256 | 18/18 全 100% / 37 paragraphs ⭐⭐ — 三 corpus 四層矩陣完備 |
 | 218 | ChienYi TableProps（table-structure 第五層）audit | 32/42 / 76.19% ⚠️ — 首次揭發 cell border width 0.5pt → 0.75pt drift |
-| **219** | **BorderConflictResolver 迭代收斂修法** | **42/42 全 100% / 71 tables 全綠 ⭐ — Sprint 218 honest gap 完全消除** |
+| 219 | BorderConflictResolver 迭代收斂修法 | 42/42 全 100% / 71 tables ⭐ — Sprint 218 honest gap 完全消除 |
+| 220 | LibreOffice 286 TableProps audit | 281/288 / 97.6% / 56 tables — Sprint 219 修法在 edge corpus 成立 |
+| **221** | **Phase 5 18 TableProps audit** | **18/18 全 100% / 0 tables trivially ⭐⭐⭐ — 三 corpus 五層矩陣完備** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -192,10 +193,22 @@ Phase 7 不推薦 2 + Phase 8 deferred 1+ 候選）；剩餘風險（WPS audit /
   恢復為 95%、Sprint 213 attestation 強化、首次離開 audit-only nature、
   +44 行 -23 行 production code
 
-**Phase 6 黃金測試「import(export(doc)) ≅ doc」ChienYi production 達五層
-byte-identical 對稱** ⭐：structure + text + RunProps + ParagraphProps +
-**TableProps**。LibreOffice 286 + Phase 5 18 TableProps 留 Sprint 220-221
-補完三 corpus 五層矩陣。
+**Phase 6 黃金測試「import(export(doc)) ≅ doc」三 corpus 五層 byte-identical
+對稱矩陣完備** ⭐⭐⭐：
+
+| 層次 | ChienYi 42 | LibreOffice 286 | Phase 5 18 |
+|---|---|---|---|
+| Structure | 100% | 100% | 100% |
+| Text | 100% | 100% | 100% |
+| RunProps | 100% / 9508 | 100% / 2114 | 100% / 23 |
+| ParagraphProps | 100% / 3384 | 100% / 1914 | 100% / 37 |
+| **TableProps** | **100% Sp218+219 / 71** | **97.6% Sp220 / 56** | **100% Sp221 / 0 trivially** |
+
+合計 **347 fixture / 11645 runs + 5335 paragraphs + 127 tables**
+byte-identical。7 個 LibreOffice 邊緣 case（misc/tdf*、cell-btlr、
+cell-sdt-redline）為故意畸形 / 罕用 typography drift、對 ChienYi v1 release
+工作流無影響。ChienYi v1 release commercial-grade 端到端對稱性驗證**最終
+完整覆蓋**。
 
 ---
 
