@@ -1598,3 +1598,374 @@
 .doc-inspector-grid-2col .doc-inspector-field {
     margin-bottom: 0;
 }
+
+/* ================================================================
+   Phase 8 Sprint Y — Google Docs 風 skin pass
+   ================================================================
+   只新增 override 規則、不改既有 selectors / 不動 XML 結構
+   （避免破壞 E2E 用的 class names：.doc-field-btn-scan / -scan-replace
+    / -rollback / .doc-inspector-fields-list-* / .o_dobtor_doc_editor 等）
+   配色靈感：Google Docs / Material Design 3 簡潔系
+   ================================================================ */
+
+.o_dobtor_doc_editor {
+    /* --- 主色票 --- */
+    --gd-bg: #f8f9fa;              /* doc 外圍背景 */
+    --gd-paper-bg: #ffffff;        /* 紙張 */
+    --gd-toolbar-bg: #ffffff;
+    --gd-toolbar-border: #e5e7eb;
+    --gd-text: #202124;
+    --gd-text-muted: #5f6368;
+    --gd-accent: #1a73e8;           /* Google blue */
+    --gd-accent-soft: #e8f0fe;
+    --gd-hover-bg: rgba(60, 64, 67, 0.08);
+    --gd-active-bg: rgba(26, 115, 232, 0.12);
+    --gd-shadow-toolbar: 0 1px 3px 0 rgba(60, 64, 67, 0.08);
+    --gd-shadow-paper: 0 2px 8px rgba(60, 64, 67, 0.16);
+    --gd-radius: 8px;
+    --gd-radius-sm: 4px;
+    --gd-font: "Google Sans", "Noto Sans TC", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+    background: var(--gd-bg);
+    font-family: var(--gd-font);
+    color: var(--gd-text);
+}
+
+/* --- Header bar：文件名稱列簡化、像 Google Docs 頂條 --- */
+.o_dobtor_doc_editor .doc-header-bar {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    box-shadow: var(--gd-shadow-toolbar);
+    padding: 6px 16px;
+}
+.o_dobtor_doc_editor .doc-header-title {
+    font-family: var(--gd-font);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--gd-text);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--gd-radius-sm);
+    padding: 4px 8px;
+    transition: background 120ms, border-color 120ms;
+}
+.o_dobtor_doc_editor .doc-header-title:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-header-title:focus {
+    background: var(--gd-paper-bg);
+    border-color: var(--gd-accent);
+    outline: none;
+}
+.o_dobtor_doc_editor .doc-header-icon {
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-header-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--gd-text);
+    border-radius: var(--gd-radius-sm);
+    padding: 6px 12px;
+    font-family: var(--gd-font);
+    font-weight: 500;
+    transition: background 120ms;
+}
+.o_dobtor_doc_editor .doc-header-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-header-btn.primary {
+    background: var(--gd-accent);
+    color: #fff;
+    border-color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-header-btn.primary:hover:not(:disabled) {
+    background: #1765cc;
+    border-color: #1765cc;
+}
+
+/* --- Sub-nav：chips 風 --- */
+.o_dobtor_doc_editor .doc-subnav {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    padding: 4px 12px;
+    gap: 4px;
+}
+.o_dobtor_doc_editor .doc-subnav-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--gd-text-muted);
+    font-family: var(--gd-font);
+    font-weight: 500;
+    border-radius: 16px;          /* pill chip */
+    padding: 4px 12px;
+    transition: background 120ms, color 120ms;
+}
+.o_dobtor_doc_editor .doc-subnav-btn:hover {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-subnav-btn.active {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+}
+
+/* --- Toolbar (Row 3：紙張/版本/匯出/縮放) --- */
+.o_dobtor_doc_editor .doc-toolbar {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    padding: 4px 12px;
+    gap: 8px;
+}
+.o_dobtor_doc_editor .doc-toolbar-field-label {
+    color: var(--gd-text-muted);
+    font-size: 12px;
+}
+.o_dobtor_doc_editor .doc-toolbar-select {
+    background: transparent;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text);
+    font-family: var(--gd-font);
+    padding: 4px 8px;
+    transition: border-color 120ms;
+}
+.o_dobtor_doc_editor .doc-toolbar-select:hover {
+    border-color: #cbd5e1;
+}
+.o_dobtor_doc_editor .doc-toolbar-select:focus {
+    border-color: var(--gd-accent);
+    outline: none;
+}
+.o_dobtor_doc_editor .doc-toolbar-btn,
+.o_dobtor_doc_editor .doc-btn-group > .doc-toolbar-btn {
+    background: transparent;
+    border-color: var(--gd-toolbar-border);
+    color: var(--gd-text);
+    font-family: var(--gd-font);
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-toolbar-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-btn-group {
+    border-radius: var(--gd-radius-sm);
+    overflow: hidden;
+}
+
+/* --- Field toolbar (Row 4) --- */
+.o_dobtor_doc_editor .doc-field-toolbar {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    padding: 6px 12px;
+    gap: 6px;
+}
+.o_dobtor_doc_editor .doc-field-toolbar-label {
+    color: var(--gd-text-muted);
+    font-size: 12px;
+    margin-right: 4px;
+}
+.o_dobtor_doc_editor .doc-field-btn {
+    background: var(--gd-paper-bg);
+    border: 1px solid var(--gd-toolbar-border);
+    color: var(--gd-text);
+    font-family: var(--gd-font);
+    border-radius: var(--gd-radius-sm);
+    padding: 4px 10px;
+    font-size: 13px;
+    transition: background 120ms, border-color 120ms;
+}
+.o_dobtor_doc_editor .doc-field-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+    border-color: #cbd5e1;
+}
+.o_dobtor_doc_editor .doc-field-btn-glyph {
+    font-weight: 600;
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-field-btn-odoo {
+    border-color: var(--gd-accent);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-field-btn-odoo:hover:not(:disabled) {
+    background: var(--gd-accent-soft);
+}
+.o_dobtor_doc_editor .doc-field-btn-scan {
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
+.o_dobtor_doc_editor .doc-field-btn-scan-replace {
+    border-color: #f9ab00;
+    color: #b06000;
+}
+.o_dobtor_doc_editor .doc-field-btn-preview-vars {
+    border-color: #5f6368;
+    color: #5f6368;
+}
+.o_dobtor_doc_editor .doc-field-btn-rollback {
+    border-color: #188038;
+    color: #188038;
+}
+
+/* --- Signer bar (Row 5) --- */
+.o_dobtor_doc_editor .doc-signer-bar {
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    padding: 6px 12px;
+}
+.o_dobtor_doc_editor .doc-signer-chip {
+    background: var(--gd-paper-bg);
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: 16px;
+    padding: 4px 10px;
+    font-family: var(--gd-font);
+    font-size: 13px;
+    transition: background 120ms, border-color 120ms;
+}
+.o_dobtor_doc_editor .doc-signer-chip:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-signer-chip.active {
+    background: var(--gd-accent-soft);
+    border-color: var(--gd-accent);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-pager-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text-muted);
+    transition: background 120ms;
+}
+.o_dobtor_doc_editor .doc-pager-btn:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+
+/* --- Main grid：左 / 中 / 右 --- */
+.o_dobtor_doc_editor .doc-main {
+    background: var(--gd-bg);
+}
+.o_dobtor_doc_editor .doc-thumbnail-panel,
+.o_dobtor_doc_editor .doc-inspector-panel {
+    background: var(--gd-toolbar-bg);
+    border-color: var(--gd-toolbar-border);
+}
+
+/* --- Canvas workspace：紙張感 + 更多留白 --- */
+.o_dobtor_doc_editor .doc-workspace {
+    background: var(--gd-bg);
+    padding: 28px 0 40px;            /* 上下留白變更多 */
+}
+.o_dobtor_doc_editor .doc-main > .doc-workspace {
+    background: var(--gd-bg);
+}
+/* Sprint Y：ruler 改為 absolute positioned 在 workspace 頂部，不動 row-flex 既有 layout
+   （column flex 會破壞 canvas-editor 內部 paper rendering，已驗證） */
+.o_dobtor_doc_editor .doc-ruler {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+}
+.o_dobtor_doc_editor .canvas-editor-container {
+    /* 讓 canvas-editor 自身的 page wrapper 看起來像紙張 */
+    --paper-shadow: var(--gd-shadow-paper);
+}
+/* canvas-editor 內部的 .ce-page / .page-wrapper 加陰影（fallback selectors） */
+.o_dobtor_doc_editor .canvas-editor-container .ce-page,
+.o_dobtor_doc_editor .canvas-editor-container > div > div {
+    box-shadow: var(--gd-shadow-paper);
+    border-radius: 2px;
+}
+
+/* --- Sprint Y ruler：CSS-only 公分刻度 ---
+   width 由內部 labels content 決定（21 ticks × ruler-cm-px = ~794px ≈ A4 寬）
+   ruler 自身置中於 workspace（doc-workspace 已改 column flex + align-items:center）
+*/
+.o_dobtor_doc_editor .doc-ruler {
+    display: flex;
+    height: 22px;
+    background: var(--gd-toolbar-bg);
+    border: 1px solid var(--gd-toolbar-border);
+    border-bottom: 2px solid #d1d5db;
+    user-select: none;
+    flex-shrink: 0;
+    margin-bottom: 0;
+    /* CSS variable，JS 透過 zoom change 更新（預設 1cm ≈ 37.8px @ 100%） */
+    --ruler-cm-px: 37.8px;
+    --ruler-tick-color: #9aa0a6;
+    /* 主刻線：每公分一條（淡灰線） */
+    background-image:
+        repeating-linear-gradient(
+            to right,
+            transparent 0,
+            transparent calc(var(--ruler-cm-px) - 1px),
+            var(--ruler-tick-color) calc(var(--ruler-cm-px) - 1px),
+            var(--ruler-tick-color) var(--ruler-cm-px)
+        );
+    background-size: 100% 8px;
+    background-position: 0 14px;
+    background-repeat: no-repeat;
+}
+.o_dobtor_doc_editor .doc-ruler-labels {
+    display: flex;
+    align-items: center;
+    font-size: 9px;
+    color: var(--gd-text-muted);
+    font-family: var(--gd-font);
+    pointer-events: none;
+    height: 100%;
+}
+.o_dobtor_doc_editor .doc-ruler-tick {
+    flex: 0 0 var(--ruler-cm-px);
+    text-align: left;
+    padding-left: 3px;
+    line-height: 1;
+}
+
+/* --- Inspector：lighter border、softer header --- */
+.o_dobtor_doc_editor .doc-inspector-fields-list-header {
+    background: var(--gd-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    color: var(--gd-text);
+    font-weight: 500;
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item {
+    border-bottom: 1px solid #f1f3f4;
+    padding: 8px 12px;
+    transition: background 120ms;
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item.is-selected {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item.is-focused {
+    box-shadow: inset 3px 0 0 var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item.is-orphan {
+    background: #fef7e0;
+}
+.o_dobtor_doc_editor .doc-inspector-fields-list-item-orphan-icon {
+    color: #f9ab00;
+}
+.o_dobtor_doc_editor .doc-inspector-cleanup-orphans-btn {
+    background: #fef7e0;
+    border: 1px solid #f9ab00;
+    color: #b06000;
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-inspector-cleanup-orphans-btn:hover {
+    background: #fce8b2;
+}
+
+/* --- Status bar 底色淡化 --- */
+.o_dobtor_doc_editor .doc-statusbar {
+    background: var(--gd-toolbar-bg);
+    border-top: 1px solid var(--gd-toolbar-border);
+    color: var(--gd-text-muted);
+}

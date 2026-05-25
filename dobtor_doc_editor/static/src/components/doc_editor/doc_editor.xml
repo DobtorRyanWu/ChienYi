@@ -369,6 +369,14 @@
                          t-on-dragleave="onWorkspaceDragLeave"
                          t-on-drop="onWorkspaceDrop"
                          aria-busy="state.editorReady ? 'false' : 'true'">
+                    <!-- Sprint Y：尺規（CSS-only 公分刻度，純視覺、不阻擋互動） -->
+                    <div class="doc-ruler" aria-hidden="true">
+                        <div class="doc-ruler-labels">
+                            <t t-foreach="[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]" t-as="cm" t-key="cm">
+                                <span class="doc-ruler-tick"><t t-esc="cm"/></span>
+                            </t>
+                        </div>
+                    </div>
                     <div class="canvas-editor-container" t-ref="canvasContainer">
                         <t t-if="!state.editorReady">
                             <div class="d-flex justify-content-center align-items-center h-100 py-5"
