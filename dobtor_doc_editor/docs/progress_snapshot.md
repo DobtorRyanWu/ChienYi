@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 212 結尾 — 三 corpus 三層 byte-identical 對稱矩陣完備 / 347 fixture / 11645 runs / 24 categories 全 100%）
+## 1. 當前指標一覽（Sprint 213 結尾 — ChienYi v1 release commercial-grade attestation 認定 GO / Sprint 198-213 16 個 audit sprint 收口）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1976 passed + 1 skipped**（`npm test` 全套口徑；Sprint 212 +1 sprint212 Phase 5 RunProps preservation audit）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **1976 passed + 1 skipped**（`npm test` 全套口徑；Sprint 213 docs-only attestation 不新增 test）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 60 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 202 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 212（最新 sprint212_phase5_runprops_preservation_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 213（最新 sprint213_chienyi_v1_commercial_grade_attestation.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -104,9 +104,10 @@
 
 ---
 
-## 7. Sprint 198-212 — Audit pipeline 完整覆蓋 + 三 corpus 三層矩陣完備全綠（2026-05-24 → 2026-05-25）
+## 7. Sprint 198-213 — Audit pipeline 完整覆蓋 + ChienYi v1 release commercial-grade attestation GO（2026-05-24 → 2026-05-25）
 
-Sprint 198-212 共 15 個 audit sprint，建立完整覆蓋的端到端品質量化體系：
+Sprint 198-213 共 16 個 audit sprint，建立完整覆蓋的端到端品質量化體系
+**並收口為 ChienYi v1 release sign-off attestation**：
 
 | Sprint | 範疇 | 結果 |
 |---|---|---|
@@ -123,7 +124,8 @@ Sprint 198-212 共 15 個 audit sprint，建立完整覆蓋的端到端品質量
 | 209 | Phase 5 18 round-trip + text | 100% / 100% ⭐ |
 | 210 | ChienYi 42 **RunProps SHA-256** | **100% / 9508 runs** ⭐ |
 | 211 | LibreOffice 288 **RunProps SHA-256** | **100% / 2114 runs** ⭐ |
-| **212** | **Phase 5 18 RunProps SHA-256** | **100% / 23 runs ⭐ — 三 corpus 矩陣完備** |
+| 212 | Phase 5 18 RunProps SHA-256 | 100% / 23 runs ⭐ — 三 corpus 矩陣完備 |
+| **213** | **ChienYi v1 commercial-grade attestation** | **docs-only / 認定 GO ⭐** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -137,6 +139,13 @@ Sprint 198-212 共 15 個 audit sprint，建立完整覆蓋的端到端品質量
 **ChienYi v1 release commercial-grade 端到端「匯入→匯出→再匯入文字+格式皆
 不失真」最嚴格量化保證**（production + edge + advanced 三 corpus 矩陣完備
 全綠、347 fixture / 11645 runs / 24 categories byte-identical）。
+
+**Sprint 213 ChienYi v1 release sign-off attestation 認定 GO** ⭐：詳見
+[sprint213_chienyi_v1_commercial_grade_attestation.md](sprint213_chienyi_v1_commercial_grade_attestation.md)。
+38 unchecked checkbox 五大類 honest gap 全盤點（External-blocked 11 +
+Phase 1 optional 10 + Phase 3 optional 6 + Phase 5 optional UI 5 +
+Phase 7 不推薦 2 + Phase 8 deferred 1+ 候選）；剩餘風險（WPS audit /
+>200p / HarfBuzz）皆 low-medium、對監造文件工作流無實質影響。
 
 ---
 
