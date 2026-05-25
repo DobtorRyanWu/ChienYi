@@ -747,6 +747,14 @@ function writeSectPr(section: SectionNode | undefined, watermarkItem: WatermarkH
     parts.push(`<w:headerReference w:type="default" r:id="${escapeXml(watermarkItem.rId)}"/>`);
   }
 
+  // Sprint 226：sectionBreakType（CT_SectPr schema：type 在 pgSz 之前）
+  // parser 對 `<w:type>` 缺 element 不存 sectionBreakType、若 writer 不 emit
+  // 已存的 type、'continuous'/'evenPage'/'oddPage' 等非預設值會在 round-trip
+  // 丟失（reparse 為 undefined ≡ 預設 'nextPage'）、多 section 文件破壞。
+  if (section?.sectionBreakType !== undefined) {
+    parts.push(`<w:type w:val="${section.sectionBreakType}"/>`);
+  }
+
   // pgSz / pgMar（section 缺漏 → A4 + Word 預設邊距）
   const page = section?.page;
   const margins = section?.margins;
@@ -764,6 +772,32 @@ function writeSectPr(section: SectionNode | undefined, watermarkItem: WatermarkH
   // gutter=0、reparse 對等性破壞。
   const gutterAttr = margins?.gutter !== undefined ? ` w:gutter="${ptToTwips(margins.gutter)}"` : '';
   parts.push(`<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="${headerMargin}" w:footer="${footerMargin}"${gutterAttr}/>`);
+
+  // Sprint 226：cols（CT_SectPr schema：cols 在 pgMar 之後、titlePg 之前）
+  // parser 對 count<=1 不存 columns、故此處存在即代表多欄；不 emit 會讓
+  // 多欄文件 round-trip 退化為單欄。equalWidth 預設 true、只在 false 時
+  // emit attribute；個別 colWidths/colSpaces 在 !equalWidth 時 emit `<w:col>` 子節點。
+  const columns = section?.columns;
+  if (columns && columns.count > 1) {
+    const colsAttrs: string[] = [`w:num="${columns.count}"`];
+    if (columns.space !== undefined) colsAttrs.push(`w:space="${ptToTwips(columns.space)}"`);
+    if (columns.equalWidth === false) colsAttrs.push('w:equalWidth="0"');
+    if (columns.separator) colsAttrs.push('w:sep="1"');
+    const hasCustomCols = columns.equalWidth === false && columns.colWidths && columns.colWidths.length > 0;
+    if (hasCustomCols) {
+      const colEls: string[] = [];
+      const widths = columns.colWidths!;
+      const spaces = columns.colSpaces ?? [];
+      for (let i = 0; i < widths.length; i++) {
+        const wAttr = ` w:w="${ptToTwips(widths[i])}"`;
+        const sAttr = i < spaces.length ? ` w:space="${ptToTwips(spaces[i])}"` : '';
+        colEls.push(`<w:col${wAttr}${sAttr}/>`);
+      }
+      parts.push(`<w:cols ${colsAttrs.join(' ')}>${colEls.join('')}</w:cols>`);
+    } else {
+      parts.push(`<w:cols ${colsAttrs.join(' ')}/>`);
+    }
+  }
 
   // titlePg（在 pgMar 之後、docGrid 之前依 CT_SectPr schema）
   if (section?.titlePage) parts.push('<w:titlePg/>');
