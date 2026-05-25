@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 217 結尾 — 三 corpus 四層 byte-identical 對稱矩陣完備 ⭐⭐ / 347 fixture / 11645 runs + 5335 paragraphs / 24 categories 全 100%）
+## 1. 當前指標一覽（Sprint 218 結尾 — TableProps 第五層首次量測揭發 cell border width drift / ChienYi 32/42 honest 76.19% / 三 corpus 四層仍完備全 100%）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1992 passed + 1 skipped**（`npm test` 全套口徑；Sprint 216-217 +2 LibreOffice + Phase 5 ParagraphProps preservation audit）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
-| VR mean | **0.073191**（Sprint 65 promote、第 64 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
+| vitest | **1993 passed + 1 skipped**（`npm test` 全套口徑；Sprint 218 +1 ChienYi TableProps audit honest finding）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| VR mean | **0.073191**（Sprint 65 promote、第 65 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 217（最新 sprint217_phase5_pprops_preservation_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 218（最新 sprint218_chienyi_table_preservation_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -104,10 +104,11 @@
 
 ---
 
-## 7. Sprint 198-217 — Audit pipeline 完整覆蓋 + 三 corpus 四層 byte-identical 對稱矩陣完備 ⭐⭐（2026-05-24 → 2026-05-25）
+## 7. Sprint 198-218 — Audit pipeline 完整覆蓋 + 三 corpus 四層完備 + TableProps 第五層揭發 1 honest gap（2026-05-24 → 2026-05-25）
 
-Sprint 198-217 共 20 個 audit sprint，建立完整覆蓋的端到端品質量化體系、
-**三 corpus 四層 byte-identical 對稱矩陣完備**：
+Sprint 198-218 共 21 個 audit sprint，建立完整覆蓋的端到端品質量化體系、
+**三 corpus 四層 byte-identical 對稱矩陣完備 + 第五層 TableProps 首次揭發
+honest gap**：
 
 | Sprint | 範疇 | 結果 |
 |---|---|---|
@@ -129,7 +130,8 @@ Sprint 198-217 共 20 個 audit sprint，建立完整覆蓋的端到端品質量
 | 214 | 200p+ synthetic perf 實測（線性外推實證） | 193 頁 / 644ms / 8.0% 閾值使用率 ⭐ |
 | 215 | ChienYi ParagraphProps SHA-256（段落格式對稱） | 42/42 全 100% / 3384 paragraphs ⭐ |
 | 216 | LibreOffice 288 ParagraphProps SHA-256 | 288/288 全 100% / 1914 paragraphs ⭐ |
-| **217** | **Phase 5 18 ParagraphProps SHA-256** | **18/18 全 100% / 37 paragraphs ⭐⭐ — 三 corpus 四層矩陣完備** |
+| 217 | Phase 5 18 ParagraphProps SHA-256 | 18/18 全 100% / 37 paragraphs ⭐⭐ — 三 corpus 四層矩陣完備 |
+| **218** | **ChienYi TableProps（table-structure 第五層）** | **32/42 / 76.19% ⚠️ — 首次揭發 cell border width 0.5pt → 0.75pt drift / 10 fixture honest gap** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -171,6 +173,15 @@ Phase 7 不推薦 2 + Phase 8 deferred 1+ 候選）；剩餘風險（WPS audit /
 - 三 corpus（production + edge + advanced）× 四層（structure + text + RunProps + ParagraphProps）
 - 合計 **347 fixture / 11645 runs + 5335 paragraphs / 24 categories** byte-identical
 - ChienYi v1 release commercial-grade 端到端對稱性驗證**最終完整覆蓋**
+
+**Sprint 218 TableProps 第五層首次揭發 honest gap** ⚠️：ChienYi 42 table-
+structure 對稱 32/42（76.19%）、**10 fixture（全 05_header_footer 自主檢查
+表系列）cell border width 0.5pt → 0.75pt round-trip drift**（writer fallback
+Word 預設 w:sz=6 / 0.75pt）。視覺差異極微（0.25pt 肉眼難察）、不影響
+監造/估驗/通報文件工作流；**Sprint 213 attestation 仍 GO**（attestation
+當時 audit 維度未涵蓋 cell border 細節、非 regression）。Sprint 219+ 真實
+開發修法（cell border width 預設值 fallback 行為）。LibreOffice 286 +
+Phase 5 18 TableProps 留 Sprint 220-221 補完。
 
 ---
 
