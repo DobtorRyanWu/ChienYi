@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 222 結尾 — ChienYi v1 release commercial-grade attestation v2 升級確認 GO ⭐⭐⭐ / 三 corpus 五層 byte-identical 對稱矩陣完備 / 347 fixture / 11645 runs + 5335 paragraphs + 127 tables 全綠）
+## 1. 當前指標一覽（Sprint 223 結尾 — ChienYi production corpus 達六層 byte-identical 對稱 ⭐⭐⭐⭐ / Sprint 218→219 模式重現 / writer docGrid serializer 修法 14/42 → 42/42 / 62 sections）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **1997 passed + 1 skipped**（`npm test` 全套口徑；Sprint 220+221 +2 LibreOffice + Phase 5 TableProps preservation audit）。註：Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
-| VR mean | **0.073191**（Sprint 65 promote、第 65 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
+| vitest | **1996 passed + 1 skipped**（`npm test` 全套口徑；Sprint 223 +1 ChienYi SectionProps audit、Sprint 222 docs-only 不增；註：Sprint 220+221 對應 audit doc 與本檔之間 vitest 計數先後存在 ±2 差異、以本 Sprint 223 修法後實測為準）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| VR mean | **0.073191**（Sprint 65 promote、第 66 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223 writer docGrid fix 不觸 import path、VR 第 66 連 maintained；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 222（最新 sprint222_chienyi_v1_commercial_grade_attestation_v2.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 223（最新 sprint223_chienyi_section_preservation_audit.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -136,6 +136,7 @@ Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix�
 | 220 | LibreOffice 286 TableProps audit | 281/288 / 97.6% / 56 tables — Sprint 219 修法在 edge corpus 成立 |
 | **221** | **Phase 5 18 TableProps audit** | **18/18 全 100% / 0 tables trivially ⭐⭐⭐ — 三 corpus 五層矩陣完備** |
 | **222** | **ChienYi v1 commercial-grade attestation v2** | **docs-only / 升級確認 GO ⭐⭐⭐ — Sprint 198-222 25 sprint 完整收口** |
+| **223** | **ChienYi SectionProps 第六層 audit + writer docGrid fix** | **14/42 → 42/42 / 100% / 62 sections ⭐⭐⭐⭐ — Sprint 218→219 模式重現、+10 行 production code、VR 第 66 連 maintained** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -233,6 +234,29 @@ v2 加權平均完成度 **~94-96% 商用 B+ 級**（v1 ~93-95% → v2 +1pp）�
 剩餘 38+7 unchecked / honest gap 全 v2 盤點完備、對 ChienYi 監造文件工作
 流無實質影響。Sprint 198-222 共 25 sprint 完整收口、ChienYi v1 release
 docx 匯入子系統最終 sign-off **GO（升級確認 ⭐⭐⭐）**。
+
+**Sprint 223 SectionProps 第六層 audit + writer docGrid fix（Sprint 218→219
+模式重現第二次）** ⭐⭐⭐⭐：
+
+- v1（修前）：14/42（33.3%）/ 62 sections — 28 fixture drift 揭發 honest gap
+- Diagnostic 30 秒命中 root cause：`OoxmlWriter.writeSectPr` 完全漏實作
+  `<w:docGrid>` 序列化分支（CT_SectPr §17.6.17 schema 末段、CJK 文件
+  line snap 必要欄位）
+- 修法：`writeSectPr` 加 docGrid 分支（+10 行 production code、依
+  schema 順序在 titlePg 之後 emit `<w:docGrid w:type="..." w:linePitch="...">`、
+  反向轉 Pt→twip 對等 parser parseDocGrid）
+- v2（修後）：**42/42（100%）/ 62 sections 全綠** ⭐⭐⭐⭐ —— +66.7pp 跨閾值
+- 三層 SOP：vitest 1995→1996（+1 sprint223 audit）/ VR v14 byte-identical
+  **第 66 連** maintained（42/42 / 126 pages / 0 failures、writer 修法不
+  觸 import path）/ perf baseline 維持
+- 紀律：Strategy C 第二次例外（Sprint 219 後）、#18 scope-down 不順手清
+  cols/sectionBreakType/gutter（各自留後續 sprint 揭發後再修、避免
+  Sprint 90-110「順便清理」反噬模式）
+
+**ChienYi production corpus 達六層 byte-identical 對稱** ⭐⭐⭐⭐（比 Sprint
+222 v2 attestation 五層再升一層）：structure + text + RunProps +
+ParagraphProps + TableProps + **SectionProps**。LibreOffice + Phase 5
+第六層留 Sprint 224 / 225 後續展開。
 
 ---
 

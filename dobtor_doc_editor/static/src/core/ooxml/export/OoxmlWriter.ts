@@ -764,6 +764,16 @@ function writeSectPr(section: SectionNode | undefined, watermarkItem: WatermarkH
   // titlePg（在 pgMar 之後、docGrid 之前依 CT_SectPr schema）
   if (section?.titlePage) parts.push('<w:titlePg/>');
 
+  // Sprint 223：docGrid（CT_SectPr schema 末段、CJK 文件 line snap 必要、
+  // 不寫會讓中文文件 line height 在 round-trip 丟失 grid 對齊）
+  // parser 對 type='default' 不存（返回 undefined）、故此處 section.docGrid
+  // 存在即代表 type ∈ {lines, linesAndChars, snapToChars}
+  const docGrid = section?.docGrid;
+  if (docGrid) {
+    const linePitchTwips = ptToTwips(docGrid.linePitch);
+    parts.push(`<w:docGrid w:type="${docGrid.type}" w:linePitch="${linePitchTwips}"/>`);
+  }
+
   return '<w:sectPr>' + parts.join('') + '</w:sectPr>';
 }
 
