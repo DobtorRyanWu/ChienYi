@@ -2096,3 +2096,94 @@
     background: var(--gd-toolbar-border);
     margin: 4px 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y4 — 尋找／取代 floating panel
+   錨點：.doc-workspace 內絕對定位 top-right；觸發來源 = 編輯 menu / Ctrl+F / Ctrl+H
+   ════════════════════════════════════════════════════════════════════════ */
+
+.o_dobtor_doc_editor .doc-workspace {
+    position: relative;          /* find panel 用 absolute 浮在右上 */
+}
+
+.o_dobtor_doc_editor .doc-find-replace-panel {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    z-index: 25;                  /* 高於 ruler(5) */
+    min-width: 340px;
+    padding: 8px 10px;
+    background: #fff;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius);
+    box-shadow: 0 4px 16px rgba(60, 64, 67, 0.16),
+                0 2px 6px rgba(60, 64, 67, 0.08);
+    font-family: var(--gd-font);
+    font-size: 13px;
+    animation: doc-dropdown-fade-in 100ms ease-out;
+}
+
+.o_dobtor_doc_editor .doc-find-row,
+.o_dobtor_doc_editor .doc-replace-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.o_dobtor_doc_editor .doc-replace-row {
+    margin-top: 6px;
+}
+
+.o_dobtor_doc_editor .doc-find-input,
+.o_dobtor_doc_editor .doc-replace-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 5px 10px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    font: inherit;
+    color: var(--gd-text);
+    background: #fff;
+}
+
+.o_dobtor_doc_editor .doc-find-input:focus,
+.o_dobtor_doc_editor .doc-replace-input:focus {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -1px;
+    border-color: var(--gd-accent);
+}
+
+.o_dobtor_doc_editor .doc-find-btn {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text-muted);
+    cursor: pointer;
+    transition: background 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-find-btn:hover {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+
+.o_dobtor_doc_editor .doc-find-btn-text {
+    flex: 0 0 auto;
+    padding: 4px 12px;
+    border: 1px solid var(--gd-toolbar-border);
+    background: #fff;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-find-btn-text:hover {
+    background: var(--gd-hover-bg);
+    border-color: var(--gd-text-muted);
+}

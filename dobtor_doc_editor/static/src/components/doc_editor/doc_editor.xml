@@ -420,6 +420,48 @@
                             </t>
                         </div>
                     </div>
+                    <!-- Sprint Y4：尋找／取代 panel（浮在 workspace 右上）
+                         觸發：menubar 編輯 menu / Ctrl+F / Ctrl+H
+                         state.findReplaceMode = 'find' 只顯示尋找列；'replace' 顯示尋找+取代列 -->
+                    <div class="doc-find-replace-panel" t-if="state.findReplaceMode" role="dialog" aria-label="尋找與取代">
+                        <div class="doc-find-row">
+                            <input class="doc-find-input"
+                                   type="text"
+                                   placeholder="尋找..."
+                                   t-att-value="state.findText"
+                                   t-on-input="onFindTextInput"
+                                   t-on-keydown="onFindInputKeyDown"
+                                   aria-label="尋找文字"/>
+                            <button class="doc-find-btn"
+                                    t-on-click="onFindPrev"
+                                    title="上一個 (Shift+Enter)"
+                                    aria-label="上一個">
+                                <i class="fa fa-chevron-up" aria-hidden="true"/>
+                            </button>
+                            <button class="doc-find-btn"
+                                    t-on-click="onFindNext"
+                                    title="下一個 (Enter)"
+                                    aria-label="下一個">
+                                <i class="fa fa-chevron-down" aria-hidden="true"/>
+                            </button>
+                            <button class="doc-find-btn"
+                                    t-on-click="closeFindReplace"
+                                    title="關閉 (Esc)"
+                                    aria-label="關閉尋找面板">
+                                <i class="fa fa-times" aria-hidden="true"/>
+                            </button>
+                        </div>
+                        <div class="doc-replace-row" t-if="state.findReplaceMode === 'replace'">
+                            <input class="doc-replace-input"
+                                   type="text"
+                                   placeholder="取代為..."
+                                   t-att-value="state.replaceText"
+                                   t-on-input="onReplaceTextInput"
+                                   aria-label="取代為"/>
+                            <button class="doc-find-btn-text" t-on-click="onReplaceOnce">取代</button>
+                            <button class="doc-find-btn-text" t-on-click="onReplaceAll">全部取代</button>
+                        </div>
+                    </div>
                     <div class="canvas-editor-container" t-ref="canvasContainer">
                         <t t-if="!state.editorReady">
                             <div class="d-flex justify-content-center align-items-center h-100 py-5"

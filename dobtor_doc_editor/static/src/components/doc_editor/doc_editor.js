@@ -168,6 +168,10 @@ export class DocEditor extends Component {
             // 查看 menu 的兩個 toggle（初始 true 維持現狀）
             showRuler: true,
             showThumbnails: true,
+            // ─── Sprint Y4：尋找／取代 panel ───
+            findReplaceMode: false,
+            findText: '',
+            replaceText: '',
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -208,6 +212,17 @@ export class DocEditor extends Component {
             // Sprint Y3：Esc 關閉 menu bar dropdown
             if (event.key === 'Escape' && this.state?.openMenu) {
                 this.state.openMenu = null;
+            }
+            // Sprint Y4：Ctrl/Cmd+F 開尋找、Ctrl/Cmd+H 開取代
+            if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey
+                && (event.key === 'f' || event.key === 'F')) {
+                event.preventDefault();
+                this.openFindReplace?.('find');
+            }
+            if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey
+                && (event.key === 'h' || event.key === 'H')) {
+                event.preventDefault();
+                this.openFindReplace?.('replace');
             }
         };
         if (typeof window !== 'undefined') {
@@ -3403,6 +3418,8 @@ export class DocEditor extends Component {
                 case 'edit:cut': this._tryExecCommand('cut'); break;
                 case 'edit:copy': this._tryExecCommand('copy'); break;
                 case 'edit:paste': this._tryExecCommand('paste'); break;
+                case 'edit:find': this.openFindReplace('find'); break;
+                case 'edit:replace': this.openFindReplace('replace'); break;
 
                 case 'view:toggle-ruler': this.state.showRuler = !this.state.showRuler; break;
                 case 'view:toggle-thumbnails': this.state.showThumbnails = !this.state.showThumbnails; break;
@@ -3547,6 +3564,95 @@ export class DocEditor extends Component {
         }
     }
 
+    // ─── Sprint Y4：尋找／取代 panel handlers ─────────────────────
+    // canvas-editor API：executeSearch(text|null) / executeReplace(newText) /
+    // executeSearchNavigateNext / executeSearchNavigatePre
+    openFindReplace(mode) {
+        this.state.findReplaceMode = mode;
+        this.state.openMenu = null;
+        // OWL render 是非同步 — 用 setTimeout 跳到下一輪 macrotask 才 focus 到新 DOM。
+        // Promise.resolve().then() 在 OWL commit 之前就執行了、抓不到 input。
+        setTimeout(() => {
+            const el = document.querySelector('.o_dobtor_doc_editor .doc-find-input');
+            if (el) { el.focus(); el.select(); }
+        }, 50);
+        if (this.state.findText) {
+            try { this.editor?.command?.executeSearch?.(this.state.findText); } catch (e) { /* ignore */ }
+        }
+    }
+
+    closeFindReplace() {
+        this.state.findReplaceMode = false;
+        try { this.editor?.command?.executeSearch?.(null); } catch (e) { /* ignore */ }
+    }
+
+    onFindTextInput(ev) {
+        this.state.findText = ev.target.value;
+        try {
+            this.editor?.command?.executeSearch?.(this.state.findText || null);
+        } catch (e) { /* ignore */ }
+    }
+
+    onReplaceTextInput(ev) {
+        this.state.replaceText = ev.target.value;
+    }
+
+    onFindNext() {
+        if (!this.state.findText) return;
+        this._executeCmd('executeSearchNavigateNext');
+    }
+
+    onFindPrev() {
+        if (!this.state.findText) return;
+        this._executeCmd('executeSearchNavigatePre');
+    }
+
+    onReplaceOnce() {
+        if (!this.state.findText) return;
+        try {
+            this.editor?.command?.executeSearch?.(this.state.findText);
+            this.editor?.command?.executeReplace?.(this.state.replaceText || '');
+        } catch (e) {
+            console.error('[DocEditor] replace once failed', e);
+            this.notification?.add?.(`取代失敗：${e.message || e}`, { type: 'warning' });
+        }
+    }
+
+    // executeReplace 只取代當前一個 match，要 replaceAll 須 loop。
+    // 用 flatten text indexOf 判斷停止條件 + SAFE_GUARD 避免無限 loop（同 Sprint W 模式）。
+    onReplaceAll() {
+        if (!this.state.findText) return;
+        const SAFE_GUARD = 500;
+        let count = 0;
+        try {
+            for (let i = 0; i < SAFE_GUARD; i++) {
+                const data = this.editor?.command?.getValue?.()?.data;
+                if (!data) break;
+                const flat = flattenElementsToText(data.main || []);
+                if (flat.indexOf(this.state.findText) < 0) break;
+                this.editor.command.executeSearch(this.state.findText);
+                this.editor.command.executeReplace(this.state.replaceText || '');
+                count++;
+            }
+            this.notification?.add?.(`已取代 ${count} 個項目`, { type: 'info' });
+            try { this.editor?.command?.executeSearch?.(null); } catch (e) { /* ignore */ }
+        } catch (e) {
+            console.error('[DocEditor] replace all failed', e);
+            this.notification?.add?.(`取代失敗：${e.message || e}`, { type: 'warning' });
+        }
+    }
+
+    onFindInputKeyDown(ev) {
+        if (ev.key === 'Enter') {
+            ev.preventDefault();
+            if (ev.shiftKey) this.onFindPrev();
+            else this.onFindNext();
+        } else if (ev.key === 'Escape') {
+            ev.preventDefault();
+            this.closeFindReplace();
+        }
+    }
+
     // 6 個 menu × N item 的設定表；XML 用 t-foreach 渲染
     get menuConfig() {
         return [
@@ -3577,8 +3683,8 @@ export class DocEditor extends Component {
                     { label: '複製', action: 'edit:copy', shortcut: 'Ctrl+C' },
                     { label: '貼上', action: 'edit:paste', shortcut: 'Ctrl+V' },
                     { type: 'separator' },
-                    { label: '尋找', disabled: true, shortcut: 'Ctrl+F' },
-                    { label: '取代', disabled: true, shortcut: 'Ctrl+H' },
+                    { label: '尋找', action: 'edit:find', shortcut: 'Ctrl+F' },
+                    { label: '取代', action: 'edit:replace', shortcut: 'Ctrl+H' },
                 ],
             },
             {
