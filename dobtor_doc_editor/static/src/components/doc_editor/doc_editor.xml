@@ -85,6 +85,45 @@
                 </button>
             </nav>
 
+            <!-- ═══ Row 2.5：Google Docs 風 功能 menu bar（Sprint Y3） ═══
+                 6 個下拉 menu：檔案 / 編輯 / 查看 / 插入 / 格式 / 工具
+                 已實作項目接既有 handler，未實作項目用 disabled 占位。
+                 互動：點 trigger 開／關；開著時 hover 其他 trigger 切換；
+                       點外或按 Escape 關閉（listener 在 setup 註冊）。
+            ═══ -->
+            <div class="doc-menubar" role="menubar" aria-label="文件功能選單">
+                <t t-foreach="menuConfig" t-as="menu" t-key="menu.name">
+                    <div class="doc-menu-wrapper"
+                         t-att-class="state.openMenu === menu.name ? 'is-open' : ''">
+                        <button class="doc-menu-trigger"
+                                t-on-click="() => this.onMenuTriggerClick(menu.name)"
+                                t-on-mouseenter="() => this.onMenuTriggerHover(menu.name)"
+                                t-att-aria-expanded="state.openMenu === menu.name"
+                                aria-haspopup="true">
+                            <t t-esc="menu.label"/>
+                        </button>
+                        <div class="doc-dropdown" t-if="state.openMenu === menu.name" role="menu">
+                            <t t-foreach="menu.items" t-as="item" t-key="item_index">
+                                <t t-if="item.type === 'separator'">
+                                    <div class="doc-menu-separator" role="separator"/>
+                                </t>
+                                <t t-else="">
+                                    <button class="doc-menu-item"
+                                            role="menuitem"
+                                            t-att-disabled="item.disabled or false"
+                                            t-on-click="() => this.onMenuItemClick(item.action)">
+                                        <span class="doc-menu-item-label" t-esc="item.label"/>
+                                        <span class="doc-menu-item-shortcut"
+                                              t-if="item.shortcut"
+                                              t-esc="item.shortcut"/>
+                                    </button>
+                                </t>
+                            </t>
+                        </div>
+                    </div>
+                </t>
+            </div>
+
             <!-- ═══ Row 3：工具列（紙張 / 版本 / 匯入匯出 ‧ 右側縮放）═══
                  設計：左區密集分組（btn-group 共邊框），右區（縮放）用 margin-left:auto
                        推到最右，無論視窗寬度都保持單行視覺秩序。

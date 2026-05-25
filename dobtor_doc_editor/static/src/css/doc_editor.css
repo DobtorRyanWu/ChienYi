@@ -1969,3 +1969,130 @@
     border-top: 1px solid var(--gd-toolbar-border);
     color: var(--gd-text-muted);
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y3 — Google Docs 風 功能 menu bar
+   Row 2.5：插在 sub-nav 與 toolbar 之間；零既有 selector 衝突。
+   結構：.doc-menubar > .doc-menu-wrapper > (.doc-menu-trigger + .doc-dropdown)
+                                            .doc-dropdown > .doc-menu-item / .doc-menu-separator
+   ════════════════════════════════════════════════════════════════════════ */
+
+.o_dobtor_doc_editor .doc-menubar {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px;
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    font-family: var(--gd-font);
+    font-size: 13px;
+    color: var(--gd-text);
+    user-select: none;
+    position: relative;
+    z-index: 20;
+}
+
+.o_dobtor_doc_editor .doc-menu-wrapper {
+    position: relative;
+    display: inline-flex;
+}
+
+.o_dobtor_doc_editor .doc-menu-trigger {
+    padding: 4px 10px;
+    margin: 0 1px;
+    border: none;
+    background: transparent;
+    color: var(--gd-text);
+    border-radius: var(--gd-radius-sm);
+    cursor: pointer;
+    font: inherit;
+    line-height: 1.4;
+    transition: background 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-menu-trigger:hover,
+.o_dobtor_doc_editor .doc-menu-wrapper.is-open .doc-menu-trigger {
+    background: var(--gd-hover-bg);
+}
+
+.o_dobtor_doc_editor .doc-menu-trigger:focus {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -2px;
+}
+
+.o_dobtor_doc_editor .doc-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    min-width: 240px;
+    padding: 6px 0;
+    background: #fff;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    box-shadow: 0 4px 14px rgba(60, 64, 67, 0.16),
+                0 1px 4px rgba(60, 64, 67, 0.08);
+    z-index: 100;
+    animation: doc-dropdown-fade-in 80ms ease-out;
+}
+
+@keyframes doc-dropdown-fade-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.o_dobtor_doc_editor .doc-menu-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 6px 16px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.6;
+    cursor: pointer;
+    transition: background 80ms ease;
+}
+
+.o_dobtor_doc_editor .doc-menu-item:hover:not(:disabled) {
+    background: var(--gd-hover-bg);
+}
+
+.o_dobtor_doc_editor .doc-menu-item:focus {
+    background: var(--gd-accent-soft);
+    outline: none;
+}
+
+.o_dobtor_doc_editor .doc-menu-item:disabled {
+    color: #9aa0a6;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.o_dobtor_doc_editor .doc-menu-item-label {
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.o_dobtor_doc_editor .doc-menu-item-shortcut {
+    flex: 0 0 auto;
+    color: var(--gd-text-muted);
+    margin-left: 32px;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.o_dobtor_doc_editor .doc-menu-item:disabled .doc-menu-item-shortcut {
+    color: #c0c5cc;
+}
+
+.o_dobtor_doc_editor .doc-menu-separator {
+    height: 1px;
+    background: var(--gd-toolbar-border);
+    margin: 4px 0;
+}

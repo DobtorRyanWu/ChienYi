@@ -162,6 +162,12 @@ export class DocEditor extends Component {
             // ─── Sprint P：inspector 列表的鍵盤焦點 index（在 filteredFieldsList 中）───
             // -1 = 沒焦點；0..length-1 = 對應 row。filter/cache 變動時要 reset
             focusedListIndex: -1,
+            // ─── Sprint Y3：Google Docs 風 menu bar ───
+            // null = 全部關閉；'file'|'edit'|'view'|'insert'|'format'|'tools' = 該 menu 展開中
+            openMenu: null,
+            // 查看 menu 的兩個 toggle（初始 true 維持現狀）
+            showRuler: true,
+            showThumbnails: true,
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -199,9 +205,26 @@ export class DocEditor extends Component {
             if (event.key === 'Escape' && this.state?.showVersionPanel) {
                 this.state.showVersionPanel = false;
             }
+            // Sprint Y3：Esc 關閉 menu bar dropdown
+            if (event.key === 'Escape' && this.state?.openMenu) {
+                this.state.openMenu = null;
+            }
         };
         if (typeof window !== 'undefined') {
             window.addEventListener('keydown', this._onGlobalKey);
+        }
+
+        // Sprint Y3：menu bar 外部點擊關閉（mousedown 比 click 早觸發，避免 trigger 自身競態）
+        this._onGlobalClick = (ev) => {
+            if (!this.state || !this.state.openMenu) return;
+            try {
+                if (!ev.target.closest('.doc-menubar')) {
+                    this.state.openMenu = null;
+                }
+            } catch (e) { /* ignore */ }
+        };
+        if (typeof document !== 'undefined') {
+            document.addEventListener('mousedown', this._onGlobalClick);
         }
 
         // 取得 doc_id 優先順序：
@@ -345,6 +368,12 @@ export class DocEditor extends Component {
                 window.removeEventListener('keydown', this._onGlobalKey);
             }
             this._onGlobalKey = null;
+
+            // Sprint Y3：解除 menu bar 外部點擊監聽
+            if (typeof document !== 'undefined' && this._onGlobalClick) {
+                document.removeEventListener('mousedown', this._onGlobalClick);
+            }
+            this._onGlobalClick = null;
         });
     }
 
@@ -3335,6 +3364,287 @@ export class DocEditor extends Component {
         const scale = this.state.currentZoomScale || 1;
         const cmPx = (CM_PX_BASE * scale).toFixed(2);
         return `--ruler-cm-px: ${cmPx}px;`;
+    }
+
+    // ─── Sprint Y3：Google Docs 風 功能 menu bar ──────────────────
+    // 6 個下拉 menu（檔案/編輯/查看/插入/格式/工具），互動：
+    //   1. 點 trigger 開/關 dropdown
+    //   2. dropdown 開著時 hover 其他 trigger → 切換到該 menu（Google Docs 行為）
+    //   3. 點 menu-item → 跑 action 後關閉
+    //   4. 點外 / 按 Escape → 關閉（listener 在 setup 註冊）
+
+    onMenuTriggerClick(name) {
+        this.state.openMenu = (this.state.openMenu === name) ? null : name;
+    }
+
+    onMenuTriggerHover(name) {
+        // 只在已有 menu 開著時才 hover-switch（避免單純滑過 trigger 就自動展開）
+        if (this.state.openMenu && this.state.openMenu !== name) {
+            this.state.openMenu = name;
+        }
+    }
+
+    onMenuItemClick(action) {
+        this.state.openMenu = null;
+        if (!action) return;
+        try {
+            switch (action) {
+                case 'file:rename': this._focusTitleInput(); break;
+                case 'file:import': this.onImportClick(); break;
+                case 'file:export-pdf': this.onExportPdf(); break;
+                case 'file:export-docx': this.onExportDocx(); break;
+                case 'file:print': this._executeCmd('executePrint'); break;
+                case 'file:preview': this.onPreviewClick(); break;
+                case 'file:save': this.onSave(); break;
+                case 'file:close': this.onClose(); break;
+
+                case 'edit:undo': this._executeCmd('executeUndo'); break;
+                case 'edit:redo': this._executeCmd('executeRedo'); break;
+                case 'edit:cut': this._tryExecCommand('cut'); break;
+                case 'edit:copy': this._tryExecCommand('copy'); break;
+                case 'edit:paste': this._tryExecCommand('paste'); break;
+
+                case 'view:toggle-ruler': this.state.showRuler = !this.state.showRuler; break;
+                case 'view:toggle-thumbnails': this.state.showThumbnails = !this.state.showThumbnails; break;
+                case 'view:zoom-50': this._setZoom(0.5); break;
+                case 'view:zoom-100': this._setZoom(1); break;
+                case 'view:zoom-150': this._setZoom(1.5); break;
+                case 'view:zoom-200': this._setZoom(2); break;
+                case 'view:zoom-fit': this.onZoomFitChange({ target: { value: 'width' } }); break;
+                case 'view:fullscreen': this._requestFullscreen(); break;
+
+                case 'insert:table': this._executeCmd('executeInsertTable', 3, 3); break;
+                case 'insert:image': this._insertImagePicker(); break;
+                case 'insert:var-text': this.onFieldButtonClick('text'); break;
+                case 'insert:var-date': this.onFieldButtonClick('date'); break;
+                case 'insert:var-checkbox': this.onFieldButtonClick('checkbox'); break;
+
+                case 'format:bold': this._executeCmd('executeBold'); break;
+                case 'format:italic': this._executeCmd('executeItalic'); break;
+                case 'format:underline': this._executeCmd('executeUnderline'); break;
+                case 'format:strikeout': this._executeCmd('executeStrikeout'); break;
+                case 'format:align-left': this._executeCmd('executeRowFlex', 'left'); break;
+                case 'format:align-center': this._executeCmd('executeRowFlex', 'center'); break;
+                case 'format:align-right': this._executeCmd('executeRowFlex', 'right'); break;
+                case 'format:align-justify': this._executeCmd('executeRowFlex', 'alignment'); break;
+                case 'format:clear-format': this._executeCmd('executePainterStyle', {}); break;
+
+                case 'tools:scan-vars': this.onScanVariablesClick(); break;
+                case 'tools:scan-replace': this.onScanAndReplaceClick(); break;
+                case 'tools:preview-vars': this.onPreviewVariablesClick(); break;
+                case 'tools:rollback': this.onRollbackScanReplaceClick(); break;
+                case 'tools:word-count': this._countWords(); break;
+                case 'tools:version-history': this.onShowVersionPanel(); break;
+            }
+        } catch (e) {
+            console.error('[DocEditor.menubar] action failed:', action, e);
+            this.notification?.add?.(`動作執行失敗：${action}`, { type: 'warning' });
+        }
+    }
+
+    // ─── menu 動作底層 helpers ───
+    _executeCmd(name, ...args) {
+        try {
+            const fn = this.editor?.command?.[name];
+            if (typeof fn === 'function') {
+                fn.apply(this.editor.command, args);
+                return true;
+            }
+            this.notification?.add?.(`canvas-editor 不支援命令：${name}`, { type: 'warning' });
+            return false;
+        } catch (e) {
+            console.error('[DocEditor._executeCmd]', name, e);
+            this.notification?.add?.(`命令執行失敗：${name}`, { type: 'warning' });
+            return false;
+        }
+    }
+
+    _tryExecCommand(cmd) {
+        try {
+            const ok = document.execCommand(cmd);
+            if (!ok) {
+                this.notification?.add?.(`瀏覽器拒絕執行：${cmd}（請改用快捷鍵）`, { type: 'info' });
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    _setZoom(scale) {
+        try {
+            if (this.editor?.command?.executePageScale) {
+                this.editor.command.executePageScale(scale);
+            }
+            this.state.currentZoomScale = scale;
+        } catch (e) {
+            console.error('[DocEditor._setZoom]', e);
+        }
+    }
+
+    _countWords() {
+        try {
+            const data = this.editor?.command?.getValue?.()?.data;
+            if (!data) return;
+            const flat = flattenElementsToText(data.main || []);
+            const chars = flat.length;
+            const words = flat.trim().split(/\s+/).filter(Boolean).length;
+            this.notification?.add?.(`字數統計：${chars} 字（含空白）／${words} 詞`, { type: 'info' });
+        } catch (e) {
+            console.error('[DocEditor._countWords]', e);
+        }
+    }
+
+    _focusTitleInput() {
+        try {
+            const el = document.querySelector('.o_dobtor_doc_editor .doc-header-title');
+            el?.focus?.();
+            el?.select?.();
+        } catch (e) { /* ignore */ }
+    }
+
+    _requestFullscreen() {
+        try {
+            if (document.fullscreenElement) {
+                document.exitFullscreen?.();
+            } else {
+                document.documentElement.requestFullscreen?.();
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    _insertImagePicker() {
+        try {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = () => {
+                const file = input.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const dataUrl = reader.result;
+                    const fn = this.editor?.command?.executeInsertImage;
+                    if (typeof fn !== 'function') {
+                        this.notification?.add?.('canvas-editor 不支援插入圖片', { type: 'warning' });
+                        return;
+                    }
+                    const img = new Image();
+                    img.onload = () => {
+                        const maxW = 600;
+                        const w = Math.min(img.naturalWidth, maxW);
+                        const h = (img.naturalHeight / img.naturalWidth) * w;
+                        try {
+                            this.editor.command.executeInsertImage({ value: dataUrl, width: w, height: h });
+                        } catch (e) {
+                            console.error('[DocEditor._insertImagePicker] insert failed', e);
+                        }
+                    };
+                    img.src = dataUrl;
+                };
+                reader.readAsDataURL(file);
+            };
+            input.click();
+        } catch (e) {
+            console.error('[DocEditor._insertImagePicker]', e);
+        }
+    }
+
+    // 6 個 menu × N item 的設定表；XML 用 t-foreach 渲染
+    get menuConfig() {
+        return [
+            {
+                name: 'file', label: '檔案',
+                items: [
+                    { label: '新增空白文件', disabled: true },
+                    { label: '開啟最近文件...', disabled: true },
+                    { label: '重新命名', action: 'file:rename' },
+                    { type: 'separator' },
+                    { label: '匯入 DOCX...', action: 'file:import' },
+                    { label: '匯出為 PDF', action: 'file:export-pdf' },
+                    { label: '匯出為 DOCX', action: 'file:export-docx' },
+                    { type: 'separator' },
+                    { label: '列印', action: 'file:print' },
+                    { label: '預覽', action: 'file:preview' },
+                    { label: '儲存', action: 'file:save', shortcut: 'Ctrl+S' },
+                    { label: '關閉', action: 'file:close' },
+                ],
+            },
+            {
+                name: 'edit', label: '編輯',
+                items: [
+                    { label: '復原', action: 'edit:undo', shortcut: 'Ctrl+Z' },
+                    { label: '重做', action: 'edit:redo', shortcut: 'Ctrl+Y' },
+                    { type: 'separator' },
+                    { label: '剪下', action: 'edit:cut', shortcut: 'Ctrl+X' },
+                    { label: '複製', action: 'edit:copy', shortcut: 'Ctrl+C' },
+                    { label: '貼上', action: 'edit:paste', shortcut: 'Ctrl+V' },
+                    { type: 'separator' },
+                    { label: '尋找', disabled: true, shortcut: 'Ctrl+F' },
+                    { label: '取代', disabled: true, shortcut: 'Ctrl+H' },
+                ],
+            },
+            {
+                name: 'view', label: '查看',
+                items: [
+                    { label: this.state.showRuler ? '✓ 顯示尺規' : '   顯示尺規', action: 'view:toggle-ruler' },
+                    { label: this.state.showThumbnails ? '✓ 顯示縮圖' : '   顯示縮圖', action: 'view:toggle-thumbnails' },
+                    { type: 'separator' },
+                    { label: '縮放 50%', action: 'view:zoom-50' },
+                    { label: '縮放 100%', action: 'view:zoom-100' },
+                    { label: '縮放 150%', action: 'view:zoom-150' },
+                    { label: '縮放 200%', action: 'view:zoom-200' },
+                    { label: '符合寬度', action: 'view:zoom-fit' },
+                    { type: 'separator' },
+                    { label: '全螢幕', action: 'view:fullscreen', shortcut: 'F11' },
+                ],
+            },
+            {
+                name: 'insert', label: '插入',
+                items: [
+                    { label: '表格（3×3）', action: 'insert:table' },
+                    { label: '圖片...', action: 'insert:image' },
+                    { type: 'separator' },
+                    { label: '變數欄位（文字）', action: 'insert:var-text' },
+                    { label: '變數欄位（日期）', action: 'insert:var-date' },
+                    { label: '變數欄位（核取方塊）', action: 'insert:var-checkbox' },
+                    { type: 'separator' },
+                    { label: '簽名欄位', disabled: true },
+                    { label: '頁碼', disabled: true },
+                    { label: '頁首／頁尾', disabled: true },
+                ],
+            },
+            {
+                name: 'format', label: '格式',
+                items: [
+                    { label: '粗體', action: 'format:bold', shortcut: 'Ctrl+B' },
+                    { label: '斜體', action: 'format:italic', shortcut: 'Ctrl+I' },
+                    { label: '底線', action: 'format:underline', shortcut: 'Ctrl+U' },
+                    { label: '刪除線', action: 'format:strikeout' },
+                    { type: 'separator' },
+                    { label: '靠左對齊', action: 'format:align-left' },
+                    { label: '置中對齊', action: 'format:align-center' },
+                    { label: '靠右對齊', action: 'format:align-right' },
+                    { label: '兩端對齊', action: 'format:align-justify' },
+                    { type: 'separator' },
+                    { label: '段落間距', disabled: true },
+                    { label: '行距', disabled: true },
+                    { label: '清除格式', action: 'format:clear-format' },
+                ],
+            },
+            {
+                name: 'tools', label: '工具',
+                items: [
+                    { label: '掃描變數', action: 'tools:scan-vars' },
+                    { label: '掃描並替換變數', action: 'tools:scan-replace' },
+                    { label: '預覽變數效果', action: 'tools:preview-vars' },
+                    { label: '復原變數替換', action: 'tools:rollback' },
+                    { type: 'separator' },
+                    { label: '字數統計', action: 'tools:word-count' },
+                    { label: '拼字檢查', disabled: true },
+                    { type: 'separator' },
+                    { label: '版本歷史', action: 'tools:version-history', shortcut: 'Alt+H' },
+                    { label: '文件設定', disabled: true },
+                ],
+            },
+        ];
     }
 }
 
