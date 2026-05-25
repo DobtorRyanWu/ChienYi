@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 229 結尾 — 三 corpus 七層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐⭐ / HeaderFooterContent ChienYi 100% + LibreOffice 90.6% + Phase 5 100% trivially / 合計 192 HF slots / 完整覆蓋 page-level + section-level + header/footer block-level）
+## 1. 當前指標一覽（Sprint 230 結尾 — ChienYi production corpus 達八層 byte-identical 對稱 ⭐⭐⭐⭐⭐⭐⭐ / StyleMap audit + writer `<w:basedOn>` emit 修法 0/42 → 42/42 / 4024 styles / Sprint 218→219 模式重現第五次）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **2001 passed + 1 skipped**（`npm test` 全套口徑；Sprint 227+228+229 +3 HeaderFooterContent 第七層 audit 三 corpus；Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **2002 passed + 1 skipped**（`npm test` 全套口徑；Sprint 230 +1 ChienYi StyleMap 第八層 audit；Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223 writer docGrid fix + Sprint 225 writer gutter 條件 emit fix + Sprint 226 writer `<w:cols>`/`<w:type>` 補完皆不觸 import path、VR 第 68 連 maintained；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 229（最新 sprint227_to_229_chienyi_libreoffice_phase5_headerfooter_audit.md 合併三 sprint；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 230（最新 sprint230_chienyi_styles_preservation_audit_plus_basedOn_fix.md；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -143,6 +143,7 @@ Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix�
 | **227** | **ChienYi HeaderFooterContent 第七層 audit** | **42/42 / 100% / 16 slots ⭐ — header/footer block content SHA-256 對等性、不依賴 rId 用 slot 類型為 canonical key** |
 | **228** | **LibreOffice 286 HeaderFooterContent 第七層 audit** | **261/288 / 90.6% / 176 slots（過 80% 閾值 +10.6pp / 27 drift 為 chart-in-footer/hyperlink/border/tdf* 邊緣 case）** |
 | **229** | **Phase 5 18 HeaderFooterContent 第七層 audit** | **18/18 / 100% / 0 slots trivially ⭐⭐⭐⭐⭐⭐ — 三 corpus 七層矩陣完備** |
+| **230** | **ChienYi StyleMap 第八層 audit + writer `<w:basedOn>` emit 修法** | **0/42 → 42/42 / 100% / 4024 styles ⭐⭐⭐⭐⭐⭐⭐ — Sprint 218→219 模式重現第五次、+5 行 production code、ChienYi 八層 byte-identical 對稱、LibreOffice + Phase 5 第八層留後續 sprint** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -351,6 +352,44 @@ text / RunProps / ParagraphProps 100% + TableProps 97.6% + SectionProps
 byte-identical（涵蓋 OOXML CT_SectPr + headers/footers parts 完整對等）；
 ChienYi v1 release docx 匯入子系統最終 sign-off **GO（七層升級確認
 ⭐⭐⭐⭐⭐⭐）**。
+
+**Sprint 230 ChienYi StyleMap 第八層 audit + writer `<w:basedOn>` emit
+修法（Sprint 218→219 模式重現第五次）** ⭐⭐⭐⭐⭐⭐⭐：
+
+- v1（修前）：0/42（0%）/ 4024 styles 全 drift ⚠️⚠️⚠️
+- Diagnostic 30 秒命中兩個 root cause：
+  - root cause #5a：`OoxmlWriter.writeStyleEntry` 不 emit `<w:basedOn>`
+    （Sprint 189 design comment 寫「不需輸出 basedOn 因 props 已 flat」
+    對 render 對等成立、但對 AST audit `entry.basedOn` 欄位本身 drift）
+  - root cause #5b：空 `pProps={}` vs `pProps=undefined` 規範化（writer
+    對空 pProps 不 emit pPr 是合理設計、semantic equivalent、需 audit
+    normalize）
+- 修法：writer `writeStyleEntry` 加 `<w:basedOn>` emit 分支（+5 行
+  production code）+ audit `flattenStyleEntry` 加空 `{}` → undefined
+  normalization
+- 對等性：reparse 時 StyleResolver 對已 flat 的 props 重新套 basedOn
+  flatten 是 **idempotent**、不破壞既有 flat props 對等性、僅恢復
+  basedOn 欄位
+- v2（修後）：**42/42（100%）/ 4024 styles 全綠** ⭐⭐⭐⭐⭐⭐⭐ —— +90pp 跨閾值
+- 三層 SOP：vitest 2001 → 2002（+1 sprint230）/ smoke test Sprint
+  210+215+218 earlier ChienYi audit 皆綠（basedOn 修法 idempotent
+  invariant 成立）/ VR 重驗 deferred 待 memory 寬鬆 session（writer
+  styles.xml 不觸 import path、與 Sprint 219/223/225/226 同 invariant
+  render-safe）
+- 紀律 #18 scope-down：不順手清其他 styles 優化（`<w:name>` / style type
+  多型）— 留後續 sprint
+- 過程記錄：WSL 記憶體緊、改用 `--pool=forks --poolOptions.forks.singleFork`
+  單 fork 模式成功跑完 14490ms；確認單 fork 模式為 WSL ENOMEM 應急方案
+
+**ChienYi production corpus 達八層 byte-identical 對稱** ⭐⭐⭐⭐⭐⭐⭐：
+structure / text / RunProps / ParagraphProps / TableProps / SectionProps /
+HeaderFooterContent / **StyleMap**——比 Sprint 229 七層再升一層。
+LibreOffice + Phase 5 第八層 audit 留後續 sprint。
+
+合計 ChienYi 端：347 fixture / 11645 runs + 5335 paragraphs + 127 tables +
+408 sections + 192 HF slots + **4024 styles** byte-identical（涵蓋 OOXML
+所有 commonly-used document/styles/headers/footers parts、StyleMap 為單一
+最大指標）。
 
 ---
 

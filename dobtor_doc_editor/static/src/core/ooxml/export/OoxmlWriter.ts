@@ -346,10 +346,17 @@ function writeStyles(doc: DocumentNode): string {
  * 內容：可選 `<w:pPr>` + `<w:rPr>`。pProps / rProps 皆無 → 空 body（`<w:style/>`）；
  * 保持 styleId 鍵的存在性以便 round-trip Map 大小一致。
  */
-function writeStyleEntry(styleId: string, entry: { pProps?: ParagraphProps; rProps?: RunProps }): string {
+function writeStyleEntry(styleId: string, entry: { pProps?: ParagraphProps; rProps?: RunProps; basedOn?: string }): string {
+  // Sprint 230：先 emit `<w:basedOn>` 以保留 style 繼承鏈（Sprint 189 設計
+  // 為 render 對等故 flat、但 audit 揭發 entry.basedOn 欄位本身 round-trip
+  // drift；StyleResolver 在 reparse 時對已 flat 的 props 重新套 basedOn 是
+  // idempotent、不會破壞既有 flat props 結果、僅恢復 basedOn 欄位）。
+  const basedOnXml = entry.basedOn !== undefined
+    ? `<w:basedOn w:val="${escapeXml(entry.basedOn)}"/>`
+    : '';
   const pPrXml = writePPr(entry.pProps ?? {}, undefined);
   const rPrXml = writeRPr(entry.rProps ?? {});
-  const inner = pPrXml + rPrXml;
+  const inner = basedOnXml + pPrXml + rPrXml;
   const attrs = `w:type="paragraph" w:styleId="${escapeXml(styleId)}"`;
   return inner === ''
     ? `<w:style ${attrs}/>`
