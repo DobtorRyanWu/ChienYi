@@ -19,6 +19,19 @@ import { rpc } from "@web/core/network/rpc";
 const ERROR_RATE_LIMIT_MS = 5000; // 同樣訊息 5 秒內只送一次
 const _recentErrors = new Map(); // key=signature → ts
 
+// Sprint Y12.2：canvas-editor 庫內部 mousedown 計算 table 位置時偶發 throw
+// （`getTablePositionList`/`getPositionList`/`getIsPointInRange`），與本模組無關。
+// stack 中含這些 frame 就不上報、避免噪音洗爆 telemetry。
+const _NOISE_STACK_PATTERNS = [
+    /getTablePositionList/,
+    /getPositionList/,
+    /getIsPointInRange/,
+];
+function _isLibraryNoise(stack) {
+    if (!stack) return false;
+    return _NOISE_STACK_PATTERNS.some(re => re.test(stack));
+}
+
 function _sigOf(type, message) {
     return `${type}::${(message || "").slice(0, 120)}`;
 }
@@ -45,6 +58,8 @@ export async function reportError({
     docId = null,
     extra = null,
 } = {}) {
+    // Sprint Y12.2：跳過 canvas-editor 庫內部 mousedown 噪音
+    if (_isLibraryNoise(stackTrace)) return;
     if (_shouldThrottle(_sigOf(type, message))) return;
     try {
         await rpc("/dobtor_doc/telemetry/error", {

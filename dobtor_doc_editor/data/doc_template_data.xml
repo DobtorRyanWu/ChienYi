@@ -130,16 +130,27 @@
             <field name="description">估驗計價單線上協作版本（補充既有 QWeb 報表，供協商階段使用）。範本內 {{ var }} 預先建為 doc.template.field text placeholder；要綁實際資料，請在後台 doc.template 設 model_id = payment.estimate（需裝 construction_payment 模組），再把對應欄位 field_type 改 odoo_field 並填 odoo_field_name（如 estimate_no / project_id.name / subtotal）。可由 payment.estimate 透過 doc.linked.mixin 整合。</field>
             <field name="content_html"><![CDATA[
 <h1 style="text-align:center">估驗計價單</h1>
-<p style="text-align:right">估驗期：第 {{ estimate_no }} 期</p>
+<!-- Sprint Y12.2：所有 row 統一 4 欄、不用 colspan
+     原本第 1 row 用 colspan="3" 跨欄、與其他 4 欄 row 混雜，會觸發
+     canvas-editor 內部 getTablePositionList undefined[1] mousedown bug -->
 <table style="width:100%;border-collapse:collapse">
-  <tr><td style="border:1px solid #000;padding:6px;width:25%"><b>工程名稱</b></td><td style="border:1px solid #000;padding:6px" colspan="3">{{ project_name }}</td></tr>
   <tr>
-    <td style="border:1px solid #000;padding:6px"><b>承包商</b></td><td style="border:1px solid #000;padding:6px;width:25%">{{ contractor }}</td>
-    <td style="border:1px solid #000;padding:6px;width:25%"><b>估驗日期</b></td><td style="border:1px solid #000;padding:6px;width:25%">{{ estimate_date }}</td>
+    <td style="border:1px solid #000;padding:6px;width:25%"><b>工程名稱</b></td>
+    <td style="border:1px solid #000;padding:6px;width:25%">{{ project_name }}</td>
+    <td style="border:1px solid #000;padding:6px;width:25%"><b>估驗日期</b></td>
+    <td style="border:1px solid #000;padding:6px;width:25%">{{ estimate_date }}</td>
   </tr>
   <tr>
-    <td style="border:1px solid #000;padding:6px"><b>本期估驗金額</b></td><td style="border:1px solid #000;padding:6px">{{ current_amount }}</td>
-    <td style="border:1px solid #000;padding:6px"><b>累計金額</b></td><td style="border:1px solid #000;padding:6px">{{ cumulative_amount }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>承包商</b></td>
+    <td style="border:1px solid #000;padding:6px">{{ contractor }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>估驗期</b></td>
+    <td style="border:1px solid #000;padding:6px">第 {{ estimate_no }} 期</td>
+  </tr>
+  <tr>
+    <td style="border:1px solid #000;padding:6px"><b>本期估驗金額</b></td>
+    <td style="border:1px solid #000;padding:6px">{{ current_amount }}</td>
+    <td style="border:1px solid #000;padding:6px"><b>累計金額</b></td>
+    <td style="border:1px solid #000;padding:6px">{{ cumulative_amount }}</td>
   </tr>
 </table>
 <h3>本期完成工項</h3>
