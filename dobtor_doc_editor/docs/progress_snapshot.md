@@ -905,6 +905,34 @@ Charts + theme）+ 第十九層 raw byte 98.6%。
 ChienYi v1 release docx 匯入子系統最終 sign-off **GO v4（十九層升級確認 +
 Phase 2 Exit 6/6 全綠 零保留條件 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
 
+**Sprint 277 Phase 6 LineBreaker MVP spike + 雙驗 path 1+2 通過 + Phase 2 API
+readiness validated** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- 範圍：Strategy A 新 `static/src/core/ooxml/layout/` 模組（LineBreaker.ts +
+  index.ts barrel、~110 行 production）+ vitest 6 案 + standalone Node verify
+  script；greedy break by ASCII space、單一 font/sizePt、LTR、overlong force-fit
+- 消費 Sprint 265 ShapingEngine.measureRun()（取代 ctx.measureText）驗證
+  Sprint 269/275 標「Phase 2 API ready 銜接 Phase 6 自寫 Layout」聲明
+- **雙驗執行**（WSL ENOMEM blocker 應變）：
+  - Path 1（tsc standalone strict）：僅 1 條 pre-existing opentype.js declaration、
+    Sprint 277 新檔零新 error ✅
+  - Path 2（standalone Node `scripts/verify_sprint277.mjs`、確定性 mock measureRun）：
+    **6 案 21/21 assertion PASSED** ✅
+  - Path 3（vitest framework）：hypothesis pending WSL 記憶體釋放補跑、expected
+    vitest 2086 → 2092（+6 案）、紀律 #22 honest 標明
+- 不接 canvas-editor / 不取代 ctx.measureText（Sprint 269 結論「production
+  canvas-editor 未整合、Phase 6 自寫 Layout 時消費」之精神）
+- 紀律 #18 scope-down：不擴張 hyphenation / Knuth-Plass / mixed run / bidi /
+  CJK soft break / kerning across word boundary / tab stop / line height
+  integration、全列 future Phase 6 完整 Layout
+- 紀律 #21：LineBreaker 不入 OoxmlParser 主流程 / 不入 Render / 不觸 VR；
+  VR 第 68 連 maintained
+- 紀律 #14.b clean scope：commit 含 layout/ 2 檔 + 1 vitest test + 1 verify
+  script + 1 doc + INDEX/progress
+
+**雙驗紀律**：vitest 單一路徑 blocked 時走兩條獨立驗證（tsc + standalone Node）、
+兩路都通才算 SOP 通過；保持紀律 #22 hypothesis 標明、不繞過驗證直接 commit。
+
 ---
 
 ## 5. 更新節律建議
