@@ -31,6 +31,10 @@ import type {
   CellNode,
   ChartNode,
   CommentContent,
+  CustomPropertyValue,
+  DocProps,
+  DocPropsApp,
+  DocPropsCustom,
   DocumentNode,
   DocumentSettings,
   DocumentWebSettings,
@@ -93,6 +97,27 @@ const REL_TYPE_FONT_TABLE =
 /** Sprint 249：webSettings 關係型別（document.xml.rels → webSettings.xml）。 */
 const REL_TYPE_WEB_SETTINGS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
+/** Sprint 253：core properties 關係型別（root rels → docProps/core.xml）。 */
+const REL_TYPE_CORE_PROPERTIES =
+  'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+/** Sprint 253：extended properties 關係型別（root rels → docProps/app.xml）。 */
+const REL_TYPE_EXTENDED_PROPERTIES =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
+/** Sprint 253：custom properties 關係型別（root rels → docProps/custom.xml）。 */
+const REL_TYPE_CUSTOM_PROPERTIES =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
+/** Sprint 253：Dublin Core namespace + DC Terms namespace（core.xml）。 */
+const DC_NS = 'http://purl.org/dc/elements/1.1/';
+const DCTERMS_NS = 'http://purl.org/dc/terms/';
+const DCMITYPE_NS = 'http://purl.org/dc/dcmitype/';
+const XSI_NS = 'http://www.w3.org/2001/XMLSchema-instance';
+const CP_NS = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
+/** Sprint 253：extended-properties namespace（app.xml）。 */
+const EXT_PROPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
+/** Sprint 253：custom-properties namespace（custom.xml）。 */
+const CUSTOM_PROPS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/custom-properties';
+/** Sprint 253：vt variant namespace（custom.xml 內 vt:lpwstr 等）。 */
+const VT_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
 /** OMML 命名空間（ECMA-376 §22.1）。 */
 const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 /** Sprint 195：SmartArt diagram data 關係型別。 */
@@ -181,7 +206,7 @@ export class OoxmlWriter {
 
     const parts: { [path: string]: Uint8Array } = {
       '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions, hfItems, smartArtItems, chartItems, watermarkItem, doc)),
-      '_rels/.rels': strToU8(writeRootRels()),
+      '_rels/.rels': strToU8(writeRootRels(doc)),
       'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems, hfItems, smartArtItems, chartItems, watermarkItem, doc)),
       'word/document.xml': strToU8(writeDocument(doc, watermarkItem)),
       'word/styles.xml': strToU8(writeStyles(doc)),
@@ -209,6 +234,16 @@ export class OoxmlWriter {
     // Sprint 249：webSettings.xml 非空才 emit（OOXML §17.16）
     if (hasWebSettings(doc.webSettings)) {
       parts['word/webSettings.xml'] = strToU8(writeWebSettings(doc.webSettings));
+    }
+    // Sprint 253：docProps/core.xml、app.xml、custom.xml 非空才 emit
+    if (hasDocProps(doc.docProps)) {
+      parts['docProps/core.xml'] = strToU8(writeDocPropsCore(doc.docProps));
+    }
+    if (hasAppProps(doc.appProps)) {
+      parts['docProps/app.xml'] = strToU8(writeDocPropsApp(doc.appProps));
+    }
+    if (doc.customProps.size > 0) {
+      parts['docProps/custom.xml'] = strToU8(writeDocPropsCustom(doc.customProps));
     }
     // Sprint 192：把每張 media 圖片的 bytes 寫進 zip
     for (const m of mediaItems) {
@@ -302,6 +337,16 @@ function writeContentTypes(
     (doc && hasWebSettings(doc.webSettings)
       ? '<Override PartName="/word/webSettings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/>'
       : '') +
+    // Sprint 253：docProps Override（非空才宣告）
+    (doc && hasDocProps(doc.docProps)
+      ? '<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>'
+      : '') +
+    (doc && hasAppProps(doc.appProps)
+      ? '<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'
+      : '') +
+    (doc && doc.customProps.size > 0
+      ? '<Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>'
+      : '') +
     hfOverrides +
     smartArtOverrides +
     chartOverrides +
@@ -310,10 +355,20 @@ function writeContentTypes(
 }
 
 /** `_rels/.rels`：root 關係（→ word/document.xml）。 */
-function writeRootRels(): string {
+function writeRootRels(doc?: DocumentNode): string {
   return xmlDecl() +
     `<Relationships xmlns="${REL_NS}">` +
     `<Relationship Id="rId1" Type="${REL_TYPE_OFFICE_DOCUMENT}" Target="word/document.xml"/>` +
+    // Sprint 253：docProps root rels（非空才宣告）
+    (doc && hasDocProps(doc.docProps)
+      ? `<Relationship Id="rIdCore" Type="${REL_TYPE_CORE_PROPERTIES}" Target="docProps/core.xml"/>`
+      : '') +
+    (doc && hasAppProps(doc.appProps)
+      ? `<Relationship Id="rIdApp" Type="${REL_TYPE_EXTENDED_PROPERTIES}" Target="docProps/app.xml"/>`
+      : '') +
+    (doc && doc.customProps.size > 0
+      ? `<Relationship Id="rIdCustom" Type="${REL_TYPE_CUSTOM_PROPERTIES}" Target="docProps/custom.xml"/>`
+      : '') +
     '</Relationships>';
 }
 
@@ -1842,6 +1897,128 @@ function writeWebSettings(w: DocumentWebSettings): string {
     `<w:webSettings xmlns:w="${W_NS}">` +
     parts.join('') +
     '</w:webSettings>';
+}
+
+// ── Sprint 253：docProps/core.xml / app.xml / custom.xml 序列化 ───────────────
+
+/** 判定 DocProps（core）是否含可序列化欄位。 */
+function hasDocProps(p: DocProps): boolean {
+  return Object.keys(p).length > 0;
+}
+
+/** 判定 DocPropsApp 是否含可序列化欄位。 */
+function hasAppProps(p: DocPropsApp): boolean {
+  return Object.keys(p).length > 0;
+}
+
+/**
+ * `docProps/core.xml`：序列化 `DocumentNode.docProps`（OOXML §22.2.4 cp:coreProperties）。
+ *
+ * 結構（Dublin Core + DC Terms namespaces）：
+ *   <cp:coreProperties xmlns:cp xmlns:dc xmlns:dcterms xmlns:dcmitype xmlns:xsi>
+ *     <dc:title>...</dc:title>
+ *     <dc:creator>...</dc:creator>
+ *     <dc:subject>...</dc:subject>
+ *     <dc:description>...</dc:description>
+ *     <cp:keywords>...</cp:keywords>
+ *     <cp:lastModifiedBy>...</cp:lastModifiedBy>
+ *     <dcterms:created xsi:type="dcterms:W3CDTF">ISO</dcterms:created>
+ *     <dcterms:modified xsi:type="dcterms:W3CDTF">ISO</dcterms:modified>
+ *   </cp:coreProperties>
+ */
+function writeDocPropsCore(p: DocProps): string {
+  const elems: string[] = [];
+  if (p.title !== undefined) elems.push(`<dc:title>${escapeXml(p.title)}</dc:title>`);
+  if (p.creator !== undefined) elems.push(`<dc:creator>${escapeXml(p.creator)}</dc:creator>`);
+  if (p.subject !== undefined) elems.push(`<dc:subject>${escapeXml(p.subject)}</dc:subject>`);
+  if (p.description !== undefined) elems.push(`<dc:description>${escapeXml(p.description)}</dc:description>`);
+  if (p.keywords !== undefined) elems.push(`<cp:keywords>${escapeXml(p.keywords)}</cp:keywords>`);
+  if (p.lastModifiedBy !== undefined) elems.push(`<cp:lastModifiedBy>${escapeXml(p.lastModifiedBy)}</cp:lastModifiedBy>`);
+  if (p.created !== undefined) elems.push(`<dcterms:created xsi:type="dcterms:W3CDTF">${escapeXml(p.created)}</dcterms:created>`);
+  if (p.modified !== undefined) elems.push(`<dcterms:modified xsi:type="dcterms:W3CDTF">${escapeXml(p.modified)}</dcterms:modified>`);
+  return xmlDecl() +
+    `<cp:coreProperties xmlns:cp="${CP_NS}" xmlns:dc="${DC_NS}" ` +
+    `xmlns:dcterms="${DCTERMS_NS}" xmlns:dcmitype="${DCMITYPE_NS}" xmlns:xsi="${XSI_NS}">` +
+    elems.join('') +
+    '</cp:coreProperties>';
+}
+
+/**
+ * `docProps/app.xml`：序列化 `DocumentNode.appProps`（OOXML §22.2）。
+ *
+ * extended-properties namespace；欄位皆 optional。
+ */
+function writeDocPropsApp(p: DocPropsApp): string {
+  const elems: string[] = [];
+  if (p.template !== undefined) elems.push(`<Template>${escapeXml(p.template)}</Template>`);
+  if (p.totalTime !== undefined) elems.push(`<TotalTime>${p.totalTime}</TotalTime>`);
+  if (p.pages !== undefined) elems.push(`<Pages>${p.pages}</Pages>`);
+  if (p.words !== undefined) elems.push(`<Words>${p.words}</Words>`);
+  if (p.characters !== undefined) elems.push(`<Characters>${p.characters}</Characters>`);
+  if (p.application !== undefined) elems.push(`<Application>${escapeXml(p.application)}</Application>`);
+  if (p.docSecurity !== undefined) elems.push(`<DocSecurity>${p.docSecurity}</DocSecurity>`);
+  if (p.lines !== undefined) elems.push(`<Lines>${p.lines}</Lines>`);
+  if (p.paragraphs !== undefined) elems.push(`<Paragraphs>${p.paragraphs}</Paragraphs>`);
+  if (p.scaleCrop !== undefined) elems.push(`<ScaleCrop>${p.scaleCrop ? 'true' : 'false'}</ScaleCrop>`);
+  if (p.company !== undefined) elems.push(`<Company>${escapeXml(p.company)}</Company>`);
+  if (p.linksUpToDate !== undefined) elems.push(`<LinksUpToDate>${p.linksUpToDate ? 'true' : 'false'}</LinksUpToDate>`);
+  if (p.charactersWithSpaces !== undefined) elems.push(`<CharactersWithSpaces>${p.charactersWithSpaces}</CharactersWithSpaces>`);
+  if (p.sharedDoc !== undefined) elems.push(`<SharedDoc>${p.sharedDoc ? 'true' : 'false'}</SharedDoc>`);
+  if (p.hyperlinksChanged !== undefined) elems.push(`<HyperlinksChanged>${p.hyperlinksChanged ? 'true' : 'false'}</HyperlinksChanged>`);
+  if (p.appVersion !== undefined) elems.push(`<AppVersion>${escapeXml(p.appVersion)}</AppVersion>`);
+  return xmlDecl() +
+    `<Properties xmlns="${EXT_PROPS_NS}" xmlns:vt="${VT_NS}">` +
+    elems.join('') +
+    '</Properties>';
+}
+
+/**
+ * `docProps/custom.xml`：序列化 `DocumentNode.customProps`（OOXML §22.4）。
+ *
+ * 結構：`<Properties><property fmtid pid name><vt:lpwstr>...</vt:lpwstr></property>...`。
+ * fmtid 固定 = 標準 GUID；pid 從 2 起遞增（OOXML §22.4.2.5）。
+ *
+ * Sprint 151 parser 不保留 fmtid / pid（紀律 #18 scope-down）；writer 用標準
+ * GUID 重建 fmtid、pid 從 2 起按 name 字典序遞增。
+ */
+function writeDocPropsCustom(c: DocPropsCustom): string {
+  // OOXML §22.4 規範的 fmtid（D5CDD505-2E9C-101B-9397-08002B2CF9AE）
+  const FMTID = '{D5CDD505-2E9C-101B-9397-08002B2CF9AE}';
+  const names = Array.from(c.keys()).sort();
+  const elems: string[] = [];
+  let pid = 2;
+  for (const name of names) {
+    const v = c.get(name)!;
+    elems.push(
+      `<property fmtid="${FMTID}" pid="${pid}" name="${escapeXml(name)}">` +
+      writeCustomVariant(v) +
+      '</property>'
+    );
+    pid++;
+  }
+  return xmlDecl() +
+    `<Properties xmlns="${CUSTOM_PROPS_NS}" xmlns:vt="${VT_NS}">` +
+    elems.join('') +
+    '</Properties>';
+}
+
+/** 序列化單一 custom property 的 vt:variant 值。 */
+function writeCustomVariant(v: CustomPropertyValue): string {
+  switch (v.kind) {
+    case 'string':
+      return `<vt:lpwstr>${escapeXml(v.value)}</vt:lpwstr>`;
+    case 'int':
+      return `<vt:i4>${v.value}</vt:i4>`;
+    case 'bool':
+      return `<vt:bool>${v.value ? 'true' : 'false'}</vt:bool>`;
+    case 'real':
+      return `<vt:r8>${v.value}</vt:r8>`;
+    case 'filetime':
+      return `<vt:filetime>${escapeXml(v.value)}</vt:filetime>`;
+    case 'unknown':
+    default:
+      return `<vt:lpwstr>${escapeXml((v as { raw?: string }).raw ?? '')}</vt:lpwstr>`;
+  }
 }
 
 // ── Sprint 195：SmartArt diagram data 部件 ───────────────────────────────────

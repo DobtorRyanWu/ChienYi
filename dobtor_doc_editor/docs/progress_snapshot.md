@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 251 結尾 — 三 corpus 十四層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / FontTable + WebSettings ChienYi+LibreOffice+Phase5 全 100% / 第五+六次 LibreOffice 邊緣 corpus 達 100% + 第八+九次 writer 真實修法 / 合計 1883 fonts + 486 webSettings + 1617 settings + 513 footnotes+endnotes + 27 comments + 1229 numberings + 累積 14 層所有指標 byte-identical）
+## 1. 當前指標一覽（Sprint 255 結尾 — 三 corpus 十五層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / DocProps (core+app+custom) ChienYi+LibreOffice+Phase5 全 100% / 第七次 LibreOffice 邊緣 corpus 達 100% + 第十次 writer 真實修法 / 合計 5890 docProps + 1883 fonts + 486 webSettings + 1617 settings + 513 footnotes+endnotes + 27 comments + 1229 numberings + 累積 15 層所有指標 byte-identical）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **2023 passed + 1 skipped**（`npm test` 全套口徑；Sprint 249+250+251 +3 WebSettings 第十四層 三 corpus + writer 真實修法、Sprint 246+247+248 +3 FontTable 第十三層 三 corpus + writer 真實修法、Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **2026 passed + 1 skipped**（`npm test` 全套口徑；Sprint 253+254+255 +3 DocProps (core+app+custom) 第十五層 三 corpus + writer 真實修法、Sprint 252 docs-only 不增、Sprint 249+250+251 +3 WebSettings 第十四層 三 corpus + writer 真實修法、Sprint 246+247+248 +3 FontTable 第十三層 三 corpus + writer 真實修法、Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223/225/226/230/239/243 writer fix 皆觸 export path 而非 import path、VR pipeline 比的是 import → layout → render、VR 第 68 連 maintained；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 251（最新 sprint246_to_251_fonttable_websettings_audit_plus_writer_fixes.md 合併六 sprint + writer 真實修法第八+九次；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 255（最新 sprint253_to_255_docprops_audit_plus_writer_fix.md 合併三 sprint + writer 真實修法第十次；Sprint 252 docs-only Phase 1 optional 關閉；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -166,6 +166,9 @@ Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix�
 | **250** | **LibreOffice 286 WebSettings 第十四層 audit** | **288/288 / 100% / 422 keys ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 第六次邊緣 corpus 達 100%** |
 | **251** | **Phase 5 18 WebSettings 第十四層 audit** | **18/18 / 100% / 0 trivially ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 三 corpus 十四層矩陣完備** |
 | **252** | **Phase 1 optional 剩餘 11 項 corpus 真實出現次數調查 + 真實狀態盤點 + bucket honest 關閉** | **docs-only 0 行 production code、Phase 1 optional 13 → 0 真實 gap（5 wired-up + 1 semantic 等價 + 1 Phase 2 deferred + 3 個 0 corpus 出現）⭐⭐⭐** |
+| **253** | **ChienYi DocProps（core+app+custom）第十五層 audit + writer 三補 docProps/{core,app,custom}.xml emit + root rels + ContentType（+95 行）** | **0/42 → 42/42 / 100% / 888 keys（203 core + 647 app + 38 custom）⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 揭發 root cause #11、Sprint 218→219 模式第十次** |
+| **254** | **LibreOffice 286 DocProps 第十五層 audit** | **288/288 / 100% / 5002 keys（1035 core + 3809 app + 158 custom）⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 第七次邊緣 corpus 達 100%** |
+| **255** | **Phase 5 18 DocProps 第十五層 audit** | **18/18 / 100% / 0 trivially ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 三 corpus 十五層矩陣完備** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -661,6 +664,51 @@ wired-up 狀態盤點：
 
 ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十四層升級 + Phase
 1 optional bucket honest 關閉 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
+
+**Sprint 253+254+255 DocProps（core+app+custom）第十五層 byte-identical
+對稱矩陣完備 + writer 三補（第十次真實修法）+ 第七次邊緣 corpus 達 100%**
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- Sprint 253 v1 ChienYi 42：**0/42 (0%)** ⚠️ 揭發 root cause #11：writer
+  完全不 emit docProps/{core,app,custom}.xml + root rels + ContentType
+  （Sprint 13/150/151 parser capture-only、writer 未對應實作）
+- writer +95 行 production code：
+  - REL_TYPE_CORE_PROPERTIES + EXTENDED_PROPERTIES + CUSTOM_PROPERTIES 常數
+  - 8 個 namespace 常數（DC / DCTERMS / DCMITYPE / XSI / CP / EXT_PROPS /
+    CUSTOM_PROPS / VT）
+  - parts 字典三條件 emit + writeContentTypes 三 Override + writeRootRels
+    加 doc 參數 + 三 Relationship
+  - writeDocPropsCore（8 欄位、Dublin Core+DC Terms）
+  - writeDocPropsApp（16 欄位、extended-properties）
+  - writeDocPropsCustom + writeCustomVariant（OOXML §22.4 固定 fmtid
+    GUID + pid 從 2 起按 name 字典序遞增 + 5 個 variant kind 完整對稱）
+- Sprint 253 v2 修後：**42/42 (100%) / 888 keys**（203 core + 647 app +
+  38 custom）⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+- Sprint 254 LibreOffice：**288/288 (100%) / 5002 keys byte-identical**
+  （1035 core + 3809 app + 158 custom）⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+  ——**第七次** LibreOffice 邊緣 corpus 達 100%
+- Sprint 255 Phase 5：**18/18 (100%) / 0 trivially**
+- 三層 SOP：vitest 2023 → 2026（+3 audit + 95 行 writer）/ writer 不破壞
+  既有 2023 測試 / VR 第 68 連 maintained
+- 紀律 #1.b Strategy C exception：writer 真實修法第十次
+- 紀律 #18 scope-down：三 part 非空才 emit；custom variant 5 個 kind +
+  unknown fallback 不為 closure 而擴充
+
+**三 corpus 十五層 byte-identical 對稱矩陣完備** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：合計
+347 fixture / 11645 runs + 5335 paragraphs + 127 tables + 408 sections +
+192 HF slots + 9172 styles + 1229 numberings + 27 comments + 513
+footnotes/endnotes + 1617 settings + 1883 fonts + 486 webSettings +
+**5890 docProps**（1238 core + 4456 app + 196 custom）byte-identical。
+
+**LibreOffice edge corpus 15 層中 13 層 ≥ 95% commercial-grade + 七 100%
+（NumberingMap + Comments + Footnotes + Settings + FontTable + WebSettings
++ DocProps）**：前 5 層 100% + TableProps 97.6% + SectionProps 95.1% +
+StyleMap 96.9% + NumberingMap 100% + Comments 100% + Footnotes 100% +
+Settings 100% + FontTable 100% + WebSettings 100% + **DocProps 100%
+⭐⭐⭐⭐⭐⭐⭐**、僅 HeaderFooterContent 90.6% 為 edge tolerance。
+
+ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十五層升級確認
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
 
 ---
 
