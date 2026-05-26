@@ -52,9 +52,53 @@ export interface ThemeFonts {
   minor: { latin?: string; ea?: string; cs?: string };
 }
 
+/**
+ * Sprint 271：單一 script-specific fallback font（fontScheme 內
+ * `<a:font script="Jpan" typeface="ＭＳ ゴシック"/>` 等東亞語系對映）。
+ */
+export interface ThemeFontFallback {
+  parent: 'majorFont' | 'minorFont';
+  script: string;
+  typeface: string;
+}
+
+/**
+ * Sprint 271：theme1.xml raw XML extras（parser AST 未消費的 sub-tree、
+ * 純為 Phase 6 byte-identical round-trip 而 capture）。
+ *
+ * OOXML §20.1.6 themeElements 完整結構：
+ *   - clrScheme（Sprint 262 已 capture 為 ThemeColors）
+ *   - fontScheme（major/minor × latin/ea/cs 已 capture；script fonts 本層補）
+ *   - **fmtScheme**（線條/填色/效果樣式、Word UI「主題效果」用、render 不消費）
+ *   - **objectDefaults**（圖形 spDef/lnDef/txDef 預設）
+ *   - **extraClrSchemeLst**（額外色彩主題）
+ *
+ * 紀律 #21：每個 extras 欄位皆 optional、缺則不掛 key。
+ * 紀律 #18 scope-down：raw XML string preserve、不解析內容（與 mc:Fallback
+ *   壓縮哲學一致：parser 不消費的 sub-tree 不結構化、原樣 round-trip）。
+ */
+export interface ThemeRawExtras {
+  /** `<a:fmtScheme>...</a:fmtScheme>` 完整子樹 raw XML。 */
+  fmtSchemeXml?: string;
+  /** `<a:objectDefaults>...</a:objectDefaults>` 完整子樹 raw XML。 */
+  objectDefaultsXml?: string;
+  /** `<a:extraClrSchemeLst>...</a:extraClrSchemeLst>` 完整子樹 raw XML。 */
+  extraClrSchemeLstXml?: string;
+  /** fontScheme 內 script-specific fallback fonts（Word 預設東亞語系字型對映）。 */
+  scriptFonts: ThemeFontFallback[];
+  /** Sprint 271：theme root name 屬性（如 "Office 佈景主題"）。 */
+  themeName?: string;
+  /** Sprint 271：clrScheme name 屬性（如 "Office"）。 */
+  clrSchemeName?: string;
+  /** Sprint 271：fontScheme name 屬性（如 "Office"）。 */
+  fontSchemeName?: string;
+}
+
 export interface ThemeMap {
   colorScheme: ThemeColors;
   fontScheme: ThemeFonts;
+  /** Sprint 271：Phase 6 byte-identical round-trip raw extras。 */
+  extras?: ThemeRawExtras;
 }
 
 /**
@@ -89,6 +133,10 @@ export const DEFAULT_THEME_MAP: ThemeMap = {
 /**
  * 從 OOXML package 解析 theme1.xml。
  * 缺檔或解析失敗時回 null（caller 用 DEFAULT_THEME_MAP 降級）。
+ *
+ * Sprint 271：parsed 結果額外掛 `extras` raw XML preserve（fmtScheme /
+ * objectDefaults / extraClrSchemeLst + scriptFonts）；Phase 6 byte-identical
+ * round-trip 用。紀律 #21 optional：缺對應 sub-tree → 該欄位 undefined。
  */
 export function parseTheme(pkg: OoxmlPackage): ThemeMap | null {
   const xml = pkg.partAsText('word/theme/theme1.xml');
@@ -110,10 +158,102 @@ export function parseTheme(pkg: OoxmlPackage): ThemeMap | null {
   const clrSchemeEl = directChild(themeElements, 'a:clrScheme');
   const fontSchemeEl = directChild(themeElements, 'a:fontScheme');
 
-  return {
+  const result: ThemeMap = {
     colorScheme: clrSchemeEl ? parseColorScheme(clrSchemeEl) : { ...DEFAULT_THEME_COLORS },
     fontScheme: fontSchemeEl ? parseFontScheme(fontSchemeEl) : { major: { ...DEFAULT_THEME_FONTS.major }, minor: { ...DEFAULT_THEME_FONTS.minor } },
   };
+
+  // Sprint 271：抽 raw XML extras（fmtScheme / objectDefaults / extraClrSchemeLst）
+  //   用 substring 切割（xmldom serializer 對 namespace 處理 inconsistent、
+  //   regex 對 nested 不穩；OOXML §20.1.6 內 fmtScheme 等不可 nested、
+  //   simple boundary-match 即足）。
+  const fmtSchemeXml = extractRawElement(xml, 'a:fmtScheme');
+  const objectDefaultsXml = extractRawElement(xml, 'a:objectDefaults');
+  const extraClrSchemeLstXml = extractRawElement(xml, 'a:extraClrSchemeLst');
+  const scriptFonts = fontSchemeEl ? parseScriptFonts(fontSchemeEl) : [];
+
+  // Sprint 271：capture root/clrScheme/fontScheme name 屬性（剩餘 byte drift 主來源）
+  const themeName = attr(root, 'name');
+  const clrSchemeName = clrSchemeEl ? attr(clrSchemeEl, 'name') : undefined;
+  const fontSchemeName = fontSchemeEl ? attr(fontSchemeEl, 'name') : undefined;
+
+  const hasExtras = fmtSchemeXml !== undefined
+    || objectDefaultsXml !== undefined
+    || extraClrSchemeLstXml !== undefined
+    || scriptFonts.length > 0
+    || themeName !== undefined
+    || clrSchemeName !== undefined
+    || fontSchemeName !== undefined;
+  if (hasExtras) {
+    const extras: ThemeRawExtras = { scriptFonts };
+    if (fmtSchemeXml !== undefined) extras.fmtSchemeXml = fmtSchemeXml;
+    if (objectDefaultsXml !== undefined) extras.objectDefaultsXml = objectDefaultsXml;
+    if (extraClrSchemeLstXml !== undefined) extras.extraClrSchemeLstXml = extraClrSchemeLstXml;
+    if (themeName !== undefined) extras.themeName = themeName;
+    if (clrSchemeName !== undefined) extras.clrSchemeName = clrSchemeName;
+    if (fontSchemeName !== undefined) extras.fontSchemeName = fontSchemeName;
+    result.extras = extras;
+  }
+  return result;
+}
+
+/**
+ * Sprint 271：從 raw XML 抽取單一 top-level element 子樹（含 closing tag）。
+ *
+ * @returns 完整 `<tagName...>...</tagName>` 字串、或 self-closing
+ *   `<tagName.../>`；找不到回 undefined。
+ *
+ * 限制（紀律 #18 scope-down）：
+ *   - 假設 tagName 在 XML 內唯一出現（OOXML §20.1.6 fmtScheme/objectDefaults/
+ *     extraClrSchemeLst 為 themeElements 直接子元素、不會 nested）
+ *   - 不處理 CDATA / 註解內 false-positive（OOXML theme1.xml 不含 CDATA）
+ */
+export function extractRawElement(xml: string, tagName: string): string | undefined {
+  const startPattern = `<${tagName}`;
+  const startIdx = xml.indexOf(startPattern);
+  if (startIdx < 0) return undefined;
+  // 判定是 paired 還是 self-closing：找從 startIdx 開始的第一個 '>' 或 '/>'
+  const tagCloseIdx = xml.indexOf('>', startIdx);
+  if (tagCloseIdx < 0) return undefined;
+  if (xml[tagCloseIdx - 1] === '/') {
+    // self-closing：<tagName .../>
+    return xml.substring(startIdx, tagCloseIdx + 1);
+  }
+  // paired：找 </tagName>
+  const endPattern = `</${tagName}>`;
+  const endIdx = xml.indexOf(endPattern, tagCloseIdx);
+  if (endIdx < 0) return undefined;
+  return xml.substring(startIdx, endIdx + endPattern.length);
+}
+
+/**
+ * Sprint 271：從 fontScheme 抽 script-specific fallback fonts
+ * （Word 預設東亞語系字型對映、Jpan / Hans / Hant / Hang / Arab / Hebr / ...）。
+ */
+function parseScriptFonts(fontSchemeEl: Element): ThemeFontFallback[] {
+  const out: ThemeFontFallback[] = [];
+  const major = directChild(fontSchemeEl, 'a:majorFont');
+  const minor = directChild(fontSchemeEl, 'a:minorFont');
+  if (major) collectScriptFonts(major, 'majorFont', out);
+  if (minor) collectScriptFonts(minor, 'minorFont', out);
+  return out;
+}
+
+function collectScriptFonts(
+  parent: Element,
+  parentTag: 'majorFont' | 'minorFont',
+  out: ThemeFontFallback[],
+): void {
+  for (let i = 0; i < parent.childNodes.length; i++) {
+    const node = parent.childNodes[i] as Element;
+    if (node.nodeType !== 1) continue;
+    if (node.nodeName !== 'a:font') continue;
+    const script = attr(node, 'script');
+    const typeface = attr(node, 'typeface');
+    if (script && typeface !== undefined) {
+      out.push({ parent: parentTag, script, typeface });
+    }
+  }
 }
 
 function parseColorScheme(el: Element): ThemeColors {

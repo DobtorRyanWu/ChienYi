@@ -2075,23 +2075,48 @@ function writeTheme(t: import('../styles/ThemeResolver').ThemeMap): string {
     `<a:hlink><a:srgbClr val="${escapeXml(c.hlink)}"/></a:hlink>`,
     `<a:folHlink><a:srgbClr val="${escapeXml(c.folHlink)}"/></a:folHlink>`,
   ].join('');
-  const major = writeThemeFont('majorFont', t.fontScheme.major);
-  const minor = writeThemeFont('minorFont', t.fontScheme.minor);
+  // Sprint 271：scriptFonts 依 parent 分組、寫進 majorFont / minorFont 內
+  const scriptFonts = t.extras?.scriptFonts ?? [];
+  const majorScriptFonts = scriptFonts.filter((s) => s.parent === 'majorFont');
+  const minorScriptFonts = scriptFonts.filter((s) => s.parent === 'minorFont');
+  const major = writeThemeFont('majorFont', t.fontScheme.major, majorScriptFonts);
+  const minor = writeThemeFont('minorFont', t.fontScheme.minor, minorScriptFonts);
+  // Sprint 271：raw extras 原樣插入（fmtScheme / objectDefaults / extraClrSchemeLst）
+  const fmtScheme = t.extras?.fmtSchemeXml ?? '';
+  const objectDefaults = t.extras?.objectDefaultsXml ?? '';
+  const extraClrSchemeLst = t.extras?.extraClrSchemeLstXml ?? '';
+  const themeNameAttr = t.extras?.themeName !== undefined ? ` name="${escapeXml(t.extras.themeName)}"` : '';
+  const clrSchemeName = escapeXml(t.extras?.clrSchemeName ?? '');
+  const fontSchemeName = escapeXml(t.extras?.fontSchemeName ?? '');
   return xmlDecl() +
-    `<a:theme xmlns:a="${A_NS}">` +
+    `<a:theme xmlns:a="${A_NS}"${themeNameAttr}>` +
     '<a:themeElements>' +
-    `<a:clrScheme name="">${colorElems}</a:clrScheme>` +
-    `<a:fontScheme name="">${major}${minor}</a:fontScheme>` +
+    `<a:clrScheme name="${clrSchemeName}">${colorElems}</a:clrScheme>` +
+    `<a:fontScheme name="${fontSchemeName}">${major}${minor}</a:fontScheme>` +
+    fmtScheme +
     '</a:themeElements>' +
+    objectDefaults +
+    extraClrSchemeLst +
     '</a:theme>';
 }
 
-/** Sprint 262：序列化 majorFont / minorFont（依 ThemeFonts.major|minor 結構）。 */
-function writeThemeFont(elementName: 'majorFont' | 'minorFont', f: { latin?: string; ea?: string; cs?: string }): string {
+/**
+ * Sprint 262 / 271：序列化 majorFont / minorFont。
+ * Sprint 271 加 scriptFonts 參數：寫入 `<a:font script="X" typeface="Y"/>` 系列
+ * fallback fonts（Word 預設東亞語系字型對映）。
+ */
+function writeThemeFont(
+  elementName: 'majorFont' | 'minorFont',
+  f: { latin?: string; ea?: string; cs?: string },
+  scriptFonts: Array<{ script: string; typeface: string }> = [],
+): string {
   const subs: string[] = [];
   if (f.latin !== undefined) subs.push(`<a:latin typeface="${escapeXml(f.latin)}"/>`);
   if (f.ea !== undefined) subs.push(`<a:ea typeface="${escapeXml(f.ea)}"/>`);
   if (f.cs !== undefined) subs.push(`<a:cs typeface="${escapeXml(f.cs)}"/>`);
+  for (const sf of scriptFonts) {
+    subs.push(`<a:font script="${escapeXml(sf.script)}" typeface="${escapeXml(sf.typeface)}"/>`);
+  }
   return `<a:${elementName}>${subs.join('')}</a:${elementName}>`;
 }
 
