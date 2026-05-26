@@ -92,6 +92,19 @@ export interface ThemeRawExtras {
   clrSchemeName?: string;
   /** Sprint 271：fontScheme name 屬性（如 "Office"）。 */
   fontSchemeName?: string;
+  /**
+   * Sprint 274：完整 `<a:clrScheme>...</a:clrScheme>` raw XML（含 sysClr vs srgbClr
+   * 區分、attribute 順序、原始格式）。
+   *
+   * 為何：Sprint 262 ThemeColors 走 eager resolve（sysClr.lastClr → hex），
+   *   round-trip 寫 srgbClr、丟掉 sysClr 識別 → raw byte drift ~2.1%。本 raw
+   *   preserve 同時 capture，writer 寫 theme1.xml 時優先用 raw XML（與
+   *   ThemeColors 結構化 capture 並存：parser 端走 ThemeColors 供 eager
+   *   resolve、writer 端走 rawXml 供 byte preserve）。
+   */
+  clrSchemeRawXml?: string;
+  /** Sprint 274：完整 `<a:fontScheme>...</a:fontScheme>` raw XML（含 script fonts + name + 任何 parser 未消費的 child elements）。 */
+  fontSchemeRawXml?: string;
 }
 
 export interface ThemeMap {
@@ -171,6 +184,10 @@ export function parseTheme(pkg: OoxmlPackage): ThemeMap | null {
   const objectDefaultsXml = extractRawElement(xml, 'a:objectDefaults');
   const extraClrSchemeLstXml = extractRawElement(xml, 'a:extraClrSchemeLst');
   const scriptFonts = fontSchemeEl ? parseScriptFonts(fontSchemeEl) : [];
+  // Sprint 274：完整 clrScheme + fontScheme raw XML 也 capture
+  //   （preserve sysClr vs srgbClr 區分 + attr order + 任何 parser 未消費的 child）
+  const clrSchemeRawXml = extractRawElement(xml, 'a:clrScheme');
+  const fontSchemeRawXml = extractRawElement(xml, 'a:fontScheme');
 
   // Sprint 271：capture root/clrScheme/fontScheme name 屬性（剩餘 byte drift 主來源）
   const themeName = attr(root, 'name');
@@ -183,7 +200,9 @@ export function parseTheme(pkg: OoxmlPackage): ThemeMap | null {
     || scriptFonts.length > 0
     || themeName !== undefined
     || clrSchemeName !== undefined
-    || fontSchemeName !== undefined;
+    || fontSchemeName !== undefined
+    || clrSchemeRawXml !== undefined
+    || fontSchemeRawXml !== undefined;
   if (hasExtras) {
     const extras: ThemeRawExtras = { scriptFonts };
     if (fmtSchemeXml !== undefined) extras.fmtSchemeXml = fmtSchemeXml;
@@ -192,6 +211,8 @@ export function parseTheme(pkg: OoxmlPackage): ThemeMap | null {
     if (themeName !== undefined) extras.themeName = themeName;
     if (clrSchemeName !== undefined) extras.clrSchemeName = clrSchemeName;
     if (fontSchemeName !== undefined) extras.fontSchemeName = fontSchemeName;
+    if (clrSchemeRawXml !== undefined) extras.clrSchemeRawXml = clrSchemeRawXml;
+    if (fontSchemeRawXml !== undefined) extras.fontSchemeRawXml = fontSchemeRawXml;
     result.extras = extras;
   }
   return result;

@@ -2060,6 +2060,30 @@ function writeCustomVariant(v: CustomPropertyValue): string {
  *   （parser 不消費、re-parse 後仍無、byte-identical）。
  */
 function writeTheme(t: import('../styles/ThemeResolver').ThemeMap): string {
+  // Sprint 274：clrScheme / fontScheme 優先用 raw XML（preserve sysClr vs srgbClr +
+  //   attr order + parser 未消費的 child elements）；fallback 走 Sprint 262
+  //   reconstructed 路徑（無 raw XML 時、例如缺檔降級 DEFAULT_THEME_MAP）
+  const clrSchemeXml = t.extras?.clrSchemeRawXml ?? buildClrSchemeXml(t);
+  const fontSchemeXml = t.extras?.fontSchemeRawXml ?? buildFontSchemeXml(t);
+  // Sprint 271：raw extras 原樣插入（fmtScheme / objectDefaults / extraClrSchemeLst）
+  const fmtScheme = t.extras?.fmtSchemeXml ?? '';
+  const objectDefaults = t.extras?.objectDefaultsXml ?? '';
+  const extraClrSchemeLst = t.extras?.extraClrSchemeLstXml ?? '';
+  const themeNameAttr = t.extras?.themeName !== undefined ? ` name="${escapeXml(t.extras.themeName)}"` : '';
+  return xmlDecl() +
+    `<a:theme xmlns:a="${A_NS}"${themeNameAttr}>` +
+    '<a:themeElements>' +
+    clrSchemeXml +
+    fontSchemeXml +
+    fmtScheme +
+    '</a:themeElements>' +
+    objectDefaults +
+    extraClrSchemeLst +
+    '</a:theme>';
+}
+
+/** Sprint 262 + 274：reconstructed clrScheme（無 rawXml fallback 路徑、寫 12 色 srgbClr）。 */
+function buildClrSchemeXml(t: import('../styles/ThemeResolver').ThemeMap): string {
   const c = t.colorScheme;
   const colorElems = [
     `<a:dk1><a:srgbClr val="${escapeXml(c.dk1)}"/></a:dk1>`,
@@ -2075,29 +2099,19 @@ function writeTheme(t: import('../styles/ThemeResolver').ThemeMap): string {
     `<a:hlink><a:srgbClr val="${escapeXml(c.hlink)}"/></a:hlink>`,
     `<a:folHlink><a:srgbClr val="${escapeXml(c.folHlink)}"/></a:folHlink>`,
   ].join('');
-  // Sprint 271：scriptFonts 依 parent 分組、寫進 majorFont / minorFont 內
+  const clrSchemeName = escapeXml(t.extras?.clrSchemeName ?? '');
+  return `<a:clrScheme name="${clrSchemeName}">${colorElems}</a:clrScheme>`;
+}
+
+/** Sprint 262 + 274：reconstructed fontScheme（無 rawXml fallback 路徑）。 */
+function buildFontSchemeXml(t: import('../styles/ThemeResolver').ThemeMap): string {
   const scriptFonts = t.extras?.scriptFonts ?? [];
   const majorScriptFonts = scriptFonts.filter((s) => s.parent === 'majorFont');
   const minorScriptFonts = scriptFonts.filter((s) => s.parent === 'minorFont');
   const major = writeThemeFont('majorFont', t.fontScheme.major, majorScriptFonts);
   const minor = writeThemeFont('minorFont', t.fontScheme.minor, minorScriptFonts);
-  // Sprint 271：raw extras 原樣插入（fmtScheme / objectDefaults / extraClrSchemeLst）
-  const fmtScheme = t.extras?.fmtSchemeXml ?? '';
-  const objectDefaults = t.extras?.objectDefaultsXml ?? '';
-  const extraClrSchemeLst = t.extras?.extraClrSchemeLstXml ?? '';
-  const themeNameAttr = t.extras?.themeName !== undefined ? ` name="${escapeXml(t.extras.themeName)}"` : '';
-  const clrSchemeName = escapeXml(t.extras?.clrSchemeName ?? '');
   const fontSchemeName = escapeXml(t.extras?.fontSchemeName ?? '');
-  return xmlDecl() +
-    `<a:theme xmlns:a="${A_NS}"${themeNameAttr}>` +
-    '<a:themeElements>' +
-    `<a:clrScheme name="${clrSchemeName}">${colorElems}</a:clrScheme>` +
-    `<a:fontScheme name="${fontSchemeName}">${major}${minor}</a:fontScheme>` +
-    fmtScheme +
-    '</a:themeElements>' +
-    objectDefaults +
-    extraClrSchemeLst +
-    '</a:theme>';
+  return `<a:fontScheme name="${fontSchemeName}">${major}${minor}</a:fontScheme>`;
 }
 
 /**
