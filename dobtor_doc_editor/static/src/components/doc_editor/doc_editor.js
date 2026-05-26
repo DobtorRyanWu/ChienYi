@@ -192,6 +192,9 @@ export class DocEditor extends Component {
             findReplaceMode: false,
             findText: '',
             replaceText: '',
+            // ─── Sprint Y10：find/replace match count（Google Docs 風「3 / 12」顯示）
+            findMatchCount: 0,        // 總比對數（canvas-editor getSearchNavigateInfo().count）
+            findMatchIndex: 0,        // 1-based 當前 highlight 序號（0 = 無 match 或未搜尋）
             // ─── Sprint Y6：字色 / 背景色 picker（記住上次選色顯示在 swatch）
             textColor: '#202124',         // 預設黑灰（同 --gd-text）
             highlightColor: '#fff176',    // 預設淡黃（Google Docs 風）
@@ -3652,12 +3655,29 @@ export class DocEditor extends Component {
         }, 50);
         if (this.state.findText) {
             try { this.editor?.command?.executeSearch?.(this.state.findText); } catch (e) { /* ignore */ }
+            this._updateMatchInfo();
+        }
+    }
+
+    // ─── Sprint Y10：讀 canvas-editor getSearchNavigateInfo 同步 match count
+    _updateMatchInfo() {
+        try {
+            const info = this.editor?.command?.getSearchNavigateInfo?.();
+            const count = info?.count ?? 0;
+            const idx = info?.index ?? -1;
+            this.state.findMatchCount = count;
+            this.state.findMatchIndex = (count > 0 && idx >= 0) ? (idx + 1) : 0;
+        } catch (e) {
+            this.state.findMatchCount = 0;
+            this.state.findMatchIndex = 0;
         }
     }
 
     closeFindReplace() {
         this.state.findReplaceMode = false;
         try { this.editor?.command?.executeSearch?.(null); } catch (e) { /* ignore */ }
+        this.state.findMatchCount = 0;
+        this.state.findMatchIndex = 0;
     }
 
     onFindTextInput(ev) {
@@ -3665,6 +3685,7 @@ export class DocEditor extends Component {
         try {
             this.editor?.command?.executeSearch?.(this.state.findText || null);
         } catch (e) { /* ignore */ }
+        this._updateMatchInfo();
     }
 
     onReplaceTextInput(ev) {
@@ -3674,11 +3695,13 @@ export class DocEditor extends Component {
     onFindNext() {
         if (!this.state.findText) return;
         this._executeCmd('executeSearchNavigateNext');
+        this._updateMatchInfo();
     }
 
     onFindPrev() {
         if (!this.state.findText) return;
         this._executeCmd('executeSearchNavigatePre');
+        this._updateMatchInfo();
     }
 
     onReplaceOnce() {
@@ -3690,6 +3713,7 @@ export class DocEditor extends Component {
             console.error('[DocEditor] replace once failed', e);
             this.notification?.add?.(`取代失敗：${e.message || e}`, { type: 'warning' });
         }
+        this._updateMatchInfo();
     }
 
     // executeReplace 只取代當前一個 match，要 replaceAll 須 loop。
@@ -3714,6 +3738,9 @@ export class DocEditor extends Component {
             console.error('[DocEditor] replace all failed', e);
             this.notification?.add?.(`取代失敗：${e.message || e}`, { type: 'warning' });
         }
+        // 全部取代後 match count 應歸零（cmd.executeSearch(null) 已清高亮）
+        this.state.findMatchCount = 0;
+        this.state.findMatchIndex = 0;
     }
 
     // ─── Sprint Y5：格式化工具列 handlers ─────────────────────────

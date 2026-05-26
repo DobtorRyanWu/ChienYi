@@ -2188,6 +2188,24 @@
     border-color: var(--gd-text-muted);
 }
 
+/* Sprint Y10：find/replace match count 顯示「3 / 12」 */
+.o_dobtor_doc_editor .doc-find-count {
+    flex: 0 0 auto;
+    padding: 0 8px;
+    font-size: 12px;
+    color: var(--gd-text-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 56px;
+    text-align: center;
+    white-space: nowrap;
+}
+.o_dobtor_doc_editor .doc-find-count.no-match {
+    color: #d93025;   /* Google red 600，無結果時警示色 */
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-find-count.no-match {
+    color: #f28b82;   /* Google red dark 變體 */
+}
+
 /* ════════════════════════════════════════════════════════════════════════
    Sprint Y5 — 格式化工具列（Row 3.5）
    字型 / 字號 selector + B I U S + align*4 + 清除格式

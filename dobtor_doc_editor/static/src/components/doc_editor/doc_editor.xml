@@ -547,6 +547,16 @@
                                    t-on-input="onFindTextInput"
                                    t-on-keydown="onFindInputKeyDown"
                                    aria-label="尋找文字"/>
+                            <!-- Sprint Y10：match count 顯示「3 / 12」，無 match 時顯「無結果」、空查詢時隱藏 -->
+                            <span class="doc-find-count"
+                                  t-if="state.findText"
+                                  t-att-class="{ 'no-match': state.findMatchCount === 0 }"
+                                  aria-live="polite">
+                                <t t-if="state.findMatchCount > 0">
+                                    <t t-esc="state.findMatchIndex"/> / <t t-esc="state.findMatchCount"/>
+                                </t>
+                                <t t-else="">無結果</t>
+                            </span>
                             <button class="doc-find-btn"
                                     t-on-click="onFindPrev"
                                     title="上一個 (Shift+Enter)"
