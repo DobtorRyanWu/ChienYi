@@ -165,6 +165,7 @@ Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix�
 | **249** | **ChienYi WebSettings 第十四層 audit + writer webSettings.xml emit + hasDivs stub（+30 行）** | **16/42 (38.1%) → 42/42 / 100% / 64 keys ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 揭發 root cause #10b writer 漏 + hasDivs 對空 `<w:divs/>` 不認、Sprint 218→219 模式第九次** |
 | **250** | **LibreOffice 286 WebSettings 第十四層 audit** | **288/288 / 100% / 422 keys ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 第六次邊緣 corpus 達 100%** |
 | **251** | **Phase 5 18 WebSettings 第十四層 audit** | **18/18 / 100% / 0 trivially ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 三 corpus 十四層矩陣完備** |
+| **252** | **Phase 1 optional 剩餘 11 項 corpus 真實出現次數調查 + 真實狀態盤點 + bucket honest 關閉** | **docs-only 0 行 production code、Phase 1 optional 13 → 0 真實 gap（5 wired-up + 1 semantic 等價 + 1 Phase 2 deferred + 3 個 0 corpus 出現）⭐⭐⭐** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -636,6 +637,30 @@ HeaderFooterContent 90.6% 為 edge tolerance。
 
 ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十四層升級確認
 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
+
+**Sprint 252 Phase 1 optional bucket honest 關閉** ⭐⭐⭐：
+
+LibreOffice 286 corpus 罕用 tag 真實出現次數調查（unzip + grep）+ 真實
+wired-up 狀態盤點：
+
+| 工項 | corpus 出現 | 狀態 |
+|---|---|---|
+| footnoteReference / endnoteReference | 14 (LibreOffice) | ✅ Sprint 242 wired-up |
+| footnotePr / endnotePr | settings.xml | ✅ Sprint 243 wired-up |
+| anchor / wrap* / effectExtent | 27 (LibreOffice) | ✅ Sprint 38+192 wired-up |
+| AlternateContent | 19 (LibreOffice) | ✅ Sprint 38 effectiveChildren |
+| tblStylePr 條件樣式 | 2 (LibreOffice styles.xml) | ✅ Sprint 131 StyleResolver + TableStyleApplicator |
+| lvlOverride | 9 (LibreOffice numbering.xml) | ✅ NumberingResolver flatten semantic 等價（Sprint 234 NumberingMap 100%） |
+| bookmarkStart/End | 多 (ChienYi+LibreOffice) | ⏸️ Sprint 125 capture / Sprint 164 render DEFER 至 Phase 2 decision 2B |
+| ruby / tcFitText / 圖片效果 | 0 (兩 corpus 皆 0) | ⏸️ DEFER（無 corpus 資料、不實作 stub、紀律 #21） |
+
+**Phase 1 optional 13 → 0 真實 gap**：5 項真實 wired-up + 1 項 semantic
+等價 + 1 項 Phase 2 deferred + 3 項 0 corpus 出現無實作需求。形式上仍
+維持 4 個合法 `[ ]`（Sprint 165 Exit Criteria 第 4 條：非-optional `[ ]`
+全 `[x]`、optional `[ ]` 維持 `[ ]`）。
+
+ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十四層升級 + Phase
+1 optional bucket honest 關閉 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
 
 ---
 
