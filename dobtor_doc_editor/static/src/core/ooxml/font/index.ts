@@ -28,3 +28,14 @@ export {
   readOpentypeAdvances,
 } from './FontMetrics';
 export type { FontMetricsResult, OoxmlLineHeightResult, OpentypeAdvanceResult } from './FontMetrics';
+// Sprint 280：browser/Node 通用字型 fetch + fallback chain wire-up
+export {
+  loadShapingFontWithChain,
+  getDefaultCjkFallbackChain,
+  FontChainExhaustedError,
+} from './ShapingFontChain';
+export type {
+  ShapingFontChainEntry,
+  LoadShapingFontWithChainOptions,
+  LoadShapingFontResult,
+} from './ShapingFontChain';
