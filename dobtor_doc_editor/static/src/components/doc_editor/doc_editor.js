@@ -195,6 +195,11 @@ export class DocEditor extends Component {
             // ─── Sprint Y6：字色 / 背景色 picker（記住上次選色顯示在 swatch）
             textColor: '#202124',         // 預設黑灰（同 --gd-text）
             highlightColor: '#fff176',    // 預設淡黃（Google Docs 風）
+            // ─── Sprint Y7：format toolbar active state（caret/selection 反映目前格式）
+            activeBold: false,
+            activeItalic: false,
+            activeUnderline: false,
+            activeStrikeout: false,
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -569,11 +574,28 @@ export class DocEditor extends Component {
                 const ctx = this.editor.command.getRangeContext();
                 if (!ctx) return;
                 const el = ctx.startElement || ctx.endElement || ctx.element || null;
+
+                // 既有：control conceptId 反查 → selectedFieldId
                 const conceptId = el?.control?.conceptId;
-                if (!conceptId) return;
-                const fieldId = parseInt(conceptId, 10);
-                if (Number.isFinite(fieldId) && this.state.selectedFieldId !== fieldId) {
-                    this.state.selectedFieldId = fieldId;
+                if (conceptId) {
+                    const fieldId = parseInt(conceptId, 10);
+                    if (Number.isFinite(fieldId) && this.state.selectedFieldId !== fieldId) {
+                        this.state.selectedFieldId = fieldId;
+                    }
+                }
+
+                // Sprint Y7：根據 selection 起點 element 的格式屬性、更新 format toolbar
+                // active state。selection 跨多 element 樣式不一時、目前只看起點（簡化）。
+                // 未來可改用 ctx 內彙整資料判斷 indeterminate（部分選中）。
+                if (el) {
+                    const b = el.bold === true;
+                    const i = el.italic === true;
+                    const u = el.underline === true;
+                    const s = el.strikeout === true;
+                    if (this.state.activeBold !== b) this.state.activeBold = b;
+                    if (this.state.activeItalic !== i) this.state.activeItalic = i;
+                    if (this.state.activeUnderline !== u) this.state.activeUnderline = u;
+                    if (this.state.activeStrikeout !== s) this.state.activeStrikeout = s;
                 }
             } catch (e) {
                 // 不要讓 listener 抛例外破壞 canvas-editor 內部流程

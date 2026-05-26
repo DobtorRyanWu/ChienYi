@@ -2259,6 +2259,17 @@
     background: var(--gd-hover-bg);
 }
 
+/* Sprint Y7：format toolbar active state（B/I/U/S 按鈕在 caret/selection 含該格式時高亮）
+   accent-soft 底 + accent 文字 = Google Docs 風 active 樣式 */
+.o_dobtor_doc_editor .doc-format-btn.is-active {
+    background: var(--gd-accent-soft);
+    color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-format-btn.is-active:hover {
+    background: var(--gd-accent-soft);   /* hover 也保持 accent，避免閃爍 */
+    filter: brightness(0.96);
+}
+
 .o_dobtor_doc_editor .doc-format-btn:focus {
     outline: 2px solid var(--gd-accent);
     outline-offset: -2px;

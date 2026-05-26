@@ -240,20 +240,28 @@
                     </t>
                 </select>
                 <span class="doc-format-sep" aria-hidden="true"/>
-                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeBold')"
-                        title="粗體 (Ctrl+B)" aria-label="粗體">
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeBold }"
+                        t-on-click="() => this._executeCmd('executeBold')"
+                        title="粗體 (Ctrl+B)" aria-label="粗體" aria-pressed="state.activeBold">
                     <i class="fa fa-bold" aria-hidden="true"/>
                 </button>
-                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeItalic')"
-                        title="斜體 (Ctrl+I)" aria-label="斜體">
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeItalic }"
+                        t-on-click="() => this._executeCmd('executeItalic')"
+                        title="斜體 (Ctrl+I)" aria-label="斜體" aria-pressed="state.activeItalic">
                     <i class="fa fa-italic" aria-hidden="true"/>
                 </button>
-                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeUnderline')"
-                        title="底線 (Ctrl+U)" aria-label="底線">
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeUnderline }"
+                        t-on-click="() => this._executeCmd('executeUnderline')"
+                        title="底線 (Ctrl+U)" aria-label="底線" aria-pressed="state.activeUnderline">
                     <i class="fa fa-underline" aria-hidden="true"/>
                 </button>
-                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeStrikeout')"
-                        title="刪除線" aria-label="刪除線">
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeStrikeout }"
+                        t-on-click="() => this._executeCmd('executeStrikeout')"
+                        title="刪除線" aria-label="刪除線" aria-pressed="state.activeStrikeout">
                     <i class="fa fa-strikethrough" aria-hidden="true"/>
                 </button>
                 <span class="doc-format-sep" aria-hidden="true"/>
