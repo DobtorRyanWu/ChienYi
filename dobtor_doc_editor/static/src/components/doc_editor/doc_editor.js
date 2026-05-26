@@ -225,10 +225,36 @@ export class DocEditor extends Component {
             activeFontSize: '16',           // canvas-editor 預設 16；select option value 是字串
             activeRowFlex: 'left',          // 'left'|'center'|'right'|'alignment'
             // ─── Sprint Y9：dark mode（UI shell 深色化；canvas 紙張仍白色保持列印 WYSIWYG）
-            // 從 localStorage 還原上次設定；查看 menu 可切換
+            //     Sprint Y19：升級為三段 themeMode（auto / light / dark）
+            // darkMode = 實際渲染用的 boolean（reactive、由 _recomputeDarkMode 維護）
+            // themeMode = user 偏好（'auto' | 'light' | 'dark'）；'auto' 跟系統 prefers-color-scheme
+            themeMode: (() => {
+                try {
+                    // 新 key 優先；找不到再讀 Y9 舊 key 做 migration
+                    const v = localStorage.getItem('dobtor_doc_editor_theme_mode');
+                    if (v === 'auto' || v === 'light' || v === 'dark') return v;
+                    // Y9 legacy migration：明確存過 '1' → 'dark'、'0' → 'light'、其他（包含 null）→ 'auto'
+                    const legacy = localStorage.getItem('dobtor_doc_editor_dark_mode');
+                    if (legacy === '1') return 'dark';
+                    if (legacy === '0') return 'light';
+                    return 'auto';
+                } catch (e) { return 'auto'; }
+            })(),
             darkMode: (() => {
-                try { return localStorage.getItem('dobtor_doc_editor_dark_mode') === '1'; }
-                catch (e) { return false; }
+                // initial 估算（setup 內 _recomputeDarkMode 會 reconcile）
+                try {
+                    const v = localStorage.getItem('dobtor_doc_editor_theme_mode');
+                    const legacy = localStorage.getItem('dobtor_doc_editor_dark_mode');
+                    let mode = v;
+                    if (!mode) {
+                        if (legacy === '1') mode = 'dark';
+                        else if (legacy === '0') mode = 'light';
+                        else mode = 'auto';
+                    }
+                    if (mode === 'dark') return true;
+                    if (mode === 'light') return false;
+                    return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
+                } catch (e) { return false; }
             })(),
             // ─── Sprint Y17：文件設定 modal（紙張尺寸 / 方向 / margin）
             // showDocSettings = 是否開啟 modal；docSettingsForm = modal 內 form state
@@ -406,6 +432,16 @@ export class DocEditor extends Component {
             document.addEventListener('mousedown', this._onGlobalClick);
         }
 
+        // Sprint Y19：themeMode='auto' 時跟系統 prefers-color-scheme 同步
+        // 任何時候系統偏好變動 → _recomputeDarkMode（內部判斷僅 auto 模式才生效）
+        try {
+            this._mediaQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+            this._onSystemThemeChange = () => this._recomputeDarkMode();
+            this._mediaQuery?.addEventListener?.('change', this._onSystemThemeChange);
+        } catch (e) { /* unsupported environment */ }
+        // 確保初始 darkMode 與 themeMode + system pref 一致
+        this._recomputeDarkMode();
+
         // 取得 doc_id 優先順序：
         //   1. this.props.docId — portal mount 模式（<owl-component props='{"docId":...}'>）
         //   2. backend client action context.doc_id
@@ -553,6 +589,13 @@ export class DocEditor extends Component {
                 document.removeEventListener('mousedown', this._onGlobalClick);
             }
             this._onGlobalClick = null;
+
+            // Sprint Y19：解除 prefers-color-scheme listener
+            if (this._mediaQuery && this._onSystemThemeChange) {
+                this._mediaQuery.removeEventListener?.('change', this._onSystemThemeChange);
+            }
+            this._mediaQuery = null;
+            this._onSystemThemeChange = null;
         });
     }
 
@@ -3664,11 +3707,7 @@ export class DocEditor extends Component {
 
                 case 'view:toggle-ruler': this.state.showRuler = !this.state.showRuler; break;
                 case 'view:toggle-thumbnails': this.state.showThumbnails = !this.state.showThumbnails; break;
-                case 'view:toggle-dark':
-                    this.state.darkMode = !this.state.darkMode;
-                    try { localStorage.setItem('dobtor_doc_editor_dark_mode', this.state.darkMode ? '1' : '0'); }
-                    catch (e) { /* ignore quota */ }
-                    break;
+                case 'view:cycle-theme': this.onCycleTheme(); break;
                 // Sprint Y11：紙張格式從 menubar 直接套用（取代被 hide 的 Row 3 toolbar select）
                 case 'view:paper-A4':     this.onPageFormatChange({ target: { value: 'A4' } }); break;
                 case 'view:paper-A3':     this.onPageFormatChange({ target: { value: 'A3' } }); break;
@@ -3875,6 +3914,40 @@ export class DocEditor extends Component {
             console.error('[DocEditor.onApplyLineSpacing]', e);
             this.notification?.add?.('套用行距失敗', { type: 'danger' });
         }
+    }
+
+    // ─── Sprint Y19：三段 themeMode（auto / light / dark）─────────
+    _themeLabel() {
+        const m = this.state?.themeMode;
+        if (m === 'dark') return '深色';
+        if (m === 'light') return '淺色';
+        return '跟系統';
+    }
+
+    _recomputeDarkMode() {
+        const mode = this.state?.themeMode;
+        let dark = false;
+        if (mode === 'dark') dark = true;
+        else if (mode === 'light') dark = false;
+        else {
+            // auto：跟 system prefers-color-scheme
+            try { dark = !!window.matchMedia?.('(prefers-color-scheme: dark)')?.matches; }
+            catch (e) { dark = false; }
+        }
+        if (this.state && this.state.darkMode !== dark) {
+            this.state.darkMode = dark;
+        }
+    }
+
+    onCycleTheme() {
+        // 循環 auto → light → dark → auto
+        const cur = this.state.themeMode;
+        const next = cur === 'auto' ? 'light' : cur === 'light' ? 'dark' : 'auto';
+        this.state.themeMode = next;
+        try { localStorage.setItem('dobtor_doc_editor_theme_mode', next); }
+        catch (e) { /* ignore quota / private mode */ }
+        this._recomputeDarkMode();
+        this.notification?.add?.(`外觀：${this._themeLabel()}`, { type: 'info' });
     }
 
     // ─── Sprint Y18：清除最近用色（Y13 留尾巴）
@@ -4201,7 +4274,7 @@ export class DocEditor extends Component {
                 items: [
                     { label: this.state.showRuler ? '✓ 顯示尺規' : '   顯示尺規', action: 'view:toggle-ruler' },
                     { label: this.state.showThumbnails ? '✓ 顯示縮圖' : '   顯示縮圖', action: 'view:toggle-thumbnails' },
-                    { label: this.state.darkMode ? '✓ 深色模式' : '   深色模式', action: 'view:toggle-dark' },
+                    { label: `外觀：${this._themeLabel()}`, action: 'view:cycle-theme' },
                     { type: 'separator' },
                     { label: '縮放 50%', action: 'view:zoom-50' },
                     { label: '縮放 100%', action: 'view:zoom-100' },
