@@ -8,11 +8,11 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 277 結尾 — Phase 6 LineBreaker MVP spike + 雙驗紀律 SOP 首次完整落地 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Phase 2 Exit 6/6 全綠、零保留條件 / 三 corpus 十九層 byte-identical 對稱矩陣完備（含 raw byte 99.6% / 98.6%）/ Phase 2 API readiness validated by Phase 6 spike / 加權平均 ~95-97% 商用級）
+## 1. 當前指標一覽（Sprint 278 結尾 — Phase 2.1 HarfBuzz browser-side spike + Node ↔ Browser byte-identical parity + user pinned「最值得做的一條」⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Phase 2 Exit 6/6 全綠、零保留條件 / 三 corpus 十九層 byte-identical 對稱矩陣完備（含 raw byte 99.6% / 98.6%）/ Phase 2 API readiness validated by Phase 6 spike + Phase 2.1 browser spike / 加權平均 ~95-97% 商用級 / STOP for user review）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **2092 passed + 1 skipped**（`npm test` 全套口徑、Sprint 277 結尾實測 369.87s / 163 files；Sprint 277 +6 Phase 6 LineBreaker MVP（greedy break、雙驗 path 3 vitest 框架 verified）、Sprint 275 +3 Phase 2 Exit ④ cache hitRate（Layout pass 三場景）、Sprint 270+272+273 +3 theme raw byte-level audit 三 corpus + Sprint 271 writer 真實修法第十二次（raw XML preserve）、Sprint 265+266+267+268 +45 Phase 2 完整 ShapingEngine + Glyph cache + 行高公式 + opentype.js 完整 metrics、Sprint 262+263+264 +3 theme 第十八層 三 corpus + writer 真實修法第十一次 + parser AST 擴充、Sprint 256+257+258 +3 SmartArt 第十六層 三 corpus、Sprint 259+260+261 +3 Charts 第十七層 三 corpus、Sprint 253+254+255 +3 DocProps (core+app+custom) 第十五層 三 corpus + writer 真實修法、Sprint 252 docs-only 不增、Sprint 249+250+251 +3 WebSettings 第十四層 三 corpus + writer 真實修法、Sprint 246+247+248 +3 FontTable 第十三層 三 corpus + writer 真實修法、Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **2094 passed + 1 skipped**（`npm test` 全套口徑、Sprint 278 結尾實測 365.04s / 164 files；Sprint 278 +2 Phase 2.1 HarfBuzz Node parity（Node ↔ Browser byte-identical 對照、glyph[0] 5 欄位 + AV kern delta 全 Δ=0）、Sprint 277 +6 Phase 6 LineBreaker MVP（greedy break、雙驗 path 3 vitest 框架 verified）、Sprint 275 +3 Phase 2 Exit ④ cache hitRate（Layout pass 三場景）、Sprint 270+272+273 +3 theme raw byte-level audit 三 corpus + Sprint 271 writer 真實修法第十二次（raw XML preserve）、Sprint 265+266+267+268 +45 Phase 2 完整 ShapingEngine + Glyph cache + 行高公式 + opentype.js 完整 metrics、Sprint 262+263+264 +3 theme 第十八層 三 corpus + writer 真實修法第十一次 + parser AST 擴充、Sprint 256+257+258 +3 SmartArt 第十六層 三 corpus、Sprint 259+260+261 +3 Charts 第十七層 三 corpus、Sprint 253+254+255 +3 DocProps (core+app+custom) 第十五層 三 corpus + writer 真實修法、Sprint 252 docs-only 不增、Sprint 249+250+251 +3 WebSettings 第十四層 三 corpus + writer 真實修法、Sprint 246+247+248 +3 FontTable 第十三層 三 corpus + writer 真實修法、Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223/225/226/230/239/243/262 writer fix 皆觸 export path 而非 import path、VR pipeline 比的是 import → layout → render、VR 第 68 連 maintained；Sprint 256-261 純 audit、0 行 writer 修法、VR 完全不動；Sprint 262 +99 行 writer/parser/AST 修法、parser 端只多寫一個 optional key 不影響 layout/render；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
@@ -937,6 +937,48 @@ Phase 2 API readiness validated + 雙驗紀律 SOP 首次完整落地**
 驗證（path 1 tsc + path 2 standalone Node），path 3 vitest 標 hypothesis pending、
 不阻塞 commit；環境恢復後補跑 path 3 從 hypothesis → verified。Sprint 277 完整
 走過此流程：commit 時 2/3 通、user 指示釋放記憶體後 3/3 通。
+
+**Sprint 278 Phase 2.1 HarfBuzz WASM browser-side integration spike + Node ↔
+Browser byte-identical parity verified + user pinned「最值得做的一條」**
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- 範圍：Spike only / 紀律 #18 scope-down — 不改 ShapingEngine.ts（既有
+  `createRequire(import.meta.url)` Node-only 不動）/ 不接 Layout / 不接
+  canvas-editor。旁路 `spikes/sprint278_harfbuzz_browser/` 直接 `<script>`
+  載 `vendor/hb.js` + `vendor/hbjs.js`、`createHarfBuzz({locateFile})` 取 wasm
+  Module、`hbjs(Module)` 包高階 API 跑同 shape 流程
+- 驗證 user 指定 5 個 Glyph 欄位：
+  - `glyphId` / `xAdvance` / `yAdvance` / `xOffset` / `yOffset` 全 numeric、
+    browser + Node 端皆完整
+  - 額外 `cluster`（OOXML 多語混排場景）順帶輸出
+- **Node ↔ Browser byte-identical parity Δ=0 全表**（DejaVuSans + "Hello world" +
+  sizePt=12）：
+  - glyph[0].glyphId = 43（browser + Node）
+  - glyph[0].xAdvance = 9.0234375pt（browser + Node）
+  - totalWidth = 67.271484375pt（browser + Node、11 glyphs）
+  - AV kern delta = −0.767578125pt（browser + Node、DejaVuSans 確有 kerning pair）
+  - upem = 2048（DejaVuSans 標準）
+- Browser runtime：Playwright MCP Chrome 149 actual headless browser run、
+  WASM 載入 52.4ms、`window.__sprint278_result.exitCode = 0`
+- vitest 2092 → 2094（+2 Node parity test、`tests/unit/sprint278_harfbuzz_node_parity.test.ts`）；
+  full suite first run 1 flake 重跑全綠（164 files / 2094 passed / 1 skipped /
+  365.04s、heavy parallel 字型 shaping warmup timing 為前次 flake 主因）
+- 時間 cap 4 小時、實際 ~1.5h 完成（含 Playwright browser run + Node parity
+  test + doc）
+- 紀律 #1.b spike only：不入 production、不改 ShapingEngine.ts、不接 Layout
+- 紀律 #14.b clean scope：commit 含 `spikes/sprint278_harfbuzz_browser/`
+  （index.html + node_compare.mjs + README + .gitignore；vendor binaries
+  reproducible 從 node_modules 不入 git）+ 1 vitest Node parity test + 1 doc
+- 紀律 #21：不 touch 既有 ShapingEngine.ts / VR / Layout / Render；VR 第 68
+  連 maintained
+- 紀律 #22：byte-identical parity 為硬數據（Δ=0 到尾數位）、Phase 2.1 完整實作
+  之 ShapingEngine.ts browser-compat refactor / 字型載入器 / opentype.js wire-up
+  hypothesis 標明、不在本 spike 範圍
+
+**STOP for user review**：user 指令「做完停下叫我 review」、Sprint 278 任務完整。
+等 review 後決定是否 GO 「Phase 2.1-2.3 全套：ShapingEngine 封裝 + 字型載入器 +
+opentype.js 取代 measureRun」cluster（user 已預先給 24 小時 cap + 每 5 sprint
+暫停 30 分鐘 cadence）。
 
 ---
 
