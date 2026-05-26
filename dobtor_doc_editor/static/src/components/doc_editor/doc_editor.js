@@ -198,6 +198,9 @@ export class DocEditor extends Component {
             // ─── Sprint Y6：字色 / 背景色 picker（記住上次選色顯示在 swatch）
             textColor: '#202124',         // 預設黑灰（同 --gd-text）
             highlightColor: '#fff176',    // 預設淡黃（Google Docs 風）
+            // ─── Sprint Y12：24 色 palette dropdown 開啟狀態
+            // null = 關閉；'text' = 字色 palette 開；'highlight' = 背景色 palette 開
+            showColorPalette: null,
             // ─── Sprint Y7：format toolbar active state（caret/selection 反映目前格式）
             activeBold: false,
             activeItalic: false,
@@ -254,6 +257,10 @@ export class DocEditor extends Component {
             if (event.key === 'Escape' && this.state?.openMenu) {
                 this.state.openMenu = null;
             }
+            // Sprint Y12：Esc 關閉色彩 palette dropdown
+            if (event.key === 'Escape' && this.state?.showColorPalette) {
+                this.state.showColorPalette = null;
+            }
             // Sprint Y4：Ctrl/Cmd+F 開尋找、Ctrl/Cmd+H 開取代
             if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey
                 && (event.key === 'f' || event.key === 'F')) {
@@ -271,11 +278,15 @@ export class DocEditor extends Component {
         }
 
         // Sprint Y3：menu bar 外部點擊關閉（mousedown 比 click 早觸發，避免 trigger 自身競態）
+        // Sprint Y12：同一 listener 順便處理色彩 palette dropdown
         this._onGlobalClick = (ev) => {
-            if (!this.state || !this.state.openMenu) return;
+            if (!this.state) return;
             try {
-                if (!ev.target.closest('.doc-menubar')) {
+                if (this.state.openMenu && !ev.target.closest('.doc-menubar')) {
                     this.state.openMenu = null;
+                }
+                if (this.state.showColorPalette && !ev.target.closest('.doc-format-color-wrap')) {
+                    this.state.showColorPalette = null;
                 }
             } catch (e) { /* ignore */ }
         };
@@ -3765,12 +3776,13 @@ export class DocEditor extends Component {
         this._executeCmd('executeSize', s);
     }
 
-    // ─── Sprint Y6：字色 / 背景色 ───
+    // ─── Sprint Y6：字色 / 背景色（保留：「自訂色」逃生口仍用 native input）───
     onTextColorChange(ev) {
         const c = ev.target.value;
         if (!c) return;
         this.state.textColor = c;       // 同步 UI swatch
         this._executeCmd('executeColor', c);
+        this.state.showColorPalette = null;   // 自訂色完成後關 palette
     }
 
     onHighlightColorChange(ev) {
@@ -3778,6 +3790,66 @@ export class DocEditor extends Component {
         if (!c) return;
         this.state.highlightColor = c;
         this._executeCmd('executeHighlight', c);
+        this.state.showColorPalette = null;
+    }
+
+    // ─── Sprint Y12：24 色 palette dropdown ───
+    // 4 排 × 6 色：第 1 排灰階、第 2-4 排主色（淺/正/深三段）— Google Docs 風配置
+    get COLOR_PALETTE() {
+        return [
+            // 第 1 排：灰階（白 → 黑）
+            ['#ffffff', '#f1f3f4', '#bdc1c6', '#80868b', '#3c4043', '#000000'],
+            // 第 2 排：主色（淺）
+            ['#fce8e6', '#fce5cd', '#fff2cc', '#d9ead3', '#d0e0e3', '#cfe2f3'],
+            // 第 3 排：主色（正）
+            ['#ea4335', '#fbbc04', '#fff176', '#34a853', '#46bdc6', '#4285f4'],
+            // 第 4 排：主色（深）
+            ['#a52714', '#b45f06', '#bf9000', '#0f9d58', '#134f5c', '#0b5394'],
+        ];
+    }
+
+    // 點 swatch trigger / 下拉箭頭 → 開/關 palette
+    onColorTriggerClick(type, ev) {
+        // 阻止冒泡到 outside-click 立即關回去
+        if (ev) ev.stopPropagation();
+        this.state.showColorPalette = (this.state.showColorPalette === type) ? null : type;
+    }
+
+    // 點 palette 內某個色塊
+    onColorSwatchPick(type, color, ev) {
+        if (ev) ev.stopPropagation();
+        if (type === 'text') {
+            this.state.textColor = color;
+            this._executeCmd('executeColor', color);
+        } else if (type === 'highlight') {
+            this.state.highlightColor = color;
+            this._executeCmd('executeHighlight', color);
+        }
+        this.state.showColorPalette = null;
+    }
+
+    // 「重設」link：清除色（傳 null 給 canvas-editor 清除 style）
+    onColorReset(type, ev) {
+        if (ev) ev.stopPropagation();
+        if (type === 'text') {
+            this.state.textColor = '#202124';
+            this._executeCmd('executeColor', null);
+        } else if (type === 'highlight') {
+            this.state.highlightColor = '#fff176';
+            this._executeCmd('executeHighlight', null);
+        }
+        this.state.showColorPalette = null;
+    }
+
+    // 「自訂色」link：dispatch click 到隱藏的 native color input（保留 Y6 既有逃生口）
+    onColorCustom(type, ev) {
+        if (ev) ev.stopPropagation();
+        // 不關 palette；等 onTextColorChange/onHighlightColorChange 接到 input event 後關
+        const sel = type === 'text' ? '.doc-color-custom-text' : '.doc-color-custom-highlight';
+        try {
+            const input = document.querySelector(sel);
+            if (input) input.click();
+        } catch (e) { /* ignore */ }
     }
 
     onFindInputKeyDown(ev) {

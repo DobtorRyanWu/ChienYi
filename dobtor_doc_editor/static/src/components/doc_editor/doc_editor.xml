@@ -306,28 +306,80 @@
                     <i class="fa fa-align-justify" aria-hidden="true"/>
                 </button>
                 <span class="doc-format-sep" aria-hidden="true"/>
-                <!-- Sprint Y6：字色 picker — 點整個 label 開原生 color picker，下方色條同步顯示當前色 -->
-                <label class="doc-format-color-wrap" title="字色" aria-label="文字顏色">
+                <!-- Sprint Y12：字色 24-color palette dropdown（取代 Y6 native picker；保留自訂色逃生口）-->
+                <span class="doc-format-color-wrap"
+                      t-att-class="{ 'is-open': state.showColorPalette === 'text' }"
+                      title="字色" aria-label="文字顏色"
+                      t-on-click="(ev) => this.onColorTriggerClick('text', ev)">
                     <i class="fa fa-font" aria-hidden="true"/>
                     <span class="doc-format-color-bar"
                           t-attf-style="background: #{state.textColor};"/>
+                    <i class="fa fa-caret-down doc-format-color-caret" aria-hidden="true"/>
+                    <!-- 隱藏 native input：「自訂色」link 用 JS click() 觸發 -->
                     <input type="color"
-                           class="doc-format-color-hidden"
+                           class="doc-format-color-hidden doc-color-custom-text"
                            t-att-value="state.textColor"
                            t-on-input="onTextColorChange"
-                           aria-label="選擇文字顏色"/>
-                </label>
-                <!-- Sprint Y6：背景色 picker（highlight）-->
-                <label class="doc-format-color-wrap" title="背景色（highlight）" aria-label="背景顏色">
+                           tabindex="-1"
+                           aria-hidden="true"/>
+                    <!-- Palette dropdown -->
+                    <div class="doc-color-palette" t-if="state.showColorPalette === 'text'">
+                        <t t-foreach="COLOR_PALETTE" t-as="row" t-key="row_index">
+                            <div class="doc-color-palette-row">
+                                <t t-foreach="row" t-as="color" t-key="color">
+                                    <button class="doc-color-swatch"
+                                            t-att-class="{ 'is-selected': state.textColor === color }"
+                                            t-attf-style="background: #{color};"
+                                            t-attf-aria-label="字色 #{color}"
+                                            t-att-title="color"
+                                            t-on-click="(ev) => this.onColorSwatchPick('text', color, ev)"/>
+                                </t>
+                            </div>
+                        </t>
+                        <div class="doc-color-palette-footer">
+                            <button class="doc-color-palette-link"
+                                    t-on-click="(ev) => this.onColorReset('text', ev)">重設</button>
+                            <button class="doc-color-palette-link"
+                                    t-on-click="(ev) => this.onColorCustom('text', ev)">自訂色...</button>
+                        </div>
+                    </div>
+                </span>
+                <!-- Sprint Y12：背景色 24-color palette dropdown -->
+                <span class="doc-format-color-wrap"
+                      t-att-class="{ 'is-open': state.showColorPalette === 'highlight' }"
+                      title="背景色（highlight）" aria-label="背景顏色"
+                      t-on-click="(ev) => this.onColorTriggerClick('highlight', ev)">
                     <i class="fa fa-paint-brush" aria-hidden="true"/>
                     <span class="doc-format-color-bar"
                           t-attf-style="background: #{state.highlightColor};"/>
+                    <i class="fa fa-caret-down doc-format-color-caret" aria-hidden="true"/>
                     <input type="color"
-                           class="doc-format-color-hidden"
+                           class="doc-format-color-hidden doc-color-custom-highlight"
                            t-att-value="state.highlightColor"
                            t-on-input="onHighlightColorChange"
-                           aria-label="選擇背景顏色"/>
-                </label>
+                           tabindex="-1"
+                           aria-hidden="true"/>
+                    <div class="doc-color-palette" t-if="state.showColorPalette === 'highlight'">
+                        <t t-foreach="COLOR_PALETTE" t-as="row" t-key="row_index">
+                            <div class="doc-color-palette-row">
+                                <t t-foreach="row" t-as="color" t-key="color">
+                                    <button class="doc-color-swatch"
+                                            t-att-class="{ 'is-selected': state.highlightColor === color }"
+                                            t-attf-style="background: #{color};"
+                                            t-attf-aria-label="背景色 #{color}"
+                                            t-att-title="color"
+                                            t-on-click="(ev) => this.onColorSwatchPick('highlight', color, ev)"/>
+                                </t>
+                            </div>
+                        </t>
+                        <div class="doc-color-palette-footer">
+                            <button class="doc-color-palette-link"
+                                    t-on-click="(ev) => this.onColorReset('highlight', ev)">重設</button>
+                            <button class="doc-color-palette-link"
+                                    t-on-click="(ev) => this.onColorCustom('highlight', ev)">自訂色...</button>
+                        </div>
+                    </div>
+                </span>
                 <span class="doc-format-sep" aria-hidden="true"/>
                 <button class="doc-format-btn" t-on-click="() => this._executeCmd('executePainterStyle', {})"
                         title="清除格式" aria-label="清除格式">

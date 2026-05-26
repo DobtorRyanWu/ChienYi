@@ -2320,45 +2320,134 @@
 .o_dobtor_doc_editor .doc-format-color-wrap {
     position: relative;
     display: inline-flex;
-    flex-direction: column;
+    flex-direction: row;            /* Y12：icon | (bar/caret 直排) 排成兩欄 */
     align-items: center;
     justify-content: center;
-    width: 28px;
+    gap: 2px;
+    padding: 0 4px;
     height: 28px;
     border-radius: var(--gd-radius-sm);
     cursor: pointer;
     color: var(--gd-text);
     transition: background 120ms ease;
+    user-select: none;
 }
-.o_dobtor_doc_editor .doc-format-color-wrap:hover {
+.o_dobtor_doc_editor .doc-format-color-wrap:hover,
+.o_dobtor_doc_editor .doc-format-color-wrap.is-open {
     background: var(--gd-hover-bg);
 }
 .o_dobtor_doc_editor .doc-format-color-wrap:focus-within {
     outline: 2px solid var(--gd-accent);
     outline-offset: -2px;
 }
-.o_dobtor_doc_editor .doc-format-color-wrap .fa {
-    font-size: 13px;
+/* 主 icon（A / 油漆刷）— icon 與 bar 排成一直行靠右；caret 在最右 */
+.o_dobtor_doc_editor .doc-format-color-wrap > .fa-font,
+.o_dobtor_doc_editor .doc-format-color-wrap > .fa-paint-brush {
+    font-size: 14px;
     line-height: 1;
-    margin-top: 2px;
 }
 .o_dobtor_doc_editor .doc-format-color-bar {
     display: block;
-    width: 16px;
+    width: 14px;
     height: 3px;
     border-radius: 1px;
-    margin-top: 2px;
     border: 1px solid rgba(0, 0, 0, 0.08);  /* 白色背景時也看得見邊界 */
 }
+.o_dobtor_doc_editor .doc-format-color-caret {
+    font-size: 10px;
+    line-height: 1;
+    color: var(--gd-text-muted);
+    margin-left: 1px;
+}
+/* Sprint Y12：把 icon + bar 包成直行 group（CSS-only：用 nth-child 不夠彈性，靠 flex-direction:column）
+   實作改在 Y12：icon 與 bar 各自 inline 排，因為 Google Docs 風就是「A」上面 bar；
+   保險起見不強制 column wrap，icon 與 bar 都是直接子元素、靠 gap 微距 */
 .o_dobtor_doc_editor .doc-format-color-hidden {
+    /* Y12：native input 只當「自訂色」逃生口（onColorCustom 用 JS click()），
+       不再覆蓋整個 wrap — 否則點 trigger 會直接觸發 native picker，palette dropdown 開不了 */
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+    width: 1px;
+    height: 1px;
     opacity: 0;
     border: none;
     padding: 0;
+    pointer-events: none;        /* 不接收 mouse；只接受 JS .click() */
+    left: 0;
+    top: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y12 — 24 色 palette dropdown（取代 Y6 native color picker）
+   結構：.doc-format-color-wrap (trigger)
+           └── .doc-color-palette (t-if state.showColorPalette === type)
+                 ├── .doc-color-palette-row × 4
+                 │     └── .doc-color-swatch × 6
+                 └── .doc-color-palette-footer (重設 | 自訂色)
+   ────────────────────────────────────────────────────────────────────── */
+.o_dobtor_doc_editor .doc-color-palette {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 110;                  /* 高於 menu dropdown 的 100 */
+    padding: 8px;
+    background: #ffffff;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    box-shadow: 0 4px 14px rgba(60, 64, 67, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: default;
+}
+.o_dobtor_doc_editor .doc-color-palette-row {
+    display: flex;
+    gap: 4px;
+}
+.o_dobtor_doc_editor .doc-color-swatch {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 3px;
     cursor: pointer;
+    transition: transform 80ms ease, box-shadow 80ms ease;
+}
+.o_dobtor_doc_editor .doc-color-swatch:hover {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 1px var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-color-swatch.is-selected {
+    box-shadow: 0 0 0 2px var(--gd-accent);
+    border-color: var(--gd-accent);
+}
+.o_dobtor_doc_editor .doc-color-palette-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor .doc-color-palette-link {
+    background: transparent;
+    border: none;
+    padding: 4px 8px;
+    color: var(--gd-accent);
+    font-size: 12px;
+    font-family: var(--gd-font);
+    cursor: pointer;
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-color-palette-link:hover {
+    background: var(--gd-hover-bg);
+}
+/* Dark mode：palette 底白色換深灰、swatch border 變亮 */
+.o_dobtor_doc_editor.is-dark-mode .doc-color-palette {
+    background: #2a2a2a;
+    border-color: #3a3a3a;
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-color-swatch {
+    border-color: rgba(255, 255, 255, 0.18);
 }
 
 /* ════════════════════════════════════════════════════════════════════════
