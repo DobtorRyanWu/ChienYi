@@ -192,6 +192,9 @@ export class DocEditor extends Component {
             findReplaceMode: false,
             findText: '',
             replaceText: '',
+            // ─── Sprint Y6：字色 / 背景色 picker（記住上次選色顯示在 swatch）
+            textColor: '#202124',         // 預設黑灰（同 --gd-text）
+            highlightColor: '#fff176',    // 預設淡黃（Google Docs 風）
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -3676,6 +3679,21 @@ export class DocEditor extends Component {
         const s = parseInt(ev.target.value, 10);
         if (!s || s <= 0) return;
         this._executeCmd('executeSize', s);
+    }
+
+    // ─── Sprint Y6：字色 / 背景色 ───
+    onTextColorChange(ev) {
+        const c = ev.target.value;
+        if (!c) return;
+        this.state.textColor = c;       // 同步 UI swatch
+        this._executeCmd('executeColor', c);
+    }
+
+    onHighlightColorChange(ev) {
+        const c = ev.target.value;
+        if (!c) return;
+        this.state.highlightColor = c;
+        this._executeCmd('executeHighlight', c);
     }
 
     onFindInputKeyDown(ev) {

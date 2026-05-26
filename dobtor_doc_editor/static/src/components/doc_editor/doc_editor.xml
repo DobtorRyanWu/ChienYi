@@ -274,6 +274,29 @@
                     <i class="fa fa-align-justify" aria-hidden="true"/>
                 </button>
                 <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- Sprint Y6：字色 picker — 點整個 label 開原生 color picker，下方色條同步顯示當前色 -->
+                <label class="doc-format-color-wrap" title="字色" aria-label="文字顏色">
+                    <i class="fa fa-font" aria-hidden="true"/>
+                    <span class="doc-format-color-bar"
+                          t-attf-style="background: #{state.textColor};"/>
+                    <input type="color"
+                           class="doc-format-color-hidden"
+                           t-att-value="state.textColor"
+                           t-on-input="onTextColorChange"
+                           aria-label="選擇文字顏色"/>
+                </label>
+                <!-- Sprint Y6：背景色 picker（highlight）-->
+                <label class="doc-format-color-wrap" title="背景色（highlight）" aria-label="背景顏色">
+                    <i class="fa fa-paint-brush" aria-hidden="true"/>
+                    <span class="doc-format-color-bar"
+                          t-attf-style="background: #{state.highlightColor};"/>
+                    <input type="color"
+                           class="doc-format-color-hidden"
+                           t-att-value="state.highlightColor"
+                           t-on-input="onHighlightColorChange"
+                           aria-label="選擇背景顏色"/>
+                </label>
+                <span class="doc-format-sep" aria-hidden="true"/>
                 <button class="doc-format-btn" t-on-click="() => this._executeCmd('executePainterStyle', {})"
                         title="清除格式" aria-label="清除格式">
                     <i class="fa fa-eraser" aria-hidden="true"/>

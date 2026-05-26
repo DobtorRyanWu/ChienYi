@@ -2268,3 +2268,54 @@
     font-size: 14px;
     line-height: 1;
 }
+
+/* Sprint Y6：字色 / 背景色 picker（Google Docs 風：icon 上方 + 色條下方）
+   結構：<label class="doc-format-color-wrap">
+            <i class="fa fa-font"/>
+            <span class="doc-format-color-bar" style="background:..."/>
+            <input type="color" class="doc-format-color-hidden"/>
+          </label>
+   點 wrapper 任何位置 → 開原生 color picker（input 浮在上方 opacity:0）。 */
+.o_dobtor_doc_editor .doc-format-color-wrap {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--gd-radius-sm);
+    cursor: pointer;
+    color: var(--gd-text);
+    transition: background 120ms ease;
+}
+.o_dobtor_doc_editor .doc-format-color-wrap:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-format-color-wrap:focus-within {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -2px;
+}
+.o_dobtor_doc_editor .doc-format-color-wrap .fa {
+    font-size: 13px;
+    line-height: 1;
+    margin-top: 2px;
+}
+.o_dobtor_doc_editor .doc-format-color-bar {
+    display: block;
+    width: 16px;
+    height: 3px;
+    border-radius: 1px;
+    margin-top: 2px;
+    border: 1px solid rgba(0, 0, 0, 0.08);  /* 白色背景時也看得見邊界 */
+}
+.o_dobtor_doc_editor .doc-format-color-hidden {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
