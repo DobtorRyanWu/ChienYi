@@ -36,6 +36,8 @@ import type {
   ParagraphNode,
   ParagraphProps,
   Pt,
+  RubyNode,
+  RubyProps,
   RunNode,
   RunProps,
   RunRevision,
@@ -676,6 +678,13 @@ function parseRun(r: Element): InlineNode[] {
         }
         break;
       }
+      // Sprint 282 — Phase 1 optional bucket 第 1 項：`<w:ruby>` 注音/振假名（§17.3.3.25）
+      case 'w:ruby': {
+        flushText();
+        const ruby = parseRubyNode(child);
+        if (ruby) out.push(ruby);
+        break;
+      }
     }
   }
 
@@ -1010,3 +1019,93 @@ function mapLineSpacingRule(rule: string | null): LineSpacingRule {
 
 // 對外便捷 export，供 RunNode 型別使用者
 export type { RunNode };
+
+// ── Sprint 282 — Phase 1 optional bucket 第 1 項：`<w:ruby>` 注音/振假名 ──────
+
+/**
+ * 解析 `<w:ruby>` 元素為 RubyNode（OOXML §17.3.3.25）。
+ *
+ * 結構：
+ *   `<w:ruby>` 直屬 `<w:rubyPr>` + `<w:rt>` + `<w:rubyBase>`；
+ *   `<w:rt>` / `<w:rubyBase>` 內各含 `<w:r>` runs。
+ *
+ * 紀律 #18 scope-down（capture-only、Sprint 145-153 模式）：
+ *   - parser 把 ruby 結構讀進 AST、不 render / 不 writer round-trip
+ *   - rubyPr 缺漏 → props 整段 undefined（不寫空 object）
+ *   - rt / rubyBase 任一無 runs → 仍 emit 節點（caller 自決定）；但兩端皆空 → return undefined
+ *
+ * @return RubyNode 或 undefined（兩端皆空時、避免污染 AST）
+ */
+function parseRubyNode(ruby: Element): RubyNode | undefined {
+  const rubyPrEl = directChild(ruby, 'w:rubyPr');
+  const rtEl = directChild(ruby, 'w:rt');
+  const baseEl = directChild(ruby, 'w:rubyBase');
+
+  const annotationRuns: RunNode[] = [];
+  if (rtEl) {
+    for (const child of effectiveChildren(rtEl)) {
+      if (child.tagName !== 'w:r') continue;
+      for (const node of parseRun(child)) {
+        if (node.type === 'run') annotationRuns.push(node);
+      }
+    }
+  }
+
+  const baseRuns: RunNode[] = [];
+  if (baseEl) {
+    for (const child of effectiveChildren(baseEl)) {
+      if (child.tagName !== 'w:r') continue;
+      for (const node of parseRun(child)) {
+        if (node.type === 'run') baseRuns.push(node);
+      }
+    }
+  }
+
+  if (annotationRuns.length === 0 && baseRuns.length === 0) return undefined;
+
+  const props = rubyPrEl ? parseRubyProps(rubyPrEl) : undefined;
+  const node: RubyNode = { type: 'ruby', annotationRuns, baseRuns };
+  if (props !== undefined) node.props = props;
+  return node;
+}
+
+/** 解析 `<w:rubyPr>` 為 RubyProps；所有子元素皆 optional、無則 undefined。 */
+function parseRubyProps(rubyPr: Element): RubyProps | undefined {
+  const props: RubyProps = {};
+
+  const alignEl = directChild(rubyPr, 'w:rubyAlign');
+  if (alignEl) {
+    const v = alignEl.getAttribute('w:val');
+    if (v === 'center' || v === 'distributeLetter' || v === 'distributeSpace'
+        || v === 'left' || v === 'right' || v === 'rightVertical') {
+      props.align = v;
+    }
+  }
+
+  for (const [tag, key] of [
+    ['w:hps', 'hps'],
+    ['w:hpsRaise', 'hpsRaise'],
+    ['w:hpsBaseText', 'hpsBaseText'],
+  ] as const) {
+    const el = directChild(rubyPr, tag);
+    const raw = el?.getAttribute('w:val');
+    if (raw !== null && raw !== undefined) {
+      const n = parseInt(raw, 10);
+      if (Number.isFinite(n)) (props as Record<string, unknown>)[key] = n;
+    }
+  }
+
+  const lidEl = directChild(rubyPr, 'w:lid');
+  if (lidEl) {
+    const v = lidEl.getAttribute('w:val');
+    if (v !== null) props.lid = v;
+  }
+
+  const dirtyEl = directChild(rubyPr, 'w:dirty');
+  if (dirtyEl) {
+    const v = dirtyEl.getAttribute('w:val');
+    props.dirty = v === '1' || v === 'true' || v === null;  // 預設 1（empty val）→ true
+  }
+
+  return Object.keys(props).length > 0 ? props : undefined;
+}

@@ -354,7 +354,65 @@ export interface FloatTextBoxNode {
   };
 }
 
-export type InlineNode = RunNode | FieldNode | BreakNode | InlineImageNode | FloatImageNode | FloatTextBoxNode | FootnoteReferenceNode;
+export type InlineNode = RunNode | FieldNode | BreakNode | InlineImageNode | FloatImageNode | FloatTextBoxNode | FootnoteReferenceNode | RubyNode;
+
+/**
+ * Sprint 282 — Phase 1 optional bucket 第 1 項：`<w:ruby>` 注音/振假名標記
+ * （OOXML §17.3.3.25）。
+ *
+ * 結構：
+ * ```xml
+ * <w:r>
+ *   <w:ruby>
+ *     <w:rubyPr>
+ *       <w:rubyAlign w:val="distributeSpace"/>
+ *       <w:hps w:val="14"/>            <!-- ruby font size half-points -->
+ *       <w:hpsRaise w:val="36"/>       <!-- raise above baseline half-points -->
+ *       <w:hpsBaseText w:val="28"/>    <!-- base text font size half-points -->
+ *       <w:lid w:val="zh-TW"/>         <!-- language ID -->
+ *       <w:dirty w:val="0"/>           <!-- needs refresh -->
+ *     </w:rubyPr>
+ *     <w:rt><w:r>...</w:r></w:rt>      <!-- annotation 注音 / 振假名 -->
+ *     <w:rubyBase><w:r>...</w:r></w:rubyBase>  <!-- 被注的文字 -->
+ *   </w:ruby>
+ * </w:r>
+ * ```
+ *
+ * Sprint 282 範圍 = capture-only：parser 把 ruby 結構讀進 AST、不 render（
+ * canvas-editor 無 ruby 概念、Phase 6 自寫 Layout 才能顯示）；writer round-trip
+ * 留 follow-up sprint。
+ *
+ * 紀律 #21：與 Sprint 145-153 capture-only 9 連同模式（先讀進 AST、render /
+ * writer 後續再補）。
+ */
+export interface RubyNode {
+  type: 'ruby';
+  /** 注音 / 振假名 runs（`<w:rt>` 內、顯示在 base 上方或旁邊） */
+  annotationRuns: RunNode[];
+  /** Base text runs（`<w:rubyBase>` 內、被注的文字） */
+  baseRuns: RunNode[];
+  /** Ruby 展示屬性（OOXML §17.3.3.25.10 等） */
+  props?: RubyProps;
+}
+
+/** OOXML §17.3.3.25.10 ruby 對齊與字級。 */
+export interface RubyProps {
+  /**
+   * `<w:rubyAlign>` 對齊（OOXML §17.18.78 ST_RubyAlign）。
+   * 預設 `center`；`distributeSpace` 為日文振假名常用。
+   */
+  align?: 'center' | 'distributeLetter' | 'distributeSpace' | 'left' | 'right' | 'rightVertical';
+  /** `<w:hps>` ruby font size（half-points、OOXML raw、未除 2） */
+  hps?: number;
+  /** `<w:hpsRaise>` raise above baseline（half-points） */
+  hpsRaise?: number;
+  /** `<w:hpsBaseText>` base text font size（half-points） */
+  hpsBaseText?: number;
+  /** `<w:lid>` 語言 ID（BCP 47-ish，如 "zh-TW" / "ja-JP"） */
+  lid?: string;
+  /** `<w:dirty>` 需要 refresh 標記 */
+  dirty?: boolean;
+}
 
 /**
  * Sprint 242 — Phase 1 optional 第二批升級：`<w:footnoteReference>` /
