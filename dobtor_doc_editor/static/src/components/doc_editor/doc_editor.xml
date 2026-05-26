@@ -1110,6 +1110,86 @@
                     onRestore.bind="onVersionRestored"/>
             </t>
 
+            <!-- Sprint Y17：文件設定 modal（紙張 / 方向 / margin） -->
+            <t t-if="state.showDocSettings">
+                <div class="doc-modal-overlay" t-on-click="() => this.onCloseDocSettings()">
+                    <div class="doc-modal-dialog" t-on-click.stop="">
+                        <div class="doc-modal-header">
+                            <h3 class="doc-modal-title">文件設定</h3>
+                            <button class="doc-modal-close" type="button"
+                                    t-on-click="() => this.onCloseDocSettings()"
+                                    title="關閉">
+                                <i class="fa fa-times"/>
+                            </button>
+                        </div>
+                        <div class="doc-modal-body">
+                            <div class="doc-modal-field">
+                                <label>紙張尺寸</label>
+                                <select t-on-change="(ev) => this.onDocSettingsSet('format', ev.target.value)">
+                                    <option value="A4" t-att-selected="state.docSettingsForm.format === 'A4'">A4 (210 × 297 mm)</option>
+                                    <option value="A3" t-att-selected="state.docSettingsForm.format === 'A3'">A3 (297 × 420 mm)</option>
+                                    <option value="A5" t-att-selected="state.docSettingsForm.format === 'A5'">A5 (148 × 210 mm)</option>
+                                    <option value="letter" t-att-selected="state.docSettingsForm.format === 'letter'">Letter (216 × 279 mm)</option>
+                                    <option value="legal" t-att-selected="state.docSettingsForm.format === 'legal'">Legal (216 × 356 mm)</option>
+                                </select>
+                            </div>
+                            <div class="doc-modal-field">
+                                <label>方向</label>
+                                <div class="doc-modal-radio-group">
+                                    <label class="doc-modal-radio">
+                                        <input type="radio" name="doc-direction" value="vertical"
+                                               t-att-checked="state.docSettingsForm.direction === 'vertical'"
+                                               t-on-change="() => this.onDocSettingsSet('direction', 'vertical')"/>
+                                        <span>直向</span>
+                                    </label>
+                                    <label class="doc-modal-radio">
+                                        <input type="radio" name="doc-direction" value="horizontal"
+                                               t-att-checked="state.docSettingsForm.direction === 'horizontal'"
+                                               t-on-change="() => this.onDocSettingsSet('direction', 'horizontal')"/>
+                                        <span>橫向</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="doc-modal-field">
+                                <label>邊界（mm）</label>
+                                <div class="doc-modal-margins">
+                                    <div class="doc-modal-margin">
+                                        <span>上</span>
+                                        <input type="number" min="0" max="80" step="1"
+                                               t-att-value="state.docSettingsForm.marginTopMm"
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginTopMm', ev.target.value)"/>
+                                    </div>
+                                    <div class="doc-modal-margin">
+                                        <span>右</span>
+                                        <input type="number" min="0" max="80" step="1"
+                                               t-att-value="state.docSettingsForm.marginRightMm"
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginRightMm', ev.target.value)"/>
+                                    </div>
+                                    <div class="doc-modal-margin">
+                                        <span>下</span>
+                                        <input type="number" min="0" max="80" step="1"
+                                               t-att-value="state.docSettingsForm.marginBottomMm"
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginBottomMm', ev.target.value)"/>
+                                    </div>
+                                    <div class="doc-modal-margin">
+                                        <span>左</span>
+                                        <input type="number" min="0" max="80" step="1"
+                                               t-att-value="state.docSettingsForm.marginLeftMm"
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginLeftMm', ev.target.value)"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="doc-modal-footer">
+                            <button class="doc-modal-btn doc-modal-btn-secondary" type="button"
+                                    t-on-click="() => this.onCloseDocSettings()">取消</button>
+                            <button class="doc-modal-btn doc-modal-btn-primary" type="button"
+                                    t-on-click="() => this.onApplyDocSettings()">套用</button>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
         </div>
     </t>
 </templates>

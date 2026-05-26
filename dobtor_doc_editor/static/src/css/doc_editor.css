@@ -2533,3 +2533,161 @@
 .o_dobtor_doc_editor.is-dark-mode .doc-header-title:focus {
     background: #1f1f1f;
 }
+
+/* === Sprint Y17：文件設定 modal === */
+.o_dobtor_doc_editor .doc-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(32, 33, 36, 0.32);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: doc-modal-fade-in 120ms ease-out;
+}
+@keyframes doc-modal-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.o_dobtor_doc_editor .doc-modal-dialog {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(60, 64, 67, 0.28);
+    width: 440px;
+    max-width: 92vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--gd-font);
+}
+.o_dobtor_doc_editor .doc-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor .doc-modal-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-close {
+    background: transparent;
+    border: none;
+    color: var(--gd-text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-modal-close:hover {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+.o_dobtor_doc_editor .doc-modal-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.o_dobtor_doc_editor .doc-modal-field > label {
+    font-size: 13px;
+    color: var(--gd-text-muted);
+    font-weight: 500;
+}
+.o_dobtor_doc_editor .doc-modal-field select {
+    padding: 6px 8px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    font: inherit;
+    color: var(--gd-text);
+    background: #fff;
+}
+.o_dobtor_doc_editor .doc-modal-radio-group {
+    display: flex;
+    gap: 16px;
+}
+.o_dobtor_doc_editor .doc-modal-radio {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-margins {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+}
+.o_dobtor_doc_editor .doc-modal-margin {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.o_dobtor_doc_editor .doc-modal-margin > span {
+    width: 18px;
+    color: var(--gd-text-muted);
+    font-size: 13px;
+}
+.o_dobtor_doc_editor .doc-modal-margin > input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    font: inherit;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor .doc-modal-btn {
+    padding: 6px 16px;
+    border: 1px solid transparent;
+    border-radius: var(--gd-radius-sm);
+    font: inherit;
+    cursor: pointer;
+}
+.o_dobtor_doc_editor .doc-modal-btn-secondary {
+    background: #fff;
+    border-color: var(--gd-toolbar-border);
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor .doc-modal-btn-secondary:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-modal-btn-primary {
+    background: #1a73e8;
+    color: #fff;
+}
+.o_dobtor_doc_editor .doc-modal-btn-primary:hover {
+    background: #185abc;
+}
+
+/* Dark mode */
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-dialog {
+    background: #2a2a2a;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-field select,
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-margin > input {
+    background: #1f1f1f;
+    color: var(--gd-text);
+    border-color: var(--gd-toolbar-border);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-btn-secondary {
+    background: #2a2a2a;
+    color: var(--gd-text);
+}

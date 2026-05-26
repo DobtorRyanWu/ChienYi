@@ -230,6 +230,18 @@ export class DocEditor extends Component {
                 try { return localStorage.getItem('dobtor_doc_editor_dark_mode') === '1'; }
                 catch (e) { return false; }
             })(),
+            // ─── Sprint Y17：文件設定 modal（紙張尺寸 / 方向 / margin）
+            // showDocSettings = 是否開啟 modal；docSettingsForm = modal 內 form state
+            // margin 值在 modal 內以 mm 顯示（user-friendly），存的時候轉 px 給 canvas-editor
+            showDocSettings: false,
+            docSettingsForm: {
+                format: 'A4',
+                direction: 'vertical',
+                marginTopMm: 26,
+                marginRightMm: 32,
+                marginBottomMm: 26,
+                marginLeftMm: 32,
+            },
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -273,6 +285,11 @@ export class DocEditor extends Component {
             // Esc：關閉版本面板（若開啟）
             if (event.key === 'Escape' && this.state?.showVersionPanel) {
                 this.state.showVersionPanel = false;
+                dirty = true;
+            }
+            // Sprint Y17：Esc 關閉文件設定 modal（優先於 menu 的 Esc handling）
+            if (event.key === 'Escape' && this.state?.showDocSettings) {
+                this.state.showDocSettings = false;
                 dirty = true;
             }
             // Sprint Y3：Esc 關閉 menu bar dropdown
@@ -3678,6 +3695,7 @@ export class DocEditor extends Component {
                 case 'tools:rollback': this.onRollbackScanReplaceClick(); break;
                 case 'tools:word-count': this._countWords(); break;
                 case 'tools:version-history': this.onShowVersionPanel(); break;
+                case 'tools:doc-settings': this.onOpenDocSettings(); break;
             }
         } catch (e) {
             console.error('[DocEditor.menubar] action failed:', action, e);
@@ -3741,6 +3759,73 @@ export class DocEditor extends Component {
             el?.focus?.();
             el?.select?.();
         } catch (e) { /* ignore */ }
+    }
+
+    // ─── Sprint Y17：文件設定 modal ───
+    // canvas-editor 提供 executePaperSize(w,h) / executePaperDirection('vertical'|'horizontal')
+    // / executeSetPaperMargin([top,right,bottom,left])，全用 px @ 96 DPI。modal form 用 mm
+    // 顯示給 user（更直觀）、apply 時轉 px 寫回去。
+    _mmToPx(mm) { return Math.round(Number(mm) * 96 / 25.4); }
+    _pxToMm(px) { return Math.round(Number(px) * 25.4 / 96); }
+
+    onOpenDocSettings() {
+        // 從目前 canvas-editor state hydrate form
+        const margins = this.editor?.command?.getPaperMargin?.();
+        const f = this.state.docSettingsForm;
+        f.format = this.state.pageFormat || 'A4';
+        // direction 沒有 getter；保留上次選擇即可
+        if (Array.isArray(margins) && margins.length === 4) {
+            f.marginTopMm = this._pxToMm(margins[0]);
+            f.marginRightMm = this._pxToMm(margins[1]);
+            f.marginBottomMm = this._pxToMm(margins[2]);
+            f.marginLeftMm = this._pxToMm(margins[3]);
+        }
+        this.state.openMenu = null;
+        this.state.menuFocusIndex = -1;
+        this.state.showDocSettings = true;
+    }
+
+    onCloseDocSettings() {
+        this.state.showDocSettings = false;
+    }
+
+    onDocSettingsSet(field, value) {
+        // input change handler — Numeric clamped to [0, 80] mm；format/direction 直接套
+        if (field === 'format' || field === 'direction') {
+            this.state.docSettingsForm[field] = value;
+            return;
+        }
+        const n = Number(value);
+        if (!isNaN(n)) {
+            this.state.docSettingsForm[field] = Math.max(0, Math.min(80, n));
+        }
+    }
+
+    onApplyDocSettings() {
+        const f = this.state.docSettingsForm;
+        const PAGE_SIZES = {
+            A4: [794, 1123], A3: [1123, 1587], A5: [559, 794],
+            letter: [816, 1056], legal: [816, 1344],
+        };
+        try {
+            const [w, h] = PAGE_SIZES[f.format] || PAGE_SIZES.A4;
+            // 方向 = horizontal 時長寬互換
+            const [pw, ph] = f.direction === 'horizontal' ? [h, w] : [w, h];
+            this.editor?.command?.executePaperSize?.(pw, ph);
+            this.editor?.command?.executePaperDirection?.(f.direction);
+            this.editor?.command?.executeSetPaperMargin?.([
+                this._mmToPx(f.marginTopMm),
+                this._mmToPx(f.marginRightMm),
+                this._mmToPx(f.marginBottomMm),
+                this._mmToPx(f.marginLeftMm),
+            ]);
+            this.state.pageFormat = f.format;
+            this.state.showDocSettings = false;
+            this.notification?.add?.('文件設定已套用', { type: 'success' });
+        } catch (e) {
+            console.error('[DocEditor.onApplyDocSettings]', e);
+            this.notification?.add?.('套用文件設定失敗', { type: 'danger' });
+        }
     }
 
     _requestFullscreen() {
@@ -4117,7 +4202,7 @@ export class DocEditor extends Component {
                     { label: '拼字檢查', disabled: true },
                     { type: 'separator' },
                     { label: '版本歷史', action: 'tools:version-history', shortcut: 'Alt+H' },
-                    { label: '文件設定', disabled: true },
+                    { label: '文件設定', action: 'tools:doc-settings' },
                 ],
             },
         ];
