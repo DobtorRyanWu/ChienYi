@@ -27,12 +27,14 @@ import type {
   TableConditionalType,
   TableConditionalCellProps,
   HexColor,
+  CellBorders,
 } from '../ast/types';
 import {
   parseParagraphProps,
   parseRunProps,
   setThemeMapForParser,
 } from '../document/ParagraphParser';
+import { parseBorderDef } from './borderShading';
 import type { ThemeMap } from './ThemeResolver';
 
 interface RawStyleEntry {
@@ -282,8 +284,51 @@ function parseConditionalTcPr(tcPr: Element): TableConditionalCellProps | undefi
     if (v === 'top' || v === 'center' || v === 'bottom') out.vAlign = v;
   }
 
+  // Sprint 284：`<w:tcBorders>` 條件邊框（OOXML §17.4.66、user 指定「row+border 條件樣式」）
+  const bordersEl = directChild(tcPr, 'w:tcBorders');
+  if (bordersEl) {
+    const borders = parseConditionalCellBorders(bordersEl);
+    if (borders) out.borders = borders;
+  }
+
   // 空集合不掛 key（紀律 #21 候選）
-  if (!out.shading && !out.vAlign) return undefined;
+  if (!out.shading && !out.vAlign && !out.borders) return undefined;
+  return out;
+}
+
+/**
+ * Sprint 284：解析 `<w:tcBorders>` 為 CellBorders（六側 top/bottom/left/right/insideH/insideV）。
+ *
+ * 為何在 StyleResolver inline 而非 import TableParser 的 parseCellBorders：
+ *   - TableParser 的 parseCellBorders 是 file-local function（未 export）
+ *   - 兩處 import 會造成 styles ↔ table 模組循環、複雜度高
+ *   - 與 borderShading.parseParagraphBorders 同模式（每模組自有薄封裝、共用 parseBorderDef）
+ *
+ * 對齊 TableParser.parseCellBorders 邏輯：
+ *   - `w:start` 同 `w:left`、`w:end` 同 `w:right`（OOXML 雙向語意對應）
+ *   - 全空 → return undefined（不掛 key、紀律 #21）
+ */
+function parseConditionalCellBorders(el: Element): CellBorders | undefined {
+  const out: CellBorders = {};
+  for (const child of Array.from(el.childNodes)) {
+    if (child.nodeType !== 1) continue;  // Element only
+    const ch = child as Element;
+    const def = parseBorderDef(ch);
+    if (!def) continue;
+    switch (ch.tagName) {
+      case 'w:top': out.top = def; break;
+      case 'w:bottom': out.bottom = def; break;
+      case 'w:left':
+      case 'w:start': out.left = def; break;
+      case 'w:right':
+      case 'w:end': out.right = def; break;
+      case 'w:insideH': out.insideH = def; break;
+      case 'w:insideV': out.insideV = def; break;
+    }
+  }
+  if (!out.top && !out.bottom && !out.left && !out.right && !out.insideH && !out.insideV) {
+    return undefined;
+  }
   return out;
 }
 

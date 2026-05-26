@@ -175,9 +175,10 @@ export function applyTableStyle(
         apply(ct('seCell'));
       }
 
-      // 7a. Sprint 131：把 effective cell-level conditional props 寫回 cell.props
+      // 7a. Sprint 131 + 284：把 effective cell-level conditional props 寫回 cell.props
       //     explicit cell.props（TableParser 已 set）優先；空欄位才補入 conditional
-      if (effC.shading || effC.vAlign) {
+      //     Sprint 284 加入 borders（per-side 補入）
+      if (effC.shading || effC.vAlign || effC.borders) {
         applyConditionalCellProps(cell, effC);
       }
 
@@ -259,6 +260,10 @@ function mergeCellConditionalProps(
   if (overlay.vAlign !== undefined) {
     out.vAlign = overlay.vAlign;
   }
+  // Sprint 284：borders per-side 合併（top/bottom/left/right/insideH/insideV 各自獨立）
+  if (overlay.borders) {
+    out.borders = { ...(base.borders ?? {}), ...overlay.borders };
+  }
   return out;
 }
 
@@ -281,6 +286,20 @@ function applyConditionalCellProps(
   }
   if (effC.vAlign !== undefined && cell.props.vAlign === undefined) {
     cell.props.vAlign = effC.vAlign;
+  }
+  // Sprint 284：borders per-side 寫回（explicit cell border 已存在的 side 不覆蓋）
+  if (effC.borders) {
+    if (cell.props.borders === undefined) cell.props.borders = {};
+    const target = cell.props.borders;
+    for (const side of ['top', 'bottom', 'left', 'right', 'insideH', 'insideV'] as const) {
+      if (effC.borders[side] && target[side] === undefined) {
+        target[side] = { ...effC.borders[side] };
+      }
+    }
+    // 若全沒填（explicit 已佔滿）且原本沒 borders、不留空 object
+    if (Object.keys(target).length === 0) {
+      delete cell.props.borders;
+    }
   }
 }
 

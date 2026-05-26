@@ -933,20 +933,27 @@ export interface StyleEntry {
 }
 
 /**
- * Sprint 131：tblStylePr 的 w:tcPr 內可套用的 cell-level 條件 props 子集。
+ * Sprint 131 + Sprint 284：tblStylePr 的 w:tcPr 內可套用的 cell-level 條件 props 子集。
  *
  * 目前實作的 OOXML §17.7.6.4 (tblStylePr) 子元素：
  *   - `w:shd` → shading（header row 背景填色最常見）
  *   - `w:vAlign` → 垂直對齊（標題列置中常用）
+ *   - **`w:tcBorders` → borders（Sprint 284、firstRow/lastRow/bandHorz 條件邊框、user 指定）**
  *
  * 暫不實作（defer to future sprint）：
- *   - `w:tcBorders`（需與 BorderConflictResolver 互動、複雜度高）
  *   - `w:tcMar`（margins）
  *   - `w:noWrap` / `w:textDirection`（罕見於條件樣式）
+ *
+ * Sprint 284 borders 設計決策：
+ *   - 與 explicit cell borders 衝突時 → explicit 優先（同 shading/vAlign 規則）
+ *   - per-side undefined 才補入 conditional（top/bottom/left/right/insideH/insideV 各自獨立）
+ *   - BorderConflictResolver 後續 pass 不變、條件 borders 視為 cell explicit 進入解析
  */
 export interface TableConditionalCellProps {
   shading?: { fill?: HexColor; color?: HexColor; pattern?: string };
   vAlign?: 'top' | 'center' | 'bottom';
+  /** Sprint 284：`<w:tcBorders>` 條件邊框（OOXML §17.4.66） */
+  borders?: CellBorders;
 }
 
 export type StyleMap = Map<string, StyleEntry>;

@@ -202,7 +202,7 @@ describe('StyleResolver — Sprint 131 tblStylePr/tcPr 解析', () => {
     expect(lastCol?.cProps?.shading).toBeUndefined();
   });
 
-  it('tcPr 全空（無 shd / vAlign）不掛 cProps key（紀律 #21 候選）', () => {
+  it('Sprint 284：tcBorders 現已開通、cProps.borders 讀到（更新 Sprint 131 defer 假設）', () => {
     const xml = wrap(`
       <w:style w:type="table" w:styleId="TG">
         <w:tblStylePr w:type="firstRow">
@@ -214,7 +214,11 @@ describe('StyleResolver — Sprint 131 tblStylePr/tcPr 解析', () => {
     const map = resolver.resolve(xml);
     const firstRow = map.get('TG')?.conditional?.get('firstRow');
     expect(firstRow?.rProps?.bold).toBe(true);
-    expect(firstRow?.cProps).toBeUndefined(); // tcBorders defer、空 cProps 不掛
+    // Sprint 284：tcBorders 已從 defer 改為支援；borders.top 應讀到（style only，無 sz/color → width=0、color='auto'）
+    expect(firstRow?.cProps?.borders?.top).toBeDefined();
+    expect(firstRow?.cProps?.borders?.top?.style).toBe('single');
+    expect(firstRow?.cProps?.shading).toBeUndefined();  // shading 仍未提供 → undefined
+    expect(firstRow?.cProps?.vAlign).toBeUndefined();   // vAlign 仍未提供 → undefined
   });
 
   it('w:vAlign 無效值（如 baseline）不掛 vAlign key', () => {
