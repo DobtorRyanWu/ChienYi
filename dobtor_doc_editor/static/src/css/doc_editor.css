@@ -2409,13 +2409,31 @@
     display: flex;
     gap: 4px;
 }
-/* Sprint Y13：最近用色區段 label + 標準色區段 label */
+/* Sprint Y13：最近用色區段 label + 標準色區段 label
+   Sprint Y18：label 與清除按鈕並列（flex），空 section 時清除按鈕不渲染 */
 .o_dobtor_doc_editor .doc-color-palette-section-label {
     font-size: 11px;
     color: var(--gd-text-muted);
     font-family: var(--gd-font);
     padding: 2px 2px 0;
     user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.o_dobtor_doc_editor .doc-color-palette-clear {
+    background: transparent;
+    border: none;
+    color: var(--gd-text-muted);
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 10px;
+    line-height: 1;
+    border-radius: var(--gd-radius-sm);
+}
+.o_dobtor_doc_editor .doc-color-palette-clear:hover {
+    background: var(--gd-hover-bg);
+    color: var(--gd-text);
 }
 /* 「最近」row 不會塞滿 6 格時、靠左排齊（gap 已處理） */
 .o_dobtor_doc_editor .doc-color-palette-recent {
@@ -2690,4 +2708,42 @@
 .o_dobtor_doc_editor.is-dark-mode .doc-modal-btn-secondary {
     background: #2a2a2a;
     color: var(--gd-text);
+}
+
+/* === Sprint Y18：行距 modal — 窄版 dialog + preset 按鈕 row === */
+.o_dobtor_doc_editor .doc-modal-dialog-narrow {
+    width: 360px;
+}
+.o_dobtor_doc_editor .doc-modal-preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.o_dobtor_doc_editor .doc-modal-preset-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    background: #fff;
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    min-width: 48px;
+}
+.o_dobtor_doc_editor .doc-modal-preset-btn:hover {
+    background: var(--gd-hover-bg);
+}
+.o_dobtor_doc_editor .doc-modal-preset-btn.is-active {
+    background: #e8f0fe;
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-preset-btn {
+    background: #2a2a2a;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-modal-preset-btn.is-active {
+    background: #1a3a6f;
+    border-color: #1a73e8;
+    color: #fff;
 }

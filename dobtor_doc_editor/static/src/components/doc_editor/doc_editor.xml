@@ -328,7 +328,17 @@
                     <div class="doc-color-palette" t-if="state.showColorPalette === 'text'">
                         <!-- Sprint Y13：最近用色（最多 6 個、t-if 空陣列不渲染） -->
                         <t t-if="state.recentColors and state.recentColors.text.length > 0">
-                            <div class="doc-color-palette-section-label">最近</div>
+                            <div class="doc-color-palette-section-label">
+                                <span>最近</span>
+                                <!-- Sprint Y18：清除最近用色 -->
+                                <button class="doc-color-palette-clear"
+                                        type="button"
+                                        title="清除最近用色"
+                                        aria-label="清除最近字色"
+                                        t-on-click.stop="() => this.onClearRecentColors('text')">
+                                    <i class="fa fa-times"/>
+                                </button>
+                            </div>
                             <div class="doc-color-palette-row doc-color-palette-recent">
                                 <t t-foreach="state.recentColors.text" t-as="rc" t-key="rc">
                                     <button class="doc-color-swatch"
@@ -379,7 +389,17 @@
                     <div class="doc-color-palette" t-if="state.showColorPalette === 'highlight'">
                         <!-- Sprint Y13：最近用色（背景） -->
                         <t t-if="state.recentColors and state.recentColors.highlight.length > 0">
-                            <div class="doc-color-palette-section-label">最近</div>
+                            <div class="doc-color-palette-section-label">
+                                <span>最近</span>
+                                <!-- Sprint Y18：清除最近用色 -->
+                                <button class="doc-color-palette-clear"
+                                        type="button"
+                                        title="清除最近用色"
+                                        aria-label="清除最近背景色"
+                                        t-on-click.stop="() => this.onClearRecentColors('highlight')">
+                                    <i class="fa fa-times"/>
+                                </button>
+                            </div>
                             <div class="doc-color-palette-row doc-color-palette-recent">
                                 <t t-foreach="state.recentColors.highlight" t-as="rc" t-key="rc">
                                     <button class="doc-color-swatch"
@@ -1185,6 +1205,48 @@
                                     t-on-click="() => this.onCloseDocSettings()">取消</button>
                             <button class="doc-modal-btn doc-modal-btn-primary" type="button"
                                     t-on-click="() => this.onApplyDocSettings()">套用</button>
+                        </div>
+                    </div>
+                </div>
+            </t>
+
+            <!-- Sprint Y18：行距 modal -->
+            <t t-if="state.showLineSpacing">
+                <div class="doc-modal-overlay" t-on-click="() => this.onCloseLineSpacing()">
+                    <div class="doc-modal-dialog doc-modal-dialog-narrow" t-on-click.stop="">
+                        <div class="doc-modal-header">
+                            <h3 class="doc-modal-title">行距</h3>
+                            <button class="doc-modal-close" type="button"
+                                    t-on-click="() => this.onCloseLineSpacing()"
+                                    title="關閉">
+                                <i class="fa fa-times"/>
+                            </button>
+                        </div>
+                        <div class="doc-modal-body">
+                            <div class="doc-modal-field">
+                                <label>行距倍數</label>
+                                <input type="number" min="0.5" max="5" step="0.05"
+                                       t-att-value="state.lineSpacingValue"
+                                       t-on-input="(ev) => this.onLineSpacingSet(ev.target.value)"/>
+                            </div>
+                            <div class="doc-modal-field">
+                                <label>預設值</label>
+                                <div class="doc-modal-preset-row">
+                                    <t t-foreach="LINE_SPACING_PRESETS" t-as="preset" t-key="preset">
+                                        <button type="button" class="doc-modal-preset-btn"
+                                                t-att-class="state.lineSpacingValue === preset ? 'is-active' : ''"
+                                                t-on-click="() => this.onLineSpacingSet(preset)">
+                                            <t t-esc="preset.toFixed(2)"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="doc-modal-footer">
+                            <button class="doc-modal-btn doc-modal-btn-secondary" type="button"
+                                    t-on-click="() => this.onCloseLineSpacing()">取消</button>
+                            <button class="doc-modal-btn doc-modal-btn-primary" type="button"
+                                    t-on-click="() => this.onApplyLineSpacing()">套用</button>
                         </div>
                     </div>
                 </div>

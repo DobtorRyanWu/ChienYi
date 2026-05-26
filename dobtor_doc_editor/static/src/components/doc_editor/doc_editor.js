@@ -242,6 +242,10 @@ export class DocEditor extends Component {
                 marginBottomMm: 26,
                 marginLeftMm: 32,
             },
+            // ─── Sprint Y18：行距 modal（接 canvas-editor executeRowMargin）
+            // value 是 line-height 倍數（canvas-editor default = 1）；preset 1.0/1.15/1.5/2.0/2.5/3.0
+            showLineSpacing: false,
+            lineSpacingValue: 1.0,
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -290,6 +294,11 @@ export class DocEditor extends Component {
             // Sprint Y17：Esc 關閉文件設定 modal（優先於 menu 的 Esc handling）
             if (event.key === 'Escape' && this.state?.showDocSettings) {
                 this.state.showDocSettings = false;
+                dirty = true;
+            }
+            // Sprint Y18：Esc 關閉行距 modal
+            if (event.key === 'Escape' && this.state?.showLineSpacing) {
+                this.state.showLineSpacing = false;
                 dirty = true;
             }
             // Sprint Y3：Esc 關閉 menu bar dropdown
@@ -3688,6 +3697,7 @@ export class DocEditor extends Component {
                 case 'format:align-right': this._executeCmd('executeRowFlex', 'right'); break;
                 case 'format:align-justify': this._executeCmd('executeRowFlex', 'alignment'); break;
                 case 'format:clear-format': this._executeCmd('executePainterStyle', {}); break;
+                case 'format:line-spacing': this.onOpenLineSpacing(); break;
 
                 case 'tools:scan-vars': this.onScanVariablesClick(); break;
                 case 'tools:scan-replace': this.onScanAndReplaceClick(); break;
@@ -3826,6 +3836,58 @@ export class DocEditor extends Component {
             console.error('[DocEditor.onApplyDocSettings]', e);
             this.notification?.add?.('套用文件設定失敗', { type: 'danger' });
         }
+    }
+
+    // ─── Sprint Y18：行距 modal ───
+    // canvas-editor `executeRowMargin(payload)` 將 payload 寫到 rangeRowElement.rowMargin，
+    // dom 渲染時用作 lineHeight（default = 1）。modal 用 number input + 6 個 preset 按鈕。
+    LINE_SPACING_PRESETS = [1.0, 1.15, 1.5, 2.0, 2.5, 3.0];
+
+    onOpenLineSpacing() {
+        this.state.openMenu = null;
+        this.state.menuFocusIndex = -1;
+        this.state.showLineSpacing = true;
+    }
+
+    onCloseLineSpacing() {
+        this.state.showLineSpacing = false;
+    }
+
+    onLineSpacingSet(value) {
+        const n = Number(value);
+        if (!isNaN(n)) {
+            // canvas-editor 對 rowMargin 沒做上下界、但 < 0.5 視覺破壞、> 5 浪費 — clamp 安全範圍
+            this.state.lineSpacingValue = Math.max(0.5, Math.min(5, n));
+        }
+    }
+
+    onApplyLineSpacing() {
+        try {
+            const val = Number(this.state.lineSpacingValue);
+            if (isNaN(val)) {
+                this.notification?.add?.('行距數值無效', { type: 'warning' });
+                return;
+            }
+            this.editor?.command?.executeRowMargin?.(val);
+            this.state.showLineSpacing = false;
+            this.notification?.add?.(`行距已設為 ${val}`, { type: 'success' });
+        } catch (e) {
+            console.error('[DocEditor.onApplyLineSpacing]', e);
+            this.notification?.add?.('套用行距失敗', { type: 'danger' });
+        }
+    }
+
+    // ─── Sprint Y18：清除最近用色（Y13 留尾巴）
+    onClearRecentColors(kind) {
+        // kind = 'text' | 'highlight'；只清那一組、不動另一組
+        if (kind !== 'text' && kind !== 'highlight') return;
+        this.state.recentColors[kind] = [];
+        try {
+            localStorage.setItem(
+                'dobtor_doc_editor_recent_colors',
+                JSON.stringify(this.state.recentColors),
+            );
+        } catch (e) { /* ignore quota / private mode */ }
     }
 
     _requestFullscreen() {
@@ -4186,7 +4248,7 @@ export class DocEditor extends Component {
                     { label: '兩端對齊', action: 'format:align-justify' },
                     { type: 'separator' },
                     { label: '段落間距', disabled: true },
-                    { label: '行距', disabled: true },
+                    { label: '行距...', action: 'format:line-spacing' },
                     { label: '清除格式', action: 'format:clear-format' },
                 ],
             },
