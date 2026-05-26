@@ -33,7 +33,9 @@ import type {
   CommentContent,
   DocumentNode,
   DocumentSettings,
+  DocumentWebSettings,
   FloatImageNode,
+  FontEntry,
   FootnoteContent,
   InlineImageNode,
   MathNode,
@@ -85,6 +87,12 @@ const REL_TYPE_ENDNOTES =
 /** Sprint 243：settings 關係型別（document.xml.rels → settings.xml）。 */
 const REL_TYPE_SETTINGS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
+/** Sprint 246：fontTable 關係型別（document.xml.rels → fontTable.xml）。 */
+const REL_TYPE_FONT_TABLE =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable';
+/** Sprint 249：webSettings 關係型別（document.xml.rels → webSettings.xml）。 */
+const REL_TYPE_WEB_SETTINGS =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
 /** OMML 命名空間（ECMA-376 §22.1）。 */
 const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 /** Sprint 195：SmartArt diagram data 關係型別。 */
@@ -194,6 +202,14 @@ export class OoxmlWriter {
     if (hasSettings(doc.settings)) {
       parts['word/settings.xml'] = strToU8(writeSettings(doc.settings));
     }
+    // Sprint 246：fontTable.xml 非空才 emit（OOXML §17.8.3）
+    if (doc.fontTable.size > 0) {
+      parts['word/fontTable.xml'] = strToU8(writeFontTable(doc.fontTable));
+    }
+    // Sprint 249：webSettings.xml 非空才 emit（OOXML §17.16）
+    if (hasWebSettings(doc.webSettings)) {
+      parts['word/webSettings.xml'] = strToU8(writeWebSettings(doc.webSettings));
+    }
     // Sprint 192：把每張 media 圖片的 bytes 寫進 zip
     for (const m of mediaItems) {
       parts[m.target] = m.bytes;
@@ -278,6 +294,14 @@ function writeContentTypes(
     (doc && hasSettings(doc.settings)
       ? '<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>'
       : '') +
+    // Sprint 246：fontTable.xml Override（非空才宣告）
+    (doc && doc.fontTable.size > 0
+      ? '<Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"/>'
+      : '') +
+    // Sprint 249：webSettings.xml Override（非空才宣告）
+    (doc && hasWebSettings(doc.webSettings)
+      ? '<Override PartName="/word/webSettings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"/>'
+      : '') +
     hfOverrides +
     smartArtOverrides +
     chartOverrides +
@@ -350,6 +374,14 @@ function writeDocumentRels(
     // Sprint 243：settings.xml rel（非空才宣告）
     (doc && hasSettings(doc.settings)
       ? `<Relationship Id="rIdSettings" Type="${REL_TYPE_SETTINGS}" Target="settings.xml"/>`
+      : '') +
+    // Sprint 246：fontTable.xml rel（非空才宣告）
+    (doc && doc.fontTable.size > 0
+      ? `<Relationship Id="rIdFontTable" Type="${REL_TYPE_FONT_TABLE}" Target="fontTable.xml"/>`
+      : '') +
+    // Sprint 249：webSettings.xml rel（非空才宣告）
+    (doc && hasWebSettings(doc.webSettings)
+      ? `<Relationship Id="rIdWebSettings" Type="${REL_TYPE_WEB_SETTINGS}" Target="webSettings.xml"/>`
       : '') +
     imageRels.join('') +
     hfRels +
@@ -1730,6 +1762,86 @@ function writeNotePr(np: NonNullable<DocumentSettings['footnotePr']>, tag: 'foot
   if (np.numRestart !== undefined) subs.push(`<w:numRestart w:val="${np.numRestart}"/>`);
   if (np.position !== undefined) subs.push(`<w:pos w:val="${np.position}"/>`);
   return `<w:${tag}>${subs.join('')}</w:${tag}>`;
+}
+
+// ── Sprint 246：fontTable.xml 序列化 ─────────────────────────────────────────
+
+/**
+ * `word/fontTable.xml`：序列化 `DocumentNode.fontTable`（OOXML §17.8.3）。
+ *
+ * Sprint 147 parser capture：name / altName / charset / family / pitch /
+ * panose1 / sig（usb0-3, csb0-1）。本 sprint 對稱序列化。
+ *
+ * 順序：以 name 字典序輸出（與 audit 排序一致；OOXML 不規定 font 順序、
+ * round-trip 不靠原始順序）。caller 已用 doc.fontTable.size > 0 過濾。
+ */
+function writeFontTable(ft: Map<string, FontEntry>): string {
+  const names = Array.from(ft.keys()).sort();
+  const fonts: string[] = [];
+  for (const n of names) {
+    fonts.push(writeFontEntry(ft.get(n)!));
+  }
+  return xmlDecl() +
+    `<w:fonts xmlns:w="${W_NS}">` +
+    fonts.join('') +
+    '</w:fonts>';
+}
+
+/** 序列化單一 `<w:font w:name="...">`。 */
+function writeFontEntry(f: FontEntry): string {
+  const subs: string[] = [];
+  if (f.altName !== undefined) subs.push(`<w:altName w:val="${escapeXml(f.altName)}"/>`);
+  if (f.charset !== undefined) subs.push(`<w:charset w:val="${escapeXml(f.charset)}"/>`);
+  if (f.family !== undefined) subs.push(`<w:family w:val="${f.family}"/>`);
+  if (f.pitch !== undefined) subs.push(`<w:pitch w:val="${f.pitch}"/>`);
+  if (f.panose1 !== undefined) subs.push(`<w:panose1 w:val="${escapeXml(f.panose1)}"/>`);
+  if (f.sig) {
+    const attrs: string[] = [];
+    if (f.sig.usb0 !== undefined) attrs.push(`w:usb0="${escapeXml(f.sig.usb0)}"`);
+    if (f.sig.usb1 !== undefined) attrs.push(`w:usb1="${escapeXml(f.sig.usb1)}"`);
+    if (f.sig.usb2 !== undefined) attrs.push(`w:usb2="${escapeXml(f.sig.usb2)}"`);
+    if (f.sig.usb3 !== undefined) attrs.push(`w:usb3="${escapeXml(f.sig.usb3)}"`);
+    if (f.sig.csb0 !== undefined) attrs.push(`w:csb0="${escapeXml(f.sig.csb0)}"`);
+    if (f.sig.csb1 !== undefined) attrs.push(`w:csb1="${escapeXml(f.sig.csb1)}"`);
+    if (attrs.length > 0) subs.push(`<w:sig ${attrs.join(' ')}/>`);
+  }
+  return `<w:font w:name="${escapeXml(f.name)}">${subs.join('')}</w:font>`;
+}
+
+// ── Sprint 249：webSettings.xml 序列化 ────────────────────────────────────────
+
+/** 判定 DocumentWebSettings 是否含可序列化欄位。 */
+function hasWebSettings(w: DocumentWebSettings): boolean {
+  return Object.keys(w).length > 0;
+}
+
+/**
+ * `word/webSettings.xml`：序列化 `DocumentNode.webSettings`（OOXML §17.16）。
+ *
+ * Sprint 148 parser capture：optimizeForBrowser / allowPNG / saveSmartTagsAsXml
+ * / doNotSaveAsSingleFile / hasDivs 共 5 個 toggle 欄位。本 sprint 對稱序列化。
+ *
+ * hasDivs 為「結構提示存在」flag（parser scope-down 未深入 divs 子元素內容）；
+ * 序列化為 `<w:divs/>` 空骨架、re-parse 仍可標 hasDivs=true。
+ */
+function writeWebSettings(w: DocumentWebSettings): string {
+  const parts: string[] = [];
+  if (w.optimizeForBrowser === true) parts.push('<w:optimizeForBrowser/>');
+  else if (w.optimizeForBrowser === false) parts.push('<w:optimizeForBrowser w:val="0"/>');
+  if (w.allowPNG === true) parts.push('<w:allowPNG/>');
+  else if (w.allowPNG === false) parts.push('<w:allowPNG w:val="0"/>');
+  if (w.saveSmartTagsAsXml === true) parts.push('<w:saveSmartTagsAsXml/>');
+  else if (w.saveSmartTagsAsXml === false) parts.push('<w:saveSmartTagsAsXml w:val="0"/>');
+  if (w.doNotSaveAsSingleFile === true) parts.push('<w:doNotSaveAsSingleFile/>');
+  else if (w.doNotSaveAsSingleFile === false) parts.push('<w:doNotSaveAsSingleFile w:val="0"/>');
+  // Sprint 249 root cause #10：parser 對空 `<w:divs/>` 視為無 divs（Sprint 148
+  // scope-down 設計），writer 必須 emit 至少一個 `<w:div>` 子元素才能讓 re-parse
+  // 識別為 hasDivs=true。emit minimal stub child（不深入結構、紀律 #18）。
+  if (w.hasDivs === true) parts.push('<w:divs><w:div w:id="0"/></w:divs>');
+  return xmlDecl() +
+    `<w:webSettings xmlns:w="${W_NS}">` +
+    parts.join('') +
+    '</w:webSettings>';
 }
 
 // ── Sprint 195：SmartArt diagram data 部件 ───────────────────────────────────
