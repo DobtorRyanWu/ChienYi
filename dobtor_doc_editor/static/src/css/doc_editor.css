@@ -2403,6 +2403,18 @@
     display: flex;
     gap: 4px;
 }
+/* Sprint Y13：最近用色區段 label + 標準色區段 label */
+.o_dobtor_doc_editor .doc-color-palette-section-label {
+    font-size: 11px;
+    color: var(--gd-text-muted);
+    font-family: var(--gd-font);
+    padding: 2px 2px 0;
+    user-select: none;
+}
+/* 「最近」row 不會塞滿 6 格時、靠左排齊（gap 已處理） */
+.o_dobtor_doc_editor .doc-color-palette-recent {
+    /* 與標準色 row 同 22×22 swatch + 4px gap，視覺對齊 */
+}
 .o_dobtor_doc_editor .doc-color-swatch {
     width: 22px;
     height: 22px;

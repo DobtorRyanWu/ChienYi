@@ -324,6 +324,21 @@
                            aria-hidden="true"/>
                     <!-- Palette dropdown -->
                     <div class="doc-color-palette" t-if="state.showColorPalette === 'text'">
+                        <!-- Sprint Y13：最近用色（最多 6 個、t-if 空陣列不渲染） -->
+                        <t t-if="state.recentColors and state.recentColors.text.length > 0">
+                            <div class="doc-color-palette-section-label">最近</div>
+                            <div class="doc-color-palette-row doc-color-palette-recent">
+                                <t t-foreach="state.recentColors.text" t-as="rc" t-key="rc">
+                                    <button class="doc-color-swatch"
+                                            t-att-class="{ 'is-selected': state.textColor === rc }"
+                                            t-attf-style="background: #{rc};"
+                                            t-attf-aria-label="最近字色 #{rc}"
+                                            t-att-title="rc"
+                                            t-on-click="(ev) => this.onColorSwatchPick('text', rc, ev)"/>
+                                </t>
+                            </div>
+                            <div class="doc-color-palette-section-label">標準</div>
+                        </t>
                         <t t-foreach="COLOR_PALETTE" t-as="row" t-key="row_index">
                             <div class="doc-color-palette-row">
                                 <t t-foreach="row" t-as="color" t-key="color">
@@ -360,6 +375,21 @@
                            tabindex="-1"
                            aria-hidden="true"/>
                     <div class="doc-color-palette" t-if="state.showColorPalette === 'highlight'">
+                        <!-- Sprint Y13：最近用色（背景） -->
+                        <t t-if="state.recentColors and state.recentColors.highlight.length > 0">
+                            <div class="doc-color-palette-section-label">最近</div>
+                            <div class="doc-color-palette-row doc-color-palette-recent">
+                                <t t-foreach="state.recentColors.highlight" t-as="rc" t-key="rc">
+                                    <button class="doc-color-swatch"
+                                            t-att-class="{ 'is-selected': state.highlightColor === rc }"
+                                            t-attf-style="background: #{rc};"
+                                            t-attf-aria-label="最近背景色 #{rc}"
+                                            t-att-title="rc"
+                                            t-on-click="(ev) => this.onColorSwatchPick('highlight', rc, ev)"/>
+                                </t>
+                            </div>
+                            <div class="doc-color-palette-section-label">標準</div>
+                        </t>
                         <t t-foreach="COLOR_PALETTE" t-as="row" t-key="row_index">
                             <div class="doc-color-palette-row">
                                 <t t-foreach="row" t-as="color" t-key="color">

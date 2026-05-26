@@ -201,6 +201,17 @@ export class DocEditor extends Component {
             // ─── Sprint Y12：24 色 palette dropdown 開啟狀態
             // null = 關閉；'text' = 字色 palette 開；'highlight' = 背景色 palette 開
             showColorPalette: null,
+            // ─── Sprint Y13：最近用色（各最多 6 個、localStorage 持久化）
+            recentColors: (() => {
+                try {
+                    const raw = localStorage.getItem('dobtor_doc_editor_recent_colors');
+                    const parsed = raw ? JSON.parse(raw) : null;
+                    return {
+                        text: Array.isArray(parsed?.text) ? parsed.text.slice(0, 6) : [],
+                        highlight: Array.isArray(parsed?.highlight) ? parsed.highlight.slice(0, 6) : [],
+                    };
+                } catch (e) { return { text: [], highlight: [] }; }
+            })(),
             // ─── Sprint Y7：format toolbar active state（caret/selection 反映目前格式）
             activeBold: false,
             activeItalic: false,
@@ -3776,12 +3787,30 @@ export class DocEditor extends Component {
         this._executeCmd('executeSize', s);
     }
 
+    // ─── Sprint Y13：把一個色 push 到 recent list 前端、dedup、限 6 個、寫 localStorage
+    _pushRecentColor(type, color) {
+        if (!color || !this.state.recentColors) return;
+        const norm = String(color).toLowerCase();
+        const list = this.state.recentColors[type] || [];
+        // 移除重複
+        const filtered = list.filter(c => String(c).toLowerCase() !== norm);
+        // 前端 push、限 6 個（OWL reactive：整個替換 array 才會觸發 re-render）
+        this.state.recentColors[type] = [color, ...filtered].slice(0, 6);
+        try {
+            localStorage.setItem(
+                'dobtor_doc_editor_recent_colors',
+                JSON.stringify(this.state.recentColors)
+            );
+        } catch (e) { /* quota / SSR — 忽略 */ }
+    }
+
     // ─── Sprint Y6：字色 / 背景色（保留：「自訂色」逃生口仍用 native input）───
     onTextColorChange(ev) {
         const c = ev.target.value;
         if (!c) return;
         this.state.textColor = c;       // 同步 UI swatch
         this._executeCmd('executeColor', c);
+        this._pushRecentColor('text', c);     // Y13
         this.state.showColorPalette = null;   // 自訂色完成後關 palette
     }
 
@@ -3790,6 +3819,7 @@ export class DocEditor extends Component {
         if (!c) return;
         this.state.highlightColor = c;
         this._executeCmd('executeHighlight', c);
+        this._pushRecentColor('highlight', c);    // Y13
         this.state.showColorPalette = null;
     }
 
@@ -3825,6 +3855,7 @@ export class DocEditor extends Component {
             this.state.highlightColor = color;
             this._executeCmd('executeHighlight', color);
         }
+        this._pushRecentColor(type, color);    // Y13
         this.state.showColorPalette = null;
     }
 
