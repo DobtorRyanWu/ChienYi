@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 261 結尾 — 三 corpus 十七層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / SmartArt + Charts ChienYi+LibreOffice+Phase5 全 100% / 第八+九次 LibreOffice 邊緣 corpus 達 100% / Strategy C 純 audit、0 行 writer 修法 / 7 SmartArts + 41 texts + 17 Charts + 40 series byte-identical）
+## 1. 當前指標一覽（Sprint 264 結尾 — 三 corpus 十八層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / theme ChienYi+LibreOffice+Phase5 全 100% / 第十次 LibreOffice 邊緣 corpus 達 100% + 第十一次 writer 真實修法 + parser AST 擴充 / 3552 colors + 612 fonts byte-identical）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **2032 passed + 1 skipped**（`npm test` 全套口徑；Sprint 256+257+258 +3 SmartArt 第十六層 三 corpus、Sprint 259+260+261 +3 Charts 第十七層 三 corpus、Sprint 253+254+255 +3 DocProps (core+app+custom) 第十五層 三 corpus + writer 真實修法、Sprint 252 docs-only 不增、Sprint 249+250+251 +3 WebSettings 第十四層 三 corpus + writer 真實修法、Sprint 246+247+248 +3 FontTable 第十三層 三 corpus + writer 真實修法、Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
-| VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223/225/226/230/239/243 writer fix 皆觸 export path 而非 import path、VR pipeline 比的是 import → layout → render、VR 第 68 連 maintained；Sprint 256-261 純 audit、0 行 writer 修法、VR 完全不動；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
+| vitest | **2035 passed + 1 skipped**（`npm test` 全套口徑；Sprint 262+263+264 +3 theme 第十八層 三 corpus + writer 真實修法第十一次 + parser AST 擴充、Sprint 256+257+258 +3 SmartArt 第十六層 三 corpus、Sprint 259+260+261 +3 Charts 第十七層 三 corpus、Sprint 253+254+255 +3 DocProps (core+app+custom) 第十五層 三 corpus + writer 真實修法、Sprint 252 docs-only 不增、Sprint 249+250+251 +3 WebSettings 第十四層 三 corpus + writer 真實修法、Sprint 246+247+248 +3 FontTable 第十三層 三 corpus + writer 真實修法、Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223/225/226/230/239/243/262 writer fix 皆觸 export path 而非 import path、VR pipeline 比的是 import → layout → render、VR 第 68 連 maintained；Sprint 256-261 純 audit、0 行 writer 修法、VR 完全不動；Sprint 262 +99 行 writer/parser/AST 修法、parser 端只多寫一個 optional key 不影響 layout/render；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 261（最新 sprint256_to_261_smartart_charts_audit.md 合併六 sprint + Strategy C 純 audit 0 行 writer 修法 + 第八+九次 LibreOffice 邊緣 corpus 100%；sprint253_to_255_docprops_audit_plus_writer_fix.md 合併三 sprint + writer 真實修法第十次；Sprint 252 docs-only Phase 1 optional 關閉；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 264（最新 sprint262_to_264_theme_audit_plus_writer_fix.md 合併三 sprint + writer 真實修法第十一次 + parser AST 擴充 + 第十次 LibreOffice 邊緣 corpus 100%；sprint256_to_261_smartart_charts_audit.md 合併六 sprint + Strategy C 純 audit 0 行 writer 修法 + 第八+九次 LibreOffice 邊緣 corpus 100%；sprint253_to_255_docprops_audit_plus_writer_fix.md 合併三 sprint + writer 真實修法第十次；Sprint 252 docs-only Phase 1 optional 關閉；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -175,6 +175,9 @@ Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix�
 | **259** | **ChienYi Charts 第十七層 audit（Strategy C 純 audit）** | **42/42 / 100% / 0 Charts trivially ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 0 行 writer 修法** |
 | **260** | **LibreOffice 286 Charts 第十七層 audit** | **288/288 / 100% / 9 Charts + 21 series ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 第九次邊緣 corpus 達 100%** |
 | **261** | **Phase 5 18 Charts 第十七層 audit** | **18/18 / 100% / 8 Charts + 19 series（07_chart 全綠）⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 三 corpus 十七層矩陣完備** |
+| **262** | **ChienYi theme.xml 第十八層 audit + parser AST 擴充 + writer 三補 word/theme/theme1.xml emit + Override + Relationship（+99 行跨三檔）** | **42/42 一次過 / 100% / 504 colors + 84 fonts ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 揭發 root cause #12 ThemeResolver 未掛 AST、Sprint 218→219 模式第十一次** |
+| **263** | **LibreOffice 286 theme.xml 第十八層 audit** | **288/288 / 100% / hasTheme 254/288 / 3048 colors + 528 fonts ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 第十次邊緣 corpus 達 100%** |
+| **264** | **Phase 5 18 theme.xml 第十八層 audit** | **18/18 / 100% / hasTheme 0 trivially（synthetic minimal）⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 三 corpus 十八層矩陣完備** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -746,6 +749,49 @@ Charts）。
 
 ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十七層升級確認
 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
+
+**Sprint 262+263+264 theme.xml 第十八層 byte-identical 對稱矩陣完備 +
+writer 真實修法第十一次 + parser AST 擴充 + 第十次 LibreOffice 邊緣 corpus
+達 100%** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- 範圍：ThemeMap 12 色 colorScheme + fontScheme major/minor × latin/ea/cs
+- 揭發 root cause #12：ThemeResolver.parseTheme() 完整實作（Sprint 1-178、
+  Phase 4.1）但結果只用於 eager resolve themeColor → hex、未掛 DocumentNode
+  AST；writer 完全不 emit theme1.xml + Override + Relationship
+- 修法：+99 行 production code 跨三檔
+  - types.ts AST 擴充 +20（`DocumentNode.theme?: ThemeMap`、inline import
+    避免循環、紀律 #21 optional）
+  - OoxmlParser.ts parsedTheme 區分 +5（`parsedTheme = parseTheme()` 保留
+    null/實值區別；themeMap = parsedTheme ?? DEFAULT 供 eager resolve
+    與 Sprint 1-178 行為相容）
+  - OoxmlWriter.ts +74（REL_TYPE_THEME 常數 + parts 條件 emit + Override +
+    Relationship + writeTheme 12 色 fixed-order + writeThemeFont 6 子節點）
+- Sprint 262 ChienYi：**42/42 (100%) 一次過** / hasTheme 42 / **504 colors
+  + 84 fonts** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+- Sprint 263 LibreOffice：**288/288 (100%)** / hasTheme 254/288 /
+  **3048 colors + 528 fonts byte-identical** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+  ——**第十次** LibreOffice 邊緣 corpus 達 100%
+- Sprint 264 Phase 5：**18/18 (100%) trivially**（synthetic minimal、
+  無 theme1.xml）
+- 紀律 #18 scope-down：不擴張到 fmtScheme/objectDefaults/extraClrSchemeLst
+- 紀律 #21：theme 為 optional（缺檔 → 不掛 key、與其他 13 個 capture-only
+  parts 同模式）
+- 三層 SOP：vitest 2032 → 2035（+3 audit + 99 行 writer/parser/AST）/ writer
+  不破壞既有 2032 測試 / VR 第 68 連 maintained
+- 紀律 #1.b Strategy C exception：writer 真實修法第十一次
+
+**為何 Sprint 262 一次過 100%**：theme 結構單純（一對一映射、僅 1 命名空間
+A_NS、0 variant 型別）；parser 端 DEFAULT_THEME_MAP fallback 已預先與 writer
+預期 emit 完全對齊；對比 Sprint 253 v1 0/42 → v2 100% 需 +95 行（8 命名空間
++ 5 variant + 字典序 pid + fmtid GUID）的複雜度差距甚大。
+
+**三 corpus 十八層 byte-identical 對稱矩陣完備** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：合計
+348 fixture × 18 層；LibreOffice edge corpus 18 層中 **16 ≥ 95% commercial-
+grade + 10 層 100%**（NumberingMap + Comments + Footnotes + Settings +
+FontTable + WebSettings + DocProps + SmartArt + Charts + **theme**）。
+
+ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十八層升級確認
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
 
 ---
 

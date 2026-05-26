@@ -167,7 +167,10 @@ export class OoxmlParser {
     // Step 2.6：解析 theme1.xml 並注入 ThemeMap（Phase 4.1）
     //   parser 階段把 themeColor/themeTint/themeShade reference 解為具體 hex
     //   缺檔 / 解析失敗：用 DEFAULT_THEME_MAP（Office 預設色）降級
-    const themeMap: ThemeMap = parseTheme(pkg) ?? DEFAULT_THEME_MAP;
+    //   Sprint 262：parsedTheme 保留 null/ThemeMap 區別、寫回 DocumentNode.theme
+    //     供 Phase 6 export 對稱性使用（紀律 #21 optional）
+    const parsedTheme = parseTheme(pkg);
+    const themeMap: ThemeMap = parsedTheme ?? DEFAULT_THEME_MAP;
     this.documentParser.setThemeMap(themeMap);
     this.styleResolver.setThemeMap(themeMap);
 
@@ -290,6 +293,7 @@ export class OoxmlParser {
       ...(watermark !== undefined ? { watermark } : {}),
       ...(smartArts.length > 0 ? { smartArts } : {}),
       ...(charts.length > 0 ? { charts } : {}),
+      ...(parsedTheme !== null ? { theme: parsedTheme } : {}),
     };
 
     // Step 9 (Sprint 19)：把 styles.xml 的 pProps 合併到所有 body 段落的 props

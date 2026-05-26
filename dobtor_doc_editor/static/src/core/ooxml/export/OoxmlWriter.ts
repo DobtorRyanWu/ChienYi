@@ -126,6 +126,9 @@ const REL_TYPE_DIAGRAM_DATA =
 /** Sprint 195：Chart 關係型別。 */
 const REL_TYPE_CHART =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+/** Sprint 262：theme 關係型別（document.xml.rels → theme/theme1.xml）。 */
+const REL_TYPE_THEME =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
 /** Sprint 195：SmartArt graphicData uri。 */
 const A_GRAPHIC_DIAGRAM_URI = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
 /** Sprint 195：Chart graphicData uri。 */
@@ -245,6 +248,10 @@ export class OoxmlWriter {
     if (doc.customProps.size > 0) {
       parts['docProps/custom.xml'] = strToU8(writeDocPropsCustom(doc.customProps));
     }
+    // Sprint 262：theme1.xml 有 parsedTheme 才 emit（OOXML §20.1.6）
+    if (doc.theme !== undefined) {
+      parts['word/theme/theme1.xml'] = strToU8(writeTheme(doc.theme));
+    }
     // Sprint 192：把每張 media 圖片的 bytes 寫進 zip
     for (const m of mediaItems) {
       parts[m.target] = m.bytes;
@@ -347,6 +354,10 @@ function writeContentTypes(
     (doc && doc.customProps.size > 0
       ? '<Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>'
       : '') +
+    // Sprint 262：theme1.xml Override（doc.theme 有值才宣告）
+    (doc && doc.theme !== undefined
+      ? '<Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>'
+      : '') +
     hfOverrides +
     smartArtOverrides +
     chartOverrides +
@@ -437,6 +448,10 @@ function writeDocumentRels(
     // Sprint 249：webSettings.xml rel（非空才宣告）
     (doc && hasWebSettings(doc.webSettings)
       ? `<Relationship Id="rIdWebSettings" Type="${REL_TYPE_WEB_SETTINGS}" Target="webSettings.xml"/>`
+      : '') +
+    // Sprint 262：theme1.xml rel（doc.theme 有值才宣告；OOXML §13.2.5）
+    (doc && doc.theme !== undefined
+      ? `<Relationship Id="rIdTheme" Type="${REL_TYPE_THEME}" Target="theme/theme1.xml"/>`
       : '') +
     imageRels.join('') +
     hfRels +
@@ -2019,6 +2034,65 @@ function writeCustomVariant(v: CustomPropertyValue): string {
     default:
       return `<vt:lpwstr>${escapeXml((v as { raw?: string }).raw ?? '')}</vt:lpwstr>`;
   }
+}
+
+// ── Sprint 262：theme1.xml 序列化 ──────────────────────────────────────────
+
+/**
+ * `word/theme/theme1.xml`：序列化 `DocumentNode.theme`（OOXML §20.1.6）。
+ *
+ * 結構（DrawingML、a namespace）：
+ *   <a:theme xmlns:a name="...">
+ *     <a:themeElements>
+ *       <a:clrScheme name="...">
+ *         <a:dk1><a:srgbClr val="HEX"/></a:dk1>  (× 12 色)
+ *         ...
+ *       </a:clrScheme>
+ *       <a:fontScheme name="...">
+ *         <a:majorFont><a:latin typeface="..."/>(<a:ea/><a:cs/>)</a:majorFont>
+ *         <a:minorFont>...</a:minorFont>
+ *       </a:fontScheme>
+ *     </a:themeElements>
+ *   </a:theme>
+ *
+ * 紀律 #18 scope-down：本 writer 僅 emit colorScheme + fontScheme，與 parser
+ *   capture 範圍對稱；fmtScheme / objectDefaults / extraClrSchemeLst 不寫
+ *   （parser 不消費、re-parse 後仍無、byte-identical）。
+ */
+function writeTheme(t: import('../styles/ThemeResolver').ThemeMap): string {
+  const c = t.colorScheme;
+  const colorElems = [
+    `<a:dk1><a:srgbClr val="${escapeXml(c.dk1)}"/></a:dk1>`,
+    `<a:lt1><a:srgbClr val="${escapeXml(c.lt1)}"/></a:lt1>`,
+    `<a:dk2><a:srgbClr val="${escapeXml(c.dk2)}"/></a:dk2>`,
+    `<a:lt2><a:srgbClr val="${escapeXml(c.lt2)}"/></a:lt2>`,
+    `<a:accent1><a:srgbClr val="${escapeXml(c.accent1)}"/></a:accent1>`,
+    `<a:accent2><a:srgbClr val="${escapeXml(c.accent2)}"/></a:accent2>`,
+    `<a:accent3><a:srgbClr val="${escapeXml(c.accent3)}"/></a:accent3>`,
+    `<a:accent4><a:srgbClr val="${escapeXml(c.accent4)}"/></a:accent4>`,
+    `<a:accent5><a:srgbClr val="${escapeXml(c.accent5)}"/></a:accent5>`,
+    `<a:accent6><a:srgbClr val="${escapeXml(c.accent6)}"/></a:accent6>`,
+    `<a:hlink><a:srgbClr val="${escapeXml(c.hlink)}"/></a:hlink>`,
+    `<a:folHlink><a:srgbClr val="${escapeXml(c.folHlink)}"/></a:folHlink>`,
+  ].join('');
+  const major = writeThemeFont('majorFont', t.fontScheme.major);
+  const minor = writeThemeFont('minorFont', t.fontScheme.minor);
+  return xmlDecl() +
+    `<a:theme xmlns:a="${A_NS}">` +
+    '<a:themeElements>' +
+    `<a:clrScheme name="">${colorElems}</a:clrScheme>` +
+    `<a:fontScheme name="">${major}${minor}</a:fontScheme>` +
+    '</a:themeElements>' +
+    '</a:theme>';
+}
+
+/** Sprint 262：序列化 majorFont / minorFont（依 ThemeFonts.major|minor 結構）。 */
+function writeThemeFont(elementName: 'majorFont' | 'minorFont', f: { latin?: string; ea?: string; cs?: string }): string {
+  const subs: string[] = [];
+  if (f.latin !== undefined) subs.push(`<a:latin typeface="${escapeXml(f.latin)}"/>`);
+  if (f.ea !== undefined) subs.push(`<a:ea typeface="${escapeXml(f.ea)}"/>`);
+  if (f.cs !== undefined) subs.push(`<a:cs typeface="${escapeXml(f.cs)}"/>`);
+  return `<a:${elementName}>${subs.join('')}</a:${elementName}>`;
 }
 
 // ── Sprint 195：SmartArt diagram data 部件 ───────────────────────────────────

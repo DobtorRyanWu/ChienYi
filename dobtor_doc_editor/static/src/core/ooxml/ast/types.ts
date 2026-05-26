@@ -1089,6 +1089,26 @@ export interface DocumentNode {
    * 紀律 #21：optional —— 文件無圖表時 undefined（多數 docx 無圖表）。
    */
   charts?: ChartNode[];
+  /**
+   * Sprint 262（Phase 6 第十八層 byte-identical 對稱矩陣）：
+   * `word/theme/theme1.xml` 解析結果（紀律 #21 optional）。
+   *
+   * OOXML §20.1.6（DrawingML themeElements）：
+   *   theme1.xml 含 colorScheme（12 色）+ fontScheme（major/minor × latin/ea/cs）
+   *   + fmtScheme（線條/填色/效果樣式）+ objectDefaults + extraClrSchemeLst。
+   *
+   * 本 capture 取 colorScheme + fontScheme（render 用、StyleResolver/ParagraphParser
+   *   eager resolve themeColor → hex）；fmtScheme/objectDefaults/extraClrSchemeLst
+   *   不消費、不 capture（紀律 #18 scope-down、mc:Fallback 同等概念）。
+   *
+   * 缺檔 / 解析失敗 → theme 為 undefined（紀律 #21 optional、render fallback 用
+   *   DEFAULT_THEME_MAP）。
+   *
+   * 為 Phase 6 docx export 對稱性鋪路（import 端讀進來、export 端要原樣寫回）；
+   * writer 端僅 emit colorScheme + fontScheme、reparse 端對位、保證 round-trip
+   * byte-identical。
+   */
+  theme?: import('../styles/ThemeResolver').ThemeMap;
 }
 
 /** Sprint 171：`<w:background>` 文件頁面背景（OOXML §17.2.1）。 */
