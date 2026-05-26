@@ -2066,6 +2066,12 @@
     outline: none;
 }
 
+/* Sprint Y14：鍵盤導航焦點態（hover 同色但加左側 accent bar 區別出「鍵盤剛走到」） */
+.o_dobtor_doc_editor .doc-menu-item.is-focused:not(:disabled) {
+    background: var(--gd-hover-bg);
+    box-shadow: inset 3px 0 0 var(--gd-accent);
+}
+
 .o_dobtor_doc_editor .doc-menu-item:disabled {
     color: #9aa0a6;
     cursor: not-allowed;

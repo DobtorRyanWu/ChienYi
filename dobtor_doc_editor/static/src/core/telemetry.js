@@ -136,8 +136,22 @@ export function installGlobalErrorReporting({ docIdGetter = () => null } = {}) {
         });
     };
 
+    // Sprint Y14.1：capture-phase suppressor — Odoo backend 的 error_service
+    // 用 bubble 階段監聽 window 'error'、會把任何 uncaught error 彈成紅色 modal。
+    // canvas-editor library 內部 mousedown 算 table 位置時偶發 throw（已在 Y12.2 telemetry
+    // filter 過濾上報、但 dialog 仍會跳）。capture-phase 攔截、stack 符合 library 噪音時
+    // 整段 preventDefault + stopImmediatePropagation，徹底擋掉 Odoo error_service。
+    const onErrorCapture = (event) => {
+        const stack = event?.error?.stack || "";
+        if (_isLibraryNoise(stack)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }
+    };
+
     if (typeof window !== "undefined") {
-        window.addEventListener("error", onError);
+        window.addEventListener("error", onErrorCapture, true);  // capture
+        window.addEventListener("error", onError);                // bubble (telemetry)
         window.addEventListener("unhandledrejection", onRejection);
     }
 
@@ -187,6 +201,7 @@ export function installGlobalErrorReporting({ docIdGetter = () => null } = {}) {
 
     return function uninstall() {
         if (typeof window !== "undefined") {
+            window.removeEventListener("error", onErrorCapture, true);   // Y14.1
             window.removeEventListener("error", onError);
             window.removeEventListener("unhandledrejection", onRejection);
         }

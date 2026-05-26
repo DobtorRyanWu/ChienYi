@@ -111,8 +111,10 @@
                                 <t t-else="">
                                     <button class="doc-menu-item"
                                             role="menuitem"
+                                            t-att-class="state.menuFocusIndex === item_index ? 'is-focused' : ''"
                                             t-att-disabled="item.disabled or false"
-                                            t-on-click="() => this.onMenuItemClick(item.action)">
+                                            t-on-click="() => this.onMenuItemClick(item.action)"
+                                            t-on-mouseenter="() => this.onMenuItemHover(item_index)">
                                         <span class="doc-menu-item-label" t-esc="item.label"/>
                                         <span class="doc-menu-item-shortcut"
                                               t-if="item.shortcut"

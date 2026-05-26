@@ -185,6 +185,9 @@ export class DocEditor extends Component {
             // ─── Sprint Y3：Google Docs 風 menu bar ───
             // null = 全部關閉；'file'|'edit'|'view'|'insert'|'format'|'tools' = 該 menu 展開中
             openMenu: null,
+            // ─── Sprint Y14：menu dropdown 鍵盤導航焦點 index
+            // -1 = 無焦點（mouse 開啟時）；>=0 = 該 menu items 陣列內第 N 個（含 separator/disabled）
+            menuFocusIndex: -1,
             // 查看 menu 的兩個 toggle（初始 true 維持現狀）
             showRuler: true,
             showThumbnails: true,
@@ -267,6 +270,44 @@ export class DocEditor extends Component {
             // Sprint Y3：Esc 關閉 menu bar dropdown
             if (event.key === 'Escape' && this.state?.openMenu) {
                 this.state.openMenu = null;
+                this.state.menuFocusIndex = -1;   // Y14
+            }
+            // Sprint Y14：menu dropdown 開啟時的鍵盤導航
+            if (this.state?.openMenu) {
+                const key = event.key;
+                if (key === 'ArrowDown') {
+                    event.preventDefault();
+                    this.state.menuFocusIndex = this._nextFocusableMenuIndex(
+                        this.state.menuFocusIndex < 0 ? -1 : this.state.menuFocusIndex,
+                        +1
+                    );
+                } else if (key === 'ArrowUp') {
+                    event.preventDefault();
+                    this.state.menuFocusIndex = this._nextFocusableMenuIndex(
+                        this.state.menuFocusIndex < 0 ? this._currentMenuItems().length : this.state.menuFocusIndex,
+                        -1
+                    );
+                } else if (key === 'ArrowRight') {
+                    event.preventDefault();
+                    this._switchMenuByOffset(+1, this.state.menuFocusIndex >= 0);
+                } else if (key === 'ArrowLeft') {
+                    event.preventDefault();
+                    this._switchMenuByOffset(-1, this.state.menuFocusIndex >= 0);
+                } else if (key === 'Home') {
+                    event.preventDefault();
+                    this.state.menuFocusIndex = this._firstFocusableMenuIndex();
+                } else if (key === 'End') {
+                    event.preventDefault();
+                    this.state.menuFocusIndex = this._lastFocusableMenuIndex();
+                } else if (key === 'Enter' || key === ' ') {
+                    if (this.state.menuFocusIndex >= 0) {
+                        event.preventDefault();
+                        const item = this._currentMenuItems()[this.state.menuFocusIndex];
+                        if (item && item.action && !item.disabled) {
+                            this.onMenuItemClick(item.action);
+                        }
+                    }
+                }
             }
             // Sprint Y12：Esc 關閉色彩 palette dropdown
             if (event.key === 'Escape' && this.state?.showColorPalette) {
@@ -295,6 +336,7 @@ export class DocEditor extends Component {
             try {
                 if (this.state.openMenu && !ev.target.closest('.doc-menubar')) {
                     this.state.openMenu = null;
+                    this.state.menuFocusIndex = -1;   // Y14
                 }
                 if (this.state.showColorPalette && !ev.target.closest('.doc-format-color-wrap')) {
                     this.state.showColorPalette = null;
@@ -3484,17 +3526,63 @@ export class DocEditor extends Component {
 
     onMenuTriggerClick(name) {
         this.state.openMenu = (this.state.openMenu === name) ? null : name;
+        // Sprint Y14：mouse 開 dropdown 時不預設 focus（user 通常會繼續用滑鼠）
+        this.state.menuFocusIndex = -1;
     }
 
     onMenuTriggerHover(name) {
         // 只在已有 menu 開著時才 hover-switch（避免單純滑過 trigger 就自動展開）
         if (this.state.openMenu && this.state.openMenu !== name) {
             this.state.openMenu = name;
+            this.state.menuFocusIndex = -1;  // Y14：切 menu 重置 focus
         }
+    }
+
+    // ─── Sprint Y14：menu dropdown 鍵盤導航 ─────────────────────────
+    // 找出目前開啟 menu 的 items 陣列（用在鍵盤導航計算 prev/next）
+    _currentMenuItems() {
+        if (!this.state.openMenu) return [];
+        const menu = this.menuConfig.find(m => m.name === this.state.openMenu);
+        return menu?.items || [];
+    }
+
+    // skipDirection：+1=下一個、-1=前一個。從 fromIdx 出發找下一個非 separator/disabled 的 index。
+    // 找不到時回 fromIdx（保持原焦點）。處理 wrap：到底翻到第一個、到頂翻到最後一個。
+    _nextFocusableMenuIndex(fromIdx, dir) {
+        const items = this._currentMenuItems();
+        if (items.length === 0) return -1;
+        const n = items.length;
+        let i = fromIdx;
+        for (let step = 0; step < n; step++) {
+            i = (i + dir + n) % n;
+            const it = items[i];
+            if (it && it.type !== 'separator' && !it.disabled) return i;
+        }
+        return fromIdx;
+    }
+
+    // 跳到第 1 個 / 最後一個可聚焦 item
+    _firstFocusableMenuIndex() { return this._nextFocusableMenuIndex(-1, +1); }
+    _lastFocusableMenuIndex()  { return this._nextFocusableMenuIndex( 0, -1); }
+
+    // Mouse hover dropdown item → 同步 focus index（鍵盤與滑鼠不打架）
+    onMenuItemHover(idx) {
+        this.state.menuFocusIndex = idx;
+    }
+
+    // ←→ 切換到 prev/next menu（wrap）；切換時 focus 重置回 -1（mouse 取得）或 0（鍵盤剛切的）
+    _switchMenuByOffset(offset, focusFirst) {
+        const menus = this.menuConfig;
+        const curIdx = menus.findIndex(m => m.name === this.state.openMenu);
+        if (curIdx < 0) return;
+        const next = menus[(curIdx + offset + menus.length) % menus.length];
+        this.state.openMenu = next.name;
+        this.state.menuFocusIndex = focusFirst ? this._firstFocusableMenuIndex() : -1;
     }
 
     onMenuItemClick(action) {
         this.state.openMenu = null;
+        this.state.menuFocusIndex = -1;
         if (!action) return;
         try {
             switch (action) {
