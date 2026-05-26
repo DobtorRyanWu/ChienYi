@@ -32,6 +32,7 @@ import type {
   ChartNode,
   CommentContent,
   DocumentNode,
+  DocumentSettings,
   FloatImageNode,
   FootnoteContent,
   InlineImageNode,
@@ -81,6 +82,9 @@ const REL_TYPE_FOOTNOTES =
 /** Sprint 239：endnotes 關係型別（document.xml.rels → endnotes.xml）。 */
 const REL_TYPE_ENDNOTES =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
+/** Sprint 243：settings 關係型別（document.xml.rels → settings.xml）。 */
+const REL_TYPE_SETTINGS =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
 /** OMML 命名空間（ECMA-376 §22.1）。 */
 const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 /** Sprint 195：SmartArt diagram data 關係型別。 */
@@ -186,6 +190,10 @@ export class OoxmlWriter {
     if (doc.endnotes.size > 0) {
       parts['word/endnotes.xml'] = strToU8(writeEndnotes(doc));
     }
+    // Sprint 243：settings.xml 非空才 emit（OOXML §17.15）
+    if (hasSettings(doc.settings)) {
+      parts['word/settings.xml'] = strToU8(writeSettings(doc.settings));
+    }
     // Sprint 192：把每張 media 圖片的 bytes 寫進 zip
     for (const m of mediaItems) {
       parts[m.target] = m.bytes;
@@ -266,6 +274,10 @@ function writeContentTypes(
     (doc && doc.endnotes.size > 0
       ? '<Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>'
       : '') +
+    // Sprint 243：settings.xml Override（非空才宣告）
+    (doc && hasSettings(doc.settings)
+      ? '<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>'
+      : '') +
     hfOverrides +
     smartArtOverrides +
     chartOverrides +
@@ -334,6 +346,10 @@ function writeDocumentRels(
       : '') +
     (doc && doc.endnotes.size > 0
       ? `<Relationship Id="rIdEndnotes" Type="${REL_TYPE_ENDNOTES}" Target="endnotes.xml"/>`
+      : '') +
+    // Sprint 243：settings.xml rel（非空才宣告）
+    (doc && hasSettings(doc.settings)
+      ? `<Relationship Id="rIdSettings" Type="${REL_TYPE_SETTINGS}" Target="settings.xml"/>`
       : '') +
     imageRels.join('') +
     hfRels +
@@ -1640,6 +1656,80 @@ function writeFootnoteEntry(f: FootnoteContent, tag: 'footnote' | 'endnote'): st
   if (f.type !== undefined) attrs.push(`w:type="${f.type}"`);
   const body = f.content.map(writeBlock).join('') || '<w:p/>';
   return `<w:${tag} ${attrs.join(' ')}>${body}</w:${tag}>`;
+}
+
+// ── Sprint 243：settings.xml 序列化 ──────────────────────────────────────────
+
+/**
+ * 判定 DocumentSettings 是否含可序列化欄位。空 settings（如 Phase 5 fixture
+ * 無 settings.xml）→ parser 回 {}、writer 跳過 emit、避免 minimal docx 加冗餘 part。
+ */
+function hasSettings(s: DocumentSettings): boolean {
+  return Object.keys(s).length > 0;
+}
+
+/**
+ * `word/settings.xml`：序列化 `DocumentNode.settings`（OOXML §17.15）。
+ *
+ * Sprint 146 parser capture：zoom / defaultTabStop / characterSpacingControl /
+ * autoHyphenation / evenAndOddHeaders / trackChanges / proofState /
+ * footnotePr / endnotePr / compat 共 10 欄位。本 sprint 對稱序列化。
+ *
+ * 設計：caller 已用 hasSettings 過濾、本函式假設至少有一個欄位需 emit。
+ */
+function writeSettings(s: DocumentSettings): string {
+  const parts: string[] = [];
+  if (s.zoomPercent !== undefined) {
+    parts.push(`<w:zoom w:percent="${s.zoomPercent}"/>`);
+  }
+  if (s.defaultTabStop !== undefined) {
+    // pt → twip：1pt = 20twip（OOXML §17.18）
+    parts.push(`<w:defaultTabStop w:val="${Math.round(s.defaultTabStop * 20)}"/>`);
+  }
+  if (s.characterSpacingControl !== undefined) {
+    parts.push(`<w:characterSpacingControl w:val="${s.characterSpacingControl}"/>`);
+  }
+  if (s.autoHyphenation === true) {
+    parts.push('<w:autoHyphenation/>');
+  } else if (s.autoHyphenation === false) {
+    parts.push('<w:autoHyphenation w:val="0"/>');
+  }
+  if (s.evenAndOddHeaders === true) {
+    parts.push('<w:evenAndOddHeaders/>');
+  } else if (s.evenAndOddHeaders === false) {
+    parts.push('<w:evenAndOddHeaders w:val="0"/>');
+  }
+  if (s.trackChanges === true) {
+    parts.push('<w:trackChanges/>');
+  } else if (s.trackChanges === false) {
+    parts.push('<w:trackChanges w:val="0"/>');
+  }
+  if (s.proofState) {
+    const attrs: string[] = [];
+    if (s.proofState.spelling) attrs.push(`w:spelling="${s.proofState.spelling}"`);
+    if (s.proofState.grammar) attrs.push(`w:grammar="${s.proofState.grammar}"`);
+    if (attrs.length > 0) parts.push(`<w:proofState ${attrs.join(' ')}/>`);
+  }
+  if (s.footnotePr) parts.push(writeNotePr(s.footnotePr, 'footnotePr'));
+  if (s.endnotePr) parts.push(writeNotePr(s.endnotePr, 'endnotePr'));
+  if (s.compat && s.compat.length > 0) {
+    const compatChildren = s.compat.map((name) => `<w:${name}/>`).join('');
+    parts.push(`<w:compat>${compatChildren}</w:compat>`);
+  }
+  return xmlDecl() +
+    `<w:settings xmlns:w="${W_NS}">` +
+    parts.join('') +
+    '</w:settings>';
+}
+
+/** 序列化 `<w:footnotePr>` 或 `<w:endnotePr>` 子元素。 */
+function writeNotePr(np: NonNullable<DocumentSettings['footnotePr']>, tag: 'footnotePr' | 'endnotePr'): string {
+  const subs: string[] = [];
+  if (np.numFmt !== undefined) subs.push(`<w:numFmt w:val="${np.numFmt}"/>`);
+  if (np.numStart !== undefined) subs.push(`<w:numStart w:val="${np.numStart}"/>`);
+  if (np.numRestart !== undefined) subs.push(`<w:numRestart w:val="${np.numRestart}"/>`);
+  if (np.position !== undefined) subs.push(`<w:pos w:val="${np.position}"/>`);
+  return `<w:${tag}>${subs.join('')}</w:${tag}>`;
 }
 
 // ── Sprint 195：SmartArt diagram data 部件 ───────────────────────────────────

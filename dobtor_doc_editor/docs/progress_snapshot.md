@@ -8,18 +8,18 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 241 結尾 — 三 corpus 十一層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Footnotes+Endnotes ChienYi+LibreOffice+Phase5 全 100% / 第三次 LibreOffice 邊緣 corpus 達 100% + 第六次 writer 真實修法 / 合計 513 footnotes+endnotes + 27 comments + 1229 numberings + 累積 11 層所有指標 byte-identical）
+## 1. 當前指標一覽（Sprint 245 結尾 — 三 corpus 十二層 byte-identical 對稱矩陣完備 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / DocumentSettings ChienYi+LibreOffice+Phase5 全 100% / 第四次 LibreOffice 邊緣 corpus 達 100% + 第七次 writer 真實修法 + Phase 1 optional footnotePr/endnotePr 升級為 wired-up / 合計 1617 settings keys + 513 footnotes+endnotes + 27 comments + 1229 numberings + 累積 12 層所有指標 byte-identical）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **2013 passed + 1 skipped**（`npm test` 全套口徑；Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
-| VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223/225/226/230/239 writer fix 皆觸 export path 而非 import path、VR pipeline 比的是 import → layout → render、VR 第 68 連 maintained；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
+| vitest | **2017 passed + 1 skipped**（`npm test` 全套口徑；Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223/225/226/230/239/243 writer fix 皆觸 export path 而非 import path、VR pipeline 比的是 import → layout → render、VR 第 68 連 maintained；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
 | `tsc --noEmit` | **2 個 pre-existing error**（Sprint 163 清 BoxBuilder fieldType ×2；剩 FontMetrics opentype.js 宣告 + SettingsParser position enum——後者為 Sprint 165 識別的 Phase 1 型別債 follow-up 候選） |
 | ADR | 22 個 |
 | 紀律 | 22 條 + 6 子 + 1 候選（#20）+ 1 潛在子原則（#21.a） |
-| Sprint audit doc | 241（最新 sprint239_to_241_chienyi_libreoffice_phase5_footnotes_audit_plus_writer_fix.md 合併三 sprint + writer 真實修法；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
+| Sprint audit doc | 245（最新 sprint243_to_245_chienyi_libreoffice_phase5_settings_audit_plus_writer_fix.md 合併三 sprint + writer 真實修法第七次；159 / 160v1 為 docs-only follow-up、無獨立 audit doc） |
 | 規畫書 §5 checkbox | **131 `[x]` / 36 `[ ]`**（Sprint 204 sync 後；翻 69 個；剩餘皆合法 blocked / deferred / optional） |
 | 加權平均完成度 | **~93-95% 商用級**（Sprint 204 揭露 Phase 3 ~93%→~96% / Phase 4 ~91%→~95% 為記錄修正、非新增實作） |
 | Working tree drift | **0**（Sprint 158 P0 prep 清零、紀律 #14.b enforce；每 sprint commit 收口 clean） |
@@ -155,6 +155,10 @@ Sprint 198-222 共 **25 個 sprint**（24 audit + 1 真實 production code fix�
 | **239** | **ChienYi Footnotes 第十一層 audit + writer 補 footnotes.xml/endnotes.xml emit（+53 行）** | **0/42 → 42/42 / 100% / 168 fn+en ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 揭發 root cause #8 writer 漏 emit、Sprint 218→219 模式第六次** |
 | **240** | **LibreOffice 286 Footnotes 第十一層 audit** | **288/288 / 100% / 345 fn+en ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 第三次邊緣 corpus 達 100%** |
 | **241** | **Phase 5 18 Footnotes 第十一層 audit** | **18/18 / 100% / 0 trivially ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 三 corpus 十一層矩陣完備** |
+| **242** | **Phase 1 optional 第二批升級：footnoteReference / endnoteReference inline wire-up（+40 行 production code）** | **LibreOffice 288/288 / 100% / 10 footnoteRef + 4 endnoteRef ⭐⭐⭐ — 閉合 doc.xml ↔ footnotes.xml 引用迴路、Phase 1 optional 13 → 11 項剩餘** |
+| **243** | **ChienYi DocumentSettings 第十二層 audit + writer settings.xml emit（+72 行）** | **0/42 → 42/42 / 100% / 292 keys ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 揭發 root cause #9 writer 漏 emit settings.xml、Sprint 218→219 模式第七次 + Phase 1 optional footnotePr/endnotePr 升級為 wired-up** |
+| **244** | **LibreOffice 286 DocumentSettings 第十二層 audit** | **288/288 / 100% / 1325 keys ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 第四次邊緣 corpus 達 100%** |
+| **245** | **Phase 5 18 DocumentSettings 第十二層 audit** | **18/18 / 100% / 0 trivially ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ — 三 corpus 十二層矩陣完備** |
 
 **Phase 6 黃金測試「import(export(doc)) ≅ doc」雙 corpus（ChienYi production
 + LibreOffice edge）達 structure + text + RunProps 三層 byte-identical 對稱**：
@@ -521,6 +525,61 @@ footnotes/endnotes**（260+253）byte-identical。
 
 ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十一層升級確認
 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
+
+**Sprint 242 Phase 1 optional 第二批升級：footnoteReference / endnoteReference
+inline wire-up** ⭐⭐⭐：
+
+- AST `FootnoteReferenceNode` 加入 `InlineNode` union（type/noteType/id）
+- ParagraphParser.parseRun 加 case 偵測 `<w:footnoteReference>` /
+  `<w:endnoteReference>` + writer writeParagraph 加 case emit（+40 行）
+- LibreOffice 288/288 (100%) / 10 footnoteRef + 4 endnoteRef 跨 7 fixture
+  round-trip 全保留
+- 閉合 doc.xml ↔ footnotes.xml 引用迴路（Sprint 239 補 part + 本 sprint 補 ref）
+- Phase 1 optional 13 → **11 項剩餘**（footnotePr/endnotePr 仍是 capture-only、
+  bookmarkStart/End DEFER 至 Phase 2 decision 2B、8 項罕用 ChienYi 0 出現）
+
+**Sprint 243+244+245 DocumentSettings 第十二層 byte-identical 對稱矩陣
+完備 + writer 真實修法第七次 + 第四次邊緣 corpus 達 100%** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- Sprint 243 v1 ChienYi 42：**0/42 (0%)** ⚠️ 揭發 root cause #9：writer
+  完全不 emit settings.xml（Sprint 146 parser capture-only、writer 未實作）
+- writer +72 行 production code（Sprint 239 footnotes 模式延伸）：
+  - REL_TYPE_SETTINGS 常數
+  - parts 字典條件 emit `word/settings.xml`（hasSettings 過濾）
+  - writeContentTypes Override + writeDocumentRels Relationship 條件 emit
+  - hasSettings + writeSettings + writeNotePr（10 欄位完整對稱：zoom /
+    defaultTabStop / characterSpacingControl / autoHyphenation /
+    evenAndOddHeaders / trackChanges / proofState / footnotePr / endnotePr /
+    compat）
+- OOXML toggle 規範正確處理（`<w:foo/>` = true / `<w:foo w:val="0"/>` =
+  false / undefined 不 emit）
+- pt → twip 反轉：parser `twipToPt(n)` ↔ writer `Math.round(s.defaultTabStop * 20)`
+- compat 子元素：parser 抓 local tag name、writer 用 `w:` 前綴重建
+- Sprint 165 Phase 1 optional footnotePr/endnotePr **升級為 wired-up**
+- Sprint 243 v2 修後：**42/42 (100%) / 292 settings keys** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+- Sprint 244 LibreOffice：**288/288 (100%) / 1325 settings keys
+  byte-identical** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ ——**第四次** LibreOffice 邊緣
+  corpus 達 100%（前次：Sprint 234 NumberingMap、Sprint 237 Comments、
+  Sprint 240 Footnotes）
+- Sprint 245 Phase 5：**18/18 (100%) / 0 trivially** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐
+- 三層 SOP：vitest 2013 → 2017（+1 Sprint 242 + 3 audit + 72 行 writer）/
+  writer 不破壞既有 2014 測試 / VR 第 68 連 maintained
+- 紀律 #1.b Strategy C exception：writer 真實修法第七次
+- 紀律 #18 scope-down：settings 非空才 emit、避免冗餘 part
+
+**三 corpus 十二層 byte-identical 對稱矩陣完備** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：合計
+347 fixture / 11645 runs + 5335 paragraphs + 127 tables + 408 sections +
+192 HF slots + 9172 styles + 1229 numberings + 27 comments + 513
+footnotes/endnotes + **1617 settings keys** byte-identical。
+
+**LibreOffice edge corpus 12 層中 10 層 ≥ 95% commercial-grade + 四 100%
+（NumberingMap + Comments + Footnotes + Settings）**：前 5 層 100% +
+TableProps 97.6% + SectionProps 95.1% + StyleMap 96.9% + NumberingMap 100%
++ Comments 100% + Footnotes 100% + **Settings 100% ⭐⭐⭐⭐**、僅
+HeaderFooterContent 90.6% 為 edge tolerance。
+
+ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十二層升級確認
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
 
 ---
 
