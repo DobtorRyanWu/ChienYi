@@ -2248,8 +2248,20 @@
     border-color: var(--gd-accent);
 }
 
-.o_dobtor_doc_editor .doc-format-font { min-width: 140px; }
-.o_dobtor_doc_editor .doc-format-size { min-width: 64px; }
+/* Sprint Y11：縮 font select 寬度（原 140px 過寬；用 width 強制不受 longest option 撐）
+   text-overflow 在 select 上效果有限、瀏覽器自行截斷 */
+.o_dobtor_doc_editor .doc-format-font { width: 110px; min-width: 0; }
+.o_dobtor_doc_editor .doc-format-size { width: 60px; min-width: 0; }
+
+/* Sprint Y11：signer-bar 內的 zoom-fit select 縮小（原與 toolbar-select 共用樣式
+   過大、Google Docs 的 zoom selector 約 64px 高 28px、字級 12px） */
+.o_dobtor_doc_editor .doc-signer-bar .doc-toolbar-select {
+    height: 24px;
+    padding: 0 6px;
+    font-size: 12px;
+    min-width: 80px;
+    max-width: 110px;
+}
 
 .o_dobtor_doc_editor .doc-format-sep {
     display: inline-block;

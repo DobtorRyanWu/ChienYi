@@ -126,10 +126,13 @@
             </div>
 
             <!-- ═══ Row 3：工具列（紙張 / 版本 / 匯入匯出 ‧ 右側縮放）═══
-                 設計：左區密集分組（btn-group 共邊框），右區（縮放）用 margin-left:auto
-                       推到最右，無論視窗寬度都保持單行視覺秩序。
+                 Sprint Y11：整列收合進 menubar — 紙張/版本/匯入匯出/縮放 都已在
+                 menubar「檔案」「查看」「工具」內可達。t-if=false 保留 DOM block
+                 方便日後 revert / 改 user toggle。
+                 詳見 docs/phase8_sprint_y11_2026-05-26.md
             ═══ -->
             <div class="doc-toolbar"
+                 t-if="false"
                  role="toolbar"
                  aria-label="文件編輯器工具列">
 

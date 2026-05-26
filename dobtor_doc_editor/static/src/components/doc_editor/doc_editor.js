@@ -3500,6 +3500,12 @@ export class DocEditor extends Component {
                     try { localStorage.setItem('dobtor_doc_editor_dark_mode', this.state.darkMode ? '1' : '0'); }
                     catch (e) { /* ignore quota */ }
                     break;
+                // Sprint Y11：紙張格式從 menubar 直接套用（取代被 hide 的 Row 3 toolbar select）
+                case 'view:paper-A4':     this.onPageFormatChange({ target: { value: 'A4' } }); break;
+                case 'view:paper-A3':     this.onPageFormatChange({ target: { value: 'A3' } }); break;
+                case 'view:paper-A5':     this.onPageFormatChange({ target: { value: 'A5' } }); break;
+                case 'view:paper-letter': this.onPageFormatChange({ target: { value: 'letter' } }); break;
+                case 'view:paper-legal':  this.onPageFormatChange({ target: { value: 'legal' } }); break;
                 case 'view:zoom-50': this._setZoom(0.5); break;
                 case 'view:zoom-100': this._setZoom(1); break;
                 case 'view:zoom-150': this._setZoom(1.5); break;
@@ -3831,6 +3837,13 @@ export class DocEditor extends Component {
                     { label: '縮放 150%', action: 'view:zoom-150' },
                     { label: '縮放 200%', action: 'view:zoom-200' },
                     { label: '符合寬度', action: 'view:zoom-fit' },
+                    { type: 'separator' },
+                    // Sprint Y11：紙張格式（取代被 hide 的 Row 3 toolbar）
+                    { label: (this.state.pageFormat === 'A4'     ? '✓ ' : '   ') + '紙張 A4',     action: 'view:paper-A4' },
+                    { label: (this.state.pageFormat === 'A3'     ? '✓ ' : '   ') + '紙張 A3',     action: 'view:paper-A3' },
+                    { label: (this.state.pageFormat === 'A5'     ? '✓ ' : '   ') + '紙張 A5',     action: 'view:paper-A5' },
+                    { label: (this.state.pageFormat === 'letter' ? '✓ ' : '   ') + '紙張 Letter', action: 'view:paper-letter' },
+                    { label: (this.state.pageFormat === 'legal'  ? '✓ ' : '   ') + '紙張 Legal',  action: 'view:paper-legal' },
                     { type: 'separator' },
                     { label: '全螢幕', action: 'view:fullscreen', shortcut: 'F11' },
                 ],
