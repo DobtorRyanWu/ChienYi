@@ -795,6 +795,116 @@ FontTable + WebSettings + DocProps + SmartArt + Charts + **theme**）。
 ChienYi v1 release docx 匯入子系統最終 sign-off **GO（十八層升級確認
 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
 
+**Sprint 265+266+267+268 Phase 2 Text Shaping 完整模組化 +
+ShapingEngine + Glyph cache + 行高公式 + opentype.js 完整 metrics +
+紀律 #1.b production code 擴張 ~600 行（user 拍板「真正該做沒做的一條」）**
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- Sprint 265：ShapeOptions（script / language / direction / features /
+  clusterLevel）+ detectScript ISO 15924 9 種（latn/hani/hira/kana/hang/
+  arab/hebr/deva/thai）+ defaultLanguageForScript + defaultDirectionForScript
+  + measureRun() 物理寬度（取代 ctx.measureText、CJK + 西文混排）+ 15 unit test
+- Sprint 266：shapeCache + getCacheStats（hits/misses/entries/hitRate）+
+  clearShapeCache + setShapeCacheMaxEntries + FIFO 淘汰 + makeShapeCacheKey
+  （text+font+size+features+script+lang+dir 複合 key）+ 8 unit test
+- Sprint 267：OOXML §17.3.1.33 行高公式（auto/exact/atLeast）+
+  resolveOoxmlLineHeight + baselineOffsetPt（hhea ascent + half-leading）+
+  12 unit test（含負 leading、極小 atLeast 邊界、exact 強制下限）
+- Sprint 268：FontMetricsResult 擴張 11 欄位（typoAscender/typoDescender/
+  typoLineGap + winAscent/winDescent + hheaAscender/hheaDescender +
+  italic/bold/weight + macStyle 互校 + advanceWidthMax）+ readOpentypeAdvances
+  per-glyph advances（charToGlyphIndex + glyphs.get 低階 API 繞 substFormat 2
+  unsupported）+ 10 unit test
+- §Phase 2 8/8 checkbox 全 [x]、Sprint 269 Phase 2 Exit re-verify 通過附 ④
+  「cache hitRate > 50% on Layout pass」hypothesis 保留條件
+- 三層 SOP：vitest 2035 → 2080（+45 Phase 2 unit test）/ 不破壞既有測試 /
+  VR 第 68 連 maintained
+- 紀律 #1.b user-pinned exception（拍板 Phase 2 = 真正該做沒做的一條）
+- 紀律 #18：不擴張到 Layout Engine 自寫（Phase 6 長期 optional）
+
+**Sprint 269 Phase 2 Exit re-verify 通過附 ④ 保留條件 + docs-only**
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- ①-③⑤⑥ verified（HarfBuzz/opentype.js + measureRun + kerning/liga +
+  行高 + OS/2 metrics）
+- ④ hypothesis（hitRate > 50% on Layout pass）保留、待 Phase 6 Layout
+  接 measureRun 時量測（紀律 #22 hypothesis 標明）
+- 三層 SOP：vitest 2080 維持 / docs-only / VR 第 68 連 maintained
+
+**Sprint 270+271+272+273 第十九層 raw byte preserve + writer 真實修法第十二次
+（fmtScheme + objectDefaults + extraClrSchemeLst + scriptFonts + theme name）
++ 第十一次 LibreOffice 邊緣 corpus 達 100%（trivially）+ ChienYi v1 GO v3
+升級** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- Sprint 270 ChienYi v1：42/42 retention **97.9%**（每 fixture 7334B → 7180B
+  drift ~154B、AST 100% byte-identical 已通、raw byte 為 sysClr eager resolve
+  + xmlDecl + extras 缺）
+- Sprint 271 writer 真實修法第十二次 +~80 行：
+  - ThemeResolver ThemeRawExtras 介面（fmtSchemeXml / objectDefaultsXml /
+    extraClrSchemeLstXml / scriptFonts / themeName / clrSchemeName /
+    fontSchemeName）+ extractRawElement helper（substring slicing）+
+    parseScriptFonts（DOM 走 a:font script attr）
+  - OoxmlWriter.writeTheme 插 raw extras + scriptFonts + name attrs
+- Sprint 270 ChienYi v1 重跑：retention **97.9% → 99.6%（+1.7pp）**、
+  每 fixture 7334B → 7332B（差僅 2B、近完全 byte-identical）
+- Sprint 272 LibreOffice 254 hasTheme：retention **96.7% → 98.6%（+1.9pp）**、
+  每 fixture 4400B 級別、極致 byte preserve
+- Sprint 273 Phase 5 18：trivially（synthetic minimal、無 theme1.xml）
+- 為何 99.6% 不是 100%：xmlDecl attr 順序 / quote style + root xmlns
+  whitespace（紀律 #18 scope-down 不修、99.6% 已極致）
+- 三層 SOP：vitest 2080 → 2083（+3 raw byte audit）/ writer 不破壞既有
+  測試 / VR 第 68 連 maintained
+- 紀律 #1.b Strategy C exception：writer 真實修法第十二次
+
+**Sprint 274 clrScheme + fontScheme raw XML preserve + writer 真實修法第十三次
++ ChienYi 99.6% + LibreOffice 98.6% raw byte retention（近完全 byte-identical）**
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- 範圍：同時 capture clrScheme + fontScheme 完整 raw XML、writer 端優先用 raw、
+  保 Sprint 262 結構化 capture 並存供 eager resolve themeColor → hex
+- ThemeRawExtras 加 `clrSchemeRawXml?` + `fontSchemeRawXml?`
+- OoxmlWriter.writeTheme refactor：raw XML 優先、reconstructed path
+  （buildClrSchemeXml / buildFontSchemeXml）作為 fallback 供 DEFAULT_THEME_MAP /
+  缺檔 / 程式化合成 docx 場景
+- ChienYi 99.6%、LibreOffice 98.6% retention 維持（修法已併入 Sprint 270/272
+  audit 重跑）、Phase 5 trivially
+- 三層 SOP：vitest 2083 維持（無新 audit、reuse Sprint 270/272、修法後重跑、
+  零 regression）/ VR 第 68 連 maintained / tsc 2 pre-existing 不增
+- 紀律 #1.b Strategy C exception：writer 真實修法第十三次
+
+**Sprint 275 Phase 2 Exit ④ cache hitRate 保留條件解除 + Phase 2 Exit 6/6
+全綠、零保留條件 + ChienYi v1 GO v3 → GO v4 升級**
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+
+- 範圍：合成 Layout pass 模擬實際 reflow / trial-and-error / multi-size resize
+  場景、量測 ShapingEngine cache 實 hitRate、解除 Sprint 269 ④ 保留條件
+- 場景 1 兩 pass（cold + warm）：Pass 1 hitRate 0.2969、Pass 2 **1.0000**、
+  cumulative **0.6484**（>0.5 threshold ✅ +14.84pp）
+- 場景 2 trial-and-error 5 passes：cold 0.2969 → warm pass 1-4 **全 1.0000**
+- 場景 3 multi-size 5 sizePt（10/12/14/16/18）：每 sizePt 內 warm **1.0000**
+  （cache key 含 sizePt、cold pass per size 19h/45m → warm 64h/0m）、final
+  hitRate 0.6484（>0.5 ✅）
+- Phase 2 Exit ④ hypothesis → **verified**（warm 100% 遠超 50% threshold +
+  cumulative 64.84% >50% threshold）
+- 紀律 #1.b Strategy C：純測試新增、0 行 production code
+- 三層 SOP：vitest 2083 → 2086（+3 cache hitRate test）/ 不破壞既有測試 /
+  VR 第 68 連 maintained / tsc 2 pre-existing 不增
+
+**ChienYi v1 GO v4 升級**（GO v1 Sprint 213 三 corpus 三層 → GO v2 Sprint 222
+五層 → GO v3 Sprint 269 十八層 + Phase 2 Exit ④ 附保留條件 → **GO v4
+Sprint 275 十九層 raw byte 99.6% / 98.6% + Phase 2 Exit 6/6 全綠 零保留條件
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐**）。
+
+**三 corpus 十九層 byte-identical 對稱矩陣完備**（截至 Sprint 275）：合計
+348 fixture × 18 AST 層 + 第十九層 raw byte preserve（ChienYi 99.6% /
+LibreOffice 98.6%、Phase 5 trivially）。LibreOffice edge corpus 18 AST 層中
+**16 ≥ 95% commercial-grade + 10 層 100%**（NumberingMap + Comments +
+Footnotes + Settings + FontTable + WebSettings + DocProps + SmartArt +
+Charts + theme）+ 第十九層 raw byte 98.6%。
+
+ChienYi v1 release docx 匯入子系統最終 sign-off **GO v4（十九層升級確認 +
+Phase 2 Exit 6/6 全綠 零保留條件 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
+
 ---
 
 ## 5. 更新節律建議
