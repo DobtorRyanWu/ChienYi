@@ -33,6 +33,7 @@ import type {
   CommentContent,
   DocumentNode,
   FloatImageNode,
+  FootnoteContent,
   InlineImageNode,
   MathNode,
   NumberingLevel,
@@ -74,6 +75,12 @@ const REL_TYPE_FOOTER =
 /** comments 關係型別（document.xml.rels → comments.xml）。 */
 const REL_TYPE_COMMENTS =
   'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+/** Sprint 239：footnotes 關係型別（document.xml.rels → footnotes.xml）。 */
+const REL_TYPE_FOOTNOTES =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes';
+/** Sprint 239：endnotes 關係型別（document.xml.rels → endnotes.xml）。 */
+const REL_TYPE_ENDNOTES =
+  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes';
 /** OMML 命名空間（ECMA-376 §22.1）。 */
 const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 /** Sprint 195：SmartArt diagram data 關係型別。 */
@@ -161,15 +168,24 @@ export class OoxmlWriter {
     const watermarkItem = collectWatermark(doc);
 
     const parts: { [path: string]: Uint8Array } = {
-      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions, hfItems, smartArtItems, chartItems, watermarkItem)),
+      '[Content_Types].xml': strToU8(writeContentTypes(imageExtensions, hfItems, smartArtItems, chartItems, watermarkItem, doc)),
       '_rels/.rels': strToU8(writeRootRels()),
-      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems, hfItems, smartArtItems, chartItems, watermarkItem)),
+      'word/_rels/document.xml.rels': strToU8(writeDocumentRels(mediaItems, hfItems, smartArtItems, chartItems, watermarkItem, doc)),
       'word/document.xml': strToU8(writeDocument(doc, watermarkItem)),
       'word/styles.xml': strToU8(writeStyles(doc)),
       'word/numbering.xml': strToU8(writeNumbering(doc)),
       // Sprint 194：comments.xml 永遠 emit（空 Map → 空 <w:comments/>）
       'word/comments.xml': strToU8(writeComments(doc)),
     };
+    // Sprint 239：footnotes.xml / endnotes.xml 非空才 emit（保持 minimal docx
+    // 不被加入冗餘 part；ChienYi 多 fixture 有 separator/continuationSeparator
+    // 預設裝飾 footnote、必須 round-trip 保留）
+    if (doc.footnotes.size > 0) {
+      parts['word/footnotes.xml'] = strToU8(writeFootnotes(doc));
+    }
+    if (doc.endnotes.size > 0) {
+      parts['word/endnotes.xml'] = strToU8(writeEndnotes(doc));
+    }
     // Sprint 192：把每張 media 圖片的 bytes 寫進 zip
     for (const m of mediaItems) {
       parts[m.target] = m.bytes;
@@ -209,6 +225,7 @@ function writeContentTypes(
   smartArtItems: SmartArtPartItem[] = [],
   chartItems: ChartPartItem[] = [],
   watermarkItem: WatermarkHeaderItem | undefined = undefined,
+  doc?: DocumentNode,
 ): string {
   const imageDefaults: string[] = [];
   for (const ext of imageExtensions) {
@@ -242,6 +259,13 @@ function writeContentTypes(
     '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' +
     '<Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' +
     '<Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/>' +
+    // Sprint 239：footnotes.xml / endnotes.xml Override（非空才宣告）
+    (doc && doc.footnotes.size > 0
+      ? '<Override PartName="/word/footnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml"/>'
+      : '') +
+    (doc && doc.endnotes.size > 0
+      ? '<Override PartName="/word/endnotes.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml"/>'
+      : '') +
     hfOverrides +
     smartArtOverrides +
     chartOverrides +
@@ -270,6 +294,7 @@ function writeDocumentRels(
   smartArtItems: SmartArtPartItem[] = [],
   chartItems: ChartPartItem[] = [],
   watermarkItem: WatermarkHeaderItem | undefined = undefined,
+  doc?: DocumentNode,
 ): string {
   const imageRels: string[] = [];
   for (const m of mediaItems) {
@@ -303,6 +328,13 @@ function writeDocumentRels(
     `<Relationship Id="rIdStyles" Type="${REL_TYPE_STYLES}" Target="styles.xml"/>` +
     `<Relationship Id="rIdNumbering" Type="${REL_TYPE_NUMBERING}" Target="numbering.xml"/>` +
     `<Relationship Id="rIdComments" Type="${REL_TYPE_COMMENTS}" Target="comments.xml"/>` +
+    // Sprint 239：footnotes / endnotes rel（非空才宣告）
+    (doc && doc.footnotes.size > 0
+      ? `<Relationship Id="rIdFootnotes" Type="${REL_TYPE_FOOTNOTES}" Target="footnotes.xml"/>`
+      : '') +
+    (doc && doc.endnotes.size > 0
+      ? `<Relationship Id="rIdEndnotes" Type="${REL_TYPE_ENDNOTES}" Target="endnotes.xml"/>`
+      : '') +
     imageRels.join('') +
     hfRels +
     smartArtRels +
@@ -1551,6 +1583,59 @@ function writeCommentEntry(c: CommentContent): string {
   if (c.initials !== undefined) attrs.push(`w:initials="${escapeXml(c.initials)}"`);
   const body = c.content.map(writeBlock).join('') || '<w:p/>';
   return `<w:comment ${attrs.join(' ')}>${body}</w:comment>`;
+}
+
+// ── Sprint 239：footnotes.xml / endnotes.xml 序列化 ──────────────────────────
+
+/**
+ * `word/footnotes.xml`：序列化 `DocumentNode.footnotes`。
+ *
+ * 結構（OOXML §17.11.16 footnotes）：
+ *   <w:footnotes>
+ *     <w:footnote w:id w:type?>
+ *       <w:p>...</w:p>+ | <w:tbl>...</w:tbl>+
+ *     </w:footnote>
+ *     ...
+ *   </w:footnotes>
+ *
+ * - `w:type` 為 'separator' / 'continuationSeparator' / 'continuationNotice'
+ *   裝飾用 footnote（id=-1 / 0 通常）；對純內容 footnote 省略
+ * - content 透過 writeBlock dispatcher 重用段落 / 表格 / 巢狀邏輯
+ * - caller 已確保 doc.footnotes.size > 0（空 Map 不 emit 整個 part）
+ */
+function writeFootnotes(doc: DocumentNode): string {
+  const items: string[] = [];
+  const ids = Array.from(doc.footnotes.keys()).sort((a, b) => a - b);
+  for (const id of ids) {
+    items.push(writeFootnoteEntry(doc.footnotes.get(id)!, 'footnote'));
+  }
+  return xmlDecl() +
+    `<w:footnotes xmlns:w="${W_NS}">` +
+    items.join('') +
+    '</w:footnotes>';
+}
+
+/**
+ * `word/endnotes.xml`：序列化 `DocumentNode.endnotes`。結構同 footnotes、tag 名換成 endnote。
+ */
+function writeEndnotes(doc: DocumentNode): string {
+  const items: string[] = [];
+  const ids = Array.from(doc.endnotes.keys()).sort((a, b) => a - b);
+  for (const id of ids) {
+    items.push(writeFootnoteEntry(doc.endnotes.get(id)!, 'endnote'));
+  }
+  return xmlDecl() +
+    `<w:endnotes xmlns:w="${W_NS}">` +
+    items.join('') +
+    '</w:endnotes>';
+}
+
+/** 序列化單一 `<w:footnote>` 或 `<w:endnote>`。 */
+function writeFootnoteEntry(f: FootnoteContent, tag: 'footnote' | 'endnote'): string {
+  const attrs: string[] = [`w:id="${f.id}"`];
+  if (f.type !== undefined) attrs.push(`w:type="${f.type}"`);
+  const body = f.content.map(writeBlock).join('') || '<w:p/>';
+  return `<w:${tag} ${attrs.join(' ')}>${body}</w:${tag}>`;
 }
 
 // ── Sprint 195：SmartArt diagram data 部件 ───────────────────────────────────
