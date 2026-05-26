@@ -15,6 +15,9 @@ export {
   detectScript,
   defaultLanguageForScript,
   defaultDirectionForScript,
+  // Sprint 279：browser-compat refactor — caller-injectable hbModuleLoader
+  setHbModuleLoader,
+  __resetHbModuleLoaderForTesting,
 } from './ShapingEngine';
 export type { ShapedGlyph, ShapeOptions, RunMetrics, ShapingCacheStats } from './ShapingEngine';
 export {

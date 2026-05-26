@@ -25,7 +25,21 @@
  *     Layout Engine 才會真正使用此引擎
  */
 
-import { createRequire } from 'node:module';
+/**
+ * Sprint 279：browser-compat refactor。`createRequire` 移到 lazy fallback
+ * 內、由 typeof 環境偵測決定路徑；不在 module top-level import 避免
+ * browser ESM resolver 在 load 時就炸（即使 caller 已 inject loader）。
+ *
+ * 設計：caller-injectable hbModuleLoader（Sprint 64 ProtonClone dependency
+ * injection pattern 重現）：
+ *   - 預設 = Node 端走 dynamic import('node:module').createRequire('harfbuzzjs')
+ *   - Browser caller 必須先呼叫 setHbModuleLoader(() => loadFromBrowser())
+ *     才能呼叫 shape() / measureRun()
+ *
+ * 為何不寫死 browser path：harfbuzzjs WASM ~400KB、不同 browser caller
+ * （Phase 6 Layout / canvas-editor fork / 獨立模組）對 wasm 取得路徑需求
+ * 不一（CDN / static asset / inline base64），由 caller 決定。
+ */
 
 /** 單一 glyph 的成形結果（HarfBuzz 標準 + cluster 字元位置）。 */
 export interface ShapedGlyph {
@@ -117,17 +131,63 @@ interface HBBuffer {
  *   - 在純 Node CJS：直接 await require('harfbuzzjs')
  *   - 在 ESM / vitest：用 createRequire 取 CJS module.exports，再 await
  *
+ * Sprint 279：caller-injectable loader。
+ *   - 預設（Node）：dynamic `import('node:module')` + createRequire path
+ *   - Browser：caller 須先呼叫 setHbModuleLoader(loader) 注入
+ *
  * 此函式封裝了載入細節並 cache 結果。
  */
 let hbInstancePromise: Promise<HBInstance> | undefined;
+let hbModuleLoader: (() => Promise<HBInstance>) | undefined;
+
+/**
+ * Sprint 279：注入 harfbuzzjs 載入器（browser 端使用）。
+ *
+ * Browser 典型 caller：
+ * ```ts
+ * setHbModuleLoader(async () => {
+ *   const createHarfBuzz = (window as any).createHarfBuzz;
+ *   const hbjs = (window as any).hbjs;
+ *   const mod = await createHarfBuzz({ locateFile: (p) => '/static/wasm/' + p });
+ *   return hbjs(mod) as HBInstance;
+ * });
+ * ```
+ *
+ * 紀律 #21：純 setter / 不副作用、不開始載入 wasm；caller 自負 race 風險。
+ * 注入後第一次 shape() 才會 invoke loader。重複注入會 reset cache。
+ */
+export function setHbModuleLoader(loader: () => Promise<HBInstance>): void {
+  hbModuleLoader = loader;
+  hbInstancePromise = undefined;  // reset cache，下次 shape() 走新 loader
+}
+
+/**
+ * Sprint 279：reset cache（測試用、不對外暴露 cache 清除予 production）。
+ *
+ * 紀律 #21：vitest 測試 setHbModuleLoader 後互不污染。
+ * 預設 export `__resetHbForTesting` 已存在（Sprint 128 加）、本 helper
+ * 與其分工 — resetHbModuleLoader 也清 loader injection。
+ */
+export function __resetHbModuleLoaderForTesting(): void {
+  hbModuleLoader = undefined;
+  hbInstancePromise = undefined;
+}
 
 async function loadHb(): Promise<HBInstance> {
   if (!hbInstancePromise) {
-    // createRequire(import.meta.url) 在純瀏覽器環境會失敗（但 ShapingEngine
-    // 預期只在 Node CLI / Layout Engine 階段使用，瀏覽器內走 canvas-editor measureText）
-    const localRequire = createRequire(import.meta.url);
-    const mod = localRequire('harfbuzzjs');
-    hbInstancePromise = (mod as Promise<HBInstance>);
+    if (hbModuleLoader) {
+      // Sprint 279：caller-injected path（browser / 自訂 wasm 來源）
+      hbInstancePromise = hbModuleLoader();
+    } else {
+      // 預設 Node 路徑：dynamic import 避免在 browser bundle 時 ESM
+      // resolver 看到 'node:module' top-level import 直接拒絕
+      hbInstancePromise = (async () => {
+        const { createRequire } = await import('node:module');
+        const localRequire = createRequire(import.meta.url);
+        const mod = localRequire('harfbuzzjs');
+        return (mod as Promise<HBInstance>);
+      })();
+    }
   }
   return hbInstancePromise;
 }
