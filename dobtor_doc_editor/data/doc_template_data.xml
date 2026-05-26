@@ -127,7 +127,7 @@
             <field name="name">估驗計價單樣板</field>
             <field name="category">contract</field>
             <field name="page_format">A4</field>
-            <field name="description">估驗計價單線上協作版本（補充既有 QWeb 報表，供協商階段使用）；可由 payment.estimate 透過 doc.linked.mixin 整合。</field>
+            <field name="description">估驗計價單線上協作版本（補充既有 QWeb 報表，供協商階段使用）。範本內 {{ var }} 預先建為 doc.template.field text placeholder；要綁實際資料，請在後台 doc.template 設 model_id = payment.estimate（需裝 construction_payment 模組），再把對應欄位 field_type 改 odoo_field 並填 odoo_field_name（如 estimate_no / project_id.name / subtotal）。可由 payment.estimate 透過 doc.linked.mixin 整合。</field>
             <field name="content_html"><![CDATA[
 <h1 style="text-align:center">估驗計價單</h1>
 <p style="text-align:right">估驗期：第 {{ estimate_no }} 期</p>
@@ -162,6 +162,55 @@
 <p><br></p>
 <p style="margin-top:32px;text-align:right">承包商簽核：________________　監造單位簽核：________________　業主簽核：________________</p>
             ]]></field>
+        </record>
+
+        <!-- Sprint Y12.1：估驗計價單樣板的 signer + 6 個變數 placeholder field
+             type 設 'text' + placeholder_text 字串 = 變數名稱，user 開啟 inspector
+             即可看見 6 個欄位、知道每個 {{ var }} 都是「等待 binding」的位置。
+             實際 binding 時：把 field_type 改 'odoo_field' + 填 odoo_field_name。 -->
+        <record id="signer_payment_estimate_default" model="doc.template.signer">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="name">填寫者</field>
+            <field name="sequence">10</field>
+        </record>
+
+        <record id="field_payment_estimate_no" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">estimate_no</field>
+            <field name="required" eval="True"/>
+        </record>
+        <record id="field_payment_estimate_project_name" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">project_name</field>
+            <field name="required" eval="True"/>
+        </record>
+        <record id="field_payment_estimate_contractor" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">contractor</field>
+        </record>
+        <record id="field_payment_estimate_date" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">date</field>
+            <field name="placeholder_text">estimate_date</field>
+        </record>
+        <record id="field_payment_estimate_current_amount" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">current_amount</field>
+        </record>
+        <record id="field_payment_estimate_cumulative_amount" model="doc.template.field">
+            <field name="template_id" ref="template_payment_estimate"/>
+            <field name="signer_id" ref="signer_payment_estimate_default"/>
+            <field name="field_type">text</field>
+            <field name="placeholder_text">cumulative_amount</field>
         </record>
     </data>
 </odoo>
