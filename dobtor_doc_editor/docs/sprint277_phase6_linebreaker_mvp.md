@@ -1,4 +1,4 @@
-# Sprint 277 — Phase 6 Layout Engine MVP spike：Greedy LineBreaker ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / 雙驗 path 1+2 通過 / vitest 路徑 WSL ENOMEM hypothesis pending
+# Sprint 277 — Phase 6 Layout Engine MVP spike：Greedy LineBreaker ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / 雙驗 path 1+2+3 全 verified（vitest 2086 → 2092 +6 案、零 regression）
 
 **日期**：2026-05-26（週二）
 **類型**：Strategy A 真實 production code 擴張 / 紀律 #18 scope-down MVP
@@ -59,11 +59,34 @@ node scripts/verify_sprint277.mjs
 - 不依賴 vitest framework / HarfBuzz wasm / 系統字型、避 WSL ENOMEM blocker
 - 算法與 LineBreaker.ts 完全鏡像（inline 同 implementation 跑相同 case）
 
-### Path 3 (hypothesis pending): vitest framework
+### Path 3: vitest framework（記憶體釋放後 verified）
 
-WSL 記憶體釋放後補跑 `npm test -- tests/unit/sprint277_linebreaker_mvp.test.ts`、
-預期 vitest 2086 → 2092（+6 案例）。本 sprint 不阻塞 commit、紀律 #22 hypothesis
-標明。
+```bash
+# single file（先跑、驗證可運行）
+./node_modules/.bin/vitest run tests/unit/sprint277_linebreaker_mvp.test.ts
+# → 6 tests passed / 807ms（DejaVuSans HarfBuzz wasm 實 measureRun）
+
+# full suite（驗 zero regression）
+npm test
+# → Test Files  163 passed | 1 skipped (164)
+# →      Tests  2092 passed | 1 skipped (2093)
+# →   Duration  369.87s
+```
+
+**vitest 2086 → 2092 = +6 案 confirmed**（hypothesis verified、零 regression）。
+path 3 從 hypothesis pending → verified。
+
+### 雙驗紀律落地（Sprint 277 首次完整 SOP）
+
+vitest 單一路徑被環境 blocker（WSL ENOMEM、Node ESM resolver cascade）卡住時：
+
+1. **不直接 abort**（紀律 #22 honest verify、不繞過驗證）
+2. **走兩條獨立路徑驗證**（path 1 tsc + path 2 standalone Node）
+3. **記錄 path 3 為 hypothesis pending**（不偽稱 verified）
+4. **環境恢復後補跑 path 3**、從 hypothesis → verified
+
+此 SOP 於 Sprint 277 首次完整落地：commit 時 path 1+2 通、path 3 hypothesis；
+WSL 記憶體釋放（user 指示）後 path 3 single + full 全 verified。
 
 ---
 
@@ -162,15 +185,17 @@ production swap：
 
 ## End of Sprint 277
 
-**Phase 6 LineBreaker MVP spike + 雙驗 path 1+2 通過 + Phase 2 API readiness
-validated** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐。
+**Phase 6 LineBreaker MVP spike + 雙驗 path 1+2+3 全 verified + Phase 2 API
+readiness validated + 雙驗紀律 SOP 首次完整落地**
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐。
 
-vitest 2086 維持（path 3 vitest 案 hypothesis pending WSL 記憶體釋放補跑、
-expected 2086 → 2092）/ tsc Sprint 277 新檔零新 error / VR 第 68 連 maintained。
+vitest **2086 → 2092 (+6 案 confirmed)** / tsc Sprint 277 新檔零新 error
+（pre-existing opentype.js declaration 1 條不增）/ VR 第 68 連 maintained /
+雙驗 path 1 tsc + path 2 standalone Node + path 3 vitest framework 三條
+獨立路徑全 PASSED。
 
 剩餘工作（全 user honest 標）：
 - Phase 8.2.2 overlay polish（等 Phase 2.1 反饋）
 - Phase 7 OffscreenCanvas / Web Worker（雙驗不建議）
 - 第十九層 xmlDecl/xmlns normalize（紀律 #18 scope-down、99.6% 已極致）
 - Phase 6 完整 Layout（hyphenation / Knuth-Plass / mixed run / bidi、長期 optional）
-- Sprint 277 vitest path 3 補跑（WSL 記憶體釋放後）

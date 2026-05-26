@@ -8,11 +8,11 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 275 結尾 — Phase 2 Exit ④ cache hitRate 保留條件解除 + ChienYi v1 GO v4 升級 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Phase 2 Exit 6/6 全綠、零保留條件 / 三 corpus 十九層 byte-identical 對稱矩陣完備（含 raw byte 99.6% / 98.6%）/ 加權平均 ~95-97% 商用級）
+## 1. 當前指標一覽（Sprint 277 結尾 — Phase 6 LineBreaker MVP spike + 雙驗紀律 SOP 首次完整落地 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Phase 2 Exit 6/6 全綠、零保留條件 / 三 corpus 十九層 byte-identical 對稱矩陣完備（含 raw byte 99.6% / 98.6%）/ Phase 2 API readiness validated by Phase 6 spike / 加權平均 ~95-97% 商用級）
 
 | 指標 | 數值 |
 |---|---|
-| vitest | **2083 passed + 1 skipped**（`npm test` 全套口徑；Sprint 270+272+273 +3 theme raw byte-level audit 三 corpus + Sprint 271 writer 真實修法第十二次（raw XML preserve）、Sprint 265+266+267+268 +45 Phase 2 完整 ShapingEngine + Glyph cache + 行高公式 + opentype.js 完整 metrics、Sprint 262+263+264 +3 theme 第十八層 三 corpus + writer 真實修法第十一次 + parser AST 擴充、Sprint 256+257+258 +3 SmartArt 第十六層 三 corpus、Sprint 259+260+261 +3 Charts 第十七層 三 corpus、Sprint 253+254+255 +3 DocProps (core+app+custom) 第十五層 三 corpus + writer 真實修法、Sprint 252 docs-only 不增、Sprint 249+250+251 +3 WebSettings 第十四層 三 corpus + writer 真實修法、Sprint 246+247+248 +3 FontTable 第十三層 三 corpus + writer 真實修法、Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
+| vitest | **2092 passed + 1 skipped**（`npm test` 全套口徑、Sprint 277 結尾實測 369.87s / 163 files；Sprint 277 +6 Phase 6 LineBreaker MVP（greedy break、雙驗 path 3 vitest 框架 verified）、Sprint 275 +3 Phase 2 Exit ④ cache hitRate（Layout pass 三場景）、Sprint 270+272+273 +3 theme raw byte-level audit 三 corpus + Sprint 271 writer 真實修法第十二次（raw XML preserve）、Sprint 265+266+267+268 +45 Phase 2 完整 ShapingEngine + Glyph cache + 行高公式 + opentype.js 完整 metrics、Sprint 262+263+264 +3 theme 第十八層 三 corpus + writer 真實修法第十一次 + parser AST 擴充、Sprint 256+257+258 +3 SmartArt 第十六層 三 corpus、Sprint 259+260+261 +3 Charts 第十七層 三 corpus、Sprint 253+254+255 +3 DocProps (core+app+custom) 第十五層 三 corpus + writer 真實修法、Sprint 252 docs-only 不增、Sprint 249+250+251 +3 WebSettings 第十四層 三 corpus + writer 真實修法、Sprint 246+247+248 +3 FontTable 第十三層 三 corpus + writer 真實修法、Sprint 243+244+245 +3 DocumentSettings 第十二層 三 corpus + writer 真實修法、Sprint 242 +1 footnoteRef inline wire-up、Sprint 239+240+241 +3 Footnotes+Endnotes 第十一層 三 corpus + writer 真實修法、Sprint 236+237+238 +3 Comments 第十層 三 corpus、Sprint 233+234+235 +3 NumberingMap 第九層 三 corpus、Sprint 231+232 +2 StyleMap 第八層 LibreOffice+Phase 5、Sprint 230 +1 ChienYi StyleMap、Sprint 227+228+229 +3 HeaderFooterContent、Sprint 223+224+225 +3 SectionProps、Sprint 222+226 docs-only 不增）。Sprint 178 以前記錄的「1468」為不同計數口徑、自 Sprint 179 起改採全套數字 |
 | VR mean | **0.073191**（Sprint 65 promote、第 68 次連續 byte-identical；Sprint 167-203 皆 Strategy C 或在 VR pipeline 外、42 fixture byte-identical；Sprint 223/225/226/230/239/243/262 writer fix 皆觸 export path 而非 import path、VR pipeline 比的是 import → layout → render、VR 第 68 連 maintained；Sprint 256-261 純 audit、0 行 writer 修法、VR 完全不動；Sprint 262 +99 行 writer/parser/AST 修法、parser 端只多寫一個 optional key 不影響 layout/render；Sprint 202/214 11_perf_synthetic_large 加入 PHASE5_FIXTURE_DIRS 排除集、不入 VR pipeline） |
 | Odoo backend | **31 passed** local（font_serve 12 + zip_guard 9 + Sprint 115-117 boundary 6 + Sprint 117 cross-company 4） |
 | CI gate v1（workflow_dispatch） | font_serve 12 test 進 gate |
@@ -905,21 +905,24 @@ Charts + theme）+ 第十九層 raw byte 98.6%。
 ChienYi v1 release docx 匯入子系統最終 sign-off **GO v4（十九層升級確認 +
 Phase 2 Exit 6/6 全綠 零保留條件 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐）**。
 
-**Sprint 277 Phase 6 LineBreaker MVP spike + 雙驗 path 1+2 通過 + Phase 2 API
-readiness validated** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
+**Sprint 277 Phase 6 LineBreaker MVP spike + 雙驗 path 1+2+3 全 verified +
+Phase 2 API readiness validated + 雙驗紀律 SOP 首次完整落地**
+⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
 
 - 範圍：Strategy A 新 `static/src/core/ooxml/layout/` 模組（LineBreaker.ts +
   index.ts barrel、~110 行 production）+ vitest 6 案 + standalone Node verify
   script；greedy break by ASCII space、單一 font/sizePt、LTR、overlong force-fit
 - 消費 Sprint 265 ShapingEngine.measureRun()（取代 ctx.measureText）驗證
   Sprint 269/275 標「Phase 2 API ready 銜接 Phase 6 自寫 Layout」聲明
-- **雙驗執行**（WSL ENOMEM blocker 應變）：
+- **雙驗三條路徑全 PASSED**（commit 時 path 1+2 通 / path 3 hypothesis；
+  user 指示「釋放記憶體」後 path 3 verified）：
   - Path 1（tsc standalone strict）：僅 1 條 pre-existing opentype.js declaration、
     Sprint 277 新檔零新 error ✅
   - Path 2（standalone Node `scripts/verify_sprint277.mjs`、確定性 mock measureRun）：
     **6 案 21/21 assertion PASSED** ✅
-  - Path 3（vitest framework）：hypothesis pending WSL 記憶體釋放補跑、expected
-    vitest 2086 → 2092（+6 案）、紀律 #22 honest 標明
+  - Path 3（vitest framework）：**single file 6/6 passed（DejaVuSans HarfBuzz
+    wasm shape 實 measureRun、807ms）+ full suite vitest 2086 → 2092 (+6 案
+    confirmed)、163 files passed / 1 skipped、零 regression** ✅
 - 不接 canvas-editor / 不取代 ctx.measureText（Sprint 269 結論「production
   canvas-editor 未整合、Phase 6 自寫 Layout 時消費」之精神）
 - 紀律 #18 scope-down：不擴張 hyphenation / Knuth-Plass / mixed run / bidi /
@@ -930,8 +933,10 @@ readiness validated** ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐：
 - 紀律 #14.b clean scope：commit 含 layout/ 2 檔 + 1 vitest test + 1 verify
   script + 1 doc + INDEX/progress
 
-**雙驗紀律**：vitest 單一路徑 blocked 時走兩條獨立驗證（tsc + standalone Node）、
-兩路都通才算 SOP 通過；保持紀律 #22 hypothesis 標明、不繞過驗證直接 commit。
+**雙驗紀律 SOP 首次完整落地**：vitest 單一路徑被環境 blocker 卡住時走兩條獨立
+驗證（path 1 tsc + path 2 standalone Node），path 3 vitest 標 hypothesis pending、
+不阻塞 commit；環境恢復後補跑 path 3 從 hypothesis → verified。Sprint 277 完整
+走過此流程：commit 時 2/3 通、user 指示釋放記憶體後 3/3 通。
 
 ---
 
