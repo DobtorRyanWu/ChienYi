@@ -129,12 +129,13 @@
 
             <!-- ═══ Row 3：工具列（紙張 / 版本 / 匯入匯出 ‧ 右側縮放）═══
                  Sprint Y11：整列收合進 menubar — 紙張/版本/匯入匯出/縮放 都已在
-                 menubar「檔案」「查看」「工具」內可達。t-if=false 保留 DOM block
-                 方便日後 revert / 改 user toggle。
-                 詳見 docs/phase8_sprint_y11_2026-05-26.md
+                 menubar「檔案」「查看」「工具」內可達。default hide。
+                 Sprint Y23：改成 state.showLegacyToolbar 由 user 經查看 menu opt-in、
+                 localStorage 持久化。default 仍 false（同 Y11 預期）。
+                 詳見 docs/phase8_sprint_y23_2026-05-26.md
             ═══ -->
             <div class="doc-toolbar"
-                 t-if="false"
+                 t-if="state.showLegacyToolbar"
                  role="toolbar"
                  aria-label="文件編輯器工具列">
 

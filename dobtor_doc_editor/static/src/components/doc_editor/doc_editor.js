@@ -272,6 +272,12 @@ export class DocEditor extends Component {
             // value 是 line-height 倍數（canvas-editor default = 1）；preset 1.0/1.15/1.5/2.0/2.5/3.0
             showLineSpacing: false,
             lineSpacingValue: 1.0,
+            // ─── Sprint Y23：舊版 Row 3 工具列可選顯示（Y11 hide 後 default 仍隱藏；user 可 opt-in）
+            // localStorage 存 '1' 顯示、'0' 或 null 隱藏
+            showLegacyToolbar: (() => {
+                try { return localStorage.getItem('dobtor_doc_editor_show_legacy_toolbar') === '1'; }
+                catch (e) { return false; }
+            })(),
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -3712,6 +3718,12 @@ export class DocEditor extends Component {
                 case 'edit:replace': this.openFindReplace('replace'); break;
 
                 case 'view:toggle-ruler': this.state.showRuler = !this.state.showRuler; break;
+                case 'view:toggle-legacy-toolbar':
+                    this.state.showLegacyToolbar = !this.state.showLegacyToolbar;
+                    try { localStorage.setItem('dobtor_doc_editor_show_legacy_toolbar',
+                                               this.state.showLegacyToolbar ? '1' : '0'); }
+                    catch (e) { /* ignore quota */ }
+                    break;
                 case 'view:toggle-thumbnails': this.state.showThumbnails = !this.state.showThumbnails; break;
                 case 'view:cycle-theme': this.onCycleTheme(); break;
                 // Sprint Y11：紙張格式從 menubar 直接套用（取代被 hide 的 Row 3 toolbar select）
@@ -4280,6 +4292,7 @@ export class DocEditor extends Component {
                 items: [
                     { label: this.state.showRuler ? '✓ 顯示尺規' : '   顯示尺規', action: 'view:toggle-ruler' },
                     { label: this.state.showThumbnails ? '✓ 顯示縮圖' : '   顯示縮圖', action: 'view:toggle-thumbnails' },
+                    { label: this.state.showLegacyToolbar ? '✓ 顯示舊版工具列' : '   顯示舊版工具列', action: 'view:toggle-legacy-toolbar' },
                     { label: `外觀：${this._themeLabel()}`, action: 'view:cycle-theme' },
                     { type: 'separator' },
                     { label: '縮放 50%', action: 'view:zoom-50' },
