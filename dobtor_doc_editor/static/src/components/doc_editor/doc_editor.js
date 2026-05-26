@@ -200,6 +200,10 @@ export class DocEditor extends Component {
             activeItalic: false,
             activeUnderline: false,
             activeStrikeout: false,
+            // ─── Sprint Y8：format toolbar active state 延伸（font/size/align/color swatch）
+            activeFontFamily: '',           // 空字串 = 預設字型
+            activeFontSize: '16',           // canvas-editor 預設 16；select option value 是字串
+            activeRowFlex: 'left',          // 'left'|'center'|'right'|'alignment'
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -596,6 +600,20 @@ export class DocEditor extends Component {
                     if (this.state.activeItalic !== i) this.state.activeItalic = i;
                     if (this.state.activeUnderline !== u) this.state.activeUnderline = u;
                     if (this.state.activeStrikeout !== s) this.state.activeStrikeout = s;
+
+                    // Sprint Y8：font/size/color/highlight/rowFlex 也同步反映 caret 狀態
+                    const font = el.font || '';
+                    const sizeStr = el.size != null ? String(el.size) : '16';
+                    if (this.state.activeFontFamily !== font) this.state.activeFontFamily = font;
+                    if (this.state.activeFontSize !== sizeStr) this.state.activeFontSize = sizeStr;
+                    // 字色 / 背景色：caret 文字真實顏色 → swatch + picker 預設值
+                    const color = el.color || '#202124';
+                    const hl = el.highlight || '#fff176';
+                    if (this.state.textColor !== color) this.state.textColor = color;
+                    if (this.state.highlightColor !== hl) this.state.highlightColor = hl;
+                    // rowFlex 通常在 element 或 row 上、fallback 到 left
+                    const rowFlex = el.rowFlex || ctx?.rowFlex || 'left';
+                    if (this.state.activeRowFlex !== rowFlex) this.state.activeRowFlex = rowFlex;
                 }
             } catch (e) {
                 // 不要讓 listener 抛例外破壞 canvas-editor 內部流程

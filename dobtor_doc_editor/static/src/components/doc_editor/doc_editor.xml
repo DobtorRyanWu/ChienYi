@@ -226,17 +226,25 @@
                  role="toolbar"
                  aria-label="格式化工具列">
                 <select class="doc-format-select doc-format-font"
+                        t-att-value="state.activeFontFamily"
                         t-on-change="onFontFamilyChange"
                         aria-label="字型">
                     <t t-foreach="FONT_OPTIONS" t-as="f" t-key="f.value">
-                        <option t-att-value="f.value"><t t-esc="f.label"/></option>
+                        <option t-att-value="f.value"
+                                t-att-selected="state.activeFontFamily === f.value">
+                            <t t-esc="f.label"/>
+                        </option>
                     </t>
                 </select>
                 <select class="doc-format-select doc-format-size"
+                        t-att-value="state.activeFontSize"
                         t-on-change="onFontSizeChange"
                         aria-label="字號">
                     <t t-foreach="FONT_SIZE_OPTIONS" t-as="s" t-key="s">
-                        <option t-att-value="s"><t t-esc="s"/></option>
+                        <option t-att-value="s"
+                                t-att-selected="state.activeFontSize === ('' + s)">
+                            <t t-esc="s"/>
+                        </option>
                     </t>
                 </select>
                 <span class="doc-format-sep" aria-hidden="true"/>
@@ -265,20 +273,32 @@
                     <i class="fa fa-strikethrough" aria-hidden="true"/>
                 </button>
                 <span class="doc-format-sep" aria-hidden="true"/>
-                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeRowFlex', 'left')"
-                        title="靠左對齊" aria-label="靠左對齊">
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeRowFlex === 'left' }"
+                        t-on-click="() => this._executeCmd('executeRowFlex', 'left')"
+                        title="靠左對齊" aria-label="靠左對齊"
+                        aria-pressed="state.activeRowFlex === 'left'">
                     <i class="fa fa-align-left" aria-hidden="true"/>
                 </button>
-                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeRowFlex', 'center')"
-                        title="置中對齊" aria-label="置中對齊">
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeRowFlex === 'center' }"
+                        t-on-click="() => this._executeCmd('executeRowFlex', 'center')"
+                        title="置中對齊" aria-label="置中對齊"
+                        aria-pressed="state.activeRowFlex === 'center'">
                     <i class="fa fa-align-center" aria-hidden="true"/>
                 </button>
-                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeRowFlex', 'right')"
-                        title="靠右對齊" aria-label="靠右對齊">
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeRowFlex === 'right' }"
+                        t-on-click="() => this._executeCmd('executeRowFlex', 'right')"
+                        title="靠右對齊" aria-label="靠右對齊"
+                        aria-pressed="state.activeRowFlex === 'right'">
                     <i class="fa fa-align-right" aria-hidden="true"/>
                 </button>
-                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeRowFlex', 'alignment')"
-                        title="兩端對齊" aria-label="兩端對齊">
+                <button class="doc-format-btn"
+                        t-att-class="{ 'is-active': state.activeRowFlex === 'alignment' }"
+                        t-on-click="() => this._executeCmd('executeRowFlex', 'alignment')"
+                        title="兩端對齊" aria-label="兩端對齊"
+                        aria-pressed="state.activeRowFlex === 'alignment'">
                     <i class="fa fa-align-justify" aria-hidden="true"/>
                 </button>
                 <span class="doc-format-sep" aria-hidden="true"/>
