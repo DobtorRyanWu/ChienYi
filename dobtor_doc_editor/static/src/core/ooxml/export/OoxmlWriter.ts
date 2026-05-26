@@ -490,6 +490,10 @@ function writeParagraph(para: ParagraphNode): string {
       // floatImage 降級為 inline（與 ToCanvasEditor 一致：canvas-editor
       // 浮動繞排支援不完整、production pipeline 已將 float 視為 inline）
       runs.push(writeInlineImageRun(node));
+    } else if (node.type === 'footnoteRef') {
+      // Sprint 242 — Phase 1 optional 第二批升級：footnoteReference / endnoteReference
+      const tag = node.noteType === 'footnote' ? 'w:footnoteReference' : 'w:endnoteReference';
+      runs.push(`<w:r><${tag} w:id="${node.id}"/></w:r>`);
     }
     // break / field 仍跳過、留後續 sprint
   }

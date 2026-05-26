@@ -659,6 +659,23 @@ function parseRun(r: Element): InlineNode[] {
         break;
       }
       // w:rPr 已先處理；w:fldChar 暫不處理（Sprint 123 候選）
+      // Sprint 242 — Phase 1 optional 第二批升級：footnoteReference / endnoteReference
+      case 'w:footnoteReference':
+      case 'w:endnoteReference': {
+        flushText();
+        const idAttr = child.getAttribute('w:id');
+        if (idAttr !== null) {
+          const id = parseInt(idAttr, 10);
+          if (!Number.isNaN(id)) {
+            out.push({
+              type: 'footnoteRef',
+              noteType: child.tagName === 'w:footnoteReference' ? 'footnote' : 'endnote',
+              id,
+            });
+          }
+        }
+        break;
+      }
     }
   }
 

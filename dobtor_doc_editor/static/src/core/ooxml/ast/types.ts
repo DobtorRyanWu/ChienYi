@@ -354,7 +354,27 @@ export interface FloatTextBoxNode {
   };
 }
 
-export type InlineNode = RunNode | FieldNode | BreakNode | InlineImageNode | FloatImageNode | FloatTextBoxNode;
+export type InlineNode = RunNode | FieldNode | BreakNode | InlineImageNode | FloatImageNode | FloatTextBoxNode | FootnoteReferenceNode;
+
+/**
+ * Sprint 242 — Phase 1 optional 第二批升級：`<w:footnoteReference>` /
+ * `<w:endnoteReference>` 在 run 內的引用標記（OOXML §17.11.14 / §17.11.18）。
+ *
+ * Sprint 145 parser capture-only / Sprint 165 標為 Phase 1 optional；Sprint
+ * 239 writer 補 footnotes.xml/endnotes.xml emit 後、本 sprint 補上 doc.xml
+ * 內 inline reference capture + writer emit、閉合 doc.xml ↔ footnotes.xml
+ * 引用迴路。
+ *
+ * 結構：`<w:r><w:footnoteReference w:id="N"/></w:r>`、id 對應
+ * `DocumentNode.footnotes` Map 的 key。
+ */
+export interface FootnoteReferenceNode {
+  type: 'footnoteRef';
+  /** 'footnote' = `<w:footnoteReference>`、'endnote' = `<w:endnoteReference>`。 */
+  noteType: 'footnote' | 'endnote';
+  /** `w:id` 引用 footnotes/endnotes Map 的 key。 */
+  id: number;
+}
 
 /**
  * Sprint 179（Phase 5.1 OMML 數學公式）：OMML 元素樹的通用節點（capture-only）。
