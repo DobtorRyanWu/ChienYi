@@ -250,7 +250,14 @@ export class DocEditor extends Component {
         });
 
         // P3-2 鍵盤導航
+        // Sprint Y15.1：發現 Y3 起就有的 bug — 從 window listener 改 state 不會自動觸發
+        // OWL re-render（OWL 18 reactive proxy 在 window scope 外的 mutation 沒 transaction
+        // context）。所有 mutation 點末段都要 manually call this.render() 才生效。
+        // 既有 Escape close menu / Esc close version panel / Esc close color palette 從
+        // 來都「靜默失效」— 只有點外面（mousedown listener mutation 也壞、但接的是 OWL
+        // outside-click handler、會被某個其他地方 re-render 救回）才關得起來。
         this._onGlobalKey = (event) => {
+            let dirty = false;
             // Alt+H：開啟版本歷史
             if (event.altKey && !event.ctrlKey && !event.metaKey
                 && (event.key === 'h' || event.key === 'H')) {
@@ -266,11 +273,13 @@ export class DocEditor extends Component {
             // Esc：關閉版本面板（若開啟）
             if (event.key === 'Escape' && this.state?.showVersionPanel) {
                 this.state.showVersionPanel = false;
+                dirty = true;
             }
             // Sprint Y3：Esc 關閉 menu bar dropdown
             if (event.key === 'Escape' && this.state?.openMenu) {
                 this.state.openMenu = null;
                 this.state.menuFocusIndex = -1;   // Y14
+                dirty = true;
             }
             // Sprint Y14：menu dropdown 開啟時的鍵盤導航
             if (this.state?.openMenu) {
@@ -281,30 +290,37 @@ export class DocEditor extends Component {
                         this.state.menuFocusIndex < 0 ? -1 : this.state.menuFocusIndex,
                         +1
                     );
+                    dirty = true;
                 } else if (key === 'ArrowUp') {
                     event.preventDefault();
                     this.state.menuFocusIndex = this._nextFocusableMenuIndex(
                         this.state.menuFocusIndex < 0 ? this._currentMenuItems().length : this.state.menuFocusIndex,
                         -1
                     );
+                    dirty = true;
                 } else if (key === 'ArrowRight') {
                     event.preventDefault();
                     this._switchMenuByOffset(+1, this.state.menuFocusIndex >= 0);
+                    dirty = true;
                 } else if (key === 'ArrowLeft') {
                     event.preventDefault();
                     this._switchMenuByOffset(-1, this.state.menuFocusIndex >= 0);
+                    dirty = true;
                 } else if (key === 'Home') {
                     event.preventDefault();
                     this.state.menuFocusIndex = this._firstFocusableMenuIndex();
+                    dirty = true;
                 } else if (key === 'End') {
                     event.preventDefault();
                     this.state.menuFocusIndex = this._lastFocusableMenuIndex();
+                    dirty = true;
                 } else if (key === 'Enter' || key === ' ') {
                     if (this.state.menuFocusIndex >= 0) {
                         event.preventDefault();
                         const item = this._currentMenuItems()[this.state.menuFocusIndex];
                         if (item && item.action && !item.disabled) {
                             this.onMenuItemClick(item.action);
+                            dirty = true;
                         }
                     }
                 }
@@ -312,6 +328,7 @@ export class DocEditor extends Component {
             // Sprint Y12：Esc 關閉色彩 palette dropdown
             if (event.key === 'Escape' && this.state?.showColorPalette) {
                 this.state.showColorPalette = null;
+                dirty = true;
             }
             // Sprint Y4：Ctrl/Cmd+F 開尋找、Ctrl/Cmd+H 開取代
             if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey
@@ -324,24 +341,40 @@ export class DocEditor extends Component {
                 event.preventDefault();
                 this.openFindReplace?.('replace');
             }
+            // Sprint Y15.1：force OWL re-render after window-listener state mutation
+            if (dirty) {
+                try { this.render?.(); } catch (e) { /* unmounted */ }
+            }
         };
-        if (typeof window !== 'undefined') {
-            window.addEventListener('keydown', this._onGlobalKey);
+        // Sprint Y15.1：keydown listener 改掛 document（不是 window）。實測 Odoo/canvas-editor
+        // 在 body→window 之間有 stopPropagation、keydown 永遠到不了 window listener。
+        // 所有 Y3 Esc close / Y14 ↑↓ Arrow keys 一路被吃掉、只是 Cmd+F 等碰巧能 work（也吃但
+        // ChromeDevTools 的 keypress 走另一條 path）。document listener 在 body 之上、Odoo
+        // 沒在這層 stopPropagation。Y4 早就記過這教訓、但忘了套用到既有 listener。
+        if (typeof document !== 'undefined') {
+            document.addEventListener('keydown', this._onGlobalKey);
         }
 
         // Sprint Y3：menu bar 外部點擊關閉（mousedown 比 click 早觸發，避免 trigger 自身競態）
         // Sprint Y12：同一 listener 順便處理色彩 palette dropdown
+        // Sprint Y15.1：window-listener mutation 同樣需要手動 render（見 _onGlobalKey 註解）
         this._onGlobalClick = (ev) => {
             if (!this.state) return;
+            let dirty = false;
             try {
                 if (this.state.openMenu && !ev.target.closest('.doc-menubar')) {
                     this.state.openMenu = null;
                     this.state.menuFocusIndex = -1;   // Y14
+                    dirty = true;
                 }
                 if (this.state.showColorPalette && !ev.target.closest('.doc-format-color-wrap')) {
                     this.state.showColorPalette = null;
+                    dirty = true;
                 }
             } catch (e) { /* ignore */ }
+            if (dirty) {
+                try { this.render?.(); } catch (e) { /* unmounted */ }
+            }
         };
         if (typeof document !== 'undefined') {
             document.addEventListener('mousedown', this._onGlobalClick);
@@ -483,9 +516,9 @@ export class DocEditor extends Component {
             }
             this._uninstallTelemetry = null;
 
-            // P3-2：解除鍵盤監聽
-            if (typeof window !== 'undefined' && this._onGlobalKey) {
-                window.removeEventListener('keydown', this._onGlobalKey);
+            // P3-2：解除鍵盤監聽（Y15.1：改掛 document）
+            if (typeof document !== 'undefined' && this._onGlobalKey) {
+                document.removeEventListener('keydown', this._onGlobalKey);
             }
             this._onGlobalKey = null;
 
