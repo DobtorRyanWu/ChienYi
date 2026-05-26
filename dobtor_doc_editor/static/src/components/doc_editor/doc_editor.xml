@@ -217,6 +217,69 @@
                 </div>
             </div>
 
+            <!-- ═══ Row 3.5：Format toolbar（Sprint Y5）═══
+                 Google Docs 風格式化工具列：字型 / 字號 / B I U S / align*4 / 清除格式
+                 menubar 格式 menu 已可達同樣操作，本工具列提供視覺直接觸發。
+                 button click 直接呼叫 _executeCmd 包裝、不用獨立 handler。
+            ═══ -->
+            <div class="doc-format-toolbar"
+                 role="toolbar"
+                 aria-label="格式化工具列">
+                <select class="doc-format-select doc-format-font"
+                        t-on-change="onFontFamilyChange"
+                        aria-label="字型">
+                    <t t-foreach="FONT_OPTIONS" t-as="f" t-key="f.value">
+                        <option t-att-value="f.value"><t t-esc="f.label"/></option>
+                    </t>
+                </select>
+                <select class="doc-format-select doc-format-size"
+                        t-on-change="onFontSizeChange"
+                        aria-label="字號">
+                    <t t-foreach="FONT_SIZE_OPTIONS" t-as="s" t-key="s">
+                        <option t-att-value="s"><t t-esc="s"/></option>
+                    </t>
+                </select>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeBold')"
+                        title="粗體 (Ctrl+B)" aria-label="粗體">
+                    <i class="fa fa-bold" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeItalic')"
+                        title="斜體 (Ctrl+I)" aria-label="斜體">
+                    <i class="fa fa-italic" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeUnderline')"
+                        title="底線 (Ctrl+U)" aria-label="底線">
+                    <i class="fa fa-underline" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeStrikeout')"
+                        title="刪除線" aria-label="刪除線">
+                    <i class="fa fa-strikethrough" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeRowFlex', 'left')"
+                        title="靠左對齊" aria-label="靠左對齊">
+                    <i class="fa fa-align-left" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeRowFlex', 'center')"
+                        title="置中對齊" aria-label="置中對齊">
+                    <i class="fa fa-align-center" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeRowFlex', 'right')"
+                        title="靠右對齊" aria-label="靠右對齊">
+                    <i class="fa fa-align-right" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executeRowFlex', 'alignment')"
+                        title="兩端對齊" aria-label="兩端對齊">
+                    <i class="fa fa-align-justify" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <button class="doc-format-btn" t-on-click="() => this._executeCmd('executePainterStyle', {})"
+                        title="清除格式" aria-label="清除格式">
+                    <i class="fa fa-eraser" aria-hidden="true"/>
+                </button>
+            </div>
+
             <!-- ═══ Row 4：Field toolbar（欄位類型按鈕 + Odoo 欄位）═══
                  Sprint A：僅在「範本」分頁顯示 -->
             <t t-if="state.activeSubNav === 'templates'">

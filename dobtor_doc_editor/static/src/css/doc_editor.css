@@ -2187,3 +2187,84 @@
     background: var(--gd-hover-bg);
     border-color: var(--gd-text-muted);
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y5 — 格式化工具列（Row 3.5）
+   字型 / 字號 selector + B I U S + align*4 + 清除格式
+   ════════════════════════════════════════════════════════════════════════ */
+
+.o_dobtor_doc_editor .doc-format-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    height: 36px;
+    padding: 4px 16px;
+    background: var(--gd-toolbar-bg);
+    border-bottom: 1px solid var(--gd-toolbar-border);
+    font-family: var(--gd-font);
+    font-size: 13px;
+    color: var(--gd-text);
+}
+
+.o_dobtor_doc_editor .doc-format-select {
+    height: 28px;
+    padding: 0 6px;
+    border: 1px solid var(--gd-toolbar-border);
+    border-radius: var(--gd-radius-sm);
+    background: #fff;
+    color: var(--gd-text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-format-select:hover {
+    border-color: var(--gd-text-muted);
+}
+
+.o_dobtor_doc_editor .doc-format-select:focus {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -1px;
+    border-color: var(--gd-accent);
+}
+
+.o_dobtor_doc_editor .doc-format-font { min-width: 140px; }
+.o_dobtor_doc_editor .doc-format-size { min-width: 64px; }
+
+.o_dobtor_doc_editor .doc-format-sep {
+    display: inline-block;
+    width: 1px;
+    height: 20px;
+    background: var(--gd-toolbar-border);
+    margin: 0 4px;
+}
+
+.o_dobtor_doc_editor .doc-format-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    border-radius: var(--gd-radius-sm);
+    color: var(--gd-text);
+    cursor: pointer;
+    transition: background 120ms ease;
+}
+
+.o_dobtor_doc_editor .doc-format-btn:hover {
+    background: var(--gd-hover-bg);
+}
+
+.o_dobtor_doc_editor .doc-format-btn:focus {
+    outline: 2px solid var(--gd-accent);
+    outline-offset: -2px;
+}
+
+.o_dobtor_doc_editor .doc-format-btn .fa {
+    font-size: 14px;
+    line-height: 1;
+}

@@ -41,6 +41,23 @@ import {
  * 範本欄位類型清單（Phase 2 接 canvas-editor executeInsertControl 用）。
  * Phase 1 只渲染按鈕、點擊只彈 toast，欄位插入行為留到 Phase 2。
  */
+// Sprint Y5：格式化工具列字型 / 字號清單（Google Docs 風）
+export const FONT_OPTIONS = [
+    { value: "",                 label: "預設" },
+    { value: "Microsoft JhengHei", label: "微軟正黑體" },
+    { value: "Microsoft YaHei",  label: "微軟雅黑" },
+    { value: "PMingLiU",         label: "新細明體" },
+    { value: "DFKai-SB",         label: "標楷體" },
+    { value: "Noto Sans TC",     label: "思源黑體" },
+    { value: "Noto Serif TC",    label: "思源宋體" },
+    { value: "Arial",            label: "Arial" },
+    { value: "Times New Roman",  label: "Times New Roman" },
+    { value: "Courier New",      label: "Courier New" },
+    { value: "Helvetica",        label: "Helvetica" },
+    { value: "Georgia",          label: "Georgia" },
+];
+export const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
+
 export const FIELD_TYPES = [
     { key: "name",       label: "名稱",     icon: "A",     ctrlType: "text" },
     { key: "email",      label: "電子郵件", icon: "A",     ctrlType: "text" },
@@ -89,6 +106,9 @@ export class DocEditor extends Component {
 
         // 暴露 FIELD_TYPES 給 template 使用（QWeb t-foreach）
         this.FIELD_TYPES = FIELD_TYPES;
+        // Sprint Y5：暴露字型 / 字號清單給格式化工具列 t-foreach 使用
+        this.FONT_OPTIONS = FONT_OPTIONS;
+        this.FONT_SIZE_OPTIONS = FONT_SIZE_OPTIONS;
 
         // Portal mount 模式：<owl-component name="..." props='{"docId":123,"readonly":true}'>
         // public_component_service 會把 JSON 解析後當 props 傳進來。
@@ -3640,6 +3660,22 @@ export class DocEditor extends Component {
             console.error('[DocEditor] replace all failed', e);
             this.notification?.add?.(`取代失敗：${e.message || e}`, { type: 'warning' });
         }
+    }
+
+    // ─── Sprint Y5：格式化工具列 handlers ─────────────────────────
+    // 字型 / 字號 select 變動時直接接 canvas-editor cmd；按鈕（B/I/U/align/clear）
+    // 在 XML 用 inline t-on-click="() => this._executeCmd(...)" 不用獨立 method。
+
+    onFontFamilyChange(ev) {
+        const v = ev.target.value;
+        if (!v) return;
+        this._executeCmd('executeFont', v);
+    }
+
+    onFontSizeChange(ev) {
+        const s = parseInt(ev.target.value, 10);
+        if (!s || s <= 0) return;
+        this._executeCmd('executeSize', s);
     }
 
     onFindInputKeyDown(ev) {
