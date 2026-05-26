@@ -327,6 +327,12 @@ export class DocEditor extends Component {
                 this.state.showLineSpacing = false;
                 dirty = true;
             }
+            // Sprint Y21：Esc 關閉 find panel（focus 在 input 內走 inline keydown；
+            //          focus 在外面才會走這條 _onGlobalKey path）
+            if (event.key === 'Escape' && this.state?.findReplaceMode) {
+                this.closeFindReplace();
+                dirty = true;
+            }
             // Sprint Y3：Esc 關閉 menu bar dropdown
             if (event.key === 'Escape' && this.state?.openMenu) {
                 this.state.openMenu = null;
