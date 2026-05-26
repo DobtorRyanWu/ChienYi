@@ -8,7 +8,7 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 274 結尾 — 第十九層 raw byte preserve 精修（ChienYi 99.6% + LibreOffice 98.6%）+ writer 真實修法第十三次 + Sprint 218→219 模式重現第七次 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Phase 6 19 層 byte-identical 對稱矩陣完備 / Phase 2 8/8 checkbox 全完成 / 加權平均 ~95-97% 商用級）
+## 1. 當前指標一覽（Sprint 275 結尾 — Phase 2 Exit ④ cache hitRate 保留條件解除 + ChienYi v1 GO v4 升級 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Phase 2 Exit 6/6 全綠、零保留條件 / 三 corpus 十九層 byte-identical 對稱矩陣完備（含 raw byte 99.6% / 98.6%）/ 加權平均 ~95-97% 商用級）
 
 | 指標 | 數值 |
 |---|---|

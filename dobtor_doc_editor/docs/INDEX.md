@@ -60,7 +60,7 @@ Sprint 64b portal font infra、Sprint 66 font endpoint tests、Sprint 67 CONTRIB
 
 | Retro | 範圍 | 觸發點 |
 |---|---|---|
-| [sprint50_66_retro](sprint50_66_retro.md) | Sprint 50-66、17 sprint | cache + FontMetricsAdapter 方法論萃取 |
+|、[sprint275_phase2_exit_cache_hitrate_verified](sprint275_phase2_exit_cache_hitrate_verified.md)（**Phase 2 Exit ④ cache hitRate 保留條件解除 + ChienYi v1 GO v4 升級 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐**、純測試 / 紀律 #1.b 零 production code / Sprint 269 保留條件解除；Layout pass 模擬量測 ShapingEngine cache hitRate；場景 1 兩 pass (cold+warm)：Pass 1 cold hitRate 0.2969（同段落重複字 19/64 hit）/ Pass 2 warm hitRate **1.0000** / cumulative **0.6484 > 0.5** ✅；場景 2 trial-and-error 5 passes：cold 0.2969 → warm 1-4 全 **1.0000**；場景 3 multi-size resize：每 sizePt 內 warm **1.0000**（cache key 含 sizePt）；Phase 2 Exit Criteria 從 ⑤/⑥ + ④ 保留條件 → **6/6 全綠、零保留條件**；vitest 2083 → 2086（+3 cache test）零 regression / VR 第 68 連 maintained） [sprint50_66_retro](sprint50_66_retro.md) | Sprint 50-66、17 sprint | cache + FontMetricsAdapter 方法論萃取 |
 | [sprint121_142_retro](sprint121_142_retro.md) | Sprint 121-142、22 sprint | wire-up + autonomous 邊界 |
 | [sprint143_148_retro](sprint143_148_retro.md) | Sprint 143-148、6 sprint | capture-only 模式成熟 |
 | [sprint145_153_retro](sprint145_153_retro.md) | Sprint 145-153、9 sprint | 整數里程碑 + 進階變體 explicit + scope drift 揭示 |
