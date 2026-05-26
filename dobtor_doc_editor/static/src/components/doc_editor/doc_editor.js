@@ -204,6 +204,12 @@ export class DocEditor extends Component {
             activeFontFamily: '',           // 空字串 = 預設字型
             activeFontSize: '16',           // canvas-editor 預設 16；select option value 是字串
             activeRowFlex: 'left',          // 'left'|'center'|'right'|'alignment'
+            // ─── Sprint Y9：dark mode（UI shell 深色化；canvas 紙張仍白色保持列印 WYSIWYG）
+            // 從 localStorage 還原上次設定；查看 menu 可切換
+            darkMode: (() => {
+                try { return localStorage.getItem('dobtor_doc_editor_dark_mode') === '1'; }
+                catch (e) { return false; }
+            })(),
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -3486,6 +3492,11 @@ export class DocEditor extends Component {
 
                 case 'view:toggle-ruler': this.state.showRuler = !this.state.showRuler; break;
                 case 'view:toggle-thumbnails': this.state.showThumbnails = !this.state.showThumbnails; break;
+                case 'view:toggle-dark':
+                    this.state.darkMode = !this.state.darkMode;
+                    try { localStorage.setItem('dobtor_doc_editor_dark_mode', this.state.darkMode ? '1' : '0'); }
+                    catch (e) { /* ignore quota */ }
+                    break;
                 case 'view:zoom-50': this._setZoom(0.5); break;
                 case 'view:zoom-100': this._setZoom(1); break;
                 case 'view:zoom-150': this._setZoom(1.5); break;
@@ -3786,6 +3797,7 @@ export class DocEditor extends Component {
                 items: [
                     { label: this.state.showRuler ? '✓ 顯示尺規' : '   顯示尺規', action: 'view:toggle-ruler' },
                     { label: this.state.showThumbnails ? '✓ 顯示縮圖' : '   顯示縮圖', action: 'view:toggle-thumbnails' },
+                    { label: this.state.darkMode ? '✓ 深色模式' : '   深色模式', action: 'view:toggle-dark' },
                     { type: 'separator' },
                     { label: '縮放 50%', action: 'view:zoom-50' },
                     { label: '縮放 100%', action: 'view:zoom-100' },

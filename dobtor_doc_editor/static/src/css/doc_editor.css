@@ -2330,3 +2330,69 @@
     padding: 0;
     cursor: pointer;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Sprint Y9 — Dark mode（UI shell 深色化；canvas 紙張仍白色保留列印 WYSIWYG）
+   觸發：查看 menu「深色模式」toggle → state.darkMode → root class .is-dark-mode
+   持久化：localStorage 'dobtor_doc_editor_dark_mode'
+   ──────────────────────────────────────────────────────────────────────
+   策略：override Sprint Y 既有 --gd-* token；UI surface 全部跟著變
+   留白：--gd-paper-bg 不動，canvas 紙張保白；只把工作區背景 --gd-bg 改深
+        讓白紙在深色 workspace 內視覺對比
+   ════════════════════════════════════════════════════════════════════════ */
+
+.o_dobtor_doc_editor.is-dark-mode {
+    --gd-bg: #1f1f1f;                          /* workspace 灰底 */
+    --gd-paper-bg: #ffffff;                    /* canvas 紙張保白（列印 WYSIWYG）*/
+    --gd-toolbar-bg: #2a2a2a;                  /* header / menubar / toolbars */
+    --gd-toolbar-border: #3a3a3a;
+    --gd-text: #e8eaed;
+    --gd-text-muted: #9aa0a6;
+    --gd-accent: #8ab4f8;                      /* Google blue dark variant */
+    --gd-accent-soft: #2d3a52;                 /* accent translucent on dark */
+    --gd-hover-bg: rgba(255, 255, 255, 0.08);
+    --gd-shadow-toolbar: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+    --gd-shadow-paper: 0 2px 12px rgba(0, 0, 0, 0.5);
+    background: var(--gd-bg);
+    color: var(--gd-text);
+}
+
+/* dropdown / panel / find-replace 等浮層白底需 override 為深色面板 */
+.o_dobtor_doc_editor.is-dark-mode .doc-dropdown,
+.o_dobtor_doc_editor.is-dark-mode .doc-find-replace-panel {
+    background: #2a2a2a;
+    color: var(--gd-text);
+    border-color: var(--gd-toolbar-border);
+}
+
+.o_dobtor_doc_editor.is-dark-mode .doc-find-input,
+.o_dobtor_doc_editor.is-dark-mode .doc-replace-input,
+.o_dobtor_doc_editor.is-dark-mode .doc-format-select,
+.o_dobtor_doc_editor.is-dark-mode .doc-find-btn-text {
+    background: #1f1f1f;
+    color: var(--gd-text);
+    border-color: var(--gd-toolbar-border);
+}
+
+/* select option 在某些瀏覽器繼承 select 樣式，明確指定深色 */
+.o_dobtor_doc_editor.is-dark-mode .doc-format-select option {
+    background: #1f1f1f;
+    color: var(--gd-text);
+}
+
+/* status bar / inspector 等次要區塊 */
+.o_dobtor_doc_editor.is-dark-mode .doc-statusbar,
+.o_dobtor_doc_editor.is-dark-mode .doc-inspector-panel,
+.o_dobtor_doc_editor.is-dark-mode .doc-thumbnail-panel {
+    background: var(--gd-toolbar-bg);
+    color: var(--gd-text-muted);
+}
+
+/* Header bar 標題輸入框 */
+.o_dobtor_doc_editor.is-dark-mode .doc-header-title {
+    background: transparent;
+    color: var(--gd-text);
+}
+.o_dobtor_doc_editor.is-dark-mode .doc-header-title:focus {
+    background: #1f1f1f;
+}

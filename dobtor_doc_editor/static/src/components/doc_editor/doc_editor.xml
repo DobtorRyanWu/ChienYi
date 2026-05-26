@@ -14,6 +14,7 @@
             Phase 1 不動 _initCanvasEditor 邏輯（仍掛在 .canvas-editor-container ref）。
         -->
         <div class="o_action o_dobtor_doc_editor"
+             t-att-class="{ 'is-dark-mode': state.darkMode }"
              role="application"
              aria-label="文件編輯器">
 
