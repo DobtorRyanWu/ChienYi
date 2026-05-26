@@ -9,7 +9,19 @@
  * Phase 6 範圍：自寫 Layout Engine 時取代 canvas-editor 的 measureText
  */
 
-export { ShapingEngine, __resetHbForTesting } from './ShapingEngine';
-export type { ShapedGlyph } from './ShapingEngine';
-export { readFontMetrics, lineHeightPt } from './FontMetrics';
-export type { FontMetricsResult } from './FontMetrics';
+export {
+  ShapingEngine,
+  __resetHbForTesting,
+  detectScript,
+  defaultLanguageForScript,
+  defaultDirectionForScript,
+} from './ShapingEngine';
+export type { ShapedGlyph, ShapeOptions, RunMetrics, ShapingCacheStats } from './ShapingEngine';
+export {
+  readFontMetrics,
+  lineHeightPt,
+  resolveOoxmlLineHeight,
+  baselineOffsetPt,
+  readOpentypeAdvances,
+} from './FontMetrics';
+export type { FontMetricsResult, OoxmlLineHeightResult, OpentypeAdvanceResult } from './FontMetrics';
