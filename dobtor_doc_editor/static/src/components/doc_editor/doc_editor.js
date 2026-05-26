@@ -58,6 +58,24 @@ export const FONT_OPTIONS = [
 ];
 export const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
 
+// ─── Sprint Y25：localStorage helper（統一 try/catch + 可選 JSON parse/stringify）
+// Y9 / Y13 / Y19 / Y23 各自寫過 4 次 boilerplate；Y25 抽成一致 API。
+// 設計重點：兩個 helper 都 _不_ throw，失敗（quota / private mode / 環境不支援）
+// 回傳 `null` (get) 或 `false` (set)，呼叫端用預設值 fallback。
+export function _lsGet(key, { json = false } = {}) {
+    try {
+        const raw = localStorage.getItem(key);
+        if (raw === null) return null;
+        return json ? JSON.parse(raw) : raw;
+    } catch (e) { return null; }
+}
+export function _lsSet(key, value, { json = false } = {}) {
+    try {
+        localStorage.setItem(key, json ? JSON.stringify(value) : String(value));
+        return true;
+    } catch (e) { return false; }
+}
+
 export const FIELD_TYPES = [
     { key: "name",       label: "名稱",     icon: "A",     ctrlType: "text" },
     { key: "email",      label: "電子郵件", icon: "A",     ctrlType: "text" },
@@ -205,15 +223,13 @@ export class DocEditor extends Component {
             // null = 關閉；'text' = 字色 palette 開；'highlight' = 背景色 palette 開
             showColorPalette: null,
             // ─── Sprint Y13：最近用色（各最多 6 個、localStorage 持久化）
+            //     Sprint Y25：改走 _lsGet helper
             recentColors: (() => {
-                try {
-                    const raw = localStorage.getItem('dobtor_doc_editor_recent_colors');
-                    const parsed = raw ? JSON.parse(raw) : null;
-                    return {
-                        text: Array.isArray(parsed?.text) ? parsed.text.slice(0, 6) : [],
-                        highlight: Array.isArray(parsed?.highlight) ? parsed.highlight.slice(0, 6) : [],
-                    };
-                } catch (e) { return { text: [], highlight: [] }; }
+                const parsed = _lsGet('dobtor_doc_editor_recent_colors', { json: true });
+                return {
+                    text: Array.isArray(parsed?.text) ? parsed.text.slice(0, 6) : [],
+                    highlight: Array.isArray(parsed?.highlight) ? parsed.highlight.slice(0, 6) : [],
+                };
             })(),
             // ─── Sprint Y7：format toolbar active state（caret/selection 反映目前格式）
             activeBold: false,
@@ -228,33 +244,30 @@ export class DocEditor extends Component {
             //     Sprint Y19：升級為三段 themeMode（auto / light / dark）
             // darkMode = 實際渲染用的 boolean（reactive、由 _recomputeDarkMode 維護）
             // themeMode = user 偏好（'auto' | 'light' | 'dark'）；'auto' 跟系統 prefers-color-scheme
+            // Sprint Y25：改走 _lsGet helper（含 Y9 legacy migration）
             themeMode: (() => {
-                try {
-                    // 新 key 優先；找不到再讀 Y9 舊 key 做 migration
-                    const v = localStorage.getItem('dobtor_doc_editor_theme_mode');
-                    if (v === 'auto' || v === 'light' || v === 'dark') return v;
-                    // Y9 legacy migration：明確存過 '1' → 'dark'、'0' → 'light'、其他（包含 null）→ 'auto'
-                    const legacy = localStorage.getItem('dobtor_doc_editor_dark_mode');
-                    if (legacy === '1') return 'dark';
-                    if (legacy === '0') return 'light';
-                    return 'auto';
-                } catch (e) { return 'auto'; }
+                const v = _lsGet('dobtor_doc_editor_theme_mode');
+                if (v === 'auto' || v === 'light' || v === 'dark') return v;
+                // Y9 legacy migration：明確存過 '1' → 'dark'、'0' → 'light'、其他（含 null）→ 'auto'
+                const legacy = _lsGet('dobtor_doc_editor_dark_mode');
+                if (legacy === '1') return 'dark';
+                if (legacy === '0') return 'light';
+                return 'auto';
             })(),
             darkMode: (() => {
                 // initial 估算（setup 內 _recomputeDarkMode 會 reconcile）
-                try {
-                    const v = localStorage.getItem('dobtor_doc_editor_theme_mode');
-                    const legacy = localStorage.getItem('dobtor_doc_editor_dark_mode');
-                    let mode = v;
-                    if (!mode) {
-                        if (legacy === '1') mode = 'dark';
-                        else if (legacy === '0') mode = 'light';
-                        else mode = 'auto';
-                    }
-                    if (mode === 'dark') return true;
-                    if (mode === 'light') return false;
-                    return window.matchMedia?.('(prefers-color-scheme: dark)')?.matches || false;
-                } catch (e) { return false; }
+                const v = _lsGet('dobtor_doc_editor_theme_mode');
+                const legacy = _lsGet('dobtor_doc_editor_dark_mode');
+                let mode = v;
+                if (!mode) {
+                    if (legacy === '1') mode = 'dark';
+                    else if (legacy === '0') mode = 'light';
+                    else mode = 'auto';
+                }
+                if (mode === 'dark') return true;
+                if (mode === 'light') return false;
+                try { return !!window.matchMedia?.('(prefers-color-scheme: dark)')?.matches; }
+                catch (e) { return false; }
             })(),
             // ─── Sprint Y17：文件設定 modal（紙張尺寸 / 方向 / margin）
             // showDocSettings = 是否開啟 modal；docSettingsForm = modal 內 form state
@@ -274,10 +287,8 @@ export class DocEditor extends Component {
             lineSpacingValue: 1.0,
             // ─── Sprint Y23：舊版 Row 3 工具列可選顯示（Y11 hide 後 default 仍隱藏；user 可 opt-in）
             // localStorage 存 '1' 顯示、'0' 或 null 隱藏
-            showLegacyToolbar: (() => {
-                try { return localStorage.getItem('dobtor_doc_editor_show_legacy_toolbar') === '1'; }
-                catch (e) { return false; }
-            })(),
+            // Sprint Y25：改走 _lsGet helper
+            showLegacyToolbar: _lsGet('dobtor_doc_editor_show_legacy_toolbar') === '1',
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -3720,9 +3731,8 @@ export class DocEditor extends Component {
                 case 'view:toggle-ruler': this.state.showRuler = !this.state.showRuler; break;
                 case 'view:toggle-legacy-toolbar':
                     this.state.showLegacyToolbar = !this.state.showLegacyToolbar;
-                    try { localStorage.setItem('dobtor_doc_editor_show_legacy_toolbar',
-                                               this.state.showLegacyToolbar ? '1' : '0'); }
-                    catch (e) { /* ignore quota */ }
+                    _lsSet('dobtor_doc_editor_show_legacy_toolbar',
+                           this.state.showLegacyToolbar ? '1' : '0');
                     break;
                 case 'view:toggle-thumbnails': this.state.showThumbnails = !this.state.showThumbnails; break;
                 case 'view:cycle-theme': this.onCycleTheme(); break;
@@ -3962,8 +3972,7 @@ export class DocEditor extends Component {
         const cur = this.state.themeMode;
         const next = cur === 'auto' ? 'light' : cur === 'light' ? 'dark' : 'auto';
         this.state.themeMode = next;
-        try { localStorage.setItem('dobtor_doc_editor_theme_mode', next); }
-        catch (e) { /* ignore quota / private mode */ }
+        _lsSet('dobtor_doc_editor_theme_mode', next);
         this._recomputeDarkMode();
         this.notification?.add?.(`外觀：${this._themeLabel()}`, { type: 'info' });
     }
@@ -3973,12 +3982,7 @@ export class DocEditor extends Component {
         // kind = 'text' | 'highlight'；只清那一組、不動另一組
         if (kind !== 'text' && kind !== 'highlight') return;
         this.state.recentColors[kind] = [];
-        try {
-            localStorage.setItem(
-                'dobtor_doc_editor_recent_colors',
-                JSON.stringify(this.state.recentColors),
-            );
-        } catch (e) { /* ignore quota / private mode */ }
+        _lsSet('dobtor_doc_editor_recent_colors', this.state.recentColors, { json: true });
     }
 
     _requestFullscreen() {
@@ -4155,12 +4159,7 @@ export class DocEditor extends Component {
         const filtered = list.filter(c => String(c).toLowerCase() !== norm);
         // 前端 push、限 6 個（OWL reactive：整個替換 array 才會觸發 re-render）
         this.state.recentColors[type] = [color, ...filtered].slice(0, 6);
-        try {
-            localStorage.setItem(
-                'dobtor_doc_editor_recent_colors',
-                JSON.stringify(this.state.recentColors)
-            );
-        } catch (e) { /* quota / SSR — 忽略 */ }
+        _lsSet('dobtor_doc_editor_recent_colors', this.state.recentColors, { json: true });
     }
 
     // ─── Sprint Y6：字色 / 背景色（保留：「自訂色」逃生口仍用 native input）───
