@@ -240,13 +240,20 @@ export class ParagraphParser {
           // commentRangeEnd 純結尾標記、id 與 Start 相同、不重複收集
           break;
         case 'w:ins':
-        case 'w:del': {
+        case 'w:del':
+        case 'w:moveFrom':
+        case 'w:moveTo': {
           // Sprint 174（Phase 5.4 追蹤修訂）：`<w:ins>` 插入 / `<w:del>` 刪除
-          //   容器包裹 `<w:r>`，展平 runs 並標記 revision（author / date / id）。
-          //   `<w:del>` 內 run 的文字在 `<w:delText>` —— parseRun 已支援。
+          // Sprint 290 補（Phase 5.4）：`<w:moveFrom>` / `<w:moveTo>` 移動 來源/目的
+          //   四種容器都包裹 `<w:r>`，展平 runs 並標記 revision（author / date / id）。
+          //   `<w:del>` / `<w:moveFrom>` 內 run 的文字在 `<w:delText>` —— parseRun 已支援。
           //   Scope-down（紀律 #18）：只處理直接 `<w:r>` 子元素；巢狀 ins/del、
-          //   ins/del 內含 hyperlink、moveFrom/moveTo、段落標記修訂留後續 sprint。
-          const revType = child.tagName === 'w:ins' ? 'ins' : 'del';
+          //   ins/del 內含 hyperlink、段落標記修訂、pPrChange/rPrChange 留後續 sprint。
+          const revType =
+            child.tagName === 'w:ins' ? 'ins'
+              : child.tagName === 'w:del' ? 'del'
+                : child.tagName === 'w:moveFrom' ? 'moveFrom'
+                  : 'moveTo';
           const revision = parseRevision(child, revType);
           for (const r of effectiveChildren(child)) {
             if (r.tagName !== 'w:r') continue;
@@ -305,12 +312,13 @@ export class ParagraphParser {
 }
 
 /**
- * Sprint 174：解析 `<w:ins>` / `<w:del>` 的 w:author / w:date / w:id 為 RunRevision。
+ * Sprint 174 / 290：解析 `<w:ins>` / `<w:del>` / `<w:moveFrom>` / `<w:moveTo>` 的
+ * w:author / w:date / w:id 為 RunRevision。
  *
- * @param el `<w:ins>` 或 `<w:del>` 元素
- * @param type 'ins'（插入）或 'del'（刪除）
+ * @param el 四種追蹤修訂容器元素之一
+ * @param type 'ins' 插入 / 'del' 刪除 / 'moveFrom' 移動來源 / 'moveTo' 移動目的
  */
-function parseRevision(el: Element, type: 'ins' | 'del'): RunRevision {
+function parseRevision(el: Element, type: RunRevision['type']): RunRevision {
   const rev: RunRevision = { type };
   const author = el.getAttribute('w:author');
   if (author) rev.author = author;

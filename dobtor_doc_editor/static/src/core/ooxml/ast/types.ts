@@ -199,14 +199,19 @@ export interface RunNode {
 }
 
 /**
- * Sprint 174（Phase 5.4 追蹤修訂）：run 的追蹤修訂標記（OOXML §17.13.5.18 / §17.13.5.14）。
+ * Sprint 174（Phase 5.4 追蹤修訂）：run 的追蹤修訂標記
+ * （OOXML §17.13.5.18 / §17.13.5.14 / §17.13.5.22 / §17.13.5.25）。
  *
- * `<w:ins>` 包裹的 run = 插入；`<w:del>` 包裹的 run = 刪除（內含 `<w:delText>`）。
- * capture-only —— render（插入底線 / 刪除刪除線）留後續 sprint。
+ * - `<w:ins>` 包裹的 run = 插入
+ * - `<w:del>` 包裹的 run = 刪除（內含 `<w:delText>`）
+ * - Sprint 290 補：`<w:moveFrom>` 包裹的 run = 移動來源（被移走的原文）
+ * - Sprint 290 補：`<w:moveTo>` 包裹的 run = 移動目的地（移動後的位置）
+ *
+ * capture-only —— render（插入底線 / 刪除刪除線 / move 標記）留後續 sprint。
  */
 export interface RunRevision {
-  /** 'ins' = 插入修訂；'del' = 刪除修訂。 */
-  type: 'ins' | 'del';
+  /** 'ins' 插入 / 'del' 刪除 / 'moveFrom' 移動來源 / 'moveTo' 移動目的（Sprint 290） */
+  type: 'ins' | 'del' | 'moveFrom' | 'moveTo';
   /** `w:author` 修訂者。 */
   author?: string;
   /** `w:date` 修訂時間（ISO 字串、capture raw、未轉 Date）。 */
