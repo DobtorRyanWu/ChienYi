@@ -27,3 +27,9 @@ export type { BrowserWorkerDispatcherOptions } from './BrowserWorkerDispatcher';
 // Sprint 307：worker pool round-robin（compose existing dispatchers）
 export { WorkerPoolDispatcher } from './WorkerPoolDispatcher';
 export type { WorkerPoolDispatcherOptions } from './WorkerPoolDispatcher';
+// Sprint 312：worker observability wrapper（latency / error rate / timeout）
+export { WorkerHealthMonitor } from './WorkerHealthMonitor';
+export type {
+  WorkerHealthStats,
+  WorkerHealthMonitorOptions,
+} from './WorkerHealthMonitor';

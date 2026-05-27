@@ -19,3 +19,11 @@ export type {
 // Sprint 305：逐筆審 revision 狀態機（UI-agnostic）
 export { RevisionReviewSession } from './RevisionReviewSession';
 export type { ReviewChoice, ReviewSessionStats } from './RevisionReviewSession';
+
+// Sprint 310：人類可讀 revision diff summary（by author / by type / markdown）
+export {
+  summarizeByAuthor,
+  summarizeByType,
+  formatSummaryMarkdown,
+} from './RevisionDiffSummary';
+export type { AuthorSummary, TypeSummary } from './RevisionDiffSummary';

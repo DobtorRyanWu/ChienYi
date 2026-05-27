@@ -52,3 +52,10 @@ export type {
   CanvasEditorMeasureBridgeOptions,
   TextMetricsLike,
 } from './CanvasEditorMeasureBridge';
+// Sprint 308：Canvas-editor measureText patch PROBE
+export { wrapCanvasContext, canSafelyPatchPrototype } from './CanvasEditorPatchProbe';
+export type {
+  MinimalCanvasContextForPatch,
+  WrapCanvasContextOptions,
+  PatchProbeStats,
+} from './CanvasEditorPatchProbe';

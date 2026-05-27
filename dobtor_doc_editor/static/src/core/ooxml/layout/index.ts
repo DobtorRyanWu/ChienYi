@@ -54,3 +54,12 @@ export type {
   CanvasPolygonCommand,
   MinimalCanvasContext,
 } from './wrap_polygon_render';
+
+// Sprint 309：wrap polygon paginator helpers（split + shift across pages）
+export {
+  splitPolygonAcrossPages,
+  clipPolygonToYRange,
+  shiftPolygonForPage,
+  preparePolygonForPages,
+} from './wrap_polygon_paginator';
+export type { PageYRange } from './wrap_polygon_paginator';
