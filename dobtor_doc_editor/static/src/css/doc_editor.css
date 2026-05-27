@@ -2189,9 +2189,18 @@
     transition: background 120ms ease, border-color 120ms ease;
 }
 
-.o_dobtor_doc_editor .doc-find-btn-text:hover {
+.o_dobtor_doc_editor .doc-find-btn-text:hover:not(:disabled) {
     background: var(--gd-hover-bg);
     border-color: var(--gd-text-muted);
+}
+
+/* Sprint Y32：findMatchCount === 0 時 disabled 視覺 */
+.o_dobtor_doc_editor .doc-find-btn-text:disabled {
+    color: var(--gd-text-muted);
+    background: var(--gd-hover-bg);
+    border-color: var(--gd-toolbar-border);
+    cursor: not-allowed;
+    opacity: 0.6;
 }
 
 /* Sprint Y10：find/replace match count 顯示「3 / 12」 */

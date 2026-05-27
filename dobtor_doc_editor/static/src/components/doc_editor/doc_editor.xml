@@ -691,8 +691,15 @@
                                    t-att-value="state.replaceText"
                                    t-on-input="onReplaceTextInput"
                                    aria-label="取代為"/>
-                            <button class="doc-find-btn-text" t-on-click="onReplaceOnce">取代</button>
-                            <button class="doc-find-btn-text" t-on-click="onReplaceAll">全部取代</button>
+                            <!-- Sprint Y32：findMatchCount === 0 時 disabled、防 user 浪費 click -->
+                            <button class="doc-find-btn-text"
+                                    t-on-click="onReplaceOnce"
+                                    t-att-disabled="state.findMatchCount === 0"
+                                    title="取代當前 match">取代</button>
+                            <button class="doc-find-btn-text"
+                                    t-on-click="onReplaceAll"
+                                    t-att-disabled="state.findMatchCount === 0"
+                                    title="全部取代">全部取代</button>
                         </div>
                     </div>
                     <div class="canvas-editor-container" t-ref="canvasContainer">
