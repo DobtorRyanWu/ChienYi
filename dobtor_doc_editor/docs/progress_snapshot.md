@@ -8,7 +8,7 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 317 結尾 — 「繼續執行」honest gap 5 項第五輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 313-317 cluster：① CanvasEditorFontResolver + ③ wrap_polygon_baseline + ④ RevisionConflictDetector + ⑤ OverlayKeyboardCommands + ⑥ WorkerCircuitBreaker / +83 tests / vitest 預期 2529 / 雙驗紀律 ✅）
+## 1. 當前指標一覽（Sprint 317 結尾 — 「繼續執行」honest gap 5 項第五輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 313-317 cluster：① CanvasEditorFontResolver + ③ wrap_polygon_baseline + ④ RevisionConflictDetector + ⑤ OverlayKeyboardCommands + ⑥ WorkerCircuitBreaker / +83 tests / vitest 2529 / 雙驗紀律 ✅）
 
 ## 1. （舊）Sprint 312 結尾 — 「繼續執行」honest gap 5 項第四輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 308-312 cluster：① CanvasEditorPatchProbe + ③ wrap_polygon_paginator + ④ RevisionDiffSummary + ⑤ OverlaySelectionState + ⑥ WorkerHealthMonitor / +59 tests / vitest 2446 / 雙驗紀律 ✅）
 
