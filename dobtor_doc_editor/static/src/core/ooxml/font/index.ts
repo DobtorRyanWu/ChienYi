@@ -39,3 +39,10 @@ export type {
   LoadShapingFontWithChainOptions,
   LoadShapingFontResult,
 } from './ShapingFontChain';
+// Sprint 302：canvas-editor measureText proxy PROBE
+export { TextMeasureProxy } from './TextMeasureProxy';
+export type {
+  MeasureRunFn,
+  TextMeasureProxyOptions,
+  TextMeasureCacheEntry,
+} from './TextMeasureProxy';
