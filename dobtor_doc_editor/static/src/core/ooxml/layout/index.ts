@@ -81,3 +81,13 @@ export {
   clusterByOverlap,
 } from './wrap_polygon_union';
 export type { BoundingBoxRect } from './wrap_polygon_union';
+
+// Sprint 324：wrap polygon anchor + dist margin resolver
+export {
+  inflateByDistMargins,
+  resolveAnchorPolygon,
+  inflateAbsolutePolygon,
+  totalHorizontalMargin,
+  totalVerticalMargin,
+} from './wrap_polygon_anchor';
+export type { DistMargins } from './wrap_polygon_anchor';

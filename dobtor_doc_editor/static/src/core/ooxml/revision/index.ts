@@ -51,3 +51,15 @@ export type {
   FilterViewOptions,
   FilterStats,
 } from './RevisionFilter';
+
+// Sprint 325：revision timeline buckets
+export {
+  buildTimeline,
+  summarizeTimeline,
+} from './RevisionTimelineBuilder';
+export type {
+  TimelineGranularity,
+  TimelineBucket,
+  BuildTimelineOptions,
+  TimelineStats,
+} from './RevisionTimelineBuilder';

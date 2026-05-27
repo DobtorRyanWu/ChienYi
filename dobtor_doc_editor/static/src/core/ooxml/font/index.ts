@@ -69,3 +69,15 @@ export type {
   PipelineStats,
   CanvasContextForPipeline,
 } from './CanvasEditorPipeline';
+// Sprint 323：heuristic prewarm strategies
+export {
+  collectPrewarmCandidates,
+  classifyCharset,
+  byTopFrequency,
+  byFontFamilyWhitelist,
+  byCharsetClassification,
+} from './CanvasEditorPrewarmStrategy';
+export type {
+  PrewarmEntry,
+  PrewarmEntryWithMeta,
+} from './CanvasEditorPrewarmStrategy';

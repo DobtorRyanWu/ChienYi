@@ -46,3 +46,9 @@ export type {
   LoadBalanceStrategy,
   WorkerLoadBalancerOptions,
 } from './WorkerLoadBalancer';
+// Sprint 327：retry wrapper with exponential backoff
+export { WorkerRetryWrapper } from './WorkerRetryWrapper';
+export type {
+  WorkerRetryWrapperOptions,
+  RetryStats,
+} from './WorkerRetryWrapper';
