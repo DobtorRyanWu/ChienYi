@@ -25,3 +25,12 @@ export type {
   ParagraphLayoutResult,
   ParagraphLayoutWithChainResult,
 } from './LayoutPipeline';
+
+// Sprint 296：wrapTight polygon layout 數學工具（pure-fn、layout engine 整合留 future）
+export {
+  transformWrapPolygon,
+  polygonBoundingBox,
+  pointInPolygon,
+  rectIntersectsPolygon,
+} from './wrap_polygon_math';
+export type { ImageRect, PolygonBoundingBox } from './wrap_polygon_math';
