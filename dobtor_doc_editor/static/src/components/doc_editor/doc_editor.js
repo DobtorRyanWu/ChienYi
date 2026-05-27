@@ -3920,11 +3920,17 @@ export class DocEditor extends Component {
         this.state.showLineSpacing = false;
     }
 
-    onLineSpacingSet(value) {
+    onLineSpacingSet(value, ev = null) {
         const n = Number(value);
-        if (!isNaN(n)) {
-            // canvas-editor 對 rowMargin 沒做上下界、但 < 0.5 視覺破壞、> 5 浪費 — clamp 安全範圍
-            this.state.lineSpacingValue = Math.max(0.5, Math.min(5, n));
+        if (isNaN(n)) return;
+        // canvas-editor 對 rowMargin 沒做上下界、但 < 0.5 視覺破壞、> 5 浪費 — clamp 安全範圍
+        const clamped = Math.max(0.5, Math.min(5, n));
+        this.state.lineSpacingValue = clamped;
+        // Sprint Y28：user 打超過上下界時 input UI 也立刻反映 clamp 值
+        // OWL `t-att-value` 只寫 attribute、不會覆蓋 user input 的 .value property、
+        // 必須手動 set .value 才看得到 clamp。preset 按鈕走另一條（沒 ev）、不影響。
+        if (ev?.target && String(clamped) !== String(value)) {
+            ev.target.value = String(clamped);
         }
     }
 

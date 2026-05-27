@@ -1228,7 +1228,7 @@
                                 <label>行距倍數</label>
                                 <input type="number" min="0.5" max="5" step="0.05"
                                        t-att-value="state.lineSpacingValue"
-                                       t-on-input="(ev) => this.onLineSpacingSet(ev.target.value)"/>
+                                       t-on-input="(ev) => this.onLineSpacingSet(ev.target.value, ev)"/>
                             </div>
                             <div class="doc-modal-field">
                                 <label>預設值</label>
