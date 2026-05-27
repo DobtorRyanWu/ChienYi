@@ -511,7 +511,34 @@ export function parseParagraphProps(pPr: Element): ParagraphProps {
     }
   }
 
+  // Sprint 293：<w:pPrChange> 段落屬性修訂（capture-only）
+  const pPrChangeEl = directChild(pPr, 'w:pPrChange');
+  if (pPrChangeEl) {
+    const meta = parseTrackChangeAttrs(pPrChangeEl);
+    if (meta) props.pPrChange = meta;
+  }
+
   return props;
+}
+
+/**
+ * Sprint 293：解析 w:pPrChange / w:rPrChange / w:cellIns / w:cellDel / w:cellMerge
+ * 的 author/date/id 屬性為 TrackChangeMeta。
+ *
+ * 任何屬性都有值 → 回 meta；全缺 → 回 {} 仍視為有效標記（OOXML 規範允許）。
+ */
+function parseTrackChangeAttrs(el: Element): { author?: string; date?: string; id?: number } | undefined {
+  const meta: { author?: string; date?: string; id?: number } = {};
+  const author = el.getAttribute('w:author');
+  if (author) meta.author = author;
+  const date = el.getAttribute('w:date');
+  if (date) meta.date = date;
+  const idRaw = el.getAttribute('w:id');
+  if (idRaw) {
+    const n = parseInt(idRaw, 10);
+    if (Number.isFinite(n)) meta.id = n;
+  }
+  return meta;
 }
 
 // ── Sprint 134：w:framePr 段落框基礎屬性解析 ────────────────────────────────
@@ -759,6 +786,13 @@ export function parseRunProps(rPr: Element): RunProps {
 
   const lang = attr(directChild(rPr, 'w:lang'), 'w:val');
   if (lang) props.lang = lang;
+
+  // Sprint 293：<w:rPrChange> run 屬性修訂（capture-only、不解 old rPr 子樹）
+  const rPrChangeEl = directChild(rPr, 'w:rPrChange');
+  if (rPrChangeEl) {
+    const meta = parseTrackChangeAttrs(rPrChangeEl);
+    if (meta) props.rPrChange = meta;
+  }
 
   return props;
 }

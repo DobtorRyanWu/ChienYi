@@ -32,6 +32,7 @@ import type {
   RowNode,
   StyleMap,
   TableNode,
+  TrackChangeMeta,
 } from '../ast/types';
 import { DocumentParser } from '../document/DocumentParser';
 import { twipToPt } from '../units/units';
@@ -61,6 +62,10 @@ interface RawCell {
   noWrap?: boolean;
   fitText?: boolean;
   textDirection?: 'lrTb' | 'tbRl' | 'btLr' | 'lrTbV' | 'tbRlV' | 'tbLrV';
+  /** Sprint 293：tracked changes（capture-only） */
+  cellIns?: TrackChangeMeta;
+  cellDel?: TrackChangeMeta;
+  cellMerge?: TrackChangeMeta & { val?: 'vert' | 'rest' | 'cont'; vMerge?: 'cont' | 'rest' };
 }
 
 interface RawRow {
@@ -204,6 +209,10 @@ export class TableParser {
     let noWrap: boolean | undefined;
     let fitText: boolean | undefined;
     let textDirection: RawCell['textDirection'];
+    // Sprint 293：tracked cell changes（capture-only）
+    let cellIns: TrackChangeMeta | undefined;
+    let cellDel: TrackChangeMeta | undefined;
+    let cellMerge: RawCell['cellMerge'];
 
     const tcPr = directChild(tc, 'w:tcPr');
     if (tcPr) {
@@ -270,6 +279,21 @@ export class TableParser {
       ) {
         textDirection = tdVal;
       }
+
+      // Sprint 293：cellIns / cellDel / cellMerge 追蹤修訂 capture-only
+      const cellInsEl = directChild(tcPr, 'w:cellIns');
+      if (cellInsEl) cellIns = parseTrackChangeAttrsTbl(cellInsEl);
+      const cellDelEl = directChild(tcPr, 'w:cellDel');
+      if (cellDelEl) cellDel = parseTrackChangeAttrsTbl(cellDelEl);
+      const cellMergeEl = directChild(tcPr, 'w:cellMerge');
+      if (cellMergeEl) {
+        const meta = parseTrackChangeAttrsTbl(cellMergeEl);
+        const valRaw = cellMergeEl.getAttribute('w:val');
+        const vMergeRaw = cellMergeEl.getAttribute('w:vMerge');
+        cellMerge = { ...meta };
+        if (valRaw === 'vert' || valRaw === 'rest' || valRaw === 'cont') cellMerge.val = valRaw;
+        if (vMergeRaw === 'cont' || vMergeRaw === 'rest') cellMerge.vMerge = vMergeRaw;
+      }
     }
 
     // 內容：reuse DocumentParser.parseBodyContent；
@@ -285,6 +309,10 @@ export class TableParser {
     if (noWrap) out.noWrap = noWrap;
     if (fitText) out.fitText = fitText;
     if (textDirection) out.textDirection = textDirection;
+    // Sprint 293：tracked changes（cellIns/Del/Merge）只在掛上時 propagate
+    if (cellIns) out.cellIns = cellIns;
+    if (cellDel) out.cellDel = cellDel;
+    if (cellMerge) out.cellMerge = cellMerge;
     return out;
   }
 
@@ -302,6 +330,10 @@ export class TableParser {
       if (rc.noWrap) props.noWrap = rc.noWrap;
       if (rc.fitText) props.fitText = rc.fitText;
       if (rc.textDirection) props.textDirection = rc.textDirection;
+      // Sprint 293：tracked cell changes
+      if (rc.cellIns) props.cellIns = rc.cellIns;
+      if (rc.cellDel) props.cellDel = rc.cellDel;
+      if (rc.cellMerge) props.cellMerge = rc.cellMerge;
 
       const cell: CellNode = {
         type: 'cell',
@@ -519,6 +551,24 @@ function boolFlag(el: Element | undefined): boolean {
   const v = el.getAttribute('w:val');
   if (v === null) return true;
   return v !== '0' && v.toLowerCase() !== 'false';
+}
+
+/**
+ * Sprint 293：解析 w:cellIns / w:cellDel / w:cellMerge 的 author/date/id 屬性。
+ * 屬性全缺 → 仍回 {}（OOXML 允許）。
+ */
+function parseTrackChangeAttrsTbl(el: Element): TrackChangeMeta {
+  const meta: TrackChangeMeta = {};
+  const author = el.getAttribute('w:author');
+  if (author) meta.author = author;
+  const date = el.getAttribute('w:date');
+  if (date) meta.date = date;
+  const idRaw = el.getAttribute('w:id');
+  if (idRaw) {
+    const n = parseInt(idRaw, 10);
+    if (Number.isFinite(n)) meta.id = n;
+  }
+  return meta;
 }
 
 // ── 對外型別 ──────────────────────────────────────────────────────────────────

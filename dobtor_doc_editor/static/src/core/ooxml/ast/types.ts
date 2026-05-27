@@ -76,6 +76,26 @@ export interface RunProps {
   vertAlign?: VertAlign;
   spacing?: Pt;                 // 字元間距 w:spacing
   lang?: string;                // w:lang val
+  /** Sprint 293：`<w:rPrChange>` run 屬性修訂（OOXML §17.13.5.31）。 */
+  rPrChange?: TrackChangeMeta;
+}
+
+/**
+ * Sprint 293：追蹤修訂共用 metadata（author / date / id）。
+ *
+ * 用於 pPrChange / rPrChange / cellIns / cellDel / cellMerge 等屬性級或
+ * 結構級追蹤修訂。與 RunRevision（包裹 run 的 ins/del/moveFrom/moveTo）不同，
+ * 這些 *Change 為「就地註記」改變了什麼，不展開 runs。
+ *
+ * 紀律 #21 capture-only：parser 補完整、writer/render 不消費。
+ */
+export interface TrackChangeMeta {
+  /** w:author 修訂者 */
+  author?: string;
+  /** w:date 修訂時間（ISO 字串、capture raw） */
+  date?: string;
+  /** w:id 修訂編號 */
+  id?: number;
 }
 
 // ── 段落屬性 ──────────────────────────────────────────────────────────────────
@@ -159,6 +179,8 @@ export interface ParagraphProps {
     x?: Pt;   // w:x 絕對位置（與 xAlign 互斥）
     y?: Pt;   // w:y 絕對位置（與 yAlign 互斥）
   };
+  /** Sprint 293：`<w:pPrChange>` 段落屬性修訂（OOXML §17.13.5.27）。 */
+  pPrChange?: TrackChangeMeta;
 }
 
 // ── 文件內嵌元素（Inline Nodes）──────────────────────────────────────────────
@@ -648,6 +670,17 @@ export interface CellNode {
     //   垂直 + glyph 旋轉（V suffix）：lrTbV / tbRlV / tbLrV — Sprint 34 加入
     //   tbRlV 最常見（中文表單第一欄直書「工程名稱」「抽查地點」）
     textDirection?: 'lrTb' | 'tbRl' | 'btLr' | 'lrTbV' | 'tbRlV' | 'tbLrV';
+    /** Sprint 293：`<w:cellIns>` cell 插入修訂（OOXML §17.13.5.3）。 */
+    cellIns?: TrackChangeMeta;
+    /** Sprint 293：`<w:cellDel>` cell 刪除修訂（OOXML §17.13.5.2）。 */
+    cellDel?: TrackChangeMeta;
+    /**
+     * Sprint 293：`<w:cellMerge>` cell 合併/拆分修訂（OOXML §17.13.5.1）。
+     *
+     * `w:val="vert"` 或 `"rest"` 表示縱向合併變更；`w:vMerge="rest"|"cont"|"start"`
+     * 為原 vmerge 屬性、不在此 capture。
+     */
+    cellMerge?: TrackChangeMeta & { val?: 'vert' | 'rest' | 'cont'; vMerge?: 'cont' | 'rest' };
   };
 }
 
