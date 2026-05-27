@@ -8,7 +8,7 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 302 結尾 — 「繼續執行」honest gap 5 項第二輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 298-302 cluster：③ LineBreakerWithPolygon + ⑥ BrowserWorkerDispatcher + ④ AST accept/reject + ⑤ overlay multi-select + ① measureText proxy / +53 tests / vitest 2333 / 雙驗紀律 ✅）
+## 1. 當前指標一覽（Sprint 302 結尾 — 「繼續執行」honest gap 5 項第二輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 298-302 cluster：③ LineBreakerWithPolygon + ⑥ BrowserWorkerDispatcher + ④ AST accept/reject + ⑤ overlay multi-select + ① measureText proxy / +53 tests / vitest 2334 / 雙驗紀律 ✅）
 
 | 指標 | 數值 |
 |---|---|
