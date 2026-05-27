@@ -294,6 +294,36 @@ export interface AnchorMetadata {
 export type AnchorWrapText = 'left' | 'right' | 'largest' | 'bothSides';
 
 /**
+ * Sprint 289：wp:wrapPolygon 點（OOXML §20.4.2.17 ST_Coordinate / §20.4.2.10）。
+ *
+ * 座標單位：drawing coordinates（不直接是 EMU）。Office 慣例 21600 ≈ 圖片全寬/高，
+ * 但實際數值由 Word 與圖片 extent 對應；caller 應視為 raw integer，render 時
+ * 配合 image extent 縮放（render 端未實作為 Phase 3.4 完整 wrapTight 範圍）。
+ */
+export interface WrapPolygonPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * Sprint 289：wp:wrapPolygon — 不規則多邊形繞排輪廓。
+ *
+ * 僅出現於 `<wp:wrapTight>` / `<wp:wrapThrough>`。OOXML §20.4.2.10：
+ *   - `<wp:start x y/>` 起點
+ *   - `<wp:lineTo x y/>` 多點線段（順時針或反時針都合法）
+ *   - 通常閉合：最後 lineTo 回到 start（render 不強制要求）
+ *   - `edited` 屬性：user 在 Word 內手動編輯過輪廓為 "1" / true
+ *
+ * 紀律 #18 scope-down：Sprint 289 為 capture-only；render 端 layout 走真實
+ * polygon clip 為 Phase 3.4 完整 wrapTight 範圍（未實作、留 future cluster）。
+ */
+export interface WrapPolygon {
+  edited?: boolean;
+  start: WrapPolygonPoint;
+  lineTo: WrapPolygonPoint[];
+}
+
+/**
  * Sprint 286：DrawingML `<wp:effectExtent l/t/r/b>` 陰影/光暈外擴。
  *
  * OOXML §20.4.2.6：四向 EMU 值，表示效果範圍超出 `<wp:extent>` 的外擴量。
@@ -367,6 +397,8 @@ export interface FloatImageNode {
   anchor?: AnchorMetadata;
   /** Sprint 287：wrap mode 的 wrapText attribute（default bothSides） */
   wrapText?: AnchorWrapText;
+  /** Sprint 289：wp:wrapTight/wp:wrapThrough 的 wrapPolygon 輪廓（如有） */
+  wrapPolygon?: WrapPolygon;
 }
 
 /**
@@ -421,6 +453,8 @@ export interface FloatTextBoxNode {
   anchor?: AnchorMetadata;
   /** Sprint 287：wrap mode 的 wrapText attribute */
   wrapText?: AnchorWrapText;
+  /** Sprint 289：wp:wrapTight/wp:wrapThrough 的 wrapPolygon 輪廓（如有） */
+  wrapPolygon?: WrapPolygon;
 }
 
 export type InlineNode = RunNode | FieldNode | BreakNode | InlineImageNode | FloatImageNode | FloatTextBoxNode | FootnoteReferenceNode | RubyNode;

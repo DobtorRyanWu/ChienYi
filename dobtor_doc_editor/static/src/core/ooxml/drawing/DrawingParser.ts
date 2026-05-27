@@ -22,7 +22,7 @@
  * Phase 5（規劃文件）：SmartArt / Charts 視為 fallback 圖片，仍經此 Parser。
  */
 
-import type { AnchorMetadata, AnchorWrapText, EffectExtent, FloatImageNode, FloatTextBoxNode, ImageSrcRect, InlineImageNode, ParagraphNode, Pt } from '../ast/types';
+import type { AnchorMetadata, AnchorWrapText, EffectExtent, FloatImageNode, FloatTextBoxNode, ImageSrcRect, InlineImageNode, ParagraphNode, Pt, WrapPolygon, WrapPolygonPoint } from '../ast/types';
 import { emuToPt } from '../units/units';
 
 /**
@@ -149,6 +149,9 @@ function parseFloatImage(el: Element): FloatImageNode {
   if (anchorMeta) node.anchor = anchorMeta;
   const wrapText = detectWrapText(el);
   if (wrapText) node.wrapText = wrapText;
+  // Sprint 289：wrapTight / wrapThrough 的 wrapPolygon 輪廓
+  const wrapPolygon = parseWrapPolygon(el);
+  if (wrapPolygon) node.wrapPolygon = wrapPolygon;
   return node;
 }
 
@@ -265,6 +268,9 @@ function parseFloatTextBox(
   if (anchorMeta) node.anchor = anchorMeta;
   const wrapText = detectWrapText(anchorEl);
   if (wrapText) node.wrapText = wrapText;
+  // Sprint 289：wrapTight / wrapThrough 的 wrapPolygon 輪廓（textbox 對稱）
+  const wrapPolygon = parseWrapPolygon(anchorEl);
+  if (wrapPolygon) node.wrapPolygon = wrapPolygon;
 
   // Sprint 39：解析 <wps:wsp> 內的 bodyPr / spPr（padding / 背景 / 邊框）
   const wsp = findWsp(anchorEl);
@@ -518,6 +524,67 @@ function detectWrapText(el: Element): AnchorWrapText | undefined {
     }
   }
   return undefined;
+}
+
+/**
+ * Sprint 289：解析 wp:wrapTight / wp:wrapThrough 內的 `<wp:wrapPolygon>`。
+ *
+ * 結構（OOXML §20.4.2.10）：
+ *   ```xml
+ *   <wp:wrapTight wrapText="bothSides">
+ *     <wp:wrapPolygon edited="1">
+ *       <wp:start x="0" y="0"/>
+ *       <wp:lineTo x="21337" y="0"/>
+ *       ...
+ *     </wp:wrapPolygon>
+ *   </wp:wrapTight>
+ *   ```
+ *
+ * 缺漏 `<wp:wrapPolygon>` / 無 `<wp:start>` / 無 `<wp:lineTo>` → undefined。
+ * 座標單位為 drawing coordinates（OOXML §20.4.2.17 ST_Coordinate）— 不直接是 EMU，
+ * caller 拿到的是 raw int；render 時應配合 image extent 縮放。
+ * 紀律 #18 scope-down：本函式只 capture、render 端 polygon clip 留 Phase 3.4 完整 wrapTight。
+ */
+function parseWrapPolygon(anchorEl: Element): WrapPolygon | undefined {
+  let wrapEl: Element | undefined;
+  for (const child of directChildren(anchorEl)) {
+    if (child.tagName === 'wp:wrapTight' || child.tagName === 'wp:wrapThrough') {
+      wrapEl = child;
+      break;
+    }
+  }
+  if (!wrapEl) return undefined;
+  const polyEl = directChild(wrapEl, 'wp:wrapPolygon');
+  if (!polyEl) return undefined;
+
+  const parsePoint = (el: Element): WrapPolygonPoint | undefined => {
+    const xRaw = el.getAttribute('x');
+    const yRaw = el.getAttribute('y');
+    if (xRaw === null || yRaw === null) return undefined;
+    const x = parseInt(xRaw, 10);
+    const y = parseInt(yRaw, 10);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return undefined;
+    return { x, y };
+  };
+
+  const startEl = directChild(polyEl, 'wp:start');
+  if (!startEl) return undefined;
+  const start = parsePoint(startEl);
+  if (!start) return undefined;
+
+  const lineTo: WrapPolygonPoint[] = [];
+  for (const child of directChildren(polyEl)) {
+    if (child.tagName === 'wp:lineTo') {
+      const pt = parsePoint(child);
+      if (pt) lineTo.push(pt);
+    }
+  }
+  if (lineTo.length === 0) return undefined;
+
+  const editedRaw = polyEl.getAttribute('edited');
+  const polygon: WrapPolygon = { start, lineTo };
+  if (editedRaw === '1' || editedRaw === 'true') polygon.edited = true;
+  return polygon;
 }
 
 /**
