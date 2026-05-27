@@ -1178,25 +1178,25 @@
                                         <span>上</span>
                                         <input type="number" min="0" max="80" step="1"
                                                t-att-value="state.docSettingsForm.marginTopMm"
-                                               t-on-input="(ev) => this.onDocSettingsSet('marginTopMm', ev.target.value)"/>
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginTopMm', ev.target.value, ev)"/>
                                     </div>
                                     <div class="doc-modal-margin">
                                         <span>右</span>
                                         <input type="number" min="0" max="80" step="1"
                                                t-att-value="state.docSettingsForm.marginRightMm"
-                                               t-on-input="(ev) => this.onDocSettingsSet('marginRightMm', ev.target.value)"/>
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginRightMm', ev.target.value, ev)"/>
                                     </div>
                                     <div class="doc-modal-margin">
                                         <span>下</span>
                                         <input type="number" min="0" max="80" step="1"
                                                t-att-value="state.docSettingsForm.marginBottomMm"
-                                               t-on-input="(ev) => this.onDocSettingsSet('marginBottomMm', ev.target.value)"/>
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginBottomMm', ev.target.value, ev)"/>
                                     </div>
                                     <div class="doc-modal-margin">
                                         <span>左</span>
                                         <input type="number" min="0" max="80" step="1"
                                                t-att-value="state.docSettingsForm.marginLeftMm"
-                                               t-on-input="(ev) => this.onDocSettingsSet('marginLeftMm', ev.target.value)"/>
+                                               t-on-input="(ev) => this.onDocSettingsSet('marginLeftMm', ev.target.value, ev)"/>
                                     </div>
                                 </div>
                             </div>

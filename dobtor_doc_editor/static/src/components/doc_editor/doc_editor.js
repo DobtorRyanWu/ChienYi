@@ -3866,15 +3866,20 @@ export class DocEditor extends Component {
         this.state.showDocSettings = false;
     }
 
-    onDocSettingsSet(field, value) {
+    onDocSettingsSet(field, value, ev = null) {
         // input change handler — Numeric clamped to [0, 80] mm；format/direction 直接套
         if (field === 'format' || field === 'direction') {
             this.state.docSettingsForm[field] = value;
             return;
         }
         const n = Number(value);
-        if (!isNaN(n)) {
-            this.state.docSettingsForm[field] = Math.max(0, Math.min(80, n));
+        if (isNaN(n)) return;
+        const clamped = Math.max(0, Math.min(80, n));
+        this.state.docSettingsForm[field] = clamped;
+        // Sprint Y29：margin input clamp UX — 沿用 Y28 motif、user 打超範圍立刻看到
+        // clamp 值。OWL t-att-value 不會覆蓋 user typing 後的 .value property、手動寫。
+        if (ev?.target && String(clamped) !== String(value)) {
+            ev.target.value = String(clamped);
         }
     }
 
