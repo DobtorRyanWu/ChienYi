@@ -4329,8 +4329,22 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
     onReplaceAll() {
         if (!this.state.findText) return;
         const SAFE_GUARD = 500;
+        // Sprint Y34：pre-scan flat indexOf 算 count
+        //   Y30 揭露 executeReplace 不傳 { index } = replaceAll；舊 loop count++ 假設
+        //   每 iteration 替換 1 個、實際每 iteration 替換 N 個（loop 通常只跑 1 次）、
+        //   notification 顯「已取代 1 個項目」但 user 實際替換了 N 個。
+        //   改用原文 flat 預掃 needle 出現次數 = user 看到的真實 N。
         let count = 0;
         try {
+            const initialData = this.editor?.command?.getValue?.()?.data;
+            const initialFlat = initialData ? flattenElementsToText(initialData.main || []) : '';
+            const needle = this.state.findText;
+            let pos = 0;
+            while (needle && (pos = initialFlat.indexOf(needle, pos)) !== -1) {
+                count++;
+                pos += needle.length;
+            }
+            // 仍保留 loop 執行替換、defensive 處理 lib 萬一沒一次替換完的 edge case
             for (let i = 0; i < SAFE_GUARD; i++) {
                 const data = this.editor?.command?.getValue?.()?.data;
                 if (!data) break;
@@ -4338,7 +4352,6 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 if (flat.indexOf(this.state.findText) < 0) break;
                 this.editor.command.executeSearch(this.state.findText);
                 this.editor.command.executeReplace(this.state.replaceText || '');
-                count++;
             }
             this.notification?.add?.(`已取代 ${count} 個項目`, { type: 'info' });
             try { this.editor?.command?.executeSearch?.(null); } catch (e) { /* ignore */ }
