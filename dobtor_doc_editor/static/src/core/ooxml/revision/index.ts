@@ -15,3 +15,7 @@ export type {
   RevisionPredicate,
   RevisionListEntry,
 } from './accept_reject';
+
+// Sprint 305：逐筆審 revision 狀態機（UI-agnostic）
+export { RevisionReviewSession } from './RevisionReviewSession';
+export type { ReviewChoice, ReviewSessionStats } from './RevisionReviewSession';

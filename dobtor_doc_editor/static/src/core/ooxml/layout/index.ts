@@ -42,3 +42,15 @@ export type {
   LineBreakWithPolygonResult,
   PositionedLine,
 } from './LineBreakerWithPolygon';
+
+// Sprint 304：wrap polygon render helpers（SVG path / Canvas clip / inflate）
+export {
+  polygonToSvgPath,
+  polygonToCanvasCommands,
+  applyClipPathToContext,
+  polygonWithInflate,
+} from './wrap_polygon_render';
+export type {
+  CanvasPolygonCommand,
+  MinimalCanvasContext,
+} from './wrap_polygon_render';

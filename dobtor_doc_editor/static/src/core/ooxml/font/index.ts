@@ -46,3 +46,9 @@ export type {
   TextMeasureProxyOptions,
   TextMeasureCacheEntry,
 } from './TextMeasureProxy';
+// Sprint 303：Canvas-shape adapter on top of TextMeasureProxy
+export { CanvasEditorMeasureBridge } from './CanvasEditorMeasureBridge';
+export type {
+  CanvasEditorMeasureBridgeOptions,
+  TextMetricsLike,
+} from './CanvasEditorMeasureBridge';
