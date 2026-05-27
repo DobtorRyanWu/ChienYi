@@ -665,18 +665,22 @@
                                 </t>
                                 <t t-else="">無結果</t>
                             </span>
+                            <!-- Sprint Y33：findMatchCount === 0 時 prev/next 也 disabled、跟取代 button 鎖一致 -->
                             <button class="doc-find-btn"
                                     t-on-click="onFindPrev"
+                                    t-att-disabled="state.findMatchCount === 0"
                                     title="上一個 (Shift+Enter)"
                                     aria-label="上一個">
                                 <i class="fa fa-chevron-up" aria-hidden="true"/>
                             </button>
                             <button class="doc-find-btn"
                                     t-on-click="onFindNext"
+                                    t-att-disabled="state.findMatchCount === 0"
                                     title="下一個 (Enter)"
                                     aria-label="下一個">
                                 <i class="fa fa-chevron-down" aria-hidden="true"/>
                             </button>
+                            <!-- 關閉 button 不 disable：findText 空時 user 應仍能關 panel -->
                             <button class="doc-find-btn"
                                     t-on-click="closeFindReplace"
                                     title="關閉 (Esc)"

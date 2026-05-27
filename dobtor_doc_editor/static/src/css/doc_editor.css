@@ -2171,9 +2171,16 @@
     transition: background 120ms ease;
 }
 
-.o_dobtor_doc_editor .doc-find-btn:hover {
+.o_dobtor_doc_editor .doc-find-btn:hover:not(:disabled) {
     background: var(--gd-hover-bg);
     color: var(--gd-text);
+}
+
+/* Sprint Y33：findMatchCount === 0 時 prev/next button disabled 視覺 */
+.o_dobtor_doc_editor .doc-find-btn:disabled {
+    color: var(--gd-text-muted);
+    cursor: not-allowed;
+    opacity: 0.5;
 }
 
 .o_dobtor_doc_editor .doc-find-btn-text {
