@@ -961,6 +961,9 @@ export class DocEditor extends Component {
             this._loadedContentHtml = data.content_html || "";
             // Phase 8：暫存目標 model_name，供 DocFieldPickerDialog 使用（onOdooFieldClick）
             this._loadedModelName = data.model_name || null;
+            // L2-v2：暫存綁定 record 與 alias map，供 onPreviewClick 一鍵預覽用
+            this._loadedResId = data.res_id || null;
+            this._loadedFieldAliases = data.field_aliases || {};
             // P2-2 樂觀鎖：記下伺服器當前 write_date
             this._lastSyncedWriteDate = data.write_date || null;
             // Phase 8 Template UI Builder（ADR-022）—— 載入範本 signer/field 狀態
@@ -1372,30 +1375,52 @@ export class DocEditor extends Component {
             this.notification.add("請先儲存文件後再預覽。", { type: "warning" });
             return;
         }
-        // 解析 user 提供的 context（容錯：解析失敗用空 dict）
-        let contextDict = {};
-        const ctxRaw = (this.state.contextJson || "").trim();
-        if (ctxRaw) {
-            try {
-                contextDict = JSON.parse(ctxRaw);
-            } catch (e) {
-                this.notification.add(
-                    "Context JSON 格式錯誤，將以空填值預覽。",
-                    { type: "warning" }
-                );
-            }
-        }
+        // L2-v2：當文件綁定具體 record（model_id + res_id）時，走 render_preview
+        // 直接用該 record 渲染 alias / Jinja2 變數；否則 fallback 到既有 template_preview
+        // （需要 user 在右側填 contextJson）。
+        const hasBoundRecord = this._loadedModelName && this._loadedResId;
         try {
-            const result = await rpc("/dobtor_doc/template_preview", {
-                doc_id: this.state.docId,
-                context: contextDict,
-            });
-            if (!result || !result.success) {
-                this.notification.add(
-                    `預覽失敗：${(result && result.error) || "未知錯誤"}`,
-                    { type: "danger" }
-                );
-                return;
+            let html;
+            if (hasBoundRecord) {
+                const result = await rpc("/dobtor_doc/render_preview", {
+                    doc_id: this.state.docId,
+                    record_model: this._loadedModelName,
+                    record_id: this._loadedResId,
+                });
+                if (!result || result.error) {
+                    this.notification.add(
+                        `預覽失敗：${(result && result.error) || "未知錯誤"}`,
+                        { type: "danger" }
+                    );
+                    return;
+                }
+                html = this._wrapPreviewHtml(result.html || "");
+            } else {
+                // 既有路徑：使用 user 填的 contextJson 走 template_preview
+                let contextDict = {};
+                const ctxRaw = (this.state.contextJson || "").trim();
+                if (ctxRaw) {
+                    try {
+                        contextDict = JSON.parse(ctxRaw);
+                    } catch (e) {
+                        this.notification.add(
+                            "Context JSON 格式錯誤，將以空填值預覽。",
+                            { type: "warning" }
+                        );
+                    }
+                }
+                const result = await rpc("/dobtor_doc/template_preview", {
+                    doc_id: this.state.docId,
+                    context: contextDict,
+                });
+                if (!result || !result.success) {
+                    this.notification.add(
+                        `預覽失敗：${(result && result.error) || "未知錯誤"}`,
+                        { type: "danger" }
+                    );
+                    return;
+                }
+                html = result.html;
             }
             const w = window.open("", "_blank", "noopener,noreferrer");
             if (!w) {
@@ -1406,13 +1431,29 @@ export class DocEditor extends Component {
                 return;
             }
             w.document.open();
-            w.document.write(result.html);
+            w.document.write(html);
             w.document.close();
             w.document.title = `預覽：${this.state.docName || "文件"}`;
         } catch (e) {
             console.error("[DocEditor] onPreviewClick failed", e);
             this.notification.add(`預覽失敗：${e.message || e}`, { type: "danger" });
         }
+    }
+
+    /**
+     * render_preview 回傳的是純 body HTML（不含 <html>/<head>），包成完整頁面供新分頁顯示。
+     * 樣式對齊 template_preview 的最小版本：A4 寬度、保留列印 margin。
+     */
+    _wrapPreviewHtml(bodyHtml) {
+        const docName = (this.state.docName || "文件").replace(/[<>&"']/g, c => ({
+            "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;",
+        })[c]);
+        return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>預覽：${docName}</title>
+<style>
+body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; padding: 24px; max-width: 820px; margin: auto; }
+@media print { body { padding: 0; max-width: none; } }
+</style></head><body>${bodyHtml}</body></html>`;
     }
 
     /**
@@ -2144,6 +2185,118 @@ export class DocEditor extends Component {
                         `新增 Odoo 欄位失敗：${e.message || e}`,
                         { type: "danger" }
                     );
+                }
+            },
+        });
+    }
+
+    /**
+     * L2-v2：開啟欄位選擇器，把選擇的 Odoo 欄位以「《中文 label》」純文字插入游標位置，
+     * 並同步寫入 doc.document.field_aliases 對映，渲染時由 _render_template 自動展開。
+     *
+     * 與 onOdooFieldClick 差異：
+     *   - 不需要 doc.template_id（不依賴範本機制）
+     *   - 不建立 doc.template.field record；alias map 集中在 doc.field_aliases JSON
+     *   - 文字保留純中文，匯出 Word/PDF 後看起來就是「《工程名稱》」這種人類可讀標記
+     */
+    async onInsertAliasClick() {
+        if (!this.dialog) {
+            this.notification.add("Dialog service 未就緒", { type: "warning" });
+            return;
+        }
+        if (!this.editor) {
+            this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        if (!this.state.docId) {
+            this.notification.add("請先儲存文件後再插入欄位", { type: "warning" });
+            return;
+        }
+        if (!this._loadedModelName) {
+            this.notification.add(
+                "此文件未綁定 Odoo 模型。請在後台 doc.document.model_id 設定後再回來。",
+                { type: "warning" }
+            );
+            return;
+        }
+
+        this.dialog.add(DocFieldPickerDialog, {
+            modelName: this._loadedModelName,
+            docId: this.state.docId,
+            onInsert: async (expression, label, fieldInfo) => {
+                // expression: 「{{ object.partner_id.name }}」
+                // label:      「partner_id」或「partner_id.name」
+                // fieldInfo:  完整欄位資料（含中文 label / type / displayLabel）
+                // 推導出純欄位路徑（不含 object. 與 {{ }}）
+                const fieldPath = (expression || "")
+                    .replace(/[{}]/g, "")
+                    .replace(/^\s*object\.\s*/, "")
+                    .trim();
+                if (!fieldPath) {
+                    this.notification.add("欄位路徑解析失敗", { type: "danger" });
+                    return;
+                }
+
+                // 中文 token：優先用 displayLabel（含父欄位串接），否則用 fieldInfo.label
+                let token = (fieldInfo && (fieldInfo.displayLabel || fieldInfo.label)) || label || fieldPath;
+                token = String(token).trim();
+                // 防呆：避免使用者後續搜尋衝突，移除 token 內的《》
+                token = token.replace(/[《》]/g, '');
+                if (!token) {
+                    this.notification.add("無法取得欄位中文名稱", { type: "danger" });
+                    return;
+                }
+
+                // 計算 alias expression：date / datetime 套 format_date、selection 套 selection_label
+                let aliasExpression;
+                const ftype = fieldInfo && fieldInfo.type;
+                if (ftype === "date" || ftype === "datetime") {
+                    aliasExpression = `format_date(object.${fieldPath})`;
+                } else if (ftype === "selection") {
+                    aliasExpression = `selection_label('${fieldPath}')`;
+                } else {
+                    aliasExpression = `object.${fieldPath}`;
+                }
+
+                // 同名 token 衝突偵測：若已存在且 expression 不同，提示 user
+                const existing = this._loadedFieldAliases || {};
+                if (existing[token] && existing[token] !== aliasExpression) {
+                    const overwrite = window.confirm(
+                        `「${token}」已對映到不同欄位：\n  舊：${existing[token]}\n  新：${aliasExpression}\n\n要覆寫嗎？`
+                    );
+                    if (!overwrite) return;
+                }
+
+                // 1. 先在文件游標位置插入《token》純文字
+                try {
+                    const text = `《${token}》`;
+                    const elements = text.split("").map(ch => ({ value: ch }));
+                    this.editor.command.executeInsertElementList(elements);
+                } catch (e) {
+                    console.error("[DocEditor] executeInsertElementList failed", e);
+                    this.notification.add(`插入文字失敗：${e.message || e}`, { type: "danger" });
+                    return;
+                }
+
+                // 2. 寫入 alias map（整批覆寫；前端 cache 已含舊內容）
+                const newAliases = { ...existing, [token]: aliasExpression };
+                try {
+                    const resp = await rpc("/dobtor_doc/aliases/save", {
+                        doc_id: this.state.docId,
+                        aliases: newAliases,
+                    });
+                    if (resp && resp.error) {
+                        this.notification.add(`alias 儲存失敗：${resp.error}`, { type: "warning" });
+                        return;
+                    }
+                    this._loadedFieldAliases = resp && resp.aliases ? resp.aliases : newAliases;
+                    this.notification.add(
+                        `已插入「《${token}》」並對映到 ${aliasExpression}`,
+                        { type: "success" }
+                    );
+                } catch (e) {
+                    console.error("[DocEditor] alias save failed", e);
+                    this.notification.add(`alias 儲存失敗：${e.message || e}`, { type: "danger" });
                 }
             },
         });
@@ -3754,6 +3907,7 @@ export class DocEditor extends Component {
                 case 'insert:var-text': this.onFieldButtonClick('text'); break;
                 case 'insert:var-date': this.onFieldButtonClick('date'); break;
                 case 'insert:var-checkbox': this.onFieldButtonClick('checkbox'); break;
+                case 'insert:alias-field': this.onInsertAliasClick(); break;
 
                 case 'format:bold': this._executeCmd('executeBold'); break;
                 case 'format:italic': this._executeCmd('executeItalic'); break;
@@ -4108,14 +4262,33 @@ export class DocEditor extends Component {
 
     onReplaceOnce() {
         if (!this.state.findText) return;
+        // Sprint Y30：runtime probe 發現 canvas-editor 的 `replace(payload)` 不傳 option
+        // 時是 replaceAll、不是「取代一個」（我們的 `onReplaceOnce` 從 Y4 就誤命名）。
+        // 走 `executeReplace(text, { index: 0 })` 才會只替換第 0 個 matchGroup（單一 match）。
+        // 之後再用 flat text indexOf 算剩餘 count、UI 顯「1 / n-1」連貫不跳「無結果」。
         try {
             this.editor?.command?.executeSearch?.(this.state.findText);
-            this.editor?.command?.executeReplace?.(this.state.replaceText || '');
+            this.editor?.command?.executeReplace?.(this.state.replaceText || '', { index: 0 });
         } catch (e) {
             console.error('[DocEditor] replace once failed', e);
             this.notification?.add?.(`取代失敗：${e.message || e}`, { type: 'warning' });
         }
-        this._updateMatchInfo();
+        // refresh count via flat text（不靠 canvas-editor stale getSearchNavigateInfo）
+        try {
+            const data = this.editor?.command?.getValue?.()?.data;
+            const flat = data ? flattenElementsToText(data.main || []) : '';
+            const needle = this.state.findText;
+            let count = 0;
+            let pos = 0;
+            while (needle && (pos = flat.indexOf(needle, pos)) !== -1) {
+                count++;
+                pos += needle.length;
+            }
+            this.state.findMatchCount = count;
+            this.state.findMatchIndex = count > 0 ? 1 : 0;
+        } catch (e) {
+            this._updateMatchInfo();
+        }
     }
 
     // executeReplace 只取代當前一個 match，要 replaceAll 須 loop。
@@ -4330,6 +4503,8 @@ export class DocEditor extends Component {
                     { label: '變數欄位（文字）', action: 'insert:var-text' },
                     { label: '變數欄位（日期）', action: 'insert:var-date' },
                     { label: '變數欄位（核取方塊）', action: 'insert:var-checkbox' },
+                    { type: 'separator' },
+                    { label: '插入 Odoo 欄位（中文 token）', action: 'insert:alias-field' },
                     { type: 'separator' },
                     { label: '簽名欄位', disabled: true },
                     { label: '頁碼', disabled: true },
