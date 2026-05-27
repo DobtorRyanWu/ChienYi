@@ -22,7 +22,7 @@
  * Phase 5（規劃文件）：SmartArt / Charts 視為 fallback 圖片，仍經此 Parser。
  */
 
-import type { EffectExtent, FloatImageNode, FloatTextBoxNode, ImageSrcRect, InlineImageNode, ParagraphNode } from '../ast/types';
+import type { AnchorMetadata, AnchorWrapText, EffectExtent, FloatImageNode, FloatTextBoxNode, ImageSrcRect, InlineImageNode, ParagraphNode, Pt } from '../ast/types';
 import { emuToPt } from '../units/units';
 
 /**
@@ -144,6 +144,11 @@ function parseFloatImage(el: Element): FloatImageNode {
   if (srcRect) node.srcRect = srcRect;
   const effectExtent = parseEffectExtent(el);
   if (effectExtent) node.effectExtent = effectExtent;
+  // Sprint 287：補完整 anchor metadata + wrapText
+  const anchorMeta = parseAnchorMetadata(el);
+  if (anchorMeta) node.anchor = anchorMeta;
+  const wrapText = detectWrapText(el);
+  if (wrapText) node.wrapText = wrapText;
   return node;
 }
 
@@ -255,6 +260,11 @@ function parseFloatTextBox(
   if (allowOverlapRaw === '1' || allowOverlapRaw === 'true') node.allowOverlap = true;
   const effectExtent = parseEffectExtent(anchorEl);
   if (effectExtent) node.effectExtent = effectExtent;
+  // Sprint 287：anchor metadata + wrapText（與 FloatImage 對稱）
+  const anchorMeta = parseAnchorMetadata(anchorEl);
+  if (anchorMeta) node.anchor = anchorMeta;
+  const wrapText = detectWrapText(anchorEl);
+  if (wrapText) node.wrapText = wrapText;
 
   // Sprint 39：解析 <wps:wsp> 內的 bodyPr / spPr（padding / 背景 / 邊框）
   const wsp = findWsp(anchorEl);
@@ -482,6 +492,83 @@ function detectWrapType(el: Element): FloatImageNode['wrapType'] {
   }
   // 預設：square（最常見）
   return 'square';
+}
+
+/**
+ * Sprint 287：偵測 wrap mode 子元素的 `wrapText` 屬性。
+ *
+ * 適用於 `<wp:wrapSquare>` / `<wp:wrapTight>` / `<wp:wrapThrough>` /
+ * `<wp:wrapTopAndBottom>`。`<wp:wrapNone>` 無 wrapText（不繞排）。
+ * 預設值（Office）：bothSides；本函式對「無屬性 / 無 wrap 元素」回 undefined
+ * （capture-only：let caller 知道 docx 沒明指、不偽造預設）。
+ */
+function detectWrapText(el: Element): AnchorWrapText | undefined {
+  for (const child of directChildren(el)) {
+    if (
+      child.tagName === 'wp:wrapSquare' ||
+      child.tagName === 'wp:wrapTight' ||
+      child.tagName === 'wp:wrapThrough' ||
+      child.tagName === 'wp:wrapTopAndBottom'
+    ) {
+      const raw = child.getAttribute('wrapText');
+      if (raw === 'left' || raw === 'right' || raw === 'largest' || raw === 'bothSides') {
+        return raw;
+      }
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Sprint 287：補完整 wp:anchor 屬性 capture（除 posH/posV/wrapType/behindDoc/
+ * allowOverlap 等 Sprint 37 已 capture 之外）。
+ *
+ * 全屬性 optional；任何一個有值則 caller 拿到 AnchorMetadata 物件、無則 undefined。
+ * EMU 屬性走 emuToPt；Boolean 屬性 "1"/"true" → true，"0"/"false"/缺漏 → false
+ * (false 視為 undefined 不掛欄位、避免污染預設行為)。
+ * relativeHeight 為非負整數 UInt（Word 用 z-order index）。
+ */
+function parseAnchorMetadata(el: Element): AnchorMetadata | undefined {
+  const meta: AnchorMetadata = {};
+  const parseEmuAttr = (name: string): Pt | undefined => {
+    const raw = el.getAttribute(name);
+    if (raw === null || raw === '') return undefined;
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n)) return undefined;
+    return emuToPt(n);
+  };
+  const parseBoolAttr = (name: string): boolean | undefined => {
+    const raw = el.getAttribute(name);
+    if (raw === '1' || raw === 'true') return true;
+    return undefined;
+  };
+
+  const dt = parseEmuAttr('distT');
+  if (dt !== undefined) meta.distT = dt;
+  const db = parseEmuAttr('distB');
+  if (db !== undefined) meta.distB = db;
+  const dl = parseEmuAttr('distL');
+  if (dl !== undefined) meta.distL = dl;
+  const dr = parseEmuAttr('distR');
+  if (dr !== undefined) meta.distR = dr;
+
+  const rh = el.getAttribute('relativeHeight');
+  if (rh !== null && rh !== '') {
+    const n = parseInt(rh, 10);
+    if (Number.isFinite(n) && n >= 0) meta.relativeHeight = n;
+  }
+
+  const locked = parseBoolAttr('locked');
+  if (locked) meta.locked = true;
+  const lic = parseBoolAttr('layoutInCell');
+  if (lic) meta.layoutInCell = true;
+  const hidden = parseBoolAttr('hidden');
+  if (hidden) meta.hidden = true;
+
+  // 全為空 → 不掛欄位（與 srcRect 對稱）
+  if (Object.keys(meta).length === 0) return undefined;
+  return meta;
 }
 
 // ── fallback ──────────────────────────────────────────────────────────────────

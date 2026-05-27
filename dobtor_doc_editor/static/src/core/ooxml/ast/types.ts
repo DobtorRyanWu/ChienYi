@@ -255,6 +255,45 @@ export interface ImageSrcRect {
 }
 
 /**
+ * Sprint 287：wp:anchor 補充屬性（除 posH/posV/wrapType/behindDoc/allowOverlap
+ * 等 Sprint 37 已 capture 之外的常見屬性）。
+ *
+ * OOXML §20.4.2.3 ST_WordprocessingDrawing：
+ *   - distT/distB/distL/distR (EMU)：文字環繞時與圖片邊距，預設 0
+ *   - relativeHeight (UInt)：z-order；多 anchor 重疊時數字大者在上
+ *   - locked (Bool)：鎖定不能編輯位置/大小
+ *   - layoutInCell (Bool)：anchor 在 table cell 內時是否參與 layout（影響 cell height）
+ *   - hidden (Bool)：隱藏不渲染
+ *
+ * 紀律 #21 capture-only：parser 補完整、writer 仍走 Sprint 192「FloatImage 降級
+ * 為 inline 輸出」（acceptable lossy by design、explicit decision recorded
+ * at OoxmlWriter.ts:1391-1394）。
+ */
+export interface AnchorMetadata {
+  /** 文字環繞與圖片的邊距（EMU → Pt） */
+  distT?: Pt;
+  distB?: Pt;
+  distL?: Pt;
+  distR?: Pt;
+  /** z-order；多 anchor 重疊時數字大者在上 */
+  relativeHeight?: number;
+  /** 鎖定不能編輯位置/大小 */
+  locked?: boolean;
+  /** anchor 在 table cell 內時是否參與 layout（影響 cell height 計算） */
+  layoutInCell?: boolean;
+  /** 隱藏不渲染 */
+  hidden?: boolean;
+}
+
+/**
+ * Sprint 287：wrap mode 的 wrapText attribute。
+ *
+ * OOXML §20.4.2.18 ST_WrapText：wrapSquare / wrapTight / wrapThrough /
+ * wrapTopAndBottom 都可帶。預設 bothSides（Office 行為）。
+ */
+export type AnchorWrapText = 'left' | 'right' | 'largest' | 'bothSides';
+
+/**
  * Sprint 286：DrawingML `<wp:effectExtent l/t/r/b>` 陰影/光暈外擴。
  *
  * OOXML §20.4.2.6：四向 EMU 值，表示效果範圍超出 `<wp:extent>` 的外擴量。
@@ -324,6 +363,10 @@ export interface FloatImageNode {
   srcRect?: ImageSrcRect;
   /** Sprint 286：DrawingML `<wp:effectExtent>` 效果外擴（如有） */
   effectExtent?: EffectExtent;
+  /** Sprint 287：wp:anchor 補充屬性（dist/relativeHeight/locked/layoutInCell/hidden） */
+  anchor?: AnchorMetadata;
+  /** Sprint 287：wrap mode 的 wrapText attribute（default bothSides） */
+  wrapText?: AnchorWrapText;
 }
 
 /**
@@ -374,6 +417,10 @@ export interface FloatTextBoxNode {
   };
   /** Sprint 286：DrawingML `<wp:effectExtent>` 效果外擴（如有） */
   effectExtent?: EffectExtent;
+  /** Sprint 287：wp:anchor 補充屬性（dist/relativeHeight/locked/layoutInCell/hidden） */
+  anchor?: AnchorMetadata;
+  /** Sprint 287：wrap mode 的 wrapText attribute */
+  wrapText?: AnchorWrapText;
 }
 
 export type InlineNode = RunNode | FieldNode | BreakNode | InlineImageNode | FloatImageNode | FloatTextBoxNode | FootnoteReferenceNode | RubyNode;
