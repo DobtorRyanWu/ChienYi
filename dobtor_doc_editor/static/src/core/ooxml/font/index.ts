@@ -59,3 +59,6 @@ export type {
   WrapCanvasContextOptions,
   PatchProbeStats,
 } from './CanvasEditorPatchProbe';
+// Sprint 313：Canvas-editor font CSS shorthand parser
+export { parseCanvasFont, formatCanvasFont } from './CanvasEditorFontResolver';
+export type { ResolvedFont, ParseCanvasFontOptions } from './CanvasEditorFontResolver';

@@ -27,3 +27,11 @@ export {
   formatSummaryMarkdown,
 } from './RevisionDiffSummary';
 export type { AuthorSummary, TypeSummary } from './RevisionDiffSummary';
+
+// Sprint 315：revision 衝突偵測
+export {
+  detectConflicts,
+  detectConflictsInParagraph,
+  summarizeConflicts,
+} from './RevisionConflictDetector';
+export type { ConflictKind, ConflictReport } from './RevisionConflictDetector';

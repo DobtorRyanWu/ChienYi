@@ -33,3 +33,10 @@ export type {
   WorkerHealthStats,
   WorkerHealthMonitorOptions,
 } from './WorkerHealthMonitor';
+// Sprint 317：circuit breaker with primary + fallback
+export { WorkerCircuitBreaker } from './WorkerCircuitBreaker';
+export type {
+  BreakerState,
+  WorkerCircuitBreakerOptions,
+  CircuitBreakerStats,
+} from './WorkerCircuitBreaker';

@@ -63,3 +63,12 @@ export {
   preparePolygonForPages,
 } from './wrap_polygon_paginator';
 export type { PageYRange } from './wrap_polygon_paginator';
+
+// Sprint 314：wrap polygon baseline-aware line positioning
+export {
+  lineBoxFromBaseline,
+  findSafeBaselineY,
+  clampBaselineAvoidingPolygon,
+  polygonBaselineUnsafeRange,
+} from './wrap_polygon_baseline';
+export type { LineBox, FindSafeBaselineOptions } from './wrap_polygon_baseline';
