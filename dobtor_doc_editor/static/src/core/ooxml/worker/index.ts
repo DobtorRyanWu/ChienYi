@@ -15,3 +15,9 @@ export { ParseWorkerHarness } from './ParseWorkerHarness';
 export type { ParseHarnessOptions } from './ParseWorkerHarness';
 export { MainThreadDispatcher } from './MainThreadDispatcher';
 export type { MainThreadDispatcherOptions, SyncParseFn } from './MainThreadDispatcher';
+// Sprint 294：node:worker_threads 真實 dispatcher
+export { NodeWorkerThreadDispatcher } from './NodeWorkerThreadDispatcher';
+export type {
+  NodeWorkerThreadDispatcherOptions,
+  ParseStub,
+} from './NodeWorkerThreadDispatcher';
