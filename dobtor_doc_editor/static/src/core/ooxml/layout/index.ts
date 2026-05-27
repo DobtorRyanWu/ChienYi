@@ -34,3 +34,11 @@ export {
   rectIntersectsPolygon,
 } from './wrap_polygon_math';
 export type { ImageRect, PolygonBoundingBox } from './wrap_polygon_math';
+
+// Sprint 298：LineBreaker wrap-around polygon 整合（消費 Sprint 296 polygon 數學）
+export { breakParagraphAroundPolygon } from './LineBreakerWithPolygon';
+export type {
+  LineBreakWithPolygonOptions,
+  LineBreakWithPolygonResult,
+  PositionedLine,
+} from './LineBreakerWithPolygon';

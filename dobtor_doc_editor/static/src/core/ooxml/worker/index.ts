@@ -21,3 +21,6 @@ export type {
   NodeWorkerThreadDispatcherOptions,
   ParseStub,
 } from './NodeWorkerThreadDispatcher';
+// Sprint 299：browser Worker API 真實 dispatcher
+export { BrowserWorkerDispatcher } from './BrowserWorkerDispatcher';
+export type { BrowserWorkerDispatcherOptions } from './BrowserWorkerDispatcher';
