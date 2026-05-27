@@ -81,3 +81,16 @@ export type {
   PrewarmEntry,
   PrewarmEntryWithMeta,
 } from './CanvasEditorPrewarmStrategy';
+// Sprint 328：JSON-safe cache snapshot for cross-session persistence
+export {
+  CANVAS_EDITOR_CACHE_SCHEMA_VERSION,
+  toSnapshot,
+  fromSnapshot,
+  mergeSnapshots,
+  pickByMinFrequency,
+  summarizeSnapshot,
+} from './CanvasEditorCacheSnapshot';
+export type {
+  CacheSnapshotV1,
+  SnapshotSummary,
+} from './CanvasEditorCacheSnapshot';

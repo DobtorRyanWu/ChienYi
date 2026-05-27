@@ -8,7 +8,9 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 327 結尾 — 「繼續執行」honest gap 5 項第七輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 323-327 cluster：① CanvasEditorPrewarmStrategy + ③ wrap_polygon_anchor + ④ RevisionTimelineBuilder + ⑤ OverlayCommandExecutor + ⑥ WorkerRetryWrapper / +64 tests / vitest 2658 / 雙驗紀律 ✅）
+## 1. 當前指標一覽（Sprint 332 結尾 — 「繼續執行」honest gap 5 項第八輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 328-332 cluster：① CanvasEditorCacheSnapshot + ③ text_flow_around_polygon + ④ RevisionExporter + ⑤ OverlayTouchMapper + ⑥ WorkerMetricsCollector / +75 tests / vitest 2733 / 雙驗紀律 ✅）
+
+## 1. （舊）Sprint 327 結尾 — 「繼續執行」honest gap 5 項第七輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 323-327 cluster：① CanvasEditorPrewarmStrategy + ③ wrap_polygon_anchor + ④ RevisionTimelineBuilder + ⑤ OverlayCommandExecutor + ⑥ WorkerRetryWrapper / +64 tests / vitest 2658 / 雙驗紀律 ✅）
 
 ## 1. （舊）Sprint 322 結尾 — 「繼續執行」honest gap 5 項第六輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 318-322 cluster：① CanvasEditorPipeline + ③ wrap_polygon_union + ④ RevisionFilter + ⑤ OverlayHistoryStack + ⑥ WorkerLoadBalancer / +65 tests / vitest 2594 / 雙驗紀律 ✅）
 

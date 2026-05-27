@@ -52,3 +52,15 @@ export type {
   WorkerRetryWrapperOptions,
   RetryStats,
 } from './WorkerRetryWrapper';
+// Sprint 332：time-series metrics collector（bucket stats given lifetime 312 stats）
+export {
+  WorkerMetricsCollector,
+  recordSuccess,
+  recordError,
+  recordTimeout,
+} from './WorkerMetricsCollector';
+export type {
+  WorkerMetricEvent,
+  WorkerMetricsCollectorOptions,
+  BucketStats,
+} from './WorkerMetricsCollector';

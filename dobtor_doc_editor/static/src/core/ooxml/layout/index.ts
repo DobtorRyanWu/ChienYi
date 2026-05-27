@@ -91,3 +91,17 @@ export {
   totalVerticalMargin,
 } from './wrap_polygon_anchor';
 export type { DistMargins } from './wrap_polygon_anchor';
+
+// Sprint 329：text flow integration shim（anchor + baseline + LineBreaker 串成 façade）
+export {
+  prepareWrapContext,
+  findFlowBaseline,
+  flowLineBox,
+  flowParagraphAroundWrapCtx,
+  isYRangeBlockedByWrap,
+} from './text_flow_around_polygon';
+export type {
+  WrapContextOptions,
+  WrapContext,
+  FlowBaselineOptions,
+} from './text_flow_around_polygon';

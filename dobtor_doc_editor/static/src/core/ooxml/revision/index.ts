@@ -63,3 +63,15 @@ export type {
   BuildTimelineOptions,
   TimelineStats,
 } from './RevisionTimelineBuilder';
+
+// Sprint 330：JSON/CSV exporter for external audit tools
+export {
+  exportRevisionsAsJson,
+  exportRevisionsAsCsv,
+  escapeCsvField,
+  summarizeExport,
+} from './RevisionExporter';
+export type {
+  RevisionExportRow,
+  ExportSummary,
+} from './RevisionExporter';
