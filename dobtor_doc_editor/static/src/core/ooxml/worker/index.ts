@@ -1,0 +1,17 @@
+/**
+ * Phase 7 Worker parse — barrel export（Sprint 292 spike）。
+ *
+ * 紀律 #18 scope-down：本 spike 為 API contract design + MainThreadDispatcher
+ * fallback；真實 Worker（browser Worker / node:worker_threads）實作為未來
+ * polish sprint 範圍。
+ */
+export type {
+  ParseWorkerRequest,
+  ParseWorkerResponse,
+  ParseHarnessResult,
+  ParseWorkerDispatcher,
+} from './parse_worker_protocol';
+export { ParseWorkerHarness } from './ParseWorkerHarness';
+export type { ParseHarnessOptions } from './ParseWorkerHarness';
+export { MainThreadDispatcher } from './MainThreadDispatcher';
+export type { MainThreadDispatcherOptions, SyncParseFn } from './MainThreadDispatcher';
