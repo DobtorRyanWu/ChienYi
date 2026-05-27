@@ -1452,7 +1452,21 @@ export class DocEditor extends Component {
 <html><head><meta charset="UTF-8"><title>預覽：${docName}</title>
 <style>
 body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; padding: 24px; max-width: 820px; margin: auto; }
-@media print { body { padding: 0; max-width: none; } }
+@media print {
+  body { padding: 0; max-width: none; }
+  .doc-field-token { background: transparent; border: 0; padding: 0; color: inherit; }
+}
+.doc-field-token {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: #1565c0;
+  font-size: 0.95em;
+  transition: background 0.15s ease;
+}
+.doc-field-token:hover { background: #bbdefb; }
+.doc-field-token:empty::after { content: '（無值）'; color: #999; font-style: italic; }
 </style></head><body>${bodyHtml}</body></html>`;
     }
 
@@ -2238,10 +2252,22 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 }
 
                 // 中文 token：優先用 displayLabel（含父欄位串接），否則用 fieldInfo.label
-                let token = (fieldInfo && (fieldInfo.displayLabel || fieldInfo.label)) || label || fieldPath;
-                token = String(token).trim();
-                // 防呆：避免使用者後續搜尋衝突，移除 token 內的《》
-                token = token.replace(/[《》]/g, '');
+                let defaultToken = (fieldInfo && (fieldInfo.displayLabel || fieldInfo.label)) || label || fieldPath;
+                defaultToken = String(defaultToken).trim().replace(/[《》]/g, '');
+
+                // 自訂 token 名稱：讓 user 自由命名（如「客戶名稱」「申請人」）
+                // 取消 = 中斷整個插入流程；空白 = 用預設 token
+                const userInput = window.prompt(
+                    `請輸入此欄位在文件中顯示的中文名稱：\n` +
+                    `（會以《名稱》形式插入，並對映到 ${fieldPath}）\n` +
+                    `按確定使用此名稱、取消放棄插入。`,
+                    defaultToken,
+                );
+                if (userInput === null) {
+                    // user 按了取消
+                    return;
+                }
+                let token = String(userInput).trim().replace(/[《》]/g, '') || defaultToken;
                 if (!token) {
                     this.notification.add("無法取得欄位中文名稱", { type: "danger" });
                     return;
@@ -4286,6 +4312,13 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             }
             this.state.findMatchCount = count;
             this.state.findMatchIndex = count > 0 ? 1 : 0;
+            // Sprint Y31：剩餘 match > 0 時、re-search refresh canvas-editor 內部 search
+            // 狀態（讓 highlight 重新指向新 doc 內的第一個 match）— 等效 user click
+            // 「下一個」按鈕、Google Docs / VS Code 同樣 UX。
+            if (count > 0) {
+                try { this.editor?.command?.executeSearch?.(this.state.findText); }
+                catch (e) { /* ignore */ }
+            }
         } catch (e) {
             this._updateMatchInfo();
         }
