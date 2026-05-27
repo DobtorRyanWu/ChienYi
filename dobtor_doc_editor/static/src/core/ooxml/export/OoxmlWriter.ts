@@ -1407,9 +1407,15 @@ function writeInlineImageRun(img: InlineImageNode | FloatImageNode): string {
     ? writeGraphicDataForGraphicFrame(img.graphic, cx, cy, docPrId)
     : writeGraphicDataForPicture(img.rId, cx, cy, docPrId);
 
+  // Sprint 286：effectExtent 若 AST 有 → emit；無 → 略（與既有行為一致）
+  const effectExtentXml = img.effectExtent
+    ? `<wp:effectExtent l="${ptToEmu(img.effectExtent.left)}" t="${ptToEmu(img.effectExtent.top)}" r="${ptToEmu(img.effectExtent.right)}" b="${ptToEmu(img.effectExtent.bottom)}"/>`
+    : '';
+
   return '<w:r><w:drawing>' +
     `<wp:inline xmlns:wp="${WP_NS}" distT="0" distB="0" distL="0" distR="0">` +
     `<wp:extent cx="${cx}" cy="${cy}"/>` +
+    effectExtentXml +
     `<wp:docPr id="${docPrId}" name="Image${docPrId}"${descrAttr}/>` +
     '<wp:cNvGraphicFramePr/>' +
     `<a:graphic xmlns:a="${A_NS}">` +

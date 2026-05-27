@@ -12,15 +12,17 @@
  *   - <wp:extent cx cy>（EMU → Pt）
  *   - <wp:docPr descr=""> altText
  *
+ * 範圍（Sprint 286 補）：
+ *   - <wp:effectExtent l/t/r/b>（EMU → Pt）— 陰影/光暈外擴，per-image
+ *
  * 不在此 Parser 範圍：
- *   - <wp:effectExtent> 陰影外擴 — 由 Renderer 處理
  *   - <a:srcRect> 圖片裁切 — 由 Renderer 處理
  *   - <v:shape> VML 舊版圖形 — 降級為空 InlineImageNode（與 fallback 一致）
  *
  * Phase 5（規劃文件）：SmartArt / Charts 視為 fallback 圖片，仍經此 Parser。
  */
 
-import type { FloatImageNode, FloatTextBoxNode, ImageSrcRect, InlineImageNode, ParagraphNode } from '../ast/types';
+import type { EffectExtent, FloatImageNode, FloatTextBoxNode, ImageSrcRect, InlineImageNode, ParagraphNode } from '../ast/types';
 import { emuToPt } from '../units/units';
 
 /**
@@ -77,6 +79,8 @@ function parseInlineImage(el: Element): InlineImageNode {
   // 以 relId 指向獨立部件，render 時做線性文字 fallback。
   const graphic = parseGraphicFrame(el);
   if (graphic) node.graphic = graphic;
+  const effectExtent = parseEffectExtent(el);
+  if (effectExtent) node.effectExtent = effectExtent;
   return node;
 }
 
@@ -138,7 +142,35 @@ function parseFloatImage(el: Element): FloatImageNode {
   if (allowOverlapRaw === '1' || allowOverlapRaw === 'true') node.allowOverlap = true;
   const srcRect = parseSrcRect(el);
   if (srcRect) node.srcRect = srcRect;
+  const effectExtent = parseEffectExtent(el);
+  if (effectExtent) node.effectExtent = effectExtent;
   return node;
+}
+
+/**
+ * Sprint 286：解析 DrawingML `<wp:effectExtent l="..." t="..." r="..." b="..."/>`。
+ *
+ * 屬性值單位 EMU（直接 EMU→Pt），缺漏屬性以 0 計（OOXML 預設）。
+ * 找不到元素 → undefined（不掛欄位、writer 不 emit）。
+ * 任一屬性非數字 → 該軸視為 0（saneness）。
+ *
+ * 全 0 仍保留（與 srcRect 不同：effectExtent 全 0 是 Word 對「無陰影」的明示記號，
+ * 為 round-trip lossless 不可省略）。
+ */
+function parseEffectExtent(el: Element): EffectExtent | undefined {
+  const ee = directChild(el, 'wp:effectExtent');
+  if (!ee) return undefined;
+  const toEmu = (raw: string | null): number => {
+    if (raw === null || raw === '') return 0;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : 0;
+  };
+  return {
+    left: emuToPt(toEmu(ee.getAttribute('l'))),
+    top: emuToPt(toEmu(ee.getAttribute('t'))),
+    right: emuToPt(toEmu(ee.getAttribute('r'))),
+    bottom: emuToPt(toEmu(ee.getAttribute('b'))),
+  };
 }
 
 /**
@@ -221,6 +253,8 @@ function parseFloatTextBox(
   };
   if (behindDocRaw === '1' || behindDocRaw === 'true') node.behindDoc = true;
   if (allowOverlapRaw === '1' || allowOverlapRaw === 'true') node.allowOverlap = true;
+  const effectExtent = parseEffectExtent(anchorEl);
+  if (effectExtent) node.effectExtent = effectExtent;
 
   // Sprint 39：解析 <wps:wsp> 內的 bodyPr / spPr（padding / 背景 / 邊框）
   const wsp = findWsp(anchorEl);

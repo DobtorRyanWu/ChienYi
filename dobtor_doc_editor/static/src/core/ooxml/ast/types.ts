@@ -254,6 +254,22 @@ export interface ImageSrcRect {
   bottomPct: number;
 }
 
+/**
+ * Sprint 286：DrawingML `<wp:effectExtent l/t/r/b>` 陰影/光暈外擴。
+ *
+ * OOXML §20.4.2.6：四向 EMU 值，表示效果範圍超出 `<wp:extent>` 的外擴量。
+ * Word 對含陰影/光暈的圖片必須宣告 effectExtent 才會在 layout 時保留空間，
+ * 否則文字可能與效果重疊。多數無效果的圖片是 `l=0 t=0 r=0 b=0`。
+ *
+ * 統一以 Pt 儲存（caller 已 EMU→Pt 轉換）。全 0 不省略（保留 lossless round-trip）。
+ */
+export interface EffectExtent {
+  left: Pt;
+  top: Pt;
+  right: Pt;
+  bottom: Pt;
+}
+
 /** 內嵌圖片（wp:inline）*/
 export interface InlineImageNode {
   type: 'inlineImage';
@@ -277,6 +293,8 @@ export interface InlineImageNode {
    * 紀律 #21：一般圖片無此欄位（多數 inlineImage 為真實圖片）。
    */
   graphic?: { kind: 'diagram' | 'chart'; relId: string };
+  /** Sprint 286：DrawingML `<wp:effectExtent>` 效果外擴（如有） */
+  effectExtent?: EffectExtent;
 }
 
 /** 浮動圖片（wp:anchor）*/
@@ -304,6 +322,8 @@ export interface FloatImageNode {
   altText?: string;
   /** Sprint 40：DrawingML `<a:srcRect>` 裁切（如有）— 與 InlineImageNode 同型別 */
   srcRect?: ImageSrcRect;
+  /** Sprint 286：DrawingML `<wp:effectExtent>` 效果外擴（如有） */
+  effectExtent?: EffectExtent;
 }
 
 /**
@@ -352,6 +372,8 @@ export interface FloatTextBoxNode {
     width: Pt;
     color: HexColor;
   };
+  /** Sprint 286：DrawingML `<wp:effectExtent>` 效果外擴（如有） */
+  effectExtent?: EffectExtent;
 }
 
 export type InlineNode = RunNode | FieldNode | BreakNode | InlineImageNode | FloatImageNode | FloatTextBoxNode | FootnoteReferenceNode | RubyNode;
