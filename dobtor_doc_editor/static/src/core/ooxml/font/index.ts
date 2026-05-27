@@ -62,3 +62,10 @@ export type {
 // Sprint 313：Canvas-editor font CSS shorthand parser
 export { parseCanvasFont, formatCanvasFont } from './CanvasEditorFontResolver';
 export type { ResolvedFont, ParseCanvasFontOptions } from './CanvasEditorFontResolver';
+// Sprint 318：CanvasEditorPipeline 整合層（resolver + bridge + ctx 一次包好）
+export { CanvasEditorPipeline } from './CanvasEditorPipeline';
+export type {
+  CanvasEditorPipelineOptions,
+  PipelineStats,
+  CanvasContextForPipeline,
+} from './CanvasEditorPipeline';

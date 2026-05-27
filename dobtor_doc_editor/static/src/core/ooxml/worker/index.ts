@@ -40,3 +40,9 @@ export type {
   WorkerCircuitBreakerOptions,
   CircuitBreakerStats,
 } from './WorkerCircuitBreaker';
+// Sprint 322：load balancer based on WorkerHealthMonitor stats
+export { WorkerLoadBalancer } from './WorkerLoadBalancer';
+export type {
+  LoadBalanceStrategy,
+  WorkerLoadBalancerOptions,
+} from './WorkerLoadBalancer';

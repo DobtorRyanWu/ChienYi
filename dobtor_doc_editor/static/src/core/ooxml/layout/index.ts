@@ -72,3 +72,12 @@ export {
   polygonBaselineUnsafeRange,
 } from './wrap_polygon_baseline';
 export type { LineBox, FindSafeBaselineOptions } from './wrap_polygon_baseline';
+
+// Sprint 319：multi-polygon union helpers
+export {
+  unionBoundingBox,
+  unionConvexHull,
+  polygonsOverlap,
+  clusterByOverlap,
+} from './wrap_polygon_union';
+export type { BoundingBoxRect } from './wrap_polygon_union';

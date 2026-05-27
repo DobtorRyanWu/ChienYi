@@ -35,3 +35,19 @@ export {
   summarizeConflicts,
 } from './RevisionConflictDetector';
 export type { ConflictKind, ConflictReport } from './RevisionConflictDetector';
+
+// Sprint 320：filtered preview view + predicate factories
+export {
+  filterView,
+  summarizeFilterView,
+  previewAccepted,
+  predicateByAuthor,
+  predicateByIds,
+  predicateIdBefore,
+} from './RevisionFilter';
+export type {
+  RevisionFilterStatus,
+  FilteredRevisionEntry,
+  FilterViewOptions,
+  FilterStats,
+} from './RevisionFilter';
