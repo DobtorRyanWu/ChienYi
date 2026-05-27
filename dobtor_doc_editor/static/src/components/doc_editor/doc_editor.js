@@ -4276,12 +4276,18 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
 
     onFindNext() {
         if (!this.state.findText) return;
+        // Sprint Y38：0 match 時鍵盤 Enter 也短路、跟 Y33 button disabled 行為一致
+        //   button click 在 disabled 時被擋、但鍵盤 Enter 走的是 onFindInputKeyDown → onFindNext
+        //   path、handler 本身得自防衛、避免在 stale state 下 call canvas-editor
+        //   executeSearchNavigateNext（可能 throw / 跳到不存在位置）。
+        if (this.state.findMatchCount === 0) return;
         this._executeCmd('executeSearchNavigateNext');
         this._updateMatchInfo();
     }
 
     onFindPrev() {
         if (!this.state.findText) return;
+        if (this.state.findMatchCount === 0) return;  // Y38: 同上
         this._executeCmd('executeSearchNavigatePre');
         this._updateMatchInfo();
     }
