@@ -12,3 +12,16 @@ export type {
   LineBreakResult,
   LineBreakOptions,
 } from './LineBreaker';
+
+// Sprint 288：Phase 2.1-2.3 整合 façade（ShapingEngine + FontMetrics + LineBreaker
+// + ShapingFontChain 接成單一 production-grade 入口、給 Phase 6 自寫 Layout 消費）
+export {
+  layoutParagraph,
+  layoutParagraphWithFontChain,
+} from './LayoutPipeline';
+export type {
+  LayoutParagraphOptions,
+  LayoutParagraphWithFontChainOptions,
+  ParagraphLayoutResult,
+  ParagraphLayoutWithChainResult,
+} from './LayoutPipeline';
