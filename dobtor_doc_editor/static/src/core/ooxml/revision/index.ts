@@ -100,3 +100,19 @@ export {
   summarizePlan,
 } from './RevisionBatchAction';
 export type { BatchMode, BatchPlan, PlanSummary } from './RevisionBatchAction';
+
+// Sprint 345：churn / net change / type distribution / activity span 統計
+export {
+  computeNetChange,
+  computeAuthorChurn,
+  computeTypeDistribution,
+  computeActivitySpan,
+  buildStatisticsReport,
+} from './RevisionStatistics';
+export type {
+  NetChange,
+  AuthorChurn,
+  TypeDistribution,
+  ActivitySpan,
+  RevisionStatisticsReport,
+} from './RevisionStatistics';

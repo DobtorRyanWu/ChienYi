@@ -85,3 +85,10 @@ export type {
   WorkerAlertCooldownOptions,
   CooldownStats,
 } from './WorkerAlertCooldown';
+// Sprint 347：priority queue（static priority + aging anti-starvation）
+export { WorkerPriorityQueue } from './WorkerPriorityQueue';
+export type {
+  QueueItem,
+  WorkerPriorityQueueOptions,
+  PriorityQueueStats,
+} from './WorkerPriorityQueue';

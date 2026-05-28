@@ -108,3 +108,9 @@ export {
   exportLifecycleAsEntries,
   predictWarmFootprint,
 } from './CanvasEditorCacheWarmer';
+// Sprint 343：snapshot + lifecycle + warmer orchestration（restore/persist/dirty）
+export { CanvasEditorCacheCoordinator } from './CanvasEditorCacheCoordinator';
+export type {
+  CacheCoordinatorOptions,
+  CoordinatorStats,
+} from './CanvasEditorCacheCoordinator';

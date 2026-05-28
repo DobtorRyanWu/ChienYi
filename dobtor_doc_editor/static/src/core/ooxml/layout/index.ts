@@ -127,3 +127,12 @@ export {
   clusterPageSpread,
 } from './multi_polygon_paginator';
 export type { PageClusterStats } from './multi_polygon_paginator';
+
+// Sprint 344：multi-polygon baseline（safe baseline / bands avoiding all clusters）
+export {
+  lineBoxHitsAnyPolygon,
+  findSafeBaselineMulti,
+  findSafeBands,
+  countFittableLines,
+} from './multi_polygon_baseline';
+export type { MultiBaselineOptions, SafeBand } from './multi_polygon_baseline';
