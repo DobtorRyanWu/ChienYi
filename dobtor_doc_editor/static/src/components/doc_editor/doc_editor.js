@@ -3195,7 +3195,11 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         // toggle：用實例旗標記住目前是高亮中還是清除中
         if (this._previewVarsActive) {
             try {
-                this.editor.command.search(null);  // 清除高亮
+                // Sprint Y41：canvas-editor public API 是 executeSearch、不是 search
+                //   Sprint K 原寫法 command.search 在 lib 升級後 not a function、
+                //   feature 徹底壞 30+ sprint（Y40 spec 揭露）。改用 executeSearch
+                //   public wrapper、同 find/replace path 一致。
+                this.editor.command.executeSearch(null);  // 清除高亮
             } catch (e) {
                 console.error("[DocEditor] onPreviewVariablesClick clear failed", e);
             }
@@ -3204,7 +3208,8 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             return;
         }
         try {
-            this.editor.command.search(
+            // Sprint Y41：同上、改用 executeSearch。ISearchOption.isRegEnable 仍支援。
+            this.editor.command.executeSearch(
                 "\\{\\{\\s*[A-Za-z_][\\w]*(?:\\.[A-Za-z_][\\w]*)*\\s*\\}\\}",
                 { isRegEnable: true },
             );
