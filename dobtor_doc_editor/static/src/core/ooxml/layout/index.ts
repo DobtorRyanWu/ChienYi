@@ -118,3 +118,12 @@ export type {
   MultiPolygonContextOptions,
   MultiPolygonContext,
 } from './multi_polygon_flow';
+
+// Sprint 339：multi-polygon × multi-page paginator
+export {
+  splitMultiPolygonAcrossPages,
+  summarizePagesClusters,
+  clustersOnPage,
+  clusterPageSpread,
+} from './multi_polygon_paginator';
+export type { PageClusterStats } from './multi_polygon_paginator';

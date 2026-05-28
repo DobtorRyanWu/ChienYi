@@ -85,3 +85,18 @@ export {
   summarizeMerge,
 } from './RevisionMerger';
 export type { MergeConflict, MergeSummary } from './RevisionMerger';
+
+// Sprint 340：batch action planner（dry-run + predicate composition）
+export {
+  planBatch,
+  applyBatch,
+  andP,
+  orP,
+  notP,
+  byAuthor,
+  byId,
+  byIdSet,
+  byRunType,
+  summarizePlan,
+} from './RevisionBatchAction';
+export type { BatchMode, BatchPlan, PlanSummary } from './RevisionBatchAction';

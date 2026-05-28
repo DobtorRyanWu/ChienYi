@@ -79,3 +79,9 @@ export type {
   AlertRule,
   AlertSummary,
 } from './WorkerAlertEvaluator';
+// Sprint 342：alert cooldown wrapper（dedup by ruleName+severity）
+export { WorkerAlertCooldown } from './WorkerAlertCooldown';
+export type {
+  WorkerAlertCooldownOptions,
+  CooldownStats,
+} from './WorkerAlertCooldown';

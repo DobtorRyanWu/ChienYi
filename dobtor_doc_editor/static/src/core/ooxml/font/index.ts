@@ -101,3 +101,10 @@ export type {
   CanvasEditorCacheLifecycleOptions,
   CacheLifecycleStats,
 } from './CanvasEditorCacheLifecycle';
+// Sprint 338：snapshot → lifecycle seeder + reverse export helpers
+export {
+  keyFor,
+  warmFromSnapshot,
+  exportLifecycleAsEntries,
+  predictWarmFootprint,
+} from './CanvasEditorCacheWarmer';
