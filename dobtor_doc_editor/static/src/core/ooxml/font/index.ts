@@ -94,3 +94,10 @@ export type {
   CacheSnapshotV1,
   SnapshotSummary,
 } from './CanvasEditorCacheSnapshot';
+// Sprint 333：cache lifecycle（LRU + TTL + invalidation predicates）
+export { CanvasEditorCacheLifecycle } from './CanvasEditorCacheLifecycle';
+export type {
+  CacheEntry,
+  CanvasEditorCacheLifecycleOptions,
+  CacheLifecycleStats,
+} from './CanvasEditorCacheLifecycle';

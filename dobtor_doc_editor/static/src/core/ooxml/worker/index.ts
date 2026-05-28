@@ -64,3 +64,18 @@ export type {
   WorkerMetricsCollectorOptions,
   BucketStats,
 } from './WorkerMetricsCollector';
+// Sprint 337：threshold-based alert evaluator on bucket stats
+export {
+  evaluateAlertRules,
+  thresholdMeanLatency,
+  thresholdErrorRate,
+  thresholdTimeoutCount,
+  consecutiveErrorRate,
+  summarizeAlerts,
+} from './WorkerAlertEvaluator';
+export type {
+  AlertSeverity,
+  AlertEvent,
+  AlertRule,
+  AlertSummary,
+} from './WorkerAlertEvaluator';

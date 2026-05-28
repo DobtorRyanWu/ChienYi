@@ -105,3 +105,16 @@ export type {
   WrapContext,
   FlowBaselineOptions,
 } from './text_flow_around_polygon';
+
+// Sprint 334：multi-polygon cluster + union flow façade
+export {
+  prepareMultiPolygonContext,
+  clustersBlockingYRange,
+  clusterPolygon,
+  isYRangeBlockedByAnyCluster,
+} from './multi_polygon_flow';
+export type {
+  UnionStrategy,
+  MultiPolygonContextOptions,
+  MultiPolygonContext,
+} from './multi_polygon_flow';

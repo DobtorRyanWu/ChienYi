@@ -75,3 +75,13 @@ export type {
   RevisionExportRow,
   ExportSummary,
 } from './RevisionExporter';
+
+// Sprint 335：multi-source merger + 去重 + sort + group + conflict
+export {
+  mergeRevisionRows,
+  sortByDate,
+  groupByAuthor,
+  detectMergeConflicts,
+  summarizeMerge,
+} from './RevisionMerger';
+export type { MergeConflict, MergeSummary } from './RevisionMerger';
