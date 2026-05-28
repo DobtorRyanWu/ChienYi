@@ -136,3 +136,12 @@ export {
   countFittableLines,
 } from './multi_polygon_baseline';
 export type { MultiBaselineOptions, SafeBand } from './multi_polygon_baseline';
+
+// Sprint 349：Douglas–Peucker polygon simplification（vertex reduce for perf）
+export {
+  perpendicularDistance,
+  simplifyPolygon,
+  simplifyClosedPolygon,
+  simplifyStats,
+} from './wrap_polygon_simplify';
+export type { SimplifyStats } from './wrap_polygon_simplify';

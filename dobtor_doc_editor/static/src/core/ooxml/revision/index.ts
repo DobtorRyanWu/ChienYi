@@ -116,3 +116,15 @@ export type {
   ActivitySpan,
   RevisionStatisticsReport,
 } from './RevisionStatistics';
+
+// Sprint 350：integrity validator（orphan move / dup id / missing fields）
+export {
+  validateRevisions,
+  buildValidationReport,
+} from './RevisionValidator';
+export type {
+  ValidationSeverity,
+  ValidationIssue,
+  ValidateOptions,
+  ValidationReport,
+} from './RevisionValidator';

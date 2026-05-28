@@ -92,3 +92,9 @@ export type {
   WorkerPriorityQueueOptions,
   PriorityQueueStats,
 } from './WorkerPriorityQueue';
+// Sprint 352：scheduler（priority queue + concurrency 限流 dispatch）
+export { WorkerScheduler } from './WorkerScheduler';
+export type {
+  WorkerSchedulerOptions,
+  SchedulerStats,
+} from './WorkerScheduler';

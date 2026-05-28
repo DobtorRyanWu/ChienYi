@@ -114,3 +114,10 @@ export type {
   CacheCoordinatorOptions,
   CoordinatorStats,
 } from './CanvasEditorCacheCoordinator';
+// Sprint 348：round-trip safe cache key codec（escape | and \）
+export {
+  encodeCacheKey,
+  decodeCacheKey,
+  isValidCacheKey,
+} from './CanvasEditorCacheKeyCodec';
+export type { CacheKeyParts } from './CanvasEditorCacheKeyCodec';
