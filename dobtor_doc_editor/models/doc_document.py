@@ -275,8 +275,18 @@ class DocDocument(models.Model):
         ondelete='set null',
         help='用於欄位變數渲染的目標模型',
     )
+    # Many2oneReference 的 model_field 必須指向「存模型技術名稱字串」的 Char 欄位
+    # （如 'res.partner'），不能直接指向 model_id（Many2one→ir.model），否則
+    # web_read 會執行 self.env[ir.model(id,)] 而拋 KeyError，導致後台清單/表單 500
+    model_name = fields.Char(
+        string='關聯模型技術名稱',
+        related='model_id.model',
+        store=True,
+        index=True,
+        help='由 model_id 自動帶入的技術名稱，供 res_id (Many2oneReference) 使用',
+    )
     res_id = fields.Many2oneReference(
-        model_field='model_id',
+        model_field='model_name',
         string='關聯記錄 ID',
         index=True,
         help='與本文件雙向關聯的目標記錄 ID（搭配 doc.linked.mixin 使用）',
