@@ -38,26 +38,29 @@ interface CliArgs {
   inputPath: string;
   outputPath: string;
   mode: 'ast' | 'elements';
+  svgGraphics: boolean;
 }
 
 function parseArgs(args: string[]): CliArgs {
   // args 已扣除 node + script，剩 [input, output, ...flags]
   let mode: CliArgs['mode'] = 'elements';
+  let svgGraphics = false;
   let inputPath: string | undefined;
   let outputPath: string | undefined;
   for (const a of args) {
     if (a === '--ast') mode = 'ast';
     else if (a === '--elements') mode = 'elements';
+    else if (a === '--svg-graphics') svgGraphics = true; // Sprint 358-359：SmartArt/Chart 渲成 SVG image
     else if (!inputPath) inputPath = a;
     else if (!outputPath) outputPath = a;
   }
   if (!inputPath || !outputPath) {
     stderr.write(
-      'Usage: parse_docx_cli <input.docx> <output.json> [--ast | --elements]\n',
+      'Usage: parse_docx_cli <input.docx> <output.json> [--ast | --elements] [--svg-graphics]\n',
     );
     exit(1);
   }
-  return { inputPath: inputPath!, outputPath: outputPath!, mode };
+  return { inputPath: inputPath!, outputPath: outputPath!, mode, svgGraphics };
 }
 
 function main(): void {
@@ -87,7 +90,7 @@ function main(): void {
       // AST 含 Map 與 BlockNode，要用 replacer 處理 Map
       json = JSON.stringify(serializeForJson(doc), null, 2);
     } else {
-      const mapper = new ToCanvasEditor();
+      const mapper = new ToCanvasEditor({ renderGraphicsAsSvg: args.svgGraphics });
       const elements = mapper.convert(doc);
       json = JSON.stringify(elements, null, 2);
     }

@@ -50,8 +50,19 @@ import type {
 import { NumberingCounterState, expandLvlText } from '../numbering';
 import { ommlToLinearText } from '../omml';
 import { smartArtToText } from '../diagram';
+import { renderSmartArtSvg } from '../diagram/SmartArtSvgRenderer';
 import { chartToText } from '../chart';
+import { renderChartSvg, svgToDataUrl } from '../chart/ChartSvgRenderer';
 import { commentToText } from '../comments/CommentsParser';
+
+/** Sprint 358-359：ToCanvasEditor 行為選項。 */
+export interface ToCanvasEditorOptions {
+  /**
+   * 把 SmartArt / Chart graphic frame 渲染成 SVG image（取代線性文字 fallback）。
+   * 預設 false：維持 Sprint 183 既有純文字輸出 + VR byte-identical 不變。
+   */
+  renderGraphicsAsSvg?: boolean;
+}
 
 // ── canvas-editor 介面（僅必要欄位的本地宣告，避免依賴它的 d.ts 路徑）─────
 
@@ -136,6 +147,13 @@ export class ToCanvasEditor {
    * 每次 `convert()` 開頭依當前 DocumentNode 重設，避免跨文件殘留。
    */
   private comments = new Map<number, CommentContent>();
+
+  /** Sprint 358-359：行為選項（SmartArt/Chart SVG 渲染 opt-in）。 */
+  private readonly options: ToCanvasEditorOptions;
+
+  constructor(options: ToCanvasEditorOptions = {}) {
+    this.options = options;
+  }
 
   /**
    * 把整份 DocumentNode 轉為 IElement[]。
@@ -403,6 +421,14 @@ export class ToCanvasEditor {
     // Sprint 183（Phase 5.2/5.3 render）：SmartArt / Chart graphic frame —— 圖形不
     //   內嵌，以線性文字 fallback 取代（mc:Fallback 壓縮、degraded fidelity）。
     if (img.type === 'inlineImage' && img.graphic) {
+      // Sprint 358-359：opt-in 時先試 SVG 渲染（圖表/組織圖視覺化），失敗才落文字
+      if (this.options.renderGraphicsAsSvg) {
+        const svgImg = this.graphicSvgImage(img.graphic, img.width, img.height);
+        if (svgImg) {
+          out.push(svgImg);
+          return;
+        }
+      }
       const text = this.graphicFallbackText(img.graphic);
       if (text !== undefined) {
         // 查到對應節點：非空 → append 文字；空內容 → 不 emit（SmartArt/Chart 存在但無文字）
@@ -441,6 +467,36 @@ export class ToCanvasEditor {
     }
     const chart = this.chartsByRId.get(graphic.relId);
     return chart ? chartToText(chart) : undefined;
+  }
+
+  /**
+   * Sprint 358-359：SmartArt / Chart → SVG image IElement。
+   *
+   * @returns image CEElement;查無節點 / renderer 不支援該型別 / 無有效數據 → undefined
+   *          （caller 落文字 fallback）
+   */
+  private graphicSvgImage(
+    graphic: { kind: 'diagram' | 'chart'; relId: string },
+    width?: number,
+    height?: number,
+  ): CEElement | undefined {
+    let svg: string | null = null;
+    if (graphic.kind === 'diagram') {
+      const sa = this.smartArtsByRId.get(graphic.relId);
+      if (!sa) return undefined;
+      svg = renderSmartArtSvg(sa);
+    } else {
+      const chart = this.chartsByRId.get(graphic.relId);
+      if (!chart) return undefined;
+      svg = renderChartSvg(chart);
+    }
+    if (!svg) return undefined;
+    return {
+      type: 'image',
+      value: svgToDataUrl(svg),
+      ...(width ? { width } : {}),
+      ...(height ? { height } : {}),
+    };
   }
 
   // ── Table → IElement (type='table') ───────────────────────────────────────
