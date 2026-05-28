@@ -128,3 +128,14 @@ export type {
   ValidateOptions,
   ValidationReport,
 } from './RevisionValidator';
+
+// Sprint 355：edit session 分群（author + time-gap）
+export {
+  sessionize,
+  summarizeSessions,
+} from './RevisionSessionizer';
+export type {
+  EditSession,
+  SessionizeOptions,
+  SessionizeSummary,
+} from './RevisionSessionizer';

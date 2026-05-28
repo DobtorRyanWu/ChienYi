@@ -8,7 +8,9 @@
 
 ---
 
-## 1. 當前指標一覽（Sprint 352 結尾 — 「繼續執行」honest gap 5 項第十二輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 348-352 cluster：① CanvasEditorCacheKeyCodec + ③ wrap_polygon_simplify + ④ RevisionValidator + ⑤ OverlayTransformConstraints + ⑥ WorkerScheduler / +85 tests / vitest 3034（0 fail、8 skip；Sprint 350 dup-id 誤報 move 配對 bug 已修）/ 雙驗紀律 ✅）
+## 1. 當前指標一覽（Sprint 357 結尾 — 「繼續執行」honest gap 5 項第十三輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 353-357 cluster：① CanvasEditorCacheNamespace + ③ wrap_polygon_metrics + ④ RevisionSessionizer + ⑤ OverlayZOrder + ⑥ WorkerBatchCoalescer / +77 tests / vitest 3109 passed（203/205 perf-guard 全套跑滿載 739s 閾值 flaky 1 次、re-run 5/5 通）/ 雙驗紀律 ✅）
+
+## 1. （舊）Sprint 352 結尾 — 「繼續執行」honest gap 5 項第十二輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 348-352 cluster：① CanvasEditorCacheKeyCodec + ③ wrap_polygon_simplify + ④ RevisionValidator + ⑤ OverlayTransformConstraints + ⑥ WorkerScheduler / +85 tests / vitest 3034（0 fail、8 skip；Sprint 350 dup-id 誤報 move 配對 bug 已修）/ 雙驗紀律 ✅）
 
 ## 1. （舊）Sprint 347 結尾 — 「繼續執行」honest gap 5 項第十一輪深推 ⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐ / Sprint 343-347 cluster：① CanvasEditorCacheCoordinator + ③ multi_polygon_baseline + ④ RevisionStatistics + ⑤ OverlayClipboard + ⑥ WorkerPriorityQueue / +82 tests / vitest 2957（0 fail、8 skip）/ 雙驗紀律 ✅）
 

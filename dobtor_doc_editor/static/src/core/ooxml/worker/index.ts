@@ -98,3 +98,9 @@ export type {
   WorkerSchedulerOptions,
   SchedulerStats,
 } from './WorkerScheduler';
+// Sprint 357：batch coalescer（window 收集 + maxBatchSize / 手動 flush）
+export { WorkerBatchCoalescer } from './WorkerBatchCoalescer';
+export type {
+  WorkerBatchCoalescerOptions,
+  BatchCoalescerStats,
+} from './WorkerBatchCoalescer';

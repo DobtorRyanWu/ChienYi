@@ -121,3 +121,14 @@ export {
   isValidCacheKey,
 } from './CanvasEditorCacheKeyCodec';
 export type { CacheKeyParts } from './CanvasEditorCacheKeyCodec';
+// Sprint 353：multi-doc cache namespace partition（codec + lifecycle 組合）
+export {
+  nsKey,
+  parseNsKey,
+  namespacePrefix,
+  invalidateNamespace,
+  nsSet,
+  nsGet,
+  groupKeysByNamespace,
+} from './CanvasEditorCacheNamespace';
+export type { ParsedNsKey } from './CanvasEditorCacheNamespace';

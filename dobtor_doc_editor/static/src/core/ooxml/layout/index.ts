@@ -145,3 +145,15 @@ export {
   simplifyStats,
 } from './wrap_polygon_simplify';
 export type { SimplifyStats } from './wrap_polygon_simplify';
+
+// Sprint 354：polygon metrics（area / centroid / perimeter / winding）
+export {
+  signedArea,
+  area,
+  perimeter,
+  centroid,
+  windingDirection,
+  ensureWinding,
+  computeMetrics,
+} from './wrap_polygon_metrics';
+export type { WindingDirection, PolygonMetrics } from './wrap_polygon_metrics';
