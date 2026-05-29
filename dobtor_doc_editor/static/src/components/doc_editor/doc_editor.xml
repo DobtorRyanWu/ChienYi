@@ -258,25 +258,25 @@
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeBold }"
                         t-on-click="() => this._executeCmd('executeBold')"
-                        title="粗體 (Ctrl+B)" aria-label="粗體" aria-pressed="state.activeBold">
+                        title="粗體 (Ctrl+B)" aria-label="粗體" t-att-aria-pressed="state.activeBold ? 'true' : 'false'">
                     <i class="fa fa-bold" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeItalic }"
                         t-on-click="() => this._executeCmd('executeItalic')"
-                        title="斜體 (Ctrl+I)" aria-label="斜體" aria-pressed="state.activeItalic">
+                        title="斜體 (Ctrl+I)" aria-label="斜體" t-att-aria-pressed="state.activeItalic ? 'true' : 'false'">
                     <i class="fa fa-italic" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeUnderline }"
                         t-on-click="() => this._executeCmd('executeUnderline')"
-                        title="底線 (Ctrl+U)" aria-label="底線" aria-pressed="state.activeUnderline">
+                        title="底線 (Ctrl+U)" aria-label="底線" t-att-aria-pressed="state.activeUnderline ? 'true' : 'false'">
                     <i class="fa fa-underline" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeStrikeout }"
                         t-on-click="() => this._executeCmd('executeStrikeout')"
-                        title="刪除線" aria-label="刪除線" aria-pressed="state.activeStrikeout">
+                        title="刪除線" aria-label="刪除線" t-att-aria-pressed="state.activeStrikeout ? 'true' : 'false'">
                     <i class="fa fa-strikethrough" aria-hidden="true"/>
                 </button>
                 <span class="doc-format-sep" aria-hidden="true"/>
@@ -284,28 +284,28 @@
                         t-att-class="{ 'is-active': state.activeRowFlex === 'left' }"
                         t-on-click="() => this._executeCmd('executeRowFlex', 'left')"
                         title="靠左對齊" aria-label="靠左對齊"
-                        aria-pressed="state.activeRowFlex === 'left'">
+                        t-att-aria-pressed="state.activeRowFlex === 'left' ? 'true' : 'false'">
                     <i class="fa fa-align-left" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeRowFlex === 'center' }"
                         t-on-click="() => this._executeCmd('executeRowFlex', 'center')"
                         title="置中對齊" aria-label="置中對齊"
-                        aria-pressed="state.activeRowFlex === 'center'">
+                        t-att-aria-pressed="state.activeRowFlex === 'center' ? 'true' : 'false'">
                     <i class="fa fa-align-center" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeRowFlex === 'right' }"
                         t-on-click="() => this._executeCmd('executeRowFlex', 'right')"
                         title="靠右對齊" aria-label="靠右對齊"
-                        aria-pressed="state.activeRowFlex === 'right'">
+                        t-att-aria-pressed="state.activeRowFlex === 'right' ? 'true' : 'false'">
                     <i class="fa fa-align-right" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeRowFlex === 'alignment' }"
                         t-on-click="() => this._executeCmd('executeRowFlex', 'alignment')"
                         title="兩端對齊" aria-label="兩端對齊"
-                        aria-pressed="state.activeRowFlex === 'alignment'">
+                        t-att-aria-pressed="state.activeRowFlex === 'alignment' ? 'true' : 'false'">
                     <i class="fa fa-align-justify" aria-hidden="true"/>
                 </button>
                 <span class="doc-format-sep" aria-hidden="true"/>
