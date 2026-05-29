@@ -511,8 +511,11 @@ def _ts_parse_docx_to_elements(file_bytes):
             with open(in_path, 'wb') as fp:
                 fp.write(file_bytes)
 
+            # Sprint 358-359：--svg-graphics 讓 SmartArt/Chart 渲成 SVG image
+            # （取代線性文字 fallback；2026-05-29 真實資料 fidelity audit 修法）。
+            # 舊版 CLI 遇未知旗標會優雅忽略、不 crash，故部署落差安全。
             proc = subprocess.run(
-                ['node', cli_path, in_path, out_path, '--elements'],
+                ['node', cli_path, in_path, out_path, '--elements', '--svg-graphics'],
                 capture_output=True,
                 timeout=30,
             )
