@@ -230,6 +230,7 @@
                  button click 直接呼叫 _executeCmd 包裝、不用獨立 handler。
             ═══ -->
             <div class="doc-format-toolbar"
+                 editor-component="format-toolbar"
                  role="toolbar"
                  aria-label="格式化工具列">
                 <select class="doc-format-select doc-format-font"
@@ -257,24 +258,28 @@
                 <span class="doc-format-sep" aria-hidden="true"/>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeBold }"
+                        t-on-mousedown.prevent="() => {}"
                         t-on-click="() => this._executeCmd('executeBold')"
                         title="粗體 (Ctrl+B)" aria-label="粗體" t-att-aria-pressed="state.activeBold ? 'true' : 'false'">
                     <i class="fa fa-bold" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeItalic }"
+                        t-on-mousedown.prevent="() => {}"
                         t-on-click="() => this._executeCmd('executeItalic')"
                         title="斜體 (Ctrl+I)" aria-label="斜體" t-att-aria-pressed="state.activeItalic ? 'true' : 'false'">
                     <i class="fa fa-italic" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeUnderline }"
+                        t-on-mousedown.prevent="() => {}"
                         t-on-click="() => this._executeCmd('executeUnderline')"
                         title="底線 (Ctrl+U)" aria-label="底線" t-att-aria-pressed="state.activeUnderline ? 'true' : 'false'">
                     <i class="fa fa-underline" aria-hidden="true"/>
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeStrikeout }"
+                        t-on-mousedown.prevent="() => {}"
                         t-on-click="() => this._executeCmd('executeStrikeout')"
                         title="刪除線" aria-label="刪除線" t-att-aria-pressed="state.activeStrikeout ? 'true' : 'false'">
                     <i class="fa fa-strikethrough" aria-hidden="true"/>
@@ -282,6 +287,7 @@
                 <span class="doc-format-sep" aria-hidden="true"/>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeRowFlex === 'left' }"
+                        t-on-mousedown.prevent="() => {}"
                         t-on-click="() => this._executeCmd('executeRowFlex', 'left')"
                         title="靠左對齊" aria-label="靠左對齊"
                         t-att-aria-pressed="state.activeRowFlex === 'left' ? 'true' : 'false'">
@@ -289,6 +295,7 @@
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeRowFlex === 'center' }"
+                        t-on-mousedown.prevent="() => {}"
                         t-on-click="() => this._executeCmd('executeRowFlex', 'center')"
                         title="置中對齊" aria-label="置中對齊"
                         t-att-aria-pressed="state.activeRowFlex === 'center' ? 'true' : 'false'">
@@ -296,6 +303,7 @@
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeRowFlex === 'right' }"
+                        t-on-mousedown.prevent="() => {}"
                         t-on-click="() => this._executeCmd('executeRowFlex', 'right')"
                         title="靠右對齊" aria-label="靠右對齊"
                         t-att-aria-pressed="state.activeRowFlex === 'right' ? 'true' : 'false'">
@@ -303,6 +311,7 @@
                 </button>
                 <button class="doc-format-btn"
                         t-att-class="{ 'is-active': state.activeRowFlex === 'alignment' }"
+                        t-on-mousedown.prevent="() => {}"
                         t-on-click="() => this._executeCmd('executeRowFlex', 'alignment')"
                         title="兩端對齊" aria-label="兩端對齊"
                         t-att-aria-pressed="state.activeRowFlex === 'alignment' ? 'true' : 'false'">
