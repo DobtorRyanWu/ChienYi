@@ -88,4 +88,57 @@
         <field name="view_mode">list,form</field>
     </record>
 
+    <!-- doc.editor.export.log : 匯出紀錄（稽核） -->
+    <record id="view_doc_editor_export_log_list" model="ir.ui.view">
+        <field name="name">doc.editor.export.log.list</field>
+        <field name="model">doc.editor.export.log</field>
+        <field name="arch" type="xml">
+            <list string="文件匯出紀錄" default_order="create_date desc"
+                  decoration-muted="not with_alias">
+                <field name="create_date" string="時間"/>
+                <field name="doc_id"/>
+                <field name="file_format"/>
+                <field name="with_alias" string="實際值"/>
+                <field name="source"/>
+                <field name="user_id"/>
+                <field name="record_ref" optional="show"/>
+                <field name="file_size" string="大小(B)" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_doc_editor_export_log_search" model="ir.ui.view">
+        <field name="name">doc.editor.export.log.search</field>
+        <field name="model">doc.editor.export.log</field>
+        <field name="arch" type="xml">
+            <search string="搜尋匯出紀錄">
+                <field name="doc_id"/>
+                <field name="user_id"/>
+                <field name="record_ref"/>
+                <filter name="fmt_pdf" string="PDF" domain="[('file_format','=','pdf')]"/>
+                <filter name="fmt_docx" string="DOCX" domain="[('file_format','=','docx')]"/>
+                <separator/>
+                <filter name="with_alias" string="已帶入實際值"
+                        domain="[('with_alias','=',True)]"/>
+                <filter name="no_alias" string="未帶入（token 原文）"
+                        domain="[('with_alias','=',False)]"/>
+                <group expand="0" string="分組依據">
+                    <filter name="grp_format" string="格式"
+                            context="{'group_by': 'file_format'}"/>
+                    <filter name="grp_source" string="來源"
+                            context="{'group_by': 'source'}"/>
+                    <filter name="grp_user" string="匯出者"
+                            context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_doc_editor_export_log" model="ir.actions.act_window">
+        <field name="name">匯出紀錄</field>
+        <field name="res_model">doc.editor.export.log</field>
+        <field name="view_mode">list</field>
+    </record>
+
 </odoo>

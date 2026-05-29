@@ -30,6 +30,17 @@
                 </div>
                 <div class="doc-header-bar-right">
                     <button class="doc-header-btn"
+                            t-att-class="state.previewMode ? 'doc-header-btn-preview-active' : ''"
+                            t-on-click="onTogglePreviewMode"
+                            t-attf-title="#{state.previewMode ? '目前顯示實際值（可直接編輯）— 按此回到範本模式看 《token》 原文' : '切到實際值模式（可直接編輯）；改動會凍結為純文字，不影響範本'}"
+                            aria-label="切換預覽模式">
+                        <i t-attf-class="fa #{state.previewMode ? 'fa-tags' : 'fa-eye'}" aria-hidden="true"/>
+                        <span class="d-none d-md-inline">
+                            <t t-if="state.previewMode">範本模式</t>
+                            <t t-else="">顯示實際值</t>
+                        </span>
+                    </button>
+                    <button class="doc-header-btn"
                             t-on-click="onPreviewClick"
                             title="開新分頁預覽填值結果"
                             aria-label="預覽">
@@ -928,6 +939,71 @@
                             <p class="text-muted small">點擊文件上的欄位以編輯屬性</p>
                         </div>
                     </t>
+
+                    <!-- L2-v2：中文欄位對映管理面板 -->
+                    <div class="doc-alias-panel">
+                        <div class="doc-alias-panel-header">
+                            <i class="fa fa-tags me-1" aria-hidden="true"/>
+                            <span>中文欄位對映</span>
+                            <span class="doc-alias-panel-count">(<t t-esc="fieldAliasesList.length"/>)</span>
+                            <button class="doc-alias-tool-btn"
+                                    t-on-click="onAutoInitAliasesClick"
+                                    title="從綁定的 Odoo 模型自動生成欄位對映"
+                                    aria-label="自動生成欄位對映">
+                                <i class="fa fa-magic" aria-hidden="true"/>
+                            </button>
+                            <button class="doc-alias-tool-btn"
+                                    t-on-click="onScanConvertAliasesClick"
+                                    title="掃描文件內 {{ }} 變數並轉成 《中文》 token"
+                                    aria-label="掃描並轉換">
+                                <i class="fa fa-exchange" aria-hidden="true"/>
+                            </button>
+                        </div>
+                        <t t-if="!_loadedModelName">
+                            <div class="doc-alias-panel-empty">
+                                <p class="text-muted small mb-1">
+                                    <i class="fa fa-exclamation-triangle text-warning me-1"/>
+                                    此文件未綁定 Odoo 模型
+                                </p>
+                                <p class="text-muted small">
+                                    請到後台 doc.document form view<br/>
+                                    設定「關聯模型」與「關聯記錄 ID」後再回來。
+                                </p>
+                            </div>
+                        </t>
+                        <t t-elif="fieldAliasesList.length === 0">
+                            <div class="doc-alias-panel-empty">
+                                <p class="text-muted small mb-1">尚未建立任何欄位對映</p>
+                                <p class="text-muted small">
+                                    用「插入 → 插入 Odoo 欄位」新增中文 token，<br/>
+                                    或按上方 <i class="fa fa-magic"/> 自動從模型生成。
+                                </p>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <ul class="doc-alias-panel-list">
+                                <t t-foreach="fieldAliasesList" t-as="a" t-key="a.token">
+                                    <li t-attf-class="doc-alias-panel-row doc-alias-source-#{a.source}"
+                                        t-attf-title="#{a.source === 'template' ? '來自範本：' + state.templateName + '。' : ''}點 token 重新插入《#{a.token}》到游標位置">
+                                        <t t-if="a.source === 'template'">
+                                            <i class="fa fa-link doc-alias-source-icon" t-attf-title="來自範本「#{state.templateName}」"/>
+                                        </t>
+                                        <span class="doc-alias-token"
+                                              t-on-click="() => this.onInsertAliasFromList(a.token)"
+                                              t-esc="a.token"/>
+                                        <span class="doc-alias-arrow">→</span>
+                                        <code class="doc-alias-expression" t-esc="a.expression"/>
+                                        <button class="doc-alias-delete-btn"
+                                                t-on-click="() => this.onDeleteAlias(a.token, a.source)"
+                                                t-attf-title="#{a.source === 'template' ? '從範本移除此對映（影響所有使用此範本的文件）' : '從本文件移除此對映（文件內文字保留）'}"
+                                                aria-label="刪除對映">
+                                            <i class="fa fa-times" aria-hidden="true"/>
+                                        </button>
+                                    </li>
+                                </t>
+                            </ul>
+                        </t>
+                    </div>
                 </aside>
             </div>
 

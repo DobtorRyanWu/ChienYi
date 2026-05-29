@@ -1,9 +1,9 @@
 import base64
 import io
-import re
 import subprocess
 import tempfile
 import os
+import zipfile
 from odoo import models, fields, api
 from odoo.exceptions import UserError
 
@@ -291,7 +291,16 @@ class DocDocument(models.Model):
         index=True,
         help='與本文件雙向關聯的目標記錄 ID（搭配 doc.linked.mixin 使用）',
     )
-
+    field_aliases = fields.Json(
+        string='欄位別名對映',
+        default=dict,
+        help=(
+            '中文 token 到 Jinja2 表達式的對映，例如 '
+            '{"工程名稱": "object.project_id.name"}。'
+            '渲染時 _render_template 會先把文件內 《token》 包裝展開成 '
+            '{{ expression }} 再交給 Jinja2。'
+        ),
+    )
     # ─── 版本管理（W7-8 P1-1）─────────────────────────────────────
     # 設計（修正版）：把版本快照陣列直接存在 doc.document.versions_data (fields.Json)
     #       原本想透過 mail.thread message body 內嵌 base64 JSON，但 body 是 HTML
@@ -469,6 +478,164 @@ class DocDocument(models.Model):
             return base64.b64decode(self.content_attachment_id.datas).decode('utf-8')
         return self.content_html or ''
 
+    # ─── L2-v2 工具方法：alias 自動生成 + 掃描轉換 ─────────────────────
+    def init_aliases_from_model(self, overwrite=False):
+        """根據 doc.model_id 自動生成 field_aliases 對映。
+
+        參數：
+          overwrite=False 時，既有 token 保留不動；新欄位才加入。
+          overwrite=True 時，整批以 model 欄位重建（會清掉使用者自訂的 token）。
+
+        生成規則：
+          - 一般欄位：「中文 description」→ `object.field_name`
+          - date / datetime：用 format_date(object.x)
+          - selection：用 selection_label('x')
+          - many2one：「中文 description」→ `object.field_name.display_name`
+        """
+        self.ensure_one()
+        if not self.model_id:
+            return {'success': False, 'error': '此文件未設定 model_id'}
+        model_name = self.model_id.model
+        if model_name not in self.env:
+            return {'success': False, 'error': f"模型 '{model_name}' 不存在"}
+
+        existing = dict(self.field_aliases or {})
+        added = []
+        skipped = []
+        IrModelFields = self.env['ir.model.fields']
+        ttypes = ('char', 'text', 'integer', 'float', 'monetary',
+                  'date', 'datetime', 'boolean', 'selection', 'many2one')
+        fields = IrModelFields.search([
+            ('model', '=', model_name),
+            ('store', '=', True),
+            ('ttype', 'in', list(ttypes)),
+        ], order='field_description asc')
+
+        for f in fields:
+            label = (f.field_description or '').strip()
+            if not label:
+                continue
+            # 計算 expression
+            if f.ttype == 'date' or f.ttype == 'datetime':
+                expr = f'format_date(object.{f.name})'
+            elif f.ttype == 'selection':
+                expr = f"selection_label('{f.name}')"
+            elif f.ttype == 'many2one':
+                expr = f'object.{f.name}.display_name'
+            else:
+                expr = f'object.{f.name}'
+
+            if label in existing and not overwrite:
+                skipped.append(label)
+                continue
+            existing[label] = expr
+            added.append(label)
+
+        self.write({'field_aliases': existing})
+        return {
+            'success': True,
+            'aliases': existing,
+            'added': added,
+            'skipped': skipped,
+        }
+
+    def scan_and_convert_to_alias(self):
+        """掃 content_html / content_json 內所有 `{{ ... }}` 文字，根據 field_aliases
+        反查對應的中文 token，把找得到的整段替換成 《token》。
+
+        反查邏輯：
+          - 抓 {{ EXPRESSION }} 內的 EXPRESSION 字串（去前後空白）
+          - 在 field_aliases value 中找完全相等的 expression → 取對應 key (token)
+          - 沒找到 → 保留原文（不動）
+
+        回傳 {converted: int, skipped: int}
+        """
+        self.ensure_one()
+        import re as _re
+        import json as _json
+        # 合併 template + 自身 alias map（用 mixin 的合併邏輯）
+        aliases = self._collect_field_aliases()
+        if not aliases:
+            return {'success': False, 'error': '尚無 alias 對映可供反查（請先按「自動生成」或設定範本）'}
+
+        # 拆出 token alias（中文 key）與 varname alias（純識別符 key）
+        # 反查策略：
+        #   - 直接命中：{{ inner }} 內 inner 是某 alias value（expression）→ 找 token key
+        #   - 兩步命中：inner 是 varname_alias key → 取對應 expression → 再從 token_alias 反查
+        token_alias = {}  # key=中文 token, value=expression
+        varname_alias = {}  # key=純變數名, value=expression
+        expr_to_token = {}
+        for k, v in aliases.items():
+            ks = str(k).strip()
+            vs = str(v).strip()
+            if not ks or not vs:
+                continue
+            if _re.match(r'^[A-Za-z_][\w]*$', ks):
+                varname_alias[ks] = vs
+            else:
+                token_alias[ks] = vs
+                expr_to_token[vs] = ks
+
+        pat = _re.compile(r'\{\{\s*(.+?)\s*\}\}')
+        converted_total = [0]
+        skipped_total = [0]
+
+        def _replace_text(text):
+            if not text:
+                return text
+            def _r(m):
+                inner = m.group(1).strip()
+                # 1) 直接用 expression 反查 token
+                token = expr_to_token.get(inner)
+                if token:
+                    converted_total[0] += 1
+                    return f'《{token}》'
+                # 2) 變數名兩步反查
+                if inner in varname_alias:
+                    expr = varname_alias[inner]
+                    token = expr_to_token.get(expr)
+                    if token:
+                        converted_total[0] += 1
+                        return f'《{token}》'
+                skipped_total[0] += 1
+                return m.group(0)
+            return pat.sub(_r, text)
+
+        # content_html
+        new_html = _replace_text(self.content_html or '')
+
+        # content_json 遞迴
+        cj = self.content_json
+        if isinstance(cj, str):
+            try:
+                cj = _json.loads(cj)
+            except Exception:
+                cj = None
+
+        def _walk(node):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if k == 'value' and isinstance(v, str):
+                        node[k] = _replace_text(v)
+                    else:
+                        _walk(v)
+            elif isinstance(node, list):
+                for item in node:
+                    _walk(item)
+
+        if cj:
+            _walk(cj)
+
+        vals = {'content_html': new_html}
+        if cj:
+            vals['content_json'] = cj
+        self.write(vals)
+        return {
+            'success': True,
+            'converted': converted_total[0],
+            'skipped': skipped_total[0],
+        }
+
     # ─── Actions ─────────────────────────────────────────────────────
 
     def action_open_editor(self):
@@ -484,10 +651,38 @@ class DocDocument(models.Model):
             'target': 'fullscreen',
         }
 
-    def action_export_pdf(self):
-        """匯出 PDF 並下載。"""
+    def action_quick_preview(self):
+        """從 form view 一鍵預覽——開新分頁顯示渲染後 HTML（含 chip 樣式）。
+
+        需要 doc 同時設好 model_id 與 res_id；否則回提示 message。
+        """
         self.ensure_one()
-        pdf_bytes = self._generate_pdf()
+        if not self.model_id or not self.res_id:
+            from odoo.exceptions import UserError
+            raise UserError(
+                "此文件未綁定模型或記錄，無法預覽。\n"
+                "請先設定「關聯模型」與「關聯記錄 ID」。"
+            )
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/dobtor_doc/preview/{self.id}',
+            'target': 'new',
+        }
+
+    def action_export_pdf(self):
+        """匯出 PDF 並下載。
+
+        若此文件已綁定 model_id + res_id，自動帶入對應 record，
+        讓 alias（《token》/ {{ varname }}）走完整渲染，
+        匯出的 PDF 直接呈現實際欄位值，而非 token 原文。
+        """
+        self.ensure_one()
+        record = self._resolve_bound_record()
+        pdf_bytes = self._generate_pdf(record=record)
+        self.env['doc.editor.export.log'].record_export(
+            self, 'pdf', with_alias=record is not None,
+            file_size=len(pdf_bytes), source='form_button',
+        )
         attachment = self.env['ir.attachment'].create({
             'name': f'{self.name}.pdf',
             'type': 'binary',
@@ -503,9 +698,18 @@ class DocDocument(models.Model):
         }
 
     def action_export_docx(self):
-        """匯出 DOCX 並下載。"""
+        """匯出 DOCX 並下載。
+
+        若此文件已綁定 model_id + res_id，自動帶入對應 record，
+        讓 alias 完整渲染，匯出的 DOCX 直接呈現實際欄位值。
+        """
         self.ensure_one()
-        docx_bytes = self._generate_docx_via_libreoffice()
+        record = self._resolve_bound_record()
+        docx_bytes = self._generate_docx_via_libreoffice(record=record)
+        self.env['doc.editor.export.log'].record_export(
+            self, 'docx', with_alias=record is not None,
+            file_size=len(docx_bytes), source='form_button',
+        )
         attachment = self.env['ir.attachment'].create({
             'name': f'{self.name}.docx',
             'type': 'binary',
@@ -514,6 +718,73 @@ class DocDocument(models.Model):
             'res_id': self.id,
             'mimetype': ('application/vnd.openxmlformats-officedocument'
                          '.wordprocessingml.document'),
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'new',
+        }
+
+    def _resolve_bound_record(self):
+        """取出此文件綁定的 record（model_id + res_id）；取不到回 None。
+
+        供匯出流程共用：有綁定就讓 alias 走完整渲染輸出實際值，
+        沒綁定（或 model/record 已不存在）就回 None，輸出 token 原文。
+        """
+        self.ensure_one()
+        if not (self.model_id and self.res_id):
+            return None
+        try:
+            rec = self.env[self.model_id.model].browse(self.res_id)
+            return rec if rec.exists() else None
+        except Exception:
+            return None
+
+    def action_batch_export_pdf_zip(self):
+        """批次匯出：把選取的多份文件各自渲染成 PDF，打包為單一 zip 下載。
+
+        從 list view 的「動作」選單觸發（self 為多筆 recordset）。
+        每份文件各自帶入其綁定 record，alias 渲染成實際值。
+        單份失敗不中斷整批：以 _ERROR.txt 留下錯誤訊息一併打包。
+        """
+        if not self:
+            raise UserError("請先勾選要匯出的文件。")
+
+        zip_buffer = io.BytesIO()
+        used_names = {}
+        ok_count = 0
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for doc in self:
+                # 檔名去重（同名文件加序號），並清掉路徑分隔字元
+                safe_name = (doc.name or f'document_{doc.id}').replace('/', '_').replace('\\', '_')
+                count = used_names.get(safe_name, 0)
+                used_names[safe_name] = count + 1
+                if count:
+                    safe_name = f'{safe_name}_{count + 1}'
+                try:
+                    record = doc._resolve_bound_record()
+                    pdf_bytes = doc._generate_pdf(record=record)
+                    zf.writestr(f'{safe_name}.pdf', pdf_bytes)
+                    self.env['doc.editor.export.log'].record_export(
+                        doc, 'pdf', with_alias=record is not None,
+                        file_size=len(pdf_bytes), source='batch',
+                    )
+                    ok_count += 1
+                except Exception as exc:
+                    zf.writestr(f'{safe_name}_ERROR.txt',
+                                f'匯出失敗：{exc}'.encode('utf-8'))
+
+        if not ok_count:
+            raise UserError("批次匯出失敗：沒有任何文件成功產生 PDF。")
+
+        zip_bytes = zip_buffer.getvalue()
+        filename = (f'documents_{fields.Datetime.now().strftime("%Y%m%d_%H%M%S")}'
+                    f'_{ok_count}docs.zip')
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(zip_bytes),
+            'mimetype': 'application/zip',
         })
         return {
             'type': 'ir.actions.act_url',

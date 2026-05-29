@@ -451,6 +451,18 @@
     background: #f3eaf0;
 }
 
+/* L2-v2 預覽模式 active 狀態（橘色強調，提示使用者目前看到的是渲染後值不是 token 原文） */
+.doc-header-btn.doc-header-btn-preview-active {
+    background: #f97316;
+    color: #fff;
+    border-color: #f97316;
+    font-weight: 600;
+}
+.doc-header-btn.doc-header-btn-preview-active:hover:not(:disabled) {
+    background: #ea580c;
+    border-color: #ea580c;
+}
+
 .doc-header-btn.primary.saving {
     opacity: 0.65;
     cursor: not-allowed;
@@ -1199,6 +1211,102 @@
     text-align: center;
     padding: 24px 8px;
 }
+
+/* ─── L2-v2 中文欄位對映管理面板 ─── */
+.doc-alias-panel {
+    border-top: 1px solid #e2e8f0;
+    padding: 10px 8px 8px;
+    margin-top: 8px;
+}
+.doc-alias-panel-header {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    color: #475569;
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+.doc-alias-panel-count {
+    margin-left: auto;
+    color: #94a3b8;
+    font-weight: normal;
+    margin-right: 4px;
+}
+.doc-alias-tool-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #64748b;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 2px;
+    font-size: 12px;
+}
+.doc-alias-tool-btn:hover {
+    background: #e0f2fe;
+    color: #0369a1;
+    border-color: #bae6fd;
+}
+.doc-alias-panel-empty {
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+    padding: 12px;
+    text-align: center;
+}
+.doc-alias-panel-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 320px;
+    overflow-y: auto;
+}
+.doc-alias-panel-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 4px;
+    border-bottom: 1px dashed #e2e8f0;
+    font-size: 12px;
+}
+.doc-alias-panel-row:last-child { border-bottom: 0; }
+.doc-alias-panel-row.doc-alias-source-template { background: #fafbff; }
+.doc-alias-source-icon {
+    color: #6366f1;
+    font-size: 10px;
+    flex-shrink: 0;
+    cursor: help;
+}
+.doc-alias-token {
+    color: #1565c0;
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 3px;
+    padding: 1px 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.doc-alias-token:hover { background: #bbdefb; }
+.doc-alias-arrow { color: #94a3b8; flex-shrink: 0; }
+.doc-alias-expression {
+    background: transparent;
+    color: #475569;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+}
+.doc-alias-delete-btn {
+    background: transparent;
+    border: 0;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.doc-alias-delete-btn:hover { color: #dc2626; background: #fef2f2; }
 
 /* ─── Statusbar 強化 ─── */
 .doc-statusbar-hint {

@@ -916,6 +916,10 @@ class DocEditorController(http.Controller):
             'margin_right': doc.margin_right,
             'model_id': doc.model_id.id if doc.model_id else False,
             'model_name': doc.model_id.model if doc.model_id else False,
+            'res_id': doc.res_id or False,
+            'field_aliases': doc.field_aliases or {},
+            'template_field_aliases': (doc.template_id.field_aliases or {}) if doc.template_id else {},
+            'template_name': doc.template_id.name if doc.template_id else '',
             'has_template': bool(doc.template_docx),
             'template_filename': doc.template_filename or '',
             'template_variables': json.loads(doc.template_variables) if doc.template_variables else [],
@@ -1174,10 +1178,299 @@ class DocEditorController(http.Controller):
         try:
             record = request.env[record_model].browse(record_id)
             record.check_access_rule('read')
-            rendered = doc._render_template(doc.get_content_html(), record)
+            rendered = doc._render_template(doc.get_content_html(), record, with_chip=True)
             return {'html': rendered}
         except Exception as e:
             return {'error': str(e)}
+
+    # ─── 中文 token 別名（L2-v2 alias map）─────────────────────────────
+    @http.route('/dobtor_doc/aliases/get', type='json', auth='user', methods=['POST'])
+    def get_aliases(self, doc_id, **kw):
+        """讀取文件目前的中文 token → Jinja2 expression 對映。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('read')
+        return {'aliases': doc.field_aliases or {}}
+
+    @http.route('/dobtor_doc/aliases/save', type='json', auth='user', methods=['POST'])
+    def save_aliases(self, doc_id, aliases, **kw):
+        """整批覆寫文件的中文 token → Jinja2 expression 對映。
+
+        aliases: dict[str, str]，key=中文 token、value=Jinja2 expression（不含 {{ }}）。
+        例：{"工程名稱": "object.project_id.name"}
+        """
+        if not isinstance(aliases, dict):
+            return {'error': 'aliases 必須為 dict'}
+        # 防呆：剝除空 key / 空 value、key 移除前後 《》
+        cleaned = {}
+        for raw_key, raw_val in aliases.items():
+            if not raw_key or not raw_val:
+                continue
+            key = str(raw_key).strip().strip('《》').strip()
+            val = str(raw_val).strip()
+            if key and val:
+                cleaned[key] = val
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('write')
+        doc.write({'field_aliases': cleaned})
+        return {'success': True, 'aliases': cleaned}
+
+    @http.route('/dobtor_doc/aliases/auto_init', type='json', auth='user', methods=['POST'])
+    def auto_init_aliases(self, doc_id, overwrite=False, **kw):
+        """從 doc.model_id 的欄位自動生成中文 alias 對映。
+
+        overwrite=False（預設）保留既有 token；True 整批以模型欄位重建。
+        """
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('write')
+        return doc.init_aliases_from_model(overwrite=bool(overwrite))
+
+    @http.route('/dobtor_doc/aliases/scan_convert', type='json', auth='user', methods=['POST'])
+    def scan_convert_aliases(self, doc_id, **kw):
+        """掃描文件內所有 {{ expression }} 文字，根據既有 alias map 反查中文 token 後改寫成 《token》。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('write')
+        return doc.scan_and_convert_to_alias()
+
+    @http.route('/dobtor_doc/template_aliases/get', type='json', auth='user', methods=['POST'])
+    def get_template_aliases(self, doc_id, **kw):
+        """讀取 doc 所屬 template 的 alias map（範本層級全域對映）。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('read')
+        if not doc.template_id:
+            return {'aliases': {}, 'template_id': False, 'template_name': ''}
+        return {
+            'aliases': doc.template_id.field_aliases or {},
+            'template_id': doc.template_id.id,
+            'template_name': doc.template_id.name or '',
+        }
+
+    @http.route('/dobtor_doc/template_aliases/save', type='json', auth='user', methods=['POST'])
+    def save_template_aliases(self, doc_id, aliases, **kw):
+        """覆寫 doc 所屬 template 的 alias map。所有使用此範本的 doc 都會生效。"""
+        if not isinstance(aliases, dict):
+            return {'error': 'aliases 必須為 dict'}
+        cleaned = {}
+        for raw_k, raw_v in aliases.items():
+            if not raw_k or not raw_v:
+                continue
+            k = str(raw_k).strip().strip('《》').strip()
+            v = str(raw_v).strip()
+            if k and v:
+                cleaned[k] = v
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('write')
+        if not doc.template_id:
+            return {'error': '此文件未綁定範本，無法寫入範本級 alias'}
+        doc.template_id.check_access_rule('write')
+        doc.template_id.write({'field_aliases': cleaned})
+        return {'success': True, 'aliases': cleaned}
+
+    @http.route('/dobtor_doc/preview_content_json', type='json', auth='user', methods=['POST'])
+    def preview_content_json(self, doc_id, record_id=None, content_json=None, **kw):
+        """把 content_json 內所有 token / {{ var }} 替換成實際值，回傳新的 JSON。
+
+        編輯器「預覽模式」用：toggle 切到預覽時暫存原 content_json，呼叫本端點取代渲染後的版本，
+        canvas-editor 直接 executeSetValue 上去，使用者可以看見實際值。
+
+        content_json：可選。給了就渲染「這份當前編輯器內容」（保留已建的 control chip，只把
+        殘餘 token 文字換成值）；沒給則用 doc 儲存的 content_json。前端開檔升級 chip 後會把
+        當前內容傳進來，讓 chip 與其餘 token 的實際值「共存」而非被整份覆蓋。
+        """
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('read')
+        rec_id = int(record_id) if record_id else doc.res_id
+        if not doc.model_id or not rec_id:
+            return {'error': '此文件未綁定 model_id 或 res_id'}
+        try:
+            record = request.env[doc.model_id.model].browse(rec_id)
+            record.check_access_rule('read')
+            if not record.exists():
+                return {'error': f'記錄 {doc.model_id.model}/{rec_id} 不存在'}
+        except Exception as e:
+            return {'error': f'記錄存取失敗：{e}'}
+
+        # 合併 alias map（template + doc 自己）
+        aliases = doc._collect_field_aliases()
+        if not aliases:
+            return {'error': '尚無 alias 對映'}
+
+        # 拆 token / varname
+        import re as _re
+        token_alias = {}
+        var_alias = {}
+        for k, v in aliases.items():
+            ks = str(k).strip()
+            vs = str(v).strip()
+            if not ks or not vs:
+                continue
+            if _re.match(r'^[A-Za-z_]\w*$', ks):
+                var_alias[ks] = vs
+            else:
+                token_alias[ks] = vs
+
+        # 準備 Jinja2 環境（含 helper）
+        from jinja2.sandbox import SandboxedEnvironment
+        env_j = SandboxedEnvironment()
+        for name, fn in doc._get_render_helpers(record).items():
+            env_j.globals[name] = fn
+
+        def _eval(expression):
+            try:
+                tpl = env_j.from_string('{{ ' + expression + ' }}')
+                return tpl.render(object=record, user=request.env.user)
+            except Exception:
+                return ''
+
+        # 預編譯所有 alias 的渲染結果（cache 重複 token）
+        token_to_value = {tk: _eval(expr) for tk, expr in token_alias.items()}
+        var_to_value = {vn: _eval(expr) for vn, expr in var_alias.items()}
+
+        _token_pat = _re.compile(r'《([^》]+)》')
+        _var_pat = _re.compile(r'\{\{\s*([A-Za-z_]\w*)\s*\}\}')
+
+        def _replace_text(text):
+            if not isinstance(text, str) or not text:
+                return text
+            def _rt(m):
+                return token_to_value.get(m.group(1).strip(), m.group(0))
+            text = _token_pat.sub(_rt, text)
+            def _rv(m):
+                return var_to_value.get(m.group(1).strip(), m.group(0))
+            return _var_pat.sub(_rv, text)
+
+        # 遞迴掃 content_json：優先用前端傳入的當前內容（含 chip），否則用 doc 儲存的
+        import json as _json
+        cj = content_json if content_json is not None else doc.content_json
+        if isinstance(cj, str):
+            try:
+                cj = _json.loads(cj)
+            except Exception:
+                return {'error': 'content_json 無法解析'}
+        if not cj:
+            return {'error': 'content_json 為空'}
+
+        # 深複製避免改到 cache
+        import copy as _copy
+        cj = _copy.deepcopy(cj)
+
+        def _walk(node):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if k == 'value' and isinstance(v, str):
+                        node[k] = _replace_text(v)
+                    else:
+                        _walk(v)
+            elif isinstance(node, list):
+                for it in node:
+                    _walk(it)
+
+        _walk(cj)
+        return {'success': True, 'content_json': cj}
+
+    @http.route('/dobtor_doc/preview/<int:doc_id>', type='http', auth='user', methods=['GET'])
+    def preview_document(self, doc_id, record_id=None, **kw):
+        """瀏覽器直接打開的預覽頁（form view「快速預覽」按鈕用）。
+
+        參數：
+          record_id：可選；未指定時用 doc.res_id。
+        """
+        doc = request.env['doc.document'].browse(int(doc_id))
+        try:
+            doc.check_access_rule('read')
+        except Exception:
+            return request.not_found()
+
+        # 決定渲染用 record
+        rec_id = int(record_id) if record_id else doc.res_id
+        rec = None
+        rec_model = doc.model_id.model if doc.model_id else None
+        if rec_model and rec_id:
+            try:
+                rec = request.env[rec_model].browse(rec_id)
+                rec.check_access_rule('read')
+                if not rec.exists():
+                    rec = None
+            except Exception:
+                rec = None
+
+        # 渲染（帶 chip 樣式）
+        body = doc._render_template(doc.get_content_html(), rec, with_chip=True) if rec \
+            else doc.get_content_html() or '<p><em>（文件無內容）</em></p>'
+
+        doc_name = html_mod.escape(doc.name or '未命名文件')
+        record_label = html_mod.escape(rec.display_name) if rec else '（無綁定記錄）'
+        full_html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>預覽：{doc_name}</title>
+<style>
+body {{
+  font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif;
+  padding: 24px; max-width: 820px; margin: auto;
+  background: #f8fafc;
+}}
+.doc-preview-header {{
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #475569;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}}
+.doc-preview-body {{
+  background: #fff;
+  padding: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}}
+@media print {{
+  body {{ padding: 0; max-width: none; background: #fff; }}
+  .doc-preview-header {{ display: none; }}
+  .doc-preview-body {{ border: 0; padding: 0; }}
+  .doc-field-token {{ background: transparent; border: 0; padding: 0; color: inherit; }}
+}}
+.doc-field-token {{
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: #1565c0;
+  font-size: 0.95em;
+}}
+.doc-field-token:empty::after {{ content: '（無值）'; color: #999; font-style: italic; }}
+</style></head><body>
+<div class="doc-preview-header">
+  <span><strong>{doc_name}</strong> 預覽</span>
+  <span>對應記錄：{record_label}</span>
+</div>
+<div class="doc-preview-body">{body}</div>
+</body></html>"""
+        return request.make_response(
+            full_html,
+            headers=[('Content-Type', 'text/html; charset=utf-8')],
+        )
+
+    @http.route('/dobtor_doc/template_aliases/auto_init', type='json', auth='user', methods=['POST'])
+    def auto_init_template_aliases(self, doc_id, overwrite=False, **kw):
+        """從 doc 綁定 model 自動生成範本級 alias，寫入 doc.template_id。"""
+        doc = request.env['doc.document'].browse(int(doc_id))
+        doc.check_access_rule('write')
+        if not doc.template_id:
+            return {'success': False, 'error': '此文件未綁定範本'}
+        if not doc.model_id:
+            return {'success': False, 'error': '此文件未綁定 Odoo 模型'}
+        # 借用 doc 的 init_aliases_from_model 邏輯，但寫入點改為 template
+        tmpl = doc.template_id
+        tmpl.check_access_rule('write')
+        # 暫借 doc 的方法計算，再把結果搬到 template
+        # 用 _new() 避免污染現有 doc.field_aliases；直接呼叫靜態生成
+        return tmpl.init_aliases_from_model_for(
+            doc.model_id.model,
+            overwrite=bool(overwrite),
+        )
 
     @http.route('/dobtor_doc/export', type='json', auth='user', methods=['POST'])
     def export_document(self, doc_id, format='pdf', quality='high',
@@ -1194,6 +1487,17 @@ class DocEditorController(http.Controller):
             except Exception:
                 record = None
 
+        # Fallback：若前端沒帶 record，自動從 doc.model_id + doc.res_id 取
+        # （讓「即用即匯出」流程不必每次都記得帶綁定資訊）
+        if record is None and doc.model_id and doc.res_id:
+            try:
+                rec = request.env[doc.model_id.model].browse(doc.res_id)
+                rec.check_access_rule('read')
+                if rec.exists():
+                    record = rec
+            except Exception:
+                record = None
+
         try:
             if format == 'pdf':
                 file_bytes = doc._generate_pdf(record=record)
@@ -1207,6 +1511,10 @@ class DocEditorController(http.Controller):
             else:
                 return {'error': f'不支援的格式：{format}'}
 
+            request.env['doc.editor.export.log'].record_export(
+                doc, format, with_alias=record is not None,
+                file_size=len(file_bytes), source='editor',
+            )
             return {
                 'filename': filename,
                 'data': base64.b64encode(file_bytes).decode(),
@@ -1564,17 +1872,114 @@ class DocEditorController(http.Controller):
             'placeholder_text', 'font_size', 'odoo_field_name',
             'width', 'height', 'pos_x', 'pos_y',
             'layout_mode',  # Sprint D
+            # 互動式 control 選項設定
+            'option_source', 'selection_field_name', 'input_able', 'is_multi_select',
         ])
         # signer_id 從 Odoo Many2one [id, display_name] tuple 簡化為純 id
+        # 並附上自訂選項清單（option_ids → options）供前端組 valueSets
+        field_recs = {rec.id: rec for rec in template.field_ids}
         for f in fields_list:
             if f.get('signer_id'):
                 f['signer_id'] = f['signer_id'][0]
+            rec = field_recs.get(f['id'])
+            f['options'] = [
+                {'value': o.value, 'code': o.code or o.value}
+                for o in rec.option_ids.sorted('sequence')
+            ] if rec else []
         return {
             'has_template': True,
             'template_id': template.id,
             'signers': signers,
             'fields': fields_list,
         }
+
+    def _field_control_spec(self, field, record, aliases=None):
+        """把一個 doc.template.field 轉成前端 canvas-editor control 所需的設定。
+
+        record：doc 綁定的 Odoo record（可能為 None）；用來算 current_code
+                （chip 開啟時的預設選中值＝該 record 該欄位的當前值）。
+        aliases：doc._collect_field_aliases()，用來算此欄位對應的文件內 token 字面字串
+                （含 {{ varname }} 與 《中文》兩種格式），供前端在內容中尋找並升級。
+
+        odoo 來源優先用 record 的 model 解析 Selection（拿得到 current_code）；
+        沒 record 時退而用 template.model_id，只給選項、不給預設值。
+        """
+        value_sets = []
+        current_code = None
+        if field.option_source == 'odoo' and field.selection_field_name:
+            model_name = None
+            if record is not None and record.exists():
+                model_name = record._name
+            elif field.template_id.model_id:
+                model_name = field.template_id.model_id.model
+            if model_name and model_name in request.env:
+                fdef = request.env[model_name]._fields.get(field.selection_field_name)
+                if fdef and fdef.type == 'selection':
+                    for tech, label in fdef._description_selection(request.env):
+                        value_sets.append({'value': label, 'code': tech})
+                    if (record is not None and record.exists()
+                            and field.selection_field_name in record._fields):
+                        val = record[field.selection_field_name]
+                        if val:
+                            current_code = val
+        elif field.option_source == 'custom':
+            for opt in field.option_ids.sorted('sequence'):
+                value_sets.append({'value': opt.value, 'code': opt.code or opt.value})
+
+        # 此欄位對應的文件內 token 字面字串：以 placeholder_text（varname）為錨，
+        # 找 field_aliases 中對映到同一 expression 的所有 key。
+        # varname-like key → {{ key }}；中文等非 varname key → 《key》。
+        # 讓前端能同時升級 {{ timing }}（新文件）與 《檢查時機》（已遷移文件）。
+        varname = field.placeholder_text or ''
+        tokens = []
+        if varname:
+            tokens.append('{{ %s }}' % varname)
+            if aliases:
+                expr = aliases.get(varname)
+                if expr:
+                    for k, v in aliases.items():
+                        if v != expr or k == varname:
+                            continue
+                        if re.match(r'^[A-Za-z_]\w*$', k):
+                            tokens.append('{{ %s }}' % k)
+                        else:
+                            tokens.append('《%s》' % k)
+        tokens = list(dict.fromkeys(tokens))  # 去重、保序
+
+        return {
+            'field_id': field.id,
+            'placeholder_text': varname,
+            'control_type': field.field_type,
+            'value_sets': value_sets,
+            'input_able': field.input_able,
+            'is_multi_select': field.is_multi_select,
+            'current_code': current_code,
+            'concept_id': str(field.id),
+            'tokens': tokens,
+        }
+
+    @http.route('/dobtor_doc/template_fields/options', type='json', auth='user', methods=['POST'])
+    def template_field_options(self, doc_id, field_id=None, **kw):
+        """回傳互動式 control 的選項設定（valueSets + 預設值）。
+
+        給 field_id → 回單一欄位 spec；不給 → 回此文件範本所有欄位的 spec（批次，
+        供「開文件自動升級」一次拿齊，免逐個 round-trip）。
+        """
+        doc = request.env['doc.document'].browse(doc_id)
+        doc.check_access_rule('read')
+        record = doc._resolve_bound_record()
+        aliases = doc._collect_field_aliases() or {}
+        FieldModel = request.env['doc.template.field']
+        if field_id:
+            field = FieldModel.browse(int(field_id))
+            if not field.exists() or (doc.template_id and field.template_id != doc.template_id):
+                return {'success': False, 'error': '欄位不存在或不屬於此範本'}
+            return {'success': True, 'spec': self._field_control_spec(field, record, aliases)}
+        specs = []
+        if doc.template_id:
+            for field in doc.template_id.field_ids:
+                specs.append(self._field_control_spec(field, record, aliases))
+        return {'success': True, 'specs': specs}
 
     @http.route('/dobtor_doc/template_fields/save_field', type='json', auth='user', methods=['POST'])
     def template_fields_save_field(self, doc_id, field=None, **kw):
@@ -1609,6 +2014,8 @@ class DocEditorController(http.Controller):
             'placeholder_text', 'font_size', 'odoo_field_name',
             'width', 'height', 'pos_x', 'pos_y',
             'layout_mode',  # Sprint D
+            # 互動式 control 選項設定
+            'option_source', 'selection_field_name', 'input_able', 'is_multi_select',
         }
         vals = {k: v for k, v in field.items() if k in ALLOWED}
         FieldModel = request.env['doc.template.field']

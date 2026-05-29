@@ -25,9 +25,18 @@ FIELD_TYPE_SELECTION = [
     ('text',       '文字'),
     ('date',       '日期'),
     ('checkbox',   '核取方塊'),
+    ('select',     '下拉選單'),
+    ('radio',      '單選組'),
     ('signature',  '簽名'),
     ('initial',    '繕寫簽名'),
     ('odoo_field', 'Odoo 欄位'),
+]
+
+# 「下拉/勾選/單選」這類控制項的選項來源
+OPTION_SOURCE_SELECTION = [
+    ('none',   '無（純文字）'),
+    ('odoo',   '綁 Odoo Selection 欄位'),
+    ('custom', '自訂清單'),
 ]
 
 LAYOUT_MODE_SELECTION = [
@@ -80,6 +89,35 @@ class DocTemplateField(models.Model):
     odoo_field_name = fields.Char(
         string='Odoo 欄位名稱',
         help="field_type='odoo_field' 時對應 doc.template.model_id 上的欄位名（如 'partner_id.name'）",
+    )
+
+    # ─── 下拉 / 勾選 / 單選控制項的選項設定（對應 canvas-editor select/checkbox/radio control）───
+    option_source = fields.Selection(
+        OPTION_SOURCE_SELECTION,
+        string='選項來源',
+        default='none',
+        help="field_type 為 select/checkbox/radio 時生效。"
+             "odoo＝自動帶綁定 Selection 欄位的選項；custom＝用下方自訂清單。",
+    )
+    selection_field_name = fields.Char(
+        string='Selection 來源欄位',
+        help="option_source='odoo' 時，doc.template.model_id 上的 Selection 欄位技術名（如 timing / severity）",
+    )
+    input_able = fields.Boolean(
+        string='允許自行填寫',
+        default=False,
+        help='對應 canvas-editor selectExclusiveOptions.inputAble：除了選清單，也可手動打字填。',
+    )
+    is_multi_select = fields.Boolean(
+        string='可複選',
+        default=False,
+        help='對應 canvas-editor select control 的 isMultiSelect。',
+    )
+    option_ids = fields.One2many(
+        'doc.template.field.option',
+        'field_id',
+        string='自訂選項',
+        help="option_source='custom' 時的選項清單（每筆 = 一個下拉/勾選選項）。",
     )
 
     @api.constrains('template_id', 'signer_id')

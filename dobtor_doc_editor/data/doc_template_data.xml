@@ -74,18 +74,142 @@
     </tr>
   </thead>
   <tbody>
-    <tr><td style="border:1px solid #000;padding:6px">1</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">□合格 □不合格</td><td style="border:1px solid #000;padding:6px">　</td></tr>
-    <tr><td style="border:1px solid #000;padding:6px">2</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">□合格 □不合格</td><td style="border:1px solid #000;padding:6px">　</td></tr>
-    <tr><td style="border:1px solid #000;padding:6px">3</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">□合格 □不合格</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px">1</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">{{ result_1 }}</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px">2</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">{{ result_2 }}</td><td style="border:1px solid #000;padding:6px">　</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px">3</td><td style="border:1px solid #000;padding:6px">　</td><td style="border:1px solid #000;padding:6px;text-align:center">{{ result_3 }}</td><td style="border:1px solid #000;padding:6px">　</td></tr>
   </tbody>
 </table>
 <h3>整體結果</h3>
-<p>□合格　□條件式合格　□不合格</p>
+<p>{{ overall_result }}</p>
 <p>說明：</p><p><br></p>
 <table style="width:100%;margin-top:32px">
   <tr><td style="text-align:left">檢查人員：________________</td><td style="text-align:right">日期：____ 年 ____ 月 ____ 日</td></tr>
 </table>
             ]]></field>
+        </record>
+
+        <!-- 自主檢查表：互動式變數 control（階段 1 示範）
+             timing → 下拉選單，選項來自 general.self.inspection 的 inspection_timing
+             Selection 欄位（查驗停留點/施工前/中/完成檢查），並允許自行填寫。
+             content_html 不動；前端開啟文件時依此設定把 {{ timing }} 升級成 select chip。 -->
+        <record id="signer_self_inspection_default" model="doc.template.signer">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="name">填寫者</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="field_self_inspection_timing" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">select</field>
+            <field name="placeholder_text">timing</field>
+            <field name="option_source">odoo</field>
+            <field name="selection_field_name">inspection_timing</field>
+            <field name="input_able" eval="True"/>
+        </record>
+
+        <!-- 自主檢查表：整體結果 → 單選組 radio，選項來自 general.self.inspection 的
+             overall_result Selection（合格/條件合格/不合格）。綁定 record 開啟時自動帶
+             當前值（odoo 來源；模型取自 record._name，與 timing 同模式）。
+             範本內 {{ overall_result }} 由前端升級成 radio chip。 -->
+        <record id="field_self_inspection_overall" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">overall_result</field>
+            <field name="option_source">odoo</field>
+            <field name="selection_field_name">overall_result</field>
+        </record>
+
+        <!-- 自主檢查表：檢查項目清單 3 列「合格/不合格」→ 單選組 radio（custom 固定清單）。
+             清單列為手動填寫（範本內無項目 token），故逐列獨立 token {{ result_1/2/3 }}，
+             各自接 custom radio（合格/不合格），不綁 record。 -->
+        <record id="field_self_inspection_result_1" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">result_1</field>
+            <field name="option_source">custom</field>
+        </record>
+        <record id="opt_si_result_1_pass" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_1"/>
+            <field name="sequence">10</field>
+            <field name="value">合格</field>
+        </record>
+        <record id="opt_si_result_1_fail" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_1"/>
+            <field name="sequence">20</field>
+            <field name="value">不合格</field>
+        </record>
+        <record id="field_self_inspection_result_2" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">result_2</field>
+            <field name="option_source">custom</field>
+        </record>
+        <record id="opt_si_result_2_pass" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_2"/>
+            <field name="sequence">10</field>
+            <field name="value">合格</field>
+        </record>
+        <record id="opt_si_result_2_fail" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_2"/>
+            <field name="sequence">20</field>
+            <field name="value">不合格</field>
+        </record>
+        <record id="field_self_inspection_result_3" model="doc.template.field">
+            <field name="template_id" ref="template_self_inspection"/>
+            <field name="signer_id" ref="signer_self_inspection_default"/>
+            <field name="field_type">radio</field>
+            <field name="placeholder_text">result_3</field>
+            <field name="option_source">custom</field>
+        </record>
+        <record id="opt_si_result_3_pass" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_3"/>
+            <field name="sequence">10</field>
+            <field name="value">合格</field>
+        </record>
+        <record id="opt_si_result_3_fail" model="doc.template.field.option">
+            <field name="field_id" ref="field_self_inspection_result_3"/>
+            <field name="sequence">20</field>
+            <field name="value">不合格</field>
+        </record>
+
+        <!-- 監造會議記錄：location → 自訂下拉（常用地點）+ 可自填。
+             construction.meeting.record 無對應 Selection 欄位、範本也未綁 model_id，
+             故用 custom 來源（選項來自下方 option_ids），不需 model_id。 -->
+        <record id="signer_meeting_default" model="doc.template.signer">
+            <field name="template_id" ref="template_meeting_record"/>
+            <field name="name">填寫者</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="field_meeting_location" model="doc.template.field">
+            <field name="template_id" ref="template_meeting_record"/>
+            <field name="signer_id" ref="signer_meeting_default"/>
+            <field name="field_type">select</field>
+            <field name="placeholder_text">location</field>
+            <field name="option_source">custom</field>
+            <field name="input_able" eval="True"/>
+        </record>
+        <record id="opt_meeting_loc_1" model="doc.template.field.option">
+            <field name="field_id" ref="field_meeting_location"/>
+            <field name="sequence">10</field>
+            <field name="value">工地會議室</field>
+        </record>
+        <record id="opt_meeting_loc_2" model="doc.template.field.option">
+            <field name="field_id" ref="field_meeting_location"/>
+            <field name="sequence">20</field>
+            <field name="value">監造辦公室</field>
+        </record>
+        <record id="opt_meeting_loc_3" model="doc.template.field.option">
+            <field name="field_id" ref="field_meeting_location"/>
+            <field name="sequence">30</field>
+            <field name="value">業主辦公室</field>
+        </record>
+        <record id="opt_meeting_loc_4" model="doc.template.field.option">
+            <field name="field_id" ref="field_meeting_location"/>
+            <field name="sequence">40</field>
+            <field name="value">施工現場</field>
         </record>
 
         <!-- 範本 3：缺失改善通知 -->
@@ -108,6 +232,7 @@
     <td style="border:1px solid #000;padding:6px"><b>改善期限</b></td><td style="border:1px solid #000;padding:6px">{{ deadline }}</td>
   </tr>
 </table>
+<p>缺失類別（可複選）：{{ defect_categories }}</p>
 <h3>缺失說明</h3>
 <p>{{ description }}</p>
 <h3>改善要求</h3>
@@ -120,6 +245,82 @@
 </table>
 <p style="margin-top:32px;text-align:right">監造單位：________________　承包商：________________</p>
             ]]></field>
+        </record>
+
+        <!-- 缺失改善通知：severity → 下拉選單（嚴重程度）。
+             本部署實際缺失資料為 supervision.defect（157 筆），該 model 無 severity 欄位
+             （只有 defect_type/source/responsible_party）；有 severity 的 *.defect.improvement
+             目前 0 筆、未使用。故 severity 走 custom 固定清單（輕微/中等/重大/嚴重，code 與
+             *.defect.improvement 的 Selection 一致）+ inputAble 自填，不依賴綁定 model，
+             任何綁定（含 supervision.defect / 未綁）皆穩定顯示 4 選項。與會議地點同模式。 -->
+        <record id="signer_defect_default" model="doc.template.signer">
+            <field name="template_id" ref="template_defect_improvement"/>
+            <field name="name">填寫者</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="field_defect_severity" model="doc.template.field">
+            <field name="template_id" ref="template_defect_improvement"/>
+            <field name="signer_id" ref="signer_defect_default"/>
+            <field name="field_type">select</field>
+            <field name="placeholder_text">severity</field>
+            <field name="option_source">custom</field>
+            <field name="input_able" eval="True"/>
+        </record>
+        <record id="opt_defect_sev_1" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_severity"/>
+            <field name="sequence">10</field>
+            <field name="value">輕微</field>
+            <field name="code">minor</field>
+        </record>
+        <record id="opt_defect_sev_2" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_severity"/>
+            <field name="sequence">20</field>
+            <field name="value">中等</field>
+            <field name="code">moderate</field>
+        </record>
+        <record id="opt_defect_sev_3" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_severity"/>
+            <field name="sequence">30</field>
+            <field name="value">重大</field>
+            <field name="code">major</field>
+        </record>
+        <record id="opt_defect_sev_4" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_severity"/>
+            <field name="sequence">40</field>
+            <field name="value">嚴重</field>
+            <field name="code">critical</field>
+        </record>
+
+        <!-- 缺失改善通知：缺失類別 → 勾選組 checkbox（custom 多選）。一筆缺失可同時
+             屬多個類別，故用 checkbox（可複選）而非 radio。範本內 {{ defect_categories }}
+             由前端升級成 checkbox chip；不綁 record（custom 固定清單）。 -->
+        <record id="field_defect_categories" model="doc.template.field">
+            <field name="template_id" ref="template_defect_improvement"/>
+            <field name="signer_id" ref="signer_defect_default"/>
+            <field name="field_type">checkbox</field>
+            <field name="placeholder_text">defect_categories</field>
+            <field name="option_source">custom</field>
+            <field name="is_multi_select" eval="True"/>
+        </record>
+        <record id="opt_defect_cat_1" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_categories"/>
+            <field name="sequence">10</field>
+            <field name="value">品質缺失</field>
+        </record>
+        <record id="opt_defect_cat_2" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_categories"/>
+            <field name="sequence">20</field>
+            <field name="value">安全缺失</field>
+        </record>
+        <record id="opt_defect_cat_3" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_categories"/>
+            <field name="sequence">30</field>
+            <field name="value">環境缺失</field>
+        </record>
+        <record id="opt_defect_cat_4" model="doc.template.field.option">
+            <field name="field_id" ref="field_defect_categories"/>
+            <field name="sequence">40</field>
+            <field name="value">文件缺失</field>
         </record>
 
         <!-- 範本 4：估驗計價單 -->

@@ -85,6 +85,8 @@ export const FIELD_TYPES = [
     { key: "text",       label: "文字",     icon: "A",     ctrlType: "text" },
     { key: "date",       label: "日期",     icon: "fa-calendar", ctrlType: "date" },
     { key: "checkbox",   label: "核取方塊", icon: "fa-check-square-o", ctrlType: "checkbox" },
+    { key: "select",     label: "下拉選單", icon: "fa-caret-square-o-down", ctrlType: "select" },
+    { key: "radio",      label: "單選組",   icon: "fa-dot-circle-o", ctrlType: "radio" },
     { key: "signature",  label: "簽名",     icon: "fa-pencil", ctrlType: "text" },
     { key: "initial",    label: "繕寫簽名", icon: "fa-edit", ctrlType: "text" },
 ];
@@ -175,6 +177,15 @@ export class DocEditor extends Component {
             zoomFit: "auto",
             // Phase 2.2a 拖放新增欄位：當前是否有欄位被拖入 workspace
             isDropTarget: false,
+            // ─── L2-v2：中文欄位別名對映（doc.field_aliases）───────────
+            // key=中文 token（不含《》）/ value=Jinja2 expression（如 object.project_id.name）
+            // 由 _loadDocument 從後端載入、onInsertAliasClick 寫入、onDeleteAlias 刪除
+            fieldAliases: {},
+            // template 級全域 alias（doc 預覽時自動繼承）
+            templateFieldAliases: {},
+            templateName: "",
+            // L2-v2 預覽模式：true 時編輯器內 token 暫時替換成實際值（不存回 content_json）
+            previewMode: false,
             // ─── Sprint A：Sub-nav 分頁殼資料 ───────────────────────
             // 設定分頁：自動儲存開關（預設啟用）
             autoSaveEnabled: true,
@@ -500,6 +511,8 @@ export class DocEditor extends Component {
                 const result = await rpc("/dobtor_doc/save", {
                     doc_id: this.state.docId,
                     content_json: json,
+                    // 同步攤平後的 content_html（含 control 已填值），供匯出/預覽鏈讀取
+                    content_html: this._mainHtml(),
                     // P2-2 樂觀鎖
                     if_unmodified_since: this._lastSyncedWriteDate,
                 });
@@ -548,6 +561,31 @@ export class DocEditor extends Component {
 
             // 2. 初始化 Canvas 編輯器（資料已暫存於 this._loadedContentJson）
             this._initCanvasEditor();
+
+            // L2-v2 自動預覽模式：當 doc 同時有 res_id 與 alias 對映時，預設進入預覽模式，
+            // 使用者一進來就看實際值而不是 token 原文。
+            // 等 canvas-editor 真正 ready 再切（500ms 與 _initCanvasEditor 的 50ms 延遲對齊 + 緩衝）。
+            const hasBoundRecord = this._loadedModelName && this._loadedResId;
+            const hasAlias =
+                Object.keys(this.state.fieldAliases || {}).length > 0 ||
+                Object.keys(this.state.templateFieldAliases || {}).length > 0;
+            const hasControlSpecs = Object.keys(this._controlSpecByVar || {}).length > 0;
+            if (hasControlSpecs || (hasBoundRecord && hasAlias)) {
+                setTimeout(async () => {
+                    if (!this.editor) return;
+                    // 1) 先把已設定 control 的 token 升級成可互動 chip（含 《中文》 與 {{ var }} 兩格式，帶 record 當前值）
+                    if (hasControlSpecs) {
+                        await this._autoUpgradeConfiguredControls();
+                    }
+                    // 2) 再進預覽：把「殘餘」token（未設 control 的）換成實際值。
+                    //    preview 傳入當前內容、且只替換 token 文字，故已建的 chip 會被保留 → chip 與值共存。
+                    if (hasBoundRecord && hasAlias && !this.state.previewMode) {
+                        this.onTogglePreviewMode().catch(e => {
+                            console.warn("[DocEditor] auto preview mode failed", e);
+                        });
+                    }
+                }, 600);
+            }
 
             // 3. 初始化 LeaderElection（多人協作防止重複存檔）
             if (this._busService && this.state.docId) {
@@ -743,6 +781,11 @@ export class DocEditor extends Component {
 
         // 監聽內容變更 → 觸發 AutoSave（使用引擎正式 API）
         this.editor.listener.contentChange = () => {
+            // L2-v2：「自動進預覽模式」會 executeSetValue 灌入渲染後 content，
+            // 這會觸發 contentChange 但屬於程式注入、不是 user 編輯，不該寫回 DB。
+            if (this._suppressAutoSave) {
+                return;
+            }
             try {
                 const json = JSON.stringify(this.editor.command.getValue().data);
                 if (this._offlineManager.isOnline) {
@@ -961,9 +1004,12 @@ export class DocEditor extends Component {
             this._loadedContentHtml = data.content_html || "";
             // Phase 8：暫存目標 model_name，供 DocFieldPickerDialog 使用（onOdooFieldClick）
             this._loadedModelName = data.model_name || null;
-            // L2-v2：暫存綁定 record 與 alias map，供 onPreviewClick 一鍵預覽用
+            // L2-v2：暫存綁定 record（res_id 是不可變的 instance prop）
             this._loadedResId = data.res_id || null;
-            this._loadedFieldAliases = data.field_aliases || {};
+            // L2-v2：alias map 進 reactive state，供 sidebar 管理面板與插入流程共享
+            this.state.fieldAliases = data.field_aliases || {};
+            this.state.templateFieldAliases = data.template_field_aliases || {};
+            this.state.templateName = data.template_name || "";
             // P2-2 樂觀鎖：記下伺服器當前 write_date
             this._lastSyncedWriteDate = data.write_date || null;
             // Phase 8 Template UI Builder（ADR-022）—— 載入範本 signer/field 狀態
@@ -1080,6 +1126,7 @@ export class DocEditor extends Component {
             const result = await rpc("/dobtor_doc/save", {
                 doc_id: this.state.docId,
                 content_json: json,
+                content_html: this._mainHtml(),
                 if_unmodified_since: this._lastSyncedWriteDate,
             });
             // P2-2: 衝突時 _handleSaveResult 會處理 reload + 警示
@@ -1865,6 +1912,171 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      *   `{{ partner_id.name }}` 風格，讓 user 在文件上一眼看出這是動態變數
      *   （與既有 docxtpl `{{ object.xxx }}` jinja2 風格一致）。
      */
+    /**
+     * 取目前文件 body 的 HTML（含 control 已填值，攤平成純 HTML 供匯出鏈使用）。
+     * canvas-editor getHTML() 回 { header, main, footer } 物件；content_html 只存 main。
+     * 任何失敗回 undefined → 呼叫端略過 content_html（不擋存檔；後端 content_html=None 即不更新）。
+     */
+    _mainHtml() {
+        try {
+            const html = this.editor?.command?.getHTML?.();
+            return html && typeof html.main === "string" ? html.main : undefined;
+        } catch (e) {
+            console.warn("[DocEditor] getHTML().main 失敗，content_html 本次不同步", e);
+            return undefined;
+        }
+    }
+
+    /**
+     * 載入互動式 control 欄位的選項 spec（valueSets + record 當前值），
+     * 鍵為 placeholder_text token 名，供升級 token→control 時組 payload。
+     * 只有 select/radio/checkbox 需要；純 text/odoo_field 不需選項。
+     */
+    async _loadControlSpecs() {
+        this._controlSpecByVar = {};
+        if (!this.state.docId || !this._hasTemplate) return;
+        const needSpec = (this._templateFieldsCache || []).some(
+            f => ["select", "radio", "checkbox"].includes(f.field_type)
+        );
+        if (!needSpec) return;
+        try {
+            const resp = await rpc("/dobtor_doc/template_fields/options", {
+                doc_id: this.state.docId,
+            });
+            if (resp.success && Array.isArray(resp.specs)) {
+                for (const spec of resp.specs) {
+                    const token = (spec.placeholder_text || "").trim();
+                    if (token) this._controlSpecByVar[token] = spec;
+                }
+            }
+        } catch (e) {
+            console.warn("[DocEditor] _loadControlSpecs failed", e);
+        }
+    }
+
+    /**
+     * 判斷一個 doc.template.field 是否對應某 token 變數名。
+     * 相容三種：odoo_field_name===var、placeholder_text===var、placeholder_text===`{{ var }}`。
+     */
+    _fieldMatchesVar(f, varName) {
+        if (!f) return false;
+        if (f.odoo_field_name === varName) return true;
+        const ph = (f.placeholder_text || "").trim();
+        return ph === varName || ph === `{{ ${varName} }}`;
+    }
+
+    /**
+     * 依 token 變數名建 canvas-editor control element（正式結構 {type:"control", control:{...}}）。
+     * 有設定 spec（select/radio/checkbox）→ 帶 valueSets + 預設選中（record 當前值）+ inputAble；
+     * 否則退回純 text control（與既有 Sprint W 行為一致）。
+     */
+    _controlElementForVar(varName, fieldId) {
+        const placeholder = `{{ ${varName} }}`;
+        const spec = (this._controlSpecByVar || {})[varName];
+        const control = {
+            type: "text",
+            value: null,
+            placeholder,
+            conceptId: String(fieldId),
+            deletable: true,
+            disabled: false,
+        };
+        if (spec && spec.control_type === "select") {
+            control.type = "select";
+            control.valueSets = spec.value_sets || [];
+            control.code = spec.current_code || null;
+            if (spec.is_multi_select) {
+                control.isMultiSelect = true;
+                control.multiSelectDelimiter = "、";
+            }
+            if (spec.input_able) control.selectExclusiveOptions = { inputAble: true };
+            if (spec.current_code) {
+                const hit = (spec.value_sets || []).find(v => v.code === spec.current_code);
+                if (hit) control.value = [{ value: hit.value }];
+            }
+        } else if (spec && spec.control_type === "radio") {
+            control.type = "radio";
+            control.flexDirection = "row";
+            control.valueSets = (spec.value_sets && spec.value_sets.length)
+                ? spec.value_sets : [{ value: "", code: String(fieldId) }];
+            control.code = spec.current_code || null;
+        } else if (spec && spec.control_type === "checkbox") {
+            control.type = "checkbox";
+            control.flexDirection = "row";
+            if (spec.value_sets && spec.value_sets.length) {
+                control.valueSets = spec.value_sets;
+                control.value = spec.value_sets
+                    .filter(v => v.code === spec.current_code)
+                    .map(v => ({ value: v.value, code: v.code, checked: true }));
+            } else {
+                control.value = [{ value: "", code: String(fieldId), checked: false }];
+            }
+        }
+        return { type: "control", value: null, control };
+    }
+
+    /**
+     * 開檔自動升級：把「已設定為互動式 control」的 token（select/radio/checkbox）
+     * 就地轉成可點 chip（帶 record 當前值）。只處理有 spec 的 token，不碰其他 token
+     * （那些留給 auto-preview 顯示值），所以不會大量建 record。
+     * 必須在 auto-preview 之前跑：control chip 不是 token 文字、preview 不會動到它。
+     */
+    async _autoUpgradeConfiguredControls() {
+        if (!this.editor || !this.state.docId || !this._hasTemplate) return null;
+        const specs = Object.values(this._controlSpecByVar || {});
+        if (!specs.length) return null;
+        const cmd = this.editor.command;
+        this._suppressAutoSave = true;
+        try {
+            // Step 0：把已遷移文件的 《中文》 token 正規化成 {{ varname }}，讓既有 {{ }} 管線能處理。
+            //   spec.tokens 列出此欄位所有 token 字面字串；非 {{ }} 的（《中文》）替換成 {{ placeholder_text }}。
+            const SAFE_GUARD = 50;
+            for (const spec of specs) {
+                const varname = spec.placeholder_text;
+                if (!varname) continue;
+                const canonical = `{{ ${varname} }}`;
+                for (const tok of (spec.tokens || [])) {
+                    if (tok === canonical) continue;
+                    for (let i = 0; i < SAFE_GUARD; i++) {
+                        let curMain;
+                        try {
+                            curMain = cmd.getValue().data.main || [];
+                        } catch (e) {
+                            break;
+                        }
+                        if (flattenElementsToText(curMain).indexOf(tok) < 0) break;
+                        try {
+                            cmd.executeSearch(tok);
+                            cmd.executeReplace(canonical);
+                        } catch (e) {
+                            console.warn("[DocEditor] 中文 token 正規化失敗", tok, e);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Step 1：掃描 {{ }} token（含剛正規化進來的）並升級成 control
+            let data;
+            try {
+                data = cmd.getValue().data;
+            } catch (e) {
+                console.warn("[DocEditor] 自動升級 getValue 失敗", e);
+                return null;
+            }
+            const scannedAll = scanJinja2Variables(data);
+            const present = new Set(scannedAll.map(v => v.varName));
+            const toUpgrade = specs.map(s => s.placeholder_text).filter(v => v && present.has(v));
+            if (!toUpgrade.length) return null;   // 無對應 token
+            return await this._sprintWScanAndReplace(scannedAll, { silent: true, onlyVars: toUpgrade });
+        } catch (e) {
+            console.error("[DocEditor] 自動升級失敗", e);
+            return null;
+        } finally {
+            this._suppressAutoSave = false;
+        }
+    }
+
     _insertControlForField(fieldId, field, signer) {
         const conceptId = String(fieldId);
         let placeholder = `[${signer.name}/${field.label}]`;
@@ -1881,9 +2093,47 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             deletable: true,
             disabled: false,
         };
-        if (field.ctrlType === "checkbox") {
-            // canvas-editor checkbox 需要 value 結構，留空陣列表示未勾選
-            controlPayload.value = [{ value: "", code: conceptId, checked: false }];
+        // 互動式 control 的選項設定（自動升級時由 caller 掛在 field 上）：
+        //   field.valueSets    [{ value, code }]   下拉/勾選/單選的選項
+        //   field.inputAble    bool                 select 允許自填
+        //   field.isMultiSelect bool                select 複選
+        //   field.currentCode  str                  開啟時的預設選中值（綁定 record 的當前值）
+        const valueSets = Array.isArray(field.valueSets) ? field.valueSets : [];
+        if (field.ctrlType === "select") {
+            controlPayload.valueSets = valueSets;
+            controlPayload.code = field.currentCode || null;
+            if (field.isMultiSelect) {
+                controlPayload.isMultiSelect = true;
+                controlPayload.multiSelectDelimiter = "、";
+            }
+            if (field.inputAble) {
+                controlPayload.selectExclusiveOptions = { inputAble: true };
+            }
+            // 預設選中：把對應 valueSet 的顯示文字放進 value，chip 開啟即帶 record 當前值
+            if (field.currentCode) {
+                const hit = valueSets.find((v) => v.code === field.currentCode);
+                if (hit) {
+                    controlPayload.value = [{ value: hit.value }];
+                }
+            }
+        } else if (field.ctrlType === "radio") {
+            controlPayload.flexDirection = "row";
+            controlPayload.valueSets = valueSets.length
+                ? valueSets
+                : [{ value: "", code: conceptId }];
+            controlPayload.code = field.currentCode || null;
+        } else if (field.ctrlType === "checkbox") {
+            controlPayload.flexDirection = "row";
+            if (valueSets.length) {
+                // 多選勾選組：依 currentCode 預先勾選
+                controlPayload.valueSets = valueSets;
+                controlPayload.value = valueSets
+                    .filter((v) => v.code === field.currentCode)
+                    .map((v) => ({ value: v.value, code: v.code, checked: true }));
+            } else {
+                // 既有單一 checkbox 相容：留空陣列表示未勾選
+                controlPayload.value = [{ value: "", code: conceptId, checked: false }];
+            }
         }
         try {
             this.editor.command.executeInsertControl(controlPayload);
@@ -1992,6 +2242,8 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             this._lastControlIds = new Set(
                 this._templateFieldsCache.map(f => f.id)
             );
+            // 載入互動式 control 的選項 spec（select/radio/checkbox），供 token→control 升級用
+            await this._loadControlSpecs();
             // Sprint D：觸發 overlay layer re-render
             this.state.overlayFieldsRev++;
         } catch (e) {
@@ -2285,7 +2537,7 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 }
 
                 // 同名 token 衝突偵測：若已存在且 expression 不同，提示 user
-                const existing = this._loadedFieldAliases || {};
+                const existing = this.state.fieldAliases || {};
                 if (existing[token] && existing[token] !== aliasExpression) {
                     const overwrite = window.confirm(
                         `「${token}」已對映到不同欄位：\n  舊：${existing[token]}\n  新：${aliasExpression}\n\n要覆寫嗎？`
@@ -2315,7 +2567,8 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                         this.notification.add(`alias 儲存失敗：${resp.error}`, { type: "warning" });
                         return;
                     }
-                    this._loadedFieldAliases = resp && resp.aliases ? resp.aliases : newAliases;
+                    // 整體 reassign 觸發 OWL reactive re-render（直接寫 key 偵測 lag）
+                    this.state.fieldAliases = resp && resp.aliases ? { ...resp.aliases } : { ...newAliases };
                     this.notification.add(
                         `已插入「《${token}》」並對映到 ${aliasExpression}`,
                         { type: "success" }
@@ -2326,6 +2579,292 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 }
             },
         });
+    }
+
+    /**
+     * L2-v2：alias 工具——對綁定 model 自動生成 alias 對映（保留既有 token）。
+     * doc 未設 model_id 時提示 user 先到後台設定。
+     */
+    async onAutoInitAliasesClick() {
+        if (!this.state.docId) return;
+        if (!this._loadedModelName) {
+            this.notification.add(
+                "此文件未綁定 Odoo 模型。請先到後台 doc.document 設定 model_id 後再使用。",
+                { type: "warning" }
+            );
+            return;
+        }
+        const hasTemplate = !!this.state.templateName;
+        const targetMsg = hasTemplate
+            ? `對映將寫入範本「${this.state.templateName}」，所有使用此範本的文件都會共享。\n\n` +
+              `按「確定」：寫入範本（推薦）。\n` +
+              `按「取消」：放棄此操作。`
+            : `對映將寫入此文件（無範本可共用）。\n\n` +
+              `按「確定」：保留現有對映，僅補新欄位。\n` +
+              `按「取消」：放棄此操作。`;
+        const ok = window.confirm(
+            `要從模型「${this._loadedModelName}」自動生成欄位對映嗎？\n\n${targetMsg}`,
+        );
+        if (!ok) return;
+        try {
+            const endpoint = hasTemplate
+                ? "/dobtor_doc/template_aliases/auto_init"
+                : "/dobtor_doc/aliases/auto_init";
+            const resp = await rpc(endpoint, {
+                doc_id: this.state.docId,
+                overwrite: false,
+            });
+            if (!resp || !resp.success) {
+                this.notification.add(`自動生成失敗：${resp && resp.error}`, { type: "danger" });
+                return;
+            }
+            if (hasTemplate) {
+                this.state.templateFieldAliases = { ...(resp.aliases || {}) };
+            } else {
+                this.state.fieldAliases = { ...(resp.aliases || {}) };
+            }
+            const addedCount = (resp.added || []).length;
+            const skippedCount = (resp.skipped || []).length;
+            this.notification.add(
+                `已新增 ${addedCount} 個對映、跳過 ${skippedCount} 個既有對映` +
+                (hasTemplate ? `（寫入範本「${this.state.templateName}」）` : ""),
+                { type: "success" }
+            );
+        } catch (e) {
+            console.error("[DocEditor] onAutoInitAliasesClick failed", e);
+            this.notification.add(`自動生成失敗：${e.message || e}`, { type: "danger" });
+        }
+    }
+
+    /**
+     * L2-v2：alias 工具——把文件內既有 `{{ expression }}` 文字反查 alias map 改寫成 《token》。
+     * 反查不到的 `{{ }}` 原樣保留。要先確保 alias map 已有對映（通常先按「自動生成」）。
+     */
+    async onScanConvertAliasesClick() {
+        if (!this.state.docId) return;
+        if (!this.state.fieldAliases || Object.keys(this.state.fieldAliases).length === 0) {
+            this.notification.add(
+                "尚無 alias 對映可供反查。請先按「自動生成」或手動插入欄位。",
+                { type: "warning" }
+            );
+            return;
+        }
+        const ok = window.confirm(
+            `將掃描文件內所有 {{ ... }} 文字，符合 alias map 的轉為 《中文》 token。\n\n` +
+            `⚠️ 會修改文件內容。建議先存檔備份。\n\n` +
+            `確定要繼續嗎？`
+        );
+        if (!ok) return;
+        try {
+            const resp = await rpc("/dobtor_doc/aliases/scan_convert", {
+                doc_id: this.state.docId,
+            });
+            if (!resp || !resp.success) {
+                this.notification.add(`掃描失敗：${resp && resp.error}`, { type: "danger" });
+                return;
+            }
+            this.notification.add(
+                `已轉換 ${resp.converted} 處變數為 《token》。略過 ${resp.skipped} 處（無對映）。` +
+                `\n要看到結果請重新整理頁面（會自動載入新版內容）。`,
+                { type: "success", sticky: true }
+            );
+            // 重新載入文件，讓 canvas-editor 取得最新 content_json
+            await this._loadDocument(this.state.docId);
+            // canvas-editor 也要 reset 內容（_loadDocument 已暫存 _loadedContentJson；強制 init）
+            if (this.editor && this._loadedContentJson) {
+                try {
+                    this.editor.command.executeSetValue(JSON.parse(this._loadedContentJson));
+                } catch (e) {
+                    console.warn("[DocEditor] executeSetValue 失敗，建議手動 F5 重新整理", e);
+                }
+            }
+        } catch (e) {
+            console.error("[DocEditor] onScanConvertAliasesClick failed", e);
+            this.notification.add(`掃描失敗：${e.message || e}`, { type: "danger" });
+        }
+    }
+
+    /**
+     * L2-v2：預覽模式 toggle——在編輯器內把 token 替換成實際值（暫時，不存回 DB）。
+     *
+     * 切到預覽模式：
+     *   1. 暫存當前 content_json 到 this._editModeSnapshot
+     *   2. 呼叫 /dobtor_doc/preview_content_json 取得 token 已替換的 JSON
+     *   3. executeSetValue 灌進 canvas-editor
+     *   4. disable AutoSave 防止覆寫
+     *
+     * 切回編輯模式：
+     *   1. enable AutoSave
+     *   2. executeSetValue 把 snapshot 還原
+     *   3. 清掉 snapshot
+     */
+    async onTogglePreviewMode() {
+        if (!this.editor) {
+            this.notification.add("編輯器尚未初始化", { type: "warning" });
+            return;
+        }
+        if (!this.state.docId) return;
+        if (!this._loadedModelName || !this._loadedResId) {
+            this.notification.add(
+                "此文件未綁定 model_id + res_id，無法進入預覽模式。",
+                { type: "warning" }
+            );
+            return;
+        }
+
+        if (this.state.previewMode) {
+            // 切回「範本模式」（顯示原始 token）：還原 snapshot
+            try {
+                this._suppressAutoSave = true;
+                if (this._editModeSnapshot) {
+                    this.editor.command.executeSetValue(this._editModeSnapshot);
+                    this._editModeSnapshot = null;
+                }
+                this.state.previewMode = false;
+                this.notification.add(
+                    "已切到範本模式（顯示 《token》 原文）。在此模式下可調整 token 位置。",
+                    { type: "info" }
+                );
+            } catch (e) {
+                console.error("[DocEditor] exit preview mode failed", e);
+                this.notification.add(
+                    `切回範本模式失敗：${e.message || e}`,
+                    { type: "danger", sticky: true }
+                );
+            } finally {
+                // 200ms 讓 executeSetValue 觸發的 contentChange 跑完再恢復 AutoSave
+                setTimeout(() => { this._suppressAutoSave = false; }, 200);
+            }
+            return;
+        }
+
+        // 切到「預覽（=實際值編輯）模式」
+        try {
+            // 1. 暫存當前 content_json（含 token，給切回用）
+            const snapshot = this.editor.command.getValue().data;
+            this._editModeSnapshot = JSON.parse(JSON.stringify(snapshot));
+
+            // 2. 取後端渲染結果（傳入「當前內容」：保留已建的 control chip，只把殘餘 token 換成值）
+            const resp = await rpc("/dobtor_doc/preview_content_json", {
+                doc_id: this.state.docId,
+                content_json: JSON.stringify(snapshot),
+            });
+            if (!resp || resp.error) {
+                this.notification.add(
+                    `進入預覽模式失敗：${resp && resp.error}`,
+                    { type: "danger" }
+                );
+                this._editModeSnapshot = null;
+                return;
+            }
+
+            // 3. 灌入渲染後 content_json；suppress autosave 避免立即被當編輯寫回
+            this._suppressAutoSave = true;
+            this.editor.command.executeSetValue(resp.content_json);
+            this.state.previewMode = true;
+
+            // 4. 200ms 後恢復 AutoSave：之後使用者真正編輯（純文字部分）才會 save
+            //    這樣的設計取捨：使用者直接編輯實際值會凍結這份文件為純文字，
+            //    範本層的 token 仍保留於 doc.template，不影響其他文件
+            setTimeout(() => { this._suppressAutoSave = false; }, 200);
+
+            this.notification.add(
+                "已顯示實際值。可直接編輯；改動會凍結為這份文件的純文字（不會影響範本）。",
+                { type: "success" }
+            );
+        } catch (e) {
+            console.error("[DocEditor] enter preview mode failed", e);
+            this.notification.add(`進入預覽模式失敗：${e.message || e}`, { type: "danger" });
+            this._editModeSnapshot = null;
+            this._suppressAutoSave = false;
+        }
+    }
+
+    /**
+     * L2-v2：alias 管理面板用——把 state.fieldAliases 轉成排序好的 [{token, expression}] 陣列。
+     * QWeb 不易在 t-foreach 直接迭代 dict，所以給 getter 統一處理。
+     */
+    get fieldAliasesList() {
+        const docAliases = this.state.fieldAliases || {};
+        const tmplAliases = this.state.templateFieldAliases || {};
+        const tokens = new Set([
+            ...Object.keys(docAliases),
+            ...Object.keys(tmplAliases),
+        ]);
+        return [...tokens]
+            .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+            .map(token => {
+                const docExpr = docAliases[token];
+                const tmplExpr = tmplAliases[token];
+                // 文件層級覆寫範本層級
+                const expression = docExpr || tmplExpr;
+                const source = docExpr ? 'doc' : 'template';
+                return { token, expression, source };
+            });
+    }
+
+    /**
+     * L2-v2：刪除單一 alias 對映。文件內已存在的《token》純文字會保留（讓 user 自己決定要不要刪），
+     * 但 token 不再對映到任何 expression，渲染時會原樣輸出。
+     */
+    async onDeleteAlias(token, source) {
+        if (!this.state.docId || !token) return;
+        // source: 'doc' = 文件層級；'template' = 範本層級
+        const isTemplate = source === 'template';
+        const aliases = isTemplate
+            ? (this.state.templateFieldAliases || {})
+            : (this.state.fieldAliases || {});
+        if (!(token in aliases)) return;
+        const scopeMsg = isTemplate
+            ? `⚠️ 此對映來自範本「${this.state.templateName}」，移除後所有使用此範本的文件都會受影響。`
+            : `文件內已輸入的《${token}》文字會保留，但渲染時不會被替換成實際值。`;
+        const ok = window.confirm(`要移除「${token}」的對映嗎？\n\n${scopeMsg}`);
+        if (!ok) return;
+        const next = { ...aliases };
+        delete next[token];
+        try {
+            const endpoint = isTemplate
+                ? "/dobtor_doc/template_aliases/save"
+                : "/dobtor_doc/aliases/save";
+            const resp = await rpc(endpoint, {
+                doc_id: this.state.docId,
+                aliases: next,
+            });
+            if (resp && resp.error) {
+                this.notification.add(`刪除失敗：${resp.error}`, { type: "danger" });
+                return;
+            }
+            const fresh = resp && resp.aliases ? { ...resp.aliases } : next;
+            if (isTemplate) {
+                this.state.templateFieldAliases = fresh;
+            } else {
+                this.state.fieldAliases = fresh;
+            }
+            this.notification.add(
+                `已移除「${token}」對映` + (isTemplate ? "（範本級）" : ""),
+                { type: "success" }
+            );
+        } catch (e) {
+            console.error("[DocEditor] onDeleteAlias failed", e);
+            this.notification.add(`刪除失敗：${e.message || e}`, { type: "danger" });
+        }
+    }
+
+    /**
+     * L2-v2：alias 管理面板用——點某條 alias 直接在游標位置插入《token》純文字。
+     * 不再次寫 alias map（已存在），純粹文字插入。
+     */
+    onInsertAliasFromList(token) {
+        if (!this.editor || !token) return;
+        try {
+            const text = `《${token}》`;
+            const elements = text.split("").map(ch => ({ value: ch }));
+            this.editor.command.executeInsertElementList(elements);
+            this.notification.add(`已在游標位置插入「《${token}》」`, { type: "info" });
+        } catch (e) {
+            console.error("[DocEditor] onInsertAliasFromList failed", e);
+            this.notification.add(`插入失敗：${e.message || e}`, { type: "danger" });
+        }
     }
 
     /**
@@ -2891,7 +3430,9 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      *   - 不處理 list / title 內變數（valueList 結構複雜，setRange 簽名待研究）
      *   - 不處理 header / footer
      */
-    async _sprintWScanAndReplace(scannedAll) {
+    async _sprintWScanAndReplace(scannedAll, opts = {}) {
+        // opts.silent   ：跳過確認 dialog（給開檔自動升級用）
+        // opts.onlyVars ：只處理指定的變數子集（給「只升級已設定 control 的 token」用）
         const cmd = this.editor.command;
 
         // 抓 main 流的 unique varNames（只看 main、不含 header/footer/table 內變數）
@@ -2899,29 +3440,39 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         try {
             data = cmd.getValue().data;
         } catch (e) {
-            this.notification.add(`讀取文件內容失敗：${e.message || e}`, { type: "danger" });
+            if (!opts.silent) {
+                this.notification.add(`讀取文件內容失敗：${e.message || e}`, { type: "danger" });
+            }
             return;
         }
         const mainOnlyAll = scanJinja2Variables({ main: data.main });
-        const mainVarNames = mainOnlyAll.map(v => v.varName);
+        let mainVarNames = mainOnlyAll.map(v => v.varName);
+        if (Array.isArray(opts.onlyVars)) {
+            const allow = new Set(opts.onlyVars);
+            mainVarNames = mainVarNames.filter(v => allow.has(v));
+        }
         if (mainVarNames.length === 0) {
-            this.notification.add(
-                `找到 ${scannedAll.length} 個變數，但都不在 main 流（可能在 list / title 內）。請改用「掃描變數」（只建 record）。`,
-                { type: "warning" }
-            );
+            if (!opts.silent) {
+                this.notification.add(
+                    `找到 ${scannedAll.length} 個變數，但都不在 main 流（可能在 list / title 內）。請改用「掃描變數」（只建 record）。`,
+                    { type: "warning" }
+                );
+            }
             return;
         }
 
-        // 確認 dialog
-        const previewList = mainVarNames.slice(0, 10).map(v => `  • ${v}`).join("\n");
-        const more = mainVarNames.length > 10 ? `\n  ... 還有 ${mainVarNames.length - 10} 個` : "";
-        const skipNote = mainVarNames.length < scannedAll.length
-            ? `\n\n注意：另有約 ${scannedAll.length - mainVarNames.length} 個變數位於 list / title 內，**不會**被替換（main + table 皆會處理）。`
-            : "";
-        const ok = window.confirm(
-            `【Sprint W/X — HTML-imported 替換】將 ${mainVarNames.length} 個變數的所有出現處替換為可編輯 control（main + table cell 皆支援）：\n\n${previewList}${more}${skipNote}\n\n⚠️ 此操作會修改文件內容（如需復原請用右上角「復原」按鈕）。\n\n確定要繼續嗎？`
-        );
-        if (!ok) return;
+        // 確認 dialog（silent 模式跳過）
+        if (!opts.silent) {
+            const previewList = mainVarNames.slice(0, 10).map(v => `  • ${v}`).join("\n");
+            const more = mainVarNames.length > 10 ? `\n  ... 還有 ${mainVarNames.length - 10} 個` : "";
+            const skipNote = mainVarNames.length < scannedAll.length
+                ? `\n\n注意：另有約 ${scannedAll.length - mainVarNames.length} 個變數位於 list / title 內，**不會**被替換（main + table 皆會處理）。`
+                : "";
+            const ok = window.confirm(
+                `【Sprint W/X — HTML-imported 替換】將 ${mainVarNames.length} 個變數的所有出現處替換為可編輯 control（main + table cell 皆支援）：\n\n${previewList}${more}${skipNote}\n\n⚠️ 此操作會修改文件內容（如需復原請用右上角「復原」按鈕）。\n\n確定要繼續嗎？`
+            );
+            if (!ok) return;
+        }
 
         // signer
         const signer = await this._ensureSignerExists(this.state.activeSignerId);
@@ -2941,6 +3492,12 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             if (f.field_type === "odoo_field" && f.odoo_field_name && !fieldIdByVarName.has(f.odoo_field_name)) {
                 fieldIdByVarName.set(f.odoo_field_name, f.id);
             }
+        }
+        // 已設定的互動式 control 欄位（select/radio/checkbox/text）依 token 名對應、沿用不重建
+        for (const varName of mainVarNames) {
+            if (fieldIdByVarName.has(varName)) continue;
+            const matched = (this._templateFieldsCache || []).find(f => this._fieldMatchesVar(f, varName));
+            if (matched) fieldIdByVarName.set(varName, matched.id);
         }
         const toCreate = mainVarNames.filter(v => !fieldIdByVarName.has(v));
         const createFailed = [];
@@ -3054,22 +3611,20 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 replaceFailed.push({ varName: pos.varName, reason: "no_field_id" });
                 continue;
             }
+            // Sprint Y13：radio / checkbox 在 main 流用 executeInsertControl 會「marker 被
+            // backspace 掉、control 卻沒插進去」（canvas-editor 對 radio/checkbox 的
+            // insertControl 與 select/text 行為不同、靜默失敗）。這裡跳過、保留 marker，
+            // 交給下方 Stage 2b 同款的 array-mutate + executeSetValue 段處理（setValue
+            // 對 radio/checkbox 可靠，已實測）。
+            const _spec = (this._controlSpecByVar || {})[pos.varName];
+            if (_spec && (_spec.control_type === "radio" || _spec.control_type === "checkbox")) {
+                continue;
+            }
             try {
                 cmd.executeSetRange ? cmd.executeSetRange(pos.startIdx, pos.endIdx) : cmd.setRange(pos.startIdx, pos.endIdx);
                 cmd.executeBackspace();
-                const placeholder = `{{ ${pos.varName} }}`;
-                cmd.executeInsertControl({
-                    type: "control",
-                    value: null,
-                    control: {
-                        type: "text",
-                        value: null,
-                        placeholder,
-                        conceptId: String(fieldId),
-                        deletable: true,
-                        disabled: false,
-                    },
-                });
+                // spec-aware：select 帶 valueSets + 預設選中，其餘 text
+                cmd.executeInsertControl(this._controlElementForVar(pos.varName, fieldId));
                 replaced++;
             } catch (e) {
                 console.error("[DocEditor.Sprint W] setRange/backspace/insertControl failed", pos, e);
@@ -3096,21 +3651,25 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 const fieldId = fieldIdByVarName.get(varName);
                 if (fieldId) markerToField.set(marker, { fieldId, varName });
             }
-            const buildControlElement = (varName, fieldId) => ({
-                type: "control",
-                value: null,
-                control: {
-                    type: "text",
-                    value: null,
-                    placeholder: `{{ ${varName} }}`,
-                    conceptId: String(fieldId),
-                    deletable: true,
-                    disabled: false,
-                },
-            });
+            const buildControlElement = (varName, fieldId) =>
+                this._controlElementForVar(varName, fieldId);
             // 深拷主流（避免 OWL state Proxy + 也避免 setValue 動到原物件）
-            const mutatedMain = JSON.parse(JSON.stringify(latestData.main || []));
-            let anyTableChanged = false;
+            let mutatedMain = JSON.parse(JSON.stringify(latestData.main || []));
+            let anyChanged = false;
+            // Sprint Y13：先處理 main 頂層 marker。Stage 2a 已把 select/text 的 marker
+            // 轉成 control（其 marker 已不在），故這裡只會命中剩下的 radio/checkbox marker。
+            // 用與 table cell 同款的 rewriteTdValueWithControls（top-level main 結構等同
+            // td.value：扁平 IElement 陣列、table 元素 value 為空字串會被原樣略過）。
+            {
+                const { newValue, replaced: nTop } = rewriteTdValueWithControls(
+                    mutatedMain, markerToField, buildControlElement,
+                );
+                if (nTop > 0) {
+                    mutatedMain = newValue;
+                    tableReplaced += nTop;
+                    anyChanged = true;
+                }
+            }
             for (const el of mutatedMain) {
                 if (!el || el.type !== "table" || !Array.isArray(el.trList)) continue;
                 for (const tr of el.trList) {
@@ -3123,12 +3682,12 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                         if (nRepl > 0) {
                             td.value = newValue;
                             tableReplaced += nRepl;
-                            anyTableChanged = true;
+                            anyChanged = true;
                         }
                     }
                 }
             }
-            if (anyTableChanged) {
+            if (anyChanged) {
                 // 同樣深拷整個 data：避免 OWL Proxy + structuredClone DataCloneError（Sprint W 教訓）
                 const plainData = {
                     ...latestData,
@@ -3170,7 +3729,10 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         const ntype = (createFailed.length || replaceFailed.length || tableReplaceFailed.length) > 0 ? "warning" : "success";
         const hint = (this.state.lastScanReplaceSnapshot && (replaced > 0 || toCreate.length > 0))
             ? "（如需復原請點右上角『復原』按鈕）" : "";
-        this.notification.add(`【Sprint W/X 掃描並替換】${summary}${hint ? "。" + hint : "。"}`, { type: ntype });
+        if (!opts.silent) {
+            this.notification.add(`【Sprint W/X 掃描並替換】${summary}${hint ? "。" + hint : "。"}`, { type: ntype });
+        }
+        return { replaced, tableReplaced, created: toCreate.length };
     }
 
     /**
@@ -3901,6 +4463,7 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 case 'file:export-docx': this.onExportDocx(); break;
                 case 'file:print': this._executeCmd('executePrint'); break;
                 case 'file:preview': this.onPreviewClick(); break;
+                case 'file:toggle-preview-mode': this.onTogglePreviewMode(); break;
                 case 'file:save': this.onSave(); break;
                 case 'file:close': this.onClose(); break;
 
@@ -4509,6 +5072,7 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                     { type: 'separator' },
                     { label: '列印', action: 'file:print' },
                     { label: '預覽', action: 'file:preview' },
+                    { label: this.state.previewMode ? '✓ 預覽模式（編輯器內顯示實際值）' : '   預覽模式（編輯器內顯示實際值）', action: 'file:toggle-preview-mode' },
                     { label: '儲存', action: 'file:save', shortcut: 'Ctrl+S' },
                     { label: '關閉', action: 'file:close' },
                 ],
