@@ -30,6 +30,8 @@
 
 import type {
   Alignment,
+  AnchorMetadata,
+  AnchorWrapText,
   BlockNode,
   CellNode,
   ChartNode,
@@ -37,6 +39,7 @@ import type {
   DocumentNode,
   FieldNode,
   FloatImageNode,
+  FloatTextBoxNode,
   InlineImageNode,
   InlineNode,
   NumberingMap,
@@ -68,6 +71,21 @@ export interface ToCanvasEditorOptions {
    * 預設 false：維持 Sprint 184 既有 inline 文字輸出 + VR byte-identical 不變。
    */
   renderCommentsAsGroups?: boolean;
+  /**
+   * Sprint Y58：把 FloatTextBoxNode 內 paragraphs 展平到 inline stream。
+   * Parser（Sprint 38）已經抽出 textbox 內容，但 Phase D.1 mapper 直接 drop —
+   * 25/25 ChienYi 監造文件含 wp:anchor + w:txbxContent（頁碼/機關識別/日期戳印），
+   * 預設行為 = 文字遺失。Opt-in 後展平讓內容可被 canvas-editor 正常顯示。
+   * 預設 false：維持既有 drop 行為 + VR byte-identical 不變。
+   */
+  renderFloatTextBox?: boolean;
+  /**
+   * Sprint Y58：把 wp:anchor AnchorMetadata（dist / position / wrap / behindDoc / ...）
+   * 透傳到 IElement extension props（`anchor` 欄位），讓前端 / 排版 / round-trip
+   * 階段能取得原始 anchor 屬性。對 FloatImageNode 與 FloatTextBoxNode 同時生效。
+   * 預設 false：IElement 不含 extension props + VR byte-identical 不變。
+   */
+  preserveAnchorMetadata?: boolean;
 }
 
 /**
@@ -152,6 +170,44 @@ export interface CEElement {
   trList?: CETr[];
   // ── group（canvas-editor IGroup 範圍標記，註解 panel 用）─────────────────
   groupIds?: string[];
+  // ── Sprint Y58: wp:anchor metadata 透傳 ──────────────────────────────────
+  /**
+   * 來自 wp:anchor 的浮動定位資訊（floatImage / floatTextBox）。
+   * 只在 `options.preserveAnchorMetadata = true` 時 emit；canvas-editor 不消費
+   * 此欄位 — 前端 plugin / round-trip writer / 排版 layer 才需要。
+   * Sprint Y58 為 capture-only：mapper 透傳、canvas-editor 端視覺仍是 inline 降級。
+   */
+  anchor?: AnchorExtension;
+}
+
+// ── Sprint Y58: anchor metadata 透傳 schema ─────────────────────────────────
+
+/**
+ * IElement 的 wp:anchor 附加屬性（capture-only schema）。
+ *
+ * 對 FloatImageNode 與 FloatTextBoxNode 共用，欄位來源見
+ * `static/src/core/ooxml/ast/types.ts` 內 `AnchorMetadata` / `FloatImageNode` /
+ * `FloatTextBoxNode` 定義。
+ */
+export interface AnchorExtension {
+  /** 來源 InlineNode.type：mapper 是否來自 FloatImageNode vs FloatTextBoxNode */
+  source: 'floatImage' | 'floatTextBox';
+  /** 浮動框寬高（Pt） */
+  width?: number;
+  height?: number;
+  /** wp:positionH 水平定位 */
+  posH?: FloatImageNode['posH'];
+  /** wp:positionV 垂直定位 */
+  posV?: FloatImageNode['posV'];
+  /** wp:anchor wrap mode（none / square / tight / ...） */
+  wrapType?: FloatImageNode['wrapType'];
+  /** behindDoc / allowOverlap raw attrs */
+  behindDoc?: boolean;
+  allowOverlap?: boolean;
+  /** Sprint 287 補充屬性（distT/distB/distL/distR/relativeHeight/locked/...） */
+  metadata?: AnchorMetadata;
+  /** wrapText attribute（default bothSides） */
+  wrapText?: AnchorWrapText;
 }
 
 // ── 對外 Mapper ───────────────────────────────────────────────────────────────
@@ -282,7 +338,7 @@ export class ToCanvasEditor {
     }
 
     for (const node of para.runs) {
-      this.appendInlineNode(paraElements, node, media);
+      this.appendInlineNode(paraElements, node, media, numbering, counter);
     }
 
     // Sprint 180（Phase 5.1 OMML render）：段落內數學公式（`para.math` 側陣列）
@@ -365,6 +421,8 @@ export class ToCanvasEditor {
     out: CEElement[],
     node: InlineNode,
     media: Map<string, string>,
+    numbering: NumberingMap,
+    counter: NumberingCounterState,
   ): void {
     switch (node.type) {
       case 'run':
@@ -393,10 +451,55 @@ export class ToCanvasEditor {
       case 'inlineImage':
         this.appendImage(out, node, media);
         break;
-      case 'floatImage':
-        // Phase D.1：暫降級為 inline image（canvas-editor 浮動繞排支援不完整）
+      case 'floatImage': {
+        // Phase D.1：降級為 inline image（canvas-editor 浮動繞排支援不完整）
+        const startIdx = out.length;
         this.appendImage(out, node, media);
+        // Sprint Y58: opt-in 把 AnchorMetadata 透傳到剛 push 的第一個 IElement
+        if (this.options.preserveAnchorMetadata && out.length > startIdx) {
+          attachAnchorExtension(out[startIdx], buildFloatImageAnchor(node));
+        }
         break;
+      }
+      case 'floatTextBox': {
+        // Sprint Y58: 預設 drop（與 Sprint 38 以來的 mapper 行為 byte-identical）；
+        // opt-in 展平 textbox 內 paragraphs 到當前 inline stream。
+        if (this.options.renderFloatTextBox) {
+          this.appendFloatTextBox(out, node, media, numbering, counter);
+        }
+        break;
+      }
+    }
+  }
+
+  // ── Sprint Y58: FloatTextBox → IElement 展平 ──────────────────────────────
+
+  /**
+   * 把 FloatTextBoxNode 內的 paragraphs 走完整 appendParagraph 流程併入 inline stream。
+   *
+   * 設計選擇：
+   *  - 用獨立 counter（textbox 內若有 numbered list 不該污染外部 counter）
+   *  - 不另外插 pageBreak / section break（textbox 是 inline-level 內容、非新 section）
+   *  - 預設樣式由各 paragraph runProps 決定；textbox bodyPr padding 不在 IElement 層面表達
+   *    （那是 layout 端的責任、Phase D.1 mapper 不消費）
+   *  - 空 paragraphs → 仍會 emit 段落終止符 `\n`（appendParagraph 必加），確保下游不會誤接
+   *
+   * `preserveAnchorMetadata` 開啟時，把 anchor 透傳掛在第一個 push 的 IElement 上。
+   */
+  private appendFloatTextBox(
+    out: CEElement[],
+    node: FloatTextBoxNode,
+    media: Map<string, string>,
+    numbering: NumberingMap,
+    _outerCounter: NumberingCounterState,
+  ): void {
+    const startIdx = out.length;
+    const innerCounter = new NumberingCounterState();
+    for (const para of node.paragraphs) {
+      this.appendParagraph(out, para, media, numbering, innerCounter);
+    }
+    if (this.options.preserveAnchorMetadata && out.length > startIdx) {
+      attachAnchorExtension(out[startIdx], buildFloatTextBoxAnchor(node));
     }
   }
 
@@ -726,4 +829,47 @@ function mapHighlightColor(name: string): string {
     default:
       return name;
   }
+}
+
+// ── Sprint Y58: AnchorExtension helpers ────────────────────────────────────
+
+/**
+ * 把 anchor 透傳掛在指定 IElement 上（合併已存在的 anchor 欄位，後者覆蓋前者）。
+ * mapper 一次 emit 只會走一次，理論上不會碰撞；defensive merge 保證 hyperlink
+ * / table 等已掛 anchor 的元素不被覆寫關鍵欄位。
+ */
+function attachAnchorExtension(el: CEElement, ext: AnchorExtension): void {
+  el.anchor = el.anchor ? { ...el.anchor, ...ext } : ext;
+}
+
+function buildFloatImageAnchor(node: FloatImageNode): AnchorExtension {
+  const ext: AnchorExtension = {
+    source: 'floatImage',
+    width: node.width,
+    height: node.height,
+    posH: node.posH,
+    posV: node.posV,
+    wrapType: node.wrapType,
+  };
+  if (node.behindDoc !== undefined) ext.behindDoc = node.behindDoc;
+  if (node.allowOverlap !== undefined) ext.allowOverlap = node.allowOverlap;
+  if (node.anchor) ext.metadata = node.anchor;
+  if (node.wrapText) ext.wrapText = node.wrapText;
+  return ext;
+}
+
+function buildFloatTextBoxAnchor(node: FloatTextBoxNode): AnchorExtension {
+  const ext: AnchorExtension = {
+    source: 'floatTextBox',
+    width: node.width,
+    height: node.height,
+    posH: node.posH,
+    posV: node.posV,
+    wrapType: node.wrapType,
+  };
+  if (node.behindDoc !== undefined) ext.behindDoc = node.behindDoc;
+  if (node.allowOverlap !== undefined) ext.allowOverlap = node.allowOverlap;
+  if (node.anchor) ext.metadata = node.anchor;
+  if (node.wrapText) ext.wrapText = node.wrapText;
+  return ext;
 }
