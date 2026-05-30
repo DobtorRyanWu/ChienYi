@@ -470,7 +470,7 @@ def _odt_to_html(file_bytes):
     return '\n'.join(parts) if parts else '<p></p>'
 
 
-def _ts_parse_docx_to_elements(file_bytes):
+def _ts_parse_docx_to_elements(file_bytes, float_textbox=False, anchored_image=False):
     """使用本模組的 TS OOXML Parser 把 .docx 解析為 canvas-editor IElement[] JSON。
 
     流程（Phase E 並行通道）：
@@ -482,6 +482,11 @@ def _ts_parse_docx_to_elements(file_bytes):
     依賴：
         - container 內有 Node 18+（`docker exec odoo18 which node` 已驗）
         - `tools/dist/parse_docx_cli.cjs` 已 build（`npm run build:cli` 產出）
+
+    參數：
+        file_bytes:       docx 檔案 bytes
+        float_textbox:    Sprint Y58 opt-in：展平 wp:anchor + w:txbxContent 文字
+        anchored_image:   Sprint Y58 opt-in：透傳 wp:anchor 屬性到 IElement.anchor
 
     回傳：list[dict] 或 None
     """
@@ -513,9 +518,15 @@ def _ts_parse_docx_to_elements(file_bytes):
 
             # Sprint 358-359：--svg-graphics 讓 SmartArt/Chart 渲成 SVG image
             # （取代線性文字 fallback；2026-05-29 真實資料 fidelity audit 修法）。
+            # Sprint Y58：--float-textbox / --anchored-image 由 caller 決定是否啟用。
             # 舊版 CLI 遇未知旗標會優雅忽略、不 crash，故部署落差安全。
+            argv = ['node', cli_path, in_path, out_path, '--elements', '--svg-graphics']
+            if float_textbox:
+                argv.append('--float-textbox')
+            if anchored_image:
+                argv.append('--anchored-image')
             proc = subprocess.run(
-                ['node', cli_path, in_path, out_path, '--elements', '--svg-graphics'],
+                argv,
                 capture_output=True,
                 timeout=30,
             )
@@ -1694,6 +1705,21 @@ body {{
         if ext == '.odt' and engine in ('ts', 'both'):
             engine = 'libreoffice'
 
+        # Sprint Y58：opt-in flag（form > query > 預設 false）。
+        # 預設值維持與 Sprint 358-359 後的行為一致 — 不啟用 floatTextBox 展平、
+        # 不透傳 wp:anchor 屬性。caller 想要時送 `float_textbox=1` / `anchored_image=1`。
+        def _truthy(val):
+            return str(val or '').strip().lower() in ('1', 'true', 'yes', 'on')
+
+        float_textbox = _truthy(
+            request.httprequest.form.get('float_textbox')
+            or request.httprequest.args.get('float_textbox')
+        )
+        anchored_image = _truthy(
+            request.httprequest.form.get('anchored_image')
+            or request.httprequest.args.get('anchored_image')
+        )
+
         try:
             file_bytes = upload.read()
 
@@ -1716,7 +1742,11 @@ body {{
 
             # ── TS 路徑（engine=ts 或 both）──
             if engine in ('ts', 'both') and ext == '.docx':
-                ts_elements = _ts_parse_docx_to_elements(file_bytes)
+                ts_elements = _ts_parse_docx_to_elements(
+                    file_bytes,
+                    float_textbox=float_textbox,
+                    anchored_image=anchored_image,
+                )
                 if ts_elements is not None:
                     elements = ts_elements
                     audit['ts_element_count'] = len(ts_elements)
@@ -1805,11 +1835,13 @@ body {{
         })
 
     @http.route('/dobtor_doc_editor/test_data', type='json', auth='user', methods=['POST'])
-    def test_data(self, fixture=None, **kw):
+    def test_data(self, fixture=None, float_textbox=False, anchored_image=False, **kw):
         """回傳指定 fixture 的 IElement[]（Phase F test_harness.js 用）。
 
         參數：
-            fixture: tests/fixtures/ 下的相對路徑（如 '01_simple/xxx.docx'）
+            fixture:        tests/fixtures/ 下的相對路徑（如 '01_simple/xxx.docx'）
+            float_textbox:  Sprint Y58 opt-in 展平 wp:anchor + w:txbxContent 文字
+            anchored_image: Sprint Y58 opt-in 透傳 wp:anchor 屬性
 
         回傳：{'elements': [...IElement...]} 或 {'error': str}
         """
@@ -1827,7 +1859,11 @@ body {{
         with open(abs_path, 'rb') as fp:
             file_bytes = fp.read()
 
-        elements = _ts_parse_docx_to_elements(file_bytes)
+        elements = _ts_parse_docx_to_elements(
+            file_bytes,
+            float_textbox=bool(float_textbox),
+            anchored_image=bool(anchored_image),
+        )
         if elements is None:
             return {'error': 'TS parser failed (CLI not built or runtime error)'}
 

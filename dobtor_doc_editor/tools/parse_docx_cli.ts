@@ -6,10 +6,14 @@
  *   把 .docx 轉為 IElement[] 給 Odoo 前端 doc_editor.js 元件初始化。
  *
  * 使用：
- *   node parse_docx_cli.js <input.docx> <output.json> [--ast | --elements]
+ *   node parse_docx_cli.js <input.docx> <output.json> [flags]
  *
- *   --ast        輸出 DocumentNode（AST，含完整結構與 metadata）
- *   --elements   輸出 IElement[]（canvas-editor 初始化資料；預設模式）
+ *   --ast              輸出 DocumentNode（AST，含完整結構與 metadata）
+ *   --elements         輸出 IElement[]（canvas-editor 初始化資料；預設模式）
+ *   --svg-graphics     Sprint 358-359：SmartArt/Chart 渲成 SVG image
+ *   --float-textbox    Sprint Y58：展平 wp:anchor + w:txbxContent 文字到 IElement stream
+ *   --anchored-image   Sprint Y58：透傳 wp:anchor 屬性到 IElement.anchor
+ *                      （給前端 plugin / round-trip writer / 排版 layer 消費）
  *
  * 輸出格式：JSON（pretty-printed for readability，可由 controller 直接傳給前端）
  *
@@ -39,28 +43,44 @@ interface CliArgs {
   outputPath: string;
   mode: 'ast' | 'elements';
   svgGraphics: boolean;
+  /** Sprint Y58: 展平 wp:anchor + w:txbxContent 文字到 IElement stream */
+  floatTextBox: boolean;
+  /** Sprint Y58: 透傳 wp:anchor 屬性到 IElement.anchor（floatImage + floatTextBox 共用） */
+  anchoredImage: boolean;
 }
 
 function parseArgs(args: string[]): CliArgs {
   // args 已扣除 node + script，剩 [input, output, ...flags]
   let mode: CliArgs['mode'] = 'elements';
   let svgGraphics = false;
+  let floatTextBox = false;
+  let anchoredImage = false;
   let inputPath: string | undefined;
   let outputPath: string | undefined;
   for (const a of args) {
     if (a === '--ast') mode = 'ast';
     else if (a === '--elements') mode = 'elements';
     else if (a === '--svg-graphics') svgGraphics = true; // Sprint 358-359：SmartArt/Chart 渲成 SVG image
+    else if (a === '--float-textbox') floatTextBox = true; // Sprint Y58
+    else if (a === '--anchored-image') anchoredImage = true; // Sprint Y58
     else if (!inputPath) inputPath = a;
     else if (!outputPath) outputPath = a;
   }
   if (!inputPath || !outputPath) {
     stderr.write(
-      'Usage: parse_docx_cli <input.docx> <output.json> [--ast | --elements] [--svg-graphics]\n',
+      'Usage: parse_docx_cli <input.docx> <output.json> [--ast | --elements] '
+        + '[--svg-graphics] [--float-textbox] [--anchored-image]\n',
     );
     exit(1);
   }
-  return { inputPath: inputPath!, outputPath: outputPath!, mode, svgGraphics };
+  return {
+    inputPath: inputPath!,
+    outputPath: outputPath!,
+    mode,
+    svgGraphics,
+    floatTextBox,
+    anchoredImage,
+  };
 }
 
 function main(): void {
@@ -90,7 +110,11 @@ function main(): void {
       // AST 含 Map 與 BlockNode，要用 replacer 處理 Map
       json = JSON.stringify(serializeForJson(doc), null, 2);
     } else {
-      const mapper = new ToCanvasEditor({ renderGraphicsAsSvg: args.svgGraphics });
+      const mapper = new ToCanvasEditor({
+        renderGraphicsAsSvg: args.svgGraphics,
+        renderFloatTextBox: args.floatTextBox,
+        preserveAnchorMetadata: args.anchoredImage,
+      });
       const elements = mapper.convert(doc);
       json = JSON.stringify(elements, null, 2);
     }
@@ -109,8 +133,16 @@ function main(): void {
     return;
   }
 
+  const flagSummary = [
+    args.svgGraphics && 'svg-graphics',
+    args.floatTextBox && 'float-textbox',
+    args.anchoredImage && 'anchored-image',
+  ]
+    .filter((s): s is string => Boolean(s))
+    .join('+') || 'none';
   stdout.write(
-    `OK: parsed ${args.inputPath} → ${args.outputPath} (mode=${args.mode}, ${json.length} bytes)\n`,
+    `OK: parsed ${args.inputPath} → ${args.outputPath} `
+      + `(mode=${args.mode}, flags=${flagSummary}, ${json.length} bytes)\n`,
   );
 }
 
