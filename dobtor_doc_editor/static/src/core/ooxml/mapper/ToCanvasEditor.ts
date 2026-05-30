@@ -62,6 +62,26 @@ export interface ToCanvasEditorOptions {
    * 預設 false：維持 Sprint 183 既有純文字輸出 + VR byte-identical 不變。
    */
   renderGraphicsAsSvg?: boolean;
+  /**
+   * 把被註解段落改用 `groupIds` 標記範圍（取代 `[註解 作者: 內容]` inline 文字 fallback）。
+   * 真正的 Word 風格右側註解 panel 由 doc_editor.js 消費，這裡只負責插槽。
+   * 預設 false：維持 Sprint 184 既有 inline 文字輸出 + VR byte-identical 不變。
+   */
+  renderCommentsAsGroups?: boolean;
+}
+
+/**
+ * 註解錨點（render-time 收集，給前端 panel 消費）。
+ *
+ * `groupId` 對應 IElement.groupIds 內的字串（commentId 轉字串），
+ * 前端可 `editor.command.executeLocationGroup(groupId)` 跳到該範圍。
+ */
+export interface CommentAnchor {
+  groupId: string;
+  id: number;
+  author: string;
+  body: string;
+  date?: string;
 }
 
 // ── canvas-editor 介面（僅必要欄位的本地宣告，避免依賴它的 d.ts 路徑）─────
@@ -130,6 +150,8 @@ export interface CEElement {
   // ── table ───────────────────────────────────────────────────────────────
   colgroup?: CEColgroup[];
   trList?: CETr[];
+  // ── group（canvas-editor IGroup 範圍標記，註解 panel 用）─────────────────
+  groupIds?: string[];
 }
 
 // ── 對外 Mapper ───────────────────────────────────────────────────────────────
@@ -147,6 +169,12 @@ export class ToCanvasEditor {
    * 每次 `convert()` 開頭依當前 DocumentNode 重設，避免跨文件殘留。
    */
   private comments = new Map<number, CommentContent>();
+
+  /**
+   * Sprint 361：本次 convert() 收集到的註解錨點（給前端 panel 消費）。
+   * 只在 `options.renderCommentsAsGroups` 開時填，每次 convert() 開頭清空。
+   */
+  private commentAnchors: CommentAnchor[] = [];
 
   /** Sprint 358-359：行為選項（SmartArt/Chart SVG 渲染 opt-in）。 */
   private readonly options: ToCanvasEditorOptions;
@@ -167,6 +195,8 @@ export class ToCanvasEditor {
     this.chartsByRId = new Map((doc.charts ?? []).map((c) => [c.rId, c]));
     // Sprint 184：註解查表（commentRefs id → 內容）
     this.comments = doc.comments;
+    // Sprint 361：每次 convert 清空錨點收集
+    this.commentAnchors = [];
 
     const elements: CEElement[] = [];
     // Sprint 138：跨 section 共用 counter state（OOXML §17.9 預設行為、
@@ -181,6 +211,15 @@ export class ToCanvasEditor {
       this.appendBlocks(elements, section.body, doc.media, doc.numbering, counter);
     }
     return elements;
+  }
+
+  /**
+   * Sprint 361：回傳本次 convert() 收集到的註解錨點（給前端 panel 消費）。
+   *
+   * 只在 `options.renderCommentsAsGroups` 開時非空；caller 順序為 convert() → getCommentAnchors()。
+   */
+  getCommentAnchors(): CommentAnchor[] {
+    return this.commentAnchors;
   }
 
   // ── BlockNode[] 走訪 ──────────────────────────────────────────────────────
@@ -266,17 +305,40 @@ export class ToCanvasEditor {
     //   後 append `[註解 作者: 內容]` 標記（mc:Fallback 壓縮、degraded fidelity；
     //   精確錨點範圍 highlight + 互動 panel 留未來 optional sprint）。
     if (para.commentRefs && para.commentRefs.length > 0) {
-      const cmtBaseProps: RunProps =
-        (para.runs.find((r): r is RunNode => r.type === 'run')?.props) ?? {};
-      const cmtStyle = mapRunProps(cmtBaseProps);
-      for (const id of para.commentRefs) {
-        const cmt = this.comments.get(id);
-        if (!cmt) continue;
-        const body = commentToText(cmt);
-        const marker = cmt.author
-          ? `[註解 ${cmt.author}: ${body}]`
-          : `[註解: ${body}]`;
-        this.appendChars(paraElements, marker, cmtStyle);
+      if (this.options.renderCommentsAsGroups) {
+        // Sprint 361：opt-in 改用 canvas-editor `groupIds` 範圍標記（不 inline 文字）。
+        // 把段落內已生成的 IElement 都掛上 groupId；錨點 metadata 收進 commentAnchors。
+        for (const id of para.commentRefs) {
+          const cmt = this.comments.get(id);
+          if (!cmt) continue;
+          const groupId = String(id);
+          for (const el of paraElements) {
+            if (!el.groupIds) el.groupIds = [];
+            if (!el.groupIds.includes(groupId)) el.groupIds.push(groupId);
+          }
+          const anchor: CommentAnchor = {
+            groupId,
+            id,
+            author: cmt.author ?? '',
+            body: commentToText(cmt),
+          };
+          if (cmt.date) anchor.date = cmt.date;
+          this.commentAnchors.push(anchor);
+        }
+      } else {
+        // Sprint 184 既有 inline 文字 fallback（VR byte-identical 預設）。
+        const cmtBaseProps: RunProps =
+          (para.runs.find((r): r is RunNode => r.type === 'run')?.props) ?? {};
+        const cmtStyle = mapRunProps(cmtBaseProps);
+        for (const id of para.commentRefs) {
+          const cmt = this.comments.get(id);
+          if (!cmt) continue;
+          const body = commentToText(cmt);
+          const marker = cmt.author
+            ? `[註解 ${cmt.author}: ${body}]`
+            : `[註解: ${body}]`;
+          this.appendChars(paraElements, marker, cmtStyle);
+        }
       }
     }
 
