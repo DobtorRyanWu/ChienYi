@@ -106,6 +106,57 @@ docx → parse_docx_cli.cjs（兩遍：無 flag / 有兩 flag）
 - 證明 Sprint A 行為紀律：**沒 anchor 的 docx 開 flag 也 byte-identical**（VR 不退步）
 - 非「miss」、是「無需處理」
 
+## 4.5 ⭐ 親眼 review 4 組 PNG 後的真實視覺結論（補錄 2026-05-31）
+
+實際開 PNG 後發現：**Y58 對使用者的實質價值遠超 Y57 audit 預估**。Y57 audit 用 1120815 純頁碼 fixture 落定「技術真、語意低價值」，但 1120928 週報的真實視覺差異把這個判斷整個翻過來：
+
+### 1120815 監造會議記錄（純頁碼）— 預期 +1 字串、實際亦如此
+
+- baseline 第 1 頁：無頁碼字串
+- opt-in 第 1 頁左上多出「第1頁，共3頁」
+- 結論：低語意價值（與 Y57 audit 一致）；canvas-editor 自會生成頁碼、anchor 內頁碼字串重複
+
+### 1121229 全套管查驗（日期戳印）— **opt-in 純加值、無視覺破壞**
+
+- baseline：完整查驗表 + 2 張現場照片
+- opt-in：完全一樣的查驗表 + 照片，**多出 2 個紅色 `112.12.29` 日期戳印**（每張照片左上）
+- 結論：**極高價值** — 日期戳印是業務必要（工程進度日期追蹤）、baseline drop = 證據遺失
+
+### ⭐ 1120928 週報第 4 頁 — **baseline 整頁空白 → opt-in 顯示完整施工照片頁**
+
+- **baseline 第 4 頁：完全空白**（只有頁碼 4）
+- **opt-in 第 4 頁：2 張彩色現場施工照片 + 2 個 `112/09/27`、`112/09/28` 紅色日期戳印 + 「奇岩1號公園圍籬組裝」、「三合街鑽孔探測」標題列**
+- 解讀：1120928 的 anchor[2] 不是只裝 9 字日期戳印 — Word 把**整段「施工照片表格 + 嵌入照片 + 日期戳印」整大段都包進 wp:anchor + wps:txbx 浮動文字框**（這是 OOXML 把照片 + caption 一起浮動的常見手法）
+- Sprint A 預設 mapper drop 等於整頁施工照片內容遺失（baseline 是空白頁）；opt-in 展平後**整頁照片 + 日期戳印都顯示**
+- **這是 Sprint Y58 最有力的「使用者價值」證據** — 不是「加幾個字」、是「整版工程照片從消失變存在」
+
+### 1120905 監造會議第 3 頁 — 頁數變動的視覺後果
+
+- baseline 5 頁：第 3 頁含完整列管項目 1-3~1-8（六列） + 黑色 anchor 區（既有 canvas-editor 圖片渲染 fallback，baseline 也有 — 與 Y58 無關）
+- opt-in 3 頁：第 3 頁只剩末尾 1 列（6-1）+ 「第3頁，共3頁」
+- canvas-editor 把 1-3~1-8 六列壓縮到前 2 頁、整體少 2 頁
+- 解讀：anchor 文字 inline 後排版重排是預期、但「頁數縮 2 頁」幅度比想像大；屬 canvas-editor `pageMode=PAGING` layout 引擎決策、非 mapper bug
+
+### Y58 真實 anchor 價值光譜（4 組樣本歸納）
+
+| Anchor 內容類型 | fixture 代表 | baseline 觀感 | opt-in 觀感 | 業務價值 |
+|---|---|---|---|---|
+| 純頁碼 | 1120815 監造會議 | 缺頁碼 | 多出「第X頁，共Y頁」 | 低（canvas-editor 自會生） |
+| 日期戳印 | 1121229 查驗 | 缺戳印 | 照片角落多出 `112.12.29` | 高（工程進度日期憑證） |
+| **整段照片頁** | **1120928 週報 第 4 頁** | **整頁空白** | **完整施工照片頁** | **極高（baseline 完全內容遺失）** |
+| 重排副作用 | 1120905 監造會議 | 5 頁 | 3 頁 | 中性（要 product 決策可接受度） |
+
+→ **Y57 audit 對 wp:anchor 整體 gap 嚴重低估**：1120815 樣本只看到「頁碼層」，但週報的 anchor 是「整版工程照片浮動框」、查驗的 anchor 是「日期戳印浮動框」。對 ChienYi 工程文件群（25/25 含 anchor）而言，這是高商業價值的 fidelity gap。
+
+### Y58 範圍邊界提醒（前端 / product decision）
+
+- mapper / CLI / controller 鏈整條打通、預設 false 保證 byte-identical
+- 真實 production 要走 opt-in：前端 `doc_editor.js` 載入時要傳 `?float_textbox=1&anchored_image=1`、或 import form / RPC 帶兩個 flag
+- 視覺後遺症（頁數變動、anchor 位置改變）是 inline 降級紀律的固有代價；真正修法是 Phase 6+ 浮動繞排 layout
+- 折衷選項：**僅開 `--float-textbox`**（多出文字內容）、不開 `--anchored-image`（不額外塞 anchor metadata）→ 視覺差異最小、業務內容完整出現；給 product 評估
+
+---
+
 ## 5. 視覺證據（PNG 樣本）
 
 PNG 在 `tests/fixtures/.visual_regression_tmp/sprint_y58/`（路徑被 `.gitignore` 排除，不入 git；user 在本機可直接開）。
