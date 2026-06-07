@@ -4607,6 +4607,26 @@
             return value ? 'TRUE' : 'FALSE';
         return String(value);
     }
+    // o-spreadsheet 已實作、且 ChienYi 公式會用到的函數（已逐一對 o_spreadsheet.js 確認定義）。
+    // 公式只用這些函數（或純算式無函數）時餵公式 → 即時運算；否則 fallback cached 值，避免 #BAD_EXPR。
+    // 注意：CHOOSE 在 o-spreadsheet 18.0.48 未定義，刻意排除。
+    const SUPPORTED_FUNCTIONS = new Set([
+        'VLOOKUP', 'IF', 'IFERROR', 'IFS', 'CHAR', 'ROUND', 'ROUNDUP', 'ROUNDDOWN',
+        'SUM', 'SUMIF', 'SUMIFS', 'COUNT', 'COUNTA', 'COUNTIF', 'COUNTIFS',
+        'AVERAGE', 'MIN', 'MAX', 'MINIFS', 'MAXIFS', 'PRODUCT', 'ABS', 'INT', 'MOD',
+        'AND', 'OR', 'NOT', 'ROW', 'COLUMN',
+        'LEFT', 'RIGHT', 'MID', 'LEN', 'FIND', 'SEARCH', 'SUBSTITUTE', 'CONCATENATE', 'CONCAT', 'TEXT', 'TRIM',
+        'TODAY', 'NOW', 'DATE', 'WEEKDAY', 'CELL',
+    ]);
+    /** 公式是否只用支援函數（純算式無函數 → true）。去 _xlfn./_xlws. 前綴後比對。*/
+    function formulaUsesOnlySupported(formula) {
+        for (const m of formula.matchAll(/([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g)) {
+            const name = m[1].replace(/^_xl(fn|ws)\./i, '').toUpperCase();
+            if (!SUPPORTED_FUNCTIONS.has(name))
+                return false;
+        }
+        return true;
+    }
     /**
      * o-spreadsheet 的 format 引擎只吃純數字格式（# 0 , . % 與空白）。
      * Excel 自訂格式含 `\` 跳脫、`"字面"`、CJK、`[$貨幣]`、`_`、`*` 會讓 o-spreadsheet 該格 #ERROR，
@@ -4627,8 +4647,13 @@
             const concrete = resolver.resolve(cell.styleIndex);
             const oStyle = toOStyle(concrete);
             const oCell = { content: '' };
-            if (value !== '')
+            // 公式 round-trip：安全公式 → 餵公式（o-spreadsheet 即時運算）；否則 fallback cached 值
+            if (cell.formula && formulaUsesOnlySupported(cell.formula)) {
+                oCell.content = '=' + cell.formula.replace(/_xl(fn|ws)\./gi, '');
+            }
+            else if (value !== '') {
                 oCell.content = toContent(value);
+            }
             if (oStyle)
                 oCell.style = stylePool.intern(oStyle);
             const oBorder = toOBorder(concrete.border);

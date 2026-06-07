@@ -77,6 +77,7 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 15 | **Phase 4.5 Odoo UI**：importXlsxToHtmlPreview 入口 + OWL client action（上傳→解析→iframe 預覽 + sheet 分頁）+ manifest application/menu/assets | [sprint15_odoo_ui.md](sprint15_odoo_ui.md) |
 | 16 | **o-spreadsheet 對接**：to_ospreadsheet 轉換器（ParsedWorksheet → WorkbookData，styles/formats 池化）+ importXlsxToOSpreadsheetData + OWL「在 o-spreadsheet 開啟」（建 OCA spreadsheet 記錄→開 OCA 編輯器）+ **Playwright E2E 實證 GRID_MOUNTED** | [sprint16_ospreadsheet.md](sprint16_ospreadsheet.md) |
 | 17 | **邊框對接**：ConcreteBorder → o-spreadsheet border 池（{style,color}、Excel style 映射、double→medium）+ Playwright 驗證邊框渲染、無 #ERROR | [sprint17_borders.md](sprint17_borders.md) |
+| 18 | **公式 round-trip**：hybrid（安全公式餵公式即時運算、CHOOSE 等 fallback cached）+ 45 函數白名單（對 o_spreadsheet.js 確認）+ Playwright 驗證複價/小計正確運算、無 #BAD_EXPR | [sprint18_formula_roundtrip.md](sprint18_formula_roundtrip.md) |
 
 ## Phase 7 — 效能與大檔
 
