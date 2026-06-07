@@ -4577,6 +4577,14 @@
             return value ? 'TRUE' : 'FALSE';
         return String(value);
     }
+    /**
+     * o-spreadsheet 的 format 引擎只吃純數字格式（# 0 , . % 與空白）。
+     * Excel 自訂格式含 `\` 跳脫、`"字面"`、CJK、`[$貨幣]`、`_`、`*` 會讓 o-spreadsheet 該格 #ERROR，
+     * 故只放行純數字格式；其餘跳過（cell 顯示原始數字）。
+     */
+    function isOSpreadsheetSafeFormat(code) {
+        return /^[#0,.%\s]+$/.test(code);
+    }
     function buildSheet(sheetId, name, ws, ss, styles, resolver, stylePool, formatPool) {
         const bounds = worksheetBounds(ws);
         const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
@@ -4597,7 +4605,8 @@
             if (typeof value === 'number' &&
                 !isDateNumberFormat(styles, concrete.numFmtId) &&
                 concrete.numFmtCode &&
-                concrete.numFmtCode !== 'General') {
+                concrete.numFmtCode !== 'General' &&
+                isOSpreadsheetSafeFormat(concrete.numFmtCode)) {
                 oCell.format = formatPool.intern(concrete.numFmtCode);
             }
             // 只收有內容或樣式的 cell

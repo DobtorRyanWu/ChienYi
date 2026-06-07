@@ -11,7 +11,7 @@
 | vitest unit tests | 200 / 200 passed | > 500（Phase 1+ 後） | 🟢 |
 | vitest integration | 334 / 334 passed（+ VR baseline skipIf 手動） | > 200 | 🟢 **達標** |
 | vitest 總計 | 534 / 534 passed（+1 VR skipped） | — | 🟢 |
-| **Odoo 整合** | 選單掛 OCA Spreadsheets 底下；HTML 預覽 + 「在 o-spreadsheet 開啟（可編輯）」 | — | 🟢 預覽已驗；可編輯待瀏覽器確認 |
+| **Odoo 整合** | 選單掛 OCA 底下；HTML 預覽 + 「在 o-spreadsheet 開啟（可編輯）」 | — | 🟢 **Playwright E2E 驗證通過**（預覽 + 可編輯 grid 掛起） |
 | number format 渲染 | 千分位/貨幣/百分比/會計負數/字面，13 測試 | — | 🟢 |
 | **VR content diff**（純內容） | **11.4% / 12.4% / 19.3%**（字型保真後） | <5%（終極） | 🟡 收斂中（餘為佈局 metrics） |
 | **cell value 提取率（vs calamine golden）** | **99.998%（702909/702925）** | > 95% | 🟢 **超標** |

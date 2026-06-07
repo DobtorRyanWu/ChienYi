@@ -47,13 +47,22 @@ Sprint 15 的 Odoo UI 只有唯讀 HTML 預覽。要「可編輯」，需把解�
   create 權限/必填欄位已確認
 - **L3 人工檢查**：`tsc --noEmit` 乾淨、`rollup build` 通過
 
-## 誠實限制（紀律 #1/#4）
+## Playwright E2E 驗證（已通過 ✅）
 
-- **轉換器已單元驗證**（schema 依 o-spreadsheet 文件格式 + 真實檔池 id 一致性）。
-- **「開啟可編輯」未經瀏覽器驗證**：本環境 chrome-devtools MCP 無法啟動、且不便改測試帳號憑證，
-  無法 dogfood。o-spreadsheet `load()` 是否完全接受我方 WorkbookData（版本遷移/必填鍵/邊框）需 user
-  點按確認；若報錯，OWL 已加 in-UI error 顯示確切訊息（不會白屏）。
-- 採「建 OCA 記錄 → 開 OCA action」而非自掛 o-spreadsheet store，把渲染風險交給 OCA 既有可運作的渲染器。
+`tests/playwright/tests/admin-dobtor-spreadsheet-xlsx.spec.ts`（admin/admin inline login）：
+1. 開 action-548 → 上傳 `估驗數量差異說明表再造11309.xlsx` → **HTML 預覽 iframe 出現、table 可見** ✅
+2. 點「在 o-spreadsheet 開啟」→ **`OPEN_RESULT=GRID_MOUNTED`**、URL 跳 `action_spreadsheet_oca`
+   → **o-spreadsheet 可編輯網格掛起、載入我方資料**（標題合併/粗體藍/置中、工程名稱、sheet 分頁）✅
+
+→ 證明 o-spreadsheet `load()` **接受我方 WorkbookData**，整條 Phase 4.5 端到端可運作。
+
+### 揭示並修正：自訂格式 #ERROR
+首跑發現一格 `#ERROR`：套 Excel 自訂格式 `"第"\ #\ "次估驗附表"\ `（含 `\`/CJK 字面）的 cell，
+o-spreadsheet format 引擎吃不下 → #ERROR。
+**修正**：`isOSpreadsheetSafeFormat`（只放行純數字格式 `/^[#0,.%\s]+$/`），其餘跳過顯示原始數字。
+重跑 → #ERROR 消失、該格顯示 `13`。
+
+> 採「建 OCA 記錄 → 開 OCA action」而非自掛 o-spreadsheet store，把渲染交給 OCA 既有可運作的渲染器。
 
 ## 對齊進度
 

@@ -122,6 +122,15 @@ function toContent(value: string | number | boolean): string {
     return String(value);
 }
 
+/**
+ * o-spreadsheet 的 format 引擎只吃純數字格式（# 0 , . % 與空白）。
+ * Excel 自訂格式含 `\` 跳脫、`"字面"`、CJK、`[$貨幣]`、`_`、`*` 會讓 o-spreadsheet 該格 #ERROR，
+ * 故只放行純數字格式；其餘跳過（cell 顯示原始數字）。
+ */
+function isOSpreadsheetSafeFormat(code: string): boolean {
+    return /^[#0,.%\s]+$/.test(code);
+}
+
 function buildSheet(
     sheetId: string,
     name: string,
@@ -151,7 +160,8 @@ function buildSheet(
             typeof value === 'number' &&
             !isDateNumberFormat(styles, concrete.numFmtId) &&
             concrete.numFmtCode &&
-            concrete.numFmtCode !== 'General'
+            concrete.numFmtCode !== 'General' &&
+            isOSpreadsheetSafeFormat(concrete.numFmtCode)
         ) {
             oCell.format = formatPool.intern(concrete.numFmtCode);
         }
