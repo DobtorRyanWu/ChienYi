@@ -1,0 +1,11 @@
+# 依賴（npm install 重生）
+node_modules/
+
+# golden artifacts（bash scripts/generate_golden.sh 重生；含大型 cells.json）
+tests/fixtures/*/golden/
+
+# build / 暫存
+__pycache__/
+*.pyc
+.vitest/
+*.log
