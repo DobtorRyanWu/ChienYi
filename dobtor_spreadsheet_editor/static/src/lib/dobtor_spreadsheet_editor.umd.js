@@ -4312,6 +4312,186 @@
         return fill.bgColor;
     }
 
+    // font_map.ts — Excel 字型名 → 渲染字型堆疊（VR 字型保真）
+    //
+    // golden 由 LibreOffice 渲染、走 fontconfig 字型替換。我方 puppeteer Chrome 也走 fontconfig，
+    // 但若 CSS 加通用 fallback（sans-serif）會讓 Chrome 自選回退、與 LibreOffice 不一致。
+    // 本模組把 Excel 字型釘死到 LibreOffice 慣用的 metric-compatible 替換 + 一致的 CJK 回退鏈。
+    // Latin metric-compatible 替換（與原字型字寬一致，LibreOffice/系統內建）：
+    //   Calibri→Carlito、Arial→Liberation Sans、Times New Roman→Liberation Serif ...
+    const METRIC_COMPATIBLE = {
+        Calibri: 'Carlito',
+        'Calibri Light': 'Carlito',
+        Cambria: 'Caladea',
+        Arial: 'Liberation Sans',
+        'Arial Narrow': 'Liberation Sans Narrow',
+        Helvetica: 'Liberation Sans',
+        'Times New Roman': 'Liberation Serif',
+        Georgia: 'Liberation Serif',
+        'Courier New': 'Liberation Mono',
+    };
+    // 系統實際存在的 CJK 字型（fc-list 確認）；CJK 字元的最終回退，確保與 LibreOffice 同源。
+    const CJK_FALLBACK = "'WenQuanYi Zen Hei','Droid Sans Fallback',sans-serif";
+    /**
+     * Excel 字型名 → CSS font-family 堆疊。
+     * - Latin 有 metric-compatible 替換 → 用替換 + CJK 回退
+     * - CJK / 未知字型 → 原名（讓 fontconfig 比照 LibreOffice 替換）+ CJK 回退
+     */
+    function fontFamilyStack(name) {
+        if (!name)
+            return CJK_FALLBACK;
+        const mc = METRIC_COMPATIBLE[name];
+        const primary = mc ?? name;
+        return `'${primary.replace(/'/g, '')}',${CJK_FALLBACK}`;
+    }
+
+    // html_render.ts — ParsedWorksheet + ConcreteStyle → HTML 表格（VR pipeline 的 render 路徑）
+    //
+    // 這是「model → DOM」的第一條 render 路徑：把解析出的 cell 值 + 具體樣式 render 成 HTML <table>，
+    // 供 puppeteer 光柵化成 PNG。注意：HTML 佈局引擎與 LibreOffice 不同，與 golden 的像素差異會偏高，
+    // 本路徑用於建立 VR 管線與自洽回歸基準，而非一步到位的 LibreOffice 像素對等。
+    // 安全上限放寬以涵蓋完整 sheet（golden 為完整首 sheet），避免截斷造成尺寸不匹配假性差異。
+    const DEFAULT_MAX_ROWS = 500;
+    const DEFAULT_MAX_COLS = 80;
+    const DEFAULT_COL_WIDTH_CHARS = 8.43;
+    const DEFAULT_ROW_HEIGHT_PT = 15;
+    const BORDER_WIDTH = {
+        hair: 1, thin: 1, dotted: 1, dashed: 1,
+        medium: 2, mediumDashed: 2,
+        thick: 3, double: 3,
+    };
+    function esc(s) {
+        return s
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+    function valueToText(v) {
+        if (v === undefined)
+            return '';
+        if (typeof v === 'boolean')
+            return v ? 'TRUE' : 'FALSE';
+        return String(v);
+    }
+    function edgeCss(side, edge) {
+        if (!edge || !edge.style || edge.style === 'none')
+            return '';
+        const w = BORDER_WIDTH[edge.style] ?? 1;
+        const kind = edge.style === 'double' ? 'double' : edge.style.includes('dash') ? 'dashed' : edge.style === 'dotted' ? 'dotted' : 'solid';
+        const color = edge.color ? `#${edge.color}` : '#000';
+        return `border-${side}:${w}px ${kind} ${color};`;
+    }
+    function cellCss(style, colW, rowH) {
+        let css = `width:${colW}px;height:${rowH}px;`;
+        const bg = fillBackgroundColor(style.fill);
+        if (bg)
+            css += `background:#${bg};`;
+        const f = style.font;
+        if (f.color)
+            css += `color:#${f.color};`;
+        if (f.bold)
+            css += 'font-weight:bold;';
+        if (f.italic)
+            css += 'font-style:italic;';
+        if (f.size)
+            css += `font-size:${(f.size * 96) / 72}px;`;
+        if (f.name)
+            css += `font-family:${fontFamilyStack(f.name)};`;
+        const deco = [];
+        if (f.underline && f.underline !== 'none')
+            deco.push('underline');
+        if (f.strike)
+            deco.push('line-through');
+        if (deco.length)
+            css += `text-decoration:${deco.join(' ')};`;
+        const a = style.alignment;
+        if (a?.horizontal)
+            css += `text-align:${a.horizontal};`;
+        css += `vertical-align:${a?.vertical ?? 'bottom'};`;
+        css += a?.wrapText ? 'white-space:normal;' : 'white-space:nowrap;overflow:hidden;';
+        css += edgeCss('left', style.border.left);
+        css += edgeCss('right', style.border.right);
+        css += edgeCss('top', style.border.top);
+        css += edgeCss('bottom', style.border.bottom);
+        return css;
+    }
+    /** 建合併資訊：anchor "r:c" → {rowspan,colspan}；covered "r:c" → true（跳過）。*/
+    function buildMergeMaps(merges) {
+        const anchors = new Map();
+        const covered = new Set();
+        for (const ref of merges) {
+            const { start, end } = parseRange(ref);
+            anchors.set(`${start.row}:${start.col}`, {
+                rowspan: end.row - start.row + 1,
+                colspan: end.col - start.col + 1,
+            });
+            for (let r = start.row; r <= end.row; r++) {
+                for (let c = start.col; c <= end.col; c++) {
+                    if (r === start.row && c === start.col)
+                        continue;
+                    covered.add(`${r}:${c}`);
+                }
+            }
+        }
+        return { anchors, covered };
+    }
+    /** 建欄索引（1-based）→ 寬度 px 的對照（依 ws.cols，否則預設）。*/
+    function buildColWidths(ws, maxCol, defaultChars) {
+        const widths = new Array(maxCol + 1).fill(columnWidthToPixels(defaultChars, DEFAULT_MDW));
+        for (const col of ws.cols) {
+            if (col.width === undefined)
+                continue;
+            const px = columnWidthToPixels(col.width, DEFAULT_MDW);
+            for (let c = col.min; c <= col.max && c <= maxCol; c++)
+                widths[c] = px;
+        }
+        return widths;
+    }
+    /** ParsedWorksheet → 完整 HTML 文件字串。*/
+    function renderWorksheetHtml(ws, sharedStrings, styles, theme, opts = {}) {
+        const maxRows = opts.maxRows ?? DEFAULT_MAX_ROWS;
+        const maxCols = opts.maxCols ?? DEFAULT_MAX_COLS;
+        const defaultChars = opts.defaultColWidthChars ?? DEFAULT_COL_WIDTH_CHARS;
+        const rowHpx = rowHeightToPixels(opts.defaultRowHeightPt ?? DEFAULT_ROW_HEIGHT_PT);
+        // 用 dimension 的完整 used range（涵蓋 golden 的全 sheet 範圍），而非僅有值的 cell 範圍
+        const bounds = worksheetBounds(ws);
+        const nRows = Math.min(maxRows, Math.max(bounds.rows, ws.maxRow, 1));
+        const nCols = Math.min(maxCols, Math.max(bounds.cols, ws.maxCol, 1));
+        const resolver = new ConcreteStyleResolver(styles, theme);
+        const valueMap = buildValueMapStyled(ws, sharedStrings, styles);
+        const styleIndexMap = new Map();
+        for (const cell of ws.cells)
+            styleIndexMap.set(`${cell.row}:${cell.col}`, cell.styleIndex);
+        const colW = buildColWidths(ws, nCols, defaultChars);
+        const { anchors, covered } = buildMergeMaps(ws.merges);
+        const rowsHtml = [];
+        for (let r = 1; r <= nRows; r++) {
+            const cells = [];
+            for (let c = 1; c <= nCols; c++) {
+                const key = `${r}:${c}`;
+                if (covered.has(key))
+                    continue;
+                const merge = anchors.get(key);
+                const span = merge ? ` colspan="${merge.colspan}" rowspan="${merge.rowspan}"` : '';
+                const style = resolver.resolve(styleIndexMap.get(key));
+                const raw = valueMap.get(key);
+                // 數字 + 非 General numFmt → 套完整 number format（千分位/貨幣/百分比）；其餘原樣
+                const display = typeof raw === 'number' && style.numFmtCode && style.numFmtCode !== 'General'
+                    ? formatNumber(raw, style.numFmtCode)
+                    : valueToText(raw);
+                cells.push(`<td${span} style="${cellCss(style, colW[c], rowHpx)}">${esc(display)}</td>`);
+            }
+            rowsHtml.push(`<tr>${cells.join('')}</tr>`);
+        }
+        return (`<!DOCTYPE html><html><head><meta charset="utf-8"><style>` +
+            `*{box-sizing:border-box;margin:0;padding:0}` +
+            `body{background:#fff}` +
+            `table{border-collapse:collapse;table-layout:fixed;font-family:${CJK_FALLBACK};font-size:14.667px}` +
+            `td{padding:0 2px;border:1px solid #d4d4d4}` +
+            `</style></head><body><table>${rowsHtml.join('')}</table></body></html>`);
+    }
+
     // dobtor_spreadsheet_editor — OOXML SpreadsheetML Parser entry
     //
     // Sprint 0：空殼 export
@@ -4326,16 +4506,36 @@
     // Sprint 10：ConcreteStyleResolver（StyleResolver + ThemeResolver → 全具體 RGB 樣式，Phase 4.5 對接前置）
     //
     // 對接層：parser → ast → style/formula/cf/... compiler → XlsxModelBridge → o-spreadsheet model commands
-    const SPRINT = 10;
+    const SPRINT = 15;
     const BUILD_DATE = '2026-06-07';
     const TARGET_FIDELITY = 'Google Sheets / Excel A- (95%)';
     /**
-     * importXlsx — 主入口（Phase 1 後實作）
-     * @param buffer xlsx 檔案 ArrayBuffer
-     * @returns Workbook AST（Phase 1）+ o-spreadsheet model commands（Phase 4.5）
+     * 解析 xlsx 並把指定工作表渲染成 HTML 預覽（Odoo 前端用）。
+     * @param buffer     xlsx ArrayBuffer
+     * @param sheetIndex 要渲染的工作表索引（預設 0）
      */
-    async function importXlsx(_buffer) {
-        throw new Error('importXlsx not yet implemented — Phase 1 task');
+    function importXlsxToHtmlPreview(buffer, sheetIndex = 0) {
+        const pkg = PackageReader.fromBuffer(buffer);
+        const wbp = new WorkbookParser(pkg);
+        const wb = wbp.parse();
+        const ssPart = wbp.sharedStringsPart();
+        const ss = ssPart && pkg.hasPart(ssPart) ? SharedStringsParser.parse(pkg.getPartText(ssPart)) : [];
+        const stPart = wbp.stylesPart();
+        const styles = stPart && pkg.hasPart(stPart)
+            ? StylesParser.parse(pkg.getPartText(stPart))
+            : StylesParser.parse('<styleSheet/>');
+        const thPart = wbp.themePart();
+        const theme = thPart && pkg.hasPart(thPart)
+            ? ThemeParser.parse(pkg.getPartText(thPart))
+            : ThemeParser.default();
+        const idx = Math.max(0, Math.min(sheetIndex, wb.sheets.length - 1));
+        const target = wb.sheets[idx]?.target;
+        let html = '';
+        if (target && pkg.hasPart(target)) {
+            const ws = WorksheetParser.parse(pkg.getPartText(target));
+            html = renderWorksheetHtml(ws, ss, styles, theme);
+        }
+        return { sheets: wb.sheets.map((s) => s.name), activeSheet: idx, html };
     }
 
     exports.BUILD_DATE = BUILD_DATE;
@@ -4369,7 +4569,7 @@
     exports.fillBackgroundColor = fillBackgroundColor;
     exports.formatExcelDate = formatExcelDate;
     exports.formatNumber = formatNumber;
-    exports.importXlsx = importXlsx;
+    exports.importXlsxToHtmlPreview = importXlsxToHtmlPreview;
     exports.isDateFormatCode = isDateFormatCode;
     exports.isDateNumberFormat = isDateNumberFormat;
     exports.numberFormatCode = numberFormatCode;

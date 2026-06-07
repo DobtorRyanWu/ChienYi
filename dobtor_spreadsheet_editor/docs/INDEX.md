@@ -74,6 +74,7 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 11 | VR 管線：pixel_compare（pixelmatch 原語）+ html_render（model→HTML）+ render_png（puppeteer）+ baseline（45-88% vs LibreOffice，管線就緒） | [sprint11_vr_pipeline.md](sprint11_vr_pipeline.md) |
 | 12 | 全 sheet render（dimension 全範圍，移除 60×40 截斷）+ scaleToMatch（分離尺寸假性差異）→ **content diff 降到 11.7-20.4%** | [sprint12_full_sheet_vr.md](sprint12_full_sheet_vr.md) |
 | 14 | 字型保真：font_map（Excel 字型 → metric-compatible 替換 Carlito/Liberation + CJK 回退鏈）→ content diff 11.4-19.3% | [sprint14_font_fidelity.md](sprint14_font_fidelity.md) |
+| 15 | **Phase 4.5 Odoo UI**：importXlsxToHtmlPreview 入口 + OWL client action（上傳→解析→iframe 預覽 + sheet 分頁）+ manifest application/menu/assets | [sprint15_odoo_ui.md](sprint15_odoo_ui.md) |
 
 ## Phase 7 — 效能與大檔
 

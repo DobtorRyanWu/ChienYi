@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- Phase 4.5 — Xlsx 高保真匯入預覽 client action -->
+    <record id="action_xlsx_import" model="ir.actions.client">
+        <field name="name">Xlsx 高保真匯入</field>
+        <field name="tag">dobtor_spreadsheet_editor.import</field>
+    </record>
+
+    <menuitem id="menu_dobtor_spreadsheet_root"
+              name="試算表匯入"
+              sequence="90"/>
+
+    <menuitem id="menu_xlsx_import"
+              name="Xlsx 匯入預覽"
+              parent="menu_dobtor_spreadsheet_root"
+              action="action_xlsx_import"
+              sequence="10"/>
+</odoo>

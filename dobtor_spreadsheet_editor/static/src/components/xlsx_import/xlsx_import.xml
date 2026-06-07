@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="dobtor_spreadsheet_editor.XlsxImport">
+        <div class="o_dobtor_xlsx_import p-3 h-100 d-flex flex-column">
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <h4 class="m-0">Xlsx 高保真匯入預覽</h4>
+                <input type="file" accept=".xlsx"
+                       class="form-control w-auto" t-on-change="onFile"/>
+                <span t-if="state.fileName" class="text-muted small" t-esc="state.fileName"/>
+            </div>
+
+            <div t-if="state.error" class="alert alert-danger py-2" t-esc="state.error"/>
+
+            <div t-if="state.sheets.length" class="btn-group btn-group-sm mb-2 flex-wrap">
+                <button t-foreach="state.sheets" t-as="name" t-key="name_index"
+                        class="btn"
+                        t-att-class="name_index === state.activeSheet ? 'btn-primary' : 'btn-outline-secondary'"
+                        t-on-click="() => this.selectSheet(name_index)"
+                        t-esc="name"/>
+            </div>
+
+            <iframe t-if="state.html"
+                    class="o_dobtor_xlsx_frame w-100 flex-grow-1"
+                    style="border:1px solid #dee2e6;background:#fff"
+                    t-att-srcdoc="state.html"/>
+            <div t-else="" class="text-muted border rounded p-4 text-center flex-grow-1">
+                上傳 .xlsx 檔以預覽（含儲存格值、樣式、合併格、number format 渲染）。
+            </div>
+        </div>
+    </t>
+</templates>

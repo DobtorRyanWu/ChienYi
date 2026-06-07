@@ -28,20 +28,18 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
         'spreadsheet_oca',
     ],
     'data': [
-        # Phase 4.5 啟用後加入：
-        # 'security/ir.model.access.csv',
-        # 'security/spreadsheet_security.xml',
-        # 'views/spreadsheet_editor_views.xml',
-        # 'data/ir_cron_data.xml',
+        'views/menu.xml',
     ],
     'assets': {
         'web.assets_backend': [
-            # Phase 4.5 啟用後加入 CSS / OWL Components
-            # 'dobtor_spreadsheet_editor/static/src/css/xlsx_editor.css',
-            # 'dobtor_spreadsheet_editor/static/src/components/XlsxImportButton.js',
+            # parser UMD bundle（暴露 window.DobtorSpreadsheetEditor）— 須先於 OWL component 載入
+            'dobtor_spreadsheet_editor/static/src/lib/dobtor_spreadsheet_editor.umd.js',
+            # Phase 4.5 Xlsx 匯入預覽 client action
+            'dobtor_spreadsheet_editor/static/src/components/xlsx_import/xlsx_import.js',
+            'dobtor_spreadsheet_editor/static/src/components/xlsx_import/xlsx_import.xml',
         ],
         # OCA spreadsheet_oca 已掛 spreadsheet.o_spreadsheet bundle；
-        # 本模組的 xlsx parser bundle 在 Phase 4.5 整合時加入
+        # 本模組 xlsx parser → o-spreadsheet model commands 對接於後續 sprint
     },
     'external_dependencies': {
         'python': [
@@ -51,6 +49,6 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
         ],
     },
     'installable': True,
-    'application': False,
+    'application': True,
     'auto_install': False,
 }
