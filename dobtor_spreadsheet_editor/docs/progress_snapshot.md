@@ -1,17 +1,17 @@
 # 進度快照（Progress Snapshot）
 
-**最後更新**：2026-06-07（Sprint 15）
+**最後更新**：2026-06-07（Sprint 16）
 
 ## 當前指標一覽
 
 | 指標 | 值 | 目標 | 狀態 |
 |---|---|---|---|
-| 當前 Phase | 1+2 + VR 管線 + **Phase 4.5 Odoo UI** | — | in_progress |
-| Sprint 編號 | 15 | — | — |
-| vitest unit tests | 192 / 192 passed | > 500（Phase 1+ 後） | 🟢 |
+| 當前 Phase | 1+2 + VR + Phase 4.5（預覽 + o-spreadsheet 對接） | — | in_progress |
+| Sprint 編號 | 16 | — | — |
+| vitest unit tests | 200 / 200 passed | > 500（Phase 1+ 後） | 🟢 |
 | vitest integration | 334 / 334 passed（+ VR baseline skipIf 手動） | > 200 | 🟢 **達標** |
-| vitest 總計 | 526 / 526 passed（+1 VR skipped） | — | 🟢 |
-| **Odoo 整合** | application=True、選單「試算表匯入→Xlsx 匯入預覽」、client action 已安裝 | — | 🟢 可見可用 |
+| vitest 總計 | 534 / 534 passed（+1 VR skipped） | — | 🟢 |
+| **Odoo 整合** | 選單掛 OCA Spreadsheets 底下；HTML 預覽 + 「在 o-spreadsheet 開啟（可編輯）」 | — | 🟢 預覽已驗；可編輯待瀏覽器確認 |
 | number format 渲染 | 千分位/貨幣/百分比/會計負數/字面，13 測試 | — | 🟢 |
 | **VR content diff**（純內容） | **11.4% / 12.4% / 19.3%**（字型保真後） | <5%（終極） | 🟡 收斂中（餘為佈局 metrics） |
 | **cell value 提取率（vs calamine golden）** | **99.998%（702909/702925）** | > 95% | 🟢 **超標** |
@@ -32,7 +32,7 @@
 | Phase 2（Style） | 30+ | 3 | 10%（§2.1 StyleResolver + §2.2 ThemeResolver + §2.3 日期最小版） |
 | Phase 3（Formula）★ | 60+ | 0 | 0% |
 | Phase 4（CF/Validation） | 30+ | 0 | 0% |
-| Phase 4.5（產品化） | 25+ | 3 | 12%（ConcreteStyleResolver + importXlsxToHtmlPreview 入口 + Odoo client action UI） |
+| Phase 4.5（產品化） | 25+ | 5 | 20%（ConcreteStyle + HTML 預覽入口 + Odoo UI + to_ospreadsheet 轉換器 + OCA 記錄對接） |
 | Phase 5（Pivot/Chart） | 40+ | 0 | 0% |
 | Phase 6（Export） | 15+ | 0 | 0% |
 | Phase 7（效能） | 10+ | 0 | 0% |

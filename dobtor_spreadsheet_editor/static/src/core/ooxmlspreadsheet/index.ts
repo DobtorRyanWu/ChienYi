@@ -13,7 +13,7 @@
 //
 // 對接層：parser → ast → style/formula/cf/... compiler → XlsxModelBridge → o-spreadsheet model commands
 
-export const SPRINT = 15;
+export const SPRINT = 16;
 export const BUILD_DATE = '2026-06-07';
 export const TARGET_FIDELITY = 'Google Sheets / Excel A- (95%)';
 
@@ -125,6 +125,10 @@ import { StylesParser as _StylesParser } from './styles_parser';
 import { ThemeParser as _ThemeParser } from './theme_parser';
 import { WorksheetParser as _WorksheetParser } from './worksheet_parser';
 import { renderWorksheetHtml as _renderWorksheetHtml } from './vr/html_render';
+import { buildOSpreadsheetData as _buildOSpreadsheetData, type OSpreadsheetData, type SheetInput as _SheetInput } from './to_ospreadsheet';
+
+export { buildOSpreadsheetData } from './to_ospreadsheet';
+export type { OSpreadsheetData, OSheet, OCell, OStyle, SheetInput } from './to_ospreadsheet';
 
 export interface XlsxPreview {
     /** 全部工作表名稱（依順序）。*/
@@ -165,4 +169,31 @@ export function importXlsxToHtmlPreview(buffer: ArrayBuffer, sheetIndex = 0): Xl
         html = _renderWorksheetHtml(ws, ss, styles, theme);
     }
     return { sheets: wb.sheets.map((s) => s.name), activeSheet: idx, html };
+}
+
+/**
+ * 解析 xlsx → o-spreadsheet WorkbookData（可編輯試算表用，OWL 端 new Model(load(data))）。
+ */
+export function importXlsxToOSpreadsheetData(buffer: ArrayBuffer): OSpreadsheetData {
+    const pkg = _PackageReader.fromBuffer(buffer);
+    const wbp = new _WorkbookParser(pkg);
+    const wb = wbp.parse();
+
+    const ssPart = wbp.sharedStringsPart();
+    const ss: _SharedString[] =
+        ssPart && pkg.hasPart(ssPart) ? _SharedStringsParser.parse(pkg.getPartText(ssPart)) : [];
+    const stPart = wbp.stylesPart();
+    const styles = stPart && pkg.hasPart(stPart)
+        ? _StylesParser.parse(pkg.getPartText(stPart))
+        : _StylesParser.parse('<styleSheet/>');
+    const thPart = wbp.themePart();
+    const theme = thPart && pkg.hasPart(thPart)
+        ? _ThemeParser.parse(pkg.getPartText(thPart))
+        : _ThemeParser.default();
+
+    const sheets: _SheetInput[] = wb.sheets
+        .filter((s) => s.target && pkg.hasPart(s.target))
+        .map((s) => ({ name: s.name, ws: _WorksheetParser.parse(pkg.getPartText(s.target!)) }));
+
+    return _buildOSpreadsheetData(sheets, ss, styles, theme);
 }

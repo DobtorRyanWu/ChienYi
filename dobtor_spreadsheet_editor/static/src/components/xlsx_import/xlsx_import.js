@@ -5,18 +5,23 @@
 
 import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 
 export class XlsxImportAction extends Component {
     static template = "dobtor_spreadsheet_editor.XlsxImport";
     static props = ["*"];
 
     setup() {
+        this.orm = useService("orm");
+        this.action = useService("action");
+        this.notification = useService("notification");
         this.state = useState({
             sheets: [],
             activeSheet: 0,
             html: "",
             fileName: "",
             error: "",
+            opening: false,
         });
         this.buffer = null;
     }
@@ -59,6 +64,35 @@ export class XlsxImportAction extends Component {
             this.state.html = preview.html;
         } catch (e) {
             this.state.error = `解析失敗：${e}`;
+        }
+    }
+
+    /**
+     * 把解析結果建成 OCA spreadsheet.spreadsheet 記錄、開 OCA 編輯器（可編輯、繼承 OCA 渲染）。
+     */
+    async openInOSpreadsheet() {
+        if (!this.buffer || !this.lib || typeof this.lib.importXlsxToOSpreadsheetData !== "function") {
+            this.state.error = "解析器尚未載入";
+            return;
+        }
+        this.state.opening = true;
+        this.state.error = "";
+        try {
+            const data = this.lib.importXlsxToOSpreadsheetData(this.buffer);
+            const name = this.state.fileName.replace(/\.xlsx$/i, "") || "Imported Xlsx";
+            const ids = await this.orm.create("spreadsheet.spreadsheet", [
+                { name, spreadsheet_raw: data },
+            ]);
+            const id = Array.isArray(ids) ? ids[0] : ids;
+            await this.action.doAction({
+                type: "ir.actions.client",
+                tag: "action_spreadsheet_oca",
+                params: { spreadsheet_id: id, model: "spreadsheet.spreadsheet" },
+            });
+        } catch (e) {
+            this.state.error = `開啟可編輯試算表失敗：${e}`;
+        } finally {
+            this.state.opening = false;
         }
     }
 }

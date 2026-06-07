@@ -7,6 +7,12 @@
                 <input type="file" accept=".xlsx"
                        class="form-control w-auto" t-on-change="onFile"/>
                 <span t-if="state.fileName" class="text-muted small" t-esc="state.fileName"/>
+                <button t-if="state.html" class="btn btn-primary btn-sm ms-auto"
+                        t-att-disabled="state.opening"
+                        t-on-click="openInOSpreadsheet">
+                    <span t-if="state.opening">開啟中…</span>
+                    <span t-else="">在 o-spreadsheet 開啟（可編輯）</span>
+                </button>
             </div>
 
             <div t-if="state.error" class="alert alert-danger py-2" t-esc="state.error"/>
