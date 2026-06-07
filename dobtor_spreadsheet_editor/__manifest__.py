@@ -49,6 +49,7 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
         ],
     },
     'installable': True,
-    'application': True,
+    # 不另立 top-level App：繼承 OCA spreadsheet_oca、選單掛其底下（見 views/menu.xml）
+    'application': False,
     'auto_install': False,
 }

@@ -27,9 +27,14 @@ manifest `application:False`、`data`/`assets` 全註解 → 雖 installed 但�
 - `xlsx_import.xml`：OWL 模板（檔案選擇 + sheet 分頁 + **iframe srcdoc 預覽**，隔離樣式）
 
 ### manifest
-- `application: True`（出現在 App 主畫面）
-- `data: ['views/menu.xml']`（root 選單「試算表匯入」→「Xlsx 匯入預覽」client action）
+- `application: False`（**修正**：不另立 top-level App，避免與 OCA Spreadsheets 並列兩個 App）
+- `data: ['views/menu.xml']`：選單**掛在 OCA `spreadsheet_oca.spreadsheet_spreadsheet_menu`（Spreadsheets）底下**
+  → 「Spreadsheets ▸ Xlsx 高保真匯入」，符合「繼承 OCA」本意
 - `assets.web.assets_backend`：**bundle 先於 OWL component 載入**（component 依賴 window 全域）
+
+> **設計修正（user feedback）**：初版設 `application:True` + 自建 root 選單 → App 主畫面冒出兩個試算表 App
+> （OCA「Spreadsheets」+ 本模組「試算表匯入」）。本模組定位是「繼承 OCA + 加 xlsx 匯入」，
+> 故改為 `application:False` + 選單掛 OCA 底下，只保留一個 Spreadsheets App。
 
 ## 三層 SOP 結果
 

@@ -6,13 +6,11 @@
         <field name="tag">dobtor_spreadsheet_editor.import</field>
     </record>
 
-    <menuitem id="menu_dobtor_spreadsheet_root"
-              name="試算表匯入"
-              sequence="90"/>
-
+    <!-- 不自建獨立 App；掛在 OCA spreadsheet_oca 既有的「Spreadsheets」選單底下，
+         本模組為「繼承 OCA + 加 xlsx 高保真匯入」，不另立 top-level application。 -->
     <menuitem id="menu_xlsx_import"
-              name="Xlsx 匯入預覽"
-              parent="menu_dobtor_spreadsheet_root"
+              name="Xlsx 高保真匯入"
+              parent="spreadsheet_oca.spreadsheet_spreadsheet_menu"
               action="action_xlsx_import"
-              sequence="10"/>
+              sequence="20"/>
 </odoo>
