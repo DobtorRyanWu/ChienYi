@@ -84,6 +84,39 @@ describe('buildOSpreadsheetData', () => {
     });
 });
 
+describe('buildOSpreadsheetData — 邊框', () => {
+    const bStyles = StylesParser.parse(
+        `<?xml version="1.0"?><styleSheet xmlns="${NS}">` +
+            `<fonts count="1"><font><sz val="12"/></font></fonts>` +
+            `<fills count="1"><fill><patternFill patternType="none"/></fill></fills>` +
+            `<borders count="2">` +
+            `<border><left/><right/><top/><bottom/></border>` +
+            `<border><left style="thin"><color rgb="FF000000"/></left><right style="medium"/><top style="thin"/><bottom style="double"/></border>` +
+            `</borders>` +
+            `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+            `<cellXfs count="2">` +
+            `<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>` +
+            `<xf numFmtId="0" fontId="0" fillId="0" borderId="1" applyBorder="1"/>` +
+            `</cellXfs></styleSheet>`,
+    );
+    const bWs = WorksheetParser.parse(
+        `<?xml version="1.0"?><worksheet xmlns="${NS}"><dimension ref="A1:A1"/>` +
+            `<sheetData><row r="1"><c r="A1" s="1"><v>5</v></c></row></sheetData></worksheet>`,
+    );
+    const data = buildOSpreadsheetData([{ name: 'S', ws: bWs }], [], bStyles, THEME);
+
+    it('cell 以 border id 參照、池內為 {style,color} 物件', () => {
+        const cell = data.sheets[0].cells['A1'];
+        expect(cell.border).toBeDefined();
+        const b = data.borders[cell.border!];
+        expect(b.left).toEqual({ style: 'thin', color: '#000000' });
+        expect(b.right?.style).toBe('medium');
+        expect(b.top?.style).toBe('thin');
+        // double → o-spreadsheet 無 double，映射 medium
+        expect(b.bottom?.style).toBe('medium');
+    });
+});
+
 describe('importXlsxToOSpreadsheetData — 真實契約詳細表', () => {
     it('16 sheet → WorkbookData，cells 非空', () => {
         const b = readFileSync(

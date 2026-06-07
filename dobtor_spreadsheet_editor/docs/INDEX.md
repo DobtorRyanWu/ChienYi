@@ -75,7 +75,8 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 12 | 全 sheet render（dimension 全範圍，移除 60×40 截斷）+ scaleToMatch（分離尺寸假性差異）→ **content diff 降到 11.7-20.4%** | [sprint12_full_sheet_vr.md](sprint12_full_sheet_vr.md) |
 | 14 | 字型保真：font_map（Excel 字型 → metric-compatible 替換 Carlito/Liberation + CJK 回退鏈）→ content diff 11.4-19.3% | [sprint14_font_fidelity.md](sprint14_font_fidelity.md) |
 | 15 | **Phase 4.5 Odoo UI**：importXlsxToHtmlPreview 入口 + OWL client action（上傳→解析→iframe 預覽 + sheet 分頁）+ manifest application/menu/assets | [sprint15_odoo_ui.md](sprint15_odoo_ui.md) |
-| 16 | **o-spreadsheet 對接**：to_ospreadsheet 轉換器（ParsedWorksheet → WorkbookData，styles/formats 池化）+ importXlsxToOSpreadsheetData + OWL「在 o-spreadsheet 開啟」（建 OCA spreadsheet 記錄→開 OCA 編輯器） | [sprint16_ospreadsheet.md](sprint16_ospreadsheet.md) |
+| 16 | **o-spreadsheet 對接**：to_ospreadsheet 轉換器（ParsedWorksheet → WorkbookData，styles/formats 池化）+ importXlsxToOSpreadsheetData + OWL「在 o-spreadsheet 開啟」（建 OCA spreadsheet 記錄→開 OCA 編輯器）+ **Playwright E2E 實證 GRID_MOUNTED** | [sprint16_ospreadsheet.md](sprint16_ospreadsheet.md) |
+| 17 | **邊框對接**：ConcreteBorder → o-spreadsheet border 池（{style,color}、Excel style 映射、double→medium）+ Playwright 驗證邊框渲染、無 #ERROR | [sprint17_borders.md](sprint17_borders.md) |
 
 ## Phase 7 — 效能與大檔
 

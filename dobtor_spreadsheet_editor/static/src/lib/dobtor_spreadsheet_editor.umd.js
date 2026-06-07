@@ -4506,6 +4506,36 @@
     //   - 邊框 v1 不輸出（正規化形狀待瀏覽器驗證後補；無邊框 o-spreadsheet 仍正常渲染）
     const MAX_COLS = 200;
     const MAX_ROWS = 2000;
+    // Excel 邊框 style → o-spreadsheet（僅 thin/medium/thick/dashed/dotted）
+    const BORDER_STYLE_MAP = {
+        thin: 'thin', hair: 'thin',
+        medium: 'medium', mediumDashed: 'medium', mediumDashDot: 'medium', mediumDashDotDot: 'medium',
+        double: 'medium', thick: 'thick',
+        dashed: 'dashed', dashDot: 'dashed', dashDotDot: 'dashed', slantDashDot: 'dashed',
+        dotted: 'dotted',
+    };
+    function edgeDescr(edge) {
+        if (!edge || !edge.style || edge.style === 'none')
+            return undefined;
+        const style = BORDER_STYLE_MAP[edge.style] ?? 'thin';
+        return { style, color: edge.color ? `#${edge.color}` : '#000000' };
+    }
+    function toOBorder(cb) {
+        const b = {};
+        const left = edgeDescr(cb.left);
+        if (left)
+            b.left = left;
+        const right = edgeDescr(cb.right);
+        if (right)
+            b.right = right;
+        const top = edgeDescr(cb.top);
+        if (top)
+            b.top = top;
+        const bottom = edgeDescr(cb.bottom);
+        if (bottom)
+            b.bottom = bottom;
+        return Object.keys(b).length > 0 ? b : undefined;
+    }
     /** 以 JSON key 去重的池（1-based id）。*/
     class Pool {
         constructor() {
@@ -4585,7 +4615,7 @@
     function isOSpreadsheetSafeFormat(code) {
         return /^[#0,.%\s]+$/.test(code);
     }
-    function buildSheet(sheetId, name, ws, ss, styles, resolver, stylePool, formatPool) {
+    function buildSheet(sheetId, name, ws, ss, styles, resolver, stylePool, formatPool, borderPool) {
         const bounds = worksheetBounds(ws);
         const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
         const rowNumber = Math.min(MAX_ROWS, Math.max(bounds.rows, ws.maxRow, 1));
@@ -4601,6 +4631,9 @@
                 oCell.content = toContent(value);
             if (oStyle)
                 oCell.style = stylePool.intern(oStyle);
+            const oBorder = toOBorder(concrete.border);
+            if (oBorder)
+                oCell.border = borderPool.intern(oBorder);
             // 數字（非日期）且有非 General 格式 → 套 format
             if (typeof value === 'number' &&
                 !isDateNumberFormat(styles, concrete.numFmtId) &&
@@ -4609,8 +4642,8 @@
                 isOSpreadsheetSafeFormat(concrete.numFmtCode)) {
                 oCell.format = formatPool.intern(concrete.numFmtCode);
             }
-            // 只收有內容或樣式的 cell
-            if (oCell.content !== '' || oCell.style !== undefined) {
+            // 只收有內容/樣式/邊框的 cell
+            if (oCell.content !== '' || oCell.style !== undefined || oCell.border !== undefined) {
                 cells[`${columnIndexToLetter(cell.col)}${cell.row}`] = oCell;
             }
         }
@@ -4651,13 +4684,14 @@
         const resolver = new ConcreteStyleResolver(styles, theme);
         const stylePool = new Pool();
         const formatPool = new Pool();
-        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, formatPool));
+        const borderPool = new Pool();
+        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, formatPool, borderPool));
         return {
             version: 1,
             sheets: oSheets.length > 0 ? oSheets : [emptySheet()],
             styles: stylePool.toRecord(),
             formats: formatPool.toRecord(),
-            borders: {},
+            borders: borderPool.toRecord(),
         };
     }
     function emptySheet() {

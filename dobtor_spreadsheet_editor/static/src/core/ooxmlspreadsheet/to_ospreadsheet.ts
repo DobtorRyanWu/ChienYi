@@ -15,7 +15,13 @@ import { columnWidthToPixels, DEFAULT_MDW } from './units';
 import { columnIndexToLetter, parseRange } from './cell_ref';
 import { worksheetBounds, type ParsedWorksheet } from './worksheet_parser';
 import { resolveCellValueStyled } from './value_resolver';
-import { ConcreteStyleResolver, fillBackgroundColor, type ConcreteStyle } from './concrete_style';
+import {
+    ConcreteStyleResolver,
+    fillBackgroundColor,
+    type ConcreteStyle,
+    type ConcreteBorder,
+    type ConcreteBorderEdge,
+} from './concrete_style';
 import { isDateNumberFormat, type ParsedStyles } from './styles_parser';
 import type { ParsedTheme } from './theme_parser';
 import type { SharedString } from './shared_strings_parser';
@@ -37,10 +43,24 @@ export interface OStyle {
     wrapping?: 'overflow' | 'wrap' | 'clip';
 }
 
+/** o-spreadsheet 邊框描述子（borderStyles = thin/medium/thick/dashed/dotted）。*/
+export interface OBorderDescr {
+    style: string;
+    color: string;
+}
+
+export interface OBorder {
+    top?: OBorderDescr;
+    bottom?: OBorderDescr;
+    left?: OBorderDescr;
+    right?: OBorderDescr;
+}
+
 export interface OCell {
     content: string;
     style?: number;
     format?: number;
+    border?: number;
 }
 
 export interface OSheet {
@@ -61,7 +81,35 @@ export interface OSpreadsheetData {
     sheets: OSheet[];
     styles: Record<number, OStyle>;
     formats: Record<number, string>;
-    borders: Record<number, unknown>;
+    borders: Record<number, OBorder>;
+}
+
+// Excel 邊框 style → o-spreadsheet（僅 thin/medium/thick/dashed/dotted）
+const BORDER_STYLE_MAP: Readonly<Record<string, string>> = {
+    thin: 'thin', hair: 'thin',
+    medium: 'medium', mediumDashed: 'medium', mediumDashDot: 'medium', mediumDashDotDot: 'medium',
+    double: 'medium', thick: 'thick',
+    dashed: 'dashed', dashDot: 'dashed', dashDotDot: 'dashed', slantDashDot: 'dashed',
+    dotted: 'dotted',
+};
+
+function edgeDescr(edge: ConcreteBorderEdge | undefined): OBorderDescr | undefined {
+    if (!edge || !edge.style || edge.style === 'none') return undefined;
+    const style = BORDER_STYLE_MAP[edge.style] ?? 'thin';
+    return { style, color: edge.color ? `#${edge.color}` : '#000000' };
+}
+
+function toOBorder(cb: ConcreteBorder): OBorder | undefined {
+    const b: OBorder = {};
+    const left = edgeDescr(cb.left);
+    if (left) b.left = left;
+    const right = edgeDescr(cb.right);
+    if (right) b.right = right;
+    const top = edgeDescr(cb.top);
+    if (top) b.top = top;
+    const bottom = edgeDescr(cb.bottom);
+    if (bottom) b.bottom = bottom;
+    return Object.keys(b).length > 0 ? b : undefined;
 }
 
 /** 以 JSON key 去重的池（1-based id）。*/
@@ -140,6 +188,7 @@ function buildSheet(
     resolver: ConcreteStyleResolver,
     stylePool: Pool<OStyle>,
     formatPool: Pool<string>,
+    borderPool: Pool<OBorder>,
 ): OSheet {
     const bounds = worksheetBounds(ws);
     const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
@@ -155,6 +204,8 @@ function buildSheet(
         const oCell: OCell = { content: '' };
         if (value !== '') oCell.content = toContent(value);
         if (oStyle) oCell.style = stylePool.intern(oStyle);
+        const oBorder = toOBorder(concrete.border);
+        if (oBorder) oCell.border = borderPool.intern(oBorder);
         // 數字（非日期）且有非 General 格式 → 套 format
         if (
             typeof value === 'number' &&
@@ -165,8 +216,8 @@ function buildSheet(
         ) {
             oCell.format = formatPool.intern(concrete.numFmtCode);
         }
-        // 只收有內容或樣式的 cell
-        if (oCell.content !== '' || oCell.style !== undefined) {
+        // 只收有內容/樣式/邊框的 cell
+        if (oCell.content !== '' || oCell.style !== undefined || oCell.border !== undefined) {
             cells[`${columnIndexToLetter(cell.col)}${cell.row}`] = oCell;
         }
     }
@@ -219,9 +270,10 @@ export function buildOSpreadsheetData(
     const resolver = new ConcreteStyleResolver(styles, theme);
     const stylePool = new Pool<OStyle>();
     const formatPool = new Pool<string>();
+    const borderPool = new Pool<OBorder>();
 
     const oSheets = sheets.map((s, i) =>
-        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, formatPool),
+        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, formatPool, borderPool),
     );
 
     return {
@@ -229,7 +281,7 @@ export function buildOSpreadsheetData(
         sheets: oSheets.length > 0 ? oSheets : [emptySheet()],
         styles: stylePool.toRecord(),
         formats: formatPool.toRecord(),
-        borders: {},
+        borders: borderPool.toRecord(),
     };
 }
 
