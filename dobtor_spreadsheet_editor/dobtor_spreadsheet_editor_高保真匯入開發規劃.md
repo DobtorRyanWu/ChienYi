@@ -22,10 +22,10 @@
 | Phase | 完成度 | 已做（sprint） | 主要未完成 |
 |---|---|---|---|
 | 0 基建 | 🟢 ~90% | 骨架/build/48 fixture/golden/API 審計/docs（S0-1） | ADR-001/002 正式簽核 |
-| 1 Parser | 🟢 ~80% | §1.1-1.7、1.9、1.10（部分）（S2-9） | §1.8 Data Validation、§1.11 Tables、§1.6 capture-only（autoFilter/hyperlink/print/headerFooter/breaks）、shared formula 展開、gradient fill、tableStyles |
+| 1 Parser | 🟢 ~85% | §1.1-1.9、1.10（部分）、**§1.8 DataValidation（S35）** | §1.11 Tables、§1.6 capture-only（autoFilter/hyperlink/print/breaks）、shared formula 展開、gradient fill |
 | 2 Style | 🟡 ~60% | §2.1 StyleResolver、§2.2 ThemeResolver、§2.3 number format 渲染、§2.4 基本 interop（S6-8,13） | §2.3 日期格式碼/民國年/條件色彩渲染、§2.4 rich text 多 segment、§2.5 CJK 欄寬估算 |
 | 3 Formula | 🟡 ~40% | §3.1 gap、§3.2 A1 passthrough、**§3.3 白名單擴至 ~90 函數（word-boundary 確認）+ CHOOSE functionRegistry shim（S33）** | §3.2 R1C1/structured/array/shared 展開、§3.3 MROUND/REPT/SIGN、§3.4 volatile、§3.5 錯誤值對應 |
-| 4 CF/DV | 🟡 ~45% | §1.7 CF 解析 + §4.1 CF 編譯（CellIsRule+containsText+dxf S29、**colorScale 2/3色 S34**） | §4.1 dataBar/iconSet/duplicateValues/expression、§4.2 DV 編譯、§4.3 CF 視覺回歸 |
+| 4 CF/DV | 🟡 ~60% | §1.7 CF 解析 + §4.1 CF 編譯（cellIs+containsText+colorScale）+ **§4.2 DV 編譯（list/isValueInRange/isBetween S35）** | §4.1 dataBar/iconSet/duplicateValues/expression、§4.3 CF 視覺回歸 |
 | 4.5 產品化 | 🟢 ~60% | Odoo client action UI、匯入預覽、開可編輯 o-spreadsheet、估驗 bridge + 回掛（S15-25） | §4.5.1 指定 model 欄位/REST controller、§4.5.2 通用 xlsx.linked.mixin、§4.5.3 Portal 嵌入、§4.5.4 zip bomb/size 防護、§4.5.6 匯出稽核 cron |
 | 5 Pivot/Chart/Drawing | 🟡 ~20% | **§5.2 ChartParser+Mapper（bar/line/pie/scatter、series/cat/val/title）+ §5.3 DrawingParser anchor（S31）** | Pivot、圖片/shape import、chart 匯出回 xlsx、strCache/axes 細節 |
 | 6 Export | 🟢 ~72% | §6.2 TS writer（值/公式/樣式/欄寬/列高 + CF/dxfs + **chart/drawing/media 直通 S32**）、§6.3 round-trip | DV/defined names/theme 回寫、style pass rate 量化、Excel/GSheets 三端、ADR-003 |
@@ -375,7 +375,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] `<mergeCells>` — 合併儲存格清單
 - [ ] `<autoFilter ref>` + `<filterColumn>` — 自動篩選
 - [x] `<conditionalFormatting>` — 條件格式（rule 細節由 §1.7 處理）
-- [ ] `<dataValidations>` — 資料驗證（細節由 §1.8 處理）
+- [x] `<dataValidations>` — 資料驗證（細節由 §1.8 處理）
 - [ ] `<hyperlinks>` — 超連結（rels 對應 URL）
 - [ ] `<printOptions>`、`<pageMargins>`、`<pageSetup>` — 列印設定（Phase 1 capture-only）
 - [ ] `<headerFooter>` — 頁首頁尾（Phase 1 capture-only）
@@ -394,9 +394,9 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] `<cfRule dxfId>` — 對應 dxfs 取得 differential format
 
 #### 1.8 Data Validations（3 天）
-- [ ] `DataValidationParser`：`<dataValidation type sqRef showDropDown>`
-- [ ] type = `list`：`<formula1>`（清單 range 或 inline `"opt1,opt2,opt3"`）
-- [ ] type = `whole` / `decimal` / `date` / `time` / `textLength`：operator + formula1 + formula2
+- [x] `DataValidationParser`：`<dataValidation type sqRef showDropDown>`
+- [x] type = `list`：`<formula1>`（清單 range 或 inline `"opt1,opt2,opt3"`）
+- [x] type = `whole` / `decimal` / `date` / `time` / `textLength`：operator + formula1 + formula2
 - [ ] type = `custom`：`<formula1>` 自訂條件
 - [ ] error / input message 屬性
 
@@ -547,9 +547,9 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] dxfId → dxfs 取得 differential format（color / font / border / fill）
 
 #### 4.2 Data Validation Compiler（1 週）
-- [ ] `DataValidationCompiler`：DataValidation AST → o-spreadsheet validation
-- [ ] `list` type → dropdown（inline 清單 vs range 清單）
-- [ ] `whole` / `decimal` / `date` / `time` / `textLength` type + operator
+- [x] `DataValidationCompiler`：DataValidation AST → o-spreadsheet validation
+- [x] `list` type → dropdown（inline 清單 vs range 清單）
+- [x] `whole` / `decimal` / `date` / `time` / `textLength` type + operator
 - [ ] `custom` type → 公式驗證
 - [ ] error message / input message 整合
 

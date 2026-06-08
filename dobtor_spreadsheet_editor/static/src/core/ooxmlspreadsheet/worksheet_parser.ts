@@ -7,6 +7,7 @@ import { parseXml, toArray, attr, intAttr, boolAttr, textOf, decodeOoxmlEscapes 
 import { parseCellRef, parseRange } from './cell_ref';
 import { parseStringItem, type SharedString } from './shared_strings_parser';
 import { parseConditionalFormattings, type ConditionalFormatting } from './cf_parser';
+import { parseDataValidations, type DataValidation } from './dv_parser';
 
 /** OOXML cell type（t 屬性）。預設（無 t）視為 number。*/
 export type CellType = 'n' | 's' | 'str' | 'b' | 'e' | 'inlineStr' | 'd';
@@ -53,6 +54,8 @@ export interface ParsedWorksheet {
     rowHeights: Map<number, number>;
     /** 條件格式（§1.7）。*/
     conditionalFormatting: ConditionalFormatting[];
+    /** 資料驗證（§1.8）。*/
+    dataValidations: DataValidation[];
     freeze: FreezePanes | undefined;
     showGridLines: boolean;
     /** 最大行/列（1-based）；無資料為 0。*/
@@ -177,6 +180,7 @@ export class WorksheetParser {
             merges,
             rowHeights,
             conditionalFormatting: parseConditionalFormattings(ws),
+            dataValidations: parseDataValidations(ws),
             freeze,
             showGridLines,
             maxRow,

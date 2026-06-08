@@ -26,6 +26,7 @@ import { isDateNumberFormat, type ParsedStyles } from './styles_parser';
 import type { ParsedTheme } from './theme_parser';
 import { ThemeResolver } from './theme_resolver';
 import { compileConditionalFormats } from './cf_compiler';
+import { compileDataValidations, type ODataValidationRule } from './dv_compiler';
 import type { OFigure } from './chart_compiler';
 import type { SharedString } from './shared_strings_parser';
 
@@ -77,6 +78,7 @@ export interface OSheet {
     cols: Record<number, { size: number }>;
     rows: Record<number, { size: number }>;
     conditionalFormats: unknown[];
+    dataValidationRules: ODataValidationRule[];
     figures: unknown[];
 }
 
@@ -303,6 +305,7 @@ function buildSheet(
             colNumber,
             sheetId,
         ),
+        dataValidationRules: compileDataValidations(ws.dataValidations, sheetId),
         figures,
     };
 }
@@ -350,6 +353,7 @@ function emptySheet(): OSheet {
         cols: {},
         rows: {},
         conditionalFormats: [],
+        dataValidationRules: [],
         figures: [],
     };
 }

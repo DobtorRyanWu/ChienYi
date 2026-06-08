@@ -3849,6 +3849,32 @@
         }
     }
 
+    // dv_parser.ts — worksheet <dataValidations> → DataValidation[]（規劃書 §1.8）
+    function parseOne(dv) {
+        const sqref = attr(dv, 'sqref');
+        if (!sqref)
+            return undefined;
+        const f1 = dv['formula1'];
+        const f2 = dv['formula2'];
+        return {
+            type: attr(dv, 'type') ?? 'none',
+            operator: attr(dv, 'operator'),
+            ranges: sqref.split(/\s+/).filter((s) => s.length > 0),
+            formula1: f1 !== undefined ? textOf(f1) : undefined,
+            formula2: f2 !== undefined ? textOf(f2) : undefined,
+            allowBlank: boolAttr(dv, 'allowBlank'),
+        };
+    }
+    /** 解析 worksheet 的 <dataValidations>。*/
+    function parseDataValidations(ws) {
+        const container = ws['dataValidations'];
+        if (!container)
+            return [];
+        return toArray(container['dataValidation'])
+            .map(parseOne)
+            .filter((d) => d !== undefined && d.ranges.length > 0);
+    }
+
     // worksheet_parser.ts — 解析 xl/worksheets/sheetN.xml（規劃書 §1.6，核心）
     //
     // 提取 cell value（含型別解析 + sharedString 解參照）、公式、合併儲存格、欄資訊、凍結窗格。
@@ -3967,6 +3993,7 @@
                 merges,
                 rowHeights,
                 conditionalFormatting: parseConditionalFormattings(ws),
+                dataValidations: parseDataValidations(ws),
                 freeze,
                 showGridLines,
                 maxRow,
@@ -5219,6 +5246,58 @@
         return out;
     }
 
+    // dv_compiler.ts — DataValidation → o-spreadsheet dataValidationRules（規劃書 §4.2）
+    //
+    // v1：list（inline 清單 → isValueInList、range → isValueInRange）+ 數值/日期 operator
+    // （between/equal/greaterThan）。custom/textLength 等暫不編譯。
+    // Excel operator → o-spreadsheet criterion type（數值/日期）
+    const OP_MAP = {
+        between: 'isBetween',
+        equal: 'isEqual',
+        greaterThan: 'isGreaterThan',
+    };
+    function compileOne(dv, id) {
+        if (dv.type === 'list') {
+            const f1 = (dv.formula1 ?? '').trim();
+            if (!f1)
+                return undefined;
+            if (f1.startsWith('"') && f1.endsWith('"')) {
+                // inline：逗號分隔（Excel list 內選項不含逗號）
+                const values = f1
+                    .slice(1, -1)
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 0);
+                if (values.length === 0)
+                    return undefined;
+                return { id, criterion: { type: 'isValueInList', values, displayStyle: 'arrow' }, ranges: dv.ranges };
+            }
+            // 範圍參照（如 $X$1:$X$5 或 Sheet!$A$1:$A$5）
+            return { id, criterion: { type: 'isValueInRange', values: [f1], displayStyle: 'arrow' }, ranges: dv.ranges };
+        }
+        const type = dv.operator ? OP_MAP[dv.operator] : undefined;
+        if (type && ['whole', 'decimal', 'date', 'time', 'textLength'].includes(dv.type)) {
+            const values = type === 'isBetween' ? [dv.formula1 ?? '', dv.formula2 ?? ''] : [dv.formula1 ?? ''];
+            if (values.some((v) => v === ''))
+                return undefined;
+            return { id, criterion: { type, values }, ranges: dv.ranges };
+        }
+        return undefined; // custom / textLength 無 operator / 其他 v1 不編譯
+    }
+    /** DataValidation[] → o-spreadsheet dataValidationRules（idPrefix 跨 sheet 唯一）。*/
+    function compileDataValidations(dvs, idPrefix = 'dv') {
+        const out = [];
+        let n = 1;
+        for (const dv of dvs) {
+            const rule = compileOne(dv, `${idPrefix}_${n}`);
+            if (rule) {
+                out.push(rule);
+                n++;
+            }
+        }
+        return out;
+    }
+
     // to_ospreadsheet.ts — ParsedWorksheet + ConcreteStyle → o-spreadsheet WorkbookData（Phase 4.5 對接）
     //
     // 產出 o-spreadsheet 的正規化 WorkbookData（styles/formats 池化、cell 以 id 參照），
@@ -5442,6 +5521,7 @@
             cols,
             rows: {},
             conditionalFormats: compileConditionalFormats(ws.conditionalFormatting, styles.dxfs, themeResolver, rowNumber, colNumber, sheetId),
+            dataValidationRules: compileDataValidations(ws.dataValidations, sheetId),
             figures,
         };
     }
@@ -5471,6 +5551,7 @@
             cols: {},
             rows: {},
             conditionalFormats: [],
+            dataValidationRules: [],
             figures: [],
         };
     }
