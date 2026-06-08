@@ -7,7 +7,9 @@
                 <input type="file" accept=".xlsx"
                        class="form-control w-auto" t-on-change="onFile"/>
                 <span t-if="state.fileName" class="text-muted small" t-esc="state.fileName"/>
-                <button t-if="state.html" class="btn btn-primary btn-sm ms-auto"
+                <button t-if="state.html" class="btn btn-outline-secondary btn-sm ms-auto"
+                        t-on-click="downloadXlsx">下載 xlsx（重新匯出）</button>
+                <button t-if="state.html" class="btn btn-primary btn-sm"
                         t-att-disabled="state.opening"
                         t-on-click="openInOSpreadsheet">
                     <span t-if="state.opening">開啟中…</span>

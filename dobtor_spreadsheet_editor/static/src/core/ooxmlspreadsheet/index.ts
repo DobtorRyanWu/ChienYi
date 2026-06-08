@@ -13,7 +13,7 @@
 //
 // 對接層：parser → ast → style/formula/cf/... compiler → XlsxModelBridge → o-spreadsheet model commands
 
-export const SPRINT = 16;
+export const SPRINT = 19;
 export const BUILD_DATE = '2026-06-07';
 export const TARGET_FIDELITY = 'Google Sheets / Excel A- (95%)';
 
@@ -126,9 +126,13 @@ import { ThemeParser as _ThemeParser } from './theme_parser';
 import { WorksheetParser as _WorksheetParser } from './worksheet_parser';
 import { renderWorksheetHtml as _renderWorksheetHtml } from './vr/html_render';
 import { buildOSpreadsheetData as _buildOSpreadsheetData, type OSpreadsheetData, type SheetInput as _SheetInput } from './to_ospreadsheet';
+import { resolveCellValue as _resolveCellValue } from './worksheet_parser';
+import { buildXlsx as _buildXlsx, type WriteSheet as _WriteSheet, type WriteCell as _WriteCell } from './xlsx_writer';
 
 export { buildOSpreadsheetData } from './to_ospreadsheet';
 export type { OSpreadsheetData, OSheet, OCell, OStyle, SheetInput } from './to_ospreadsheet';
+export { buildXlsx } from './xlsx_writer';
+export type { WriteSheet, WriteCell } from './xlsx_writer';
 
 export interface XlsxPreview {
     /** 全部工作表名稱（依順序）。*/
@@ -196,4 +200,33 @@ export function importXlsxToOSpreadsheetData(buffer: ArrayBuffer): OSpreadsheetD
         .map((s) => ({ name: s.name, ws: _WorksheetParser.parse(pkg.getPartText(s.target!)) }));
 
     return _buildOSpreadsheetData(sheets, ss, styles, theme);
+}
+
+/**
+ * 解析 xlsx → 用我方 writer 重新寫出 xlsx（Phase 6 round-trip）。
+ * 值用原始萃取（數字保持數字、日期保持序號）以利 round-trip 一致。
+ */
+export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
+    const pkg = _PackageReader.fromBuffer(buffer);
+    const wbp = new _WorkbookParser(pkg);
+    const wb = wbp.parse();
+    const ssPart = wbp.sharedStringsPart();
+    const ss: _SharedString[] =
+        ssPart && pkg.hasPart(ssPart) ? _SharedStringsParser.parse(pkg.getPartText(ssPart)) : [];
+
+    const sheets: _WriteSheet[] = wb.sheets
+        .filter((s) => s.target && pkg.hasPart(s.target))
+        .map((s) => {
+            const ws = _WorksheetParser.parse(pkg.getPartText(s.target!));
+            const cells: _WriteCell[] = ws.cells.map((cell) => {
+                const value = _resolveCellValue(cell, ss);
+                const wc: _WriteCell = { row: cell.row, col: cell.col };
+                if (value !== '') wc.value = value;
+                if (cell.formula !== undefined) wc.formula = cell.formula;
+                return wc;
+            });
+            return { name: s.name, cells, merges: ws.merges };
+        });
+
+    return _buildXlsx(sheets);
 }

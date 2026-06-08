@@ -65,7 +65,9 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 
 ## Phase 6 — Export 對稱性
 
-(待 sprint 開展後填入)
+| Sprint | Topic | Audit Doc |
+|---|---|---|
+| 19 | **匯出回 xlsx**：xlsx_writer（fflate 打 OOXML：值/公式/合併/多sheet/sharedStrings/minimal styles）+ exportXlsxFromBuffer + OWL 下載按鈕；round-trip 值一致 >99.9%、下載檔 openpyxl+LibreOffice 驗證 | [sprint19_xlsx_export.md](sprint19_xlsx_export.md) |
 
 ## Phase 4 VR pipeline（跨 Phase 基礎建設）
 

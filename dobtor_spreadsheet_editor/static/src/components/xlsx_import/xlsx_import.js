@@ -67,6 +67,30 @@ export class XlsxImportAction extends Component {
         }
     }
 
+    /** 用我方 xlsx writer 把解析結果重新寫出並下載（Phase 6 round-trip）。*/
+    downloadXlsx() {
+        if (!this.buffer || !this.lib || typeof this.lib.exportXlsxFromBuffer !== "function") {
+            this.state.error = "解析器尚未載入";
+            return;
+        }
+        try {
+            const bytes = this.lib.exportXlsxFromBuffer(this.buffer);
+            const blob = new Blob([bytes], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = (this.state.fileName.replace(/\.xlsx$/i, "") || "export") + "_roundtrip.xlsx";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            this.state.error = `匯出 xlsx 失敗：${e}`;
+        }
+    }
+
     /**
      * 把解析結果建成 OCA spreadsheet.spreadsheet 記錄、開 OCA 編輯器（可編輯、繼承 OCA 渲染）。
      */
