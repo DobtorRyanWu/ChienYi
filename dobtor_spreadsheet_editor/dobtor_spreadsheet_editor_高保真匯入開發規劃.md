@@ -15,7 +15,7 @@
 
 ---
 
-## 對齊狀態（2026-06-08，Sprint 0-28 後）
+## 對齊狀態（2026-06-08，Sprint 0-41 後）
 
 > 健檢：`tsc` 乾淨、`rollup build` 通過、**vitest 551 passed / 1 skipped**。任務清單已逐項打勾（✅ = 100% 完成）。
 
@@ -370,7 +370,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] `<sheetData>` — `<row>` + `<c>` 主體
   - [x] `<c r t s>` — cell reference、type（`s` sharedString / `n` number / `b` boolean / `str` formula string / `e` error / `inlineStr`）、style index
   - [x] `<v>` — value
-  - [ ] `<f>` — formula（含 shared formula `t="shared" si ref`）
+  - [x] `<f>` — formula（含 shared formula `t="shared" si ref`）
   - [x] `<is>` — inline string（rich text 支援）
 - [x] `<mergeCells>` — 合併儲存格清單
 - [ ] `<autoFilter ref>` + `<filterColumn>` — 自動篩選
