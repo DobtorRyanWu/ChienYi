@@ -125,3 +125,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 38 | **iconSet CF 編譯（CF 五型完成）**：compileIconSet（family 映射 arrow/dot/smiley + inflectionPoint）；openpyxl 3TrafficLights、Playwright 截圖紅橙綠圓點 | [sprint38_iconset_cf.md](sprint38_iconset_cf.md) |
 | 39 | **Excel Tables（§1.11）+ numeric entity 修復**：table_parser/compiler（worksheet→table→sheet.tables，styleId 同名對映）；textOf 加 &#NNNN; 解碼；Playwright 截圖表頭中文+帶狀列+篩選 | [sprint39_tables.md](sprint39_tables.md) |
 | 40 | **Shared formula 展開**：shared_formula（adjustRelativeRefs 相對參照位移 + expandSharedFormulas master/follower）；契約表 6.5 萬公式即時運算；連帶解除 entity 展開上限 | [sprint40_shared_formula.md](sprint40_shared_formula.md) |
+| 41 | **公式錯誤值保真（§3.5）**：cell type=e → 用 cached 錯誤字串（#N/A/#REF!）不餵公式，避免重算漂移；土單 2595 錯誤格保留原貌 | [sprint41_error_values.md](sprint41_error_values.md) |

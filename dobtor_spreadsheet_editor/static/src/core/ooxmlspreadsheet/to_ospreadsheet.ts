@@ -247,8 +247,10 @@ function buildSheet(
         const oStyle = toOStyle(concrete);
 
         const oCell: OCell = { content: '' };
-        // 公式 round-trip：安全公式 → 餵公式（o-spreadsheet 即時運算）；否則 fallback cached 值
-        if (cell.formula && formulaUsesOnlySupported(cell.formula)) {
+        // 公式 round-trip：安全公式 → 餵公式（o-spreadsheet 即時運算）；否則 fallback cached 值。
+        // 例外：原始為錯誤值（type='e'，如 #N/A/#DIV/0!）→ 用 cached 錯誤字串保留原貌，
+        // 不餵公式（避免 o-spreadsheet 重算漂移成不同結果或 #BAD_EXPR）。
+        if (cell.type !== 'e' && cell.formula && formulaUsesOnlySupported(cell.formula)) {
             oCell.content = '=' + cell.formula.replace(/_xl(fn|ws)\./gi, '');
         } else if (value !== '') {
             oCell.content = toContent(value);

@@ -165,3 +165,21 @@ describe('importXlsxToOSpreadsheetData — 真實契約詳細表', () => {
         }
     });
 });
+
+describe('buildOSpreadsheetData — 錯誤值（§3.5）', () => {
+    const eStyles = StylesParser.parse(`<?xml version="1.0"?><styleSheet xmlns="${NS}"><cellXfs count="1"><xf numFmtId="0"/></cellXfs></styleSheet>`);
+    // A1=#N/A 公式錯誤格（有 SUM 公式但 cached 是錯誤）、A2=靜態 #REF!
+    const eWs = WorksheetParser.parse(
+        `<?xml version="1.0"?><worksheet xmlns="${NS}"><dimension ref="A1:A2"/><sheetData>` +
+            `<row r="1"><c r="A1" t="e"><f>SUM(B1:B2)</f><v>#N/A</v></c></row>` +
+            `<row r="2"><c r="A2" t="e"><v>#REF!</v></c></row>` +
+            `</sheetData></worksheet>`,
+    );
+    const cells = buildOSpreadsheetData([{ name: 'E', ws: eWs }], [], eStyles, THEME).sheets[0].cells;
+    it('錯誤公式格 → 用 cached 錯誤字串（不餵公式）', () => {
+        expect(cells['A1'].content).toBe('#N/A');
+    });
+    it('靜態錯誤格 → 錯誤字串', () => {
+        expect(cells['A2'].content).toBe('#REF!');
+    });
+});
