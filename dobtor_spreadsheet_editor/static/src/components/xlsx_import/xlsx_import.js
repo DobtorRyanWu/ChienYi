@@ -104,8 +104,11 @@ export class XlsxImportAction extends Component {
         try {
             const data = this.lib.importXlsxToOSpreadsheetData(this.buffer);
             const name = this.state.fileName.replace(/\.xlsx$/i, "") || "Imported Xlsx";
+            // 命名空間 context：呼叫方（如估驗 bridge）可指定額外 create 欄位（回掛來源記錄）。
+            const ctx = (this.props.action && this.props.action.context) || {};
+            const extraVals = ctx.sse_create_vals && typeof ctx.sse_create_vals === "object" ? ctx.sse_create_vals : {};
             const ids = await this.orm.create("spreadsheet.spreadsheet", [
-                { name, spreadsheet_raw: data },
+                { name, spreadsheet_raw: data, ...extraVals },
             ]);
             const id = Array.isArray(ids) ? ids[0] : ids;
             await this.action.doAction({

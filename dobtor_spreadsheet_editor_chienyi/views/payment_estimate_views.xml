@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- 估驗計價表單加「匯入估驗試算表」按鈕 → 開 dobtor_spreadsheet_editor 的 Xlsx 高保真匯入 -->
+    <!-- 估驗計價表單：「匯入估驗試算表」按鈕（帶 context 讓匯入的試算表回掛本估驗）+ 關聯試算表 smart button -->
     <record id="view_payment_estimate_form_sse" model="ir.ui.view">
         <field name="name">payment.estimate.form.sse</field>
         <field name="model">payment.estimate</field>
@@ -11,7 +11,20 @@
                         type="action"
                         string="匯入估驗試算表"
                         class="btn-secondary"
-                        icon="fa-file-excel-o"/>
+                        icon="fa-file-excel-o"
+                        context="{'sse_create_vals': {'payment_estimate_id': id}}"/>
+            </xpath>
+            <xpath expr="//div[@class='oe_title']" position="before">
+                <div class="oe_button_box" name="sse_button_box">
+                    <button name="action_open_spreadsheets"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-table"
+                            invisible="spreadsheet_count == 0">
+                        <field name="spreadsheet_count" widget="statinfo" string="關聯試算表"/>
+                    </button>
+                </div>
+                <field name="spreadsheet_count" invisible="1"/>
             </xpath>
         </field>
     </record>
