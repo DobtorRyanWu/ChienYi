@@ -3233,6 +3233,8 @@
         parseAttributeValue: false, // 屬性一律當字串，由各 parser 自行轉型
         parseTagValue: false, // 文字節點保留原字串（避免 "1.1.1" 被當數字）
         trimValues: false, // 保留空白（sharedStrings xml:space="preserve" 需要）
+        // 解除實體展開上限（預設 1000）：可信 xlsx、大型試算表的 escaped & 跨檔常逾千，非 DoS
+        processEntities: { enabled: true, maxTotalExpansions: Infinity, maxExpandedLength: Infinity },
     });
     /** 解析 XML 字串成物件樹（保留命名空間前綴，如 r:id）。*/
     function parseXml(text) {
@@ -3727,10 +3729,10 @@
         }
         return s;
     }
-    const REF_RE = /^([A-Z]+)(\d+)$/;
+    const REF_RE$1 = /^([A-Z]+)(\d+)$/;
     /** 解析 "C5" → { row: 5, col: 3 }。格式不符丟錯。*/
     function parseCellRef(ref) {
-        const m = REF_RE.exec(ref);
+        const m = REF_RE$1.exec(ref);
         if (!m)
             throw new Error(`Invalid cell ref: ${ref}`);
         return { col: columnLetterToIndex(m[1]), row: Number.parseInt(m[2], 10) };
@@ -3887,6 +3889,60 @@
             .filter((d) => d !== undefined && d.ranges.length > 0);
     }
 
+    // shared_formula.ts — OOXML shared formula 展開（規劃書 §1.6 capture → §3.2 expand）
+    //
+    // Excel 以 shared formula 壓縮重複公式：master 格 `<f t="shared" ref="C3:C100" si="0">A3*B3</f>`，
+    // follower 格 `<f t="shared" si="0"/>`（無公式文字）。本模組把 follower 依相對位移還原公式，
+    // 讓數萬個重複公式在可編輯試算表即時運算（ChienYi 契約詳細表單檔逾 6 萬個）。
+    // A1 參照：可選 $（絕對欄）、1-3 欄字母、可選 $（絕對列）、列號
+    const REF_RE = /(\$?)([A-Za-z]{1,3})(\$?)([0-9]+)/g;
+    /** 把公式內的相對參照依 (dRow,dCol) 位移（$ 絕對部分不動）。*/
+    function adjustRelativeRefs(formula, dRow, dCol) {
+        if (dRow === 0 && dCol === 0)
+            return formula;
+        return formula.replace(REF_RE, (match, absCol, letters, absRow, digits, offset, full) => {
+            const before = offset > 0 ? full[offset - 1] : '';
+            const after = full[offset + match.length] ?? '';
+            // 後接 "(" → 函數名；前接英數底線 → 識別字片段（如 sheet 名）→ 不視為 cell 參照
+            if (after === '(')
+                return match;
+            if (/[A-Za-z0-9_]/.test(before))
+                return match;
+            const colIdx = columnLetterToIndex(letters);
+            const rowNum = parseInt(digits, 10);
+            const newColIdx = absCol ? colIdx : colIdx + dCol;
+            const newRowNum = absRow ? rowNum : rowNum + dRow;
+            if (newColIdx < 1 || newRowNum < 1)
+                return match; // 出界 → 保留原樣
+            const col = absCol ? letters : columnIndexToLetter(newColIdx);
+            const row = absRow ? digits : String(newRowNum);
+            return `${absCol}${col}${absRow}${row}`;
+        });
+    }
+    /**
+     * 展開 cells 內的 shared formula：follower（有 si、無公式）依 master 相對位移還原公式。
+     * 原地修改 cells（設定 follower 的 formula）。
+     */
+    function expandSharedFormulas(cells) {
+        // master：同時有 si 與公式文字
+        const masters = new Map();
+        for (const c of cells) {
+            if (c.sharedSi !== undefined && c.formula) {
+                if (!masters.has(c.sharedSi))
+                    masters.set(c.sharedSi, { row: c.row, col: c.col, formula: c.formula });
+            }
+        }
+        if (masters.size === 0)
+            return;
+        for (const c of cells) {
+            if (c.sharedSi !== undefined && !c.formula) {
+                const m = masters.get(c.sharedSi);
+                if (m)
+                    c.formula = adjustRelativeRefs(m.formula, c.row - m.row, c.col - m.col);
+            }
+        }
+    }
+
     // worksheet_parser.ts — 解析 xl/worksheets/sheetN.xml（規劃書 §1.6，核心）
     //
     // 提取 cell value（含型別解析 + sharedString 解參照）、公式、合併儲存格、欄資訊、凍結窗格。
@@ -3939,9 +3995,14 @@
             raw = textOf(c['v']);
         }
         let formula;
+        let sharedSi;
         if ('f' in c) {
-            const f = textOf(c['f']);
+            const fNode = c['f'];
+            const f = textOf(fNode);
             formula = f === '' ? undefined : f;
+            // shared formula：t="shared" si="N"（master 帶公式文字、follower 不帶）
+            if (attr(fNode, 't') === 'shared')
+                sharedSi = intAttr(fNode, 'si');
         }
         return {
             ref,
@@ -3952,6 +4013,7 @@
             raw,
             formula,
             inline,
+            sharedSi,
         };
     }
     class WorksheetParser {
@@ -3991,6 +4053,8 @@
                     }
                 }
             }
+            // ── shared formula 展開（follower 依 master 相對位移還原公式）──
+            expandSharedFormulas(cells);
             // ── mergeCells ──
             const mergeContainer = ws['mergeCells'];
             const merges = mergeContainer

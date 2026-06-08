@@ -14,6 +14,8 @@ const parser = new XMLParser({
     parseAttributeValue: false, // 屬性一律當字串，由各 parser 自行轉型
     parseTagValue: false, // 文字節點保留原字串（避免 "1.1.1" 被當數字）
     trimValues: false, // 保留空白（sharedStrings xml:space="preserve" 需要）
+    // 解除實體展開上限（預設 1000）：可信 xlsx、大型試算表的 escaped & 跨檔常逾千，非 DoS
+    processEntities: { enabled: true, maxTotalExpansions: Infinity, maxExpandedLength: Infinity },
 });
 
 /** 解析 XML 字串成物件樹（保留命名空間前綴，如 r:id）。*/

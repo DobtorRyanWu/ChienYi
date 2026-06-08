@@ -8,6 +8,7 @@ import { parseCellRef, parseRange } from './cell_ref';
 import { parseStringItem, type SharedString } from './shared_strings_parser';
 import { parseConditionalFormattings, type ConditionalFormatting } from './cf_parser';
 import { parseDataValidations, type DataValidation } from './dv_parser';
+import { expandSharedFormulas } from './shared_formula';
 
 /** OOXML cell type（t 屬性）。預設（無 t）視為 number。*/
 export type CellType = 'n' | 's' | 'str' | 'b' | 'e' | 'inlineStr' | 'd';
@@ -27,6 +28,8 @@ export interface Cell {
     formula: string | undefined;
     /** inline 字串（t="inlineStr"）。*/
     inline: SharedString | undefined;
+    /** shared formula 索引（t="shared" si）；展開後 follower 的 formula 會被填入。*/
+    sharedSi: number | undefined;
 }
 
 export interface ColumnInfo {
@@ -108,9 +111,13 @@ function parseCell(cRaw: unknown): Cell {
     }
 
     let formula: string | undefined;
+    let sharedSi: number | undefined;
     if ('f' in c) {
-        const f = textOf(c['f']);
+        const fNode = c['f'];
+        const f = textOf(fNode);
         formula = f === '' ? undefined : f;
+        // shared formula：t="shared" si="N"（master 帶公式文字、follower 不帶）
+        if (attr(fNode, 't') === 'shared') sharedSi = intAttr(fNode, 'si');
     }
 
     return {
@@ -122,6 +129,7 @@ function parseCell(cRaw: unknown): Cell {
         raw,
         formula,
         inline,
+        sharedSi,
     };
 }
 
@@ -164,6 +172,9 @@ export class WorksheetParser {
                 }
             }
         }
+
+        // ── shared formula 展開（follower 依 master 相對位移還原公式）──
+        expandSharedFormulas(cells);
 
         // ── mergeCells ──
         const mergeContainer = ws['mergeCells'];
