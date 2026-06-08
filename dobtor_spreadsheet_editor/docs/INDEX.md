@@ -93,3 +93,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 |---|---|---|
 | 22 | **ChienYi bridge**：獨立模組 dobtor_spreadsheet_editor_chienyi，payment.estimate 表單加「匯入估驗試算表」按鈕 → 開 Xlsx 匯入；Playwright 驗證按鈕可見+開啟（通用編輯器保持業務無關） | [sprint22_chienyi_bridge.md](sprint22_chienyi_bridge.md) |
 | 23 | **估驗回掛**：bridge 擴 spreadsheet.spreadsheet+payment_estimate_id、estimate one2many+smart button；通用元件命名空間 context `sse_create_vals` 轉發；Playwright 驗證回掛+smart button | [sprint23_estimate_link.md](sprint23_estimate_link.md) |
+| 24 | **修巢狀開啟**：Component-is-destroyed（doAction 後不碰 state）+ clearBreadcrumbs top-level 開啟 + @class→hasclass；巢狀 GRID_MOUNTED、standalone 無回歸 | [sprint24_nested_open_fix.md](sprint24_nested_open_fix.md) |

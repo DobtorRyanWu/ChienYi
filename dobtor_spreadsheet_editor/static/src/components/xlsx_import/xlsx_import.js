@@ -101,6 +101,7 @@ export class XlsxImportAction extends Component {
         }
         this.state.opening = true;
         this.state.error = "";
+        let action = null;
         try {
             const data = this.lib.importXlsxToOSpreadsheetData(this.buffer);
             const name = this.state.fileName.replace(/\.xlsx$/i, "") || "Imported Xlsx";
@@ -111,16 +112,20 @@ export class XlsxImportAction extends Component {
                 { name, spreadsheet_raw: data, ...extraVals },
             ]);
             const id = Array.isArray(ids) ? ids[0] : ids;
-            await this.action.doAction({
+            action = {
                 type: "ir.actions.client",
                 tag: "action_spreadsheet_oca",
                 params: { spreadsheet_id: id, model: "spreadsheet.spreadsheet" },
-            });
+            };
         } catch (e) {
             this.state.error = `開啟可編輯試算表失敗：${e}`;
-        } finally {
             this.state.opening = false;
+            return;
         }
+        // 重置 state 後再 doAction：導航會銷毀本元件，doAction 之後不可再碰 state（OWL: Component is destroyed）。
+        this.state.opening = false;
+        // clearBreadcrumbs：以 top-level 開啟 o-spreadsheet（避免深層巢狀 action 下 asset/元件載入問題）。
+        await this.action.doAction(action, { clearBreadcrumbs: true });
     }
 }
 
