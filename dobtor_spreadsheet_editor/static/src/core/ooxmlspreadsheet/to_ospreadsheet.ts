@@ -24,6 +24,8 @@ import {
 } from './concrete_style';
 import { isDateNumberFormat, type ParsedStyles } from './styles_parser';
 import type { ParsedTheme } from './theme_parser';
+import { ThemeResolver } from './theme_resolver';
+import { compileConditionalFormats } from './cf_compiler';
 import type { SharedString } from './shared_strings_parser';
 
 const DEFAULT_COL_WIDTH_CHARS = 8.43;
@@ -208,6 +210,7 @@ function buildSheet(
     ss: SharedString[],
     styles: ParsedStyles,
     resolver: ConcreteStyleResolver,
+    themeResolver: ThemeResolver,
     stylePool: Pool<OStyle>,
     borderPool: Pool<OBorder>,
 ): OSheet {
@@ -276,7 +279,14 @@ function buildSheet(
         merges,
         cols,
         rows: {},
-        conditionalFormats: [],
+        conditionalFormats: compileConditionalFormats(
+            ws.conditionalFormatting,
+            styles.dxfs,
+            themeResolver,
+            rowNumber,
+            colNumber,
+            sheetId,
+        ),
         figures: [],
     };
 }
@@ -294,11 +304,12 @@ export function buildOSpreadsheetData(
     theme: ParsedTheme,
 ): OSpreadsheetData {
     const resolver = new ConcreteStyleResolver(styles, theme);
+    const themeResolver = new ThemeResolver(theme);
     const stylePool = new Pool<OStyle>();
     const borderPool = new Pool<OBorder>();
 
     const oSheets = sheets.map((s, i) =>
-        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, borderPool),
+        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool),
     );
 
     return {

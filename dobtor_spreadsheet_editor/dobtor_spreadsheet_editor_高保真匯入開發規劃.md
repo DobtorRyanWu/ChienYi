@@ -25,7 +25,7 @@
 | 1 Parser | 🟢 ~80% | §1.1-1.7、1.9、1.10（部分）（S2-9） | §1.8 Data Validation、§1.11 Tables、§1.6 capture-only（autoFilter/hyperlink/print/headerFooter/breaks）、shared formula 展開、gradient fill、tableStyles |
 | 2 Style | 🟡 ~60% | §2.1 StyleResolver、§2.2 ThemeResolver、§2.3 number format 渲染、§2.4 基本 interop（S6-8,13） | §2.3 日期格式碼/民國年/條件色彩渲染、§2.4 rich text 多 segment、§2.5 CJK 欄寬估算 |
 | 3 Formula | 🟡 ~25% | §3.1 gap analysis、§3.2 A1 passthrough + hybrid 白名單（S18） | §3.2 R1C1/structured/array/跨表/shared 展開、§3.3 缺函數 shim（CHOOSE…）、§3.4 volatile、§3.5 錯誤值對應 |
-| 4 CF/DV | 🔴 ~15% | §1.7 CF **解析**（S9） | §4.1 CF→o-spreadsheet **編譯**、§4.2 DV 編譯、§4.3 CF 視覺回歸 |
+| 4 CF/DV | 🟡 ~35% | §1.7 CF 解析 + **§4.1 CF 編譯（CellIsRule+containsText+dxf 樣式，S29）** | §4.1 colorScale/dataBar/iconSet/duplicateValues/expression、§4.2 DV 編譯、§4.3 CF 視覺回歸 |
 | 4.5 產品化 | 🟢 ~60% | Odoo client action UI、匯入預覽、開可編輯 o-spreadsheet、估驗 bridge + 回掛（S15-25） | §4.5.1 指定 model 欄位/REST controller、§4.5.2 通用 xlsx.linked.mixin、§4.5.3 Portal 嵌入、§4.5.4 zip bomb/size 防護、§4.5.6 匯出稽核 cron |
 | 5 Pivot/Chart/Drawing | 🔴 0% | — | 整個 Phase（PivotParser/ChartParser/DrawingParser/Sparkline 全未做） |
 | 6 Export | 🟢 ~60% | §6.2 TS writer（值/公式/樣式/欄寬/列高）、§6.3 round-trip（S19-21） | CF/DV/defined names/chart/drawing/theme 回寫、style pass rate 量化、Excel/GSheets 三端開啟、ADR-003 |
@@ -534,17 +534,17 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 
 #### 4.1 Conditional Formatting Compiler（3-4 週）
 - [ ] `CFCompiler`：CFParser AST → o-spreadsheet `ConditionalFormat` objects
-- [ ] `cellIs` operator → 對應 o-spreadsheet operator
+- [x] `cellIs` operator → 對應 o-spreadsheet operator
 - [ ] `colorScale` 2-color / 3-color：minColor / midColor / maxColor + threshold types（num / percent / formula / percentile）
 - [ ] `dataBar`：minLength / maxLength / color / showValue / direction
 - [ ] `iconSet`：iconSetType（`3Arrows` / `3TrafficLights` / `5Rating` 等）+ threshold
 - [ ] iconSet 若 o-spreadsheet 不支援 → 降級為 3-color scale
 - [ ] `expression`：Excel formula → FormulaCompiler → o-spreadsheet expression CF
-- [ ] `containsText` / `notContainsText` / `beginsWith` / `endsWith`
+- [x] `containsText` / `notContainsText` / `beginsWith` / `endsWith`
 - [ ] `duplicateValues` / `uniqueValues`
 - [ ] `top10` / `bottom10`（含 percent 屬性）
-- [ ] sqRef 多範圍解析（空格分隔的 `A1:B2 C3:D4`）
-- [ ] dxfId → dxfs 取得 differential format（color / font / border / fill）
+- [x] sqRef 多範圍解析（空格分隔的 `A1:B2 C3:D4`）
+- [x] dxfId → dxfs 取得 differential format（color / font / border / fill）
 
 #### 4.2 Data Validation Compiler（1 週）
 - [ ] `DataValidationCompiler`：DataValidation AST → o-spreadsheet validation

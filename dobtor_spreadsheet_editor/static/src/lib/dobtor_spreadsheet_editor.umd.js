@@ -5079,6 +5079,107 @@
             `</style></head><body><table>${rowsHtml.join('')}</table></body></html>`);
     }
 
+    // cf_compiler.ts — CFParser AST → o-spreadsheet conditionalFormats（規劃書 §4.1）
+    //
+    // 把解析出的條件格式編譯成 o-spreadsheet 的 CF 物件，讓匯入的 xlsx CF 在可編輯試算表顯示。
+    // v1 範圍：CellIsRule（cellIs operator + dxf 樣式）+ containsText 系列（o-spreadsheet 確定支援）。
+    // colorScale/dataBar/iconSet/duplicateValues/expression 暫不編譯（o-spreadsheet 無直接對應或色彩格式待確認）。
+    // Excel cellIs operator → o-spreadsheet operator
+    const OPERATOR_MAP = {
+        equal: 'Equal',
+        notEqual: 'NotEqual',
+        greaterThan: 'GreaterThan',
+        greaterThanOrEqual: 'GreaterThanOrEqual',
+        lessThan: 'LessThan',
+        lessThanOrEqual: 'LessThanOrEqual',
+        between: 'Between',
+        notBetween: 'NotBetween',
+    };
+    // containsText 系列 type → o-spreadsheet operator
+    const TEXT_TYPE_MAP = {
+        containsText: 'ContainsText',
+        notContainsText: 'NotContains',
+        beginsWith: 'BeginsWith',
+        endsWith: 'EndsWith',
+    };
+    /** dxf 的填色（CF dxf 慣例色彩在 bgColor，退而求 fgColor）→ 具體 RGB。*/
+    function dxfFillColor(fill, theme) {
+        if (!fill)
+            return undefined;
+        return theme.resolveColor(fill.bgColor) ?? theme.resolveColor(fill.fgColor);
+    }
+    function dxfToStyle(dxf, theme) {
+        const style = {};
+        if (dxf.font) {
+            if (dxf.font.bold)
+                style.bold = true;
+            if (dxf.font.italic)
+                style.italic = true;
+            if (dxf.font.strike)
+                style.strikethrough = true;
+            if (dxf.font.underline && dxf.font.underline !== 'none')
+                style.underline = true;
+            const tc = theme.resolveColor(dxf.font.color);
+            if (tc)
+                style.textColor = `#${tc}`;
+        }
+        const fc = dxfFillColor(dxf.fill, theme);
+        if (fc)
+            style.fillColor = `#${fc}`;
+        return style;
+    }
+    /** 將 range 的結尾列/欄夾到 sheet 範圍內（避免 D1:D1048576 這類超大範圍）。*/
+    function clampRange(ref, maxRow, maxCol) {
+        try {
+            const { start, end } = parseRange(ref);
+            const er = Math.min(end.row, Math.max(maxRow, start.row));
+            const ec = Math.min(end.col, Math.max(maxCol, start.col));
+            const s = `${columnIndexToLetter(start.col)}${start.row}`;
+            const e = `${columnIndexToLetter(ec)}${er}`;
+            return s === e ? s : `${s}:${e}`;
+        }
+        catch {
+            return undefined;
+        }
+    }
+    function compileRule(rule, dxfs, theme) {
+        const style = rule.dxfId !== undefined && dxfs[rule.dxfId] ? dxfToStyle(dxfs[rule.dxfId], theme) : {};
+        if (rule.type === 'cellIs') {
+            const operator = rule.operator ? OPERATOR_MAP[rule.operator] : undefined;
+            if (!operator)
+                return undefined;
+            return { type: 'CellIsRule', operator, values: rule.formulas.slice(), style };
+        }
+        if (rule.type in TEXT_TYPE_MAP) {
+            const operator = TEXT_TYPE_MAP[rule.type];
+            const value = rule.text ?? '';
+            return { type: 'CellIsRule', operator, values: [value], style };
+        }
+        return undefined; // colorScale/dataBar/iconSet/duplicateValues/expression v1 不編譯
+    }
+    /**
+     * 編譯 worksheet 的 CF → o-spreadsheet conditionalFormats。
+     * @param idPrefix CF id 前綴（跨 sheet 唯一，如 sheet id）。
+     */
+    function compileConditionalFormats(cfBlocks, dxfs, theme, maxRow, maxCol, idPrefix = 'cf') {
+        const out = [];
+        let n = 1;
+        for (const block of cfBlocks) {
+            const ranges = block.ranges
+                .map((r) => clampRange(r, maxRow, maxCol))
+                .filter((r) => r !== undefined);
+            if (ranges.length === 0)
+                continue;
+            for (const rule of block.rules) {
+                const compiled = compileRule(rule, dxfs, theme);
+                if (compiled) {
+                    out.push({ id: `${idPrefix}_${n++}`, ranges, rule: compiled });
+                }
+            }
+        }
+        return out;
+    }
+
     // to_ospreadsheet.ts — ParsedWorksheet + ConcreteStyle → o-spreadsheet WorkbookData（Phase 4.5 對接）
     //
     // 產出 o-spreadsheet 的正規化 WorkbookData（styles/formats 池化、cell 以 id 參照），
@@ -5222,7 +5323,7 @@
     function isOSpreadsheetSafeFormat(code) {
         return /^[#0,.%\s]+$/.test(code);
     }
-    function buildSheet(sheetId, name, ws, ss, styles, resolver, stylePool, borderPool) {
+    function buildSheet(sheetId, name, ws, ss, styles, resolver, themeResolver, stylePool, borderPool) {
         const bounds = worksheetBounds(ws);
         const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
         const rowNumber = Math.min(MAX_ROWS, Math.max(bounds.rows, ws.maxRow, 1));
@@ -5287,16 +5388,17 @@
             merges,
             cols,
             rows: {},
-            conditionalFormats: [],
+            conditionalFormats: compileConditionalFormats(ws.conditionalFormatting, styles.dxfs, themeResolver, rowNumber, colNumber, sheetId),
             figures: [],
         };
     }
     /** 多工作表 → o-spreadsheet WorkbookData。*/
     function buildOSpreadsheetData(sheets, ss, styles, theme) {
         const resolver = new ConcreteStyleResolver(styles, theme);
+        const themeResolver = new ThemeResolver(theme);
         const stylePool = new Pool();
         const borderPool = new Pool();
-        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, borderPool));
+        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool));
         return {
             version: 1,
             sheets: oSheets.length > 0 ? oSheets : [emptySheet()],
