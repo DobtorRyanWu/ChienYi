@@ -3928,10 +3928,17 @@
             // ── sheetData → cells ──
             const sheetData = (ws['sheetData'] ?? {});
             const cells = [];
+            const rowHeights = new Map();
             let maxRow = 0;
             let maxCol = 0;
             for (const rowRaw of toArray(sheetData['row'])) {
                 const row = (rowRaw ?? {});
+                // 自訂列高（customHeight=1 才視為使用者設定）
+                const rIdx = intAttr(row, 'r');
+                const ht = attr(row, 'ht');
+                if (rIdx !== undefined && ht !== undefined && boolAttr(row, 'customHeight')) {
+                    rowHeights.set(rIdx, Number(ht));
+                }
                 for (const cRaw of toArray(row['c'])) {
                     const cell = parseCell(cRaw);
                     // 收有值/公式/inline 的 cell；另收「有樣式的空白格」（邊框/填色/粗體等，匯出與渲染保真需要）。
@@ -3958,6 +3965,7 @@
                 cols,
                 cells,
                 merges,
+                rowHeights,
                 conditionalFormatting: parseConditionalFormattings(ws),
                 freeze,
                 showGridLines,
@@ -5550,17 +5558,28 @@
             if (c.col > maxCol)
                 maxCol = c.col;
         }
-        const rows = [...byRow.keys()].sort((a, b) => a - b);
+        // 列 = 有 cell 的列 ∪ 有自訂列高的列（只有列高的空列也要寫出）
+        const rowSet = new Set(byRow.keys());
+        if (sheet.rowHeights)
+            for (const r of sheet.rowHeights.keys())
+                rowSet.add(r);
+        const rows = [...rowSet].sort((a, b) => a - b);
         const rowsXml = rows
             .map((r) => {
-            const cells = byRow
-                .get(r)
+            const cells = (byRow.get(r) ?? [])
                 .sort((a, b) => a.col - b.col)
                 .map((c) => cellXml(c, pool, styles))
                 .join('');
-            return `<row r="${r}">${cells}</row>`;
+            const h = sheet.rowHeights?.get(r);
+            const rowAttrs = h !== undefined ? ` ht="${h}" customHeight="1"` : '';
+            return `<row r="${r}"${rowAttrs}>${cells}</row>`;
         })
             .join('');
+        const colsXml = sheet.cols && sheet.cols.length > 0
+            ? `<cols>${sheet.cols
+            .map((c) => `<col min="${c.min}" max="${c.max}" width="${c.width}" customWidth="1"/>`)
+            .join('')}</cols>`
+            : '';
         const dim = `A1:${columnIndexToLetter(maxCol)}${maxRow}`;
         const mergeXml = sheet.merges.length > 0
             ? `<mergeCells count="${sheet.merges.length}">${sheet.merges
@@ -5570,6 +5589,7 @@
         return (`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
             `<worksheet xmlns="${XMLNS_MAIN}" xmlns:r="${XMLNS_R}">` +
             `<dimension ref="${dim}"/>` +
+            colsXml +
             `<sheetData>${rowsXml}</sheetData>` +
             mergeXml +
             `</worksheet>`);
@@ -5646,7 +5666,7 @@
     // Sprint 10：ConcreteStyleResolver（StyleResolver + ThemeResolver → 全具體 RGB 樣式，Phase 4.5 對接前置）
     //
     // 對接層：parser → ast → style/formula/cf/... compiler → XlsxModelBridge → o-spreadsheet model commands
-    const SPRINT = 19;
+    const SPRINT = 21;
     const BUILD_DATE = '2026-06-07';
     const TARGET_FIDELITY = 'Google Sheets / Excel A- (95%)';
     /**
@@ -5733,7 +5753,10 @@
                     wc.style = styleResolver.resolve(cell.styleIndex);
                 return wc;
             });
-            return { name: s.name, cells, merges: ws.merges };
+            const cols = ws.cols
+                .filter((c) => c.width !== undefined)
+                .map((c) => ({ min: c.min, max: c.max, width: c.width }));
+            return { name: s.name, cells, merges: ws.merges, cols, rowHeights: ws.rowHeights };
         });
         return buildXlsx(sheets);
     }

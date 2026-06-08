@@ -186,10 +186,21 @@ class StyleSheetBuilder {
     }
 }
 
+export interface WriteCol {
+    min: number;
+    max: number;
+    /** 欄寬（字元數）。*/
+    width: number;
+}
+
 export interface WriteSheet {
     name: string;
     cells: WriteCell[];
     merges: string[];
+    /** 自訂欄寬。*/
+    cols?: WriteCol[];
+    /** 自訂列高（1-based row → point）。*/
+    rowHeights?: Map<number, number>;
 }
 
 const XMLNS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
@@ -251,17 +262,28 @@ function sheetXml(sheet: WriteSheet, pool: StringPool, styles: StyleSheetBuilder
         if (c.row > maxRow) maxRow = c.row;
         if (c.col > maxCol) maxCol = c.col;
     }
-    const rows = [...byRow.keys()].sort((a, b) => a - b);
+    // 列 = 有 cell 的列 ∪ 有自訂列高的列（只有列高的空列也要寫出）
+    const rowSet = new Set<number>(byRow.keys());
+    if (sheet.rowHeights) for (const r of sheet.rowHeights.keys()) rowSet.add(r);
+    const rows = [...rowSet].sort((a, b) => a - b);
     const rowsXml = rows
         .map((r) => {
-            const cells = byRow
-                .get(r)!
+            const cells = (byRow.get(r) ?? [])
                 .sort((a, b) => a.col - b.col)
                 .map((c) => cellXml(c, pool, styles))
                 .join('');
-            return `<row r="${r}">${cells}</row>`;
+            const h = sheet.rowHeights?.get(r);
+            const rowAttrs = h !== undefined ? ` ht="${h}" customHeight="1"` : '';
+            return `<row r="${r}"${rowAttrs}>${cells}</row>`;
         })
         .join('');
+
+    const colsXml =
+        sheet.cols && sheet.cols.length > 0
+            ? `<cols>${sheet.cols
+                  .map((c) => `<col min="${c.min}" max="${c.max}" width="${c.width}" customWidth="1"/>`)
+                  .join('')}</cols>`
+            : '';
 
     const dim = `A1:${columnIndexToLetter(maxCol)}${maxRow}`;
     const mergeXml =
@@ -275,6 +297,7 @@ function sheetXml(sheet: WriteSheet, pool: StringPool, styles: StyleSheetBuilder
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
         `<worksheet xmlns="${XMLNS_MAIN}" xmlns:r="${XMLNS_R}">` +
         `<dimension ref="${dim}"/>` +
+        colsXml +
         `<sheetData>${rowsXml}</sheetData>` +
         mergeXml +
         `</worksheet>`

@@ -49,6 +49,8 @@ export interface ParsedWorksheet {
     cells: Cell[];
     /** 合併範圍 ref 清單（如 "A1:I1"）。*/
     merges: string[];
+    /** 自訂列高（1-based row → 高度 point）；無 customHeight 的列不入。*/
+    rowHeights: Map<number, number>;
     /** 條件格式（§1.7）。*/
     conditionalFormatting: ConditionalFormatting[];
     freeze: FreezePanes | undefined;
@@ -135,10 +137,17 @@ export class WorksheetParser {
         // ── sheetData → cells ──
         const sheetData = (ws['sheetData'] ?? {}) as Record<string, unknown>;
         const cells: Cell[] = [];
+        const rowHeights = new Map<number, number>();
         let maxRow = 0;
         let maxCol = 0;
         for (const rowRaw of toArray<unknown>(sheetData['row'])) {
             const row = (rowRaw ?? {}) as Record<string, unknown>;
+            // 自訂列高（customHeight=1 才視為使用者設定）
+            const rIdx = intAttr(row, 'r');
+            const ht = attr(row, 'ht');
+            if (rIdx !== undefined && ht !== undefined && boolAttr(row, 'customHeight')) {
+                rowHeights.set(rIdx, Number(ht));
+            }
             for (const cRaw of toArray<unknown>(row['c'])) {
                 const cell = parseCell(cRaw);
                 // 收有值/公式/inline 的 cell；另收「有樣式的空白格」（邊框/填色/粗體等，匯出與渲染保真需要）。
@@ -166,6 +175,7 @@ export class WorksheetParser {
             cols,
             cells,
             merges,
+            rowHeights,
             conditionalFormatting: parseConditionalFormattings(ws),
             freeze,
             showGridLines,

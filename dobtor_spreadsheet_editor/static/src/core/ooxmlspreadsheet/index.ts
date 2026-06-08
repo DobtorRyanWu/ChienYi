@@ -13,7 +13,7 @@
 //
 // 對接層：parser → ast → style/formula/cf/... compiler → XlsxModelBridge → o-spreadsheet model commands
 
-export const SPRINT = 19;
+export const SPRINT = 21;
 export const BUILD_DATE = '2026-06-07';
 export const TARGET_FIDELITY = 'Google Sheets / Excel A- (95%)';
 
@@ -236,7 +236,10 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
                 if (cell.styleIndex !== undefined) wc.style = styleResolver.resolve(cell.styleIndex);
                 return wc;
             });
-            return { name: s.name, cells, merges: ws.merges };
+            const cols = ws.cols
+                .filter((c) => c.width !== undefined)
+                .map((c) => ({ min: c.min, max: c.max, width: c.width as number }));
+            return { name: s.name, cells, merges: ws.merges, cols, rowHeights: ws.rowHeights };
         });
 
     return _buildXlsx(sheets);

@@ -65,6 +65,37 @@ describe('buildXlsx — 基本寫出', () => {
     });
 });
 
+describe('buildXlsx — 欄寬/列高 round-trip', () => {
+    const bytes = buildXlsx([
+        {
+            name: 'S',
+            cells: [{ row: 1, col: 1, value: 'x' }],
+            merges: [],
+            cols: [
+                { min: 1, max: 1, width: 4.125 },
+                { min: 2, max: 3, width: 25.5 },
+            ],
+            rowHeights: new Map([
+                [1, 30.75],
+                [2, 15],
+            ]),
+        },
+    ]);
+    const { pkg, wb } = reparse(bytes);
+    const ws = WorksheetParser.parse(pkg.getPartText(wb.sheets[0].target!));
+
+    it('欄寬 round-trip', () => {
+        expect(ws.cols.find((c) => c.min === 1)?.width).toBeCloseTo(4.125, 2);
+        const c23 = ws.cols.find((c) => c.min === 2);
+        expect(c23?.max).toBe(3);
+        expect(c23?.width).toBeCloseTo(25.5, 2);
+    });
+    it('列高 round-trip', () => {
+        expect(ws.rowHeights.get(1)).toBeCloseTo(30.75, 2);
+        expect(ws.rowHeights.get(2)).toBeCloseTo(15, 2);
+    });
+});
+
 describe('buildXlsx — 樣式回寫 round-trip', () => {
     const cs: ConcreteStyle = {
         numFmtId: 200,
