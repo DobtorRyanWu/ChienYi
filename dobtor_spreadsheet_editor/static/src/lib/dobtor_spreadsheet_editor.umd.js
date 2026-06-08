@@ -5222,7 +5222,7 @@
     function isOSpreadsheetSafeFormat(code) {
         return /^[#0,.%\s]+$/.test(code);
     }
-    function buildSheet(sheetId, name, ws, ss, styles, resolver, stylePool, formatPool, borderPool) {
+    function buildSheet(sheetId, name, ws, ss, styles, resolver, stylePool, borderPool) {
         const bounds = worksheetBounds(ws);
         const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
         const rowNumber = Math.min(MAX_ROWS, Math.max(bounds.rows, ws.maxRow, 1));
@@ -5252,7 +5252,7 @@
                 concrete.numFmtCode &&
                 concrete.numFmtCode !== 'General' &&
                 isOSpreadsheetSafeFormat(concrete.numFmtCode)) {
-                oCell.format = formatPool.intern(concrete.numFmtCode);
+                oCell.format = concrete.numFmtCode; // o-spreadsheet load 以 getItemId intern 字串
             }
             // 只收有內容/樣式/邊框的 cell
             if (oCell.content !== '' || oCell.style !== undefined || oCell.border !== undefined) {
@@ -5295,14 +5295,13 @@
     function buildOSpreadsheetData(sheets, ss, styles, theme) {
         const resolver = new ConcreteStyleResolver(styles, theme);
         const stylePool = new Pool();
-        const formatPool = new Pool();
         const borderPool = new Pool();
-        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, formatPool, borderPool));
+        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, borderPool));
         return {
             version: 1,
             sheets: oSheets.length > 0 ? oSheets : [emptySheet()],
             styles: stylePool.toRecord(),
-            formats: formatPool.toRecord(),
+            formats: {}, // o-spreadsheet load 由 cell.format 字串自行 intern 成池
             borders: borderPool.toRecord(),
         };
     }

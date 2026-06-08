@@ -96,3 +96,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 24 | **修巢狀開啟**：Component-is-destroyed（doAction 後不碰 state）+ clearBreadcrumbs top-level 開啟 + @class→hasclass；巢狀 GRID_MOUNTED、standalone 無回歸 | [sprint24_nested_open_fix.md](sprint24_nested_open_fix.md) |
 | 25 | **從估驗工項產生試算表**：bridge Python 建 WorkbookData（標題+粗體表頭+工項列）→ 回掛試算表 + 開啟；Playwright 估驗33→181工項 GRID_MOUNTED | [sprint25_generate_from_estimate.md](sprint25_generate_from_estimate.md) |
 | 26 | **產生的估驗試算表用即時公式**：金額欄 =F*G / =F*I、小計 SUM 列（粗體）；Playwright 驗證 H=193.12*408.7=78928.144 即時計算 | [sprint26_estimate_formulas.md](sprint26_estimate_formulas.md) |
+| 27 | **估驗表 polish + 修 format bug**：欄寬/千分位/層級縮排；揭示 o-spreadsheet format 為 inline 字串（非 id-pool）→ 修 bridge + to_ospreadsheet 匯入路徑（潛伏 bug）；#ERROR 消失 | [sprint27_estimate_polish.md](sprint27_estimate_polish.md) |

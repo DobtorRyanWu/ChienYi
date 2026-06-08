@@ -68,17 +68,32 @@ class PaymentEstimate(models.Model):
         lines = self.line_ids.sorted(key=lambda r: (r.sequence or 0, r.id))
         # 金額欄改即時公式：H 本次估驗金額 = 單價(F) × 本次估驗數量(G)；J 累計估驗金額 = 單價(F) × 累計數量(I)
         formula_cols = {"estimate_amount": "=F%d*G%d", "cumulative_estimate_amount": "=F%d*I%d"}
+        # D-J 數值欄套千分位格式（format id 1）
+        numeric_fields = {
+            "contract_qty", "approved_qty", "unit_price", "estimate_qty",
+            "estimate_amount", "cumulative_estimate_qty", "cumulative_estimate_amount",
+        }
         for r, line in enumerate(lines, start=3):
             for c, (_h, field) in enumerate(self._SSE_COLUMNS, start=1):
                 col = self._sse_col_letter(c)
+                cell = None
                 if field in formula_cols:
-                    cells["%s%d" % (col, r)] = {"content": formula_cols[field] % (r, r)}
+                    cell = {"content": formula_cols[field] % (r, r)}
+                elif field == "description":
+                    # 依 item_no 點數縮排（全形空白）
+                    depth = (line.item_no or "").count(".")
+                    text = line.description or ""
+                    if text:
+                        cell = {"content": ("　" * depth) + text}
+                else:
+                    value = line[field]
+                    if value not in (False, None, ""):
+                        cell = {"content": value if isinstance(value, str) else repr(value)}
+                if cell is None:
                     continue
-                value = line[field]
-                if value in (False, None, ""):
-                    continue
-                content = value if isinstance(value, str) else repr(value)
-                cells["%s%d" % (col, r)] = {"content": content}
+                if field in numeric_fields:
+                    cell["format"] = "#,##0.00"
+                cells["%s%d" % (col, r)] = cell
         n_rows = max(len(lines) + 2, 1)
         n_cols = max(len(headers), 1)
         # 小計列（SUM 公式、粗體）
@@ -86,9 +101,12 @@ class PaymentEstimate(models.Model):
             last = len(lines) + 2
             sub = last + 1
             cells["B%d" % sub] = {"content": "小計", "style": 1}
-            cells["H%d" % sub] = {"content": "=SUM(H3:H%d)" % last, "style": 1}
-            cells["J%d" % sub] = {"content": "=SUM(J3:J%d)" % last, "style": 1}
+            cells["H%d" % sub] = {"content": "=SUM(H3:H%d)" % last, "style": 1, "format": "#,##0.00"}
+            cells["J%d" % sub] = {"content": "=SUM(J3:J%d)" % last, "style": 1, "format": "#,##0.00"}
             n_rows = sub
+        # 欄寬（px，0-based 欄索引）：項目編號/說明/單位/數值欄
+        col_px = [72, 300, 48, 84, 84, 84, 96, 110, 96, 110]
+        cols = {i: {"size": col_px[i]} for i in range(min(n_cols, len(col_px)))}
         return {
             "version": 1,
             "sheets": [
@@ -99,7 +117,7 @@ class PaymentEstimate(models.Model):
                     "rowNumber": n_rows,
                     "cells": cells,
                     "merges": [],
-                    "cols": {},
+                    "cols": cols,
                     "rows": {},
                     "conditionalFormats": [],
                     "figures": [],

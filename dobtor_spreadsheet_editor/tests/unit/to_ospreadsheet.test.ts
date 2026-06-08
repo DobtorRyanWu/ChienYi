@@ -70,10 +70,8 @@ describe('buildOSpreadsheetData', () => {
         expect(st.verticalAlign).toBe('middle');
         expect(st.wrapping).toBe('wrap');
     });
-    it('format 以 id 參照（C2 = #,##0.00）', () => {
-        const fmtId = sheet.cells['C2'].format;
-        expect(fmtId).toBeDefined();
-        expect(data.formats[fmtId!]).toBe('#,##0.00');
+    it('format 為 inline 字串（C2 = #,##0.00，o-spreadsheet load 自行 intern）', () => {
+        expect(sheet.cells['C2'].format).toBe('#,##0.00');
     });
     it('merges 保留、cols 0-based 寬度', () => {
         expect(sheet.merges).toEqual(['A1:B1']);
@@ -158,7 +156,7 @@ describe('importXlsxToOSpreadsheetData — 真實契約詳細表', () => {
         for (const sh of data.sheets) {
             for (const cell of Object.values(sh.cells)) {
                 if (cell.style !== undefined) expect(data.styles[cell.style]).toBeDefined();
-                if (cell.format !== undefined) expect(data.formats[cell.format]).toBeDefined();
+                if (cell.format !== undefined) expect(typeof cell.format).toBe('string');
             }
         }
     });

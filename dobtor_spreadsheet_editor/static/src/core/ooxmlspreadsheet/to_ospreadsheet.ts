@@ -59,7 +59,8 @@ export interface OBorder {
 export interface OCell {
     content: string;
     style?: number;
-    format?: number;
+    /** o-spreadsheet 載入時以 getItemId intern → 此處放格式字串（非 id）。*/
+    format?: string;
     border?: number;
 }
 
@@ -208,7 +209,6 @@ function buildSheet(
     styles: ParsedStyles,
     resolver: ConcreteStyleResolver,
     stylePool: Pool<OStyle>,
-    formatPool: Pool<string>,
     borderPool: Pool<OBorder>,
 ): OSheet {
     const bounds = worksheetBounds(ws);
@@ -240,7 +240,7 @@ function buildSheet(
             concrete.numFmtCode !== 'General' &&
             isOSpreadsheetSafeFormat(concrete.numFmtCode)
         ) {
-            oCell.format = formatPool.intern(concrete.numFmtCode);
+            oCell.format = concrete.numFmtCode; // o-spreadsheet load 以 getItemId intern 字串
         }
         // 只收有內容/樣式/邊框的 cell
         if (oCell.content !== '' || oCell.style !== undefined || oCell.border !== undefined) {
@@ -295,18 +295,17 @@ export function buildOSpreadsheetData(
 ): OSpreadsheetData {
     const resolver = new ConcreteStyleResolver(styles, theme);
     const stylePool = new Pool<OStyle>();
-    const formatPool = new Pool<string>();
     const borderPool = new Pool<OBorder>();
 
     const oSheets = sheets.map((s, i) =>
-        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, formatPool, borderPool),
+        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, stylePool, borderPool),
     );
 
     return {
         version: 1,
         sheets: oSheets.length > 0 ? oSheets : [emptySheet()],
         styles: stylePool.toRecord(),
-        formats: formatPool.toRecord(),
+        formats: {}, // o-spreadsheet load 由 cell.format 字串自行 intern 成池
         borders: borderPool.toRecord(),
     };
 }
