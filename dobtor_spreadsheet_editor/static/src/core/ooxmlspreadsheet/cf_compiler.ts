@@ -5,8 +5,9 @@
 // colorScale/dataBar/iconSet/duplicateValues/expression 暫不編譯（o-spreadsheet 無直接對應或色彩格式待確認）。
 
 import { parseRange, columnIndexToLetter } from './cell_ref';
-import type { ConditionalFormatting, CfRule } from './cf_parser';
+import type { ConditionalFormatting, CfRule, CfValueObject } from './cf_parser';
 import type { Dxf, Fill } from './styles_parser';
+import type { Color } from './color';
 import type { ThemeResolver } from './theme_resolver';
 
 /** o-spreadsheet CellIsRule 的樣式（CF 命中時套用）。*/
@@ -19,15 +20,31 @@ interface OCfStyle {
     fillColor?: string;
 }
 
+interface OCellIsRule {
+    type: 'CellIsRule';
+    operator: string;
+    values: string[];
+    style: OCfStyle;
+}
+
+/** o-spreadsheet colorScale threshold（color 為 RGB 整數）。*/
+interface OThreshold {
+    type: string;
+    color: number;
+    value?: string;
+}
+
+interface OColorScaleRule {
+    type: 'ColorScaleRule';
+    minimum: OThreshold;
+    midpoint: OThreshold | null;
+    maximum: OThreshold;
+}
+
 export interface OConditionalFormat {
     id: string;
     ranges: string[];
-    rule: {
-        type: 'CellIsRule';
-        operator: string;
-        values: string[];
-        style: OCfStyle;
-    };
+    rule: OCellIsRule | OColorScaleRule;
 }
 
 // Excel cellIs operator → o-spreadsheet operator
@@ -85,6 +102,44 @@ function clampRange(ref: string, maxRow: number, maxCol: number): string | undef
     }
 }
 
+// Excel cfvo type → o-spreadsheet threshold type
+const CFVO_TYPE_MAP: Readonly<Record<string, string>> = {
+    min: 'value',
+    max: 'value',
+    num: 'number',
+    percent: 'percentage',
+    percentile: 'percentile',
+    formula: 'formula',
+};
+
+/** Excel Color → o-spreadsheet RGB 整數（colorScale/dataBar 用）。*/
+function colorToNumber(c: Color | undefined, theme: ThemeResolver): number {
+    const hex = theme.resolveColor(c);
+    if (!hex) return 0xffffff;
+    const rgb = hex.length === 8 ? hex.slice(2) : hex; // 去 alpha
+    const n = parseInt(rgb, 16);
+    return Number.isFinite(n) ? n : 0xffffff;
+}
+
+function toThreshold(cfvo: CfValueObject, color: Color | undefined, theme: ThemeResolver): OThreshold {
+    const type = CFVO_TYPE_MAP[cfvo.type] ?? 'value';
+    const t: OThreshold = { type, color: colorToNumber(color, theme) };
+    // 'value'（min/max 自動）不帶 value；其餘帶閾值
+    if (type !== 'value' && cfvo.val !== undefined) t.value = cfvo.val;
+    return t;
+}
+
+function compileColorScale(rule: CfRule, theme: ThemeResolver): OColorScaleRule | undefined {
+    const cs = rule.colorScale;
+    if (!cs || cs.cfvo.length < 2 || cs.colors.length < 2) return undefined;
+    const last = cs.cfvo.length - 1;
+    const minimum = toThreshold(cs.cfvo[0], cs.colors[0], theme);
+    const maximum = toThreshold(cs.cfvo[last], cs.colors[last], theme);
+    const midpoint =
+        cs.cfvo.length >= 3 ? toThreshold(cs.cfvo[1], cs.colors[1], theme) : null;
+    return { type: 'ColorScaleRule', minimum, midpoint, maximum };
+}
+
 function compileRule(rule: CfRule, dxfs: Dxf[], theme: ThemeResolver): OConditionalFormat['rule'] | undefined {
     const style = rule.dxfId !== undefined && dxfs[rule.dxfId] ? dxfToStyle(dxfs[rule.dxfId], theme) : {};
     if (rule.type === 'cellIs') {
@@ -97,7 +152,10 @@ function compileRule(rule: CfRule, dxfs: Dxf[], theme: ThemeResolver): OConditio
         const value = rule.text ?? '';
         return { type: 'CellIsRule', operator, values: [value], style };
     }
-    return undefined; // colorScale/dataBar/iconSet/duplicateValues/expression v1 不編譯
+    if (rule.type === 'colorScale') {
+        return compileColorScale(rule, theme);
+    }
+    return undefined; // dataBar/iconSet/duplicateValues/expression v1 不編譯
 }
 
 /**

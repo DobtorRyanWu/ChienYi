@@ -118,3 +118,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 |---|---|---|
 | 31 | **Chart 解析**：chart_parser（type/series/cat/val/title）+ drawing_parser（anchor+chart rId）+ chart_compiler（→o-spreadsheet figure）；修 rel.resolvedTarget；自檢表 CHART_GRID_MOUNTED | [sprint31_chart_parser.md](sprint31_chart_parser.md) |
 | 32 | **Chart 匯出回 xlsx**：原始 drawing/chart/media parts 直通複製 + 重建 worksheet→drawing rel + Content_Types；openpyxl 讀到 chart 物件、自家 re-parse 得 figure | [sprint32_chart_export.md](sprint32_chart_export.md) |
+| 34 | **colorScale CF 編譯**：compileColorScale（cfvo→threshold、min/mid/max、RGB 整數色）→ ColorScaleRule；openpyxl 合成 fixture、Playwright 截圖確認紅→黃→綠漸層 | [sprint34_colorscale_cf.md](sprint34_colorscale_cf.md) |

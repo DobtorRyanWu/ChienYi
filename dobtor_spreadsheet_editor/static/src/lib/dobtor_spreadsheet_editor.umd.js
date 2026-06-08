@@ -5142,6 +5142,42 @@
             return undefined;
         }
     }
+    // Excel cfvo type → o-spreadsheet threshold type
+    const CFVO_TYPE_MAP = {
+        min: 'value',
+        max: 'value',
+        num: 'number',
+        percent: 'percentage',
+        percentile: 'percentile',
+        formula: 'formula',
+    };
+    /** Excel Color → o-spreadsheet RGB 整數（colorScale/dataBar 用）。*/
+    function colorToNumber(c, theme) {
+        const hex = theme.resolveColor(c);
+        if (!hex)
+            return 0xffffff;
+        const rgb = hex.length === 8 ? hex.slice(2) : hex; // 去 alpha
+        const n = parseInt(rgb, 16);
+        return Number.isFinite(n) ? n : 0xffffff;
+    }
+    function toThreshold(cfvo, color, theme) {
+        const type = CFVO_TYPE_MAP[cfvo.type] ?? 'value';
+        const t = { type, color: colorToNumber(color, theme) };
+        // 'value'（min/max 自動）不帶 value；其餘帶閾值
+        if (type !== 'value' && cfvo.val !== undefined)
+            t.value = cfvo.val;
+        return t;
+    }
+    function compileColorScale(rule, theme) {
+        const cs = rule.colorScale;
+        if (!cs || cs.cfvo.length < 2 || cs.colors.length < 2)
+            return undefined;
+        const last = cs.cfvo.length - 1;
+        const minimum = toThreshold(cs.cfvo[0], cs.colors[0], theme);
+        const maximum = toThreshold(cs.cfvo[last], cs.colors[last], theme);
+        const midpoint = cs.cfvo.length >= 3 ? toThreshold(cs.cfvo[1], cs.colors[1], theme) : null;
+        return { type: 'ColorScaleRule', minimum, midpoint, maximum };
+    }
     function compileRule(rule, dxfs, theme) {
         const style = rule.dxfId !== undefined && dxfs[rule.dxfId] ? dxfToStyle(dxfs[rule.dxfId], theme) : {};
         if (rule.type === 'cellIs') {
@@ -5155,7 +5191,10 @@
             const value = rule.text ?? '';
             return { type: 'CellIsRule', operator, values: [value], style };
         }
-        return undefined; // colorScale/dataBar/iconSet/duplicateValues/expression v1 不編譯
+        if (rule.type === 'colorScale') {
+            return compileColorScale(rule, theme);
+        }
+        return undefined; // dataBar/iconSet/duplicateValues/expression v1 不編譯
     }
     /**
      * 編譯 worksheet 的 CF → o-spreadsheet conditionalFormats。

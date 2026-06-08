@@ -65,6 +65,41 @@ describe('compileConditionalFormats', () => {
     });
 });
 
+describe('compileConditionalFormats — colorScale', () => {
+    const cs = CFParser.parse(
+        `<?xml version="1.0"?><worksheet xmlns="${NS}"><sheetData/>` +
+            // 3-color: min 紅 → percentile50 黃 → max 綠
+            `<conditionalFormatting sqref="E1:E20">` +
+            `<cfRule type="colorScale" priority="1"><colorScale>` +
+            `<cfvo type="min"/><cfvo type="percentile" val="50"/><cfvo type="max"/>` +
+            `<color rgb="FFFF0000"/><color rgb="FFFFFF00"/><color rgb="FF00FF00"/>` +
+            `</colorScale></cfRule></conditionalFormatting>` +
+            // 2-color: num 0 白 → num 100 藍
+            `<conditionalFormatting sqref="F1:F20">` +
+            `<cfRule type="colorScale" priority="2"><colorScale>` +
+            `<cfvo type="num" val="0"/><cfvo type="num" val="100"/>` +
+            `<color rgb="FFFFFFFF"/><color rgb="FF0000FF"/>` +
+            `</colorScale></cfRule></conditionalFormatting></worksheet>`,
+    );
+    const cfs = compileConditionalFormats(cs, [], THEME, 100, 10, 'sheet1');
+
+    it('3-color → ColorScaleRule min/mid/max + RGB 整數色', () => {
+        const r = cfs.find((c) => c.ranges[0] === 'E1:E20')!.rule;
+        expect(r.type).toBe('ColorScaleRule');
+        if (r.type !== 'ColorScaleRule') return;
+        expect(r.minimum).toEqual({ type: 'value', color: 0xff0000 });
+        expect(r.midpoint).toEqual({ type: 'percentile', color: 0xffff00, value: '50' });
+        expect(r.maximum).toEqual({ type: 'value', color: 0x00ff00 });
+    });
+    it('2-color → midpoint null、num 帶 value', () => {
+        const r = cfs.find((c) => c.ranges[0] === 'F1:F20')!.rule;
+        if (r.type !== 'ColorScaleRule') throw new Error('not colorScale');
+        expect(r.midpoint).toBeNull();
+        expect(r.minimum).toEqual({ type: 'number', color: 0xffffff, value: '0' });
+        expect(r.maximum).toEqual({ type: 'number', color: 0x0000ff, value: '100' });
+    });
+});
+
 describe('importXlsxToOSpreadsheetData — 真實土單 CF 編譯', () => {
     it('土單匯入後含 CellIsRule conditionalFormats', () => {
         const b = readFileSync(join(FIXTURES, '04_conditional_format', '磺港溪C-A土單20250221-1.xlsx'));
