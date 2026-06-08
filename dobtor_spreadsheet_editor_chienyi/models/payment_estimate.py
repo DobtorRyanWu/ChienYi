@@ -66,15 +66,29 @@ class PaymentEstimate(models.Model):
         for c, header in enumerate(headers, start=1):
             cells["%s2" % self._sse_col_letter(c)] = {"content": header, "style": 1}
         lines = self.line_ids.sorted(key=lambda r: (r.sequence or 0, r.id))
+        # 金額欄改即時公式：H 本次估驗金額 = 單價(F) × 本次估驗數量(G)；J 累計估驗金額 = 單價(F) × 累計數量(I)
+        formula_cols = {"estimate_amount": "=F%d*G%d", "cumulative_estimate_amount": "=F%d*I%d"}
         for r, line in enumerate(lines, start=3):
             for c, (_h, field) in enumerate(self._SSE_COLUMNS, start=1):
+                col = self._sse_col_letter(c)
+                if field in formula_cols:
+                    cells["%s%d" % (col, r)] = {"content": formula_cols[field] % (r, r)}
+                    continue
                 value = line[field]
                 if value in (False, None, ""):
                     continue
                 content = value if isinstance(value, str) else repr(value)
-                cells["%s%d" % (self._sse_col_letter(c), r)] = {"content": content}
+                cells["%s%d" % (col, r)] = {"content": content}
         n_rows = max(len(lines) + 2, 1)
         n_cols = max(len(headers), 1)
+        # 小計列（SUM 公式、粗體）
+        if lines:
+            last = len(lines) + 2
+            sub = last + 1
+            cells["B%d" % sub] = {"content": "小計", "style": 1}
+            cells["H%d" % sub] = {"content": "=SUM(H3:H%d)" % last, "style": 1}
+            cells["J%d" % sub] = {"content": "=SUM(J3:J%d)" % last, "style": 1}
+            n_rows = sub
         return {
             "version": 1,
             "sheets": [

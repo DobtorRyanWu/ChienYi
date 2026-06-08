@@ -1,13 +1,13 @@
 # 進度快照（Progress Snapshot）
 
-**最後更新**：2026-06-08（Sprint 25）
+**最後更新**：2026-06-08（Sprint 26）
 
 ## 當前指標一覽
 
 | 指標 | 值 | 目標 | 狀態 |
 |---|---|---|---|
 | 當前 Phase | 1+2 + VR + Phase 4.5（可編輯/邊框/公式）+ Phase 6（高保真匯出） | — | in_progress |
-| Sprint 編號 | 25 | — | — |
+| Sprint 編號 | 26 | — | — |
 | vitest unit tests | 213 / 213 passed | > 500（Phase 1+ 後） | 🟢 |
 | vitest integration | 338 / 338 passed（+ VR baseline skipIf 手動） | > 200 | 🟢 **達標** |
 | vitest 總計 | 551 / 551 passed（+1 VR skipped）+ Playwright E2E 1 | — | 🟢 |
