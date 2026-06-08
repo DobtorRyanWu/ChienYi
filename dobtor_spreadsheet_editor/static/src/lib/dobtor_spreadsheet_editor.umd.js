@@ -5205,6 +5205,34 @@
         const midpoint = cs.cfvo.length >= 3 ? toThreshold(cs.cfvo[1], cs.colors[1], theme) : null;
         return { type: 'ColorScaleRule', minimum, midpoint, maximum };
     }
+    // Excel iconSet 名稱 → o-spreadsheet icon family（只有 arrow/dot/smiley 三家族）
+    function iconFamily(iconSet) {
+        if (/Arrow/i.test(iconSet))
+            return 'arrow';
+        if (/Symbol|Flag|Rating|Star|Quarter|Box/i.test(iconSet))
+            return 'smiley';
+        return 'dot'; // TrafficLights / Signs / 其他
+    }
+    // Excel cfvo 的 gte 預設為 true（>=）→ o-spreadsheet operator 'ge'
+    function compileIconSet(rule) {
+        const is = rule.iconSet;
+        if (!is || is.cfvo.length < 3)
+            return undefined;
+        const fam = iconFamily(is.iconSet);
+        const icons = { upper: `${fam}Good`, middle: `${fam}Neutral`, lower: `${fam}Bad` };
+        // 3-icon：cfvo[0]=最低（忽略）、cfvo[1]=下閾值、cfvo[2]=上閾值
+        const infl = (cfvo) => ({
+            type: CFVO_TYPE_MAP[cfvo.type] ?? 'percentage',
+            value: cfvo.val ?? '0',
+            operator: 'ge',
+        });
+        return {
+            type: 'IconSetRule',
+            icons,
+            lowerInflectionPoint: infl(is.cfvo[1]),
+            upperInflectionPoint: infl(is.cfvo[is.cfvo.length - 1]),
+        };
+    }
     function compileRule(rule, dxfs, theme) {
         const style = rule.dxfId !== undefined && dxfs[rule.dxfId] ? dxfToStyle(dxfs[rule.dxfId], theme) : {};
         if (rule.type === 'cellIs') {
@@ -5225,7 +5253,10 @@
             // o-spreadsheet DataBarRule：{type, color(RGB 整數)}；bar 長度由 CF range 值自動推算
             return { type: 'DataBarRule', color: colorToNumber(rule.dataBar.color, theme) };
         }
-        return undefined; // iconSet/duplicateValues/expression v1 不編譯
+        if (rule.type === 'iconSet') {
+            return compileIconSet(rule);
+        }
+        return undefined; // duplicateValues/expression v1 不編譯
     }
     /**
      * 編譯 worksheet 的 CF → o-spreadsheet conditionalFormats。
