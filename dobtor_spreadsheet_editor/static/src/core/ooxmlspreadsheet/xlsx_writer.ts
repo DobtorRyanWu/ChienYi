@@ -10,7 +10,9 @@ import { zipSync, strToU8 } from 'fflate';
 import { columnIndexToLetter } from './cell_ref';
 import { fillBackgroundColor, type ConcreteStyle } from './concrete_style';
 import { writeConditionalFormattings, writeDxfs } from './cf_writer';
+import { writeDataValidations } from './dv_writer';
 import type { ConditionalFormatting } from './cf_parser';
+import type { DataValidation } from './dv_parser';
 import type { Dxf } from './styles_parser';
 
 export interface WriteCell {
@@ -210,6 +212,8 @@ export interface WriteSheet {
     rowHeights?: Map<number, number>;
     /** 條件格式（CF round-trip）。*/
     conditionalFormats?: ConditionalFormatting[];
+    /** 資料驗證（DV round-trip）。*/
+    dataValidations?: DataValidation[];
     /** 此 sheet 連結的 drawing part（相對 worksheet 的 rels target，如 `../drawings/drawing1.xml`）。*/
     drawingTarget?: string;
 }
@@ -312,6 +316,7 @@ function sheetXml(sheet: WriteSheet, pool: StringPool, styles: StyleSheetBuilder
         `<sheetData>${rowsXml}</sheetData>` +
         mergeXml +
         writeConditionalFormattings(sheet.conditionalFormats) +
+        writeDataValidations(sheet.dataValidations) +
         (sheet.drawingTarget ? `<drawing r:id="rId1"/>` : '') +
         `</worksheet>`
     );

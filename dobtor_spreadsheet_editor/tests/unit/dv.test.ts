@@ -59,3 +59,14 @@ describe('importXlsxToOSpreadsheetData — 真實自檢表 DV', () => {
         expect(dvs.some((r) => r.criterion.type === 'isValueInList')).toBe(true);
     });
 });
+
+describe('exportXlsxFromBuffer — DV round-trip', () => {
+    it('匯出檔保留 <dataValidations>，re-parse 仍得 list DV', async () => {
+        const { exportXlsxFromBuffer } = await import('../../static/src/core/ooxmlspreadsheet/index');
+        const b = readFileSync(join(FIXTURES, '06_chart', '自檢表總表單0308.xlsx'));
+        const out = exportXlsxFromBuffer(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+        const data2 = importXlsxToOSpreadsheetData(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength));
+        const dvs = data2.sheets.flatMap((s) => (s as { dataValidationRules: { criterion: { type: string } }[] }).dataValidationRules);
+        expect(dvs.some((r) => r.criterion.type === 'isValueInList')).toBe(true);
+    });
+});

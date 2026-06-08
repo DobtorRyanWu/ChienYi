@@ -5560,14 +5560,14 @@
     //
     // exportXlsxFromBuffer 的反向：把解析的 CF AST 與 dxfs 序列化回 worksheet 的 <conditionalFormatting>
     // 與 styles.xml 的 <dxfs>，達成 CF 雙向 round-trip。
-    function escAttr(s) {
+    function escAttr$1(s) {
         return s
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
     }
-    function escText(s) {
+    function escText$1(s) {
         return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
     /** Color → `<tag .../>`（rgb / theme+tint / indexed / auto）。回空字串表示無色。*/
@@ -5599,18 +5599,18 @@
         if (f.strike)
             s += '<strike/>';
         if (f.underline && f.underline !== 'none') {
-            s += f.underline === 'single' ? '<u/>' : `<u val="${escAttr(f.underline)}"/>`;
+            s += f.underline === 'single' ? '<u/>' : `<u val="${escAttr$1(f.underline)}"/>`;
         }
         s += colorXml$1('color', f.color);
         if (f.size !== undefined)
             s += `<sz val="${f.size}"/>`;
         if (f.name)
-            s += `<name val="${escAttr(f.name)}"/>`;
+            s += `<name val="${escAttr$1(f.name)}"/>`;
         return `<font>${s}</font>`;
     }
     function fillXml(fill) {
         const pattern = fill.patternType ?? 'solid';
-        return (`<fill><patternFill patternType="${escAttr(pattern)}">` +
+        return (`<fill><patternFill patternType="${escAttr$1(pattern)}">` +
             colorXml$1('fgColor', fill.fgColor) +
             colorXml$1('bgColor', fill.bgColor) +
             `</patternFill></fill>`);
@@ -5618,7 +5618,7 @@
     function edgeXml(tag, e) {
         if (!e || !e.style)
             return `<${tag}/>`;
-        return `<${tag} style="${escAttr(e.style)}">${colorXml$1('color', e.color)}</${tag}>`;
+        return `<${tag} style="${escAttr$1(e.style)}">${colorXml$1('color', e.color)}</${tag}>`;
     }
     function borderXml(b) {
         return (`<border>` +
@@ -5635,7 +5635,7 @@
             s += fontXml(dxf.font);
         // dxf numFmt（罕見，CF 多用 font/fill）
         if (dxf.numFmtId !== undefined && dxf.numFmtCode)
-            s += `<numFmt numFmtId="${dxf.numFmtId}" formatCode="${escAttr(dxf.numFmtCode)}"/>`;
+            s += `<numFmt numFmtId="${dxf.numFmtId}" formatCode="${escAttr$1(dxf.numFmtCode)}"/>`;
         if (dxf.fill)
             s += fillXml(dxf.fill);
         if (dxf.border)
@@ -5649,17 +5649,17 @@
         return `<dxfs count="${dxfs.length}">${dxfs.map(dxfXml).join('')}</dxfs>`;
     }
     function cfvoXml(v) {
-        return `<cfvo type="${escAttr(v.type)}"${v.val !== undefined ? ` val="${escAttr(v.val)}"` : ''}/>`;
+        return `<cfvo type="${escAttr$1(v.type)}"${v.val !== undefined ? ` val="${escAttr$1(v.val)}"` : ''}/>`;
     }
     function ruleXml(rule) {
-        const a = [`type="${escAttr(rule.type)}"`];
+        const a = [`type="${escAttr$1(rule.type)}"`];
         if (rule.dxfId !== undefined)
             a.push(`dxfId="${rule.dxfId}"`);
         a.push(`priority="${rule.priority}"`);
         if (rule.operator)
-            a.push(`operator="${escAttr(rule.operator)}"`);
+            a.push(`operator="${escAttr$1(rule.operator)}"`);
         if (rule.text !== undefined)
-            a.push(`text="${escAttr(rule.text)}"`);
+            a.push(`text="${escAttr$1(rule.text)}"`);
         if (rule.percent)
             a.push('percent="1"');
         if (rule.rank !== undefined)
@@ -5679,9 +5679,9 @@
                 `<dataBar>` + rule.dataBar.cfvo.map(cfvoXml).join('') + colorXml$1('color', rule.dataBar.color) + `</dataBar>`;
         }
         else if (rule.iconSet) {
-            inner += `<iconSet iconSet="${escAttr(rule.iconSet.iconSet)}">` + rule.iconSet.cfvo.map(cfvoXml).join('') + `</iconSet>`;
+            inner += `<iconSet iconSet="${escAttr$1(rule.iconSet.iconSet)}">` + rule.iconSet.cfvo.map(cfvoXml).join('') + `</iconSet>`;
         }
-        inner += rule.formulas.map((f) => `<formula>${escText(f)}</formula>`).join('');
+        inner += rule.formulas.map((f) => `<formula>${escText$1(f)}</formula>`).join('');
         return `<cfRule ${a.join(' ')}>${inner}</cfRule>`;
     }
     /** ConditionalFormatting[] → 串接的 `<conditionalFormatting>` XML（放在 mergeCells 之後）。*/
@@ -5690,8 +5690,39 @@
             return '';
         return blocks
             .filter((b) => b.ranges.length > 0 && b.rules.length > 0)
-            .map((b) => `<conditionalFormatting sqref="${escAttr(b.ranges.join(' '))}">${b.rules.map(ruleXml).join('')}</conditionalFormatting>`)
+            .map((b) => `<conditionalFormatting sqref="${escAttr$1(b.ranges.join(' '))}">${b.rules.map(ruleXml).join('')}</conditionalFormatting>`)
             .join('');
+    }
+
+    // dv_writer.ts — DataValidation[] → OOXML <dataValidations>（Phase 6 §6.2 DV 匯出回 xlsx）
+    function escAttr(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function escText(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function dvXml(dv) {
+        const a = [`type="${escAttr(dv.type)}"`];
+        if (dv.operator)
+            a.push(`operator="${escAttr(dv.operator)}"`);
+        if (dv.allowBlank)
+            a.push('allowBlank="1"');
+        a.push(`sqref="${escAttr(dv.ranges.join(' '))}"`);
+        let inner = '';
+        if (dv.formula1 !== undefined && dv.formula1 !== '')
+            inner += `<formula1>${escText(dv.formula1)}</formula1>`;
+        if (dv.formula2 !== undefined && dv.formula2 !== '')
+            inner += `<formula2>${escText(dv.formula2)}</formula2>`;
+        return inner ? `<dataValidation ${a.join(' ')}>${inner}</dataValidation>` : `<dataValidation ${a.join(' ')}/>`;
+    }
+    /** DataValidation[] → `<dataValidations>`（放在 conditionalFormatting 之後）。*/
+    function writeDataValidations(dvs) {
+        if (!dvs || dvs.length === 0)
+            return '';
+        const valid = dvs.filter((d) => d.ranges.length > 0);
+        if (valid.length === 0)
+            return '';
+        return `<dataValidations count="${valid.length}">${valid.map(dvXml).join('')}</dataValidations>`;
     }
 
     // xlsx_writer.ts — 寫出最小但合法的 xlsx（規劃書 Phase 6 雙向 round-trip）
@@ -5969,6 +6000,7 @@
             `<sheetData>${rowsXml}</sheetData>` +
             mergeXml +
             writeConditionalFormattings(sheet.conditionalFormats) +
+            writeDataValidations(sheet.dataValidations) +
             (sheet.drawingTarget ? `<drawing r:id="rId1"/>` : '') +
             `</worksheet>`);
     }
@@ -6370,6 +6402,7 @@
                 cols,
                 rowHeights: ws.rowHeights,
                 conditionalFormats: ws.conditionalFormatting,
+                dataValidations: ws.dataValidations,
                 drawingTarget,
             };
         });

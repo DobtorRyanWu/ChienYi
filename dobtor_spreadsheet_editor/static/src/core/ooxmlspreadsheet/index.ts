@@ -256,6 +256,7 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
                 cols,
                 rowHeights: ws.rowHeights,
                 conditionalFormats: ws.conditionalFormatting,
+                dataValidations: ws.dataValidations,
                 drawingTarget,
             };
         });

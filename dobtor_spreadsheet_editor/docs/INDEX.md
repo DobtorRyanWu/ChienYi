@@ -120,3 +120,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 32 | **Chart 匯出回 xlsx**：原始 drawing/chart/media parts 直通複製 + 重建 worksheet→drawing rel + Content_Types；openpyxl 讀到 chart 物件、自家 re-parse 得 figure | [sprint32_chart_export.md](sprint32_chart_export.md) |
 | 34 | **colorScale CF 編譯**：compileColorScale（cfvo→threshold、min/mid/max、RGB 整數色）→ ColorScaleRule；openpyxl 合成 fixture、Playwright 截圖確認紅→黃→綠漸層 | [sprint34_colorscale_cf.md](sprint34_colorscale_cf.md) |
 | 35 | **Data Validation**：dv_parser（§1.8 <dataValidations>）+ dv_compiler（list→isValueInList/isValueInRange、whole→isBetween）→ sheet.dataValidationRules；真實自檢表 4 下拉、Playwright errs=none | [sprint35_data_validation.md](sprint35_data_validation.md) |
+| 36 | **DV 匯出回 xlsx**：dv_writer（DataValidation→<dataValidations>）整合 xlsx_writer/exportXlsxFromBuffer；openpyxl 讀到 4 DV、LibreOffice 開啟 | [sprint36_dv_export.md](sprint36_dv_export.md) |

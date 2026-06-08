@@ -1,16 +1,16 @@
 # 進度快照（Progress Snapshot）
 
-**最後更新**：2026-06-08（Sprint 35）
+**最後更新**：2026-06-08（Sprint 36）
 
 ## 當前指標一覽
 
 | 指標 | 值 | 目標 | 狀態 |
 |---|---|---|---|
 | 當前 Phase | 1+2 + VR + Phase 4.5（可編輯/邊框/公式）+ Phase 6（高保真匯出） | — | in_progress |
-| Sprint 編號 | 35 | — | — |
+| Sprint 編號 | 36 | — | — |
 | vitest unit tests | 213 / 213 passed | > 500（Phase 1+ 後） | 🟢 |
 | vitest integration | 338 / 338 passed（+ VR baseline skipIf 手動） | > 200 | 🟢 **達標** |
-| vitest 總計 | 593 / 593 passed（+1 VR skipped）+ Playwright E2E 1 | — | 🟢 |
+| vitest 總計 | 594 / 594 passed（+1 VR skipped）+ Playwright E2E 1 | — | 🟢 |
 | **高保真匯出** | 樣式回寫（font/fill/border/numFmt）；下載檔 openpyxl+LibreOffice 驗證含粗體/邊框/格式 | — | 🟢 |
 | **Odoo 整合** | 選單掛 OCA 底下；HTML 預覽 + 「在 o-spreadsheet 開啟（可編輯）」 | — | 🟢 **Playwright E2E 驗證通過**（預覽 + 可編輯 grid 掛起） |
 | number format 渲染 | 千分位/貨幣/百分比/會計負數/字面，13 測試 | — | 🟢 |
