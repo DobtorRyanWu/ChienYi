@@ -127,6 +127,7 @@ import { WorksheetParser as _WorksheetParser } from './worksheet_parser';
 import { renderWorksheetHtml as _renderWorksheetHtml } from './vr/html_render';
 import { buildOSpreadsheetData as _buildOSpreadsheetData, type OSpreadsheetData, type SheetInput as _SheetInput } from './to_ospreadsheet';
 import { resolveCellValue as _resolveCellValue } from './worksheet_parser';
+import { ConcreteStyleResolver as _ConcreteStyleResolver } from './concrete_style';
 import { buildXlsx as _buildXlsx, type WriteSheet as _WriteSheet, type WriteCell as _WriteCell } from './xlsx_writer';
 
 export { buildOSpreadsheetData } from './to_ospreadsheet';
@@ -213,6 +214,15 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
     const ssPart = wbp.sharedStringsPart();
     const ss: _SharedString[] =
         ssPart && pkg.hasPart(ssPart) ? _SharedStringsParser.parse(pkg.getPartText(ssPart)) : [];
+    const stPart = wbp.stylesPart();
+    const styles = stPart && pkg.hasPart(stPart)
+        ? _StylesParser.parse(pkg.getPartText(stPart))
+        : _StylesParser.parse('<styleSheet/>');
+    const thPart = wbp.themePart();
+    const theme = thPart && pkg.hasPart(thPart)
+        ? _ThemeParser.parse(pkg.getPartText(thPart))
+        : _ThemeParser.default();
+    const styleResolver = new _ConcreteStyleResolver(styles, theme);
 
     const sheets: _WriteSheet[] = wb.sheets
         .filter((s) => s.target && pkg.hasPart(s.target))
@@ -223,6 +233,7 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
                 const wc: _WriteCell = { row: cell.row, col: cell.col };
                 if (value !== '') wc.value = value;
                 if (cell.formula !== undefined) wc.formula = cell.formula;
+                if (cell.styleIndex !== undefined) wc.style = styleResolver.resolve(cell.styleIndex);
                 return wc;
             });
             return { name: s.name, cells, merges: ws.merges };

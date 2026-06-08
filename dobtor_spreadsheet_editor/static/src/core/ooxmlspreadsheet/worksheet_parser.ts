@@ -141,8 +141,11 @@ export class WorksheetParser {
             const row = (rowRaw ?? {}) as Record<string, unknown>;
             for (const cRaw of toArray<unknown>(row['c'])) {
                 const cell = parseCell(cRaw);
-                // 只收有值/公式/inline 的 cell（空樣式格不進提取，與 calamine 對齊由 grid 補 ''）
-                if (cell.raw !== undefined || cell.formula !== undefined || cell.inline !== undefined) {
+                // 收有值/公式/inline 的 cell；另收「有樣式的空白格」（邊框/填色/粗體等，匯出與渲染保真需要）。
+                // 對 cell value 提取無害：buildValueMap/buildValueMapStyled 對空值回 '' 不入 map。
+                const hasContent =
+                    cell.raw !== undefined || cell.formula !== undefined || cell.inline !== undefined;
+                if (hasContent || cell.styleIndex !== undefined) {
                     cells.push(cell);
                     if (cell.row > maxRow) maxRow = cell.row;
                     if (cell.col > maxCol) maxCol = cell.col;

@@ -3934,8 +3934,10 @@
                 const row = (rowRaw ?? {});
                 for (const cRaw of toArray(row['c'])) {
                     const cell = parseCell(cRaw);
-                    // 只收有值/公式/inline 的 cell（空樣式格不進提取，與 calamine 對齊由 grid 補 ''）
-                    if (cell.raw !== undefined || cell.formula !== undefined || cell.inline !== undefined) {
+                    // 收有值/公式/inline 的 cell；另收「有樣式的空白格」（邊框/填色/粗體等，匯出與渲染保真需要）。
+                    // 對 cell value 提取無害：buildValueMap/buildValueMapStyled 對空值回 '' 不入 map。
+                    const hasContent = cell.raw !== undefined || cell.formula !== undefined || cell.inline !== undefined;
+                    if (hasContent || cell.styleIndex !== undefined) {
                         cells.push(cell);
                         if (cell.row > maxRow)
                             maxRow = cell.row;
@@ -5318,6 +5320,171 @@
     // 樣式回寫待後續（需把 ConcreteStyle 反編成 styles.xml 各池）。
     //
     // 用 fflate zipSync 打包成 OOXML zip。
+    const CUSTOM_NUMFMT_BASE = 164;
+    /** ARGB（FF 前綴）。輸入 6-hex（無 #）或已含 #。*/
+    function argb(hex) {
+        const h = hex.replace('#', '').toUpperCase();
+        return h.length === 8 ? h : `FF${h.padStart(6, '0')}`;
+    }
+    function colorXml(tag, hex) {
+        return hex ? `<${tag} rgb="${argb(hex)}"/>` : '';
+    }
+    /**
+     * 從 ConcreteStyle 反編 styles.xml 各池（numFmts/fonts/fills/borders/cellXfs），
+     * cell 以 cellXf index 參照。fills[0]=none、fills[1]=gray125（Excel 慣例）。
+     */
+    class StyleSheetBuilder {
+        constructor() {
+            this.numFmts = new Map(); // code → id（custom，164+）
+            this.fonts = new Map();
+            this.fontXml = [];
+            this.fills = new Map();
+            this.fillXml = [];
+            this.borders = new Map();
+            this.borderXml = [];
+            this.xfs = new Map();
+            this.xfDef = [];
+            // 預設池項（index 0 / Excel 慣例）
+            this.fontXml.push('<font><sz val="11"/><name val="Calibri"/></font>');
+            this.fillXml.push('<fill><patternFill patternType="none"/></fill>');
+            this.fillXml.push('<fill><patternFill patternType="gray125"/></fill>');
+            this.borderXml.push('<border><left/><right/><top/><bottom/><diagonal/></border>');
+        }
+        internNumFmt(code, originalId) {
+            // 內建（id<164 且非 0）直接用原 id、不入 numFmts；自訂則配 164+
+            if (originalId > 0 && originalId < CUSTOM_NUMFMT_BASE)
+                return originalId;
+            const existing = this.numFmts.get(code);
+            if (existing !== undefined)
+                return existing;
+            const id = CUSTOM_NUMFMT_BASE + this.numFmts.size;
+            this.numFmts.set(code, id);
+            return id;
+        }
+        internFont(f) {
+            const parts = [];
+            if (f.bold)
+                parts.push('<b/>');
+            if (f.italic)
+                parts.push('<i/>');
+            if (f.strike)
+                parts.push('<strike/>');
+            if (f.underline && f.underline !== 'none')
+                parts.push('<u/>');
+            if (f.size)
+                parts.push(`<sz val="${f.size}"/>`);
+            if (f.color)
+                parts.push(colorXml('color', f.color));
+            parts.push(`<name val="${f.name ? f.name.replace(/"/g, '') : 'Calibri'}"/>`);
+            if (f.family !== undefined)
+                parts.push(`<family val="${f.family}"/>`);
+            if (f.charset !== undefined)
+                parts.push(`<charset val="${f.charset}"/>`);
+            const xml = `<font>${parts.join('')}</font>`;
+            if (xml === '<font><name val="Calibri"/></font>' || xml === this.fontXml[0])
+                return 0;
+            const existing = this.fonts.get(xml);
+            if (existing !== undefined)
+                return existing;
+            const id = this.fontXml.length;
+            this.fonts.set(xml, id);
+            this.fontXml.push(xml);
+            return id;
+        }
+        internFill(fill) {
+            const bg = fillBackgroundColor(fill);
+            if (!bg)
+                return 0; // none
+            const xml = `<fill><patternFill patternType="solid"><fgColor rgb="${argb(bg)}"/><bgColor indexed="64"/></patternFill></fill>`;
+            const existing = this.fills.get(xml);
+            if (existing !== undefined)
+                return existing;
+            const id = this.fillXml.length;
+            this.fills.set(xml, id);
+            this.fillXml.push(xml);
+            return id;
+        }
+        internBorder(b) {
+            const edge = (side, e) => {
+                if (!e || !e.style)
+                    return `<${side}/>`;
+                return `<${side} style="${e.style}">${colorXml('color', e.color ?? '000000')}</${side}>`;
+            };
+            const xml = `<border>${edge('left', b.left)}${edge('right', b.right)}${edge('top', b.top)}` +
+                `${edge('bottom', b.bottom)}<diagonal/></border>`;
+            if (xml === this.borderXml[0])
+                return 0;
+            const existing = this.borders.get(xml);
+            if (existing !== undefined)
+                return existing;
+            const id = this.borderXml.length;
+            this.borders.set(xml, id);
+            this.borderXml.push(xml);
+            return id;
+        }
+        /** ConcreteStyle → cellXf index（0 = 預設無樣式）。*/
+        intern(cs) {
+            if (!cs)
+                return 0;
+            const numFmtId = cs.numFmtCode && cs.numFmtCode !== 'General'
+                ? this.internNumFmt(cs.numFmtCode, cs.numFmtId)
+                : 0;
+            const fontId = this.internFont(cs.font);
+            const fillId = this.internFill(cs.fill);
+            const borderId = this.internBorder(cs.border);
+            const align = cs.alignment;
+            const key = JSON.stringify({ numFmtId, fontId, fillId, borderId, align: align ?? null });
+            if (numFmtId === 0 && fontId === 0 && fillId === 0 && borderId === 0 && !align)
+                return 0;
+            const existing = this.xfs.get(key);
+            if (existing !== undefined)
+                return existing;
+            const id = this.xfDef.length + 1; // index 0 = 預設 xf
+            this.xfs.set(key, id);
+            this.xfDef.push({ numFmtId, fontId, fillId, borderId, align });
+            return id;
+        }
+        toXml() {
+            const numFmtsXml = this.numFmts.size > 0
+                ? `<numFmts count="${this.numFmts.size}">` +
+                    [...this.numFmts.entries()]
+                        .map(([code, id]) => `<numFmt numFmtId="${id}" formatCode="${code.replace(/"/g, '&quot;').replace(/&(?!quot;)/g, '&amp;')}"/>`)
+                        .join('') +
+                    `</numFmts>`
+                : '';
+            const xfXml = [`<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>`]
+                .concat(this.xfDef.map((x) => {
+                const flags = (x.numFmtId ? ' applyNumberFormat="1"' : '') +
+                    (x.fontId ? ' applyFont="1"' : '') +
+                    (x.fillId ? ' applyFill="1"' : '') +
+                    (x.borderId ? ' applyBorder="1"' : '') +
+                    (x.align ? ' applyAlignment="1"' : '');
+                let alignXml = '';
+                if (x.align) {
+                    const a = [];
+                    if (x.align.horizontal)
+                        a.push(`horizontal="${x.align.horizontal}"`);
+                    if (x.align.vertical)
+                        a.push(`vertical="${x.align.vertical}"`);
+                    if (x.align.wrapText)
+                        a.push('wrapText="1"');
+                    alignXml = `<alignment ${a.join(' ')}/>`;
+                }
+                return `<xf numFmtId="${x.numFmtId}" fontId="${x.fontId}" fillId="${x.fillId}" borderId="${x.borderId}" xfId="0"${flags}>${alignXml}</xf>`;
+            }))
+                .join('');
+            return (`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                `<styleSheet xmlns="${XMLNS_MAIN}">` +
+                numFmtsXml +
+                `<fonts count="${this.fontXml.length}">${this.fontXml.join('')}</fonts>` +
+                `<fills count="${this.fillXml.length}">${this.fillXml.join('')}</fills>` +
+                `<borders count="${this.borderXml.length}">${this.borderXml.join('')}</borders>` +
+                `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
+                `<cellXfs count="${this.xfDef.length + 1}">${xfXml}</cellXfs>` +
+                `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
+                `</styleSheet>`);
+        }
+    }
     const XMLNS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
     const XMLNS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     const CT = 'http://schemas.openxmlformats.org/package/2006/content-types';
@@ -5345,29 +5512,31 @@
             return id;
         }
     }
-    function cellXml(cell, pool) {
+    function cellXml(cell, pool, styles) {
         const ref = `${columnIndexToLetter(cell.col)}${cell.row}`;
         const v = cell.value;
+        const sIdx = styles.intern(cell.style);
+        const s = sIdx > 0 ? ` s="${sIdx}"` : '';
         if (cell.formula !== undefined) {
             const f = `<f>${xmlEscape(cell.formula)}</f>`;
             if (typeof v === 'number')
-                return `<c r="${ref}">${f}<v>${v}</v></c>`;
+                return `<c r="${ref}"${s}>${f}<v>${v}</v></c>`;
             if (typeof v === 'boolean')
-                return `<c r="${ref}" t="b">${f}<v>${v ? 1 : 0}</v></c>`;
+                return `<c r="${ref}"${s} t="b">${f}<v>${v ? 1 : 0}</v></c>`;
             if (typeof v === 'string')
-                return `<c r="${ref}" t="str">${f}<v>${xmlEscape(v)}</v></c>`;
-            return `<c r="${ref}">${f}</c>`;
+                return `<c r="${ref}"${s} t="str">${f}<v>${xmlEscape(v)}</v></c>`;
+            return `<c r="${ref}"${s}>${f}</c>`;
         }
         if (typeof v === 'number')
-            return `<c r="${ref}"><v>${v}</v></c>`;
+            return `<c r="${ref}"${s}><v>${v}</v></c>`;
         if (typeof v === 'boolean')
-            return `<c r="${ref}" t="b"><v>${v ? 1 : 0}</v></c>`;
+            return `<c r="${ref}"${s} t="b"><v>${v ? 1 : 0}</v></c>`;
         if (typeof v === 'string' && v !== '') {
-            return `<c r="${ref}" t="s"><v>${pool.intern(v)}</v></c>`;
+            return `<c r="${ref}"${s} t="s"><v>${pool.intern(v)}</v></c>`;
         }
-        return `<c r="${ref}"/>`;
+        return sIdx > 0 ? `<c r="${ref}"${s}/>` : `<c r="${ref}"/>`;
     }
-    function sheetXml(sheet, pool) {
+    function sheetXml(sheet, pool, styles) {
         // 依列分組
         const byRow = new Map();
         let maxRow = 1;
@@ -5387,7 +5556,7 @@
             const cells = byRow
                 .get(r)
                 .sort((a, b) => a.col - b.col)
-                .map((c) => cellXml(c, pool))
+                .map((c) => cellXml(c, pool, styles))
                 .join('');
             return `<row r="${r}">${cells}</row>`;
         })
@@ -5409,9 +5578,10 @@
     function buildXlsx(sheets) {
         const list = sheets.length > 0 ? sheets : [{ name: 'Sheet1', cells: [], merges: [] }];
         const pool = new StringPool();
+        const styleBuilder = new StyleSheetBuilder();
         const sheetFiles = {};
         list.forEach((s, i) => {
-            sheetFiles[`xl/worksheets/sheet${i + 1}.xml`] = sheetXml(s, pool);
+            sheetFiles[`xl/worksheets/sheet${i + 1}.xml`] = sheetXml(s, pool, styleBuilder);
         });
         const sharedStrings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
             `<sst xmlns="${XMLNS_MAIN}" count="${pool.items.length}" uniqueCount="${pool.items.length}">` +
@@ -5434,15 +5604,7 @@
             `<Relationship Id="rId${ssId}" Type="${XMLNS_R}/sharedStrings" Target="sharedStrings.xml"/>` +
             `<Relationship Id="rId${stylesId}" Type="${XMLNS_R}/styles" Target="styles.xml"/>` +
             `</Relationships>`;
-        const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
-            `<styleSheet xmlns="${XMLNS_MAIN}">` +
-            `<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>` +
-            `<fills count="1"><fill><patternFill patternType="none"/></fill></fills>` +
-            `<borders count="1"><border/></borders>` +
-            `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
-            `<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>` +
-            `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
-            `</styleSheet>`;
+        const styles = styleBuilder.toXml();
         const rootRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
             `<Relationships xmlns="${PKG_REL}">` +
             `<Relationship Id="rId1" Type="${XMLNS_R}/officeDocument" Target="xl/workbook.xml"/>` +
@@ -5547,6 +5709,15 @@
         const wb = wbp.parse();
         const ssPart = wbp.sharedStringsPart();
         const ss = ssPart && pkg.hasPart(ssPart) ? SharedStringsParser.parse(pkg.getPartText(ssPart)) : [];
+        const stPart = wbp.stylesPart();
+        const styles = stPart && pkg.hasPart(stPart)
+            ? StylesParser.parse(pkg.getPartText(stPart))
+            : StylesParser.parse('<styleSheet/>');
+        const thPart = wbp.themePart();
+        const theme = thPart && pkg.hasPart(thPart)
+            ? ThemeParser.parse(pkg.getPartText(thPart))
+            : ThemeParser.default();
+        const styleResolver = new ConcreteStyleResolver(styles, theme);
         const sheets = wb.sheets
             .filter((s) => s.target && pkg.hasPart(s.target))
             .map((s) => {
@@ -5558,6 +5729,8 @@
                     wc.value = value;
                 if (cell.formula !== undefined)
                     wc.formula = cell.formula;
+                if (cell.styleIndex !== undefined)
+                    wc.style = styleResolver.resolve(cell.styleIndex);
                 return wc;
             });
             return { name: s.name, cells, merges: ws.merges };

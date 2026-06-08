@@ -5,6 +5,9 @@ import { PackageReader } from '../../static/src/core/ooxmlspreadsheet/package_re
 import { WorkbookParser } from '../../static/src/core/ooxmlspreadsheet/workbook_parser';
 import { SharedStringsParser } from '../../static/src/core/ooxmlspreadsheet/shared_strings_parser';
 import { WorksheetParser, buildValueMap } from '../../static/src/core/ooxmlspreadsheet/worksheet_parser';
+import { StylesParser, numberFormatCode } from '../../static/src/core/ooxmlspreadsheet/styles_parser';
+import { ThemeParser } from '../../static/src/core/ooxmlspreadsheet/theme_parser';
+import { ConcreteStyleResolver, type ConcreteStyle } from '../../static/src/core/ooxmlspreadsheet/concrete_style';
 
 function reparse(bytes: Uint8Array) {
     const pkg = PackageReader.fromBuffer(bytes);
@@ -59,5 +62,42 @@ describe('buildXlsx — 基本寫出', () => {
         const { pkg, wb, ss } = reparse(b);
         const ws = WorksheetParser.parse(pkg.getPartText(wb.sheets[0].target!));
         expect(buildValueMap(ws, ss).get('1:1')).toBe('a<b&c"d');
+    });
+});
+
+describe('buildXlsx — 樣式回寫 round-trip', () => {
+    const cs: ConcreteStyle = {
+        numFmtId: 200,
+        numFmtCode: '#,##0.00',
+        isDate: false,
+        font: { bold: true, size: 12, color: 'FF0000', name: '標楷體', family: 4 },
+        fill: { patternType: 'solid', fgColor: 'FFFF00' },
+        border: { left: { style: 'thin', color: '000000' }, top: { style: 'medium', color: '0000FF' } },
+        alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+    };
+    const bytes = buildXlsx([
+        { name: 'S', cells: [{ row: 1, col: 1, value: 1234.5, style: cs }], merges: [] },
+    ]);
+    const { pkg, wb } = reparse(bytes);
+    const parsedStyles = StylesParser.parse(pkg.getPartText('xl/styles.xml'));
+    const ws = WorksheetParser.parse(pkg.getPartText(wb.sheets[0].target!));
+    const a1 = ws.cells.find((c) => c.ref === 'A1')!;
+
+    it('cell 有 styleIndex、cellXf 解析回具體樣式', () => {
+        expect(a1.styleIndex).toBeGreaterThan(0);
+        const resolver = new ConcreteStyleResolver(parsedStyles, ThemeParser.default());
+        const r = resolver.resolve(a1.styleIndex);
+        expect(r.font.bold).toBe(true);
+        expect(r.font.color).toBe('FF0000');
+        expect(r.font.name).toBe('標楷體');
+        expect(r.fill.fgColor).toBe('FFFF00');
+        expect(r.border.left?.style).toBe('thin');
+        expect(r.border.top?.style).toBe('medium');
+        expect(r.alignment?.horizontal).toBe('center');
+        expect(r.alignment?.wrapText).toBe(true);
+    });
+    it('自訂 numFmt code 回寫並可解析', () => {
+        const xf = parsedStyles.cellXfs[a1.styleIndex!];
+        expect(numberFormatCode(parsedStyles, xf.numFmtId)).toBe('#,##0.00');
     });
 });

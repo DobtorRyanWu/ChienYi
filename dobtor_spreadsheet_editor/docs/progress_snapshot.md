@@ -1,17 +1,17 @@
 # 進度快照（Progress Snapshot）
 
-**最後更新**：2026-06-07（Sprint 19）
+**最後更新**：2026-06-07（Sprint 20）
 
 ## 當前指標一覽
 
 | 指標 | 值 | 目標 | 狀態 |
 |---|---|---|---|
-| 當前 Phase | 1+2 + VR + Phase 4.5（可編輯/邊框/公式）+ Phase 6（xlsx 匯出） | — | in_progress |
-| Sprint 編號 | 19 | — | — |
-| vitest unit tests | 209 / 209 passed | > 500（Phase 1+ 後） | 🟢 |
+| 當前 Phase | 1+2 + VR + Phase 4.5（可編輯/邊框/公式）+ Phase 6（高保真匯出） | — | in_progress |
+| Sprint 編號 | 20 | — | — |
+| vitest unit tests | 211 / 211 passed | > 500（Phase 1+ 後） | 🟢 |
 | vitest integration | 338 / 338 passed（+ VR baseline skipIf 手動） | > 200 | 🟢 **達標** |
-| vitest 總計 | 547 / 547 passed（+1 VR skipped）+ Playwright E2E 1 | — | 🟢 |
-| **雙向 round-trip** | parse→writer→re-parse 值一致 >99.9%；下載檔 openpyxl + LibreOffice 開啟驗證 | — | 🟢 |
+| vitest 總計 | 549 / 549 passed（+1 VR skipped）+ Playwright E2E 1 | — | 🟢 |
+| **高保真匯出** | 樣式回寫（font/fill/border/numFmt）；下載檔 openpyxl+LibreOffice 驗證含粗體/邊框/格式 | — | 🟢 |
 | **Odoo 整合** | 選單掛 OCA 底下；HTML 預覽 + 「在 o-spreadsheet 開啟（可編輯）」 | — | 🟢 **Playwright E2E 驗證通過**（預覽 + 可編輯 grid 掛起） |
 | number format 渲染 | 千分位/貨幣/百分比/會計負數/字面，13 測試 | — | 🟢 |
 | **VR content diff**（純內容） | **11.4% / 12.4% / 19.3%**（字型保真後） | <5%（終極） | 🟡 收斂中（餘為佈局 metrics） |
@@ -35,7 +35,7 @@
 | Phase 4（CF/Validation） | 30+ | 0 | 0% |
 | Phase 4.5（產品化） | 25+ | 5 | 20%（ConcreteStyle + HTML 預覽入口 + Odoo UI + to_ospreadsheet 轉換器 + OCA 記錄對接） |
 | Phase 5（Pivot/Chart） | 40+ | 0 | 0% |
-| Phase 6（Export） | 15+ | 1 | 7%（xlsx_writer：值/公式/合併/多sheet/sharedStrings round-trip；樣式回寫待續） |
+| Phase 6（Export） | 15+ | 2 | 13%（xlsx_writer：值/公式/合併/多sheet/sharedStrings + 樣式回寫 font/fill/border/numFmt） |
 | Phase 7（效能） | 10+ | 0 | 0% |
 | Phase 8（ChienYi 整合） | (待認可) | — | — |
 

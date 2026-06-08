@@ -68,6 +68,7 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | Sprint | Topic | Audit Doc |
 |---|---|---|
 | 19 | **匯出回 xlsx**：xlsx_writer（fflate 打 OOXML：值/公式/合併/多sheet/sharedStrings/minimal styles）+ exportXlsxFromBuffer + OWL 下載按鈕；round-trip 值一致 >99.9%、下載檔 openpyxl+LibreOffice 驗證 | [sprint19_xlsx_export.md](sprint19_xlsx_export.md) |
+| 20 | **樣式回寫（高保真匯出）**：StyleSheetBuilder（ConcreteStyle → styles.xml fonts/fills/borders/numFmts/cellXfs 池）+ WorksheetParser 收空白樣式格 → 邊框/粗體/填色/numFmt round-trip；openpyxl 驗下載檔含樣式 | [sprint20_style_writeback.md](sprint20_style_writeback.md) |
 
 ## Phase 4 VR pipeline（跨 Phase 基礎建設）
 

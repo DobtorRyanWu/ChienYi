@@ -51,8 +51,11 @@ describe('WorksheetParser — 結構', () => {
     it('mergeCells', () => {
         expect(ws.merges).toEqual(['A1:B1']);
     });
-    it('空樣式格（B3 只有 s）不進 cells', () => {
-        expect(ws.cells.find((c) => c.ref === 'B3')).toBeUndefined();
+    it('空樣式格（B3 只有 s）會被收（匯出/渲染保真）、但 raw 為空', () => {
+        const b3 = ws.cells.find((c) => c.ref === 'B3');
+        expect(b3).toBeDefined();
+        expect(b3?.raw).toBeUndefined();
+        expect(b3?.styleIndex).toBe(2);
     });
     it('公式 cell 捕捉 <f> 與 cached <v>', () => {
         const a3 = ws.cells.find((c) => c.ref === 'A3');
