@@ -64,7 +64,7 @@ class PaymentEstimate(models.Model):
         headers = [h for h, _f in self._SSE_COLUMNS]
         cells = {"A1": {"content": self.name or "估驗計價", "style": 1}}
         for c, header in enumerate(headers, start=1):
-            cells["%s2" % self._sse_col_letter(c)] = {"content": header, "style": 1}
+            cells["%s2" % self._sse_col_letter(c)] = {"content": header, "style": 2}
         lines = self.line_ids.sorted(key=lambda r: (r.sequence or 0, r.id))
         # 金額欄改即時公式：H 本次估驗金額 = 單價(F) × 本次估驗數量(G)；J 累計估驗金額 = 單價(F) × 累計數量(I)
         formula_cols = {"estimate_amount": "=F%d*G%d", "cumulative_estimate_amount": "=F%d*I%d"}
@@ -93,6 +93,7 @@ class PaymentEstimate(models.Model):
                     continue
                 if field in numeric_fields:
                     cell["format"] = "#,##0.00"
+                    cell["style"] = 3  # 數字右對齊
                 cells["%s%d" % (col, r)] = cell
         n_rows = max(len(lines) + 2, 1)
         n_cols = max(len(headers), 1)
@@ -100,9 +101,9 @@ class PaymentEstimate(models.Model):
         if lines:
             last = len(lines) + 2
             sub = last + 1
-            cells["B%d" % sub] = {"content": "小計", "style": 1}
-            cells["H%d" % sub] = {"content": "=SUM(H3:H%d)" % last, "style": 1, "format": "#,##0.00"}
-            cells["J%d" % sub] = {"content": "=SUM(J3:J%d)" % last, "style": 1, "format": "#,##0.00"}
+            cells["B%d" % sub] = {"content": "小計", "style": 4}
+            cells["H%d" % sub] = {"content": "=SUM(H3:H%d)" % last, "style": 5, "format": "#,##0.00"}
+            cells["J%d" % sub] = {"content": "=SUM(J3:J%d)" % last, "style": 5, "format": "#,##0.00"}
             n_rows = sub
         # 欄寬（px，0-based 欄索引）：項目編號/說明/單位/數值欄
         col_px = [72, 300, 48, 84, 84, 84, 96, 110, 96, 110]
@@ -121,9 +122,17 @@ class PaymentEstimate(models.Model):
                     "rows": {},
                     "conditionalFormats": [],
                     "figures": [],
+                    # 凍結標題 + 表頭兩列（卷動時固定）
+                    "panes": {"xSplit": 0, "ySplit": 2},
                 }
             ],
-            "styles": {1: {"bold": True}},
+            "styles": {
+                1: {"bold": True},
+                2: {"bold": True, "align": "center", "fillColor": "#D9E1F2"},  # 表頭
+                3: {"align": "right"},  # 數字右對齊
+                4: {"bold": True, "fillColor": "#FCE4D6"},  # 小計標籤
+                5: {"bold": True, "align": "right", "fillColor": "#FCE4D6"},  # 小計數字
+            },
             "formats": {},
             "borders": {},
         }
