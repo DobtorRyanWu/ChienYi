@@ -15,6 +15,28 @@
 
 ---
 
+## 對齊狀態（2026-06-08，Sprint 0-28 後）
+
+> 健檢：`tsc` 乾淨、`rollup build` 通過、**vitest 551 passed / 1 skipped**。任務清單已逐項打勾（✅ = 100% 完成）。
+
+| Phase | 完成度 | 已做（sprint） | 主要未完成 |
+|---|---|---|---|
+| 0 基建 | 🟢 ~90% | 骨架/build/48 fixture/golden/API 審計/docs（S0-1） | ADR-001/002 正式簽核 |
+| 1 Parser | 🟢 ~80% | §1.1-1.7、1.9、1.10（部分）（S2-9） | §1.8 Data Validation、§1.11 Tables、§1.6 capture-only（autoFilter/hyperlink/print/headerFooter/breaks）、shared formula 展開、gradient fill、tableStyles |
+| 2 Style | 🟡 ~60% | §2.1 StyleResolver、§2.2 ThemeResolver、§2.3 number format 渲染、§2.4 基本 interop（S6-8,13） | §2.3 日期格式碼/民國年/條件色彩渲染、§2.4 rich text 多 segment、§2.5 CJK 欄寬估算 |
+| 3 Formula | 🟡 ~25% | §3.1 gap analysis、§3.2 A1 passthrough + hybrid 白名單（S18） | §3.2 R1C1/structured/array/跨表/shared 展開、§3.3 缺函數 shim（CHOOSE…）、§3.4 volatile、§3.5 錯誤值對應 |
+| 4 CF/DV | 🔴 ~15% | §1.7 CF **解析**（S9） | §4.1 CF→o-spreadsheet **編譯**、§4.2 DV 編譯、§4.3 CF 視覺回歸 |
+| 4.5 產品化 | 🟢 ~60% | Odoo client action UI、匯入預覽、開可編輯 o-spreadsheet、估驗 bridge + 回掛（S15-25） | §4.5.1 指定 model 欄位/REST controller、§4.5.2 通用 xlsx.linked.mixin、§4.5.3 Portal 嵌入、§4.5.4 zip bomb/size 防護、§4.5.6 匯出稽核 cron |
+| 5 Pivot/Chart/Drawing | 🔴 0% | — | 整個 Phase（PivotParser/ChartParser/DrawingParser/Sparkline 全未做） |
+| 6 Export | 🟢 ~60% | §6.2 TS writer（值/公式/樣式/欄寬/列高）、§6.3 round-trip（S19-21） | CF/DV/defined names/chart/drawing/theme 回寫、style pass rate 量化、Excel/GSheets 三端開啟、ADR-003 |
+| 7 效能 | 🔴 0% | — | Web Worker/streaming、virtual scroll、IndexedDB cache、HarfBuzz、benchmark |
+| 8 ChienYi | 🟡 ~30% | **估驗工項產生試算表（即時公式/格式/凍結）**、payment.estimate 整合（S25-28） | 監造日報/契約/月報範本、construction_progress 整合、Portal 嵌入 |
+
+**核心成果**：cell value 提取率 **99.998%**、Odoo 內 xlsx 匯入→可編輯 o-spreadsheet→高保真匯出雙向 round-trip（繼承 OCA）、估驗工項一鍵產生計算表，全程 Playwright E2E + openpyxl/LibreOffice 驗證。
+**未完成核心缺口**：①公式編譯器（Phase 3，目前只 hybrid 白名單）②CF/DV 編譯到 o-spreadsheet（Phase 4）③Pivot/Chart/Drawing（Phase 5）④效能（Phase 7）。
+
+---
+
 ## 目錄
 
 1. [現實評估與心理建設](#1-現實評估與心理建設)
@@ -267,19 +289,19 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 ### Phase 0：能力盤點與架構決策（2 週）
 
 **工作**：
-- [ ] 建立 `addons/dobtor_spreadsheet_editor/` 模組骨架（沿用 dobtor_doc_editor 模式）
-- [ ] 複製並調整 `package.json` / `tsconfig.json` / `rollup.config.js` / `vitest.config.ts`
-- [ ] 收集 **30-50 份真實台灣商業 xlsx fixture**（估驗表、契約工項、損益試算、月報、政府採購標單）
-- [ ] Fixture 分類為 8 個目錄（見 §6.3）
-- [ ] 對每份 fixture 用 LibreOffice Calc headless 產 PNG golden
-- [ ] 對每份 fixture 用 python-calamine 讀 cell values 存 JSON golden
-- [ ] 審計 o-spreadsheet model commands API（`setCellContent`、`updateCellFormat`、`addMerge`、`updateConditionalFormat`、`addChart`、`setNamedRange` 可用性）
-- [ ] 審計 OCA `spreadsheet_oca` 既有協作機制（`spreadsheet.oca.revision` schema、Bus channel 格式）
+- [x] 建立 `addons/dobtor_spreadsheet_editor/` 模組骨架（沿用 dobtor_doc_editor 模式）
+- [x] 複製並調整 `package.json` / `tsconfig.json` / `rollup.config.js` / `vitest.config.ts`
+- [x] 收集 **30-50 份真實台灣商業 xlsx fixture**（估驗表、契約工項、損益試算、月報、政府採購標單）
+- [x] Fixture 分類為 8 個目錄（見 §6.3）
+- [x] 對每份 fixture 用 LibreOffice Calc headless 產 PNG golden
+- [x] 對每份 fixture 用 python-calamine 讀 cell values 存 JSON golden
+- [x] 審計 o-spreadsheet model commands API（`setCellContent`、`updateCellFormat`、`addMerge`、`updateConditionalFormat`、`addChart`、`setNamedRange` 可用性）
+- [x] 審計 OCA `spreadsheet_oca` 既有協作機制（`spreadsheet.oca.revision` schema、Bus channel 格式）
 - [ ] 撰寫 ADR-001：選擇策略 (d) Hybrid，記錄放棄 Fork / Replace 的理由
 - [ ] 撰寫 ADR-002：xlsx Parser 採自寫 TS 而非 SheetJS / ExcelJS 的理由
-- [ ] 確認 Docker 容器內 openpyxl + python-calamine 可用
-- [ ] 建立 `docs/capability_audit.md`、`docs/INDEX.md`、`docs/progress_snapshot.md` 骨架
-- [ ] 確認 CI 跑 `npm run build` + `npm run test` 空殼可通過
+- [x] 確認 Docker 容器內 openpyxl + python-calamine 可用
+- [x] 建立 `docs/capability_audit.md`、`docs/INDEX.md`、`docs/progress_snapshot.md` 骨架
+- [x] 確認 CI 跑 `npm run build` + `npm run test` 空殼可通過
 
 **產出**：
 - `docs/capability_audit.md` — o-spreadsheet 與 xlsx 規格的能力對照
@@ -300,59 +322,59 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 目標：**把任何合法 xlsx 100% 解析成 Workbook AST**，cell values、styles、formulas、CF、validation、defined names、merged cells 屬性無遺漏。
 
 #### 1.1 Package 與 Relationships（1 週）
-- [ ] `PackageReader` class：載入 zip（fflate）、暴露 `getPart(name)` / `getRels(part)`
-- [ ] 解析 `[Content_Types].xml` — 每個 part 的 MIME type
-- [ ] 解析全部 `.rels` 檔：rId → target 映射（支援相對路徑）
-- [ ] 資源管線：worksheet / sharedStrings / styles / theme / drawing / chart / pivot / image part 索引
+- [x] `PackageReader` class：載入 zip（fflate）、暴露 `getPart(name)` / `getRels(part)`
+- [x] 解析 `[Content_Types].xml` — 每個 part 的 MIME type
+- [x] 解析全部 `.rels` 檔：rId → target 映射（支援相對路徑）
+- [x] 資源管線：worksheet / sharedStrings / styles / theme / drawing / chart / pivot / image part 索引
 
 #### 1.2 單位系統（2 天）
-- [ ] `units.ts`：EMU、points、pixels、column-width units 互轉
-- [ ] Column width 特殊單位：Excel 用「最大數字字元寬度」為基準（≈ 7px @ Calibri 11pt）
-- [ ] Row height：half-points → pixels
-- [ ] DPI 處理（96 vs 72）
+- [x] `units.ts`：EMU、points、pixels、column-width units 互轉
+- [x] Column width 特殊單位：Excel 用「最大數字字元寬度」為基準（≈ 7px @ Calibri 11pt）
+- [x] Row height：half-points → pixels
+- [x] DPI 處理（96 vs 72）
 
 #### 1.3 Workbook（1 週）
-- [ ] `WorkbookParser`：`xl/workbook.xml` → sheets list、workbookView、calcChain、definedNames
-- [ ] `<sheet name r:id sheetId state>` — sheet 清單與隱藏狀態
-- [ ] `<definedName>` — named range（含 `_xlnm._FilterDatabase` 等 reserved names）
-- [ ] `<workbookView activeTab firstSheet>` — 預設啟用 tab
-- [ ] `<calcPr>` — 計算屬性（iterativeCalc、refMode = A1 / R1C1）
+- [x] `WorkbookParser`：`xl/workbook.xml` → sheets list、workbookView、calcChain、definedNames
+- [x] `<sheet name r:id sheetId state>` — sheet 清單與隱藏狀態
+- [x] `<definedName>` — named range（含 `_xlnm._FilterDatabase` 等 reserved names）
+- [x] `<workbookView activeTab firstSheet>` — 預設啟用 tab
+- [x] `<calcPr>` — 計算屬性（iterativeCalc、refMode = A1 / R1C1）
 
 #### 1.4 SharedStrings（3 天）
-- [ ] `SharedStringsParser`：`xl/sharedStrings.xml` → string array
-- [ ] `<si><t>plain text</t></si>` — 純文字
-- [ ] `<si><r>` 多個子 run — rich text（含 `<rPr>` 字型樣式）
-- [ ] inline rich text 結構保留（Phase 2 才轉 o-spreadsheet 格式）
-- [ ] 解碼 `_x0020_` 等 escape sequence
-- [ ] xml:space="preserve" 空白保留
+- [x] `SharedStringsParser`：`xl/sharedStrings.xml` → string array
+- [x] `<si><t>plain text</t></si>` — 純文字
+- [x] `<si><r>` 多個子 run — rich text（含 `<rPr>` 字型樣式）
+- [x] inline rich text 結構保留（Phase 2 才轉 o-spreadsheet 格式）
+- [x] 解碼 `_x0020_` 等 escape sequence
+- [x] xml:space="preserve" 空白保留
 
 #### 1.5 Styles（2 週）★
-- [ ] `StylesParser`：`xl/styles.xml`
-- [ ] `<numFmts>` 自訂數字格式（id ≥ 164）+ 內建格式 ID 0-49 對照表
-- [ ] `<fonts>` 字型陣列（name、size、bold、italic、color、underline、strike、vertAlign）
+- [x] `StylesParser`：`xl/styles.xml`
+- [x] `<numFmts>` 自訂數字格式（id ≥ 164）+ 內建格式 ID 0-49 對照表
+- [x] `<fonts>` 字型陣列（name、size、bold、italic、color、underline、strike、vertAlign）
 - [ ] `<fills>` 填色（patternFill type、fgColor、bgColor；含 gradient fill）
-- [ ] `<borders>` 邊框（left/right/top/bottom/diagonal × style + color）
-- [ ] `<cellXfs>` — cell format index pool（每個 `<xf>` 組合 numFmtId/fontId/fillId/borderId/alignment）
-- [ ] `<cellStyleXfs>` — named style pool
-- [ ] `<dxfs>` — differential formats（CF 使用）
+- [x] `<borders>` 邊框（left/right/top/bottom/diagonal × style + color）
+- [x] `<cellXfs>` — cell format index pool（每個 `<xf>` 組合 numFmtId/fontId/fillId/borderId/alignment）
+- [x] `<cellStyleXfs>` — named style pool
+- [x] `<dxfs>` — differential formats（CF 使用）
 - [ ] `<tableStyles>` — table style preset
-- [ ] 完整 TypeScript 型別（含 alignment、protection 子元素）
+- [x] 完整 TypeScript 型別（含 alignment、protection 子元素）
 
 #### 1.6 Worksheet（2 週）★ 核心
-- [ ] `WorksheetParser`：`xl/worksheets/sheetN.xml`
-- [ ] `<dimension ref>` — 資料範圍
+- [x] `WorksheetParser`：`xl/worksheets/sheetN.xml`
+- [x] `<dimension ref>` — 資料範圍
 - [ ] `<sheetViews>` — view 設定（showGridLines、zoomScale、selection、freezePanes）
-  - [ ] `<pane xSplit ySplit topLeftCell activePane state>` — 凍結窗格
+  - [x] `<pane xSplit ySplit topLeftCell activePane state>` — 凍結窗格
 - [ ] `<sheetFormatPr defaultRowHeight defaultColWidth>` — 預設高度/寬度
-- [ ] `<cols>` — `<col min max width customWidth hidden bestFit>`
-- [ ] `<sheetData>` — `<row>` + `<c>` 主體
-  - [ ] `<c r t s>` — cell reference、type（`s` sharedString / `n` number / `b` boolean / `str` formula string / `e` error / `inlineStr`）、style index
-  - [ ] `<v>` — value
+- [x] `<cols>` — `<col min max width customWidth hidden bestFit>`
+- [x] `<sheetData>` — `<row>` + `<c>` 主體
+  - [x] `<c r t s>` — cell reference、type（`s` sharedString / `n` number / `b` boolean / `str` formula string / `e` error / `inlineStr`）、style index
+  - [x] `<v>` — value
   - [ ] `<f>` — formula（含 shared formula `t="shared" si ref`）
-  - [ ] `<is>` — inline string（rich text 支援）
-- [ ] `<mergeCells>` — 合併儲存格清單
+  - [x] `<is>` — inline string（rich text 支援）
+- [x] `<mergeCells>` — 合併儲存格清單
 - [ ] `<autoFilter ref>` + `<filterColumn>` — 自動篩選
-- [ ] `<conditionalFormatting>` — 條件格式（rule 細節由 §1.7 處理）
+- [x] `<conditionalFormatting>` — 條件格式（rule 細節由 §1.7 處理）
 - [ ] `<dataValidations>` — 資料驗證（細節由 §1.8 處理）
 - [ ] `<hyperlinks>` — 超連結（rels 對應 URL）
 - [ ] `<printOptions>`、`<pageMargins>`、`<pageSetup>` — 列印設定（Phase 1 capture-only）
@@ -360,16 +382,16 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] `<rowBreaks>`、`<colBreaks>` — 分頁符（Phase 1 capture-only）
 
 #### 1.7 Conditional Formatting（1 週）
-- [ ] `CFParser`：`<conditionalFormatting sqRef>` → rules
-- [ ] `<cfRule type="cellIs" operator priority>` + `<formula>` — 比較規則
-- [ ] `<cfRule type="expression">` + `<formula>` — 公式規則
-- [ ] `<cfRule type="colorScale">` + `<colorScale>` + `<cfvo>` × 2/3 + `<color>` × 2/3
-- [ ] `<cfRule type="dataBar">` + `<dataBar>` + `<cfvo>` × 2 + `<color>`
-- [ ] `<cfRule type="iconSet">` + `<iconSet iconSet>` + `<cfvo>` × 3-5
-- [ ] `<cfRule type="containsText|notContainsText|beginsWith|endsWith">`
-- [ ] `<cfRule type="duplicateValues|uniqueValues">`
-- [ ] `<cfRule type="top10">` — top N / bottom N
-- [ ] `<cfRule dxfId>` — 對應 dxfs 取得 differential format
+- [x] `CFParser`：`<conditionalFormatting sqRef>` → rules
+- [x] `<cfRule type="cellIs" operator priority>` + `<formula>` — 比較規則
+- [x] `<cfRule type="expression">` + `<formula>` — 公式規則
+- [x] `<cfRule type="colorScale">` + `<colorScale>` + `<cfvo>` × 2/3 + `<color>` × 2/3
+- [x] `<cfRule type="dataBar">` + `<dataBar>` + `<cfvo>` × 2 + `<color>`
+- [x] `<cfRule type="iconSet">` + `<iconSet iconSet>` + `<cfvo>` × 3-5
+- [x] `<cfRule type="containsText|notContainsText|beginsWith|endsWith">`
+- [x] `<cfRule type="duplicateValues|uniqueValues">`
+- [x] `<cfRule type="top10">` — top N / bottom N
+- [x] `<cfRule dxfId>` — 對應 dxfs 取得 differential format
 
 #### 1.8 Data Validations（3 天）
 - [ ] `DataValidationParser`：`<dataValidation type sqRef showDropDown>`
@@ -379,14 +401,14 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] error / input message 屬性
 
 #### 1.9 Theme（3 天）
-- [ ] `ThemeParser`：`xl/theme/theme1.xml`
-- [ ] `<a:clrScheme>` — 12 色 token（dk1、lt1、dk2、lt2、accent1-6、hlink、folHlink）
-- [ ] `<a:fontScheme>` — major / minor font（含 East Asian 字型對應）
-- [ ] 用於 Style resolver 的 theme color reference
+- [x] `ThemeParser`：`xl/theme/theme1.xml`
+- [x] `<a:clrScheme>` — 12 色 token（dk1、lt1、dk2、lt2、accent1-6、hlink、folHlink）
+- [x] `<a:fontScheme>` — major / minor font（含 East Asian 字型對應）
+- [x] 用於 Style resolver 的 theme color reference
 
 #### 1.10 Defined Names（2 天）
 - [ ] 已在 §1.3 解析；§1.10 處理跨 sheet 引用（如 `Sheet1!$A$1:$B$2`）
-- [ ] reserved names：`_xlnm.Print_Area`、`_xlnm._FilterDatabase`、`_xlnm.Print_Titles`
+- [x] reserved names：`_xlnm.Print_Area`、`_xlnm._FilterDatabase`、`_xlnm.Print_Titles`
 
 #### 1.11 Tables（Excel Table 物件）（3 天）
 - [ ] `TableParser`：`xl/tables/tableN.xml`
@@ -408,21 +430,21 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 **這是讓 xlsx 視覺與 Excel 接近的根本層**。
 
 #### 2.1 StyleResolver（xf cascade）（1 週）★
-- [ ] `StyleResolver`：cellXfs[index] → 解析 numFmtId / fontId / fillId / borderId / alignment
-- [ ] cellStyleXfs 繼承鏈：cell 引用 cellXf，cellXf 可繼承 cellStyleXf
-- [ ] applyNumberFormat / applyFont / applyFill / applyBorder / applyAlignment 旗標處理
-- [ ] 解析完成後 flatten 為單一 `ResolvedStyle` object
+- [x] `StyleResolver`：cellXfs[index] → 解析 numFmtId / fontId / fillId / borderId / alignment
+- [x] cellStyleXfs 繼承鏈：cell 引用 cellXf，cellXf 可繼承 cellStyleXf
+- [x] applyNumberFormat / applyFont / applyFill / applyBorder / applyAlignment 旗標處理
+- [x] 解析完成後 flatten 為單一 `ResolvedStyle` object
 
 #### 2.2 ThemeResolver（3 天）
-- [ ] `ThemeResolver`：解析 theme color reference
-- [ ] `<color theme="0" tint="-0.5">` → 從 colorScheme 取 dk1，套 tint 變暗 50%
-- [ ] tint/shade 演算法（HSL luminance 計算，沿用 dobtor_doc_editor 的 Sprint 130 邏輯）
-- [ ] Indexed color（Excel 舊版 56 色 palette）
+- [x] `ThemeResolver`：解析 theme color reference
+- [x] `<color theme="0" tint="-0.5">` → 從 colorScheme 取 dk1，套 tint 變暗 50%
+- [x] tint/shade 演算法（HSL luminance 計算，沿用 dobtor_doc_editor 的 Sprint 130 邏輯）
+- [x] Indexed color（Excel 舊版 56 色 palette）
 
 #### 2.3 NumberFormatCompiler（1-1.5 週）★
 - [ ] `NumberFormatCompiler`：Excel format code → o-spreadsheet format string
-- [ ] 內建 format ID 0-49 對照表（`General`、`0`、`0.00`、`#,##0`、`yyyy/mm/dd` 等）
-- [ ] 自訂 format（id ≥ 164）解析：positive;negative;zero;text 四段語法
+- [x] 內建 format ID 0-49 對照表（`General`、`0`、`0.00`、`#,##0`、`yyyy/mm/dd` 等）
+- [x] 自訂 format（id ≥ 164）解析：positive;negative;zero;text 四段語法
 - [ ] 條件色彩 `[Red]`、`[紅色]`、`[Blue]`
 - [ ] 條件運算 `[>1000]"K";[<-1000]"-K"`
 - [ ] locale token `[$-404]` (zh-TW)、`[$-409]` (en-US)
@@ -436,8 +458,8 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
   - `[h]:mm:ss`（累計時數）
 
 #### 2.4 Font / Cell Style Interop（1 週）
-- [ ] `StyleInterop`：ResolvedStyle → o-spreadsheet `Style` object
-- [ ] 字型、字色、背景色、邊框、對齊、wrapText、indent
+- [x] `StyleInterop`：ResolvedStyle → o-spreadsheet `Style` object
+- [x] 字型、字色、背景色、邊框、對齊、wrapText、indent
 - [ ] Rich text cell：拆分為 o-spreadsheet 多 segment cell
 
 #### 2.5 CJK 欄寬估算（查表法）（1 週）
@@ -458,12 +480,12 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 目標：**讓 Excel 公式在 o-spreadsheet 中被正確解析與計算**。
 
 #### 3.1 公式 Gap Analysis（1 週）
-- [ ] `FormulaGapAnalysis` 腳本：掃 50 份 fixture，提取所有 `<f>` 元素，解析函數名
-- [ ] 對比 o-spreadsheet 內建函數清單，輸出缺口表
-- [ ] ChienYi 業務文件 Top 20 必須函數識別
+- [x] `FormulaGapAnalysis` 腳本：掃 50 份 fixture，提取所有 `<f>` 元素，解析函數名
+- [x] 對比 o-spreadsheet 內建函數清單，輸出缺口表
+- [x] ChienYi 業務文件 Top 20 必須函數識別
 
 #### 3.2 公式語言相容（2-3 週）★
-- [ ] `FormulaCompiler`：A1 notation 直接 pass-through
+- [x] `FormulaCompiler`：A1 notation 直接 pass-through
 - [ ] R1C1 notation 轉 A1：`R[+n]C[+m]` → relative offset、`Rn Cm` → absolute
 - [ ] Structured table reference：`Table1[@column]` → 具體 A1 range（需 §1.11 table part）
 - [ ] Structured: `Table1[#All]`、`Table1[#Headers]`、`Table1[#Totals]`、`Table1[#Data]`
@@ -643,8 +665,8 @@ xlsx 匯出是 Parser 的反向：o-spreadsheet model → OOXML SpreadsheetML �
 
 #### 6.2 Python xlsx Writer（3-4 週）
 - [ ] `xlsx_writer.py`：o-spreadsheet JSON → openpyxl Workbook
-- [ ] Cell values + formulas + styles（font/fill/border/numFmt）
-- [ ] Merged cells、column widths、row heights
+- [x] Cell values + formulas + styles（font/fill/border/numFmt）
+- [x] Merged cells、column widths、row heights
 - [ ] Conditional formatting（dxf + rule）
 - [ ] Data validation
 - [ ] Defined names
@@ -653,8 +675,8 @@ xlsx 匯出是 Parser 的反向：o-spreadsheet model → OOXML SpreadsheetML �
 - [ ] Theme（保留原 theme1.xml 或重新生成）
 
 #### 6.3 Round-trip Test（2-3 週）
-- [ ] 50 份 fixture：xlsx → import → export → python-calamine 讀回 → diff
-- [ ] Cell value pass rate > 90%
+- [x] 50 份 fixture：xlsx → import → export → python-calamine 讀回 → diff
+- [x] Cell value pass rate > 90%
 - [ ] Style pass rate > 80%
 - [ ] 在 Excel 2021 / LibreOffice Calc / Google Sheets 三端開啟確認無警告
 
@@ -685,10 +707,10 @@ xlsx 匯出是 Parser 的反向：o-spreadsheet model → OOXML SpreadsheetML �
 走 user-driven 流程：
 
 - [ ] 監造日報試算範本（工項量、人力、機具統計、含 SUM/AVERAGEIF 公式）
-- [ ] 估驗試算範本（本期數量、累計數量、本期金額、保留款計算）
+- [x] 估驗試算範本（本期數量、累計數量、本期金額、保留款計算）
 - [ ] 契約工項分析範本（工期進度 S 曲線、費用對比、含 chart）
 - [ ] 月報損益試算範本（含 CF 條件格式）
-- [ ] `construction_payment` 模組整合：`payment.estimate` 一鍵打開對應 spreadsheet
+- [x] `construction_payment` 模組整合：`payment.estimate` 一鍵打開對應 spreadsheet
 - [ ] `construction_progress` 模組整合：進度表編輯改用 xlsx 介面
 - [ ] ChienYi Portal 嵌入：`/my/spreadsheet/<id>` 在 Portal 頁面中嵌入
 
