@@ -4394,6 +4394,76 @@
         const { y, m, d } = excelSerialToYmd(serial);
         return `${String(y).padStart(4, '0')}-${pad2(m)}-${pad2(d)}`;
     }
+    const MINGUO_EPOCH = 1911; // 民國元年 = 西元 1912；民國年 = 西元年 - 1911
+    /**
+     * 依 Excel 日期格式碼渲染日期字串（§2.3）——支援台灣常見格式含**民國年**。
+     * token：yyyy/yy（西元）、e/ee（民國年 = y-1911）、gg/g（→「民國」）、m/mm（月）、d/dd（日）、
+     * "字面"、\跳脫、其餘字元（/ . 年 月 日 - 空白）原樣輸出。去 [$-xxx] locale、取 ';' 前第一段。
+     * 非日期格式（無 y/m/d/e token）回 undefined。
+     */
+    function formatExcelDateByCode(serial, code) {
+        return formatYmdByCode(excelSerialToYmd(serial), code);
+    }
+    /** 同 formatExcelDateByCode，但輸入已是 (y,m,d)（給已轉 ISO 字串的 render 路徑重用）。*/
+    function formatYmdByCode(ymd, code) {
+        const fmt = code.split(';')[0].replace(/\[\$-[0-9A-Fa-f]+\]/g, '').replace(/\[[^\]]*\]/g, '');
+        if (!fmt)
+            return undefined;
+        const { y, m, d } = ymd;
+        const minguo = y - MINGUO_EPOCH;
+        let out = '';
+        let i = 0;
+        let sawDateToken = false;
+        while (i < fmt.length) {
+            const ch = fmt[i];
+            if (ch === '"') {
+                const end = fmt.indexOf('"', i + 1);
+                if (end === -1) {
+                    out += fmt.slice(i + 1);
+                    break;
+                }
+                out += fmt.slice(i + 1, end);
+                i = end + 1;
+                continue;
+            }
+            if (ch === '\\') {
+                if (i + 1 < fmt.length)
+                    out += fmt[i + 1];
+                i += 2;
+                continue;
+            }
+            const lower = ch.toLowerCase();
+            if ('yemdg'.includes(lower)) {
+                let j = i;
+                while (j < fmt.length && fmt[j].toLowerCase() === lower)
+                    j++;
+                const len = j - i;
+                i = j;
+                sawDateToken = true;
+                switch (lower) {
+                    case 'y':
+                        out += len <= 2 ? String(y % 100).padStart(2, '0') : String(y);
+                        break;
+                    case 'e':
+                        out += len >= 2 ? String(minguo).padStart(2, '0') : String(minguo);
+                        break;
+                    case 'g':
+                        out += '民國';
+                        break; // [$-404] gg = 民國
+                    case 'm':
+                        out += len >= 2 ? pad2(m) : String(m);
+                        break; // date-only 格式：m=月
+                    case 'd':
+                        out += len >= 2 ? pad2(d) : String(d);
+                        break;
+                }
+                continue;
+            }
+            out += ch;
+            i++;
+        }
+        return sawDateToken ? out : undefined;
+    }
 
     // number_formatter.ts — Excel number format code → 顯示字串（規劃書 §2.3 完整版子集）
     //
@@ -5040,6 +5110,8 @@
     // 這是「model → DOM」的第一條 render 路徑：把解析出的 cell 值 + 具體樣式 render 成 HTML <table>，
     // 供 puppeteer 光柵化成 PNG。注意：HTML 佈局引擎與 LibreOffice 不同，與 golden 的像素差異會偏高，
     // 本路徑用於建立 VR 管線與自洽回歸基準，而非一步到位的 LibreOffice 像素對等。
+    // 已轉 ISO 的日期字串（buildValueMapStyled 對日期格輸出 YYYY-MM-DD）
+    const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     // 安全上限放寬以涵蓋完整 sheet（golden 為完整首 sheet），避免截斷造成尺寸不匹配假性差異。
     const DEFAULT_MAX_ROWS = 500;
     const DEFAULT_MAX_COLS = 80;
@@ -5166,10 +5238,19 @@
                 const span = merge ? ` colspan="${merge.colspan}" rowspan="${merge.rowspan}"` : '';
                 const style = resolver.resolve(styleIndexMap.get(key));
                 const raw = valueMap.get(key);
-                // 數字 + 非 General numFmt → 套完整 number format（千分位/貨幣/百分比）；其餘原樣
-                const display = typeof raw === 'number' && style.numFmtCode && style.numFmtCode !== 'General'
-                    ? formatNumber(raw, style.numFmtCode)
-                    : valueToText(raw);
+                // 數字 + 非 General numFmt → number format（千分位/貨幣/百分比）；
+                // 已轉 ISO 的日期字串 + 日期格式碼 → 日期格式（含民國年）；其餘原樣。
+                let display;
+                if (typeof raw === 'number' && style.numFmtCode && style.numFmtCode !== 'General') {
+                    display = formatNumber(raw, style.numFmtCode);
+                }
+                else if (typeof raw === 'string' && style.numFmtCode && ISO_DATE_RE.test(raw)) {
+                    const [yy, mm, dd] = raw.split('-').map((n) => parseInt(n, 10));
+                    display = formatYmdByCode({ y: yy, m: mm, d: dd }, style.numFmtCode) ?? valueToText(raw);
+                }
+                else {
+                    display = valueToText(raw);
+                }
                 cells.push(`<td${span} style="${cellCss(style, colW[c], rowHpx)}">${esc(display)}</td>`);
             }
             rowsHtml.push(`<tr>${cells.join('')}</tr>`);
@@ -5588,6 +5669,17 @@
             }
             else if (value !== '') {
                 oCell.content = toContent(value);
+                // 日期格式：依格式碼渲染（含民國年 e/gg）覆蓋 ISO 顯示（僅顯示路徑，提取/golden 不變）
+                if (cell.raw !== undefined &&
+                    isDateNumberFormat(styles, concrete.numFmtId) &&
+                    concrete.numFmtCode) {
+                    const serial = Number(cell.raw);
+                    if (Number.isFinite(serial)) {
+                        const formatted = formatExcelDateByCode(serial, concrete.numFmtCode);
+                        if (formatted)
+                            oCell.content = formatted;
+                    }
+                }
             }
             if (oStyle)
                 oCell.style = stylePool.intern(oStyle);

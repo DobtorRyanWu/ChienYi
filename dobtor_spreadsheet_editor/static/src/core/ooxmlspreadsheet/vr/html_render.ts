@@ -12,8 +12,12 @@ import type { ParsedStyles } from '../styles_parser';
 import type { ParsedTheme } from '../theme_parser';
 import { ConcreteStyleResolver, fillBackgroundColor, type ConcreteStyle } from '../concrete_style';
 import { formatNumber } from '../number_formatter';
+import { formatYmdByCode } from '../number_format';
 import { fontFamilyStack, CJK_FALLBACK } from './font_map';
 import type { SharedString } from '../shared_strings_parser';
+
+// 已轉 ISO 的日期字串（buildValueMapStyled 對日期格輸出 YYYY-MM-DD）
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export interface RenderOptions {
     maxRows?: number;
@@ -152,11 +156,17 @@ export function renderWorksheetHtml(
             const span = merge ? ` colspan="${merge.colspan}" rowspan="${merge.rowspan}"` : '';
             const style = resolver.resolve(styleIndexMap.get(key));
             const raw = valueMap.get(key);
-            // 數字 + 非 General numFmt → 套完整 number format（千分位/貨幣/百分比）；其餘原樣
-            const display =
-                typeof raw === 'number' && style.numFmtCode && style.numFmtCode !== 'General'
-                    ? formatNumber(raw, style.numFmtCode)
-                    : valueToText(raw);
+            // 數字 + 非 General numFmt → number format（千分位/貨幣/百分比）；
+            // 已轉 ISO 的日期字串 + 日期格式碼 → 日期格式（含民國年）；其餘原樣。
+            let display: string;
+            if (typeof raw === 'number' && style.numFmtCode && style.numFmtCode !== 'General') {
+                display = formatNumber(raw, style.numFmtCode);
+            } else if (typeof raw === 'string' && style.numFmtCode && ISO_DATE_RE.test(raw)) {
+                const [yy, mm, dd] = raw.split('-').map((n) => parseInt(n, 10));
+                display = formatYmdByCode({ y: yy, m: mm, d: dd }, style.numFmtCode) ?? valueToText(raw);
+            } else {
+                display = valueToText(raw);
+            }
             cells.push(`<td${span} style="${cellCss(style, colW[c], rowHpx)}">${esc(display)}</td>`);
         }
         rowsHtml.push(`<tr>${cells.join('')}</tr>`);

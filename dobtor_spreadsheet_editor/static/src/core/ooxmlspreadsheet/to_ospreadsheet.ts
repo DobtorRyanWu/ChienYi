@@ -23,6 +23,7 @@ import {
     type ConcreteBorderEdge,
 } from './concrete_style';
 import { isDateNumberFormat, type ParsedStyles } from './styles_parser';
+import { formatExcelDateByCode } from './number_format';
 import type { ParsedTheme } from './theme_parser';
 import { ThemeResolver } from './theme_resolver';
 import { compileConditionalFormats } from './cf_compiler';
@@ -256,6 +257,18 @@ function buildSheet(
             oCell.content = '=' + cell.formula.replace(/_xl(fn|ws)\./gi, '');
         } else if (value !== '') {
             oCell.content = toContent(value);
+            // 日期格式：依格式碼渲染（含民國年 e/gg）覆蓋 ISO 顯示（僅顯示路徑，提取/golden 不變）
+            if (
+                cell.raw !== undefined &&
+                isDateNumberFormat(styles, concrete.numFmtId) &&
+                concrete.numFmtCode
+            ) {
+                const serial = Number(cell.raw);
+                if (Number.isFinite(serial)) {
+                    const formatted = formatExcelDateByCode(serial, concrete.numFmtCode);
+                    if (formatted) oCell.content = formatted;
+                }
+            }
         }
         if (oStyle) oCell.style = stylePool.intern(oStyle);
         const oBorder = toOBorder(concrete.border);

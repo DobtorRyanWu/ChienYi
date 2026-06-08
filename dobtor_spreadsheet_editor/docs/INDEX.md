@@ -129,3 +129,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 40 | **Shared formula 展開**：shared_formula（adjustRelativeRefs 相對參照位移 + expandSharedFormulas master/follower）；契約表 6.5 萬公式即時運算；連帶解除 entity 展開上限 | [sprint40_shared_formula.md](sprint40_shared_formula.md) |
 | 41 | **公式錯誤值保真（§3.5）**：cell type=e → 用 cached 錯誤字串（#N/A/#REF!）不餵公式，避免重算漂移；土單 2595 錯誤格保留原貌 | [sprint41_error_values.md](sprint41_error_values.md) |
 | 42 | **MROUND/REPT/SIGN shim**：extra_functions.js functionRegistry + 白名單；Playwright SHIM_REGISTERED 全 true、截圖 MROUND(10,3)=9/SIGN(-5)=-1/REPT 4次 | [sprint42_more_shims.md](sprint42_more_shims.md) |
+| 43 | **日期/民國年渲染**：formatExcelDateByCode/formatYmdByCode（e/ee民國年、gg民國、yyyy/m/d、CJK字面）；to_ospreadsheet+html_render 預覽編輯一致；真實檔 114年12月10日 | [sprint43_date_minguo.md](sprint43_date_minguo.md) |
