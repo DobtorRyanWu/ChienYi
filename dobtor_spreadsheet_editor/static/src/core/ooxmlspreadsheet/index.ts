@@ -239,8 +239,15 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
             const cols = ws.cols
                 .filter((c) => c.width !== undefined)
                 .map((c) => ({ min: c.min, max: c.max, width: c.width as number }));
-            return { name: s.name, cells, merges: ws.merges, cols, rowHeights: ws.rowHeights };
+            return {
+                name: s.name,
+                cells,
+                merges: ws.merges,
+                cols,
+                rowHeights: ws.rowHeights,
+                conditionalFormats: ws.conditionalFormatting,
+            };
         });
 
-    return _buildXlsx(sheets);
+    return _buildXlsx(sheets, { dxfs: styles.dxfs });
 }

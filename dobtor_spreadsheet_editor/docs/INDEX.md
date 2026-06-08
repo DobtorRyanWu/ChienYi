@@ -104,3 +104,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | Sprint | Topic | Audit Doc |
 |---|---|---|
 | 29 | **CF 編譯到 o-spreadsheet**：cf_compiler（cellIs→CellIsRule + containsText + dxf 樣式 + 範圍夾取）整合 to_ospreadsheet；土單 CF_GRID_MOUNTED 無錯誤 | [sprint29_cf_compiler.md](sprint29_cf_compiler.md) |
+| 30 | **CF 匯出回 xlsx**：cf_writer（CF blocks→<conditionalFormatting>、dxfs→<dxfs>）整合 xlsx_writer/exportXlsxFromBuffer；openpyxl 讀到 2 CF 範圍、LibreOffice 開啟 | [sprint30_cf_export.md](sprint30_cf_export.md) |

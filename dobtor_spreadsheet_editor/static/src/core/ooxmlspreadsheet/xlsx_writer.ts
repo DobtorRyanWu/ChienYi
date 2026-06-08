@@ -9,6 +9,9 @@
 import { zipSync, strToU8 } from 'fflate';
 import { columnIndexToLetter } from './cell_ref';
 import { fillBackgroundColor, type ConcreteStyle } from './concrete_style';
+import { writeConditionalFormattings, writeDxfs } from './cf_writer';
+import type { ConditionalFormatting } from './cf_parser';
+import type { Dxf } from './styles_parser';
 
 export interface WriteCell {
     row: number; // 1-based
@@ -139,6 +142,9 @@ class StyleSheetBuilder {
         return id;
     }
 
+    /** CF 用的 dxfs（exportXlsxFromBuffer 由原始 styles 帶入；保留原索引）。*/
+    dxfs: Dxf[] = [];
+
     toXml(): string {
         const numFmtsXml =
             this.numFmts.size > 0
@@ -181,6 +187,7 @@ class StyleSheetBuilder {
             `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>` +
             `<cellXfs count="${this.xfDef.length + 1}">${xfXml}</cellXfs>` +
             `<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>` +
+            writeDxfs(this.dxfs) +
             `</styleSheet>`
         );
     }
@@ -201,6 +208,8 @@ export interface WriteSheet {
     cols?: WriteCol[];
     /** 自訂列高（1-based row → point）。*/
     rowHeights?: Map<number, number>;
+    /** 條件格式（CF round-trip）。*/
+    conditionalFormats?: ConditionalFormatting[];
 }
 
 const XMLNS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
@@ -300,15 +309,17 @@ function sheetXml(sheet: WriteSheet, pool: StringPool, styles: StyleSheetBuilder
         colsXml +
         `<sheetData>${rowsXml}</sheetData>` +
         mergeXml +
+        writeConditionalFormattings(sheet.conditionalFormats) +
         `</worksheet>`
     );
 }
 
-/** 寫出 xlsx bytes。*/
-export function buildXlsx(sheets: WriteSheet[]): Uint8Array {
+/** 寫出 xlsx bytes。opts.dxfs 為 CF 用的 differential formats（exportXlsxFromBuffer 帶入）。*/
+export function buildXlsx(sheets: WriteSheet[], opts?: { dxfs?: Dxf[] }): Uint8Array {
     const list = sheets.length > 0 ? sheets : [{ name: 'Sheet1', cells: [], merges: [] }];
     const pool = new StringPool();
     const styleBuilder = new StyleSheetBuilder();
+    if (opts?.dxfs) styleBuilder.dxfs = opts.dxfs;
 
     const sheetFiles: Record<string, string> = {};
     list.forEach((s, i) => {

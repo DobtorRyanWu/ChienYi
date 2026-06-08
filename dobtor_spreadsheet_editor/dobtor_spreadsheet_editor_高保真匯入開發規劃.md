@@ -28,7 +28,7 @@
 | 4 CF/DV | 🟡 ~35% | §1.7 CF 解析 + **§4.1 CF 編譯（CellIsRule+containsText+dxf 樣式，S29）** | §4.1 colorScale/dataBar/iconSet/duplicateValues/expression、§4.2 DV 編譯、§4.3 CF 視覺回歸 |
 | 4.5 產品化 | 🟢 ~60% | Odoo client action UI、匯入預覽、開可編輯 o-spreadsheet、估驗 bridge + 回掛（S15-25） | §4.5.1 指定 model 欄位/REST controller、§4.5.2 通用 xlsx.linked.mixin、§4.5.3 Portal 嵌入、§4.5.4 zip bomb/size 防護、§4.5.6 匯出稽核 cron |
 | 5 Pivot/Chart/Drawing | 🔴 0% | — | 整個 Phase（PivotParser/ChartParser/DrawingParser/Sparkline 全未做） |
-| 6 Export | 🟢 ~60% | §6.2 TS writer（值/公式/樣式/欄寬/列高）、§6.3 round-trip（S19-21） | CF/DV/defined names/chart/drawing/theme 回寫、style pass rate 量化、Excel/GSheets 三端開啟、ADR-003 |
+| 6 Export | 🟢 ~65% | §6.2 TS writer（值/公式/樣式/欄寬/列高 + **CF/dxfs 回寫 S30**）、§6.3 round-trip（S19-21） | DV/defined names/chart/drawing/theme 回寫、style pass rate 量化、Excel/GSheets 三端、ADR-003 |
 | 7 效能 | 🔴 0% | — | Web Worker/streaming、virtual scroll、IndexedDB cache、HarfBuzz、benchmark |
 | 8 ChienYi | 🟡 ~30% | **估驗工項產生試算表（即時公式/格式/凍結）**、payment.estimate 整合（S25-28） | 監造日報/契約/月報範本、construction_progress 整合、Portal 嵌入 |
 
@@ -667,7 +667,7 @@ xlsx 匯出是 Parser 的反向：o-spreadsheet model → OOXML SpreadsheetML �
 - [ ] `xlsx_writer.py`：o-spreadsheet JSON → openpyxl Workbook
 - [x] Cell values + formulas + styles（font/fill/border/numFmt）
 - [x] Merged cells、column widths、row heights
-- [ ] Conditional formatting（dxf + rule）
+- [x] Conditional formatting（dxf + rule）
 - [ ] Data validation
 - [ ] Defined names
 - [ ] Charts（openpyxl chart API）
