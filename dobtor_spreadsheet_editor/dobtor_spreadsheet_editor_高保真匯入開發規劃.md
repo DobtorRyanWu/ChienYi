@@ -448,7 +448,8 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] 條件色彩 `[Red]`、`[紅色]`、`[Blue]`
 - [ ] 條件運算 `[>1000]"K";[<-1000]"-K"`
 - [ ] locale token `[$-404]` (zh-TW)、`[$-409]` (en-US)
-- [x] 日期 token：`yyyy`、`mm`、`dd`、`hh`、`mm`（分鐘 vs 月份判定）、`ss`、`AM/PM`
+- [x] 日期 token：`yyyy`/`yy`、`mm`/`m`（月）、`dd`/`d`（日）+ 民國年 `e`/`ee`/`gg`（S43）
+- [ ] 時間 token：`hh`、`mm`（分鐘 vs 月份判定）、`ss`、`AM/PM`（未做；ChienYi 為日期、無時間）
 - [x] 中華民國年（民國紀年 `e` token）
 - [ ] 台灣常見 15 種自訂格式：
   - `#,##0` `#,##0.00` `#,##0.000`（工程計量）
