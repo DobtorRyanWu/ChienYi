@@ -41,10 +41,15 @@ interface OColorScaleRule {
     maximum: OThreshold;
 }
 
+interface ODataBarRule {
+    type: 'DataBarRule';
+    color: number;
+}
+
 export interface OConditionalFormat {
     id: string;
     ranges: string[];
-    rule: OCellIsRule | OColorScaleRule;
+    rule: OCellIsRule | OColorScaleRule | ODataBarRule;
 }
 
 // Excel cellIs operator → o-spreadsheet operator
@@ -155,7 +160,11 @@ function compileRule(rule: CfRule, dxfs: Dxf[], theme: ThemeResolver): OConditio
     if (rule.type === 'colorScale') {
         return compileColorScale(rule, theme);
     }
-    return undefined; // dataBar/iconSet/duplicateValues/expression v1 不編譯
+    if (rule.type === 'dataBar' && rule.dataBar) {
+        // o-spreadsheet DataBarRule：{type, color(RGB 整數)}；bar 長度由 CF range 值自動推算
+        return { type: 'DataBarRule', color: colorToNumber(rule.dataBar.color, theme) };
+    }
+    return undefined; // iconSet/duplicateValues/expression v1 不編譯
 }
 
 /**

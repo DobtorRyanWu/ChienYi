@@ -100,6 +100,20 @@ describe('compileConditionalFormats — colorScale', () => {
     });
 });
 
+describe('compileConditionalFormats — dataBar', () => {
+    const db = CFParser.parse(
+        `<?xml version="1.0"?><worksheet xmlns="${NS}"><sheetData/>` +
+            `<conditionalFormatting sqref="G1:G20"><cfRule type="dataBar" priority="1"><dataBar>` +
+            `<cfvo type="min"/><cfvo type="max"/><color rgb="FF638EC6"/>` +
+            `</dataBar></cfRule></conditionalFormatting></worksheet>`,
+    );
+    it('dataBar → DataBarRule + RGB 整數色', () => {
+        const cfs = compileConditionalFormats(db, [], THEME, 100, 10, 'sheet1');
+        expect(cfs).toHaveLength(1);
+        expect(cfs[0].rule).toEqual({ type: 'DataBarRule', color: 0x638ec6 });
+    });
+});
+
 describe('importXlsxToOSpreadsheetData — 真實土單 CF 編譯', () => {
     it('土單匯入後含 CellIsRule conditionalFormats', () => {
         const b = readFileSync(join(FIXTURES, '04_conditional_format', '磺港溪C-A土單20250221-1.xlsx'));

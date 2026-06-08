@@ -5221,7 +5221,11 @@
         if (rule.type === 'colorScale') {
             return compileColorScale(rule, theme);
         }
-        return undefined; // dataBar/iconSet/duplicateValues/expression v1 不編譯
+        if (rule.type === 'dataBar' && rule.dataBar) {
+            // o-spreadsheet DataBarRule：{type, color(RGB 整數)}；bar 長度由 CF range 值自動推算
+            return { type: 'DataBarRule', color: colorToNumber(rule.dataBar.color, theme) };
+        }
+        return undefined; // iconSet/duplicateValues/expression v1 不編譯
     }
     /**
      * 編譯 worksheet 的 CF → o-spreadsheet conditionalFormats。

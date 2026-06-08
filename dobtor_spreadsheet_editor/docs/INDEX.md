@@ -121,3 +121,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 34 | **colorScale CF 編譯**：compileColorScale（cfvo→threshold、min/mid/max、RGB 整數色）→ ColorScaleRule；openpyxl 合成 fixture、Playwright 截圖確認紅→黃→綠漸層 | [sprint34_colorscale_cf.md](sprint34_colorscale_cf.md) |
 | 35 | **Data Validation**：dv_parser（§1.8 <dataValidations>）+ dv_compiler（list→isValueInList/isValueInRange、whole→isBetween）→ sheet.dataValidationRules；真實自檢表 4 下拉、Playwright errs=none | [sprint35_data_validation.md](sprint35_data_validation.md) |
 | 36 | **DV 匯出回 xlsx**：dv_writer（DataValidation→<dataValidations>）整合 xlsx_writer/exportXlsxFromBuffer；openpyxl 讀到 4 DV、LibreOffice 開啟 | [sprint36_dv_export.md](sprint36_dv_export.md) |
+| 37 | **dataBar CF 編譯**：dataBar→DataBarRule（RGB 整數色）；openpyxl 合成 databar.xlsx、Playwright 截圖確認藍色長條隨值遞增 | [sprint37_databar_cf.md](sprint37_databar_cf.md) |
