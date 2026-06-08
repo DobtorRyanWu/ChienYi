@@ -13,6 +13,12 @@
                         class="btn-secondary"
                         icon="fa-file-excel-o"
                         context="{'sse_create_vals': {'payment_estimate_id': id}}"/>
+                <button name="action_generate_spreadsheet"
+                        type="object"
+                        string="從工項產生試算表"
+                        class="btn-secondary"
+                        icon="fa-magic"
+                        invisible="not line_ids"/>
             </xpath>
             <xpath expr="//div[hasclass('oe_title')]" position="before">
                 <div class="oe_button_box" name="sse_button_box">

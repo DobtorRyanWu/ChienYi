@@ -33,3 +33,81 @@ class PaymentEstimate(models.Model):
             "view_mode": "list,form",
             "context": {"default_payment_estimate_id": self.id},
         }
+
+    # 估驗工項 → 試算表欄位（表頭, 欄位名）
+    _SSE_COLUMNS = [
+        ("項目編號", "item_no"),
+        ("項目及說明", "description"),
+        ("單位", "unit"),
+        ("契約數量", "contract_qty"),
+        ("核定數量", "approved_qty"),
+        ("單價", "unit_price"),
+        ("本次估驗數量", "estimate_qty"),
+        ("本次估驗金額", "estimate_amount"),
+        ("累計估驗數量", "cumulative_estimate_qty"),
+        ("累計估驗金額", "cumulative_estimate_amount"),
+    ]
+
+    @staticmethod
+    def _sse_col_letter(idx):
+        """1-based 欄索引 → 欄字母（1→A、27→AA）。"""
+        s = ""
+        n = idx
+        while n > 0:
+            n, rem = divmod(n - 1, 26)
+            s = chr(65 + rem) + s
+        return s
+
+    def _build_estimate_workbook_data(self):
+        """估驗工項 → o-spreadsheet WorkbookData（標題 + 粗體表頭 + 資料列）。"""
+        self.ensure_one()
+        headers = [h for h, _f in self._SSE_COLUMNS]
+        cells = {"A1": {"content": self.name or "估驗計價", "style": 1}}
+        for c, header in enumerate(headers, start=1):
+            cells["%s2" % self._sse_col_letter(c)] = {"content": header, "style": 1}
+        lines = self.line_ids.sorted(key=lambda r: (r.sequence or 0, r.id))
+        for r, line in enumerate(lines, start=3):
+            for c, (_h, field) in enumerate(self._SSE_COLUMNS, start=1):
+                value = line[field]
+                if value in (False, None, ""):
+                    continue
+                content = value if isinstance(value, str) else repr(value)
+                cells["%s%d" % (self._sse_col_letter(c), r)] = {"content": content}
+        n_rows = max(len(lines) + 2, 1)
+        n_cols = max(len(headers), 1)
+        return {
+            "version": 1,
+            "sheets": [
+                {
+                    "id": "sheet1",
+                    "name": (self.name or "估驗計價")[:31],
+                    "colNumber": n_cols,
+                    "rowNumber": n_rows,
+                    "cells": cells,
+                    "merges": [],
+                    "cols": {},
+                    "rows": {},
+                    "conditionalFormats": [],
+                    "figures": [],
+                }
+            ],
+            "styles": {1: {"bold": True}},
+            "formats": {},
+            "borders": {},
+        }
+
+    def action_generate_spreadsheet(self):
+        """從估驗工項產生可編輯試算表（回掛本估驗）並開啟。"""
+        self.ensure_one()
+        spreadsheet = self.env["spreadsheet.spreadsheet"].create(
+            {
+                "name": _("%s 工項試算表") % (self.name or _("估驗計價")),
+                "spreadsheet_raw": self._build_estimate_workbook_data(),
+                "payment_estimate_id": self.id,
+            }
+        )
+        return {
+            "type": "ir.actions.client",
+            "tag": "action_spreadsheet_oca",
+            "params": {"spreadsheet_id": spreadsheet.id, "model": "spreadsheet.spreadsheet"},
+        }
