@@ -50,8 +50,11 @@ export class StyleResolver {
             xf.xfId !== undefined ? this.styles.cellStyleXfs[xf.xfId] : undefined;
         const hasParent = parent !== undefined;
 
-        // 各屬性依 applyX 旗標取 cellXf 或 named style 的 id（無 parent 時恆用 cellXf）
-        const numFmtId = hasParent && !xf.applyNumberFormat ? parent.numFmtId : xf.numFmtId;
+        // 各屬性依 applyX 旗標取 cellXf 或 named style 的 id（無 parent 時恆用 cellXf）。
+        // numFmt 例外：cellXf 自身有非 0 numFmtId 時直接採用（與 Excel/calamine 一致——
+        // 部分工具如 openpyxl 省略 applyNumberFormat，但 numFmtId≠0 即表示套該格式）。
+        const numFmtId =
+            hasParent && !xf.applyNumberFormat && xf.numFmtId === 0 ? parent.numFmtId : xf.numFmtId;
         const fontId = hasParent && !xf.applyFont ? parent.fontId : xf.fontId;
         const fillId = hasParent && !xf.applyFill ? parent.fillId : xf.fillId;
         const borderId = hasParent && !xf.applyBorder ? parent.borderId : xf.borderId;

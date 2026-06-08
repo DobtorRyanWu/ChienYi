@@ -4714,8 +4714,10 @@
         resolveXf(xf) {
             const parent = xf.xfId !== undefined ? this.styles.cellStyleXfs[xf.xfId] : undefined;
             const hasParent = parent !== undefined;
-            // 各屬性依 applyX 旗標取 cellXf 或 named style 的 id（無 parent 時恆用 cellXf）
-            const numFmtId = hasParent && !xf.applyNumberFormat ? parent.numFmtId : xf.numFmtId;
+            // 各屬性依 applyX 旗標取 cellXf 或 named style 的 id（無 parent 時恆用 cellXf）。
+            // numFmt 例外：cellXf 自身有非 0 numFmtId 時直接採用（與 Excel/calamine 一致——
+            // 部分工具如 openpyxl 省略 applyNumberFormat，但 numFmtId≠0 即表示套該格式）。
+            const numFmtId = hasParent && !xf.applyNumberFormat && xf.numFmtId === 0 ? parent.numFmtId : xf.numFmtId;
             const fontId = hasParent && !xf.applyFont ? parent.fontId : xf.fontId;
             const fillId = hasParent && !xf.applyFill ? parent.fillId : xf.fillId;
             const borderId = hasParent && !xf.applyBorder ? parent.borderId : xf.borderId;
@@ -5642,12 +5644,26 @@
         return true;
     }
     /**
-     * o-spreadsheet 的 format 引擎只吃純數字格式（# 0 , . % 與空白）。
-     * Excel 自訂格式含 `\` 跳脫、`"字面"`、CJK、`[$貨幣]`、`_`、`*` 會讓 o-spreadsheet 該格 #ERROR，
-     * 故只放行純數字格式；其餘跳過（cell 顯示原始數字）。
+     * 取格式碼可安全餵給 o-spreadsheet 的數字格式（o-spreadsheet 不支援 [Red]/`_`/`\`/CJK，會 #ERROR）。
+     * 做法：取**正數段**（第一個 ';' 前），去除寬度 padding `_X`、跳脫 `\X`、token `[...]`，
+     * 若剩餘為純數字格式（# 0 , . %）則回傳之；否則 undefined。
+     * 例：`#,##0.00_);[Red]\(#,##0.00\)` → `#,##0.00`。
      */
-    function isOSpreadsheetSafeFormat(code) {
-        return /^[#0,.%\s]+$/.test(code);
+    function toSafeNumberFormat(code) {
+        const positive = code
+            .split(';')[0]
+            .replace(/_./g, '')
+            .replace(/\\./g, '')
+            .replace(/\[[^\]]*\]/g, '')
+            .trim();
+        return /^[#0][#0,.%]*$/.test(positive) || /^[#0,.%]*[#0][#0,.%]*$/.test(positive)
+            ? positive
+            : undefined;
+    }
+    /** 會計格式：負數段（第二段）含 [Red] → 負值靜態套紅字（o-spreadsheet 不支援格式色彩）。*/
+    function hasRedNegativeFormat(code) {
+        const parts = code.split(';');
+        return parts.length >= 2 && /\[Red\]/i.test(parts[1]);
     }
     function buildSheet(sheetId, name, ws, ss, styles, resolver, themeResolver, stylePool, borderPool, figures = [], tables = []) {
         const bounds = worksheetBounds(ws);
@@ -5681,19 +5697,25 @@
                     }
                 }
             }
-            if (oStyle)
-                oCell.style = stylePool.intern(oStyle);
-            const oBorder = toOBorder(concrete.border);
-            if (oBorder)
-                oCell.border = borderPool.intern(oBorder);
-            // 數字（非日期）且有非 General 格式 → 套 format
+            // 數字（非日期）格式 + 會計負數紅字
+            let effectiveStyle = oStyle;
             if (typeof value === 'number' &&
                 !isDateNumberFormat(styles, concrete.numFmtId) &&
                 concrete.numFmtCode &&
-                concrete.numFmtCode !== 'General' &&
-                isOSpreadsheetSafeFormat(concrete.numFmtCode)) {
-                oCell.format = concrete.numFmtCode; // o-spreadsheet load 以 getItemId intern 字串
+                concrete.numFmtCode !== 'General') {
+                const safeFmt = toSafeNumberFormat(concrete.numFmtCode);
+                if (safeFmt)
+                    oCell.format = safeFmt; // o-spreadsheet load 以 getItemId intern 字串
+                // 會計 [Red] 負數 → 靜態紅字（o-spreadsheet 格式引擎不支援 [Red] 色彩）
+                if (value < 0 && hasRedNegativeFormat(concrete.numFmtCode)) {
+                    effectiveStyle = { ...(oStyle ?? {}), textColor: '#FF0000' };
+                }
             }
+            if (effectiveStyle)
+                oCell.style = stylePool.intern(effectiveStyle);
+            const oBorder = toOBorder(concrete.border);
+            if (oBorder)
+                oCell.border = borderPool.intern(oBorder);
             // 只收有內容/樣式/邊框的 cell
             if (oCell.content !== '' || oCell.style !== undefined || oCell.border !== undefined) {
                 cells[`${columnIndexToLetter(cell.col)}${cell.row}`] = oCell;

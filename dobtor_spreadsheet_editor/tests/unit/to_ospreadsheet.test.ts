@@ -185,3 +185,39 @@ describe('buildOSpreadsheetData — 錯誤值（§3.5）', () => {
         expect(cells['A2'].content).toBe('#REF!');
     });
 });
+
+describe('buildOSpreadsheetData — 會計 [Red] 負數格式（§2.3）', () => {
+    const aStyles = StylesParser.parse(
+        `<?xml version="1.0"?><styleSheet xmlns="${NS}">` +
+            `<numFmts count="3">` +
+            `<numFmt numFmtId="180" formatCode="0.00_);[Red]\\(0.00\\)"/>` +
+            `<numFmt numFmtId="181" formatCode="[$NT$-404]#,##0.00"/>` +
+            `<numFmt numFmtId="182" formatCode="0.00&quot;元&quot;"/>` +
+            `</numFmts>` +
+            `<cellXfs count="4"><xf numFmtId="0"/>` +
+            `<xf numFmtId="180" applyNumberFormat="1"/>` +
+            `<xf numFmtId="181" applyNumberFormat="1"/>` +
+            `<xf numFmtId="182" applyNumberFormat="1"/>` +
+            `</cellXfs></styleSheet>`,
+    );
+    const aWs = WorksheetParser.parse(
+        `<?xml version="1.0"?><worksheet xmlns="${NS}"><dimension ref="A1:A3"/><sheetData>` +
+            `<row r="1"><c r="A1" s="1"><v>-5.5</v></c></row>` + // 會計[Red] → 套
+            `<row r="2"><c r="A2" s="2"><v>100</v></c></row>` +  // 貨幣 [$NT$] → 擋
+            `<row r="3"><c r="A3" s="3"><v>50</v></c></row>` +   // "元"字面 → 擋
+            `</sheetData></worksheet>`,
+    );
+    const data = buildOSpreadsheetData([{ name: 'A', ws: aWs }], [], aStyles, THEME);
+    const cells = data.sheets[0].cells;
+    it('會計 [Red] 負數 → 取安全數字格式 0.00 + 靜態紅字', () => {
+        expect(cells['A1'].format).toBe('0.00'); // 正數段安全子集（去 _)/\(/[Red]）
+        const st = data.styles[cells['A1'].style!];
+        expect(st.textColor).toBe('#FF0000'); // 負值 → 紅字
+    });
+    it('[$NT$] 貨幣 → 取數字部分 #,##0.00（貨幣 token 去除）', () => {
+        expect(cells['A2'].format).toBe('#,##0.00');
+    });
+    it('"元" 字面 → 無安全數字格式（不套 format）', () => {
+        expect(cells['A3'].format).toBeUndefined();
+    });
+});
