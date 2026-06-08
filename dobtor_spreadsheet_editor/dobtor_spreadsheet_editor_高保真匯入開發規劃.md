@@ -24,7 +24,7 @@
 | 0 基建 | 🟢 ~90% | 骨架/build/48 fixture/golden/API 審計/docs（S0-1） | ADR-001/002 正式簽核 |
 | 1 Parser | 🟢 ~90% | §1.1-1.9、1.10（部分）、1.8 DV、**§1.11 Tables（S39）+ numeric entity 解碼修復** | §1.6 capture-only（autoFilter/hyperlink/print/breaks）、shared formula 展開、gradient fill、structured ref |
 | 2 Style | 🟡 ~60% | §2.1 StyleResolver、§2.2 ThemeResolver、§2.3 number format 渲染、§2.4 基本 interop（S6-8,13） | §2.3 日期格式碼/民國年/條件色彩渲染、§2.4 rich text 多 segment、§2.5 CJK 欄寬估算 |
-| 3 Formula | 🟡 ~55% | §3.1 gap、§3.2 A1+shared formula 展開、§3.3 白名單~90+CHOOSE shim、**§3.5 錯誤值保留原貌（S41）** | §3.2 R1C1/structured/array、§3.3 MROUND/REPT/SIGN、§3.4 volatile |
+| 3 Formula | 🟡 ~58% | §3.1 gap、§3.2 A1+shared formula、§3.3 白名單~93+**CHOOSE/MROUND/REPT/SIGN shim（S33/S42）**、§3.5 錯誤值保真 | §3.2 R1C1/structured/array、§3.4 volatile、formula.js 補通用函數 |
 | 4 CF/DV | 🟢 ~75% | §1.7 解析 + §4.1 編譯（**CF 五型全：cellIs/containsText/colorScale/dataBar/iconSet S29-38**）+ §4.2 DV | §4.1 duplicateValues/expression（o-spreadsheet 無對應）、§4.3 CF 視覺回歸 |
 | 4.5 產品化 | 🟢 ~60% | Odoo client action UI、匯入預覽、開可編輯 o-spreadsheet、估驗 bridge + 回掛（S15-25） | §4.5.1 指定 model 欄位/REST controller、§4.5.2 通用 xlsx.linked.mixin、§4.5.3 Portal 嵌入、§4.5.4 zip bomb/size 防護、§4.5.6 匯出稽核 cron |
 | 5 Pivot/Chart/Drawing | 🟡 ~20% | **§5.2 ChartParser+Mapper（bar/line/pie/scatter、series/cat/val/title）+ §5.3 DrawingParser anchor（S31）** | Pivot、圖片/shape import、chart 匯出回 xlsx、strCache/axes 細節 |

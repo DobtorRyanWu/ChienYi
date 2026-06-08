@@ -180,11 +180,13 @@ function toContent(value: string | number | boolean): string {
 
 // o-spreadsheet 已實作、且 ChienYi 公式會用到的函數（已逐一對 o_spreadsheet.js word-boundary 確認定義）。
 // 公式只用這些函數（或純算式無函數）時餵公式 → 即時運算；否則 fallback cached 值，避免 #BAD_EXPR。
-// CHOOSE 由本模組 spreadsheet_functions/choose.js 以 functionRegistry shim 補上 → 納入白名單。
-// 已知 o-spreadsheet 18.0.48 仍缺：MROUND / REPT / SIGN（保持排除，走 cached）。
+// o-spreadsheet 18.0.48 未內建的 CHOOSE / MROUND / REPT / SIGN 由本模組
+// spreadsheet_functions/{choose,extra_functions}.js 以 functionRegistry shim 補上 → 納入白名單。
 const SUPPORTED_FUNCTIONS = new Set([
+    // shim 補上（functionRegistry）
+    'CHOOSE', 'MROUND', 'REPT', 'SIGN',
     // lookup / reference
-    'VLOOKUP', 'HLOOKUP', 'XLOOKUP', 'INDEX', 'MATCH', 'OFFSET', 'INDIRECT', 'CHOOSE',
+    'VLOOKUP', 'HLOOKUP', 'XLOOKUP', 'INDEX', 'MATCH', 'OFFSET', 'INDIRECT',
     // logic
     'IF', 'IFS', 'IFERROR', 'IFNA', 'AND', 'OR', 'NOT',
     // math / agg

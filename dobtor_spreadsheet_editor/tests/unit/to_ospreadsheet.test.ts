@@ -84,15 +84,16 @@ describe('buildOSpreadsheetData', () => {
 
 describe('buildOSpreadsheetData — 公式 round-trip', () => {
     const fStyles = StylesParser.parse(`<?xml version="1.0"?><styleSheet xmlns="${NS}"><cellXfs count="1"><xf numFmtId="0"/></cellXfs></styleSheet>`);
-    // A1=10、A2=20、A3==SUM(A1:A2)(safe)、A4==CHOOSE(已 shim→safe)、A5==A1+A2*2(純算式)、A6==MROUND(仍未支援→cached)
+    // A1=10、A2=20、A3==SUM(safe)、A4==CHOOSE(shim)、A5==純算式、A6==MROUND(shim)、A7==GEOMEAN(仍未支援→cached)
     const fWs = WorksheetParser.parse(
-        `<?xml version="1.0"?><worksheet xmlns="${NS}"><dimension ref="A1:A6"/><sheetData>` +
+        `<?xml version="1.0"?><worksheet xmlns="${NS}"><dimension ref="A1:A7"/><sheetData>` +
             `<row r="1"><c r="A1"><v>10</v></c></row>` +
             `<row r="2"><c r="A2"><v>20</v></c></row>` +
             `<row r="3"><c r="A3"><f>SUM(A1:A2)</f><v>30</v></c></row>` +
             `<row r="4"><c r="A4"><f>CHOOSE(1,A1,A2)</f><v>10</v></c></row>` +
             `<row r="5"><c r="A5"><f>A1+A2*2</f><v>50</v></c></row>` +
             `<row r="6"><c r="A6"><f>MROUND(A1,3)</f><v>9</v></c></row>` +
+            `<row r="7"><c r="A7"><f>GEOMEAN(A1:A2)</f><v>14.1</v></c></row>` +
             `</sheetData></worksheet>`,
     );
     const cells = buildOSpreadsheetData([{ name: 'F', ws: fWs }], [], fStyles, THEME).sheets[0].cells;
@@ -103,11 +104,12 @@ describe('buildOSpreadsheetData — 公式 round-trip', () => {
     it('純算式（無函數）→ 餵公式', () => {
         expect(cells['A5'].content).toBe('=A1+A2*2');
     });
-    it('CHOOSE（已 shim）→ 餵公式即時運算', () => {
+    it('CHOOSE / MROUND（已 shim）→ 餵公式即時運算', () => {
         expect(cells['A4'].content).toBe('=CHOOSE(1,A1,A2)');
+        expect(cells['A6'].content).toBe('=MROUND(A1,3)');
     });
-    it('仍未支援函數（MROUND）→ fallback cached 值', () => {
-        expect(cells['A6'].content).toBe('9');
+    it('仍未支援函數（GEOMEAN）→ fallback cached 值', () => {
+        expect(cells['A7'].content).toBe('14.1');
     });
     it('非公式數字 → 原值', () => {
         expect(cells['A1'].content).toBe('10');
