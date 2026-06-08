@@ -5835,9 +5835,16 @@
             `<sheetData>${rowsXml}</sheetData>` +
             mergeXml +
             writeConditionalFormattings(sheet.conditionalFormats) +
+            (sheet.drawingTarget ? `<drawing r:id="rId1"/>` : '') +
             `</worksheet>`);
     }
-    /** 寫出 xlsx bytes。opts.dxfs 為 CF 用的 differential formats（exportXlsxFromBuffer 帶入）。*/
+    /**
+     * 寫出 xlsx bytes。
+     * @param opts.dxfs CF 用的 differential formats
+     * @param opts.rawParts 直通複製的原始 parts（圖表/drawing/media + 其 _rels）
+     * @param opts.extraOverrides Content_Types 的 <Override> 片段（圖表/drawing parts）
+     * @param opts.extraDefaults Content_Types 的 <Default> 片段（圖片副檔名）
+     */
     function buildXlsx(sheets, opts) {
         const list = sheets.length > 0 ? sheets : [{ name: 'Sheet1', cells: [], merges: [] }];
         const pool = new StringPool();
@@ -5845,8 +5852,17 @@
         if (opts?.dxfs)
             styleBuilder.dxfs = opts.dxfs;
         const sheetFiles = {};
+        const sheetRelsFiles = {};
         list.forEach((s, i) => {
             sheetFiles[`xl/worksheets/sheet${i + 1}.xml`] = sheetXml(s, pool, styleBuilder);
+            // 有 drawing 的 sheet：重建 worksheet→drawing 關聯（rId1）
+            if (s.drawingTarget) {
+                sheetRelsFiles[`xl/worksheets/_rels/sheet${i + 1}.xml.rels`] =
+                    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                        `<Relationships xmlns="${PKG_REL}">` +
+                        `<Relationship Id="rId1" Type="${XMLNS_R}/drawing" Target="${s.drawingTarget}"/>` +
+                        `</Relationships>`;
+            }
         });
         const sharedStrings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
             `<sst xmlns="${XMLNS_MAIN}" count="${pool.items.length}" uniqueCount="${pool.items.length}">` +
@@ -5878,12 +5894,14 @@
             `<Types xmlns="${CT}">` +
             `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
             `<Default Extension="xml" ContentType="application/xml"/>` +
+            (opts?.extraDefaults ?? '') +
             `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
             list
                 .map((_s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`)
                 .join('') +
             `<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>` +
             `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
+            (opts?.extraOverrides ?? '') +
             `</Types>`;
         const files = {
             '[Content_Types].xml': strToU8(contentTypes),
@@ -5893,6 +5911,8 @@
             'xl/sharedStrings.xml': strToU8(sharedStrings),
             'xl/styles.xml': strToU8(styles),
             ...Object.fromEntries(Object.entries(sheetFiles).map(([k, v]) => [k, strToU8(v)])),
+            ...Object.fromEntries(Object.entries(sheetRelsFiles).map(([k, v]) => [k, strToU8(v)])),
+            ...(opts?.rawParts ?? {}),
         };
         return zipSync(files);
     }
@@ -6204,6 +6224,11 @@
             const cols = ws.cols
                 .filter((c) => c.width !== undefined)
                 .map((c) => ({ min: c.min, max: c.max, width: c.width }));
+            // chart/drawing 直通：重建 worksheet→drawing 關聯（相對 target）
+            const drawingRel = pkg.getRels(s.target).find((r) => r.type.endsWith('/drawing'));
+            const drawingTarget = drawingRel?.resolvedTarget
+                ? `../drawings/${drawingRel.resolvedTarget.split('/').pop()}`
+                : undefined;
             return {
                 name: s.name,
                 cells,
@@ -6211,9 +6236,26 @@
                 cols,
                 rowHeights: ws.rowHeights,
                 conditionalFormats: ws.conditionalFormatting,
+                drawingTarget,
             };
         });
-        return buildXlsx(sheets, { dxfs: styles.dxfs });
+        // 直通複製原始 drawing/chart/media parts + Content_Types 片段
+        const rawParts = {};
+        for (const p of pkg.listParts()) {
+            if (/^xl\/(drawings|charts|media)\//.test(p)) {
+                const bytes = pkg.getPart(p);
+                if (bytes)
+                    rawParts[p] = bytes;
+            }
+        }
+        let extraOverrides = '';
+        let extraDefaults = '';
+        if (pkg.hasPart('[Content_Types].xml')) {
+            const ct = pkg.getPartText('[Content_Types].xml');
+            extraOverrides = (ct.match(/<Override[^>]*PartName="\/xl\/(?:drawings|charts)\/[^"]*"[^>]*\/>/g) ?? []).join('');
+            extraDefaults = (ct.match(/<Default[^>]*\/>/g) ?? []).filter((d) => !/Extension="(?:rels|xml)"/.test(d)).join('');
+        }
+        return buildXlsx(sheets, { dxfs: styles.dxfs, rawParts, extraOverrides, extraDefaults });
     }
 
     exports.BUILD_DATE = BUILD_DATE;

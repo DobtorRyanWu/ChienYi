@@ -210,6 +210,8 @@ export interface WriteSheet {
     rowHeights?: Map<number, number>;
     /** 條件格式（CF round-trip）。*/
     conditionalFormats?: ConditionalFormatting[];
+    /** 此 sheet 連結的 drawing part（相對 worksheet 的 rels target，如 `../drawings/drawing1.xml`）。*/
+    drawingTarget?: string;
 }
 
 const XMLNS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
@@ -310,20 +312,44 @@ function sheetXml(sheet: WriteSheet, pool: StringPool, styles: StyleSheetBuilder
         `<sheetData>${rowsXml}</sheetData>` +
         mergeXml +
         writeConditionalFormattings(sheet.conditionalFormats) +
+        (sheet.drawingTarget ? `<drawing r:id="rId1"/>` : '') +
         `</worksheet>`
     );
 }
 
-/** 寫出 xlsx bytes。opts.dxfs 為 CF 用的 differential formats（exportXlsxFromBuffer 帶入）。*/
-export function buildXlsx(sheets: WriteSheet[], opts?: { dxfs?: Dxf[] }): Uint8Array {
+/**
+ * 寫出 xlsx bytes。
+ * @param opts.dxfs CF 用的 differential formats
+ * @param opts.rawParts 直通複製的原始 parts（圖表/drawing/media + 其 _rels）
+ * @param opts.extraOverrides Content_Types 的 <Override> 片段（圖表/drawing parts）
+ * @param opts.extraDefaults Content_Types 的 <Default> 片段（圖片副檔名）
+ */
+export function buildXlsx(
+    sheets: WriteSheet[],
+    opts?: {
+        dxfs?: Dxf[];
+        rawParts?: Record<string, Uint8Array>;
+        extraOverrides?: string;
+        extraDefaults?: string;
+    },
+): Uint8Array {
     const list = sheets.length > 0 ? sheets : [{ name: 'Sheet1', cells: [], merges: [] }];
     const pool = new StringPool();
     const styleBuilder = new StyleSheetBuilder();
     if (opts?.dxfs) styleBuilder.dxfs = opts.dxfs;
 
     const sheetFiles: Record<string, string> = {};
+    const sheetRelsFiles: Record<string, string> = {};
     list.forEach((s, i) => {
         sheetFiles[`xl/worksheets/sheet${i + 1}.xml`] = sheetXml(s, pool, styleBuilder);
+        // 有 drawing 的 sheet：重建 worksheet→drawing 關聯（rId1）
+        if (s.drawingTarget) {
+            sheetRelsFiles[`xl/worksheets/_rels/sheet${i + 1}.xml.rels`] =
+                `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+                `<Relationships xmlns="${PKG_REL}">` +
+                `<Relationship Id="rId1" Type="${XMLNS_R}/drawing" Target="${s.drawingTarget}"/>` +
+                `</Relationships>`;
+        }
     });
 
     const sharedStrings =
@@ -366,12 +392,14 @@ export function buildXlsx(sheets: WriteSheet[], opts?: { dxfs?: Dxf[] }): Uint8A
         `<Types xmlns="${CT}">` +
         `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
         `<Default Extension="xml" ContentType="application/xml"/>` +
+        (opts?.extraDefaults ?? '') +
         `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>` +
         list
             .map((_s, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`)
             .join('') +
         `<Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>` +
         `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>` +
+        (opts?.extraOverrides ?? '') +
         `</Types>`;
 
     const files: Record<string, Uint8Array> = {
@@ -382,6 +410,8 @@ export function buildXlsx(sheets: WriteSheet[], opts?: { dxfs?: Dxf[] }): Uint8A
         'xl/sharedStrings.xml': strToU8(sharedStrings),
         'xl/styles.xml': strToU8(styles),
         ...Object.fromEntries(Object.entries(sheetFiles).map(([k, v]) => [k, strToU8(v)])),
+        ...Object.fromEntries(Object.entries(sheetRelsFiles).map(([k, v]) => [k, strToU8(v)])),
+        ...(opts?.rawParts ?? {}),
     };
 
     return zipSync(files);

@@ -244,6 +244,11 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
             const cols = ws.cols
                 .filter((c) => c.width !== undefined)
                 .map((c) => ({ min: c.min, max: c.max, width: c.width as number }));
+            // chart/drawing 直通：重建 worksheet→drawing 關聯（相對 target）
+            const drawingRel = pkg.getRels(s.target!).find((r) => r.type.endsWith('/drawing'));
+            const drawingTarget = drawingRel?.resolvedTarget
+                ? `../drawings/${drawingRel.resolvedTarget.split('/').pop()}`
+                : undefined;
             return {
                 name: s.name,
                 cells,
@@ -251,8 +256,25 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
                 cols,
                 rowHeights: ws.rowHeights,
                 conditionalFormats: ws.conditionalFormatting,
+                drawingTarget,
             };
         });
 
-    return _buildXlsx(sheets, { dxfs: styles.dxfs });
+    // 直通複製原始 drawing/chart/media parts + Content_Types 片段
+    const rawParts: Record<string, Uint8Array> = {};
+    for (const p of pkg.listParts()) {
+        if (/^xl\/(drawings|charts|media)\//.test(p)) {
+            const bytes = pkg.getPart(p);
+            if (bytes) rawParts[p] = bytes;
+        }
+    }
+    let extraOverrides = '';
+    let extraDefaults = '';
+    if (pkg.hasPart('[Content_Types].xml')) {
+        const ct = pkg.getPartText('[Content_Types].xml');
+        extraOverrides = (ct.match(/<Override[^>]*PartName="\/xl\/(?:drawings|charts)\/[^"]*"[^>]*\/>/g) ?? []).join('');
+        extraDefaults = (ct.match(/<Default[^>]*\/>/g) ?? []).filter((d) => !/Extension="(?:rels|xml)"/.test(d)).join('');
+    }
+
+    return _buildXlsx(sheets, { dxfs: styles.dxfs, rawParts, extraOverrides, extraDefaults });
 }

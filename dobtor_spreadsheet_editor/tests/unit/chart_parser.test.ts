@@ -88,3 +88,15 @@ describe('importXlsxToOSpreadsheetData — 真實 chart fixture', () => {
         expect(figs[0].data.dataSets.length).toBeGreaterThan(0);
     });
 });
+
+describe('exportXlsxFromBuffer — chart 直通 round-trip', () => {
+    it('匯出檔保留 chart parts，自家 re-parse 仍得 figure', async () => {
+        const { exportXlsxFromBuffer } = await import('../../static/src/core/ooxmlspreadsheet/index');
+        const b = readFileSync(join(FIXTURES, '06_chart', '自檢表總表單0308.xlsx'));
+        const out = exportXlsxFromBuffer(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+        const data2 = importXlsxToOSpreadsheetData(out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength));
+        const figs = data2.sheets.flatMap((s) => s.figures as { tag: string }[]);
+        expect(figs.length).toBeGreaterThan(0);
+        expect(figs[0].tag).toBe('chart');
+    });
+});
