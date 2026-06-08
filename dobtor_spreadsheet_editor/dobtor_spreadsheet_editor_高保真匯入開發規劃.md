@@ -15,7 +15,7 @@
 
 ---
 
-## 對齊狀態（2026-06-08，Sprint 0-41 後）
+## 對齊狀態（2026-06-09，Sprint 0-44 後）
 
 > 健檢：`tsc` 乾淨、`rollup build` 通過、**vitest 551 passed / 1 skipped**。任務清單已逐項打勾（✅ = 100% 完成）。
 
@@ -507,7 +507,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
   - [x] `INDIRECT` / `OFFSET`（動態 range）
   - [x] `WORKDAY` / `NETWORKDAYS` / `EDATE` / `EOMONTH`（日期計算）
   - [x] `VLOOKUP` / `HLOOKUP` / `XLOOKUP` / `MATCH` / `INDEX`
-  - [ ] `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `CEILING` / `FLOOR` / `MROUND`
+  - [x] `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `CEILING` / `FLOOR` / `MROUND`
   - [x] `LEN` / `LEFT` / `RIGHT` / `MID` / `FIND` / `SEARCH` / `SUBSTITUTE` / `REPLACE`
   - [x] `CONCAT` / `CONCATENATE` / `TEXTJOIN`
   - [x] `RANK` / `LARGE` / `SMALL` / `PERCENTILE` / `QUARTILE`
