@@ -1,5 +1,7 @@
 # Sprint Audit Index
 
+> 📋 **[最終總結 FINAL_SUMMARY.md](FINAL_SUMMARY.md)**（功能清單 / 已知限制 / roadmap / 收尾狀態）
+
 Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 
 ## 約定
