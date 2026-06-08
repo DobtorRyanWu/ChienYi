@@ -13,7 +13,7 @@
 | TypeScript typecheck | 🟢 乾淨（無 any 洩漏） |
 | Rollup build | 🟢 通過 |
 | vitest | 🟢 **629 passed / 1 skipped**（VR baseline 手動） |
-| Playwright E2E | 🟢 **13 個情境全綠**（每個都有截圖視覺實證） |
+| Playwright E2E | 🟢 **16 個情境全綠**（每個都有截圖視覺實證） |
 | cell value 提取率 vs calamine golden | 🟢 **99.998%**（702909/702925） |
 | 規劃書任務打勾 | **128 項**（健檢起點 85 → +43） |
 

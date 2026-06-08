@@ -85,7 +85,7 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 17 | **邊框對接**：ConcreteBorder → o-spreadsheet border 池（{style,color}、Excel style 映射、double→medium）+ Playwright 驗證邊框渲染、無 #ERROR | [sprint17_borders.md](sprint17_borders.md) |
 | 18 | **公式 round-trip**：hybrid（安全公式餵公式即時運算、CHOOSE 等 fallback cached）+ 45 函數白名單（對 o_spreadsheet.js 確認）+ Playwright 驗證複價/小計正確運算、無 #BAD_EXPR | [sprint18_formula_roundtrip.md](sprint18_formula_roundtrip.md) |
 
-## Phase 7 — 效能與大檔
+## Phase 7 — 效能/基準與大檔
 
 (待 sprint 開展後填入)
 
@@ -130,3 +130,9 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 41 | **公式錯誤值保真（§3.5）**：cell type=e → 用 cached 錯誤字串（#N/A/#REF!）不餵公式，避免重算漂移；土單 2595 錯誤格保留原貌 | [sprint41_error_values.md](sprint41_error_values.md) |
 | 42 | **MROUND/REPT/SIGN shim**：extra_functions.js functionRegistry + 白名單；Playwright SHIM_REGISTERED 全 true、截圖 MROUND(10,3)=9/SIGN(-5)=-1/REPT 4次 | [sprint42_more_shims.md](sprint42_more_shims.md) |
 | 43 | **日期/民國年渲染**：formatExcelDateByCode/formatYmdByCode（e/ee民國年、gg民國、yyyy/m/d、CJK字面）；to_ospreadsheet+html_render 預覽編輯一致；真實檔 114年12月10日 | [sprint43_date_minguo.md](sprint43_date_minguo.md) |
+
+## Phase 7 — 效能基準
+
+| Sprint | Topic | Audit Doc |
+|---|---|---|
+| 44 | **旗艦檔 capstone + benchmark**：契約詳細表 16 sheet/6.5萬公式端到端開啟（預覽 1.3s、可編輯 20.8s、errs=none、16分頁全渲染）；Phase 7 效能基準 | [sprint44_flagship_benchmark.md](sprint44_flagship_benchmark.md) |
