@@ -26,6 +26,7 @@ import { isDateNumberFormat, type ParsedStyles } from './styles_parser';
 import type { ParsedTheme } from './theme_parser';
 import { ThemeResolver } from './theme_resolver';
 import { compileConditionalFormats } from './cf_compiler';
+import type { OFigure } from './chart_compiler';
 import type { SharedString } from './shared_strings_parser';
 
 const DEFAULT_COL_WIDTH_CHARS = 8.43;
@@ -213,6 +214,7 @@ function buildSheet(
     themeResolver: ThemeResolver,
     stylePool: Pool<OStyle>,
     borderPool: Pool<OBorder>,
+    figures: OFigure[] = [],
 ): OSheet {
     const bounds = worksheetBounds(ws);
     const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
@@ -287,13 +289,15 @@ function buildSheet(
             colNumber,
             sheetId,
         ),
-        figures: [],
+        figures,
     };
 }
 
 export interface SheetInput {
     name: string;
     ws: ParsedWorksheet;
+    /** 由 index 解析的圖表 figures（worksheet→drawing→chart）。*/
+    figures?: OFigure[];
 }
 
 /** 多工作表 → o-spreadsheet WorkbookData。*/
@@ -309,7 +313,7 @@ export function buildOSpreadsheetData(
     const borderPool = new Pool<OBorder>();
 
     const oSheets = sheets.map((s, i) =>
-        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool),
+        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool, s.figures ?? []),
     );
 
     return {

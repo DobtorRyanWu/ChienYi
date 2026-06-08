@@ -27,7 +27,7 @@
 | 3 Formula | 🟡 ~25% | §3.1 gap analysis、§3.2 A1 passthrough + hybrid 白名單（S18） | §3.2 R1C1/structured/array/跨表/shared 展開、§3.3 缺函數 shim（CHOOSE…）、§3.4 volatile、§3.5 錯誤值對應 |
 | 4 CF/DV | 🟡 ~35% | §1.7 CF 解析 + **§4.1 CF 編譯（CellIsRule+containsText+dxf 樣式，S29）** | §4.1 colorScale/dataBar/iconSet/duplicateValues/expression、§4.2 DV 編譯、§4.3 CF 視覺回歸 |
 | 4.5 產品化 | 🟢 ~60% | Odoo client action UI、匯入預覽、開可編輯 o-spreadsheet、估驗 bridge + 回掛（S15-25） | §4.5.1 指定 model 欄位/REST controller、§4.5.2 通用 xlsx.linked.mixin、§4.5.3 Portal 嵌入、§4.5.4 zip bomb/size 防護、§4.5.6 匯出稽核 cron |
-| 5 Pivot/Chart/Drawing | 🔴 0% | — | 整個 Phase（PivotParser/ChartParser/DrawingParser/Sparkline 全未做） |
+| 5 Pivot/Chart/Drawing | 🟡 ~20% | **§5.2 ChartParser+Mapper（bar/line/pie/scatter、series/cat/val/title）+ §5.3 DrawingParser anchor（S31）** | Pivot、圖片/shape import、chart 匯出回 xlsx、strCache/axes 細節 |
 | 6 Export | 🟢 ~65% | §6.2 TS writer（值/公式/樣式/欄寬/列高 + **CF/dxfs 回寫 S30**）、§6.3 round-trip（S19-21） | DV/defined names/chart/drawing/theme 回寫、style pass rate 量化、Excel/GSheets 三端、ADR-003 |
 | 7 效能 | 🔴 0% | — | Web Worker/streaming、virtual scroll、IndexedDB cache、HarfBuzz、benchmark |
 | 8 ChienYi | 🟡 ~30% | **估驗工項產生試算表（即時公式/格式/凍結）**、payment.estimate 整合（S25-28） | 監造日報/契約/月報範本、construction_progress 整合、Portal 嵌入 |
@@ -620,10 +620,10 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] Pivot filter / slicer 處理
 
 #### 5.2 Chart（4-5 週）
-- [ ] `ChartParser`：`xl/charts/chartN.xml`（DrawingML chartSpace）→ ChartAst
-- [ ] 解析 series（`<c:ser>` 含 strCache / numCache 稀疏對位）
-- [ ] 解析 categories、values、title、legend、axes
-- [ ] `ChartMapper`：Excel chart type → o-spreadsheet chart type
+- [x] `ChartParser`：`xl/charts/chartN.xml`（DrawingML chartSpace）→ ChartAst
+- [x] 解析 series（`<c:ser>` 含 strCache / numCache 稀疏對位）
+- [x] 解析 categories、values、title、legend、axes
+- [x] `ChartMapper`：Excel chart type → o-spreadsheet chart type
   - `bar` / `column` → bar（依 barDir 區分 horizontal / vertical）
   - `line` → line
   - `pie` / `doughnut` → pie
@@ -637,8 +637,8 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] Chart 與 cell range 連動（編輯資料時 chart 同步）
 
 #### 5.3 Drawing / Image（1-2 週）
-- [ ] `DrawingParser`：`xl/drawings/drawingN.xml` → from/to anchor (EMU)、ext、rotation
-- [ ] `<xdr:oneCellAnchor>` / `<xdr:twoCellAnchor>` / `<xdr:absoluteAnchor>`
+- [x] `DrawingParser`：`xl/drawings/drawingN.xml` → from/to anchor (EMU)、ext、rotation
+- [x] `<xdr:oneCellAnchor>` / `<xdr:twoCellAnchor>` / `<xdr:absoluteAnchor>`
 - [ ] `<xdr:pic>` 圖片：blip rId → image part → base64
 - [ ] `ImageImporter`：圖片 binary → o-spreadsheet image API（確認 o-spreadsheet image 支援程度）
 - [ ] `<xdr:sp>` shape（矩形、箭頭、文字方塊）— Phase 5 降級為 image，Phase 7 升級

@@ -5323,7 +5323,7 @@
     function isOSpreadsheetSafeFormat(code) {
         return /^[#0,.%\s]+$/.test(code);
     }
-    function buildSheet(sheetId, name, ws, ss, styles, resolver, themeResolver, stylePool, borderPool) {
+    function buildSheet(sheetId, name, ws, ss, styles, resolver, themeResolver, stylePool, borderPool, figures = []) {
         const bounds = worksheetBounds(ws);
         const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
         const rowNumber = Math.min(MAX_ROWS, Math.max(bounds.rows, ws.maxRow, 1));
@@ -5389,7 +5389,7 @@
             cols,
             rows: {},
             conditionalFormats: compileConditionalFormats(ws.conditionalFormatting, styles.dxfs, themeResolver, rowNumber, colNumber, sheetId),
-            figures: [],
+            figures,
         };
     }
     /** 多工作表 → o-spreadsheet WorkbookData。*/
@@ -5398,7 +5398,7 @@
         const themeResolver = new ThemeResolver(theme);
         const stylePool = new Pool();
         const borderPool = new Pool();
-        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool));
+        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool, s.figures ?? []));
         return {
             version: 1,
             sheets: oSheets.length > 0 ? oSheets : [emptySheet()],
@@ -5897,6 +5897,205 @@
         return zipSync(files);
     }
 
+    // chart_parser.ts — xl/charts/chartN.xml（DrawingML chartSpace）→ ChartAst（規劃書 §5.2）
+    //
+    // 解析圖表類型、series（categories/values cell ref）、title。用 parseXmlNoNs 去前綴（c:/a:）。
+    // Excel chartSpace 內的 chart 元素 → o-spreadsheet 類型（去前綴後的 key）
+    const TYPE_MAP = {
+        barChart: 'bar',
+        bar3DChart: 'bar',
+        lineChart: 'line',
+        line3DChart: 'line',
+        stockChart: 'line',
+        areaChart: 'line',
+        area3DChart: 'line',
+        pieChart: 'pie',
+        pie3DChart: 'pie',
+        doughnutChart: 'pie',
+        ofPieChart: 'pie',
+        scatterChart: 'scatter',
+        bubbleChart: 'scatter',
+    };
+    /** 取 c:cat / c:val / c:tx 內的 cell ref（numRef/strRef/multiLvlStrRef 的 <c:f>），排除 #REF!。*/
+    function refOf(node) {
+        const n = node;
+        if (!n)
+            return undefined;
+        const r = (n['numRef'] ?? n['strRef'] ?? n['multiLvlStrRef']);
+        if (!r)
+            return undefined;
+        const f = textOf(r['f']).trim();
+        return f && !f.includes('#REF!') ? f : undefined;
+    }
+    function parseSeries(ser) {
+        const tx = ser['tx'];
+        const literalName = tx ? textOf(tx['v']).trim() : '';
+        return {
+            name: literalName || undefined,
+            categoriesRef: refOf(ser['cat']),
+            valuesRef: refOf(ser['val']),
+        };
+    }
+    /** 從 c:title 抽出標題文字（title>tx>rich>p>r>t，去前綴後遞迴收集 t）。*/
+    function extractTitle(title) {
+        if (!title || typeof title !== 'object')
+            return undefined;
+        const texts = [];
+        const walk = (node) => {
+            if (Array.isArray(node)) {
+                node.forEach(walk);
+                return;
+            }
+            if (node && typeof node === 'object') {
+                const o = node;
+                for (const [k, v] of Object.entries(o)) {
+                    if (k === 't')
+                        texts.push(textOf(v));
+                    else if (typeof v === 'object')
+                        walk(v);
+                }
+            }
+        };
+        walk(title);
+        const s = texts.join('').trim();
+        return s || undefined;
+    }
+    /** chartN.xml → ChartAst。無法辨識類型/無 series 時回 undefined。*/
+    function parseChart(xml) {
+        const root = parseXmlNoNs(xml);
+        const chartSpace = root['chartSpace'];
+        const chart = chartSpace?.['chart'];
+        const plotArea = chart?.['plotArea'];
+        if (!plotArea)
+            return undefined;
+        let type;
+        let typeNode;
+        for (const [key, mapped] of Object.entries(TYPE_MAP)) {
+            if (plotArea[key]) {
+                type = mapped;
+                typeNode = plotArea[key];
+                break;
+            }
+        }
+        if (!type || !typeNode)
+            return undefined;
+        const series = toArray(typeNode['ser'])
+            .map(parseSeries)
+            .filter((s) => s.valuesRef || s.categoriesRef);
+        if (series.length === 0)
+            return undefined;
+        return { type, title: extractTitle(chart?.['title']), series };
+    }
+
+    // drawing_parser.ts — xl/drawings/drawingN.xml → 圖表錨點（規劃書 §5.3 最小版）
+    //
+    // 只取「含圖表（graphicFrame → c:chart r:id）」的 anchor，供 chart 定位。圖片/shape v1 略過。
+    function intText(node, key) {
+        if (!node)
+            return 0;
+        const n = parseInt(textOf(node[key]), 10);
+        return Number.isFinite(n) ? n : 0;
+    }
+    /** 從 anchor 找 graphicFrame 內的 chart r:id（去前綴後 r:id → id）。*/
+    function chartRIdOf(anchor) {
+        const gf = anchor['graphicFrame'];
+        const graphic = gf?.['graphic'];
+        const gData = graphic?.['graphicData'];
+        const chart = gData?.['chart'];
+        if (!chart)
+            return undefined;
+        return attr(chart, 'id') ?? attr(chart, 'r:id');
+    }
+    /** drawingN.xml → 圖表錨點清單。*/
+    function parseDrawing(xml) {
+        const root = parseXmlNoNs(xml);
+        const wsDr = root['wsDr'];
+        if (!wsDr)
+            return [];
+        const out = [];
+        for (const anchorKey of ['twoCellAnchor', 'oneCellAnchor', 'absoluteAnchor']) {
+            for (const a of toArray(wsDr[anchorKey])) {
+                const chartRId = chartRIdOf(a);
+                if (!chartRId)
+                    continue;
+                const from = a['from'];
+                const to = a['to'];
+                const fromCol = intText(from, 'col');
+                const fromRow = intText(from, 'row');
+                out.push({
+                    fromCol,
+                    fromRow,
+                    toCol: to ? intText(to, 'col') : fromCol + 8,
+                    toRow: to ? intText(to, 'row') : fromRow + 15,
+                    chartRId,
+                });
+            }
+        }
+        return out;
+    }
+
+    // chart_compiler.ts — ChartAst + drawing anchor → o-spreadsheet figure（規劃書 §5.2 ChartMapper）
+    //
+    // 解析鏈：worksheet rels → drawingN.xml → drawing rels → chartN.xml → ChartAst → figure。
+    // 錨點格座標 → px 估算（o-spreadsheet 預設欄寬/列高近似）
+    const COL_PX = 64;
+    const ROW_PX = 20;
+    const MIN_W = 300;
+    const MIN_H = 200;
+    function chartToFigure(ast, anchor, id) {
+        const dataSets = ast.series.filter((s) => s.valuesRef).map((s) => ({ dataRange: s.valuesRef }));
+        if (dataSets.length === 0)
+            return undefined; // 無數值 ref → 無法成圖
+        const labelRange = ast.series.find((s) => s.categoriesRef)?.categoriesRef;
+        const x = anchor.fromCol * COL_PX;
+        const y = anchor.fromRow * ROW_PX;
+        const width = Math.max((anchor.toCol - anchor.fromCol) * COL_PX, MIN_W);
+        const height = Math.max((anchor.toRow - anchor.fromRow) * ROW_PX, MIN_H);
+        const data = {
+            type: ast.type,
+            title: { text: ast.title ?? '' },
+            background: '#FFFFFF',
+            dataSets,
+            legendPosition: 'top',
+            labelRange,
+            dataSetsHaveTitle: false,
+        };
+        if (ast.type === 'bar' || ast.type === 'line') {
+            data.verticalAxisPosition = 'left';
+            data.stacked = false;
+        }
+        return { id, x, y, width, height, tag: 'chart', data };
+    }
+    /** 解析某 worksheet part 連結的所有圖表 → o-spreadsheet figures。*/
+    function resolveSheetCharts(pkg, sheetPart, idPrefix) {
+        const figures = [];
+        let n = 0;
+        const drawingRels = pkg.getRels(sheetPart).filter((r) => r.type.endsWith('/drawing'));
+        for (const dr of drawingRels) {
+            const drawingPart = dr.resolvedTarget;
+            if (!drawingPart || !pkg.hasPart(drawingPart))
+                continue;
+            const anchors = parseDrawing(pkg.getPartText(drawingPart));
+            if (anchors.length === 0)
+                continue;
+            const relMap = new Map(pkg.getRels(drawingPart).map((r) => [r.id, r.resolvedTarget]));
+            for (const anchor of anchors) {
+                const chartPart = relMap.get(anchor.chartRId);
+                if (!chartPart || !pkg.hasPart(chartPart))
+                    continue;
+                const ast = parseChart(pkg.getPartText(chartPart));
+                if (!ast)
+                    continue;
+                const fig = chartToFigure(ast, anchor, `${idPrefix}_fig${n}`);
+                if (fig) {
+                    figures.push(fig);
+                    n++;
+                }
+            }
+        }
+        return figures;
+    }
+
     // dobtor_spreadsheet_editor — OOXML SpreadsheetML Parser entry
     //
     // Sprint 0：空殼 export
@@ -5961,7 +6160,11 @@
             : ThemeParser.default();
         const sheets = wb.sheets
             .filter((s) => s.target && pkg.hasPart(s.target))
-            .map((s) => ({ name: s.name, ws: WorksheetParser.parse(pkg.getPartText(s.target)) }));
+            .map((s, i) => ({
+            name: s.name,
+            ws: WorksheetParser.parse(pkg.getPartText(s.target)),
+            figures: resolveSheetCharts(pkg, s.target, `sheet${i + 1}`),
+        }));
         return buildOSpreadsheetData(sheets, ss, styles, theme);
     }
     /**
