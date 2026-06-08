@@ -65,12 +65,24 @@ export function boolAttr(obj: unknown, name: string): boolean {
 }
 
 /** 取文字節點內容。*/
+/**
+ * 解碼 XML numeric character reference（`&#NNNN;` / `&#xHHHH;`）。
+ * fast-xml-parser 預設不解這類 reference（部分工具如 openpyxl 用此編碼 CJK，
+ * 真實 Excel 多直接寫 UTF-8 故少見）。命名實體（&amp; 等）已由 parser 處理。
+ */
+function decodeNumericEntities(s: string): string {
+    if (s.indexOf('&#') === -1) return s;
+    return s
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+        .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)));
+}
+
 export function textOf(obj: unknown): string {
     if (obj === null || obj === undefined) return '';
-    if (typeof obj === 'string') return obj;
+    if (typeof obj === 'string') return decodeNumericEntities(obj);
     if (typeof obj === 'object') {
         const v = (obj as Record<string, unknown>)[TEXT_NODE];
-        return v === undefined || v === null ? '' : String(v);
+        return v === undefined || v === null ? '' : decodeNumericEntities(String(v));
     }
     return String(obj);
 }

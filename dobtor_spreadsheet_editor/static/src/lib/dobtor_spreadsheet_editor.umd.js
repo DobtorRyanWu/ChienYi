@@ -3279,14 +3279,26 @@
         return s === '1' || s === 'true';
     }
     /** 取文字節點內容。*/
+    /**
+     * 解碼 XML numeric character reference（`&#NNNN;` / `&#xHHHH;`）。
+     * fast-xml-parser 預設不解這類 reference（部分工具如 openpyxl 用此編碼 CJK，
+     * 真實 Excel 多直接寫 UTF-8 故少見）。命名實體（&amp; 等）已由 parser 處理。
+     */
+    function decodeNumericEntities(s) {
+        if (s.indexOf('&#') === -1)
+            return s;
+        return s
+            .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+            .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)));
+    }
     function textOf(obj) {
         if (obj === null || obj === undefined)
             return '';
         if (typeof obj === 'string')
-            return obj;
+            return decodeNumericEntities(obj);
         if (typeof obj === 'object') {
             const v = obj[TEXT_NODE];
-            return v === undefined || v === null ? '' : String(v);
+            return v === undefined || v === null ? '' : decodeNumericEntities(String(v));
         }
         return String(obj);
     }
@@ -5490,7 +5502,7 @@
     function isOSpreadsheetSafeFormat(code) {
         return /^[#0,.%\s]+$/.test(code);
     }
-    function buildSheet(sheetId, name, ws, ss, styles, resolver, themeResolver, stylePool, borderPool, figures = []) {
+    function buildSheet(sheetId, name, ws, ss, styles, resolver, themeResolver, stylePool, borderPool, figures = [], tables = []) {
         const bounds = worksheetBounds(ws);
         const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
         const rowNumber = Math.min(MAX_ROWS, Math.max(bounds.rows, ws.maxRow, 1));
@@ -5557,6 +5569,7 @@
             rows: {},
             conditionalFormats: compileConditionalFormats(ws.conditionalFormatting, styles.dxfs, themeResolver, rowNumber, colNumber, sheetId),
             dataValidationRules: compileDataValidations(ws.dataValidations, sheetId),
+            tables,
             figures,
         };
     }
@@ -5566,7 +5579,7 @@
         const themeResolver = new ThemeResolver(theme);
         const stylePool = new Pool();
         const borderPool = new Pool();
-        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool, s.figures ?? []));
+        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool, s.figures ?? [], s.tables ?? []));
         return {
             version: 1,
             sheets: oSheets.length > 0 ? oSheets : [emptySheet()],
@@ -5587,6 +5600,7 @@
             rows: {},
             conditionalFormats: [],
             dataValidationRules: [],
+            tables: [],
             figures: [],
         };
     }
@@ -6317,6 +6331,62 @@
         return figures;
     }
 
+    // table_parser.ts — xl/tables/tableN.xml → ParsedTable（規劃書 §1.11）
+    /** tableN.xml → ParsedTable。無 ref 回 undefined。*/
+    function parseTable(xml) {
+        const root = parseXml(xml);
+        const table = root['table'];
+        if (!table)
+            return undefined;
+        const ref = attr(table, 'ref');
+        if (!ref)
+            return undefined;
+        const styleInfo = table['tableStyleInfo'];
+        return {
+            range: ref,
+            totalsRowShown: boolAttr(table, 'totalsRowShown'),
+            styleName: styleInfo ? attr(styleInfo, 'name') : undefined,
+            showFirstColumn: styleInfo ? boolAttr(styleInfo, 'showFirstColumn') : false,
+            showLastColumn: styleInfo ? boolAttr(styleInfo, 'showLastColumn') : false,
+            showRowStripes: styleInfo ? boolAttr(styleInfo, 'showRowStripes') : false,
+            showColumnStripes: styleInfo ? boolAttr(styleInfo, 'showColumnStripes') : false,
+            hasAutoFilter: table['autoFilter'] !== undefined,
+        };
+    }
+
+    // table_compiler.ts — ParsedTable → o-spreadsheet sheet.tables（規劃書 §1.11 / §5）
+    //
+    // 解析鏈：worksheet rels → tableN.xml → ParsedTable → o-spreadsheet table。
+    const DEFAULT_STYLE = 'TableStyleMedium2';
+    /** 解析某 worksheet part 連結的所有 Excel Table → o-spreadsheet tables。*/
+    function resolveSheetTables(pkg, sheetPart) {
+        const out = [];
+        const tableRels = pkg.getRels(sheetPart).filter((r) => r.type.endsWith('/table'));
+        for (const rel of tableRels) {
+            const part = rel.resolvedTarget;
+            if (!part || !pkg.hasPart(part))
+                continue;
+            const t = parseTable(pkg.getPartText(part));
+            if (!t)
+                continue;
+            out.push({
+                range: t.range,
+                type: 'static',
+                config: {
+                    hasFilters: t.hasAutoFilter,
+                    totalRow: t.totalsRowShown,
+                    firstColumn: t.showFirstColumn,
+                    lastColumn: t.showLastColumn,
+                    numberOfHeaders: 1, // Excel Table 預設 1 列表頭
+                    bandedRows: t.showRowStripes,
+                    bandedColumns: t.showColumnStripes,
+                    styleId: t.styleName ?? DEFAULT_STYLE,
+                },
+            });
+        }
+        return out;
+    }
+
     // dobtor_spreadsheet_editor — OOXML SpreadsheetML Parser entry
     //
     // Sprint 0：空殼 export
@@ -6385,6 +6455,7 @@
             name: s.name,
             ws: WorksheetParser.parse(pkg.getPartText(s.target)),
             figures: resolveSheetCharts(pkg, s.target, `sheet${i + 1}`),
+            tables: resolveSheetTables(pkg, s.target),
         }));
         return buildOSpreadsheetData(sheets, ss, styles, theme);
     }

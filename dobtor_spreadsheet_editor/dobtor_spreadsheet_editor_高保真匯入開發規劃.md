@@ -22,7 +22,7 @@
 | Phase | 完成度 | 已做（sprint） | 主要未完成 |
 |---|---|---|---|
 | 0 基建 | 🟢 ~90% | 骨架/build/48 fixture/golden/API 審計/docs（S0-1） | ADR-001/002 正式簽核 |
-| 1 Parser | 🟢 ~85% | §1.1-1.9、1.10（部分）、**§1.8 DataValidation（S35）** | §1.11 Tables、§1.6 capture-only（autoFilter/hyperlink/print/breaks）、shared formula 展開、gradient fill |
+| 1 Parser | 🟢 ~90% | §1.1-1.9、1.10（部分）、1.8 DV、**§1.11 Tables（S39）+ numeric entity 解碼修復** | §1.6 capture-only（autoFilter/hyperlink/print/breaks）、shared formula 展開、gradient fill、structured ref |
 | 2 Style | 🟡 ~60% | §2.1 StyleResolver、§2.2 ThemeResolver、§2.3 number format 渲染、§2.4 基本 interop（S6-8,13） | §2.3 日期格式碼/民國年/條件色彩渲染、§2.4 rich text 多 segment、§2.5 CJK 欄寬估算 |
 | 3 Formula | 🟡 ~40% | §3.1 gap、§3.2 A1 passthrough、**§3.3 白名單擴至 ~90 函數（word-boundary 確認）+ CHOOSE functionRegistry shim（S33）** | §3.2 R1C1/structured/array/shared 展開、§3.3 MROUND/REPT/SIGN、§3.4 volatile、§3.5 錯誤值對應 |
 | 4 CF/DV | 🟢 ~75% | §1.7 解析 + §4.1 編譯（**CF 五型全：cellIs/containsText/colorScale/dataBar/iconSet S29-38**）+ §4.2 DV | §4.1 duplicateValues/expression（o-spreadsheet 無對應）、§4.3 CF 視覺回歸 |
@@ -411,9 +411,9 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] reserved names：`_xlnm.Print_Area`、`_xlnm._FilterDatabase`、`_xlnm.Print_Titles`
 
 #### 1.11 Tables（Excel Table 物件）（3 天）
-- [ ] `TableParser`：`xl/tables/tableN.xml`
-- [ ] `<table id name displayName ref totalsRowShown>` + `<tableColumns>` + `<tableStyleInfo>`
-- [ ] 與 worksheet 的 `<tableParts>` 對應
+- [x] `TableParser`：`xl/tables/tableN.xml`
+- [x] `<table id name displayName ref totalsRowShown>` + `<tableColumns>` + `<tableStyleInfo>`
+- [x] 與 worksheet 的 `<tableParts>` 對應
 - [ ] structured reference 解析所需（Phase 3 公式 compiler 用）
 
 **Exit Criteria**：

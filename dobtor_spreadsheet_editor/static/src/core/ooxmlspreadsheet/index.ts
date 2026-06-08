@@ -130,6 +130,7 @@ import { resolveCellValue as _resolveCellValue } from './worksheet_parser';
 import { ConcreteStyleResolver as _ConcreteStyleResolver } from './concrete_style';
 import { buildXlsx as _buildXlsx, type WriteSheet as _WriteSheet, type WriteCell as _WriteCell } from './xlsx_writer';
 import { resolveSheetCharts as _resolveSheetCharts } from './chart_compiler';
+import { resolveSheetTables as _resolveSheetTables } from './table_compiler';
 
 export { buildOSpreadsheetData } from './to_ospreadsheet';
 export type { OSpreadsheetData, OSheet, OCell, OStyle, SheetInput } from './to_ospreadsheet';
@@ -203,6 +204,7 @@ export function importXlsxToOSpreadsheetData(buffer: ArrayBuffer): OSpreadsheetD
             name: s.name,
             ws: _WorksheetParser.parse(pkg.getPartText(s.target!)),
             figures: _resolveSheetCharts(pkg, s.target!, `sheet${i + 1}`),
+            tables: _resolveSheetTables(pkg, s.target!),
         }));
 
     return _buildOSpreadsheetData(sheets, ss, styles, theme);
