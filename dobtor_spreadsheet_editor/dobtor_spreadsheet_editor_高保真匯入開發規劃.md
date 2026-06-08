@@ -24,7 +24,7 @@
 | 0 基建 | 🟢 ~90% | 骨架/build/48 fixture/golden/API 審計/docs（S0-1） | ADR-001/002 正式簽核 |
 | 1 Parser | 🟢 ~80% | §1.1-1.7、1.9、1.10（部分）（S2-9） | §1.8 Data Validation、§1.11 Tables、§1.6 capture-only（autoFilter/hyperlink/print/headerFooter/breaks）、shared formula 展開、gradient fill、tableStyles |
 | 2 Style | 🟡 ~60% | §2.1 StyleResolver、§2.2 ThemeResolver、§2.3 number format 渲染、§2.4 基本 interop（S6-8,13） | §2.3 日期格式碼/民國年/條件色彩渲染、§2.4 rich text 多 segment、§2.5 CJK 欄寬估算 |
-| 3 Formula | 🟡 ~25% | §3.1 gap analysis、§3.2 A1 passthrough + hybrid 白名單（S18） | §3.2 R1C1/structured/array/跨表/shared 展開、§3.3 缺函數 shim（CHOOSE…）、§3.4 volatile、§3.5 錯誤值對應 |
+| 3 Formula | 🟡 ~40% | §3.1 gap、§3.2 A1 passthrough、**§3.3 白名單擴至 ~90 函數（word-boundary 確認）+ CHOOSE functionRegistry shim（S33）** | §3.2 R1C1/structured/array/shared 展開、§3.3 MROUND/REPT/SIGN、§3.4 volatile、§3.5 錯誤值對應 |
 | 4 CF/DV | 🟡 ~35% | §1.7 CF 解析 + **§4.1 CF 編譯（CellIsRule+containsText+dxf 樣式，S29）** | §4.1 colorScale/dataBar/iconSet/duplicateValues/expression、§4.2 DV 編譯、§4.3 CF 視覺回歸 |
 | 4.5 產品化 | 🟢 ~60% | Odoo client action UI、匯入預覽、開可編輯 o-spreadsheet、估驗 bridge + 回掛（S15-25） | §4.5.1 指定 model 欄位/REST controller、§4.5.2 通用 xlsx.linked.mixin、§4.5.3 Portal 嵌入、§4.5.4 zip bomb/size 防護、§4.5.6 匯出稽核 cron |
 | 5 Pivot/Chart/Drawing | 🟡 ~20% | **§5.2 ChartParser+Mapper（bar/line/pie/scatter、series/cat/val/title）+ §5.3 DrawingParser anchor（S31）** | Pivot、圖片/shape import、chart 匯出回 xlsx、strCache/axes 細節 |
@@ -497,20 +497,20 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] Shared formula 展開（§1.6 capture，§3.2 expand to per-cell formula）
 
 #### 3.3 缺失函數 shim（4-6 週）
-- [ ] 確認 o-spreadsheet 18.0.48 內建函數清單（`addFunction` 介面）
+- [x] 確認 o-spreadsheet 18.0.48 內建函數清單（`addFunction` 介面）
 - [ ] ChienYi 必須函數實作（在 plugin 層 `addFunction` 注入）：
-  - [ ] `IFERROR` / `IFNA`（容錯）
-  - [ ] `SUMPRODUCT`（加權計算、估驗常用）
-  - [ ] `SUMIFS` / `COUNTIFS` / `AVERAGEIFS`（多條件）
-  - [ ] `DATEDIF`（工程工期）
-  - [ ] `TEXT`（格式化輸出）
-  - [ ] `INDIRECT` / `OFFSET`（動態 range）
-  - [ ] `WORKDAY` / `NETWORKDAYS` / `EDATE` / `EOMONTH`（日期計算）
-  - [ ] `VLOOKUP` / `HLOOKUP` / `XLOOKUP` / `MATCH` / `INDEX`
+  - [x] `IFERROR` / `IFNA`（容錯）
+  - [x] `SUMPRODUCT`（加權計算、估驗常用）
+  - [x] `SUMIFS` / `COUNTIFS` / `AVERAGEIFS`（多條件）
+  - [x] `DATEDIF`（工程工期）
+  - [x] `TEXT`（格式化輸出）
+  - [x] `INDIRECT` / `OFFSET`（動態 range）
+  - [x] `WORKDAY` / `NETWORKDAYS` / `EDATE` / `EOMONTH`（日期計算）
+  - [x] `VLOOKUP` / `HLOOKUP` / `XLOOKUP` / `MATCH` / `INDEX`
   - [ ] `ROUND` / `ROUNDUP` / `ROUNDDOWN` / `CEILING` / `FLOOR` / `MROUND`
-  - [ ] `LEN` / `LEFT` / `RIGHT` / `MID` / `FIND` / `SEARCH` / `SUBSTITUTE` / `REPLACE`
-  - [ ] `CONCAT` / `CONCATENATE` / `TEXTJOIN`
-  - [ ] `RANK` / `LARGE` / `SMALL` / `PERCENTILE` / `QUARTILE`
+  - [x] `LEN` / `LEFT` / `RIGHT` / `MID` / `FIND` / `SEARCH` / `SUBSTITUTE` / `REPLACE`
+  - [x] `CONCAT` / `CONCATENATE` / `TEXTJOIN`
+  - [x] `RANK` / `LARGE` / `SMALL` / `PERCENTILE` / `QUARTILE`
 - [ ] `formula.js` tree-shake 引入補齊 30+ 通用函數
 - [ ] Excel 與 o-spreadsheet 函數行為差異記錄（邊界值、空白處理）
 

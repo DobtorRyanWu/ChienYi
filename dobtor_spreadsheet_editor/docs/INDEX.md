@@ -99,6 +99,12 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 | 27 | **估驗表 polish + 修 format bug**：欄寬/千分位/層級縮排；揭示 o-spreadsheet format 為 inline 字串（非 id-pool）→ 修 bridge + to_ospreadsheet 匯入路徑（潛伏 bug）；#ERROR 消失 | [sprint27_estimate_polish.md](sprint27_estimate_polish.md) |
 | 28 | **估驗表視覺**：表頭填色置中(D9E1F2)、數字右對齊、小計填色(FCE4D6)、凍結首兩列(panes xSplit/ySplit)；GRID_MOUNTED | [sprint28_estimate_visual.md](sprint28_estimate_visual.md) |
 
+## Phase 3 — Formula
+
+| Sprint | Topic | Audit Doc |
+|---|---|---|
+| 33 | **公式 shim + 白名單擴充**：CHOOSE functionRegistry shim（Odoo asset）+ 白名單 45→~90（word-boundary 確認）；Playwright CHOOSE_REGISTERED=true | [sprint33_formula_shim.md](sprint33_formula_shim.md) |
+
 ## Phase 4 — CF/DV 編譯
 
 | Sprint | Topic | Audit Doc |

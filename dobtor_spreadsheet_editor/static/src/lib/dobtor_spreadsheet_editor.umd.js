@@ -5295,16 +5295,30 @@
             return value ? 'TRUE' : 'FALSE';
         return String(value);
     }
-    // o-spreadsheet 已實作、且 ChienYi 公式會用到的函數（已逐一對 o_spreadsheet.js 確認定義）。
+    // o-spreadsheet 已實作、且 ChienYi 公式會用到的函數（已逐一對 o_spreadsheet.js word-boundary 確認定義）。
     // 公式只用這些函數（或純算式無函數）時餵公式 → 即時運算；否則 fallback cached 值，避免 #BAD_EXPR。
-    // 注意：CHOOSE 在 o-spreadsheet 18.0.48 未定義，刻意排除。
+    // CHOOSE 由本模組 spreadsheet_functions/choose.js 以 functionRegistry shim 補上 → 納入白名單。
+    // 已知 o-spreadsheet 18.0.48 仍缺：MROUND / REPT / SIGN（保持排除，走 cached）。
     const SUPPORTED_FUNCTIONS = new Set([
-        'VLOOKUP', 'IF', 'IFERROR', 'IFS', 'CHAR', 'ROUND', 'ROUNDUP', 'ROUNDDOWN',
-        'SUM', 'SUMIF', 'SUMIFS', 'COUNT', 'COUNTA', 'COUNTIF', 'COUNTIFS',
-        'AVERAGE', 'MIN', 'MAX', 'MINIFS', 'MAXIFS', 'PRODUCT', 'ABS', 'INT', 'MOD',
-        'AND', 'OR', 'NOT', 'ROW', 'COLUMN',
-        'LEFT', 'RIGHT', 'MID', 'LEN', 'FIND', 'SEARCH', 'SUBSTITUTE', 'CONCATENATE', 'CONCAT', 'TEXT', 'TRIM',
-        'TODAY', 'NOW', 'DATE', 'WEEKDAY', 'CELL',
+        // lookup / reference
+        'VLOOKUP', 'HLOOKUP', 'XLOOKUP', 'INDEX', 'MATCH', 'OFFSET', 'INDIRECT', 'CHOOSE',
+        // logic
+        'IF', 'IFS', 'IFERROR', 'IFNA', 'AND', 'OR', 'NOT',
+        // math / agg
+        'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'CEILING', 'FLOOR', 'TRUNC', 'POWER', 'SQRT', 'ABS', 'INT', 'MOD', 'DELTA',
+        'SUM', 'SUMIF', 'SUMIFS', 'SUMPRODUCT', 'PRODUCT',
+        'COUNT', 'COUNTA', 'COUNTBLANK', 'COUNTIF', 'COUNTIFS',
+        'AVERAGE', 'AVERAGEIF', 'AVERAGEIFS', 'MEDIAN', 'MIN', 'MAX', 'MINIFS', 'MAXIFS',
+        'RANK', 'LARGE', 'SMALL', 'PERCENTILE', 'QUARTILE', 'STDEV',
+        'ROW', 'COLUMN',
+        // text
+        'LEFT', 'RIGHT', 'MID', 'LEN', 'FIND', 'SEARCH', 'SUBSTITUTE', 'REPLACE', 'EXACT',
+        'CONCATENATE', 'CONCAT', 'TEXTJOIN', 'TEXT', 'TRIM', 'UPPER', 'LOWER', 'PROPER', 'VALUE', 'CHAR',
+        // date
+        'TODAY', 'NOW', 'DATE', 'DATEVALUE', 'YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND',
+        'WEEKDAY', 'EOMONTH', 'EDATE', 'DATEDIF', 'YEARFRAC', 'NETWORKDAYS', 'WORKDAY',
+        // info
+        'ISNUMBER', 'ISERROR', 'ISBLANK', 'ISTEXT', 'ISNA', 'CELL',
     ]);
     /** 公式是否只用支援函數（純算式無函數 → true）。去 _xlfn./_xlws. 前綴後比對。*/
     function formulaUsesOnlySupported(formula) {

@@ -37,6 +37,8 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
             # Phase 4.5 Xlsx 匯入預覽 client action
             'dobtor_spreadsheet_editor/static/src/components/xlsx_import/xlsx_import.js',
             'dobtor_spreadsheet_editor/static/src/components/xlsx_import/xlsx_import.xml',
+            # Phase 3 公式 shim：補 o-spreadsheet 未內建的 CHOOSE（functionRegistry）
+            'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/choose.js',
         ],
         # OCA spreadsheet_oca 已掛 spreadsheet.o_spreadsheet bundle；
         # 本模組 xlsx parser → o-spreadsheet model commands 對接於後續 sprint
