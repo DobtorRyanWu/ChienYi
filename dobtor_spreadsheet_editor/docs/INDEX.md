@@ -86,3 +86,9 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 ## Phase 7 — 效能與大檔
 
 (待 sprint 開展後填入)
+
+## Phase 8 — ChienYi 業務整合
+
+| Sprint | Topic | Audit Doc |
+|---|---|---|
+| 22 | **ChienYi bridge**：獨立模組 dobtor_spreadsheet_editor_chienyi，payment.estimate 表單加「匯入估驗試算表」按鈕 → 開 Xlsx 匯入；Playwright 驗證按鈕可見+開啟（通用編輯器保持業務無關） | [sprint22_chienyi_bridge.md](sprint22_chienyi_bridge.md) |

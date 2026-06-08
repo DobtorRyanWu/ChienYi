@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 估驗計價表單加「匯入估驗試算表」按鈕 → 開 dobtor_spreadsheet_editor 的 Xlsx 高保真匯入 -->
+    <record id="view_payment_estimate_form_sse" model="ir.ui.view">
+        <field name="name">payment.estimate.form.sse</field>
+        <field name="model">payment.estimate</field>
+        <field name="inherit_id" ref="construction_payment.view_payment_estimate_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="%(dobtor_spreadsheet_editor.action_xlsx_import)d"
+                        type="action"
+                        string="匯入估驗試算表"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

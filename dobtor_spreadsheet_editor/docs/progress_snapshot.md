@@ -1,13 +1,13 @@
 # 進度快照（Progress Snapshot）
 
-**最後更新**：2026-06-07（Sprint 21）
+**最後更新**：2026-06-08（Sprint 22）
 
 ## 當前指標一覽
 
 | 指標 | 值 | 目標 | 狀態 |
 |---|---|---|---|
 | 當前 Phase | 1+2 + VR + Phase 4.5（可編輯/邊框/公式）+ Phase 6（高保真匯出） | — | in_progress |
-| Sprint 編號 | 21 | — | — |
+| Sprint 編號 | 22 | — | — |
 | vitest unit tests | 213 / 213 passed | > 500（Phase 1+ 後） | 🟢 |
 | vitest integration | 338 / 338 passed（+ VR baseline skipIf 手動） | > 200 | 🟢 **達標** |
 | vitest 總計 | 551 / 551 passed（+1 VR skipped）+ Playwright E2E 1 | — | 🟢 |
@@ -37,7 +37,7 @@
 | Phase 5（Pivot/Chart） | 40+ | 0 | 0% |
 | Phase 6（Export） | 15+ | 3 | 20%（xlsx_writer + 樣式回寫 + 欄寬/列高） |
 | Phase 7（效能） | 10+ | 0 | 0% |
-| Phase 8（ChienYi 整合） | (待認可) | — | — |
+| Phase 8（ChienYi 整合） | — | 1 | bridge 模組 dobtor_spreadsheet_editor_chienyi：估驗計價「匯入估驗試算表」按鈕（E2E 驗證）|
 
 ## Phase 0 Sprint 0 完成項
 
