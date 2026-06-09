@@ -149,6 +149,15 @@ function parseFont(node: unknown): Font {
 
 function parseFill(node: unknown): Fill {
     const fillObj = (node ?? {}) as Record<string, unknown>;
+    // gradientFill：o-spreadsheet 不支援漸層格底色 → 取第一個 stop 色當 solid 近似
+    const gf = fillObj['gradientFill'] as Record<string, unknown> | undefined;
+    if (gf !== undefined) {
+        const stops = toArray<unknown>(gf['stop']);
+        const firstColor = stops.length > 0 ? parseColor((stops[0] as Record<string, unknown>)['color']) : undefined;
+        const fill: Fill = { patternType: 'solid' };
+        if (firstColor !== undefined) fill.fgColor = firstColor;
+        return fill;
+    }
     const pf = (fillObj['patternFill'] ?? {}) as Record<string, unknown>;
     const fill: Fill = {};
     const pt = attr(pf, 'patternType');

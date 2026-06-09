@@ -4236,6 +4236,16 @@
     }
     function parseFill(node) {
         const fillObj = (node ?? {});
+        // gradientFill：o-spreadsheet 不支援漸層格底色 → 取第一個 stop 色當 solid 近似
+        const gf = fillObj['gradientFill'];
+        if (gf !== undefined) {
+            const stops = toArray(gf['stop']);
+            const firstColor = stops.length > 0 ? parseColor(stops[0]['color']) : undefined;
+            const fill = { patternType: 'solid' };
+            if (firstColor !== undefined)
+                fill.fgColor = firstColor;
+            return fill;
+        }
         const pf = (fillObj['patternFill'] ?? {});
         const fill = {};
         const pt = attr(pf, 'patternType');

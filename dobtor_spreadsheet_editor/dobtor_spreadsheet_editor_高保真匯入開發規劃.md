@@ -352,7 +352,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] `StylesParser`：`xl/styles.xml`
 - [x] `<numFmts>` 自訂數字格式（id ≥ 164）+ 內建格式 ID 0-49 對照表
 - [x] `<fonts>` 字型陣列（name、size、bold、italic、color、underline、strike、vertAlign）
-- [ ] `<fills>` 填色（patternFill type、fgColor、bgColor；含 gradient fill）
+- [x] `<fills>` 填色（patternFill + gradientFill→第一個 stop 色 solid 近似）
 - [x] `<borders>` 邊框（left/right/top/bottom/diagonal × style + color）
 - [x] `<cellXfs>` — cell format index pool（每個 `<xf>` 組合 numFmtId/fontId/fillId/borderId/alignment）
 - [x] `<cellStyleXfs>` — named style pool
