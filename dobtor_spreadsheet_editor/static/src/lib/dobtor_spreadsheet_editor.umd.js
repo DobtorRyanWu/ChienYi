@@ -3966,6 +3966,19 @@
     //
     // 提取 cell value（含型別解析 + sharedString 解參照）、公式、合併儲存格、欄資訊、凍結窗格。
     // cell value 是 Phase 1 Exit「提取率 > 95%」的量測對象，對照 calamine golden 比對。
+    function parseHyperlinks(ws) {
+        const container = ws['hyperlinks'];
+        if (!container)
+            return [];
+        return toArray(container['hyperlink'])
+            .map((h) => ({
+            ref: attr(h, 'ref') ?? '',
+            rId: attr(h, 'r:id'),
+            location: attr(h, 'location'),
+            display: attr(h, 'display'),
+        }))
+            .filter((h) => h.ref !== '');
+    }
     function parseCols(wsData) {
         const colsContainer = wsData['cols'];
         if (colsContainer === undefined)
@@ -4089,6 +4102,7 @@
                 rowHeights,
                 conditionalFormatting: parseConditionalFormattings(ws),
                 dataValidations: parseDataValidations(ws),
+                hyperlinks: parseHyperlinks(ws),
                 freeze,
                 showGridLines,
                 maxRow,
@@ -5684,10 +5698,11 @@
         const parts = code.split(';');
         return parts.length >= 2 && /\[Red\]/i.test(parts[1]);
     }
-    function buildSheet(sheetId, name, ws, ss, styles, resolver, themeResolver, stylePool, borderPool, figures = [], tables = []) {
+    function buildSheet(sheetId, name, ws, ss, styles, resolver, themeResolver, stylePool, borderPool, figures = [], tables = [], hyperlinks = []) {
         const bounds = worksheetBounds(ws);
         const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
         const rowNumber = Math.min(MAX_ROWS, Math.max(bounds.rows, ws.maxRow, 1));
+        const hlMap = new Map(hyperlinks.map((h) => [h.ref, h]));
         const cells = {};
         for (const cell of ws.cells) {
             if (cell.col > colNumber || cell.row > rowNumber)
@@ -5735,9 +5750,16 @@
             const oBorder = toOBorder(concrete.border);
             if (oBorder)
                 oCell.border = borderPool.intern(oBorder);
+            // 超連結（§1.6）：非公式格 → 包成 o-spreadsheet markdown link [label](url)
+            const ref = `${columnIndexToLetter(cell.col)}${cell.row}`;
+            const hl = hlMap.get(ref);
+            if (hl && oCell.content[0] !== '=') {
+                const label = (hl.display || oCell.content || hl.url).replace(/[[\]]/g, '');
+                oCell.content = `[${label}](${hl.url})`;
+            }
             // 只收有內容/樣式/邊框的 cell
             if (oCell.content !== '' || oCell.style !== undefined || oCell.border !== undefined) {
-                cells[`${columnIndexToLetter(cell.col)}${cell.row}`] = oCell;
+                cells[ref] = oCell;
             }
         }
         const cols = {};
@@ -5780,7 +5802,7 @@
         const themeResolver = new ThemeResolver(theme);
         const stylePool = new Pool();
         const borderPool = new Pool();
-        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool, s.figures ?? [], s.tables ?? []));
+        const oSheets = sheets.map((s, i) => buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool, s.figures ?? [], s.tables ?? [], s.hyperlinks ?? []));
         return {
             version: 1,
             sheets: oSheets.length > 0 ? oSheets : [emptySheet()],
@@ -6588,6 +6610,29 @@
         return out;
     }
 
+    // hyperlink_resolver.ts — worksheet hyperlinks 的 rId → URL 解析（§1.6）
+    /** 把 worksheet 的 hyperlinks（rId/location）解析成 ref→url。*/
+    function resolveHyperlinks(pkg, sheetPart, hyperlinks) {
+        if (hyperlinks.length === 0)
+            return [];
+        const relMap = new Map(pkg.getRels(sheetPart).map((r) => [r.id, r]));
+        const out = [];
+        for (const h of hyperlinks) {
+            let url;
+            if (h.rId) {
+                const rel = relMap.get(h.rId);
+                if (rel)
+                    url = rel.targetMode === 'External' ? rel.target : rel.resolvedTarget;
+            }
+            else if (h.location) {
+                url = `#${h.location}`; // 內部參照（同檔 sheet!cell）
+            }
+            if (url)
+                out.push({ ref: h.ref, url, display: h.display });
+        }
+        return out;
+    }
+
     // csv_parser.ts — CSV → o-spreadsheet WorkbookData / HTML 預覽
     //
     // RFC 4180：欄以逗號分隔、雙引號包覆可含逗號/換行、"" 跳脫引號。去 UTF-8 BOM。
@@ -6781,12 +6826,16 @@
             : ThemeParser.default();
         const sheets = wb.sheets
             .filter((s) => s.target && pkg.hasPart(s.target))
-            .map((s, i) => ({
-            name: s.name,
-            ws: WorksheetParser.parse(pkg.getPartText(s.target)),
-            figures: resolveSheetCharts(pkg, s.target, `sheet${i + 1}`),
-            tables: resolveSheetTables(pkg, s.target),
-        }));
+            .map((s, i) => {
+            const ws = WorksheetParser.parse(pkg.getPartText(s.target));
+            return {
+                name: s.name,
+                ws,
+                figures: resolveSheetCharts(pkg, s.target, `sheet${i + 1}`),
+                tables: resolveSheetTables(pkg, s.target),
+                hyperlinks: resolveHyperlinks(pkg, s.target, ws.hyperlinks),
+            };
+        });
         return buildOSpreadsheetData(sheets, ss, styles, theme);
     }
     /**

@@ -59,11 +59,34 @@ export interface ParsedWorksheet {
     conditionalFormatting: ConditionalFormatting[];
     /** 資料驗證（§1.8）。*/
     dataValidations: DataValidation[];
+    /** 超連結（§1.6；rId 由 index 經 worksheet rels 解析成 URL）。*/
+    hyperlinks: Hyperlink[];
     freeze: FreezePanes | undefined;
     showGridLines: boolean;
     /** 最大行/列（1-based）；無資料為 0。*/
     maxRow: number;
     maxCol: number;
+}
+
+/** 超連結（§1.6）。rId → 外部 URL（rels）；location → 內部 sheet 參照。*/
+export interface Hyperlink {
+    ref: string;
+    rId?: string;
+    location?: string;
+    display?: string;
+}
+
+function parseHyperlinks(ws: Record<string, unknown>): Hyperlink[] {
+    const container = ws['hyperlinks'] as Record<string, unknown> | undefined;
+    if (!container) return [];
+    return toArray<unknown>(container['hyperlink'])
+        .map((h) => ({
+            ref: attr(h, 'ref') ?? '',
+            rId: attr(h, 'r:id'),
+            location: attr(h, 'location'),
+            display: attr(h, 'display'),
+        }))
+        .filter((h) => h.ref !== '');
 }
 
 function parseCols(wsData: Record<string, unknown>): ColumnInfo[] {
@@ -192,6 +215,7 @@ export class WorksheetParser {
             rowHeights,
             conditionalFormatting: parseConditionalFormattings(ws),
             dataValidations: parseDataValidations(ws),
+            hyperlinks: parseHyperlinks(ws),
             freeze,
             showGridLines,
             maxRow,

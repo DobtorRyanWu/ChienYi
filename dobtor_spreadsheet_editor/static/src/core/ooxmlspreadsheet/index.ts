@@ -131,6 +131,7 @@ import { ConcreteStyleResolver as _ConcreteStyleResolver } from './concrete_styl
 import { buildXlsx as _buildXlsx, type WriteSheet as _WriteSheet, type WriteCell as _WriteCell } from './xlsx_writer';
 import { resolveSheetCharts as _resolveSheetCharts } from './chart_compiler';
 import { resolveSheetTables as _resolveSheetTables } from './table_compiler';
+import { resolveHyperlinks as _resolveHyperlinks } from './hyperlink_resolver';
 
 export { buildOSpreadsheetData } from './to_ospreadsheet';
 export type { OSpreadsheetData, OSheet, OCell, OStyle, SheetInput } from './to_ospreadsheet';
@@ -200,12 +201,16 @@ export function importXlsxToOSpreadsheetData(buffer: ArrayBuffer): OSpreadsheetD
 
     const sheets: _SheetInput[] = wb.sheets
         .filter((s) => s.target && pkg.hasPart(s.target))
-        .map((s, i) => ({
-            name: s.name,
-            ws: _WorksheetParser.parse(pkg.getPartText(s.target!)),
-            figures: _resolveSheetCharts(pkg, s.target!, `sheet${i + 1}`),
-            tables: _resolveSheetTables(pkg, s.target!),
-        }));
+        .map((s, i) => {
+            const ws = _WorksheetParser.parse(pkg.getPartText(s.target!));
+            return {
+                name: s.name,
+                ws,
+                figures: _resolveSheetCharts(pkg, s.target!, `sheet${i + 1}`),
+                tables: _resolveSheetTables(pkg, s.target!),
+                hyperlinks: _resolveHyperlinks(pkg, s.target!, ws.hyperlinks),
+            };
+        });
 
     return _buildOSpreadsheetData(sheets, ss, styles, theme);
 }

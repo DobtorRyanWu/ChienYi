@@ -252,11 +252,13 @@ function buildSheet(
     borderPool: Pool<OBorder>,
     figures: OFigure[] = [],
     tables: OTable[] = [],
+    hyperlinks: { ref: string; url: string; display?: string }[] = [],
 ): OSheet {
     const bounds = worksheetBounds(ws);
     const colNumber = Math.min(MAX_COLS, Math.max(bounds.cols, ws.maxCol, 1));
     const rowNumber = Math.min(MAX_ROWS, Math.max(bounds.rows, ws.maxRow, 1));
 
+    const hlMap = new Map(hyperlinks.map((h) => [h.ref, h]));
     const cells: Record<string, OCell> = {};
     for (const cell of ws.cells) {
         if (cell.col > colNumber || cell.row > rowNumber) continue;
@@ -303,9 +305,16 @@ function buildSheet(
         if (effectiveStyle) oCell.style = stylePool.intern(effectiveStyle);
         const oBorder = toOBorder(concrete.border);
         if (oBorder) oCell.border = borderPool.intern(oBorder);
+        // 超連結（§1.6）：非公式格 → 包成 o-spreadsheet markdown link [label](url)
+        const ref = `${columnIndexToLetter(cell.col)}${cell.row}`;
+        const hl = hlMap.get(ref);
+        if (hl && oCell.content[0] !== '=') {
+            const label = (hl.display || oCell.content || hl.url).replace(/[[\]]/g, '');
+            oCell.content = `[${label}](${hl.url})`;
+        }
         // 只收有內容/樣式/邊框的 cell
         if (oCell.content !== '' || oCell.style !== undefined || oCell.border !== undefined) {
-            cells[`${columnIndexToLetter(cell.col)}${cell.row}`] = oCell;
+            cells[ref] = oCell;
         }
     }
 
@@ -358,6 +367,8 @@ export interface SheetInput {
     figures?: OFigure[];
     /** 由 index 解析的 Excel Tables（worksheet→table）。*/
     tables?: OTable[];
+    /** 由 index 解析的超連結（ref → url；§1.6）。*/
+    hyperlinks?: { ref: string; url: string; display?: string }[];
 }
 
 /** 多工作表 → o-spreadsheet WorkbookData。*/
@@ -373,7 +384,7 @@ export function buildOSpreadsheetData(
     const borderPool = new Pool<OBorder>();
 
     const oSheets = sheets.map((s, i) =>
-        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool, s.figures ?? [], s.tables ?? []),
+        buildSheet(`sheet${i + 1}`, s.name, s.ws, ss, styles, resolver, themeResolver, stylePool, borderPool, s.figures ?? [], s.tables ?? [], s.hyperlinks ?? []),
     );
 
     return {
