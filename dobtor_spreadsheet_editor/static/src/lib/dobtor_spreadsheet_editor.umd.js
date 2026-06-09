@@ -3327,6 +3327,10 @@
     // 本層只負責：解 zip、取 part bytes/text、解析 Content_Types、解析 .rels（含相對路徑解析）。
     // 不解析任何試算表語意（那是 §1.3+ 各 parser 的工作）。
     const CONTENT_TYPES_PART = '[Content_Types].xml';
+    // ── 防禦上限（不可信上傳；規劃書 §4.5.4）──
+    const MAX_COMPRESSED_BYTES = 30 * 1024 * 1024; // 壓縮輸入 30MB（前端另有 file.size 把關）
+    const MAX_DECOMPRESSED_BYTES = 300 * 1024 * 1024; // 解壓總大小 300MB（zip bomb 防護）
+    const MAX_PART_COUNT = 8000; // zip entry 數上限（避免海量 part）
     /** 正規化 part 名稱：去前導斜線，作為 zip entry key。*/
     function normalizePart(name) {
         return name.replace(/^\/+/, '');
@@ -3362,9 +3366,24 @@
         /** 從 xlsx 二進位（ArrayBuffer 或 Uint8Array）建立 reader。*/
         static fromBuffer(buffer) {
             const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            if (bytes.byteLength > MAX_COMPRESSED_BYTES) {
+                throw new Error(`xlsx 過大：${(bytes.byteLength / 1048576).toFixed(1)}MB 超過 ${MAX_COMPRESSED_BYTES / 1048576}MB 上限`);
+            }
             const parts = unzipSync(bytes);
             if (!(CONTENT_TYPES_PART in parts)) {
                 throw new Error(`Invalid xlsx: missing ${CONTENT_TYPES_PART}`);
+            }
+            // zip bomb 防護：part 數 + 解壓總大小上限
+            const names = Object.keys(parts);
+            if (names.length > MAX_PART_COUNT) {
+                throw new Error(`xlsx part 數過多（${names.length} > ${MAX_PART_COUNT}）：疑似惡意檔`);
+            }
+            let total = 0;
+            for (const n of names) {
+                total += parts[n].byteLength;
+                if (total > MAX_DECOMPRESSED_BYTES) {
+                    throw new Error(`xlsx 解壓後過大（> ${MAX_DECOMPRESSED_BYTES / 1048576}MB）：疑似 zip bomb`);
+                }
             }
             return new PackageReader(parts);
         }

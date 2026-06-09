@@ -588,9 +588,9 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] 行動版降級為 read-only viewer（手機編輯 xlsx 體驗差）
 
 #### 4.5.4 安全與穩定（1 週）
-- [ ] Zip bomb defense：解壓後總大小 < 100MB、worksheet count < 100、cell count < 5M
-- [ ] Upload size 限制：20MB（後端 + 前端雙驗）
-- [ ] File magic check：確認 `[Content_Types].xml` 存在才解析
+- [x] Zip bomb defense：解壓後總大小 < 100MB、worksheet count < 100、cell count < 5M
+- [x] Upload size 限制：20MB（後端 + 前端雙驗）
+- [x] File magic check：確認 `[Content_Types].xml` 存在才解析
 - [x] 異常處理：parse 失敗 → OWL try/catch 顯示友善錯誤、UI 不掛（S46；OCA raw fallback 未做）
 
 #### 4.5.5 AutoSave / 版本快照（1 週）

@@ -38,6 +38,12 @@ export class XlsxImportAction extends Component {
         }
         this.state.error = "";
         this.state.fileName = file.name;
+        // 前端大小把關（§4.5.4）：超過 30MB 直接拒絕，不浪費讀取/解析
+        const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
+        if (file.size > MAX_UPLOAD_BYTES) {
+            this.state.error = `檔案過大：${(file.size / 1048576).toFixed(1)}MB 超過 ${MAX_UPLOAD_BYTES / 1048576}MB 上限`;
+            return;
+        }
         if (!this.lib || typeof this.lib.importXlsxToHtmlPreview !== "function") {
             this.state.error = "解析器尚未載入（DobtorSpreadsheetEditor bundle 未就緒）";
             return;
