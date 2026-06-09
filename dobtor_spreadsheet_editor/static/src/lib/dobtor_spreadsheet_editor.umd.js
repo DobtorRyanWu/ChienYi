@@ -5143,7 +5143,7 @@
         medium: 2, mediumDashed: 2,
         thick: 3, double: 3,
     };
-    function esc(s) {
+    function esc$1(s) {
         return s
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -5272,7 +5272,7 @@
                 else {
                     display = valueToText(raw);
                 }
-                cells.push(`<td${span} style="${cellCss(style, colW[c], rowHpx)}">${esc(display)}</td>`);
+                cells.push(`<td${span} style="${cellCss(style, colW[c], rowHpx)}">${esc$1(display)}</td>`);
             }
             rowsHtml.push(`<tr>${cells.join('')}</tr>`);
         }
@@ -6588,6 +6588,135 @@
         return out;
     }
 
+    // csv_parser.ts — CSV → o-spreadsheet WorkbookData / HTML 預覽
+    //
+    // RFC 4180：欄以逗號分隔、雙引號包覆可含逗號/換行、"" 跳脫引號。去 UTF-8 BOM。
+    // 編碼（UTF-8 / Big5）由上層 OWL 元件解碼後傳純文字進來。
+    /** 解析 CSV 文字 → 列陣列。*/
+    function parseCsv(text) {
+        if (text.charCodeAt(0) === 0xfeff)
+            text = text.slice(1); // 去 BOM
+        const rows = [];
+        let row = [];
+        let field = '';
+        let inQuotes = false;
+        let i = 0;
+        let cellStarted = false;
+        while (i < text.length) {
+            const ch = text[i];
+            if (inQuotes) {
+                if (ch === '"') {
+                    if (text[i + 1] === '"') {
+                        field += '"';
+                        i += 2;
+                        continue;
+                    }
+                    inQuotes = false;
+                    i++;
+                    continue;
+                }
+                field += ch;
+                i++;
+                continue;
+            }
+            if (ch === '"') {
+                inQuotes = true;
+                cellStarted = true;
+                i++;
+                continue;
+            }
+            if (ch === ',') {
+                row.push(field);
+                field = '';
+                cellStarted = true;
+                i++;
+                continue;
+            }
+            if (ch === '\r') {
+                i++;
+                continue; // 吃掉 CR；由 \n 斷行
+            }
+            if (ch === '\n') {
+                row.push(field);
+                rows.push(row);
+                row = [];
+                field = '';
+                cellStarted = false;
+                i++;
+                continue;
+            }
+            field += ch;
+            cellStarted = true;
+            i++;
+        }
+        // 收尾最後一欄/列（避免漏掉無結尾換行的最後一行）
+        if (cellStarted || field !== '' || row.length > 0) {
+            row.push(field);
+            rows.push(row);
+        }
+        return rows;
+    }
+    const MAX_CSV_ROWS = 50000;
+    const MAX_CSV_COLS = 256;
+    /** CSV → o-spreadsheet WorkbookData（單一工作表、純值無樣式）。*/
+    function csvToOSpreadsheetData(text) {
+        const rows = parseCsv(text);
+        const cells = {};
+        let maxCol = 1;
+        const nRows = Math.min(rows.length, MAX_CSV_ROWS);
+        for (let r = 0; r < nRows; r++) {
+            const row = rows[r];
+            const nCols = Math.min(row.length, MAX_CSV_COLS);
+            for (let c = 0; c < nCols; c++) {
+                const val = row[c];
+                if (val !== '')
+                    cells[`${columnIndexToLetter(c + 1)}${r + 1}`] = { content: val };
+                if (c + 1 > maxCol)
+                    maxCol = c + 1;
+            }
+        }
+        return {
+            version: 1,
+            sheets: [
+                {
+                    id: 'sheet1',
+                    name: 'CSV',
+                    colNumber: Math.max(maxCol, 1),
+                    rowNumber: Math.max(nRows, 1),
+                    cells,
+                    merges: [],
+                    cols: {},
+                    rows: {},
+                    conditionalFormats: [],
+                    dataValidationRules: [],
+                    tables: [],
+                    figures: [],
+                },
+            ],
+            styles: {},
+            formats: {},
+            borders: {},
+        };
+    }
+    function esc(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    /** CSV → HTML 預覽（與 XlsxPreview 同形）。*/
+    function csvToHtmlPreview(text) {
+        const rows = parseCsv(text);
+        const nRows = Math.min(rows.length, 500); // 預覽僅前 500 列
+        const body = rows
+            .slice(0, nRows)
+            .map((row) => `<tr>${row
+        .slice(0, MAX_CSV_COLS)
+        .map((v) => `<td style="border:1px solid #ddd;padding:2px 6px;white-space:nowrap">${esc(v)}</td>`)
+        .join('')}</tr>`)
+            .join('');
+        const html = `<table style="border-collapse:collapse;font:13px sans-serif">${body}</table>` +
+            (rows.length > nRows ? `<div style="color:#888;padding:4px">（預覽前 ${nRows} 列，共 ${rows.length} 列）</div>` : '');
+        return { sheets: ['CSV'], activeSheet: 0, html };
+    }
+
     // dobtor_spreadsheet_editor — OOXML SpreadsheetML Parser entry
     //
     // Sprint 0：空殼 export
@@ -6731,6 +6860,14 @@
         }
         return buildXlsx(sheets, { dxfs: styles.dxfs, rawParts, extraOverrides, extraDefaults });
     }
+    /** CSV 文字 → o-spreadsheet WorkbookData。*/
+    function importCsvToOSpreadsheetData(text) {
+        return csvToOSpreadsheetData(text);
+    }
+    /** CSV 文字 → HTML 預覽。*/
+    function importCsvToHtmlPreview(text) {
+        return csvToHtmlPreview(text);
+    }
 
     exports.BUILD_DATE = BUILD_DATE;
     exports.CFParser = CFParser;
@@ -6766,6 +6903,8 @@
     exports.fillBackgroundColor = fillBackgroundColor;
     exports.formatExcelDate = formatExcelDate;
     exports.formatNumber = formatNumber;
+    exports.importCsvToHtmlPreview = importCsvToHtmlPreview;
+    exports.importCsvToOSpreadsheetData = importCsvToOSpreadsheetData;
     exports.importXlsxToHtmlPreview = importXlsxToHtmlPreview;
     exports.importXlsxToOSpreadsheetData = importXlsxToOSpreadsheetData;
     exports.isDateFormatCode = isDateFormatCode;

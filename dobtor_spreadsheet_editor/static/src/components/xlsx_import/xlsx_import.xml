@@ -4,10 +4,10 @@
         <div class="o_dobtor_xlsx_import p-3 h-100 d-flex flex-column">
             <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                 <h4 class="m-0">Xlsx 高保真匯入預覽</h4>
-                <input type="file" accept=".xlsx"
+                <input type="file" accept=".xlsx,.csv,.xls"
                        class="form-control w-auto" t-on-change="onFile"/>
                 <span t-if="state.fileName" class="text-muted small" t-esc="state.fileName"/>
-                <button t-if="state.html" class="btn btn-outline-secondary btn-sm ms-auto"
+                <button t-if="state.html and fileType !== 'csv'" class="btn btn-outline-secondary btn-sm ms-auto"
                         t-on-click="downloadXlsx">下載 xlsx（重新匯出）</button>
                 <button t-if="state.html" class="btn btn-primary btn-sm"
                         t-att-disabled="state.opening"
@@ -32,7 +32,7 @@
                     style="border:1px solid #dee2e6;background:#fff"
                     t-att-srcdoc="state.html"/>
             <div t-else="" class="text-muted border rounded p-4 text-center flex-grow-1">
-                上傳 .xlsx 檔以預覽（含儲存格值、樣式、合併格、number format 渲染）。
+                上傳 .xlsx / .csv 檔以預覽（xlsx 含樣式、合併格、number format、CF、圖表；csv 為純值）。
             </div>
         </div>
     </t>

@@ -281,3 +281,16 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
 
     return _buildXlsx(sheets, { dxfs: styles.dxfs, rawParts, extraOverrides, extraDefaults });
 }
+
+// ── CSV 支援 ──
+import { csvToOSpreadsheetData as _csvToData, csvToHtmlPreview as _csvToHtml } from './csv_parser';
+
+/** CSV 文字 → o-spreadsheet WorkbookData。*/
+export function importCsvToOSpreadsheetData(text: string): OSpreadsheetData {
+    return _csvToData(text);
+}
+
+/** CSV 文字 → HTML 預覽。*/
+export function importCsvToHtmlPreview(text: string): XlsxPreview {
+    return _csvToHtml(text);
+}

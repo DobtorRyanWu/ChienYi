@@ -24,11 +24,26 @@ export class XlsxImportAction extends Component {
             opening: false,
         });
         this.buffer = null;
+        this.csvText = null;
+        this.fileType = "xlsx"; // xlsx | csv
     }
 
     /** UMD bundle 暴露的全域（web.assets_backend 載入）。*/
     get lib() {
         return window.DobtorSpreadsheetEditor;
+    }
+
+    /** 以 UTF-8 解碼；若出現替代字元（亂碼）改用 Big5（台灣常見舊 CSV 編碼）。*/
+    _decodeText(buffer) {
+        const utf8 = new TextDecoder("utf-8").decode(buffer);
+        if (utf8.includes("�")) {
+            try {
+                return new TextDecoder("big5").decode(buffer);
+            } catch (e) {
+                return utf8;
+            }
+        }
+        return utf8;
     }
 
     async onFile(ev) {
@@ -38,6 +53,9 @@ export class XlsxImportAction extends Component {
         }
         this.state.error = "";
         this.state.fileName = file.name;
+        this.buffer = null;
+        this.csvText = null;
+        this.fileType = /\.csv$/i.test(file.name) ? "csv" : "xlsx";
         // 前端大小把關（§4.5.4）：超過 30MB 直接拒絕，不浪費讀取/解析
         const MAX_UPLOAD_BYTES = 30 * 1024 * 1024;
         if (file.size > MAX_UPLOAD_BYTES) {
@@ -49,7 +67,12 @@ export class XlsxImportAction extends Component {
             return;
         }
         try {
-            this.buffer = await file.arrayBuffer();
+            const ab = await file.arrayBuffer();
+            if (this.fileType === "csv") {
+                this.csvText = this._decodeText(ab);
+            } else {
+                this.buffer = ab;
+            }
             this._renderSheet(0);
         } catch (e) {
             this.state.error = `讀取失敗：${e}`;
@@ -57,14 +80,17 @@ export class XlsxImportAction extends Component {
     }
 
     selectSheet(idx) {
-        if (this.buffer) {
+        if (this.buffer || this.csvText !== null) {
             this._renderSheet(idx);
         }
     }
 
     _renderSheet(idx) {
         try {
-            const preview = this.lib.importXlsxToHtmlPreview(this.buffer, idx);
+            const preview =
+                this.fileType === "csv"
+                    ? this.lib.importCsvToHtmlPreview(this.csvText)
+                    : this.lib.importXlsxToHtmlPreview(this.buffer, idx);
             this.state.sheets = preview.sheets;
             this.state.activeSheet = preview.activeSheet;
             this.state.html = preview.html;
@@ -101,7 +127,8 @@ export class XlsxImportAction extends Component {
      * 把解析結果建成 OCA spreadsheet.spreadsheet 記錄、開 OCA 編輯器（可編輯、繼承 OCA 渲染）。
      */
     async openInOSpreadsheet() {
-        if (!this.buffer || !this.lib || typeof this.lib.importXlsxToOSpreadsheetData !== "function") {
+        const ready = this.lib && typeof this.lib.importXlsxToOSpreadsheetData === "function";
+        if (!ready || (this.buffer === null && this.csvText === null)) {
             this.state.error = "解析器尚未載入";
             return;
         }
@@ -109,8 +136,11 @@ export class XlsxImportAction extends Component {
         this.state.error = "";
         let action = null;
         try {
-            const data = this.lib.importXlsxToOSpreadsheetData(this.buffer);
-            const name = this.state.fileName.replace(/\.xlsx$/i, "") || "Imported Xlsx";
+            const data =
+                this.fileType === "csv"
+                    ? this.lib.importCsvToOSpreadsheetData(this.csvText)
+                    : this.lib.importXlsxToOSpreadsheetData(this.buffer);
+            const name = this.state.fileName.replace(/\.(xlsx|csv)$/i, "") || "Imported";
             // 命名空間 context：呼叫方（如估驗 bridge）可指定額外 create 欄位（回掛來源記錄）。
             const ctx = (this.props.action && this.props.action.context) || {};
             const extraVals = ctx.sse_create_vals && typeof ctx.sse_create_vals === "object" ? ctx.sse_create_vals : {};
