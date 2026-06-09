@@ -137,3 +137,4 @@ Sprint 進度索引（沿用 dobtor_doc_editor 的 INDEX.md 模式）。
 |---|---|---|
 | 44 | **旗艦檔 capstone + benchmark**：契約詳細表 16 sheet/6.5萬公式端到端開啟（預覽 1.3s、可編輯 20.8s、errs=none、16分頁全渲染）；Phase 7 效能基準 | [sprint44_flagship_benchmark.md](sprint44_flagship_benchmark.md) |
 | 45 | **會計負數紅字 [Red]**：探測發現 o-spreadsheet 不支援格式色彩 token→改取安全數字格式+負值靜態紅字；連帶修 numFmt 寬容套用(Excel相容)；截圖 -678.90 紅字 | [sprint45_accounting_red.md](sprint45_accounting_red.md) |
+| 46 | **穩健性掃描 + 損壞檔處理**：robustness.test（48 fixture 兩路徑無丟錯 + 損壞輸入丟錯）；Playwright 損壞檔→友善錯誤橫幅、UI 不掛 | [sprint46_robustness.md](sprint46_robustness.md) |
