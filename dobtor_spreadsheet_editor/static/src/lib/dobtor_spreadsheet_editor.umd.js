@@ -6612,6 +6612,12 @@
     //
     // 解析鏈：worksheet rels → tableN.xml → ParsedTable → o-spreadsheet table。
     const DEFAULT_STYLE = 'TableStyleMedium2';
+    // o-spreadsheet 只認內建表格樣式（TableStyleLight/Medium/Dark + 數字）。
+    // Excel 自訂 tableStyles（styles.xml <tableStyles> 定義的）→ fallback 內建，避免 o-spreadsheet 無效樣式。
+    const BUILTIN_TABLE_STYLE = /^TableStyle(Light|Medium|Dark)\d+$/;
+    function safeTableStyle(name) {
+        return name && BUILTIN_TABLE_STYLE.test(name) ? name : DEFAULT_STYLE;
+    }
     /** 解析某 worksheet part 連結的所有 Excel Table → o-spreadsheet tables。*/
     function resolveSheetTables(pkg, sheetPart) {
         const out = [];
@@ -6634,7 +6640,7 @@
                     numberOfHeaders: 1, // Excel Table 預設 1 列表頭
                     bandedRows: t.showRowStripes,
                     bandedColumns: t.showColumnStripes,
-                    styleId: t.styleName ?? DEFAULT_STYLE,
+                    styleId: safeTableStyle(t.styleName),
                 },
             });
         }

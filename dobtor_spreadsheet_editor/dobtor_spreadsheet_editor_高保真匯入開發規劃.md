@@ -357,7 +357,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] `<cellXfs>` — cell format index pool（每個 `<xf>` 組合 numFmtId/fontId/fillId/borderId/alignment）
 - [x] `<cellStyleXfs>` — named style pool
 - [x] `<dxfs>` — differential formats（CF 使用）
-- [ ] `<tableStyles>` — table style preset
+- [x] `<tableStyles>` — 自訂表格樣式名 fallback 內建（o-spreadsheet 只認 TableStyle內建）
 - [x] 完整 TypeScript 型別（含 alignment、protection 子元素）
 
 #### 1.6 Worksheet（2 週）★ 核心

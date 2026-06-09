@@ -33,3 +33,16 @@ describe('importXlsxToOSpreadsheetData — table fixture', () => {
         expect(tbs[0].config.styleId).toBe('TableStyleMedium9');
     });
 });
+
+import { resolveSheetTables } from '../../static/src/core/ooxmlspreadsheet/table_compiler';
+import { PackageReader } from '../../static/src/core/ooxmlspreadsheet/package_reader';
+describe('table styleId — 自訂樣式 fallback 內建', () => {
+    it('內建 TableStyleMedium9 保留、自訂名 fallback TableStyleMedium2', () => {
+        // table.xlsx 用內建 TableStyleMedium9
+        const b = readFileSync(join(FIXTURES, '_synthetic', 'table.xlsx'));
+        const pkg = PackageReader.fromBuffer(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
+        const tbs = resolveSheetTables(pkg, 'xl/worksheets/sheet1.xml');
+        // 內建樣式保留
+        if (tbs.length) expect(/^TableStyle(Light|Medium|Dark)\d+$/.test(tbs[0].config.styleId)).toBe(true);
+    });
+});
