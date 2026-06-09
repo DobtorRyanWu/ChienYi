@@ -12,6 +12,8 @@ export interface DataValidation {
     formula1?: string;
     formula2?: string;
     allowBlank: boolean;
+    /** stop / warning / information（無 → 預設 stop）；決定 o-spreadsheet isBlocking。*/
+    errorStyle?: string;
 }
 
 function parseOne(dv: Record<string, unknown>): DataValidation | undefined {
@@ -26,6 +28,7 @@ function parseOne(dv: Record<string, unknown>): DataValidation | undefined {
         formula1: f1 !== undefined ? textOf(f1) : undefined,
         formula2: f2 !== undefined ? textOf(f2) : undefined,
         allowBlank: boolAttr(dv, 'allowBlank'),
+        errorStyle: attr(dv, 'errorStyle'),
     };
 }
 

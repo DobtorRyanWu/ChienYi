@@ -397,7 +397,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] `DataValidationParser`：`<dataValidation type sqRef showDropDown>`
 - [x] type = `list`：`<formula1>`（清單 range 或 inline `"opt1,opt2,opt3"`）
 - [x] type = `whole` / `decimal` / `date` / `time` / `textLength`：operator + formula1 + formula2
-- [ ] type = `custom`：`<formula1>` 自訂條件
+- [x] type = `custom`：`<formula1>` 自訂條件
 - [ ] error / input message 屬性
 
 #### 1.9 Theme（3 天）
@@ -551,7 +551,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] `DataValidationCompiler`：DataValidation AST → o-spreadsheet validation
 - [x] `list` type → dropdown（inline 清單 vs range 清單）
 - [x] `whole` / `decimal` / `date` / `time` / `textLength` type + operator
-- [ ] `custom` type → 公式驗證
+- [x] `custom` type → 公式驗證
 - [ ] error message / input message 整合
 
 #### 4.3 Visual Regression（1 週）
