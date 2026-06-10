@@ -5151,6 +5151,38 @@
         return `'${primary.replace(/'/g, '')}',${CJK_FALLBACK}`;
     }
 
+    // cjk_width.ts — CJK 欄寬估算（規劃書 §2.5 查表法）
+    //
+    // 全形（CJK 漢字、假名、全形符號）視為 2 個 ASCII 寬度，半形 1 個。
+    // 用於無明確 Excel 欄寬的欄：依內容估算顯示寬度，改善 HTML 預覽 CJK 欄擠壓。
+    /** 單一 code point 的顯示寬度（全形 2、半形 1）。*/
+    function charWidth(cp) {
+        if ((cp >= 0x1100 && cp <= 0x115f) || // Hangul Jamo
+            (cp >= 0x2e80 && cp <= 0x303e) || // CJK 部首 + 符號
+            (cp >= 0x3041 && cp <= 0x33ff) || // 假名 + 注音 + CJK 相容
+            (cp >= 0x3400 && cp <= 0x4dbf) || // CJK 擴展 A
+            (cp >= 0x4e00 && cp <= 0x9fff) || // CJK 統一表意
+            (cp >= 0xa000 && cp <= 0xa4cf) || // 彝文
+            (cp >= 0xac00 && cp <= 0xd7a3) || // 諺文音節
+            (cp >= 0xf900 && cp <= 0xfaff) || // CJK 相容表意
+            (cp >= 0xfe30 && cp <= 0xfe4f) || // CJK 相容形式
+            (cp >= 0xff00 && cp <= 0xff60) || // 全形 ASCII
+            (cp >= 0xffe0 && cp <= 0xffe6) || // 全形符號
+            (cp >= 0x20000 && cp <= 0x3fffd) // CJK 擴展 B+
+        ) {
+            return 2;
+        }
+        return 1;
+    }
+    /** 文字的顯示寬度（以 ASCII 字元為單位）。*/
+    function displayWidth(text) {
+        let w = 0;
+        for (const ch of text) {
+            w += charWidth(ch.codePointAt(0) ?? 0);
+        }
+        return w;
+    }
+
     // html_render.ts — ParsedWorksheet + ConcreteStyle → HTML 表格（VR pipeline 的 render 路徑）
     //
     // 這是「model → DOM」的第一條 render 路徑：把解析出的 cell 值 + 具體樣式 render 成 HTML <table>，
@@ -5244,15 +5276,35 @@
         }
         return { anchors, covered };
     }
-    /** 建欄索引（1-based）→ 寬度 px 的對照（依 ws.cols，否則預設）。*/
-    function buildColWidths(ws, maxCol, defaultChars) {
+    /** 建欄索引（1-based）→ 寬度 px（依 ws.cols；無明確寬度的欄依 CJK 內容估算，§2.5）。*/
+    function buildColWidths(ws, maxCol, maxRow, defaultChars, valueMap) {
         const widths = new Array(maxCol + 1).fill(columnWidthToPixels(defaultChars, DEFAULT_MDW));
+        const explicit = new Set();
         for (const col of ws.cols) {
             if (col.width === undefined)
                 continue;
             const px = columnWidthToPixels(col.width, DEFAULT_MDW);
-            for (let c = col.min; c <= col.max && c <= maxCol; c++)
+            for (let c = col.min; c <= col.max && c <= maxCol; c++) {
                 widths[c] = px;
+                explicit.add(c);
+            }
+        }
+        // 無明確寬度的欄 → 依該欄內容的 CJK 顯示寬度估算（全形 2、半形 1）
+        for (let c = 1; c <= maxCol; c++) {
+            if (explicit.has(c))
+                continue;
+            let maxW = 0;
+            for (let r = 1; r <= maxRow; r++) {
+                const v = valueMap.get(`${r}:${c}`);
+                if (v === undefined || v === '')
+                    continue;
+                const w = displayWidth(String(v));
+                if (w > maxW)
+                    maxW = w;
+            }
+            if (maxW > defaultChars) {
+                widths[c] = columnWidthToPixels(Math.min(maxW + 1, 50), DEFAULT_MDW); // 上限 50 字元
+            }
         }
         return widths;
     }
@@ -5271,7 +5323,7 @@
         const styleIndexMap = new Map();
         for (const cell of ws.cells)
             styleIndexMap.set(`${cell.row}:${cell.col}`, cell.styleIndex);
-        const colW = buildColWidths(ws, nCols, defaultChars);
+        const colW = buildColWidths(ws, nCols, nRows, defaultChars, valueMap);
         const { anchors, covered } = buildMergeMaps(ws.merges);
         const rowsHtml = [];
         for (let r = 1; r <= nRows; r++) {
@@ -5684,6 +5736,7 @@
         'IF', 'IFS', 'IFERROR', 'IFNA', 'AND', 'OR', 'NOT',
         // math / agg
         'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'CEILING', 'FLOOR', 'TRUNC', 'POWER', 'SQRT', 'ABS', 'INT', 'MOD', 'DELTA',
+        'RAND', 'RANDBETWEEN', // volatile（§3.4，o-spreadsheet 內建自動重算）
         'SUM', 'SUMIF', 'SUMIFS', 'SUMPRODUCT', 'PRODUCT',
         'COUNT', 'COUNTA', 'COUNTBLANK', 'COUNTIF', 'COUNTIFS',
         'AVERAGE', 'AVERAGEIF', 'AVERAGEIFS', 'MEDIAN', 'MIN', 'MAX', 'MINIFS', 'MAXIFS',

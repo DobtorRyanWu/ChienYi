@@ -14,6 +14,7 @@ import { ConcreteStyleResolver, fillBackgroundColor, type ConcreteStyle } from '
 import { formatNumber } from '../number_formatter';
 import { formatYmdByCode } from '../number_format';
 import { fontFamilyStack, CJK_FALLBACK } from './font_map';
+import { displayWidth } from '../cjk_width';
 import type { SharedString } from '../shared_strings_parser';
 
 // 已轉 ISO 的日期字串（buildValueMapStyled 對日期格輸出 YYYY-MM-DD）
@@ -110,13 +111,37 @@ function buildMergeMaps(merges: string[]): {
     return { anchors, covered };
 }
 
-/** 建欄索引（1-based）→ 寬度 px 的對照（依 ws.cols，否則預設）。*/
-function buildColWidths(ws: ParsedWorksheet, maxCol: number, defaultChars: number): number[] {
+/** 建欄索引（1-based）→ 寬度 px（依 ws.cols；無明確寬度的欄依 CJK 內容估算，§2.5）。*/
+function buildColWidths(
+    ws: ParsedWorksheet,
+    maxCol: number,
+    maxRow: number,
+    defaultChars: number,
+    valueMap: Map<string, CellValue>,
+): number[] {
     const widths = new Array<number>(maxCol + 1).fill(columnWidthToPixels(defaultChars, DEFAULT_MDW));
+    const explicit = new Set<number>();
     for (const col of ws.cols) {
         if (col.width === undefined) continue;
         const px = columnWidthToPixels(col.width, DEFAULT_MDW);
-        for (let c = col.min; c <= col.max && c <= maxCol; c++) widths[c] = px;
+        for (let c = col.min; c <= col.max && c <= maxCol; c++) {
+            widths[c] = px;
+            explicit.add(c);
+        }
+    }
+    // 無明確寬度的欄 → 依該欄內容的 CJK 顯示寬度估算（全形 2、半形 1）
+    for (let c = 1; c <= maxCol; c++) {
+        if (explicit.has(c)) continue;
+        let maxW = 0;
+        for (let r = 1; r <= maxRow; r++) {
+            const v = valueMap.get(`${r}:${c}`);
+            if (v === undefined || v === '') continue;
+            const w = displayWidth(String(v));
+            if (w > maxW) maxW = w;
+        }
+        if (maxW > defaultChars) {
+            widths[c] = columnWidthToPixels(Math.min(maxW + 1, 50), DEFAULT_MDW); // 上限 50 字元
+        }
     }
     return widths;
 }
@@ -143,7 +168,7 @@ export function renderWorksheetHtml(
     const valueMap = buildValueMapStyled(ws, sharedStrings, styles);
     const styleIndexMap = new Map<string, number | undefined>();
     for (const cell of ws.cells) styleIndexMap.set(`${cell.row}:${cell.col}`, cell.styleIndex);
-    const colW = buildColWidths(ws, nCols, defaultChars);
+    const colW = buildColWidths(ws, nCols, nRows, defaultChars, valueMap);
     const { anchors, covered } = buildMergeMaps(ws.merges);
 
     const rowsHtml: string[] = [];

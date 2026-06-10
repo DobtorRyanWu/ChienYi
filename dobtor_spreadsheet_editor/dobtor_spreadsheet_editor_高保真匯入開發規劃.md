@@ -464,8 +464,8 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] Rich text cell：拆分為 o-spreadsheet 多 segment cell
 
 #### 2.5 CJK 欄寬估算（查表法）（1 週）
-- [ ] `CJKWidthEstimator`：每個 Unicode block 對應寬度因子（CJK 範圍 = 2 × ASCII 基準）
-- [ ] 處理半形/全形混合
+- [x] CJKWidthEstimator：CJK 全形=2、半形=1；無明確欄寬的欄依內容估寬（HTML 預覽）
+- [x] 處理半形/全形混合（displayWidth 逐 code point）
 - [ ] Excel `bestFit` cols 計算後寫入 o-spreadsheet column width
 - [ ] Phase 7 升級為 HarfBuzz WASM
 
@@ -516,8 +516,8 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] Excel 與 o-spreadsheet 函數行為差異記錄（邊界值、空白處理）
 
 #### 3.4 Volatile Functions（1 週）
-- [ ] `NOW()` / `TODAY()` / `RAND()` / `RANDBETWEEN()` / `INDIRECT()` / `OFFSET()` 標記為 volatile
-- [ ] 與 o-spreadsheet recalc 機制整合（避免無限重算）
+- [x] NOW/TODAY/RAND/RANDBETWEEN/INDIRECT/OFFSET 納入白名單→餵公式，o-spreadsheet 自動 volatile 重算
+- [x] o-spreadsheet 內建 recalc 處理 volatile（無需額外整合）
 
 #### 3.5 公式錯誤值（3 天）
 - [x] Cell `t="e"` + 錯誤值（`#NULL!` / `#DIV/0!` / `#VALUE!` / `#REF!` / `#NAME?` / `#NUM!` / `#N/A` / `#GETTING_DATA`）

@@ -192,6 +192,7 @@ const SUPPORTED_FUNCTIONS = new Set([
     'IF', 'IFS', 'IFERROR', 'IFNA', 'AND', 'OR', 'NOT',
     // math / agg
     'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'CEILING', 'FLOOR', 'TRUNC', 'POWER', 'SQRT', 'ABS', 'INT', 'MOD', 'DELTA',
+    'RAND', 'RANDBETWEEN', // volatile（§3.4，o-spreadsheet 內建自動重算）
     'SUM', 'SUMIF', 'SUMIFS', 'SUMPRODUCT', 'PRODUCT',
     'COUNT', 'COUNTA', 'COUNTBLANK', 'COUNTIF', 'COUNTIFS',
     'AVERAGE', 'AVERAGEIF', 'AVERAGEIFS', 'MEDIAN', 'MIN', 'MAX', 'MINIFS', 'MAXIFS',
