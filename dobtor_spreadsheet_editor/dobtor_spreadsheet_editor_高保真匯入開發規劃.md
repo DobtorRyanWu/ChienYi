@@ -670,7 +670,7 @@ xlsx 匯出是 Parser 的反向：o-spreadsheet model → OOXML SpreadsheetML �
 - [x] Merged cells、column widths、row heights
 - [x] Conditional formatting（dxf + rule）
 - [x] Data validation
-- [ ] Defined names
+- [x] Defined names（匯出回寫 workbook.xml definedNames，含 localSheetId/hidden）
 - [x] Charts（openpyxl chart API）
 - [x] Drawings / images
 - [ ] Theme（保留原 theme1.xml 或重新生成）

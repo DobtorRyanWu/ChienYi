@@ -202,6 +202,16 @@ export interface WriteCol {
     width: number;
 }
 
+/** 匯出用 defined name（§6.x 回寫）。*/
+export interface WriteDefinedName {
+    name: string;
+    /** 0-based sheet index（sheet-scoped）；全域為 undefined。*/
+    localSheetId?: number;
+    hidden?: boolean;
+    /** refersTo 公式/範圍，如 'Sheet1'!$A$1:$B$2。*/
+    formula: string;
+}
+
 export interface WriteSheet {
     name: string;
     cells: WriteCell[];
@@ -329,6 +339,18 @@ function sheetXml(sheet: WriteSheet, pool: StringPool, styles: StyleSheetBuilder
  * @param opts.extraOverrides Content_Types 的 <Override> 片段（圖表/drawing parts）
  * @param opts.extraDefaults Content_Types 的 <Default> 片段（圖片副檔名）
  */
+function definedNamesXml(names?: WriteDefinedName[]): string {
+    if (!names || names.length === 0) return '';
+    const items = names
+        .map((n) => {
+            const sheetAttr = n.localSheetId !== undefined ? ` localSheetId="${n.localSheetId}"` : '';
+            const hiddenAttr = n.hidden ? ' hidden="1"' : '';
+            return `<definedName name="${xmlEscape(n.name)}"${sheetAttr}${hiddenAttr}>${xmlEscape(n.formula)}</definedName>`;
+        })
+        .join('');
+    return `<definedNames>${items}</definedNames>`;
+}
+
 export function buildXlsx(
     sheets: WriteSheet[],
     opts?: {
@@ -336,6 +358,7 @@ export function buildXlsx(
         rawParts?: Record<string, Uint8Array>;
         extraOverrides?: string;
         extraDefaults?: string;
+        definedNames?: WriteDefinedName[];
     },
 ): Uint8Array {
     const list = sheets.length > 0 ? sheets : [{ name: 'Sheet1', cells: [], merges: [] }];
@@ -369,7 +392,9 @@ export function buildXlsx(
         list
             .map((s, i) => `<sheet name="${xmlEscape(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
             .join('') +
-        `</sheets></workbook>`;
+        `</sheets>` +
+        definedNamesXml(opts?.definedNames) +
+        `</workbook>`;
 
     const wbRelItems = list
         .map((_s, i) => `<Relationship Id="rId${i + 1}" Type="${XMLNS_R}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`)

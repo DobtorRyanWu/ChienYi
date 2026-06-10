@@ -284,7 +284,17 @@ export function exportXlsxFromBuffer(buffer: ArrayBuffer): Uint8Array {
         extraDefaults = (ct.match(/<Default[^>]*\/>/g) ?? []).filter((d) => !/Extension="(?:rels|xml)"/.test(d)).join('');
     }
 
-    return _buildXlsx(sheets, { dxfs: styles.dxfs, rawParts, extraOverrides, extraDefaults });
+    // defined names 回寫（§6.x）
+    const definedNames = wb.definedNames
+        .filter((d) => d.formula && d.formula.length > 0)
+        .map((d) => ({
+            name: d.name,
+            localSheetId: d.localSheetId,
+            hidden: d.hidden || undefined,
+            formula: d.formula,
+        }));
+
+    return _buildXlsx(sheets, { dxfs: styles.dxfs, rawParts, extraOverrides, extraDefaults, definedNames });
 }
 
 // ── CSV 支援 ──

@@ -6367,6 +6367,18 @@
      * @param opts.extraOverrides Content_Types 的 <Override> 片段（圖表/drawing parts）
      * @param opts.extraDefaults Content_Types 的 <Default> 片段（圖片副檔名）
      */
+    function definedNamesXml(names) {
+        if (!names || names.length === 0)
+            return '';
+        const items = names
+            .map((n) => {
+            const sheetAttr = n.localSheetId !== undefined ? ` localSheetId="${n.localSheetId}"` : '';
+            const hiddenAttr = n.hidden ? ' hidden="1"' : '';
+            return `<definedName name="${xmlEscape(n.name)}"${sheetAttr}${hiddenAttr}>${xmlEscape(n.formula)}</definedName>`;
+        })
+            .join('');
+        return `<definedNames>${items}</definedNames>`;
+    }
     function buildXlsx(sheets, opts) {
         const list = sheets.length > 0 ? sheets : [{ name: 'Sheet1', cells: [], merges: [] }];
         const pool = new StringPool();
@@ -6395,7 +6407,9 @@
             list
                 .map((s, i) => `<sheet name="${xmlEscape(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
                 .join('') +
-            `</sheets></workbook>`;
+            `</sheets>` +
+            definedNamesXml(opts?.definedNames) +
+            `</workbook>`;
         const wbRelItems = list
             .map((_s, i) => `<Relationship Id="rId${i + 1}" Type="${XMLNS_R}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`)
             .join('');
@@ -6997,7 +7011,16 @@
             extraOverrides = (ct.match(/<Override[^>]*PartName="\/xl\/(?:drawings|charts)\/[^"]*"[^>]*\/>/g) ?? []).join('');
             extraDefaults = (ct.match(/<Default[^>]*\/>/g) ?? []).filter((d) => !/Extension="(?:rels|xml)"/.test(d)).join('');
         }
-        return buildXlsx(sheets, { dxfs: styles.dxfs, rawParts, extraOverrides, extraDefaults });
+        // defined names 回寫（§6.x）
+        const definedNames = wb.definedNames
+            .filter((d) => d.formula && d.formula.length > 0)
+            .map((d) => ({
+            name: d.name,
+            localSheetId: d.localSheetId,
+            hidden: d.hidden || undefined,
+            formula: d.formula,
+        }));
+        return buildXlsx(sheets, { dxfs: styles.dxfs, rawParts, extraOverrides, extraDefaults, definedNames });
     }
     /** CSV 文字 → o-spreadsheet WorkbookData。*/
     function importCsvToOSpreadsheetData(text) {
