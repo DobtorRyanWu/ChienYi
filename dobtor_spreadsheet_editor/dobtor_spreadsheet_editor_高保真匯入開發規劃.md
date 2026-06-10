@@ -363,7 +363,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 #### 1.6 Worksheet（2 週）★ 核心
 - [x] `WorksheetParser`：`xl/worksheets/sheetN.xml`
 - [x] `<dimension ref>` — 資料範圍
-- [ ] `<sheetViews>` — view 設定（showGridLines、zoomScale、selection、freezePanes）
+- [x] `<sheetViews>` — showGridLines→areGridLinesVisible、freezePanes（已做）；zoomScale/selection o-spreadsheet 不支援
   - [x] `<pane xSplit ySplit topLeftCell activePane state>` — 凍結窗格
 - [ ] `<sheetFormatPr defaultRowHeight defaultColWidth>` — 預設高度/寬度
 - [x] `<cols>` — `<col min max width customWidth hidden bestFit>`

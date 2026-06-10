@@ -83,6 +83,8 @@ export interface OSheet {
     dataValidationRules: ODataValidationRule[];
     tables: OTable[];
     figures: unknown[];
+    /** 格線顯示（§1.6 sheetViews showGridLines）。*/
+    areGridLinesVisible: boolean;
 }
 
 export interface OSpreadsheetData {
@@ -358,6 +360,7 @@ function buildSheet(
         dataValidationRules: compileDataValidations(ws.dataValidations, sheetId),
         tables,
         figures,
+        areGridLinesVisible: ws.showGridLines,
     };
 }
 
@@ -411,5 +414,6 @@ function emptySheet(): OSheet {
         dataValidationRules: [],
         tables: [],
         figures: [],
+        areGridLinesVisible: true,
     };
 }

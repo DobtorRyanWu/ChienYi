@@ -5878,6 +5878,7 @@
             dataValidationRules: compileDataValidations(ws.dataValidations, sheetId),
             tables,
             figures,
+            areGridLinesVisible: ws.showGridLines,
         };
     }
     /** 多工作表 → o-spreadsheet WorkbookData。*/
@@ -5909,6 +5910,7 @@
             dataValidationRules: [],
             tables: [],
             figures: [],
+            areGridLinesVisible: true,
         };
     }
 
@@ -6840,6 +6842,7 @@
                     dataValidationRules: [],
                     tables: [],
                     figures: [],
+                    areGridLinesVisible: true,
                 },
             ],
             styles: {},

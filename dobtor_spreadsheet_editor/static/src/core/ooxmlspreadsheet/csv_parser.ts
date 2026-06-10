@@ -104,6 +104,7 @@ export function csvToOSpreadsheetData(text: string): OSpreadsheetData {
                 dataValidationRules: [],
                 tables: [],
                 figures: [],
+                areGridLinesVisible: true,
             },
         ],
         styles: {},
