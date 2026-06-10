@@ -304,6 +304,124 @@ class GeneralProgressReport(models.Model):
             # 從工程主檔取得實際進度
             self.actual_progress = self.project_id.actual_progress
 
+    last_sync_date = fields.Datetime(
+        string='最後同步時間',
+        readonly=True)
+
+    # === 同步方法 ===
+    def action_sync_all(self):
+        """一鍵同步：工項數量、累計進度%、缺失統計、施工日數"""
+        self.ensure_one()
+        if not self.period_start or not self.period_end:
+            raise UserError('請先設定報告期間起迄日期')
+
+        self._sync_progress_lines()
+        self._sync_cumulative_progress()
+        self._sync_defect_counts()
+        self._sync_work_days()
+        self.last_sync_date = fields.Datetime.now()
+
+    def _sync_progress_lines(self):
+        """從施工日誌同步工項數量"""
+        DailyLogLine = self.env['daily.log.line']
+        valid_states = ('filled', 'auto_locked', 'locked')
+
+        for line in self.progress_line_ids:
+            if not line.task_id:
+                continue
+
+            # 本次完成數量：報告期間內已確認日誌的 daily_qty 加總
+            period_qty = sum(DailyLogLine.search([
+                ('work_item_id', '=', line.task_id.id),
+                ('date', '>=', self.period_start),
+                ('date', '<=', self.period_end),
+                ('sheet_state', 'in', valid_states),
+            ]).mapped('daily_qty'))
+
+            # 累計完成數量：工程開始至 period_end 所有已確認日誌的 daily_qty 加總
+            actual_qty = sum(DailyLogLine.search([
+                ('work_item_id', '=', line.task_id.id),
+                ('date', '<=', self.period_end),
+                ('sheet_state', 'in', valid_states),
+            ]).mapped('daily_qty'))
+
+            line.write({
+                'period_qty': period_qty,
+                'actual_qty': actual_qty,
+            })
+
+    def _sync_cumulative_progress(self):
+        """從啟用中進度表取得 period_end 所在區間的累計進度"""
+        if not self.project_id or not self.period_end:
+            return
+
+        schedule = self.env['progress.schedule'].search([
+            ('project_id', '=', self.project_id.id),
+            ('is_latest_version', '=', True),
+            ('state', '=', 'active'),
+        ], limit=1)
+
+        if not schedule:
+            return
+
+        schedule_line = schedule.line_ids.filtered(
+            lambda l: l.date_start <= self.period_end and self.period_end <= l.date_end
+        )
+        if schedule_line:
+            self.write({
+                'planned_progress': schedule_line[0].cumulative_planned,
+                'actual_progress': schedule_line[0].cumulative_actual,
+            })
+
+    def _sync_work_days(self):
+        """從施工日誌統計本期工作日與雨天數"""
+        if not self.project_id or not self.period_start or not self.period_end:
+            return
+
+        valid_states = ('filled', 'auto_locked', 'locked')
+        sheets = self.env['daily.log.sheet'].search([
+            ('supervision_project_id', '=', self.project_id.id),
+            ('log_date', '>=', self.period_start),
+            ('log_date', '<=', self.period_end),
+            ('state', 'in', valid_states),
+        ])
+
+        rain_weather = ('rainy', 'heavy_rain', 'typhoon')
+        rain_days = len(sheets.filtered(
+            lambda s: s.weather_am in rain_weather or s.weather_pm in rain_weather
+        ))
+
+        self.write({
+            'work_days': len(sheets),
+            'rain_days': rain_days,
+        })
+
+    def _sync_defect_counts(self):
+        """從缺失紀錄統計報告期間內的缺失與改善數"""
+        if not self.project_id or not self.period_start or not self.period_end:
+            return
+
+        # 本期發現的缺失
+        defects = self.env['supervision.defect'].search([
+            ('project_id', '=', self.project_id.id),
+            ('found_date', '>=', self.period_start),
+            ('found_date', '<=', self.period_end),
+        ])
+
+        # 本期改善完成的缺失（improvement_date 在期間內）
+        improved = self.env['supervision.defect'].search([
+            ('project_id', '=', self.project_id.id),
+            ('improvement_date', '!=', False),
+        ]).filtered(
+            lambda d: d.improvement_date
+            and self.period_start <= d.improvement_date.date() <= self.period_end
+        )
+
+        self.write({
+            'defect_count': len(defects),
+            'defect_improved_count': len(improved),
+        })
+
     def action_load_task_progress(self):
         """載入工項進度"""
         self.ensure_one()
