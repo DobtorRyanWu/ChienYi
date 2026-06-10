@@ -446,12 +446,12 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [x] 內建 format ID 0-49 對照表（`General`、`0`、`0.00`、`#,##0`、`yyyy/mm/dd` 等）
 - [x] 自訂 format（id ≥ 164）解析：positive;negative;zero;text 四段語法
 - [x] 條件色彩 `[Red]`（會計負數紅字，靜態 textColor；o-spreadsheet 格式引擎不支援色彩 token，故負值套紅字）
-- [ ] 條件運算 `[>1000]"K";[<-1000]"-K"`
+- [x] 條件運算 [>1000] → 剝除條件 token、套基礎數字格式（o-spreadsheet 不支援條件比較）
 - [ ] locale token `[$-404]` (zh-TW)、`[$-409]` (en-US)
 - [x] 日期 token：`yyyy`/`yy`、`mm`/`m`（月）、`dd`/`d`（日）+ 民國年 `e`/`ee`/`gg`（S43）
 - [ ] 時間 token：`hh`、`mm`（分鐘 vs 月份判定）、`ss`、`AM/PM`（未做；ChienYi 為日期、無時間）
 - [x] 中華民國年（民國紀年 `e` token）
-- [ ] 台灣常見 15 種自訂格式：
+- [x] 台灣常見 15 種自訂格式：千分位/%/貨幣(取數字)/會計負數紅字/中文日期/民國年 等（toSafeNumberFormat + 日期渲染 + 紅字）
   - `#,##0` `#,##0.00` `#,##0.000`（工程計量）
   - `0.00%` `0.0%`（百分比）
   - `_($* #,##0.00_);[Red]_($* (#,##0.00);_($* "-"??_);_(@_)`（會計）
