@@ -36,6 +36,7 @@ class PaymentEstimate(models.Model):
     project_id = fields.Many2one(
         'supervision.project',
         '所屬工程',
+        ondelete='cascade',
         readonly=True,
         tracking=True,
         index=True
@@ -114,11 +115,12 @@ class PaymentEstimate(models.Model):
     ], default='draft', tracking=True, string='狀態')
 
     # === 計算欄位 ===
-    @api.depends('line_ids.estimate_amount')
+    @api.depends('line_ids.estimate_amount', 'line_ids.is_summary_item')
     def _compute_subtotal(self):
-        """計算本次估驗總金額"""
+        """計算本次估驗總金額（只加總葉節點，避免彙總列重複計算）"""
         for rec in self:
-            rec.subtotal = sum(rec.line_ids.mapped('estimate_amount'))
+            leaf_lines = rec.line_ids.filtered(lambda l: not l.is_summary_item)
+            rec.subtotal = sum(leaf_lines.mapped('estimate_amount'))
 
     # === CRUD 覆寫 ===
     @api.model_create_multi
@@ -193,6 +195,59 @@ class PaymentEstimate(models.Model):
             })
         return True
 
+    def action_backfill_summary_lines(self):
+        """一鍵補列：將彙總工項補進現有估驗單並重排序號
+
+        - 僅處理草稿／待核定且已有所屬工程的估驗單
+        - 既有行重排序號；既有彙總列數量正規化為 1
+        - 缺少的工項新建明細（彙總列依「一式」慣例 qty=1）
+        - 已核定／已歸檔不受影響
+        """
+        Task = self.env['project.task']
+        updated = 0
+        for est in self:
+            if est.state not in ('draft', 'pending_approval') or not est.project_id:
+                continue
+
+            # 取得工程全部有效工項（含彙總項），依樹狀順序
+            tasks = Task.search([
+                ('supervision_project_id', '=', est.project_id.id),
+                ('active', '=', True),
+            ], order='sequence, id')
+            if not tasks:
+                continue
+
+            existing = {l.task_id.id: l for l in est.line_ids}
+            new_lines = []
+            for idx, task in enumerate(tasks, start=1):
+                seq = idx * 10
+                if task.id in existing:
+                    line = existing[task.id]
+                    line.sequence = seq
+                    # 既有彙總列：數量正規化為 1（一式）
+                    if task.is_summary_item:
+                        line.contract_qty = 1.0
+                        line.approved_qty = 1.0
+                        line.estimate_qty = 1.0
+                else:
+                    new_lines.append(Command.create(
+                        self.env['payment.estimate.line']._prepare_line_vals(task, seq)
+                    ))
+            if new_lines:
+                est.write({'line_ids': new_lines})
+            updated += 1
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '補列完成',
+                'message': f'已處理 {updated} 筆估驗單，補上彙總項並重排序號。',
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
 
 class PaymentEstimateLine(models.Model):
     """
@@ -226,6 +281,13 @@ class PaymentEstimateLine(models.Model):
         required=True,
         readonly=True
     )
+    is_summary_item = fields.Boolean(
+        '彙總項',
+        related='task_id.is_summary_item',
+        store=True,
+        readonly=True,
+        help='有子項的父工項，於估驗表以「一式」呈現（數量固定為 1、金額為子項小計）'
+    )
 
     # === 工項資訊（readonly）===
     description = fields.Char(
@@ -255,7 +317,7 @@ class PaymentEstimateLine(models.Model):
 
     # === 數量與單價（readonly，由匯入帶入）===
     contract_qty = fields.Float(
-        '契約數量',
+        '原始契約數量',
         digits=(16, 4),
         readonly=True,
         help='原始契約數量（變更前）'
@@ -315,6 +377,35 @@ class PaymentEstimateLine(models.Model):
     # === 備註 ===
     note = fields.Text('備註', readonly=True)
 
+    # === 建立 vals helper ===
+    @api.model
+    def _prepare_line_vals(self, task, sequence):
+        """依工項產生估驗明細 vals（不含 estimate_id）
+
+        彙總項採「一式」慣例：數量固定 1、單價 0（金額由子項加總）。
+        葉節點：契約量/核定量/單價由工項帶入，本次估驗量預設 0。
+        """
+        if task.is_summary_item:
+            return {
+                'task_id': task.id,
+                'sequence': sequence,
+                'contract_qty': 1.0,
+                'approved_qty': 1.0,
+                'unit_price': 0.0,
+                'estimate_qty': 1.0,
+            }
+        contract_qty = task.planned_qty
+        if getattr(task, 'original_planned_qty', 0):
+            contract_qty = task.original_planned_qty
+        return {
+            'task_id': task.id,
+            'sequence': sequence,
+            'contract_qty': contract_qty,
+            'approved_qty': task.planned_qty,
+            'unit_price': task.unit_price,
+            'estimate_qty': 0.0,
+        }
+
     # === 計算方法 ===
     @api.depends('task_id.parent_id', 'task_id.parent_id.full_item_path')
     def _compute_parent_item_name(self):
@@ -325,30 +416,87 @@ class PaymentEstimateLine(models.Model):
             else:
                 line.parent_item_name = ''
 
-    @api.depends('task_id', 'estimate_id.estimate_date')
+    @api.model
+    def _get_cumulative_qty_at(self, task, date):
+        """取得某工項截至指定日期的施工日誌累計完成量"""
+        if not task or not date:
+            return 0.0
+        last_log = self.env['daily.log.line'].search([
+            ('work_item_id', '=', task.id),
+            ('date', '<=', date),
+        ], order='date desc, id desc', limit=1)
+        return last_log.cumulative_qty if last_log else 0.0
+
+    @api.depends('task_id', 'estimate_id.estimate_date', 'estimate_id.project_id')
     def _compute_available_qty(self):
-        """計算本次可估驗數量（施工日誌截至估驗日期的累計）"""
-        DailyLogLine = self.env['daily.log.line']
+        """計算本次可估驗數量（本期完成量）
+
+        本期 = 累計到(本次估驗日) − 累計到(前一張估驗單估驗日)
+        前一張：同工程、估驗日較早、排除自己，依日期取最近一筆（不論狀態）。
+        彙總項採「一式」慣例固定回 1。
+        """
         for line in self:
+            if line.is_summary_item:
+                line.available_qty = 1.0
+                continue
             if not line.task_id or not line.estimate_id.estimate_date:
                 line.available_qty = 0.0
                 continue
-            last_log = DailyLogLine.search([
-                ('work_item_id', '=', line.task_id.id),
-                ('date', '<=', line.estimate_id.estimate_date),
-            ], order='date desc, id desc', limit=1)
-            line.available_qty = last_log.cumulative_qty if last_log else 0.0
+            this_date = line.estimate_id.estimate_date
+            cumulative_to_date = self._get_cumulative_qty_at(line.task_id, this_date)
 
-    @api.depends('estimate_qty', 'unit_price')
+            prev_estimate = self.env['payment.estimate'].search([
+                ('project_id', '=', line.estimate_id.project_id.id),
+                ('estimate_date', '<', this_date),
+                ('id', '!=', line.estimate_id.id),
+            ], order='estimate_date desc, id desc', limit=1)
+            prev_cumulative = 0.0
+            if prev_estimate:
+                prev_cumulative = self._get_cumulative_qty_at(
+                    line.task_id, prev_estimate.estimate_date
+                )
+            line.available_qty = cumulative_to_date - prev_cumulative
+
+    def _get_descendant_leaf_lines(self):
+        """取得同一估驗單中，屬於本彙總項底下的所有葉節點明細行"""
+        self.ensure_one()
+        if not self.task_id or not self.estimate_id:
+            return self.browse()
+        descendant_ids = set(self.env['project.task'].search([
+            ('id', 'child_of', self.task_id.id),
+        ]).ids)
+        return self.estimate_id.line_ids.filtered(
+            lambda l: l.task_id.id in descendant_ids and not l.is_summary_item
+        )
+
+    @api.depends('estimate_qty', 'unit_price', 'is_summary_item',
+                 'estimate_id.line_ids.estimate_qty',
+                 'estimate_id.line_ids.unit_price')
     def _compute_amounts(self):
-        """計算本次估驗金額"""
+        """計算本次估驗金額（彙總項加總底下葉節點，避免重複計算）"""
         for line in self:
-            line.estimate_amount = line.unit_price * line.estimate_qty
+            if line.is_summary_item:
+                leaf_lines = line._get_descendant_leaf_lines()
+                line.estimate_amount = sum(
+                    l.unit_price * l.estimate_qty for l in leaf_lines
+                )
+            else:
+                line.estimate_amount = line.unit_price * line.estimate_qty
 
-    @api.depends('estimate_qty', 'task_id', 'estimate_id.project_id')
+    @api.depends('estimate_qty', 'task_id', 'estimate_id.project_id',
+                 'estimate_id.state', 'is_summary_item',
+                 'estimate_id.line_ids.estimate_qty')
     def _compute_cumulative(self):
         """計算累計估驗數量與金額"""
         for line in self:
+            # 彙總項：數量採「一式」固定 1，金額為底下葉節點累計金額之和
+            if line.is_summary_item:
+                leaf_lines = line._get_descendant_leaf_lines()
+                line.cumulative_estimate_qty = 1.0
+                line.cumulative_estimate_amount = sum(
+                    leaf_lines.mapped('cumulative_estimate_amount')
+                )
+                continue
             if not line.task_id or not line.estimate_id.project_id:
                 line.cumulative_estimate_qty = line.estimate_qty
                 line.cumulative_estimate_amount = line.unit_price * line.estimate_qty

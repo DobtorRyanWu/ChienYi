@@ -36,3 +36,4 @@ access_payment_estimate_line_operator,payment.estimate.line.operator,model_payme
 access_payment_claim_operator,payment.claim.operator,model_payment_claim,construction_supervision_base.group_operator,1,1,1,1
 access_estimate_import_wizard_user,estimate.import.wizard.user,model_estimate_import_wizard,base.group_user,1,1,1,1
 access_estimate_import_wizard_line_user,estimate.import.wizard.line.user,model_estimate_import_wizard_line,base.group_user,1,1,1,1
+access_estimate_sync_wizard_user,estimate.sync.wizard.user,model_estimate_sync_wizard,base.group_user,1,1,1,1

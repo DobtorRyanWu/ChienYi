@@ -60,6 +60,11 @@
                             type="object"
                             class="btn-warning"
                             invisible="state != 'pending_approval'"/>
+                    <button name="action_backfill_summary_lines"
+                            string="補列彙總項"
+                            type="object"
+                            icon="fa-sitemap"
+                            invisible="state not in ('draft', 'pending_approval') or not line_ids"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,pending_approval,approved,archived"/>
                 </header>
@@ -94,7 +99,9 @@
                         <page string="估驗計價表" name="lines">
                             <field name="line_ids" nolabel="1">
                                 <list string="估驗計價表" editable="bottom"
-                                      create="false" delete="false">
+                                      create="false" delete="false"
+                                      decoration-bold="is_summary_item">
+                                    <field name="is_summary_item" column_invisible="1"/>
                                     <field name="description"/>
                                     <field name="parent_item_name"/>
                                     <field name="item_no"/>
@@ -103,10 +110,10 @@
                                     <field name="approved_qty"/>
                                     <field name="unit_price"/>
                                     <field name="estimate_qty"
-                                           readonly="parent.state in ('approved', 'archived')"/>
+                                           readonly="is_summary_item or parent.state in ('approved', 'archived')"/>
                                     <field name="available_qty"/>
                                     <field name="cumulative_estimate_qty"/>
-                                    <field name="estimate_amount" sum="Total"/>
+                                    <field name="estimate_amount"/>
                                     <field name="cumulative_estimate_amount"/>
                                     <field name="note"/>
                                 </list>

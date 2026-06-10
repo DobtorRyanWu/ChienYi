@@ -30,6 +30,7 @@ class PaymentClaim(models.Model):
         'supervision.project',
         '所屬工程',
         required=True,
+        ondelete='cascade',
         tracking=True,
         readonly=True,
         index=True
@@ -189,13 +190,6 @@ class PaymentClaim(models.Model):
     ], default='draft', tracking=True, string='狀態')
 
     # === onchange ===
-    @api.onchange('project_id')
-    def _onchange_project_id(self):
-        """工程變更時帶入業主"""
-        if self.project_id:
-            if hasattr(self.project_id, 'authority_id'):
-                self.authority_id = self.project_id.authority_id
-
     @api.onchange('estimate_ids')
     def _onchange_estimate_ids(self):
         """估驗單變更時計算請款金額"""

@@ -65,19 +65,36 @@ class EstimateImportWizard(models.TransientModel):
         '工項明細'
     )
 
+    def _get_period_available_qty(self, task):
+        """本期可估 = 累計到(本次估驗日) − 累計到(前一張估驗單估驗日)
+
+        彙總項採「一式」慣例回 1。前一張：同工程、估驗日較早、排除本單，不論狀態。
+        """
+        if not task or not self.estimate_date:
+            return 0.0
+        if task.is_summary_item:
+            return 1.0
+        EstimateLine = self.env['payment.estimate.line']
+        this_cum = EstimateLine._get_cumulative_qty_at(task, self.estimate_date)
+        prev_est = self.env['payment.estimate'].search([
+            ('project_id', '=', self.project_id.id),
+            ('estimate_date', '<', self.estimate_date),
+            ('id', '!=', self.estimate_id.id),
+        ], order='estimate_date desc, id desc', limit=1)
+        prev_cum = (
+            EstimateLine._get_cumulative_qty_at(task, prev_est.estimate_date)
+            if prev_est else 0.0
+        )
+        return this_cum - prev_cum
+
     @api.onchange('estimate_date')
     def _onchange_estimate_date(self):
-        """估驗日期變更時，重新計算可估驗數量"""
+        """估驗日期變更時，重新計算可估驗數量（本期完成量）"""
         if not self.line_ids or not self.estimate_date:
             return
-        DailyLogLine = self.env['daily.log.line']
         for line in self.line_ids:
             if line.task_id:
-                last_log = DailyLogLine.search([
-                    ('work_item_id', '=', line.task_id.id),
-                    ('date', '<=', self.estimate_date),
-                ], order='date desc, id desc', limit=1)
-                line.available_qty = last_log.cumulative_qty if last_log else 0.0
+                line.available_qty = self._get_period_available_qty(line.task_id)
 
     @api.onchange('project_id')
     def _onchange_project_id(self):
@@ -113,6 +130,20 @@ class EstimateImportWizard(models.TransientModel):
         for seq, slip_line in enumerate(slip.detail_line_ids, start=1):
             task = slip_line.task_id
             if not task:
+                continue
+
+            # 彙總項：以「一式」呈現（數量固定 1）
+            if task.is_summary_item:
+                new_lines.append(Command.create({
+                    'sequence': seq,
+                    'task_id': task.id,
+                    'contract_qty': 1.0,
+                    'approved_qty': 1.0,
+                    'unit_price': 0.0,
+                    'available_qty': 1.0,
+                    'previous_estimate_qty': 0.0,
+                    'estimate_qty': 1.0,
+                }))
                 continue
 
             contract_qty = task.original_planned_qty or task.planned_qty
@@ -151,20 +182,26 @@ class EstimateImportWizard(models.TransientModel):
                 'message': '此工程案件尚未建立契約工項',
             }}
 
-        DailyLogLine = self.env['daily.log.line']
         EstimateLine = self.env['payment.estimate.line']
 
         new_lines = []
         for seq, task in enumerate(tasks, start=1):
-            contract_qty = task.original_planned_qty or task.planned_qty
+            # 彙總項：以「一式」呈現（數量固定 1）
+            if task.is_summary_item:
+                new_lines.append(Command.create({
+                    'sequence': seq,
+                    'task_id': task.id,
+                    'contract_qty': 1.0,
+                    'approved_qty': 1.0,
+                    'unit_price': 0.0,
+                    'available_qty': 1.0,
+                    'previous_estimate_qty': 0.0,
+                    'estimate_qty': 1.0,
+                }))
+                continue
 
-            available_qty = 0.0
-            if self.estimate_date:
-                last_log = DailyLogLine.search([
-                    ('work_item_id', '=', task.id),
-                    ('date', '<=', self.estimate_date),
-                ], order='date desc, id desc', limit=1)
-                available_qty = last_log.cumulative_qty if last_log else 0.0
+            contract_qty = task.original_planned_qty or task.planned_qty
+            available_qty = self._get_period_available_qty(task)
 
             prev_lines = EstimateLine.search([
                 ('task_id', '=', task.id),
@@ -291,7 +328,7 @@ class EstimateImportWizardLine(models.TransientModel):
 
     # === 數量資訊（view 層級 readonly）===
     contract_qty = fields.Float(
-        '契約數量',
+        '原始契約數量',
         digits=(16, 4),
         help='原始契約數量（變更前）'
     )

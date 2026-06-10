@@ -57,6 +57,7 @@
         'views/work_acceptance_views.xml',
         'views/payment_claim_views.xml',
         'views/supervision_project_views.xml',
+        'views/estimate_sync_wizard_views.xml',
         'views/menu.xml',
     ],
     'demo': [],

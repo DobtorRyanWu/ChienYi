@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 同步估驗計價工項精靈視圖 -->
+    <record id="estimate_sync_wizard_view_form" model="ir.ui.view">
+        <field name="name">estimate.sync.wizard.form</field>
+        <field name="model">estimate.sync.wizard</field>
+        <field name="arch" type="xml">
+            <form string="同步估驗計價工項">
+                <sheet>
+                    <group>
+                        <group string="來源">
+                            <field name="change_order_id" readonly="1"/>
+                            <field name="project_id" readonly="1"/>
+                        </group>
+                        <group string="同步設定">
+                            <field name="sync_from_date"/>
+                            <field name="affected_estimate_count" readonly="1"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning" role="alert">
+                        <strong>注意：</strong>
+                        此操作將修改「草稿」和「待核定」狀態的估驗計價單，
+                        補充新增工項並更新「變更後核定數量」欄位。
+                        已核定或已歸檔的估驗單不受影響，且此操作無法復原。
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_sync"
+                            string="確認同步"
+                            type="object"
+                            class="btn-primary"/>
+                    <button string="取消"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 繼承契約變更單表單：在已套用狀態新增觸發按鈕 -->
+    <record id="contract_change_order_view_form_sync_button" model="ir.ui.view">
+        <field name="name">contract.change.order.form.sync.button</field>
+        <field name="model">contract.change.order</field>
+        <field name="inherit_id" ref="construction_contract_change.contract_change_order_view_form_v2"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/field[@name='state']" position="before">
+                <button name="action_open_sync_wizard"
+                        string="同步估驗計價工項"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="state != 'applied'"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

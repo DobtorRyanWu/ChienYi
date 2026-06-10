@@ -109,10 +109,9 @@ class ProgressActivateWizardPayment(models.TransientModel):
             ]).mapped('estimate_date')
         )
 
-        # 取得所有 leaf-level tasks（非彙總項目）
+        # 取得所有工項（含彙總項，彙總列以「一式」呈現）
         tasks = self.env['project.task'].search([
             ('supervision_project_id', '=', project.id),
-            ('is_summary_item', '=', False),
             ('active', '=', True),
         ], order='sequence, id')
 
@@ -135,24 +134,13 @@ class ProgressActivateWizardPayment(models.TransientModel):
                 'estimate_date': est_date,
             })
 
-            # 建立空白明細行（estimate_qty = 0）
+            # 建立明細行（葉節點 estimate_qty=0、彙總列「一式」qty=1）
             if tasks:
                 line_vals = []
                 for idx, task in enumerate(tasks, 1):
-                    # 取得原始契約數量（若有契約變更模組）
-                    contract_qty = task.planned_qty
-                    if hasattr(task, 'original_planned_qty') and task.original_planned_qty:
-                        contract_qty = task.original_planned_qty
-
-                    line_vals.append({
-                        'estimate_id': estimate.id,
-                        'task_id': task.id,
-                        'sequence': idx * 10,
-                        'contract_qty': contract_qty,
-                        'approved_qty': task.planned_qty,
-                        'unit_price': task.unit_price,
-                        'estimate_qty': 0.0,
-                    })
+                    vals = PaymentEstimateLine._prepare_line_vals(task, idx * 10)
+                    vals['estimate_id'] = estimate.id
+                    line_vals.append(vals)
                 PaymentEstimateLine.create(line_vals)
 
             created_count += 1

@@ -30,6 +30,7 @@ class WorkAcceptance(models.Model):
         'supervision.project',
         '所屬工程',
         required=True,
+        ondelete='cascade',
         tracking=True,
         readonly=True
     )
@@ -272,9 +273,9 @@ class WorkAcceptanceLine(models.Model):
 
     # === 數量追蹤 ===
     contract_qty = fields.Float(
-        '契約數量',
+        '原始契約數量',
         digits='Product Unit of Measure',
-        help='契約規定的總數量'
+        help='原始契約數量（變更前）'
     )
     previous_accepted_qty = fields.Float(
         '前期累計驗收',
