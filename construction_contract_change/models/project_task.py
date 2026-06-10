@@ -3,6 +3,24 @@
 from odoo import models, fields, api
 
 
+class ProjectTaskVersion(models.Model):
+    """擴展工項版本：新增變更次序欄位（需 contract.change.order 已載入）"""
+    _inherit = 'project.task.version'
+
+    change_sequence = fields.Integer(
+        string='第幾次變更',
+        compute='_compute_change_sequence')
+
+    # 註：change_order_id 於 base 模組定義（跨模組前向參照 contract.change.order），
+    #     故 depends 不traverse .change_no（避免註冊期 _unknown 解析失敗）；
+    #     僅依賴 change_order_id，body 於執行期讀取 .change_no。
+    @api.depends('change_order_id')
+    def _compute_change_sequence(self):
+        for v in self:
+            # 用「本專案第幾次變更」(change_no)，不可用排序欄位 sequence(default=10)
+            v.change_sequence = v.change_order_id.change_no if v.change_order_id else 0
+
+
 class ProjectTask(models.Model):
     """
     契約工項 - 契約變更關聯擴展 (v5.2)
@@ -62,54 +80,47 @@ class ProjectTask(models.Model):
         help='契約變更前的原始數量，首次變更時自動凍結')
 
     # === 計算欄位 ===
-    @api.depends('change_order_ids', 'change_order_ids.state')
+    @api.depends('version_ids', 'version_ids.change_order_id',
+                 'version_ids.planned_qty', 'version_ids.unit_price',
+                 'change_order_ids.change_no')
     def _compute_change_history_display(self):
-        """計算變更紀錄顯示文字"""
+        """計算變更紀錄顯示文字（從 version_ids 計算，比較相鄰版本差異）"""
         for task in self:
-            if not task.change_order_ids:
+            versions = task.version_ids.sorted(key=lambda v: v.version)
+            if not versions:
                 task.change_history_display = False
                 continue
-            
-            # 只顯示已套用的變更單
-            applied_orders = task.change_order_ids.filtered(
-                lambda o: o.state == 'applied'
-            ).sorted(key=lambda o: o.sequence)
-            
-            if not applied_orders:
-                task.change_history_display = False
-                continue
-            
-            # 組合變更紀錄
-            change_records = []
-            
-            for order in applied_orders:
-                # 找出此變更單中與此工項相關的明細
-                lines = order.line_ids.filtered(
-                    lambda l: l.task_id == task or 
-                    (l.change_type == 'add' and l.item_no == task.item_no)
-                )
-                
-                if lines:
-                    # 收集被變更的欄位
-                    changed_fields = set()
-                    for line in lines:
-                        if line.change_type == 'add':
-                            changed_fields.add('新增')
-                        elif line.change_type == 'delete':
-                            changed_fields.add('刪除')
-                        else:  # modify
-                            if line.qty_change != 0:
-                                changed_fields.add('數量')
-                            if line.price_change != 0:
-                                changed_fields.add('單價')
-                    
-                    if changed_fields:
-                        fields_str = '、'.join(sorted(changed_fields))
-                        change_records.append(
-                            f'第{order.sequence}次契約變更({fields_str})'
-                        )
-            
-            task.change_history_display = '；'.join(change_records) if change_records else False
+
+            records = []
+            prev_qty = None
+            prev_price = None
+
+            for v in versions:
+                if prev_qty is None:
+                    # 第一個版本：判斷是否為變更單新增的工項
+                    if v.change_order_id:
+                        seq = v.change_order_id.change_no or '?'
+                        records.append(f'第{seq}次契約變更(新增)')
+                    # 原始契約工項（無變更單）不列入顯示
+                    prev_qty = v.planned_qty
+                    prev_price = v.unit_price
+                    continue
+
+                # 比較與上一版本的差異
+                if v.change_order_id:
+                    parts = []
+                    if v.planned_qty != prev_qty:
+                        parts.append('數量')
+                    if v.unit_price != prev_price:
+                        parts.append('單價')
+                    if parts:
+                        seq = v.change_order_id.change_no or '?'
+                        records.append(f'第{seq}次契約變更({" ".join(parts)})')
+
+                prev_qty = v.planned_qty
+                prev_price = v.unit_price
+
+            task.change_history_display = '；'.join(records) if records else False
     
     @api.depends('change_order_id')
     def _compute_is_change_item(self):

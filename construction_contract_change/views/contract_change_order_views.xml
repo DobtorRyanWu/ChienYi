@@ -21,7 +21,6 @@
                 <field name="change_amount" sum="Total"/>
                 <field name="change_amount_rate" widget="percentage"/>
                 <field name="new_contract_amount"/>
-                <field name="change_duration"/>
                 <field name="line_count"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'draft'"
@@ -54,16 +53,17 @@
                             invisible="state != 'submitted'"/>
                     <button name="action_approve" type="object" string="核定通過"
                             class="oe_highlight"
-                            invisible="state != 'reviewing'"/>
+                            invisible="state != 'reviewing' or not is_change_leader"/>
                     <button name="action_apply" type="object" string="套用變更"
                             class="oe_highlight"
-                            invisible="state != 'approved'"
+                            invisible="state != 'approved' or not is_change_leader"
                             confirm="確定要套用此變更？套用後將更新工項與專案契約資訊。"/>
                     <button name="action_reject" type="object" string="駁回"
                             class="btn-danger"
-                            invisible="state not in ('submitted', 'reviewing')"/>
+                            invisible="state not in ('submitted', 'reviewing') or not is_change_leader"/>
+                    <field name="is_change_leader" invisible="1"/>
                     <button name="action_reset_draft" type="object" string="重設為草稿"
-                            invisible="state not in ('submitted', 'rejected', 'approved')"/>
+                            invisible="state not in ('submitted', 'rejected')"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,submitted,reviewing,approved,applied"/>
                 </header>
@@ -99,14 +99,6 @@
                         </group>
                         <group string="契約資訊">
                             <field name="original_contract_amount"/>
-                            <field name="original_duration"/>
-                            <label for="change_duration"/>
-                            <div class="o_row">
-                                <field name="change_duration"
-                                       readonly="state not in ('draft', 'submitted')"
-                                       class="oe_inline" style="width: 100px;"/>
-                                <span>日</span>
-                            </div>
                         </group>
                     </group>
                     <group>
@@ -116,7 +108,6 @@
                         </group>
                         <group string="變更後契約">
                             <field name="new_contract_amount"/>
-                            <field name="new_duration"/>
                         </group>
                     </group>
                     <notebook>
@@ -126,56 +117,61 @@
                                       editable="bottom"
                                       decoration-success="change_type == 'add'"
                                       decoration-info="change_type == 'modify'"
+                                      decoration-warning="change_type == 'zero_out'"
                                       decoration-danger="change_type == 'delete'">
-                                    <!-- 1. 變更類型 -->
-                                    <field name="change_type" required="1"/>
-                                    <!-- 2. 工項名稱（取代「原工項」欄；modify/delete 存 task.name，add 存輸入值） -->
+                                    <!-- 1. 變更類型（彙總項/稅什費為空白） -->
+                                    <field name="change_type"
+                                           required="not is_summary_line and not is_tax_misc_line"/>
+                                    <!-- 2. 工項名稱 -->
                                     <field name="item_name" string="工項名稱" readonly="1"/>
                                     <field name="task_id" column_invisible="1"/>
-                                    <!-- 3. 父工項 -->
-                                    <field name="parent_task_id"
-                                           invisible="change_type != 'add'"
-                                           domain="[('supervision_project_id', '=', parent.project_id), ('active', '=', True), ('is_summary_item', '=', True)]"
-                                           options="{'no_create': True}"/>
-                                    <!-- 4. 工項編號：computed display_item_no 顯示葉節點編號 -->
+                                    <!-- 3. 父工項（合併欄）：既有彙總項 或 本次新增群組，單欄顯示/編輯 -->
+                                    <field name="parent_ref"
+                                           string="父工項"
+                                           readonly="change_type != 'add'"/>
+                                    <!-- 後端權威欄位（隱藏，供 domain/邏輯使用） -->
+                                    <field name="parent_task_id" column_invisible="1"/>
+                                    <field name="parent_line_id" column_invisible="1"/>
+                                    <field name="is_new_group" optional="hide"/>
+                                    <!-- 4. 工項編號 -->
                                     <field name="display_item_no"
                                            string="工項編號"
                                            readonly="1"/>
-                                    <!-- item_no 隱藏欄，供新增工項必填驗證使用 -->
                                     <field name="item_no"
                                            column_invisible="1"
                                            required="change_type == 'add'"/>
                                     <!-- 5. 單位 -->
                                     <field name="unit"/>
-                                    <!-- 6. 原數量 -->
+                                    <!-- 6. 原數量（新增/彙總項/稅什費時隱藏） -->
                                     <field name="original_qty" readonly="1"
-                                           invisible="change_type == 'add'"/>
-                                    <!-- 7. 原單價 -->
+                                           invisible="change_type == 'add' or is_summary_line or is_tax_misc_line"/>
+                                    <!-- 7. 原單價（同上） -->
                                     <field name="original_unit_price" readonly="1"
-                                           invisible="change_type == 'add'"/>
+                                           invisible="change_type == 'add' or is_summary_line or is_tax_misc_line"/>
                                     <!-- 8. 原金額 -->
                                     <field name="original_amount" readonly="1"
-                                           invisible="change_type == 'add'"
-                                           widget="monetary"/>
-                                    <!-- 9. 新數量 -->
+                                           invisible="change_type == 'add'"/>
+                                    <!-- 9. 新數量（刪除/歸零/彙總項/稅什費時隱藏） -->
                                     <field name="new_qty"
-                                           invisible="change_type == 'delete'"
+                                           invisible="change_type in ('delete', 'zero_out') or is_summary_line or is_tax_misc_line"
                                            required="change_type in ('add', 'modify')"/>
-                                    <!-- 10. 新單價 -->
+                                    <!-- 10. 新單價（同上） -->
                                     <field name="new_unit_price"
-                                           invisible="change_type == 'delete'"
+                                           invisible="change_type in ('delete', 'zero_out') or is_summary_line or is_tax_misc_line"
                                            required="change_type in ('add', 'modify')"/>
                                     <!-- 11. 新金額 -->
                                     <field name="new_amount" readonly="1"
-                                           invisible="change_type == 'delete'"
-                                           widget="monetary"/>
+                                           invisible="change_type in ('delete', 'zero_out')"/>
                                     <!-- 12. 金額增減 -->
                                     <field name="change_amount" readonly="1"
-                                           sum="合計" widget="monetary"/>
+                                           sum="合計"/>
                                     <!-- 隱藏欄位 -->
                                     <field name="project_id" column_invisible="1"/>
                                     <field name="change_order_id" column_invisible="1"/>
                                     <field name="currency_id" column_invisible="1"/>
+                                    <field name="is_summary_line" column_invisible="1"/>
+                                    <field name="is_tax_misc_line" column_invisible="1"/>
+                                    <field name="item_level" column_invisible="1"/>
                                 </list>
                             </field>
                         </page>
@@ -294,12 +290,14 @@
                        required="change_type != 'add'"
                        options="{'no_create': True}"
                        force_save="1"/>
-                <field name="parent_task_id"
-                       invisible="change_type != 'add'"
-                       options="{'no_create': True}"/>
+                <field name="parent_ref"
+                       string="父工項"
+                       readonly="change_type != 'add'"/>
+                <field name="parent_task_id" column_invisible="1"/>
+                <field name="parent_line_id" column_invisible="1"/>
+                <field name="is_new_group" optional="hide"/>
                 <field name="parent_task_path"
-                       invisible="change_type != 'add'"
-                       readonly="1" optional="show"/>
+                       readonly="1" optional="hide"/>
                 <field name="item_level" readonly="1" optional="show"/>
                 <!-- 顯示欄：非新增顯示葉節點編號（如 "1"），新增顯示使用者輸入值 -->
                 <field name="display_item_no" string="工項編號" readonly="1"/>
@@ -312,10 +310,10 @@
                 <field name="original_unit_price" readonly="1"/>
                 <field name="original_amount" readonly="1" optional="hide"/>
                 <field name="new_qty"
-                       invisible="change_type == 'delete'"
+                       invisible="change_type in ('delete', 'zero_out')"
                        required="change_type != 'delete'"/>
                 <field name="new_unit_price"
-                       invisible="change_type == 'delete'"
+                       invisible="change_type in ('delete', 'zero_out')"
                        required="change_type != 'delete'"/>
                 <field name="new_amount" readonly="1" optional="hide"/>
                 <field name="change_amount" readonly="1" sum="合計"/>
@@ -342,7 +340,14 @@
                                    invisible="change_type == 'add'"
                                    required="change_type != 'add'"
                                    options="{'no_create': True}"/>
+                            <field name="is_new_group"
+                                   invisible="change_type != 'add'"/>
                             <field name="parent_task_id"
+                                   string="父工項(原契約已存在)"
+                                   invisible="change_type != 'add'"
+                                   options="{'no_create': True}"/>
+                            <field name="parent_line_id"
+                                   string="父工項(本次新增)"
                                    invisible="change_type != 'add'"
                                    options="{'no_create': True}"/>
                             <field name="parent_task_path"
@@ -362,13 +367,17 @@
                     </group>
                     <group>
                         <group string="原值" invisible="change_type == 'add'">
-                            <field name="original_qty" readonly="1"/>
-                            <field name="original_unit_price" readonly="1"/>
+                            <field name="original_qty" readonly="1"
+                                   invisible="is_summary_line or is_tax_misc_line"/>
+                            <field name="original_unit_price" readonly="1"
+                                   invisible="is_summary_line or is_tax_misc_line"/>
                             <field name="original_amount" readonly="1"/>
                         </group>
-                        <group string="新值" invisible="change_type == 'delete'">
-                            <field name="new_qty" required="change_type != 'delete'"/>
-                            <field name="new_unit_price" required="change_type != 'delete'"/>
+                        <group string="新值" invisible="change_type in ('delete', 'zero_out')">
+                            <field name="new_qty" required="change_type != 'delete'"
+                                   invisible="is_summary_line or is_tax_misc_line"/>
+                            <field name="new_unit_price" required="change_type != 'delete'"
+                                   invisible="is_summary_line or is_tax_misc_line"/>
                             <field name="new_amount" readonly="1"/>
                         </group>
                     </group>
@@ -400,12 +409,14 @@
         <field name="arch" type="xml">
             <form string="變更明細">
                 <sheet>
+                    <field name="is_summary_line" invisible="1"/>
+                    <field name="is_tax_misc_line" invisible="1"/>
                     <group>
                         <group string="變更類型">
                             <field name="change_type"/>
                             <field name="task_id"
                                    invisible="change_type == 'add'"
-                                   required="change_type != 'add'"/>
+                                   required="change_type in ('modify', 'delete')"/>
                         </group>
                         <group string="工項資訊">
                             <field name="display_item_no" string="工項編號" readonly="1"
@@ -416,15 +427,19 @@
                         </group>
                     </group>
                     <group>
-                        <group string="原值">
-                            <field name="original_qty"/>
-                            <field name="original_unit_price"/>
+                        <group string="原值" invisible="change_type == 'add'">
+                            <field name="original_qty"
+                                   invisible="is_summary_line or is_tax_misc_line"/>
+                            <field name="original_unit_price"
+                                   invisible="is_summary_line or is_tax_misc_line"/>
                             <field name="original_amount"/>
                         </group>
                         <group string="新值"
-                               invisible="change_type == 'delete'">
-                            <field name="new_qty"/>
-                            <field name="new_unit_price"/>
+                               invisible="change_type in ('delete', 'zero_out')">
+                            <field name="new_qty"
+                                   invisible="is_summary_line or is_tax_misc_line"/>
+                            <field name="new_unit_price"
+                                   invisible="is_summary_line or is_tax_misc_line"/>
                             <field name="new_amount"/>
                         </group>
                     </group>
@@ -543,45 +558,21 @@
             <xpath expr="//notebook" position="before">
                 <group string="契約變更資訊" invisible="change_order_count == 0">
                     <group string="原始契約" name="change_info">
-                        <field name="original_contract_end_date"/>
                         <field name="original_contract_amount"/>
-                        <field name="original_duration"/>
                         <field name="approved_change_count"/>
                     </group>
                     <group string="累計變更">
                         <field name="total_change_amount"/>
-                        <field name="total_duration_change"/>
                         <field name="change_rate" widget="percentage"/>
                     </group>
                     <group string="現行契約">
-                        <field name="contract_end_date"/>
                         <field name="current_contract_amount"/>
-                        <field name="current_duration"/>
                     </group>
                 </group>
             </xpath>
         </field>
     </record>
 
-    <!-- ====================== -->
-    <!-- ProjectTask Form 擴展 -->
-    <!-- ====================== -->
-    <record id="project_task_view_form_change" model="ir.ui.view">
-        <field name="name">project.task.form.change</field>
-        <field name="model">project.task</field>
-        <field name="inherit_id" ref="construction_supervision_base.view_task_form_supervision"/>
-        <field name="arch" type="xml">
-            <!-- 在廠商分配分頁增加變更單關聯 -->
-            <xpath expr="//page[@name='contractor']//field[@name='assigned_company_id']" position="before">
-                <field name="change_order_id" readonly="1"/>
-                <field name="change_type" widget="badge"
-                       decoration-success="change_type == 'original'"
-                       decoration-info="change_type == 'added'"
-                       decoration-warning="change_type == 'modified'"
-                       invisible="not change_order_id"/>
-            </xpath>
-        </field>
-    </record>
 
     <!-- ============================================== -->
     <!-- 工項列表視圖 - 添加變更紀錄欄位                  -->

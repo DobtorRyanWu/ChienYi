@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_contract_change_file_import_wizard_form" model="ir.ui.view">
+        <field name="name">contract.change.file.import.wizard.form</field>
+        <field name="model">contract.change.file.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="從檔案匯入契約變更">
+                <header>
+                    <button name="action_parse"
+                            string="解析"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'upload'"/>
+                    <button name="action_apply_to_wizard"
+                            string="套用至變更精靈"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'parsed'"/>
+                    <button name="action_parse"
+                            string="重新解析"
+                            type="object"
+                            invisible="state != 'parsed'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="upload,parsed"/>
+                </header>
+                <sheet>
+                    <group string="上傳檔案">
+                        <field name="wizard_id" readonly="1" invisible="1"/>
+                        <field name="import_file"
+                               filename="import_filename"
+                               widget="binary"
+                               string="工程變更明細表 XLSX"/>
+                        <field name="import_filename" invisible="1"/>
+                        <field name="file_type" readonly="1" invisible="not file_type"/>
+                    </group>
+
+                    <group string="稅什費比例預覽"
+                           invisible="preview_tax_misc_count == 0 or state != 'parsed'">
+                        <field name="preview_tax_misc_rate_before" string="解析前比例 (%)"/>
+                        <field name="preview_tax_misc_rate_after" string="解析後比例 (%)"/>
+                    </group>
+
+                    <group string="解析結果" invisible="state != 'parsed'">
+                        <group>
+                            <field name="preview_add_count" string="新增工項數"/>
+                            <field name="preview_modify_count" string="修改工項數"/>
+                            <field name="preview_zero_out_count" string="歸零工項數"/>
+                        </group>
+                        <group>
+                            <field name="preview_unmatch_count" string="需手動配對（配不到）"/>
+                            <field name="preview_recon_count" string="對帳異常（原值不符）"/>
+                        </group>
+                    </group>
+
+                    <!-- 待處理工項：以頁籤分流「配不到」與「對帳異常」，避免畫面壅擠 -->
+                    <notebook invisible="state != 'parsed' or (preview_unmatch_count == 0 and preview_recon_count == 0)">
+                        <page string="待手動配對（配不到）" invisible="preview_unmatch_count == 0">
+                            <div class="alert alert-warning" role="alert">
+                                <strong>⚠ 以下工項無法自動比對，請選擇處理方式後再套用。</strong><br/>
+                                • 如工項存在於系統：選擇「對應系統工項」<br/>
+                                • 如工項為全新增加（不在原始合約）：將「處置」改為「新增」，並選擇「所屬分類」
+                            </div>
+                            <field name="unmatch_line_ids" nolabel="1">
+                                <list string="待手動配對工項" editable="bottom" create="0" delete="0">
+                                    <field name="item_no" string="XLSX 項次" readonly="1"/>
+                                    <field name="item_name" string="工項名稱" readonly="1"/>
+                                    <field name="change_type" string="處置"/>
+                                    <field name="orig_qty" string="原數量" readonly="1" optional="hide"/>
+                                    <field name="new_qty" string="新數量" readonly="1" optional="show"/>
+                                    <field name="orig_price" string="原單價" readonly="1" optional="show"/>
+                                    <field name="new_price" string="新單價" optional="show"/>
+                                    <field name="task_id" string="對應系統工項"
+                                           required="change_type not in ('add', 'none')"
+                                           invisible="change_type == 'add'"
+                                           options="{'no_create': True}"
+                                           context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}"/>
+                                    <field name="parent_task_id" string="所屬分類"
+                                           invisible="change_type != 'add'"
+                                           options="{'no_create': True}"
+                                           context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}"/>
+                                    <field name="project_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="對帳異常（原值不符）" invisible="preview_recon_count == 0">
+                            <div class="alert alert-warning" role="alert">
+                                <strong>⚠ 以下工項雖配對到，但文件「原數量/原單價」與系統現值不符。</strong><br/>
+                                可能是前次變更未套到、匯入資料有誤、或配對需確認。<strong>系統現值為真，不會以文件原值覆寫系統。</strong>請逐筆裁決：<br/>
+                                • <strong>確認照常套用</strong>（依偵測類型把工項設為「變更後」值）<br/>
+                                • <strong>改判</strong>修改／新增／歸零（重選對象或類型）<br/>
+                                • <strong>不變更</strong>（確認系統現值正確、文件原數量為誤，本次不動此項）
+                            </div>
+                            <field name="recon_line_ids" nolabel="1">
+                                <list string="對帳異常工項" editable="bottom" create="0" delete="0"
+                                      decoration-warning="detected_type == 'unchanged'">
+                                    <field name="item_name" string="工項名稱" readonly="1"/>
+                                    <field name="detected_type" string="偵測類型" readonly="1"/>
+                                    <field name="system_qty" string="系統現值數量" readonly="1"/>
+                                    <field name="orig_qty" string="文件原數量" readonly="1"/>
+                                    <field name="new_qty" string="變更後數量" readonly="1"/>
+                                    <field name="system_price" string="系統現值單價" readonly="1" optional="show"/>
+                                    <field name="orig_price" string="文件原單價" readonly="1" optional="show"/>
+                                    <field name="new_price" string="變更後單價" optional="hide"/>
+                                    <field name="change_type" string="處置"/>
+                                    <field name="task_id" string="對應系統工項"
+                                           required="change_type in ('modify', 'zero_out')"
+                                           invisible="change_type == 'add'"
+                                           options="{'no_create': True}"
+                                           context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}"/>
+                                    <field name="parent_task_id" string="所屬分類"
+                                           invisible="change_type != 'add'"
+                                           options="{'no_create': True}"
+                                           context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}"/>
+                                    <field name="project_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+
+                    <div class="alert alert-info" role="alert"
+                         invisible="state != 'upload'">
+                        請上傳 <strong>工程變更明細表 XLSX</strong>（詳細表(議價前) sheet）。<br/>
+                        點擊「解析」確認統計無誤後，若有無法比對的工項請手動選擇，再點「套用至變更精靈」。
+                    </div>
+                </sheet>
+                <footer>
+                    <button string="捨棄" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

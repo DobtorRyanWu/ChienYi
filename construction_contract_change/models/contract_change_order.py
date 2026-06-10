@@ -36,7 +36,27 @@ class ContractChangeOrder(models.Model):
     sequence = fields.Integer(
         string='序號',
         default=10,
-        help='變更順序')
+        help='變更順序（Odoo 列表排序用，非「第幾次變更」）')
+
+    change_no = fields.Integer(
+        string='本專案第幾次變更',
+        compute='_compute_change_no',
+        store=True,
+        help='此變更單在所屬工程中的變更次序（1-based，依建立先後）。'
+             '「第N次契約變更」標示一律以此為準，不可用 sequence。')
+
+    @api.depends('project_id', 'project_id.change_order_ids', 'create_date')
+    def _compute_change_no(self):
+        for order in self:
+            if not order.project_id:
+                order.change_no = 0
+                continue
+            siblings = order.project_id.change_order_ids.sorted(
+                key=lambda o: (o.create_date or fields.Datetime.now(), o.id))
+            try:
+                order.change_no = list(siblings).index(order) + 1
+            except ValueError:
+                order.change_no = 0
 
     project_id = fields.Many2one(
         'supervision.project',
@@ -87,53 +107,36 @@ class ContractChangeOrder(models.Model):
         default=fields.Date.context_today,
         tracking=True)
 
-    # === 原始契約資訊 (快照) ===
+    # === 原始契約資訊（= 頂層彙總項變更前金額加總，非快照）===
     original_contract_amount = fields.Monetary(
         string='變更前契約金額',
         currency_field='currency_id',
-        readonly=True,
-        help='執行變更前的契約金額')
-
-    original_duration = fields.Integer(
-        string='變更前工期(日)',
-        readonly=True,
-        help='執行變更前的契約工期')
+        compute='_compute_amount_totals',
+        store=True,
+        help='執行變更前的契約金額（= 各頂層彙總項變更前金額加總）')
 
     # === 本次變更金額 ===
     change_amount = fields.Monetary(
         string='本次變更金額',
         currency_field='currency_id',
-        compute='_compute_change_totals',
+        compute='_compute_amount_totals',
         store=True,
-        help='本次變更增減金額 (正:增加, 負:減少)')
+        help='本次變更增減金額 (正:增加, 負:減少) = 變更後 - 變更前')
 
     change_amount_rate = fields.Float(
         string='變更比率 (%)',
-        compute='_compute_change_totals',
+        compute='_compute_amount_totals',
         store=True,
-        digits=(5, 2),
-        help='變更金額佔原契約金額的百分比')
-
-    # === 本次變更工期 ===
-    change_duration = fields.Integer(
-        string='本次變更工期(日)',
-        default=0,
-        tracking=True,
-        help='工期增減天數 (正:展延, 負:縮短)')
+        digits=(16, 4),
+        help='變更金額佔原契約金額的百分比（小數，如 0.2567 = 25.67%）')
 
     # === 變更後金額 ===
     new_contract_amount = fields.Monetary(
         string='變更後契約金額',
         currency_field='currency_id',
-        compute='_compute_new_amounts',
+        compute='_compute_amount_totals',
         store=True,
-        help='變更後的契約總金額')
-
-    new_duration = fields.Integer(
-        string='變更後工期(日)',
-        compute='_compute_new_amounts',
-        store=True,
-        help='變更後的契約總工期')
+        help='變更後的契約總金額（= 各頂層彙總項變更後金額加總）')
 
     # === 變更明細 ===
     line_ids = fields.One2many(
@@ -204,58 +207,59 @@ class ContractChangeOrder(models.Model):
     notes = fields.Html(
         string='備註')
 
+    # === 權限計算欄位 ===
+    is_change_leader = fields.Boolean(
+        compute='_compute_is_change_leader',
+        string='是否為專案負責人')
+
+    @api.depends('project_id.project_leader_id')
+    def _compute_is_change_leader(self):
+        is_admin = self.env.user.has_group(
+            'construction_supervision_base.group_supervisor_admin')
+        for rec in self:
+            leader = rec.project_id.project_leader_id
+            # 未設定負責人時不限制；管理者永遠有權限
+            rec.is_change_leader = (
+                is_admin or
+                not leader or
+                self.env.user == leader
+            )
+
     # === 計算欄位 ===
     @api.depends('line_ids')
     def _compute_line_count(self):
         for order in self:
             order.line_count = len(order.line_ids)
 
-    @api.depends('line_ids.change_amount')
-    def _compute_change_totals(self):
-        """計算本次變更總金額與比率"""
+    @api.depends('line_ids.original_amount', 'line_ids.new_amount',
+                 'line_ids.item_level')
+    def _compute_amount_totals(self):
+        """契約金額一律以「頂層彙總項（item_level == 0）加總」為單一真實來源。
+
+        概念（薪資統計類比）：各頂層「部門」彙總項各自由下而上算出（明細端
+        wizard 已含稅什費 tax_misc_rate 比率），再加總所有頂層彙總項。
+          變更前 = Σ 頂層 original_amount
+          變更後 = Σ 頂層 new_amount
+          本次變更 = 變更後 - 變更前
+        不再使用「快照 original + Σ change」的鏈式累積（會逐次累積誤差）。
+        """
         for order in self:
-            order.change_amount = sum(order.line_ids.mapped('change_amount'))
+            top = order.line_ids.filtered(lambda l: l.item_level == 0)
+            order.original_contract_amount = sum(top.mapped('original_amount'))
+            order.new_contract_amount = sum(top.mapped('new_amount'))
+            order.change_amount = (
+                order.new_contract_amount - order.original_contract_amount)
             if order.original_contract_amount:
                 order.change_amount_rate = (
-                    order.change_amount / order.original_contract_amount) * 100
+                    order.change_amount / order.original_contract_amount)
             else:
                 order.change_amount_rate = 0.0
 
-    @api.depends('original_contract_amount', 'change_amount',
-                 'original_duration', 'change_duration')
-    def _compute_new_amounts(self):
-        """計算變更後金額與工期"""
-        for order in self:
-            order.new_contract_amount = (
-                order.original_contract_amount + order.change_amount)
-            order.new_duration = order.original_duration + order.change_duration
-
     # === Onchange ===
-    @api.onchange('project_id')
-    def _onchange_project_id(self):
-        """選擇工程時，自動填入原始契約資訊"""
-        if self.project_id:
-            # 取得當前契約金額 (含已核定變更)
-            self.original_contract_amount = (
-                self.project_id.current_contract_amount or
-                self.project_id.contract_amount or 0.0)
-            self.original_duration = (
-                self.project_id.current_duration or
-                self.project_id.contract_duration or 0)
+    # 註：original_contract_amount 已改為由明細（頂層彙總項）計算，
+    #     不再於選擇工程時快照 current_contract_amount（避免鏈式累積誤差）。
 
     # === 約束 ===
-    @api.constrains('change_duration')
-    def _check_change_duration(self):
-        """檢查工期變更合理性"""
-        for order in self:
-            if order.original_duration and order.change_duration:
-                new_duration = order.original_duration + order.change_duration
-                if new_duration < 0:
-                    raise ValidationError(
-                        '變更後工期不可為負數！'
-                        f'原工期 {order.original_duration} 日 + '
-                        f'變更 {order.change_duration} 日 = {new_duration} 日')
-
     @api.constrains('line_ids')
     def _check_line_ids(self):
         """檢查變更明細"""
@@ -274,15 +278,7 @@ class ContractChangeOrder(models.Model):
         if not self.line_ids:
             raise UserError('請先新增變更明細！')
 
-        # 快照原始契約資訊
-        if not self.original_contract_amount:
-            self.original_contract_amount = (
-                self.project_id.current_contract_amount or
-                self.project_id.contract_amount or 0.0)
-        if not self.original_duration:
-            self.original_duration = (
-                self.project_id.current_duration or
-                self.project_id.contract_duration or 0)
+        # 註：original_contract_amount 由 _compute_amount_totals 自明細計算，無需快照。
 
         self.write({
             'state': 'submitted',
@@ -307,6 +303,8 @@ class ContractChangeOrder(models.Model):
         self.ensure_one()
         if self.state != 'reviewing':
             raise UserError('只有審查中狀態可以核定！')
+        if not self.is_change_leader:
+            raise UserError('只有專案負責人或系統管理者才能核定！')
 
         self.write({
             'state': 'approved',
@@ -319,6 +317,8 @@ class ContractChangeOrder(models.Model):
         self.ensure_one()
         if self.state not in ('submitted', 'reviewing'):
             raise UserError('只有已提送或審查中狀態可以駁回！')
+        if not self.is_change_leader:
+            raise UserError('只有專案負責人或系統管理者才能駁回！')
 
         return {
             'type': 'ir.actions.act_window',
@@ -346,6 +346,8 @@ class ContractChangeOrder(models.Model):
         self.ensure_one()
         if self.state != 'approved':
             raise UserError('只有已核定狀態可以套用變更！')
+        if not self.is_change_leader:
+            raise UserError('只有專案負責人或系統管理者才能套用變更！')
 
         # 套用變更至工項
         self._apply_changes_to_tasks()
@@ -370,8 +372,8 @@ class ContractChangeOrder(models.Model):
     def action_reset_draft(self):
         """重設為草稿"""
         self.ensure_one()
-        if self.state not in ('submitted', 'rejected', 'approved'):
-            raise UserError('只有已提送、已駁回或已核定狀態可以重設為草稿！')
+        if self.state not in ('submitted', 'rejected'):
+            raise UserError('只有已提送或已駁回狀態可以重設為草稿！')
 
         vals = {
             'state': 'draft',
@@ -394,31 +396,42 @@ class ContractChangeOrder(models.Model):
         self.ensure_one()
         ProjectTask = self.env['project.task']
 
-        for line in self.line_ids:
-            if line.change_type == 'add':
-                # 新增工項
-                vals = {
-                    'project_id': self.project_id.project_id.id,
-                    'name': line.item_name,
-                    'item_no': line.item_no,
-                    'planned_qty': line.new_qty,
-                    'unit': line.unit,
-                    'unit_price': line.new_unit_price,
-                    'change_order_id': self.id,
-                    'specification': line.specification or '',
-                }
-                # 處理階層關係
-                if line.parent_task_id:
-                    vals['parent_id'] = line.parent_task_id.id
-                    vals['item_level'] = line.parent_task_id.item_level + 1
+        # ── 新增(add)：拓樸建立（父先於子）──────────────────────────
+        # 支援「本次新增的彙總群組」：子項以 parent_line_id 指向同變更的群組新增列，
+        # 該群組此時尚非 task；故先建父群組、記入 line2task，子項再用它解析 parent_id。
+        # （借鏡標單匯入 tender_import_wizard 的 task_map 階層建立法。）
+        add_lines = self.line_ids.filtered(lambda l: l.change_type == 'add')
+        line2task = {}
+        pending = list(add_lines)
+        guard = 0
+        while pending:
+            guard += 1
+            if guard > 50:
+                raise UserError('契約變更新增項父子關係解析超過上限，疑有循環參照。')
+            progressed = False
+            still = []
+            for line in pending:
+                if line.parent_line_id:
+                    ptask = line2task.get(line.parent_line_id.id)
+                    if not ptask:
+                        still.append(line)          # 父群組尚未建立 → 下一輪
+                        continue
+                    parent_id = ptask.id
+                elif line.parent_task_id:
+                    parent_id = line.parent_task_id.id
                 else:
-                    vals['item_level'] = 0
-                
-                task = ProjectTask.create(vals)
-                # 更新 Many2many 關聯
-                task.write({'change_order_ids': [(4, self.id)]})
-                
-            elif line.change_type == 'modify' and line.task_id:
+                    parent_id = False               # 新增的頂層彙總群組
+                line2task[line.id] = self._create_added_task(line, parent_id)
+                progressed = True
+            pending = still
+            if pending and not progressed:
+                raise UserError(
+                    '契約變更新增項找不到父項（缺父或循環）：%s'
+                    % '、'.join(l.item_name or '?' for l in pending))
+
+        # ── 修改/歸零/刪除（與新增無相依，順序無關）─────────────────
+        for line in self.line_ids:
+            if line.change_type == 'modify' and line.task_id:
                 # 凍結原始契約數量（僅第一次變更時）
                 if not line.task_id.original_planned_qty:
                     line.task_id.original_planned_qty = line.task_id.planned_qty
@@ -429,7 +442,38 @@ class ContractChangeOrder(models.Model):
                     'change_order_id': self.id,
                     'change_order_ids': [(4, self.id)],  # 新增到 Many2many
                 })
+                # 建立版本記錄
+                next_version = max(line.task_id.version_ids.mapped('version') or [0]) + 1
+                self.env['project.task.version'].create({
+                    'task_id': line.task_id.id,
+                    'version': next_version,
+                    'planned_qty': line.new_qty,
+                    'unit_price': line.new_unit_price,
+                    'change_date': self.change_date or fields.Date.today(),
+                    'change_reason': self.name,
+                    'change_order_id': self.id,
+                })
                 
+            elif line.change_type == 'zero_out' and line.task_id:
+                # 歸零：工項保留、數量歸零（保留原單價供參考），並建立版本記錄
+                if not line.task_id.original_planned_qty:
+                    line.task_id.original_planned_qty = line.task_id.planned_qty
+                line.task_id.write({
+                    'planned_qty': 0.0,
+                    'change_order_id': self.id,
+                    'change_order_ids': [(4, self.id)],
+                })
+                next_version = max(line.task_id.version_ids.mapped('version') or [0]) + 1
+                self.env['project.task.version'].create({
+                    'task_id': line.task_id.id,
+                    'version': next_version,
+                    'planned_qty': 0.0,
+                    'unit_price': line.task_id.unit_price,  # 保留原單價
+                    'change_date': self.change_date or fields.Date.today(),
+                    'change_reason': self.name,
+                    'change_order_id': self.id,
+                })
+
             elif line.change_type == 'delete' and line.task_id:
                 # 標記刪除 (不實際刪除，保留歷史)
                 line.task_id.write({
@@ -437,6 +481,57 @@ class ContractChangeOrder(models.Model):
                     'change_order_id': self.id,
                     'change_order_ids': [(4, self.id)],  # 新增到 Many2many
                 })
+
+        # ── 結構變更後，整個專案以樹狀 DFS 重編 sequence ──────────────
+        # 新增/刪除會讓同父 max+10 的序號跨越下一彙總項區間造成亂序；
+        # 重編後保證「父 < 子孫 < 下一兄弟」，徹底消除跨彙總項撞號。
+        if self.project_id and self.project_id.project_id:
+            ProjectTask._resequence_project_sequence(self.project_id.project_id.id)
+
+    def _create_added_task(self, line, parent_id):
+        """建立一筆新增工項 task（parent_id 已由拓樸解析：既有彙總項或本次新建群組）。
+        回傳建立的 project.task。item_level/planned_amount 由 compute 自動處理。"""
+        self.ensure_one()
+        ProjectTask = self.env['project.task']
+        display_unit = ProjectTask._normalize_unit_display(line.unit)
+        vals = {
+            'project_id': self.project_id.project_id.id,
+            'name': line.item_name,
+            'item_no': line.item_no,
+            'planned_qty': line.new_qty,
+            'unit': display_unit,
+            'unit_id': ProjectTask._resolve_uom_id(display_unit),
+            'unit_price': line.new_unit_price,
+            'change_order_id': self.id,
+            'specification': line.specification or '',
+            'ref_item_code': line.ref_item_code or '',
+        }
+        if line.ref_item_code:
+            product = self.env['product.product'].search(
+                [('default_code', '=', line.ref_item_code)], limit=1)
+            if product:
+                vals['product_id'] = product.id
+        # 排序：排在同父既有子項之後（避免新增項用預設 sequence 擠到最前造成亂序）
+        if parent_id:
+            vals['parent_id'] = parent_id
+            parent = ProjectTask.browse(parent_id)
+            siblings = parent.child_ids
+            base_seq = max(siblings.mapped('sequence')) if siblings else (parent.sequence or 0)
+            vals['sequence'] = base_seq + 10
+        else:
+            top = ProjectTask.search([('project_id', '=', vals['project_id']),
+                                      ('parent_id', '=', False)])
+            vals['sequence'] = (max(top.mapped('sequence')) if top else 0) + 10
+
+        task = ProjectTask.create(vals)
+        task.write({'change_order_ids': [(4, self.id)]})
+        if task.version_ids:
+            task.version_ids[0].write({
+                'change_order_id': self.id,
+                'change_date': self.change_date or fields.Date.today(),
+                'change_reason': self.name,
+            })
+        return task
 
     def _update_project_contract(self):
         """契約變更套用時不修改 contract_end_date（預定契約完工日）。
@@ -515,6 +610,7 @@ class ContractChangeOrder(models.Model):
                 'default_project_id': self.project_id.id if self.project_id else False,
             },
         }
+
 
     # === 檢視動作 ===
     def action_view_lines(self):

@@ -49,6 +49,7 @@
         # Views
         'views/contract_change_order_views.xml',
         'views/contract_change_wizard_views.xml',
+        'views/contract_change_file_import_wizard_views.xml',
         'views/project_task_views.xml',
         'views/menu.xml',
     ],
