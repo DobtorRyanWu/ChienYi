@@ -57,7 +57,10 @@ v2.0.0 (Portal v10)
         # 登入頁品牌化（EAGLE 風格）
         'views/login_templates.xml',
         # 停用 Odoo Website 預設 /contactus 頁面（客服走另一系統）
-        'data/disable_contactus.xml',
+        # 註：本部署未安裝 website 模組，website.page/website.menu 等 external id 不存在，
+        #     啟用此檔會讓 -u 升級因 KeyError: 'website.page' 失敗（chienyi 即為此情況）。
+        #     若日後安裝 website 再取消註解。
+        # 'data/disable_contactus.xml',
     ],
     'assets': {
         'web.assets_frontend': [
