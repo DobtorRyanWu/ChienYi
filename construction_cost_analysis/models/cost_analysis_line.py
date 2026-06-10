@@ -73,6 +73,37 @@ class CostAnalysisLine(models.Model):
         index=True,
         help='標單中的 refItemCode，用於匹配價格庫')
 
+    unit_id = fields.Many2one(
+        'uom.uom', string='單位（標準）',
+        help='由工項匯入時同步帶入，用於提升比對準確率')
+
+    task_id = fields.Many2one(
+        'project.task',
+        string='來源工項',
+        ondelete='set null',
+        index=True,
+        help='模式1（從專案匯入）時設定，用於資料追溯')
+
+    product_id = fields.Many2one(
+        'product.product',
+        string='標準工項',
+        compute='_compute_product_id',
+        store=True,
+        index=True,
+        help='從來源工項取得，用於 Strategy 0 精確比對')
+
+    @api.depends('task_id.product_id')
+    def _compute_product_id(self):
+        for line in self:
+            line.product_id = line.task_id.product_id if line.task_id else False
+
+    match_status = fields.Selection([
+        ('none', '未比對'),
+        ('matched', '已比對'),
+        ('ambiguous', '多結果待確認'),
+    ], string='比對狀態', default='none',
+       help='成本分析比對結果；舊資料升級後為 None，filter 請用 not match_status')
+
     # === 契約預算 ===
     quantity = fields.Float(
         string='契約數量',

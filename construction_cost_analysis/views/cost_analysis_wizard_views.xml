@@ -35,14 +35,7 @@
         </field>
     </record>
 
-    <record id="action_cost_analysis_import_project_wizard" model="ir.actions.act_window">
-        <field name="name">從專案匯入</field>
-        <field name="res_model">cost.analysis.import.project.wizard</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
-        <field name="binding_model_id" ref="model_cost_analysis"/>
-        <field name="binding_view_types">form,list</field>
-    </record>
+    <!-- 精靈 action 已移除：改由表單內的「匯入模式」欄位選取後直接操作 -->
 
     <!-- ============================================ -->
     <!-- 從 XML 匯入成本分析精靈                          -->
@@ -95,13 +88,6 @@
         </field>
     </record>
 
-    <record id="action_cost_analysis_import_xml_wizard" model="ir.actions.act_window">
-        <field name="name">從 XML 匯入</field>
-        <field name="res_model">cost.analysis.import.xml.wizard</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
-        <field name="binding_model_id" ref="model_cost_analysis"/>
-        <field name="binding_view_types">form,list</field>
-    </record>
+    <!-- 精靈 action 已移除：改由表單內的「匯入模式」欄位選取後直接操作 -->
 
 </odoo>

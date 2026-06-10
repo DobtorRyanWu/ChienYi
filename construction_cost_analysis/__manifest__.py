@@ -32,6 +32,7 @@
     'depends': [
         'construction_supervision_base',
         'construction_price_library',
+        'uom',
     ],
     'data': [
         # Security

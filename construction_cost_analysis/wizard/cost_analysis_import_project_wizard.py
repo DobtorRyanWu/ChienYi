@@ -134,7 +134,9 @@ class CostAnalysisImportProjectWizard(models.TransientModel):
                 'item_no': task.item_no,
                 'name': task.name,
                 'unit': task.unit,
+                'unit_id': task.unit_id.id if task.unit_id else False,
                 'ref_item_code': task.ref_item_code or False,
+                'task_id': task.id,
                 'quantity': task.planned_qty,
                 'contract_unit_price': task.unit_price,
             })

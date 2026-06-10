@@ -4,6 +4,7 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 import xml.etree.ElementTree as ET
 import base64
+import re
 
 
 class CostAnalysisImportXMLWizard(models.TransientModel):
@@ -142,7 +143,7 @@ class CostAnalysisImportXMLWizard(models.TransientModel):
 
     def _parse_pay_items(self, root, parent_item_no='', level=0):
         """
-        遞迴解析 PayItem（複用 tender_import_wizard 邏輯）
+        遞迴解析 PayItem
 
         返回格式：
         [
@@ -161,35 +162,37 @@ class CostAnalysisImportXMLWizard(models.TransientModel):
             ...
         ]
         """
+        ns = {'ns': 'http://pcstd.pcc.gov.tw/2003/eTender'}
+        detail_list = root.find('.//ns:DetailList', ns)
+        if detail_list is None:
+            return []
+        return self._parse_pay_item_recursive(detail_list, ns)
+
+    def _parse_pay_item_recursive(self, element, ns, parent_item_key='', level=0):
+        """遞迴解析 PayItem，以 itemKey 作為父子關係唯一識別"""
         items = []
-
-        # 找出所有 PayItem
-        pay_items = root.findall('.//PayItem')
-
-        # 建立 itemKey 索引（用於查找父項）
-        item_key_map = {}
-
-        for pay_item in pay_items:
+        for pay_item in element.findall('ns:PayItem', ns):
             item_key = pay_item.get('itemKey', '')
             item_no = pay_item.get('itemNo', '')
-            ref_item_code = pay_item.get('refItemCode', '')
+            ref_item_code = pay_item.get('refItemCode', '').strip()
 
-            # 解析欄位
-            name = self._get_xml_text(pay_item, 'Description')
-            unit = self._get_xml_text(pay_item, 'Unit')
-            quantity = self._parse_float(self._get_xml_text(pay_item, 'Quantity'))
-            unit_price = self._parse_float(self._get_xml_text(pay_item, 'Price'))
-            amount = self._parse_float(self._get_xml_text(pay_item, 'TotalAmount'))
+            desc_elem = pay_item.find('ns:Description[@language="zh-TW"]', ns)
+            name = desc_elem.text if desc_elem is not None else ''
 
-            # 決定父項目編號
-            parent_key = item_key.rsplit('.', 1)[0] if '.' in item_key else ''
-            parent_item_no_value = item_key_map.get(parent_key, '')
+            unit_elem = pay_item.find('ns:Unit[@language="zh-TW"]', ns)
+            unit = unit_elem.text if unit_elem is not None else ''
 
-            # 記錄此項目
-            item_key_map[item_key] = item_no
+            qty_elem = pay_item.find('ns:Quantity', ns)
+            quantity = float(qty_elem.text) if qty_elem is not None and qty_elem.text else 0.0
 
-            # 判斷是否為彙總項（單價為 0 或數量為 0）
-            has_children = (unit_price == 0 and amount > 0)
+            price_elem = pay_item.find('ns:Price', ns)
+            unit_price = float(price_elem.text) if price_elem is not None and price_elem.text else 0.0
+
+            amount_elem = pay_item.find('ns:Amount', ns)
+            amount = float(amount_elem.text) if amount_elem is not None and amount_elem.text else 0.0
+
+            child_pay_items = pay_item.findall('ns:PayItem', ns)
+            has_children = len(child_pay_items) > 0
 
             items.append({
                 'item_key': item_key,
@@ -199,17 +202,25 @@ class CostAnalysisImportXMLWizard(models.TransientModel):
                 'quantity': quantity,
                 'unit_price': unit_price,
                 'amount': amount,
-                'level': item_key.count('.'),
-                'parent_item_no': parent_item_no_value,
+                'level': level,
+                'parent_item_no': parent_item_key,
                 'ref_item_code': ref_item_code,
                 'has_children': has_children,
             })
 
+            if has_children:
+                items.extend(
+                    self._parse_pay_item_recursive(pay_item, ns, item_key, level + 1)
+                )
+
         return items
 
     def _get_xml_text(self, element, tag_name):
-        """取得 XML 元素的文字內容"""
-        child = element.find(tag_name)
+        """取得 XML 元素的文字內容（保留相容性）"""
+        ns = {'ns': 'http://pcstd.pcc.gov.tw/2003/eTender'}
+        child = element.find(f'ns:{tag_name}', ns)
+        if child is None:
+            child = element.find(tag_name)
         return child.text if child is not None and child.text else ''
 
     def _parse_float(self, value_str):
@@ -261,6 +272,44 @@ class CostAnalysisImportXMLWizard(models.TransientModel):
         import json
         items_data = json.loads(self.parsed_data)
 
+        # 建立 UoM 比對 cache（標準化 XML 單位）
+        _all_uoms = self.env['uom.uom'].search_read([], ['name', 'id'])
+        _uom_cache = {u['name']: u['id'] for u in _all_uoms}
+
+        def _normalize_unit_display(s):
+            """委派共用方法 project.task._normalize_unit_display（全系統一致）"""
+            return self.env['project.task']._normalize_unit_display(s)
+
+        _UNIT_ALIAS = {
+            'b.m³': 'm³', 'c.m³': 'm³',
+            'b.m3': 'm³', 'c.m3': 'm³',
+            'm²/月': 'm²', 'm³/月': 'm³',
+        }
+
+        def _norm_key(s):
+            return re.sub(r'\s+', '', (s or '').lower())
+
+        _uom_norm_cache = {}
+        for u in _all_uoms:
+            nk = _norm_key(u['name'])
+            if nk not in _uom_norm_cache:
+                _uom_norm_cache[nk] = (u['id'], u['name'])
+
+        def _resolve_uom(raw_unit):
+            """解析單位字串，回傳 (display_unit, uom_id)"""
+            disp = _normalize_unit_display(raw_unit)
+            uom_id = _uom_cache.get(disp, False)
+            if not uom_id:
+                nk = _norm_key(disp)
+                std = _UNIT_ALIAS.get(nk)
+                if std:
+                    uom_id = _uom_cache.get(std, False)
+                if not uom_id:
+                    match = _uom_norm_cache.get(nk)
+                    if match:
+                        uom_id = match[0]
+            return disp, uom_id
+
         # 1. 建立 cost.analysis
         planning = self.env['cost.analysis'].create({
             'name': self.planning_name,
@@ -282,13 +331,17 @@ class CostAnalysisImportXMLWizard(models.TransientModel):
             if item['parent_item_no'] and item['parent_item_no'] in item_no_to_line:
                 parent_line_id = item_no_to_line[item['parent_item_no']].id
 
+            # 標準化單位
+            display_unit, uom_id = _resolve_uom(item['unit'])
+
             # 建立 cost.analysis.line
             line = self.env['cost.analysis.line'].create({
                 'planning_id': planning.id,
                 'parent_id': parent_line_id,
                 'item_no': item['item_no'],
                 'name': item['name'],
-                'unit': item['unit'],
+                'unit': display_unit,
+                'unit_id': uom_id,
                 'ref_item_code': item['ref_item_code'] or False,
                 'quantity': item['quantity'],
                 'contract_unit_price': item['unit_price'],

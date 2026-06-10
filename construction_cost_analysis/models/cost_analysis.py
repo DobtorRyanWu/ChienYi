@@ -3,6 +3,9 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 import logging
+import base64
+import xml.etree.ElementTree as ET
+import re
 
 _logger = logging.getLogger(__name__)
 
@@ -64,7 +67,7 @@ class CostAnalysis(models.Model):
 
     xml_file = fields.Binary(
         string='XML 檔案',
-        attachment=True,
+        attachment=False,
         help='上傳政府採購網 XML 標單'
     )
 
@@ -192,6 +195,220 @@ class CostAnalysis(models.Model):
             )
 
     # ========================================
+    # XML 解析工具方法
+    # ========================================
+    @staticmethod
+    def _ca_parse_float(value_str):
+        try:
+            return float(value_str.replace(',', '')) if value_str else 0.0
+        except ValueError:
+            return 0.0
+
+    def _ca_normalize_unit(self, s):
+        """標準化 XML 單位（委派共用方法 project.task._normalize_unit_display，全系統一致）"""
+        return self.env['project.task']._normalize_unit_display(s)
+
+    def _ca_parse_pay_items_recursive(self, element, ns, parent_item_key='', level=0):
+        """遞迴解析 PayItem，以 itemKey 作為父子關係唯一識別"""
+        items = []
+        for pay_item in element.findall('ns:PayItem', ns):
+            item_key = pay_item.get('itemKey', '')
+            item_no = pay_item.get('itemNo', '')
+            ref_item_code = pay_item.get('refItemCode', '').strip()
+
+            desc_elem = pay_item.find('ns:Description[@language="zh-TW"]', ns)
+            name = desc_elem.text if desc_elem is not None else ''
+
+            unit_elem = pay_item.find('ns:Unit[@language="zh-TW"]', ns)
+            unit = unit_elem.text if unit_elem is not None else ''
+
+            qty_elem = pay_item.find('ns:Quantity', ns)
+            quantity = float(qty_elem.text) if qty_elem is not None and qty_elem.text else 0.0
+
+            price_elem = pay_item.find('ns:Price', ns)
+            unit_price = float(price_elem.text) if price_elem is not None and price_elem.text else 0.0
+
+            child_pay_items = pay_item.findall('ns:PayItem', ns)
+            has_children = len(child_pay_items) > 0
+
+            items.append({
+                'item_key': item_key,
+                'item_no': item_no,
+                'name': name,
+                'unit': unit,
+                'quantity': quantity,
+                'unit_price': unit_price,
+                'ref_item_code': ref_item_code,
+                'level': level,
+                'parent_item_key': parent_item_key,
+                'has_children': has_children,
+            })
+
+            if has_children:
+                items.extend(
+                    self._ca_parse_pay_items_recursive(pay_item, ns, item_key, level + 1)
+                )
+
+        return items
+
+    # ========================================
+    # 匯入模式切換 onchange
+    # ========================================
+    @api.onchange('import_mode')
+    def _onchange_import_mode(self):
+        """切換匯入模式時清除現有明細，避免資料混雜"""
+        if self.state == 'draft':
+            self.line_ids = [(5, 0, 0)]
+
+    # ========================================
+    # 從 XML 解析並載入工項
+    # ========================================
+    def action_parse_xml(self):
+        """解析 XML 檔案並建立預算明細（保留父子階層）"""
+        self.ensure_one()
+        if not self.xml_file:
+            raise UserError('請先上傳 XML 檔案！')
+        if self.state != 'draft':
+            raise UserError('只有草稿狀態可以重新解析 XML！')
+
+        try:
+            xml_data = base64.b64decode(self.xml_file)
+            root = ET.fromstring(xml_data)
+            if 'ETenderSheet' not in root.tag:
+                raise UserError('檔案格式錯誤：必須是 ETenderSheet 格式')
+        except UserError:
+            raise
+        except Exception as e:
+            raise UserError(f'XML 解析失敗：{e}')
+
+        ns = {'ns': 'http://pcstd.pcc.gov.tw/2003/eTender'}
+        detail_list = root.find('.//ns:DetailList', ns)
+        if detail_list is None:
+            raise UserError('未找到 DetailList 節點，請確認 XML 格式')
+
+        items_data = self._ca_parse_pay_items_recursive(detail_list, ns)
+        if not items_data:
+            raise UserError('未解析到任何工項資料')
+
+        # UoM 對應表
+        all_uoms = self.env['uom.uom'].search_read([], ['name', 'id'])
+        uom_cache = {u['name']: u['id'] for u in all_uoms}
+        _ALIAS = {
+            'b.m³': 'm³', 'c.m³': 'm³',
+            'b.m3': 'm³', 'c.m3': 'm³',
+            'm²/月': 'm²', 'm³/月': 'm³',
+        }
+
+        def _norm(s):
+            return re.sub(r'\s+', '', (s or '').lower())
+
+        uom_norm = {}
+        for u in all_uoms:
+            nk = _norm(u['name'])
+            if nk not in uom_norm:
+                uom_norm[nk] = u['id']
+
+        def resolve_uom(raw):
+            disp = self._ca_normalize_unit(raw)
+            uom_id = uom_cache.get(disp)
+            if not uom_id:
+                nk = _norm(disp)
+                std = _ALIAS.get(nk)
+                if std:
+                    uom_id = uom_cache.get(std)
+                if not uom_id:
+                    uom_id = uom_norm.get(nk, False)
+            return disp, uom_id
+
+        # 清除現有明細
+        self.line_ids.unlink()
+
+        item_key_map = {}  # itemKey → cost.analysis.line record
+
+        for seq, item in enumerate(items_data, start=10):
+            item_key = item['item_key']
+            parent_item_key = item['parent_item_key']
+
+            parent_line_id = False
+            if parent_item_key:
+                parent_line = item_key_map.get(parent_item_key)
+                if parent_line:
+                    parent_line_id = parent_line.id
+
+            disp_unit, uom_id = resolve_uom(item['unit'])
+
+            line = self.env['cost.analysis.line'].create({
+                'planning_id': self.id,
+                'parent_id': parent_line_id,
+                'sequence': seq,
+                'item_no': item['item_no'],
+                'name': item['name'],
+                'unit': disp_unit,
+                'unit_id': uom_id,
+                'ref_item_code': item['ref_item_code'] or False,
+                'quantity': item['quantity'],
+                'contract_unit_price': item['unit_price'],
+            })
+            if item_key:
+                item_key_map[item_key] = line
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    # ========================================
+    # 從專案載入工項
+    # ========================================
+    def action_load_from_project(self):
+        """從來源專案載入契約工項（保留父子階層）"""
+        self.ensure_one()
+        if not self.source_project_id:
+            raise UserError('請先選擇來源專案！')
+        if self.state != 'draft':
+            raise UserError('只有草稿狀態可以重新載入工項！')
+
+        self.line_ids.unlink()
+
+        tasks = self.source_project_id.task_ids.sorted(
+            lambda t: (t.sequence, t.item_no or '', t.id)
+        )
+        if not tasks:
+            raise UserError('來源專案沒有工項！')
+
+        task_to_line = {}
+        for task in tasks:
+            parent_line_id = False
+            if task.parent_id and task.parent_id.id in task_to_line:
+                parent_line_id = task_to_line[task.parent_id.id].id
+
+            line = self.env['cost.analysis.line'].create({
+                'planning_id': self.id,
+                'parent_id': parent_line_id,
+                'sequence': task.sequence,
+                'item_no': task.item_no,
+                'name': task.name,
+                'unit': task.unit,
+                'unit_id': task.unit_id.id if task.unit_id else False,
+                'ref_item_code': task.ref_item_code or False,
+                'task_id': task.id,
+                'quantity': task.planned_qty,
+                'contract_unit_price': task.unit_price,
+            })
+            task_to_line[task.id] = line
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    # ========================================
     # 狀態切換方法
     # ========================================
     def action_confirm(self):
@@ -217,48 +434,64 @@ class CostAnalysis(models.Model):
     # 價格庫匯入方法
     # ========================================
     def action_import_suggested_prices(self):
-        """從價格庫導入建議單價"""
+        """從價格庫比對建議單價（策略 A + 策略 B）"""
+        import unicodedata
+        import re
+
+        def normalize(s):
+            s = unicodedata.normalize('NFKC', s or '')  # 全形→半形
+            return re.sub(r'\s+', ' ', s).strip().lower()
+
         self.ensure_one()
-
         if not self.line_ids:
-            raise UserError('沒有可匹配的明細！')
+            raise UserError('沒有可比對的明細！')
 
-        PriceLibraryItem = self.env['price.library.item']
-        matched_count = 0
+        PriceItem = self.env['price.library.item']
+        base_domain = [('company_id', '=', self.company_id.id), ('active', '=', True)]
+        by_name = ambiguous = 0
+        unmatched_names = []
 
         for line in self.line_ids.filtered(lambda l: not l.is_summary_item):
-            # 匹配策略 1：精確匹配 ref_item_code（如果有）
-            library_item = False
-            if line.ref_item_code:
-                library_item = PriceLibraryItem.search([
-                    ('company_id', '=', self.company_id.id),
-                    ('item_no', '=', line.ref_item_code),
-                    ('active', '=', True),
-                ], limit=1)
+            matched = False
 
-            # 匹配策略 2：組合匹配 name + unit
-            if not library_item:
-                library_item = PriceLibraryItem.search([
-                    ('company_id', '=', self.company_id.id),
-                    ('name', 'ilike', line.name),
-                    ('unit', '=', line.unit),
-                    ('active', '=', True),
-                ], limit=1)
+            # 策略 B：正規化名稱 + 單位比對
+            if not matched:
+                norm = normalize(line.name)
+                items = PriceItem.search(
+                    base_domain + [
+                        ('name_normalized', '=', norm),
+                        ('unit', '=', line.unit),
+                    ])
+                if len(items) == 1:
+                    line.library_item_id = items
+                    line.match_status = 'matched'
+                    by_name += 1
+                    matched = True
+                elif len(items) > 1:
+                    line.match_status = 'ambiguous'
+                    ambiguous += 1
+                    matched = True
 
-            # 如果找到匹配項，填入建議單價
-            if library_item:
-                line.library_item_id = library_item.id
-                matched_count += 1
+            if not matched:
+                line.match_status = 'none'
+                unmatched_names.append(f'  • {line.item_no} {line.name}')
+
+        total = by_name
+        msg = f'成功比對 {total} 筆（名稱比對 {by_name}）'
+        if ambiguous:
+            msg += f'\n{ambiguous} 筆有多個候選，請手動確認'
+        if unmatched_names:
+            msg += f'\n以下 {len(unmatched_names)} 筆無法比對：\n' + '\n'.join(unmatched_names)
 
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': '價格庫匯入完成',
-                'message': f'成功匹配 {matched_count} 筆明細',
-                'type': 'success',
-                'sticky': False,
-            }
+                'title': '價格庫比對完成',
+                'message': msg,
+                'type': 'success' if not (ambiguous or unmatched_names) else 'warning',
+                'sticky': bool(unmatched_names),
+            },
         }
 
     # ========================================
