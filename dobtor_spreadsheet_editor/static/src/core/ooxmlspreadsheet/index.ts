@@ -132,6 +132,7 @@ import { buildXlsx as _buildXlsx, type WriteSheet as _WriteSheet, type WriteCell
 import { resolveSheetCharts as _resolveSheetCharts } from './chart_compiler';
 import { resolveSheetTables as _resolveSheetTables } from './table_compiler';
 import { resolveHyperlinks as _resolveHyperlinks } from './hyperlink_resolver';
+import { resolvePreviewImages as _resolvePreviewImages, previewImagesHtml as _previewImagesHtml } from './preview_images';
 
 export { buildOSpreadsheetData } from './to_ospreadsheet';
 export type { OSpreadsheetData, OSheet, OCell, OStyle, SheetInput } from './to_ospreadsheet';
@@ -175,6 +176,8 @@ export function importXlsxToHtmlPreview(buffer: ArrayBuffer, sheetIndex = 0): Xl
     if (target && pkg.hasPart(target)) {
         const ws = _WorksheetParser.parse(pkg.getPartText(target));
         html = _renderWorksheetHtml(ws, ss, styles, theme);
+        // §5.3 預覽：內嵌圖片以 data URL 顯示（可編輯 o-spreadsheet 圖片另需 attachment）
+        html += _previewImagesHtml(_resolvePreviewImages(pkg, target));
     }
     return { sheets: wb.sheets.map((s) => s.name), activeSheet: idx, html };
 }

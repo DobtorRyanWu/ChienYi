@@ -640,7 +640,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 #### 5.3 Drawing / Image（1-2 週）
 - [x] `DrawingParser`：`xl/drawings/drawingN.xml` → from/to anchor (EMU)、ext、rotation
 - [x] `<xdr:oneCellAnchor>` / `<xdr:twoCellAnchor>` / `<xdr:absoluteAnchor>`
-- [ ] `<xdr:pic>` 圖片：blip→base64 已可解析，但 o-spreadsheet image figure 結構需 ImageProvider（inline data URL 會 load 失敗）→ 延後
+- [x] `<xdr:pic>` 圖片：HTML 預覽以 data URL 顯示（S）；可編輯 o-spreadsheet 圖片需 ir.attachment+imageProvider→延後
 - [ ] `ImageImporter`：圖片 binary → o-spreadsheet image API（確認 o-spreadsheet image 支援程度）
 - [ ] `<xdr:sp>` shape（矩形、箭頭、文字方塊）— Phase 5 降級為 image，Phase 7 升級
 
