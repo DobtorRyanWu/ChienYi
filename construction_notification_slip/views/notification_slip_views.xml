@@ -107,6 +107,28 @@
                                 <field name="notes"/>
                             </group>
                         </page>
+                        <page string="關聯照片" name="related_photos">
+                            <field name="related_photo_count" invisible="1"/>
+                            <field name="related_photo_ids" nolabel="1" readonly="1"
+                                   options="{'no_create': True, 'no_open': False}">
+                                <kanban>
+                                    <templates>
+                                        <t t-name="card" class="row g-0">
+                                            <aside class="col-3">
+                                                <field name="attachment_id" widget="image"
+                                                       options="{'preview_image': 'datas'}"/>
+                                            </aside>
+                                            <main class="col-9 ps-3">
+                                                <field name="name" class="fw-bold"/>
+                                                <field name="shot_at" widget="datetime"/>
+                                                <field name="category_id"/>
+                                                <field name="description"/>
+                                            </main>
+                                        </t>
+                                    </templates>
+                                </kanban>
+                            </field>
+                        </page>
                     </notebook>
                 </sheet>
                 <chatter>

@@ -260,6 +260,32 @@ class GeneralSelfInspection(models.Model):
             },
         }
 
+    # === 關聯照片（反向 from supervision.photo.source_id） ===
+    related_photo_ids = fields.Many2many(
+        'supervision.photo',
+        compute='_compute_related_photo_ids',
+        string='關聯照片',
+        help='來源為此自主檢查的照片（透過 supervision.photo.source_id 反查）')
+
+    related_photo_count = fields.Integer(
+        string='照片數',
+        compute='_compute_related_photo_ids')
+
+    @api.depends()
+    def _compute_related_photo_ids(self):
+        Photo = self.env['supervision.photo']
+        for rec in self:
+            if not rec.id:
+                rec.related_photo_ids = False
+                rec.related_photo_count = 0
+                continue
+            photos = Photo.search([
+                ('source_model', '=', 'inspection'),
+                ('source_id', '=', rec.id),
+            ])
+            rec.related_photo_ids = photos
+            rec.related_photo_count = len(photos)
+
 
 class GeneralSelfInspectionItem(models.Model):
     """

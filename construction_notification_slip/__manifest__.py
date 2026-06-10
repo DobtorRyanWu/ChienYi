@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 通報單管理',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Construction/Supervision',
     'summary': '預約式工程通報單管理模組',
     'description': """
@@ -26,6 +26,7 @@
     'license': 'LGPL-3',
     'depends': [
         'construction_supervision_base',
+        'construction_photo',
         'mail',
     ],
     'data': [

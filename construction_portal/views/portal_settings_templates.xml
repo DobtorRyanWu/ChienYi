@@ -1,147 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="portal_construction_settings" name="Construction Settings">
+    <!--
+        個人帳號頁 /construction/settings
+        v11 重整:從原本「綜合設定頁」縮減為純「個人帳號」頁
+        - 切換工程/新增專案/檔案管理/通知設定/Portal 首頁/關於/登出 已全部移到 drawer
+        - 此頁只留:用戶資訊大卡 + 編輯個人資料(連 Odoo 原生 /my/account) + 系統版本
+        - HUD 升級:左側 ‹ 返回箭頭、右側合併 avatar 開 drawer(視覺與首頁一致)
+    -->
+    <template id="portal_construction_settings" name="Construction Personal Account">
         <t t-call="web.frontend_layout">
             <t t-set="no_header" t-value="True"/>
             <t t-set="no_footer" t-value="True"/>
 
             <div class="cy-v10-app">
-                <!-- HUD-style top bar (與工程詳情頁一致) -->
+                <!-- HUD: ‹ 返回 + 標題 + 合併 avatar -->
                 <div class="cy-hud" style="padding-bottom: 0;">
                     <div class="cy-hud-top">
                         <div class="cy-hud-left">
-                            <div class="cy-hud-day" t-if="project">
-                                <div>
-                                    <div class="cy-hud-day-num"><t t-esc="day_count"/></div>
-                                    <div style="font-size: 0.55rem; color: var(--wb-t3); letter-spacing: 2px; font-weight: 700;">DAY</div>
-                                </div>
-                            </div>
+                            <a t-att-href="back_url or '/construction'" class="cy-hud-back" t-att-title="back_label or '返回'">
+                                ‹
+                            </a>
                         </div>
-                        <div class="cy-hud-project">
-                            <t t-if="project"><t t-esc="project.name"/></t>
-                            <t t-else="">設定</t>
-                        </div>
-                        <a t-att-href="back_url or '/construction'" class="cy-hud-avatar" t-att-title="back_label or '返回'">
-                            <t t-esc="request.env.user.name[:1]"/>
-                        </a>
+                        <div class="cy-hud-project">個人帳號</div>
+                        <button type="button" class="cy-hud-avatar cy-hud-menu-avatar"
+                                data-bs-toggle="offcanvas" data-bs-target="#cyDrawer"
+                                aria-controls="cyDrawer" aria-label="開啟主選單">
+                            <span class="cy-hud-menu-avatar-initial"><t t-esc="request.env.user.name[:1]"/></span>
+                            <span class="cy-hud-menu-avatar-chevron" aria-hidden="true">▾</span>
+                        </button>
                     </div>
                 </div>
 
-
                 <div class="cy-content">
-                    <div class="cy-sec-divider"><span>設定</span></div>
-
-                    <!-- 用戶資訊卡 -->
+                    <!-- 用戶資訊大卡 -->
                     <div class="cy-card" style="overflow: hidden; margin-bottom: 16px;">
-                        <!-- Avatar + 基本資訊 -->
-                        <div style="padding: 20px 16px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--wb-bdr);">
-                            <div style="width: 56px; height: 56px; border-radius: 28px; background: linear-gradient(135deg, #769FCD, #5a82b3); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 900; color: #fff; flex-shrink: 0;">
+                        <div style="padding: 24px 16px; display: flex; align-items: center; gap: 14px;">
+                            <div style="width: 64px; height: 64px; border-radius: 16px; background: linear-gradient(135deg, var(--wb-brand), var(--wb-brand-dark)); display: flex; align-items: center; justify-content: center; font-size: 1.75rem; font-weight: 900; color: #fff; flex-shrink: 0; box-shadow: 0 2px 8px rgba(118,159,205,0.3);">
                                 <t t-esc="user.name[:1]"/>
                             </div>
-                            <div>
-                                <div style="font-size: 1.2rem; font-weight: 700;"><t t-esc="user.name"/></div>
-                                <div style="font-size: 0.85rem; color: var(--wb-t2);">現場施工人員</div>
-                                <div style="font-size: 0.85rem; color: var(--wb-t3);"><t t-esc="partner.email or user.login"/></div>
+                            <div style="min-width: 0; flex: 1;">
+                                <div style="font-size: 1.25rem; font-weight: 700; color: var(--wb-t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    <t t-esc="user.name"/>
+                                </div>
+                                <div style="font-size: 0.85rem; color: var(--wb-t2); margin-top: 2px;">
+                                    <t t-esc="partner.function or '現場施工人員'"/>
+                                </div>
+                                <div style="font-size: 0.8rem; color: var(--wb-t3); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    <t t-esc="partner.email or user.login"/>
+                                </div>
                             </div>
                         </div>
-                        <!-- 切換工程:清掉 cy_skip_locator localStorage 旗標,強制重跑 GPS splash 自動帶到最近案件 -->
-                        <a href="/construction" onclick="try{localStorage.removeItem('cy_skip_locator')}catch(e){}" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 1.2rem;">🏗</span>
-                                <span style="font-size: 0.9rem; font-weight: 600;">切換工程</span>
-                            </div>
-                            <span style="font-size: 0.85rem; color: var(--wb-t3);">›</span>
-                        </a>
                     </div>
 
-                    <!-- 專案管理 -->
-                    <div class="cy-section-title">專案管理</div>
+                    <!-- 帳號 -->
+                    <div class="cy-section-title">帳號</div>
                     <div class="cy-card" style="overflow: hidden; margin-bottom: 16px;">
-                        <a t-attf-href="/construction/project/new#{projects and '?from_project=' + str(projects[0].id) or ''}" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
+                        <a href="/my/account" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; text-decoration: none; color: inherit; min-height: 56px;">
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 1.2rem;">➕</span>
-                                <span style="font-size: 0.9rem; font-weight: 600;">新增專案</span>
-                            </div>
-                            <span style="font-size: 0.85rem; color: var(--wb-t3);">›</span>
-                        </a>
-                        <t t-if="projects">
-                            <a t-attf-href="/construction/#{projects[0].id}/documents" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
-                                <div style="display: flex; align-items: center; gap: 12px;">
-                                    <span style="font-size: 1.2rem;">📂</span>
-                                    <span style="font-size: 0.9rem; font-weight: 600;">檔案管理</span>
-                                </div>
-                                <span style="font-size: 0.85rem; color: var(--wb-t3);">›</span>
-                            </a>
-                        </t>
-                        <t t-foreach="projects" t-as="proj">
-                            <a t-attf-href="/construction/#{proj.id}" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit;">
+                                <span style="font-size: 1.2rem;">✏</span>
                                 <div>
-                                    <div style="font-size: 0.95rem; font-weight: 700;"><t t-esc="proj.name"/></div>
-                                    <div style="display: flex; gap: 8px; margin-top: 6px;">
-                                        <span t-attf-class="cy-badge #{proj.project_type == 'general' and 'cy-badge-confirmed' or 'cy-badge-completion'}">
-                                            <t t-if="proj.project_type == 'general'">一般式</t>
-                                            <t t-else="">預約式</t>
-                                        </span>
-                                        <span t-attf-class="cy-badge cy-badge-#{proj.state}">
-                                            <t t-esc="dict(proj._fields['state'].selection).get(proj.state, proj.state)"/>
-                                        </span>
-                                    </div>
+                                    <div style="font-size: 0.95rem; font-weight: 600;">編輯個人資料</div>
+                                    <div style="font-size: 0.78rem; color: var(--wb-t3); margin-top: 2px;">姓名、Email、密碼</div>
                                 </div>
-                                <span style="font-size: 0.9rem; color: var(--wb-t3);">›</span>
-                            </a>
-                        </t>
+                            </div>
+                            <span style="font-size: 1.1rem; color: var(--wb-t3);">›</span>
+                        </a>
                     </div>
 
-                    <!-- 系統 -->
-                    <div class="cy-section-title">系統</div>
-                    <div class="cy-card" style="overflow: hidden; margin-bottom: 16px;">
-                        <div style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); min-height: 56px;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 1.2rem;">🔔</span>
-                                <span style="font-size: 0.9rem; font-weight: 600;">通知設定</span>
-                            </div>
-                            <span style="font-size: 0.85rem; color: var(--wb-t3);">›</span>
-                        </div>
-                        <div style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); min-height: 56px;">
+                    <!-- 系統資訊 -->
+                    <div class="cy-section-title">系統資訊</div>
+                    <div class="cy-card" style="overflow: hidden; margin-bottom: 24px;">
+                        <div style="padding: 16px; display: flex; align-items: center; justify-content: space-between; min-height: 56px;">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <span style="font-size: 1.2rem;">📱</span>
-                                <span style="font-size: 0.9rem; font-weight: 600;">系統版本</span>
+                                <span style="font-size: 0.95rem; font-weight: 600;">系統版本</span>
                             </div>
-                            <span style="font-size: 0.85rem; color: var(--wb-t3);">v10.0</span>
+                            <span style="font-size: 0.85rem; color: var(--wb-t3); font-weight: 600;">ChienYi Portal v11.0</span>
                         </div>
-                    </div>
-
-                    <!-- 其他 -->
-                    <div class="cy-section-title">其他</div>
-                    <div class="cy-card" style="overflow: hidden; margin-bottom: 16px;">
-                        <a href="/my" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 1.2rem;">🏠</span>
-                                <span style="font-size: 0.9rem; font-weight: 600;">Portal 首頁</span>
-                            </div>
-                            <span style="font-size: 0.85rem; color: var(--wb-t3);">›</span>
-                        </a>
-                        <a href="/my/account" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--wb-bdr); text-decoration: none; color: inherit; min-height: 56px;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 1.2rem;">👤</span>
-                                <span style="font-size: 0.9rem; font-weight: 600;">編輯個人資料</span>
-                            </div>
-                            <span style="font-size: 0.85rem; color: var(--wb-t3);">›</span>
-                        </a>
-                        <a href="/web/session/logout" style="padding: 16px; display: flex; align-items: center; justify-content: space-between; text-decoration: none; color: inherit; min-height: 56px;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <span style="font-size: 1.2rem;">ℹ</span>
-                                <span style="font-size: 0.9rem; font-weight: 600;">關於</span>
-                            </div>
-                            <span style="font-size: 0.85rem; color: var(--wb-t3);">›</span>
-                        </a>
                     </div>
 
                     <!-- 登出 -->
-                    <a href="/web/session/logout" style="display: block; width: 100%; padding: 16px; border-radius: 14px; border: 1px solid rgba(232,54,79,0.2); background: rgba(232,54,79,0.06); color: var(--wb-red); font-size: 0.9rem; font-weight: 700; text-align: center; text-decoration: none; min-height: 52px;">
+                    <a href="/web/session/logout" style="display: block; width: 100%; padding: 16px; border-radius: 14px; border: 1px solid rgba(232,54,79,0.2); background: rgba(232,54,79,0.06); color: var(--wb-red); font-size: 0.95rem; font-weight: 700; text-align: center; text-decoration: none; min-height: 52px;">
                         登出
                     </a>
                 </div>
+
+                <!-- v11 右側抽屜選單(由 HUD avatar 觸發) -->
+                <t t-call="construction_portal.portal_v10_drawer"/>
             </div>
         </t>
     </template>

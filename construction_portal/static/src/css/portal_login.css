@@ -44,19 +44,23 @@ body:has(.oe_login_form) .oe_website_login_container {
     background: linear-gradient(
         155deg,
         rgba(255, 255, 255, 0.95) 0%,
-        rgba(186, 230, 253, 0.78) 40%,
-        rgba(96, 165, 250, 0.55) 100%
+        rgba(186, 230, 253, 0.78) 25%,
+        rgba(96, 165, 250, 0.55) 50%,
+        rgba(186, 230, 253, 0.78) 75%,
+        rgba(255, 255, 255, 0.95) 100%
     ) !important;
     backdrop-filter: blur(24px) saturate(180%) !important;
     -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
     border: 1px solid rgba(255, 255, 255, 0.6) !important;
     border-radius: 24px !important;
+    overflow: hidden !important;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35),
                 inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
 }
 
 /* === EAGLE 主視覺（大尺寸） === */
 .cy-login-brand {
+    margin-top: 1.5rem;
     margin-bottom: 1rem;
 }
 .cy-login-eagle-img {
@@ -66,15 +70,21 @@ body:has(.oe_login_form) .oe_website_login_container {
     filter: drop-shadow(0 6px 18px rgba(30, 64, 175, 0.25));
 }
 
-/* === 合作公司 Logo 列（置中等距） === */
+/* === 合作公司 Logo 列（置中等距，羽化白色條） === */
 .cy-login-partners {
     display: flex;
     align-items: center;
     justify-content: space-around;
     gap: 12px;
-    padding: 10px 4px;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
-    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    padding: 18px 1rem;
+    margin: 1rem -2.5rem 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.65) 20%,
+        rgba(255, 255, 255, 0.65) 80%,
+        rgba(255, 255, 255, 0) 100%
+    );
 }
 .cy-login-partners img {
     height: 34px;
@@ -159,7 +169,6 @@ body:has(.oe_login_form) .alert {
 /* === 底部 Copyright === */
 .cy-login-footer {
     padding-top: 8px;
-    border-top: 1px solid rgba(30, 58, 138, 0.2);
     margin-top: 0.5rem !important;
 }
 .cy-login-copyright {
@@ -204,6 +213,8 @@ body:has(.oe_login_form) .text-center.small.mt-4.pt-3.border-top {
     }
     .cy-login-partners {
         gap: 8px;
+        margin: 0.75rem -1.5rem 0;
+        padding: 16px 0.75rem;
     }
     .cy-login-partners img {
         height: 28px;

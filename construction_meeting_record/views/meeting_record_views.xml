@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_construction_meeting_record_list" model="ir.ui.view">
+        <field name="name">construction.meeting.record.list</field>
+        <field name="model">construction.meeting.record</field>
+        <field name="arch" type="xml">
+            <list string="監造會議記錄">
+                <field name="meeting_date"/>
+                <field name="name"/>
+                <field name="location"/>
+                <field name="chairperson_id"/>
+                <field name="project_id"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'confirmed'"
+                       decoration-muted="state == 'closed'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_construction_meeting_record_form" model="ir.ui.view">
+        <field name="name">construction.meeting.record.form</field>
+        <field name="model">construction.meeting.record</field>
+        <field name="arch" type="xml">
+            <form string="監造會議記錄">
+                <header>
+                    <button name="action_confirm"
+                            string="確認"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_close"
+                            string="結案"
+                            type="object"
+                            class="btn-primary"
+                            invisible="state != 'confirmed'"/>
+                    <button name="action_reset_to_draft"
+                            string="重設"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="例：磺港溪 C 段第 5 次監造會議"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="基本資訊">
+                            <field name="meeting_date"/>
+                            <field name="location"/>
+                            <field name="project_id" options="{'no_create': True}"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="人員">
+                            <field name="chairperson_id"/>
+                            <field name="recorder_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="出席者" name="attendees">
+                            <field name="attendee_ids" widget="many2many_tags"/>
+                        </page>
+                        <page string="議程" name="agenda">
+                            <field name="agenda"/>
+                        </page>
+                        <page string="備註" name="note">
+                            <field name="note"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_construction_meeting_record_search" model="ir.ui.view">
+        <field name="name">construction.meeting.record.search</field>
+        <field name="model">construction.meeting.record</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="chairperson_id"/>
+                <filter string="草稿" name="filter_draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="已確認" name="filter_confirmed"
+                        domain="[('state', '=', 'confirmed')]"/>
+                <filter string="已結案" name="filter_closed"
+                        domain="[('state', '=', 'closed')]"/>
+                <group expand="0" string="分組">
+                    <filter string="工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter string="狀態" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_construction_meeting_record" model="ir.actions.act_window">
+        <field name="name">監造會議記錄</field>
+        <field name="res_model">construction.meeting.record</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_construction_meeting_record_search"/>
+    </record>
+</odoo>

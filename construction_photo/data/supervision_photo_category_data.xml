@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!--
+        預設 19 個照片分類（11 既有 + 8 新增）。
+        noupdate="1" 確保使用者後續編輯（改名、停用）不會被模組升級覆蓋。
+        新增分類請直接在後台 [監造] > [設定] > [照片分類] 操作。
+    -->
+
+    <!-- === 既有 11 類 === -->
+    <record id="cat_stl" model="supervision.photo.category">
+        <field name="code">STL</field>
+        <field name="name">鋼筋</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="cat_con" model="supervision.photo.category">
+        <field name="code">CON</field>
+        <field name="name">混凝土</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="cat_frm" model="supervision.photo.category">
+        <field name="code">FRM</field>
+        <field name="name">模板</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="cat_pip" model="supervision.photo.category">
+        <field name="code">PIP</field>
+        <field name="name">管線</field>
+        <field name="sequence">40</field>
+    </record>
+    <record id="cat_elc" model="supervision.photo.category">
+        <field name="code">ELC</field>
+        <field name="name">電氣</field>
+        <field name="sequence">50</field>
+    </record>
+    <record id="cat_exc" model="supervision.photo.category">
+        <field name="code">EXC</field>
+        <field name="name">開挖</field>
+        <field name="sequence">60</field>
+    </record>
+    <record id="cat_bkf" model="supervision.photo.category">
+        <field name="code">BKF</field>
+        <field name="name">回填</field>
+        <field name="sequence">70</field>
+    </record>
+    <record id="cat_pav" model="supervision.photo.category">
+        <field name="code">PAV</field>
+        <field name="name">鋪面</field>
+        <field name="sequence">80</field>
+    </record>
+    <record id="cat_drn" model="supervision.photo.category">
+        <field name="code">DRN</field>
+        <field name="name">排水</field>
+        <field name="sequence">90</field>
+    </record>
+    <record id="cat_def" model="supervision.photo.category">
+        <field name="code">DEF</field>
+        <field name="name">缺失</field>
+        <field name="sequence">100</field>
+    </record>
+
+    <!-- === 新增 8 類（B 標水利工程實際工項）=== -->
+    <record id="cat_svy" model="supervision.photo.category">
+        <field name="code">SVY</field>
+        <field name="name">測量</field>
+        <field name="sequence">110</field>
+        <field name="description">測量界石、放樣、樁位確認等</field>
+    </record>
+    <record id="cat_pile" model="supervision.photo.category">
+        <field name="code">PILE</field>
+        <field name="name">基樁</field>
+        <field name="sequence">120</field>
+        <field name="description">全套管基樁、微型樁、鋼版樁、植筋等</field>
+    </record>
+    <record id="cat_rvt" model="supervision.photo.category">
+        <field name="code">RVT</field>
+        <field name="name">護岸結構</field>
+        <field name="sequence">130</field>
+        <field name="description">低水護岸、砌塊石護岸、固床工、蜂巢格框</field>
+    </record>
+    <record id="cat_lsp" model="supervision.photo.category">
+        <field name="code">LSP</field>
+        <field name="name">景觀植栽</field>
+        <field name="sequence">140</field>
+        <field name="description">植栽、扶手欄杆、原木、預鑄緣石等景觀構件</field>
+    </record>
+    <record id="cat_hdw" model="supervision.photo.category">
+        <field name="code">HDW</field>
+        <field name="name">鋼構五金</field>
+        <field name="sequence">150</field>
+        <field name="description">鋼構吊裝、鍍鋅、不鏽鋼、鍍鋅隔柵等金屬構件</field>
+    </record>
+    <record id="cat_tst" model="supervision.photo.category">
+        <field name="code">TST</field>
+        <field name="name">試驗檢驗</field>
+        <field name="sequence">160</field>
+        <field name="description">工地密度、膜厚、磁粒探傷、銲道檢驗、各種材料試驗</field>
+    </record>
+    <record id="cat_aud" model="supervision.photo.category">
+        <field name="code">AUD</field>
+        <field name="name">督導稽查</field>
+        <field name="sequence">170</field>
+        <field name="description">品勞科督導、水利處督導、品質稽核、上級視察</field>
+    </record>
+    <record id="cat_mtl" model="supervision.photo.category">
+        <field name="code">MTL</field>
+        <field name="name">材料物料</field>
+        <field name="sequence">180</field>
+        <field name="description">石材、原木、砂質壤土、地工織物、進場驗收等</field>
+    </record>
+
+    <!-- 其他放最後 -->
+    <record id="cat_oth" model="supervision.photo.category">
+        <field name="code">OTH</field>
+        <field name="name">其他</field>
+        <field name="sequence">999</field>
+    </record>
+</odoo>

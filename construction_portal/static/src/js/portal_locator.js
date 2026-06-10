@@ -1,12 +1,13 @@
 /**
- * /construction 定位中介頁
+ * /construction 定位 splash (v11.1 純 GPS 入口)
  *
  * 流程:
- * 1. 若 localStorage.cy_skip_locator === '1' → 直接跳列表
- * 2. 取得瀏覽器 GPS 座標
- * 3. POST /construction/nearest → 拿到 project_id
- * 4. 跳轉到 /construction/<id>(找不到則跳列表)
- * 5. 任何錯誤 / timeout / 拒絕授權 → 跳列表
+ * 1. 取得瀏覽器 GPS 座標
+ * 2. POST /construction/nearest → 拿到 nearest project_id
+ * 3. 找到 → 立刻跳轉(無倒數);找不到 / 失敗 → 跳工程列表
+ *
+ * 「手動選擇」入口在 drawer 的「工程列表」(/construction?view=list)
+ * 與 HUD topbar 的下拉切換器,跟此 splash 路徑完全分離。
  */
 (function () {
     'use strict';
@@ -27,7 +28,6 @@
     }
 
     function fetchNearest(lat, lng) {
-        // Odoo type='json' route 走 JSON-RPC 2.0 包裝
         return fetch('/construction/nearest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -52,30 +52,13 @@
     }
 
     function init() {
-        // 只在 splash 頁啟動
         if (!document.querySelector('.cy-locator')) {
             return;
         }
 
-        // 使用者上次選擇「改用列表」
-        try {
-            if (window.localStorage && localStorage.getItem('cy_skip_locator') === '1') {
-                gotoList();
-                return;
-            }
-        } catch (e) { /* localStorage 不可用就忽略 */ }
-
-        // 「改用列表」按鈕:記住偏好
-        var skipBtn = document.getElementById('cy-locator-skip');
-        if (skipBtn) {
-            skipBtn.addEventListener('click', function () {
-                try { localStorage.setItem('cy_skip_locator', '1'); } catch (e) {}
-            });
-        }
-
         if (!navigator.geolocation) {
-            setStatus('此瀏覽器不支援定位', '改為顯示工程案件列表…');
-            setTimeout(gotoList, 600);
+            setStatus('此瀏覽器不支援定位', '改為顯示工程列表…');
+            setTimeout(gotoList, 400);
             return;
         }
 
@@ -85,8 +68,8 @@
                 fetchNearest(pos.coords.latitude, pos.coords.longitude);
             },
             function () {
-                setStatus('無法取得位置', '改為顯示工程案件列表…');
-                setTimeout(gotoList, 600);
+                setStatus('無法取得位置', '改為顯示工程列表…');
+                setTimeout(gotoList, 400);
             },
             { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
         );

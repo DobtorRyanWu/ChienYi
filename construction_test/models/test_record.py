@@ -249,7 +249,36 @@ class TestRecord(models.Model):
     # === 備註 ===
     note = fields.Text(string='備註')
 
+    # === 關聯照片（反向 from supervision.photo.source_id） ===
+    # supervision.photo 是用 source_model='test' + source_id=<this id> 單向關聯，
+    # 不是 ORM Many2one，所以這裡用 computed One2many 反查。
+    related_photo_ids = fields.Many2many(
+        'supervision.photo',
+        compute='_compute_related_photo_ids',
+        string='關聯照片',
+        help='來源為此檢試驗記錄的照片（透過 supervision.photo.source_id 反查）')
+
+    related_photo_count = fields.Integer(
+        string='照片數',
+        compute='_compute_related_photo_ids')
+
     # === 計算欄位 ===
+
+    @api.depends()
+    def _compute_related_photo_ids(self):
+        """反查 supervision.photo 中 source_model='test' AND source_id=self.id 的照片"""
+        Photo = self.env['supervision.photo']
+        for rec in self:
+            if not rec.id:
+                rec.related_photo_ids = False
+                rec.related_photo_count = 0
+                continue
+            photos = Photo.search([
+                ('source_model', '=', 'test'),
+                ('source_id', '=', rec.id),
+            ])
+            rec.related_photo_ids = photos
+            rec.related_photo_count = len(photos)
     
     @api.depends('standard_id', 'standard_id.task_ids')
     def _compute_available_task_ids(self):

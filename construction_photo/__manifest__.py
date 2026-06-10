@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 照片管理模組',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.2.0',
     'category': 'Construction/Supervision',
     'summary': '工程照片管理與 GPS 追蹤',
     'description': """
@@ -39,8 +39,11 @@
         # Views (photo_views first for action reference)
         'views/supervision_photo_views.xml',
         'views/supervision_photo_tag_views.xml',
+        'views/supervision_photo_category_views.xml',
         'views/supervision_project_views.xml',
         'views/menu.xml',
+        # Master data (loaded after views so menus can reference actions)
+        'data/supervision_photo_category_data.xml',
     ],
     'demo': [],
     'installable': True,

@@ -527,7 +527,7 @@
                                 <input type="file" name="files" class="form-control"
                                        accept=".xlsx,.xlsm" required="required"/>
                                 <small style="color: var(--wb-t3); display: block; margin-top: 6px;">
-                                    來源：<code>12-文書資料-A標/06-缺失改善/不合格品改善追蹤一覽表*.xlsx</code>
+                                    來源：<code>12-文書資料-<t t-esc="project.code"/>/06-缺失改善/不合格品改善追蹤一覽表*.xlsx</code>
                                 </small>
                             </div>
 

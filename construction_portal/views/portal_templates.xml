@@ -36,6 +36,8 @@
          ============================================ -->
     <template id="portal_construction_locator" name="Construction Locator Splash">
         <t t-call="portal.portal_layout">
+            <!-- v11.1: 純 splash — 找到最近工程立刻 redirect。
+                 「工程列表」入口已搬到 drawer 為獨立 item,GPS 入口才會走到這。 -->
             <div class="cy-content cy-locator" style="padding: 24px; text-align: center;">
                 <div id="cy-locator-spinner" style="font-size: 48px; color: var(--wb-blue, #2563eb); margin-top: 32px;">
                     <i class="fa fa-location-arrow fa-spin"/>
@@ -44,6 +46,7 @@
                 <p id="cy-locator-hint" style="color: var(--wb-t3, #8b90a0); font-size: 0.9rem; margin-top: 8px;">
                     請允許瀏覽器存取您的位置
                 </p>
+                <!-- Fallback:GPS 失敗 / 沒有含座標的可見專案時可手動跳列表 -->
                 <div style="margin-top: 32px;">
                     <a href="/construction?view=list"
                        id="cy-locator-skip"
@@ -65,24 +68,62 @@
             <div t-attf-class="cy-splash #{'cy-splash-preview' if not play_animation else 'cy-splash-preview-play'}">
                 <div class="cy-splash-glow"/>
                 <div class="cy-splash-stage">
-                    <svg class="cy-splash-draw" viewBox="0 0 53.74 51.81" xmlns="http://www.w3.org/2000/svg">
-                        <path class="cy-line cy-line-1" d="M 26.9,0 L 0,46.36 L 4.3,46.36 L 28.98,3.61 Z"/>
-                        <path class="cy-line cy-line-2" d="M 29.5,4.51 L 5.22,46.36 L 9.52,46.36 L 31.59,8.14 Z"/>
-                        <path class="cy-line cy-line-3" d="M 32.1,9.03 L 10.44,46.36 L 14.74,46.36 L 34.19,12.67 Z"/>
-                        <path class="cy-line cy-line-4" d="M 34.7,13.55 L 15.66,46.36 L 19.96,46.36 L 36.8,17.2 Z"/>
-                        <path class="cy-col cy-col-1" d="M 20.66,46.36 L 23.39,46.36 L 23.39,41.64 Z"/>
-                        <path class="cy-col cy-col-2" d="M 24.99,38.87 L 24.99,46.36 L 27.72,46.36 L 27.72,34.13 Z"/>
-                        <path class="cy-col cy-col-3" d="M 29.32,31.36 L 29.32,46.36 L 32.06,46.36 L 32.06,26.62 Z"/>
-                        <path class="cy-col cy-col-4" d="M 33.66,23.84 L 33.66,46.36 L 36.4,46.36 L 36.4,19.11 Z"/>
-                        <path class="cy-col cy-col-5" d="M 38,19.18 L 38,46.36 L 40.73,46.36 L 40.73,23.9 Z"/>
-                        <path class="cy-col cy-col-6" d="M 42.34,26.67 L 42.34,46.36 L 45.07,46.36 L 45.07,31.39 Z"/>
-                        <path class="cy-col cy-col-7" d="M 46.67,34.16 L 46.67,46.36 L 49.41,46.36 L 49.41,38.89 Z"/>
-                        <path class="cy-col cy-col-8" d="M 53.74,46.36 L 51.01,41.65 L 51.01,46.36 Z"/>
+                    <svg class="cy-splash-draw" viewBox="0 0 72 69.44" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="cyMetalGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stop-color="#e8e8ec"/>
+                                <stop offset="0.55" stop-color="#a8a8b0"/>
+                                <stop offset="1" stop-color="#6b6b73"/>
+                            </linearGradient>
+                        </defs>
+                        <!-- Logo 圖形群組（drop-shadow 只套圖形，不影響英文字） -->
+                        <g class="cy-splash-art" style="filter: drop-shadow(0 2.4px 6px rgba(118,159,205,0.32));">
+                            <!-- 4 條斜線（依序由外往內） -->
+                            <path class="cy-diag-v2" fill="url(#cyMetalGrad)" style="animation-delay: 0s;" d="M 35.992189,0.01212645 L 38.663931,4.6397179 L 5.6310912,61.860002 l -5.3513034,0.0078 z"/>
+                            <path class="cy-diag-v2" fill="url(#cyMetalGrad)" style="animation-delay: 0.15s;" d="M 39.453003,5.985086 l 2.667232,4.6197798 l -29.310465,51.262948 l -5.3434866,-1e-6 z"/>
+                            <path class="cy-diag-v2" fill="url(#cyMetalGrad)" style="animation-delay: 0.30s;" d="M 42.72357,11.649873 l 2.84125,4.969308 l -26.209414,45.240821 l -5.02906,10e-7 z"/>
+                            <path class="cy-diag-v2" fill="url(#cyMetalGrad)" style="animation-delay: 0.45s;" d="M 21.526464,61.860003 l 24.828997,-43.858008 l 2.895601,4.953822 l -22.709166,38.904186 z"/>
+                            <!-- 8 根柱子（左到右 P1 → P8） -->
+                            <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 1.50s;" d="M 27.663707,61.867803 l 3.439152,-5.919999 v 5.92 z"/>
+                            <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 1.63s;" d="M 33.686261,51.500855 l 3.179504,-5.473052 v 15.840001 h -3.179503 z"/>
+                            <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 1.76s;" d="M 39.440679,41.595464 l 3.275079,-5.6089 v 25.881239 l -3.275079,10e-7 z"/>
+                            <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 1.89s;" d="M 45.328969,31.459631 l 3.292757,-5.63933 v 36.047502 h -3.292757 z"/>
+                            <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 2.02s;" d="M 50.98765,25.820303 l 3.292008,5.66671 l 0.11253,30.38079 H 50.98765 Z"/>
+                            <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 2.15s;" d="M 56.769866,35.978764 l 3.238301,5.6089 V 61.860003 H 56.769866 Z"/>
+                            <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 2.28s;" d="M 62.4,45.730439 l 3.332687,5.77238 v 10.357183 l -3.340499,0.0078 z"/>
+                            <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 2.41s;" d="M 68.497673,56.291915 l 3.214738,5.568088 l -3.22255,0.0078 z"/>
+                        </g>
+                        <!-- 原 logo 內建英文（Arial Bold 5.33333px、純色 #898989） -->
+                        <text class="cy-svg-text" x="0.11590489" y="68.049492" font-family="Arial, sans-serif" font-weight="bold" font-size="5.33333" fill="#898989" style="animation-delay: 2.6s;">Qian Yi Technology Co., Ltd.</text>
+                        <g class="cy-splash-en-legacy" fill="#898989" style="display: none;">
+                            <path d="M2.43,50.59c.14.1.3.18.47.24l-.21.41c-.09-.03-.17-.06-.26-.11-.02,0-.15-.09-.39-.26-.19.08-.4.12-.63.12-.44,0-.79-.13-1.04-.39s-.38-.63-.38-1.1.13-.84.38-1.1c.25-.26.59-.39,1.02-.39s.76.13,1.01.39c.25.26.37.63.37,1.1,0,.25-.03.47-.1.66-.05.14-.14.28-.25.42ZM1.97,50.27c.07-.09.13-.19.17-.32.04-.12.06-.27.06-.43,0-.33-.07-.58-.22-.74-.15-.16-.34-.25-.58-.25s-.43.08-.58.25c-.15.16-.22.41-.22.74s.07.59.22.75c.15.17.33.25.56.25.08,0,.16-.01.24-.04-.12-.08-.24-.14-.36-.18l.16-.33c.19.06.37.16.55.29Z"/>
+                            <path d="M3.24,48.59v-.51h.55v.51h-.55ZM3.24,50.96v-2.08h.55v2.08h-.55Z"/>
+                            <path d="M4.77,49.51l-.5-.09c.06-.2.15-.35.29-.45.14-.1.34-.14.61-.14.25,0,.43.03.55.09.12.06.21.13.25.22s.07.25.07.49v.64c0,.18,0,.32.02.41.02.09.05.18.1.28h-.55s-.03-.09-.05-.16c0-.03-.02-.05-.02-.06-.09.09-.19.16-.3.21-.11.05-.22.07-.34.07-.21,0-.38-.06-.51-.18-.12-.12-.19-.26-.19-.44,0-.12.03-.22.08-.32.06-.09.13-.16.24-.21.1-.05.25-.09.44-.13.26-.05.44-.09.54-.13v-.06c0-.11-.03-.18-.08-.23-.05-.05-.15-.07-.3-.07-.1,0-.17.02-.23.06-.06.04-.1.11-.13.2ZM5.51,49.96c-.07.02-.18.05-.34.08-.15.03-.25.06-.3.1-.07.05-.11.12-.11.19s.03.14.09.2.13.08.22.08c.1,0,.19-.03.28-.1.07-.05.11-.11.13-.18.01-.05.02-.14.02-.27v-.11Z"/>
+                            <path d="M8.49,50.96h-.55v-1.06c0-.23-.01-.37-.03-.44-.02-.07-.06-.12-.12-.15-.05-.04-.12-.05-.19-.05-.1,0-.18.03-.26.08-.08.05-.13.12-.16.21s-.04.25-.04.48v.94h-.55v-2.08h.51v.31c.18-.24.41-.35.69-.35.12,0,.23.02.33.06.1.04.18.1.23.17s.09.15.11.23c.02.09.03.21.03.37v1.3Z"/>
+                            <path d="M10.85,50.96v-1.21l-1.05-1.67h.68l.68,1.14.66-1.14h.67l-1.06,1.67v1.21h-.58Z"/>
+                            <path d="M12.62,48.59v-.51h.55v.51h-.55ZM12.62,50.96v-2.08h.55v2.08h-.55Z"/>
+                            <path d="M15.51,50.96v-2.39h-.85v-.49h2.29v.49h-.85v2.39h-.58Z"/>
+                            <path d="M18.22,50.3l.55.09c-.07.2-.18.35-.33.46s-.34.16-.57.16c-.36,0-.63-.12-.8-.36-.14-.19-.21-.43-.21-.72,0-.35.09-.62.27-.81s.41-.29.68-.29c.31,0,.55.1.73.31.18.2.27.52.26.94h-1.38c0,.16.05.29.13.38.08.09.19.14.32.14.09,0,.16-.02.22-.07.06-.05.1-.12.13-.23ZM18.25,49.74c0-.16-.05-.28-.12-.36-.08-.08-.17-.12-.29-.12-.12,0-.22.04-.3.13-.08.09-.12.21-.12.36h.82Z"/>
+                            <path d="M21.07,49.49l-.54.1c-.02-.11-.06-.19-.12-.25-.06-.06-.15-.08-.25-.08-.14,0-.25.05-.33.14-.08.1-.12.25-.12.48,0,.25.04.42.12.52.08.1.19.15.33.15.1,0,.19-.03.26-.09.07-.06.11-.16.14-.31l.54.09c-.06.25-.16.44-.32.56-.16.13-.37.19-.64.19-.3,0-.55-.1-.73-.29-.18-.19-.27-.46-.27-.8s.09-.61.27-.8c.18-.19.43-.29.74-.29.25,0,.46.05.61.16.15.11.26.28.32.5Z"/>
+                            <path d="M22.03,48.08v1.06c.18-.21.39-.31.64-.31.13,0,.24.02.34.07.1.05.18.11.23.18s.09.15.11.24c.02.09.03.23.03.41v1.22h-.55v-1.1c0-.22-.01-.36-.03-.42-.02-.06-.06-.11-.11-.14-.05-.03-.12-.05-.2-.05-.09,0-.17.02-.25.07-.07.05-.12.11-.16.2s-.05.22-.05.4v1.04h-.55v-2.88h.55Z"/>
+                            <path d="M25.83,50.96h-.55v-1.06c0-.23-.01-.37-.03-.44-.02-.07-.06-.12-.12-.15-.05-.04-.12-.05-.19-.05-.1,0-.18.03-.26.08-.08.05-.13.12-.16.21s-.04.25-.04.48v.94h-.55v-2.08h.51v.31c.18-.24.41-.35.69-.35.12,0,.23.02.33.06.1.04.18.1.23.17s.09.15.11.23c.02.09.03.21.03.37v1.3Z"/>
+                            <path d="M26.27,49.89c0-.18.05-.36.14-.53.09-.17.22-.3.38-.39.17-.09.35-.13.55-.13.32,0,.57.1.78.31.2.2.3.46.3.78s-.1.58-.31.78c-.2.21-.46.31-.77.31-.19,0-.37-.04-.55-.13-.17-.09-.3-.21-.4-.38-.09-.17-.14-.37-.14-.61ZM26.83,49.92c0,.21.05.36.15.48.1.11.22.16.36.16s.26-.06.36-.16c.1-.11.15-.27.15-.48s-.05-.36-.15-.47c-.1-.11-.22-.17-.36-.17s-.26.06-.36.17c-.1.11-.15.27-.15.48Z"/>
+                            <path d="M28.85,50.96v-2.88h.55v2.88h-.55Z"/>
+                            <path d="M29.84,49.89c0-.18.04-.36.13-.53s.22-.3.38-.39c.17-.09.35-.13.55-.13.31,0,.57.1.78.31.2.2.3.46.3.78s-.1.58-.3.78c-.2.21-.46.31-.77.31-.19,0-.37-.04-.55-.13s-.3-.21-.4-.38c-.09-.17-.13-.37-.13-.61ZM30.4,49.92c0,.21.05.36.15.48.1.11.22.16.36.16s.26-.06.36-.16c.1-.11.15-.27.15-.48s-.05-.36-.15-.47-.22-.17-.36-.17-.27.06-.36.17c-.1.11-.15.27-.15.48Z"/>
+                            <path d="M32.37,51.1l.63.08c0,.07.03.12.07.15.05.04.13.06.25.06.14,0,.25-.02.32-.06.05-.03.08-.07.11-.14.02-.05.03-.13.03-.25v-.3c-.17.23-.37.34-.62.34-.28,0-.5-.12-.67-.36-.13-.19-.19-.42-.19-.7,0-.35.08-.62.25-.8.17-.18.38-.28.63-.28s.47.11.64.34v-.29h.52v1.87c0,.25-.02.43-.06.55-.04.12-.1.22-.17.29-.07.07-.17.12-.29.16-.12.04-.28.06-.46.06-.35,0-.6-.06-.75-.18-.15-.12-.22-.27-.22-.46,0-.02,0-.04,0-.07ZM32.86,49.87c0,.22.04.38.13.49.09.1.19.15.32.15.13,0,.25-.05.34-.16s.14-.26.14-.47-.05-.38-.13-.48c-.09-.1-.2-.16-.34-.16s-.24.05-.33.15c-.09.1-.13.26-.13.47Z"/>
+                            <path d="M34.61,48.88h.59l.5,1.48.49-1.48h.57l-.74,2.01-.13.36c-.05.12-.1.21-.14.28-.04.06-.09.12-.15.16-.06.04-.13.07-.21.09-.08.02-.18.03-.28.03s-.21-.01-.31-.03l-.05-.43c.09.02.16.03.23.03.13,0,.22-.04.28-.11.06-.07.11-.17.14-.29l-.79-2.09Z"/>
+                            <path d="M40.07,49.9l.56.18c-.09.31-.23.55-.43.7-.2.15-.46.23-.76.23-.38,0-.7-.13-.94-.39-.25-.26-.37-.62-.37-1.07,0-.48.12-.85.37-1.12.25-.27.57-.4.97-.4.35,0,.64.1.86.31.13.12.23.3.29.53l-.58.14c-.03-.15-.1-.27-.21-.35s-.24-.13-.39-.13c-.21,0-.39.08-.52.23-.13.15-.2.4-.2.74,0,.36.06.62.2.78s.3.23.51.23c.15,0,.29-.05.4-.15.11-.1.19-.25.24-.46Z"/>
+                            <path d="M41,49.89c0-.18.04-.36.13-.53s.22-.3.38-.39c.17-.09.35-.13.55-.13.31,0,.57.1.78.31.2.2.3.46.3.78s-.1.58-.3.78c-.2.21-.46.31-.77.31-.19,0-.37-.04-.55-.13s-.3-.21-.4-.38c-.09-.17-.13-.37-.13-.61ZM41.57,49.92c0,.21.05.36.15.48.1.11.22.16.36.16s.26-.06.36-.16c.1-.11.15-.27.15-.48s-.05-.36-.15-.47-.22-.17-.36-.17-.27.06-.36.17c-.1.11-.15.27-.15.48Z"/>
+                            <path d="M43.58,50.96v-.55h.55v.55h-.55Z"/>
+                            <path d="M44.69,50.41h.55v.39c0,.16-.01.29-.04.38-.03.09-.08.18-.16.25-.08.07-.17.13-.29.17l-.11-.23c.11-.04.19-.09.24-.15s.07-.15.07-.26h-.27v-.55Z"/>
+                            <path d="M46.95,50.96v-2.85h.58v2.37h1.44v.49h-2.03Z"/>
+                            <path d="M50.35,48.88v.44h-.38v.84c0,.17,0,.27.01.3,0,.03.02.05.05.07.02.02.06.03.09.03.05,0,.12-.02.22-.05l.05.43c-.13.06-.27.08-.44.08-.1,0-.19-.02-.27-.05-.08-.03-.14-.08-.18-.13s-.06-.12-.08-.21c-.01-.06-.02-.19-.02-.39v-.91h-.25v-.44h.25v-.41l.55-.32v.74h.38Z"/>
+                            <path d="M52.64,50.96h-.51v-.31c-.09.12-.19.21-.3.27-.12.06-.23.09-.35.09-.24,0-.44-.1-.61-.29-.17-.19-.26-.46-.26-.81s.08-.62.25-.81.38-.28.63-.28c.23,0,.43.1.61.29v-1.04h.55v2.88ZM51.17,49.87c0,.22.03.38.09.48.09.14.21.22.37.22.13,0,.24-.05.32-.16.09-.11.13-.27.13-.48,0-.24-.04-.41-.13-.52s-.2-.16-.33-.16-.24.05-.33.16c-.09.1-.13.26-.13.47Z"/>
+                            <path d="M53.18,50.96v-.55h.55v.55h-.55Z"/>
+                        </g>
                     </svg>
                 </div>
-                <div class="cy-splash-brand">ChienYi</div>
-                <div class="cy-splash-name">QIAN YI TECHNOLOGY</div>
-                <div class="cy-splash-sub">千溢科技 · 工程監造系統</div>
+                <div class="cy-splash-sub">千溢科技，智創未來</div>
             </div>
         </t>
     </template>
@@ -129,34 +170,43 @@
             <t t-set="no_footer" t-value="True"/>
 
             <div class="cy-v10-app">
-                <!-- Splash 載入動畫 -->
+                <!-- Splash 載入動畫（v11 設計：viewBox 0 0 72 69.44，logo 圖形 + SVG 內英文 + SVG 外中文） -->
                 <div class="cy-splash">
                     <div class="cy-splash-glow"/>
                     <div class="cy-splash-stage">
-                        <!-- 從新版 logo_chienyi.svg 12 個 polygon 轉成 path：4 斜線 + 8 柱體 -->
-                        <svg class="cy-splash-draw" viewBox="0 0 53.74 51.81" xmlns="http://www.w3.org/2000/svg">
-                            <!-- 4 條斜線（由外往內，peak 在 y=0） -->
-                            <path class="cy-line cy-line-1" d="M 26.9,0 L 0,46.36 L 4.3,46.36 L 28.98,3.61 Z"/>
-                            <path class="cy-line cy-line-2" d="M 29.5,4.51 L 5.22,46.36 L 9.52,46.36 L 31.59,8.14 Z"/>
-                            <path class="cy-line cy-line-3" d="M 32.1,9.03 L 10.44,46.36 L 14.74,46.36 L 34.19,12.67 Z"/>
-                            <path class="cy-line cy-line-4" d="M 34.7,13.55 L 15.66,46.36 L 19.96,46.36 L 36.8,17.2 Z"/>
-                            <!-- 8 根柱體（依 x 由外往內：1/8 最外 → 4/5 內側 peak，全部對齊 ground y=46.36） -->
-                            <path class="cy-col cy-col-1" d="M 20.66,46.36 L 23.39,46.36 L 23.39,41.64 Z"/>
-                            <path class="cy-col cy-col-2" d="M 24.99,38.87 L 24.99,46.36 L 27.72,46.36 L 27.72,34.13 Z"/>
-                            <path class="cy-col cy-col-3" d="M 29.32,31.36 L 29.32,46.36 L 32.06,46.36 L 32.06,26.62 Z"/>
-                            <path class="cy-col cy-col-4" d="M 33.66,23.84 L 33.66,46.36 L 36.4,46.36 L 36.4,19.11 Z"/>
-                            <path class="cy-col cy-col-5" d="M 38,19.18 L 38,46.36 L 40.73,46.36 L 40.73,23.9 Z"/>
-                            <path class="cy-col cy-col-6" d="M 42.34,26.67 L 42.34,46.36 L 45.07,46.36 L 45.07,31.39 Z"/>
-                            <path class="cy-col cy-col-7" d="M 46.67,34.16 L 46.67,46.36 L 49.41,46.36 L 49.41,38.89 Z"/>
-                            <path class="cy-col cy-col-8" d="M 53.74,46.36 L 51.01,41.65 L 51.01,46.36 Z"/>
+                        <svg class="cy-splash-draw" viewBox="0 0 72 69.44" xmlns="http://www.w3.org/2000/svg">
+                            <defs>
+                                <linearGradient id="cyMetalGrad" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0" stop-color="#e8e8ec"/>
+                                    <stop offset="0.55" stop-color="#a8a8b0"/>
+                                    <stop offset="1" stop-color="#6b6b73"/>
+                                </linearGradient>
+                            </defs>
+                            <g class="cy-splash-art" style="filter: drop-shadow(0 2.4px 6px rgba(118,159,205,0.32));">
+                                <path class="cy-diag-v2" fill="url(#cyMetalGrad)" style="animation-delay: 0s;" d="M 35.992189,0.01212645 L 38.663931,4.6397179 L 5.6310912,61.860002 l -5.3513034,0.0078 z"/>
+                                <path class="cy-diag-v2" fill="url(#cyMetalGrad)" style="animation-delay: 0.15s;" d="M 39.453003,5.985086 l 2.667232,4.6197798 l -29.310465,51.262948 l -5.3434866,-1e-6 z"/>
+                                <path class="cy-diag-v2" fill="url(#cyMetalGrad)" style="animation-delay: 0.30s;" d="M 42.72357,11.649873 l 2.84125,4.969308 l -26.209414,45.240821 l -5.02906,10e-7 z"/>
+                                <path class="cy-diag-v2" fill="url(#cyMetalGrad)" style="animation-delay: 0.45s;" d="M 21.526464,61.860003 l 24.828997,-43.858008 l 2.895601,4.953822 l -22.709166,38.904186 z"/>
+                                <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 1.50s;" d="M 27.663707,61.867803 l 3.439152,-5.919999 v 5.92 z"/>
+                                <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 1.63s;" d="M 33.686261,51.500855 l 3.179504,-5.473052 v 15.840001 h -3.179503 z"/>
+                                <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 1.76s;" d="M 39.440679,41.595464 l 3.275079,-5.6089 v 25.881239 l -3.275079,10e-7 z"/>
+                                <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 1.89s;" d="M 45.328969,31.459631 l 3.292757,-5.63933 v 36.047502 h -3.292757 z"/>
+                                <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 2.02s;" d="M 50.98765,25.820303 l 3.292008,5.66671 l 0.11253,30.38079 H 50.98765 Z"/>
+                                <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 2.15s;" d="M 56.769866,35.978764 l 3.238301,5.6089 V 61.860003 H 56.769866 Z"/>
+                                <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 2.28s;" d="M 62.4,45.730439 l 3.332687,5.77238 v 10.357183 l -3.340499,0.0078 z"/>
+                                <path class="cy-pillar-v2" fill="url(#cyMetalGrad)" style="animation-delay: 2.41s;" d="M 68.497673,56.291915 l 3.214738,5.568088 l -3.22255,0.0078 z"/>
+                            </g>
+                            <text class="cy-svg-text" x="0.11590489" y="68.049492" font-family="Arial, sans-serif" font-weight="bold" font-size="5.33333" fill="#898989" style="animation-delay: 2.6s;">Qian Yi Technology Co., Ltd.</text>
                         </svg>
                     </div>
-                    <div class="cy-splash-brand">ChienYi</div>
-                    <div class="cy-splash-name">QIAN YI TECHNOLOGY</div>
-                    <div class="cy-splash-sub">千溢科技 · 工程監造系統</div>
+                    <div class="cy-splash-sub">千溢科技，智創未來</div>
                 </div>
 
                 <!-- ===== HUD 固定頂部 ===== -->
+                <t t-set="_detail_switch_domain"
+                   t-value="request.env['supervision.project']._get_portal_projects_domain(request.env.user.partner_id) + [('id', '!=', project.id)]"/>
+                <t t-set="_detail_switch_projects"
+                   t-value="request.env['supervision.project'].search(_detail_switch_domain, order='create_date desc', limit=30)"/>
                 <div class="cy-hud">
                     <div class="cy-hud-top">
                         <div class="cy-hud-left">
@@ -167,10 +217,16 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="cy-hud-project"><t t-esc="project.name"/></div>
-                        <a t-attf-href="/construction/settings?from_project=#{project.id}" class="cy-hud-avatar">
-                            <t t-esc="request.env.user.name[:1]"/>
-                        </a>
+                        <t t-call="construction_portal.portal_v10_project_switcher">
+                            <t t-set="switch_projects" t-value="_detail_switch_projects"/>
+                        </t>
+                        <!-- v11 合併按鈕:身份徽章 + 選單入口二合一(BS5 offcanvas 觸發) -->
+                        <button type="button" class="cy-hud-avatar cy-hud-menu-avatar"
+                                data-bs-toggle="offcanvas" data-bs-target="#cyDrawer"
+                                aria-controls="cyDrawer" aria-label="開啟主選單">
+                            <span class="cy-hud-menu-avatar-initial"><t t-esc="request.env.user.name[:1]"/></span>
+                            <span class="cy-hud-menu-avatar-chevron" aria-hidden="true">▾</span>
+                        </button>
                     </div>
 
                     <!-- 資源列（3 等寬方塊）：進度% / ＋快速新增 / 待改缺失 -->
@@ -403,15 +459,14 @@
                     </t>
                 </div>
 
-                <!-- FAB 相機按鈕 -->
-                <label class="cy-fab-camera">
-                    <input type="file" accept="image/*" capture="environment" style="display: none;"
-                           id="fab_camera_input"/>
-                    <div class="cy-fab-camera-btn">📷</div>
-                </label>
+                <!-- FAB 相機快捷鍵（共用模板） -->
+                <t t-call="construction_portal.portal_fab_camera_v10"/>
 
                 <!-- 底部導航 5 tabs -->
                 <t t-call="construction_portal.portal_bottom_nav_v10"/>
+
+                <!-- v11 右側抽屜選單 (BS5 offcanvas;由 HUD hamburger 觸發) -->
+                <t t-call="construction_portal.portal_v10_drawer"/>
             </div>
         </t>
     </template>
@@ -466,9 +521,35 @@
                             <span class="cy-info-label">工程名稱</span>
                             <span class="cy-info-value"><t t-esc="project.name"/></span>
                         </div>
-                        <div class="cy-info-row">
+                        <div class="cy-info-row" t-att-data-project-id="project.id">
                             <span class="cy-info-label">工程編號</span>
-                            <span class="cy-info-value"><t t-esc="project.code or '-'"/></span>
+                            <span class="cy-info-value">
+                                <span class="cy-code-view">
+                                    <span class="cy-code-text"><t t-esc="project.code or '-'"/></span>
+                                    <button type="button" class="cy-code-edit-btn"
+                                            title="編輯工程編號"
+                                            style="margin-left:8px; background:transparent; border:none; color:var(--wb-blue); cursor:pointer; padding:2px 6px;">
+                                        <i class="fa fa-pencil"/>
+                                    </button>
+                                </span>
+                                <span class="cy-code-edit" style="display:none; gap:6px; align-items:center;">
+                                    <input type="text" class="cy-code-input" maxlength="64"
+                                           t-att-value="project.code or ''"
+                                           style="width:100px; padding:4px 8px; border:1px solid var(--wb-bdr); border-radius:6px; font-size:0.9rem;"/>
+                                    <button type="button" class="cy-code-save-btn"
+                                            style="background:var(--wb-blue); color:#fff; border:none; border-radius:6px; padding:4px 10px; font-size:0.85rem; cursor:pointer;">
+                                        儲存
+                                    </button>
+                                    <button type="button" class="cy-code-cancel-btn"
+                                            style="background:transparent; color:var(--wb-t3); border:1px solid var(--wb-bdr); border-radius:6px; padding:4px 10px; font-size:0.85rem; cursor:pointer;">
+                                        取消
+                                    </button>
+                                </span>
+                            </span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">契約編號</span>
+                            <span class="cy-info-value"><t t-esc="project.contract_no or '-'"/></span>
                         </div>
                         <div class="cy-info-row">
                             <span class="cy-info-label">工程地點</span>
@@ -505,9 +586,10 @@
                             <span class="cy-info-value"><t t-esc="project.contract_end_date or '-'"/></span>
                         </div>
                         <div class="cy-info-row">
-                            <span class="cy-info-label">契約工期</span>
+                            <span class="cy-info-label">核定工期</span>
                             <span class="cy-info-value">
-                                <t t-if="project.contract_duration"><t t-esc="project.contract_duration"/> 天</t>
+                                <t t-if="project.current_duration"><t t-esc="project.current_duration"/> 天</t>
+                                <t t-elif="project.contract_duration"><t t-esc="project.contract_duration"/> 天</t>
                                 <t t-else="">-</t>
                             </span>
                         </div>
@@ -605,6 +687,14 @@
          共用 HUD Header（所有子頁面引用）
          ============================================ -->
     <template id="portal_v10_header" name="Portal v10 Header">
+        <!-- v11.1: project 為 truthy 時計算可切換工程清單(同 partner 可見且非當前),
+             用 QWeb 內 search 取得,避免改動全部子頁 controller。
+             沒有 project(個人帳號頁)時不顯示切換器,只顯示文字。 -->
+        <t t-if="project" t-set="_switch_partner" t-value="request.env.user.partner_id"/>
+        <t t-if="project" t-set="_switch_domain"
+           t-value="request.env['supervision.project']._get_portal_projects_domain(_switch_partner) + [('id', '!=', project.id)]"/>
+        <t t-if="project" t-set="_switch_projects"
+           t-value="request.env['supervision.project'].search(_switch_domain, order='create_date desc', limit=30)"/>
         <div class="cy-hud" style="padding-bottom: 0;">
             <div class="cy-hud-top">
                 <div class="cy-hud-left">
@@ -615,12 +705,177 @@
                         </div>
                     </div>
                 </div>
-                <div class="cy-hud-project"><t t-esc="project.name"/></div>
-                <a t-attf-href="/construction/settings?from_project=#{project.id}" class="cy-hud-avatar">
-                    <t t-esc="request.env.user.name[:1]"/>
-                </a>
+                <t t-call="construction_portal.portal_v10_project_switcher">
+                    <t t-set="switch_projects" t-value="_switch_projects"/>
+                </t>
+                <!-- v11 合併按鈕:身份徽章 + 選單入口二合一(BS5 offcanvas 觸發) -->
+                <button type="button" class="cy-hud-avatar cy-hud-menu-avatar"
+                        data-bs-toggle="offcanvas" data-bs-target="#cyDrawer"
+                        aria-controls="cyDrawer" aria-label="開啟主選單">
+                    <span class="cy-hud-menu-avatar-initial"><t t-esc="request.env.user.name[:1]"/></span>
+                    <span class="cy-hud-menu-avatar-chevron" aria-hidden="true">▾</span>
+                </button>
             </div>
         </div>
+        <t t-call="construction_portal.portal_v10_drawer"/>
+    </template>
+
+    <!-- v11.1: HUD 工程下拉切換器(可在 topbar 即時切換,不必離開頁面) -->
+    <template id="portal_v10_project_switcher" name="Portal v10 Project Switcher">
+        <t t-if="project">
+            <div class="cy-hud-project cy-switcher" data-cy-switcher="1">
+                <button type="button" class="cy-switcher-btn" aria-haspopup="listbox" aria-expanded="false">
+                    <span class="cy-switcher-name"><t t-esc="project.name"/></span>
+                    <span class="cy-switcher-caret" aria-hidden="true">▾</span>
+                </button>
+                <div class="cy-switcher-menu" role="listbox" hidden="hidden">
+                    <div class="cy-switcher-menu-header">
+                        <span>切換工程</span>
+                        <a href="/construction" class="cy-switcher-all"
+                           onclick="try{localStorage.removeItem('cy_skip_locator')}catch(e){}">
+                            全部 / GPS 定位
+                            <span aria-hidden="true">›</span>
+                        </a>
+                    </div>
+                    <div class="cy-switcher-menu-list">
+                        <a t-attf-href="/construction/#{project.id}"
+                           class="cy-switcher-item cy-switcher-item-current" role="option" aria-selected="true">
+                            <span class="cy-switcher-item-dot"/>
+                            <span class="cy-switcher-item-name"><t t-esc="project.name"/></span>
+                            <span class="cy-switcher-item-badge">當前</span>
+                        </a>
+                        <t t-if="switch_projects">
+                            <t t-foreach="switch_projects" t-as="sp">
+                                <a t-attf-href="/construction/#{sp.id}"
+                                   class="cy-switcher-item" role="option">
+                                    <span t-attf-class="cy-switcher-item-dot cy-switcher-item-dot-#{sp.state}"/>
+                                    <span class="cy-switcher-item-name"><t t-esc="sp.name"/></span>
+                                    <span t-attf-class="cy-switcher-item-state cy-switcher-item-state-#{sp.state}">
+                                        <t t-esc="dict(sp._fields['state'].selection).get(sp.state, sp.state)"/>
+                                    </span>
+                                </a>
+                            </t>
+                        </t>
+                        <t t-else="">
+                            <div class="cy-switcher-empty">沒有其他可切換的工程</div>
+                        </t>
+                    </div>
+                </div>
+            </div>
+        </t>
+        <t t-else="">
+            <div class="cy-hud-project"><t t-esc="hud_title or '工程'"/></div>
+        </t>
+    </template>
+
+    <!-- ============================================
+         v11 右側抽屜選單 (BS5 offcanvas-end)
+         觸發:.cy-hud-menu-avatar 合併按鈕的 data-bs-toggle="offcanvas"
+         開關/ESC/backdrop/scroll-lock 全由 BS5 處理,零互動 JS
+         僅 placeholder 項目(使用說明/意見回饋/關於)走 alert,見 portal_v10.js setupDrawerTodos()
+         ============================================ -->
+    <template id="portal_v10_drawer" name="Portal v10 Right Drawer (BS5 offcanvas)">
+        <aside class="offcanvas offcanvas-end cy-drawer" tabindex="-1"
+               id="cyDrawer" aria-labelledby="cyDrawerLabel">
+            <div class="offcanvas-header cy-drawer-header">
+                <div class="cy-drawer-brand" id="cyDrawerLabel">
+                    <svg class="cy-drawer-logo" viewBox="0 0 72 69.44" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M 35.992189,0.01212645 38.663931,4.6397179 5.6310912,61.860002 l -5.3513034,0.0078 z m 3.460814,5.97295975 2.667232,4.6197798 -29.310465,51.262948 -5.3434866,-1e-6 z m 3.270567,5.6647868 2.84125,4.969308 -26.209414,45.240821 -5.02906,10e-7 z m -21.197106,50.21013 24.828997,-43.858008 2.895601,4.953822 -22.709166,38.904186 z m 6.137243,0.0078 3.439152,-5.919999 v 5.92 z m 6.022554,-10.366948 3.179504,-5.473052 v 15.840001 h -3.179503 z m 5.754418,-9.905391 3.275079,-5.6089 v 25.881239 l -3.275079,10e-7 z m 5.88829,-10.135833 3.292757,-5.63933 v 36.047502 h -3.292757 z m 5.658681,-5.639328 3.292008,5.66671 0.11253,30.38079 H 50.98765 Z m 5.782216,10.158461 3.238301,5.6089 V 61.860003 H 56.769866 Z M 62.4,45.730439 65.732687,51.50282 v 10.357183 l -3.340499,0.0078 z m 6.097673,10.561476 3.214738,5.568088 -3.22255,0.0078 z" fill="#898989"/>
+                    </svg>
+                    <div class="cy-drawer-brand-text">
+                        <div class="cy-drawer-brand-zh">千溢科技</div>
+                        <div class="cy-drawer-brand-sub">工程監造系統</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close cy-drawer-close"
+                        data-bs-dismiss="offcanvas" aria-label="關閉"/>
+            </div>
+            <div class="offcanvas-body cy-drawer-body">
+                <!-- User block (clickable: 點名字直接跳 Odoo 原生帳號編輯頁) -->
+                <a class="cy-drawer-user" href="/my/account" title="編輯個人資料">
+                    <svg class="cy-drawer-user-logo" viewBox="0 0 72 69.44" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M 35.992189,0.01212645 38.663931,4.6397179 5.6310912,61.860002 l -5.3513034,0.0078 z m 3.460814,5.97295975 2.667232,4.6197798 -29.310465,51.262948 -5.3434866,-1e-6 z m 3.270567,5.6647868 2.84125,4.969308 -26.209414,45.240821 -5.02906,10e-7 z m -21.197106,50.21013 24.828997,-43.858008 2.895601,4.953822 -22.709166,38.904186 z m 6.137243,0.0078 3.439152,-5.919999 v 5.92 z m 6.022554,-10.366948 3.179504,-5.473052 v 15.840001 h -3.179503 z m 5.754418,-9.905391 3.275079,-5.6089 v 25.881239 l -3.275079,10e-7 z m 5.88829,-10.135833 3.292757,-5.63933 v 36.047502 h -3.292757 z m 5.658681,-5.639328 3.292008,5.66671 0.11253,30.38079 H 50.98765 Z m 5.782216,10.158461 3.238301,5.6089 V 61.860003 H 56.769866 Z M 62.4,45.730439 65.732687,51.50282 v 10.357183 l -3.340499,0.0078 z m 6.097673,10.561476 3.214738,5.568088 -3.22255,0.0078 z" fill="#898989"/>
+                    </svg>
+                    <div class="cy-drawer-user-info">
+                        <div class="cy-drawer-user-name"><t t-esc="request.env.user.name"/></div>
+                        <div class="cy-drawer-user-role">
+                            <t t-esc="request.env.user.partner_id.function or '現場施工人員'"/>
+                        </div>
+                    </div>
+                    <span class="cy-drawer-user-arrow" aria-hidden="true">›</span>
+                </a>
+
+                <!-- 工程組 — v11.1 切換工程拆兩個入口,讓使用者明確選擇方式 -->
+                <div class="cy-drawer-section">
+                    <div class="cy-drawer-section-title">工程</div>
+                    <!-- (1) GPS 自動跳轉:點即跑定位,找到立刻 redirect -->
+                    <a class="cy-drawer-item" href="/construction">
+                        <span class="cy-drawer-item-icon">🛰</span>
+                        <span class="cy-drawer-item-label">定位最近工程</span>
+                        <span class="cy-drawer-item-aux">GPS</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                    <!-- (2) 手動列表:跳過 splash 直接看列表 -->
+                    <a class="cy-drawer-item" href="/construction?view=list">
+                        <span class="cy-drawer-item-icon">📋</span>
+                        <span class="cy-drawer-item-label">工程列表</span>
+                        <span class="cy-drawer-item-aux" t-if="project"><t t-esc="project.name"/></span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                    <a class="cy-drawer-item"
+                       t-attf-href="/construction/project/new#{project and ('?from_project=' + str(project.id)) or ''}">
+                        <span class="cy-drawer-item-icon">➕</span>
+                        <span class="cy-drawer-item-label">新增專案</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                    <a class="cy-drawer-item" t-if="project"
+                       t-attf-href="/construction/#{project.id}/documents">
+                        <span class="cy-drawer-item-icon">📂</span>
+                        <span class="cy-drawer-item-label">檔案管理</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                </div>
+
+                <!-- 系統組 (個人帳號入口已併到上方 user block,點名字即跳 /my/account) -->
+                <div class="cy-drawer-section">
+                    <div class="cy-drawer-section-title">系統</div>
+                    <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="通知設定即將推出">
+                        <span class="cy-drawer-item-icon">🔔</span>
+                        <span class="cy-drawer-item-label">通知設定</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                    <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="使用說明即將推出">
+                        <span class="cy-drawer-item-icon">📖</span>
+                        <span class="cy-drawer-item-label">使用說明</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                    <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="意見回饋即將推出">
+                        <span class="cy-drawer-item-icon">💬</span>
+                        <span class="cy-drawer-item-label">意見回饋</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                    <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="ChienYi Portal v11.0">
+                        <span class="cy-drawer-item-icon">ℹ</span>
+                        <span class="cy-drawer-item-label">關於</span>
+                        <span class="cy-drawer-item-aux">v11.0</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                </div>
+            </div>
+            <div class="cy-drawer-footer">
+                <a class="cy-drawer-logout" href="/web/session/logout">登出</a>
+            </div>
+        </aside>
+    </template>
+
+    <!-- 共用 FAB 相機快捷鍵（所有 cy-v10-app 頁面 t-call 即可拿到，
+         portal_v10.js 內 path 黑名單排除表單/上傳頁避免重複處理檔案） -->
+    <template id="portal_fab_camera_v10" name="Portal v10 FAB Camera">
+        <label class="cy-fab-camera" t-if="project">
+            <input type="file" accept="image/*" capture="environment" style="display: none;"
+                   id="fab_camera_input"/>
+            <div class="cy-fab-camera-btn">📷</div>
+        </label>
     </template>
 
     <template id="portal_bottom_nav_v10" name="Portal v10 Bottom Navigation">
@@ -840,9 +1095,11 @@
                         <!-- ========== 基本資訊 ========== -->
                         <div class="cy-section-title">基本資訊</div>
                         <div class="cy-info-section" style="padding: 14px 16px;">
-                            <div class="cy-info-row" style="margin-bottom: 10px;">
-                                <span class="cy-info-label">工程編號</span>
-                                <span class="cy-info-value"><t t-esc="project.code or '-'"/></span>
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">工程編號 <span style="color: var(--wb-red);">*</span></label>
+                                <input type="text" name="code" class="form-control"
+                                       t-att-value="project.code or ''" required="required"
+                                       maxlength="64"/>
                             </div>
 
                             <div style="margin-bottom: 14px;">

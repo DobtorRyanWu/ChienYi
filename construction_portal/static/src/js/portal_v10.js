@@ -13,8 +13,11 @@
         if (!document.querySelector('.cy-v10-app')) return;
 
     // === Splash 顯示控制 ===
-    // 只在「首次進入 session（新開分頁）」或「刷新」時顯示 splash，
-    // 從其他頁面點連結回首頁時不再顯示。
+    // 顯示時機：
+    //   1) 首次進入 session（新開分頁）
+    //   2) 刷新頁面（含手機下拉重新整理 → navigation type = reload）
+    //   3) 切換到不同工程（URL 中的 project_id 與上次不同）
+    // 在同一工程內點選連結移動則不再顯示。
     var splash = document.querySelector('.cy-splash');
     if (splash) {
         var navType = 'navigate';
@@ -26,14 +29,87 @@
         var splashSeen = false;
         try { splashSeen = sessionStorage.getItem('cy_splash_shown') === '1'; } catch (e) {}
 
-        if (navType === 'reload' || !splashSeen) {
-            // 顯示 splash，並標記本 session 已看過
+        // 從 URL 抽工程 id：/construction/<id>/... 或 /my/construction/<id>/...
+        var currentProjectId = null;
+        var pidMatch = window.location.pathname.match(/\/construction\/(\d+)(?:\/|$)/);
+        if (pidMatch) { currentProjectId = pidMatch[1]; }
+
+        var lastProjectId = null;
+        try { lastProjectId = sessionStorage.getItem('cy_last_project_id'); } catch (e) {}
+
+        var projectChanged = currentProjectId && currentProjectId !== lastProjectId;
+
+        if (navType === 'reload' || !splashSeen || projectChanged) {
             try { sessionStorage.setItem('cy_splash_shown', '1'); } catch (e) {}
+            if (currentProjectId) {
+                try { sessionStorage.setItem('cy_last_project_id', currentProjectId); } catch (e) {}
+            }
         } else {
-            // 從其他頁面回首頁 → 直接隱藏 splash
             splash.style.display = 'none';
         }
     }
+
+    // === Dark Mode 切換按鈕 ===
+    // 動態注入到 HUD avatar 旁邊，偏好存 localStorage。
+    // 用 inline SVG（feather icons 風格）— 跨平台 100% 一致，避免 emoji/FA 版本差異
+    (function setupThemeToggle() {
+        var SVG_MOON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+        var SVG_SUN = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>';
+
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            } else {
+                document.documentElement.removeAttribute('data-theme');
+            }
+        }
+
+        function getSaved() {
+            try { return localStorage.getItem('cy_theme'); } catch (e) { return null; }
+        }
+        function save(theme) {
+            try { localStorage.setItem('cy_theme', theme); } catch (e) {}
+        }
+
+        // 載入時套用儲存偏好
+        var saved = getSaved();
+        if (saved === 'dark') applyTheme('dark');
+
+        // 已存在就不重複注入
+        if (document.getElementById('cyThemeToggle')) return;
+
+        var btn = document.createElement('button');
+        btn.id = 'cyThemeToggle';
+        btn.className = 'cy-theme-toggle';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', '切換深色／亮色模式');
+
+        function syncIcon() {
+            var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            btn.innerHTML = isDark ? SVG_SUN : SVG_MOON;
+            btn.title = isDark ? '切回亮色模式' : '切到深色模式';
+        }
+        syncIcon();
+
+        btn.addEventListener('click', function () {
+            var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            var next = isDark ? 'light' : 'dark';
+            applyTheme(next);
+            save(next);
+            syncIcon();
+        });
+
+        // 只在 HUD avatar（=設定入口）存在時注入按鈕，貼在 avatar 左邊。
+        // 沒 HUD 的頁面（如新增專案、工期展延）不顯示按鈕——
+        // 以免按鈕「孤立飄在右上」與用戶 mental model 不符；
+        // 偏好仍存 localStorage，回主頁可繼續切。
+        var hudTop = document.querySelector('.cy-hud .cy-hud-top');
+        var avatar = hudTop ? hudTop.querySelector('.cy-hud-avatar') : null;
+        if (hudTop && avatar) {
+            btn.classList.add('cy-theme-toggle--inhud');
+            hudTop.insertBefore(btn, avatar);
+        }
+    })();
 
     // === 快速新增下拉 toggle ===
     var quickTrigger = document.getElementById('quickAddTrigger');
@@ -78,23 +154,49 @@
         });
     }
 
-    // === FAB 相機 — 照片頁隱藏，其他頁顯示 ===
+    // === FAB 相機 — 只在主頁顯示，照片頁隱藏（其餘頁面預設沒注入 FAB） ===
     var fabCamera = document.querySelector('.cy-fab-camera');
-    if (fabCamera && window.location.pathname.match(/\/photos/)) {
+    if (fabCamera && window.location.pathname.match(/\/photos\b/)) {
         fabCamera.style.display = 'none';
     }
 
-    // === FAB 相機 — 拍照後導向上傳頁 ===
+    // === FAB 相機 — 拍照後暫存 sessionStorage、跳到上傳頁讓使用者填表單 ===
+    // File 物件無法跨頁傳遞，所以先讀成 base64 dataURL 暫存到 sessionStorage，
+    // upload 頁載入時會讀回來、轉成 File 注入 batch 並自動產生縮圖、抓 EXIF GPS。
+    // 使用者就能補填分類/階段/地點等表單後再送出。
     var fabInput = document.getElementById('fab_camera_input');
+    var fabBtn = document.querySelector('.cy-fab-camera-btn');
     if (fabInput) {
         fabInput.addEventListener('change', function () {
-            if (fabInput.files && fabInput.files[0]) {
-                // 找到 project id（從 URL 解析）
-                var m = window.location.pathname.match(/\/my\/construction\/(\d+)/);
-                if (m) {
-                    window.location.href = '/construction/' + m[1] + '/photo/upload';
+            if (!fabInput.files || !fabInput.files[0]) return;
+            var m = window.location.pathname.match(/\/(?:my\/)?construction\/(\d+)(?:\/|$)/);
+            if (!m) return;
+            var pid = parseInt(m[1], 10);
+            var file = fabInput.files[0];
+
+            if (fabBtn) { fabBtn.textContent = '⏳'; fabBtn.style.pointerEvents = 'none'; }
+
+            var fr = new FileReader();
+            fr.onload = function () {
+                try {
+                    sessionStorage.setItem('cy_pending_photo', JSON.stringify({
+                        dataUrl: fr.result,
+                        filename: file.name || 'photo.jpg',
+                        type: file.type || 'image/jpeg',
+                        size: file.size,
+                    }));
+                } catch (e) {
+                    if (fabBtn) { fabBtn.textContent = '📷'; fabBtn.style.pointerEvents = ''; }
+                    alert('照片暫存失敗（可能是檔案過大）：' + e);
+                    return;
                 }
-            }
+                window.location.href = '/construction/' + pid + '/photo/upload?from=fab';
+            };
+            fr.onerror = function () {
+                if (fabBtn) { fabBtn.textContent = '📷'; fabBtn.style.pointerEvents = ''; }
+                alert('讀取照片失敗');
+            };
+            fr.readAsDataURL(file);
         });
     }
 
@@ -135,12 +237,20 @@
         var hidden = group.querySelector('input[type="hidden"]');
         var btns = group.querySelectorAll('.cy-yesno-btn');
 
+        // 初始化：依 hidden value 高亮對應按鈕
+        var initVal = hidden ? hidden.value : '';
+        if (initVal) {
+            btns.forEach(function (b) {
+                if (b.getAttribute('data-value') === initVal) {
+                    b.classList.add('active');
+                }
+            });
+        }
+
         btns.forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var val = btn.getAttribute('data-value');
-                // 取消所有 active
                 btns.forEach(function (b) { b.classList.remove('active'); });
-                // 設定當前
                 btn.classList.add('active');
                 if (hidden) hidden.value = val;
             });
@@ -165,6 +275,21 @@
     if (_origSelect) {
         _origSelectHTML = _origSelect.outerHTML;
     }
+
+    // 選定工項 → 自動帶入單位（讀 option 的 data-unit）
+    // 切換工項時若使用者沒手動改過單位就覆寫；手動改過則保留
+    function bindWorkItemUnitSync(card) {
+        var sel = card.querySelector('select.work-item-select');
+        if (!sel) return;
+        var unitInput = card.querySelector('.line-unit-input');
+        if (!unitInput) return;
+        sel.addEventListener('change', function () {
+            var opt = sel.options[sel.selectedIndex];
+            var unit = opt ? (opt.getAttribute('data-unit') || '') : '';
+            unitInput.value = unit;
+        });
+    }
+    document.querySelectorAll('.work-line-item').forEach(bindWorkItemUnitSync);
 
     document.querySelectorAll('.toggle-input-mode').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -191,6 +316,8 @@
                     var newSel = temp.firstChild;
                     newSel.name = 'line_work_item_id_' + idx;
                     sel.parentElement.replaceChild(newSel, sel);
+                    // 還原後是新的 DOM element，需重新綁 change → 單位同步
+                    bindWorkItemUnitSync(card);
                 }
                 btn.textContent = '切換自行輸入';
             }
@@ -264,6 +391,9 @@
                 });
             }
 
+            // 綁定新行的工項 select → 單位同步
+            bindWorkItemUnitSync(newLine);
+
             lineContainer.appendChild(newLine);
         });
 
@@ -320,6 +450,30 @@
         var batchIdCounter = 0;
         var BATCH_MAX = 50;
         var isUploading = false;
+
+        // === 處理 FAB 帶過來的暫存照片（cy_pending_photo）===
+        // 如果使用者是從首頁 FAB 拍照進來，照片已經暫存在 sessionStorage，
+        // 這裡讀回來、轉 File、丟進 batch，並讓使用者繼續填分類/階段/GPS 表單。
+        try {
+            var pendingRaw = sessionStorage.getItem('cy_pending_photo');
+            if (pendingRaw) {
+                var pending = JSON.parse(pendingRaw);
+                sessionStorage.removeItem('cy_pending_photo');
+                if (pending && pending.dataUrl) {
+                    // dataURL → Blob → File
+                    var parts = pending.dataUrl.split(',');
+                    var byteString = atob(parts[1] || '');
+                    var ab = new ArrayBuffer(byteString.length);
+                    var ia = new Uint8Array(ab);
+                    for (var i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
+                    var pendingFile = new File([ab], pending.filename || 'photo.jpg', {
+                        type: pending.type || 'image/jpeg',
+                    });
+                    // 等 addFilesToBatch 定義後再呼叫（function 已 hoist，可直接呼叫）
+                    addFilesToBatch([pendingFile]);
+                }
+            }
+        } catch (e) { /* 無效就略過 */ }
 
         // 觸發拍照
         btnCamera.addEventListener('click', function () {
@@ -1048,6 +1202,192 @@
             lbStep(dx > 0 ? -1 : 1);
         }, { passive: true });
     }
+
+    // === 工程編號 inline edit（detail 頁基本資訊區塊） ===
+    // 不受 state 限制，AJAX 寫入 supervision.project.code
+    (function setupCodeInlineEdit() {
+        var row = document.querySelector('.cy-info-row[data-project-id]');
+        if (!row) return;
+        var pid = row.getAttribute('data-project-id');
+        var view = row.querySelector('.cy-code-view');
+        var edit = row.querySelector('.cy-code-edit');
+        var text = row.querySelector('.cy-code-text');
+        var input = row.querySelector('.cy-code-input');
+        var editBtn = row.querySelector('.cy-code-edit-btn');
+        var saveBtn = row.querySelector('.cy-code-save-btn');
+        var cancelBtn = row.querySelector('.cy-code-cancel-btn');
+        if (!view || !edit || !editBtn || !saveBtn || !cancelBtn || !input) return;
+
+        function showView() { view.style.display = ''; edit.style.display = 'none'; }
+        function showEdit() { view.style.display = 'none'; edit.style.display = 'inline-flex'; }
+
+        editBtn.addEventListener('click', function () {
+            var cur = text.textContent.trim();
+            input.value = (cur === '-' ? '' : cur);
+            showEdit();
+            input.focus();
+            input.select();
+        });
+        cancelBtn.addEventListener('click', showView);
+
+        function save() {
+            var v = (input.value || '').trim();
+            if (!v) { alert('工程編號不可為空'); input.focus(); return; }
+            saveBtn.disabled = true;
+            var origLabel = saveBtn.textContent;
+            saveBtn.textContent = '儲存中...';
+            fetch('/construction/' + pid + '/code/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ jsonrpc: '2.0', params: { code: v } }),
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = origLabel;
+                var res = data && data.result;
+                if (res && res.success) {
+                    text.textContent = res.code || v;
+                    showView();
+                } else {
+                    alert((res && res.error) || '儲存失敗');
+                }
+            }).catch(function (err) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = origLabel;
+                alert('儲存失敗：' + err);
+            });
+        }
+        saveBtn.addEventListener('click', save);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); save(); }
+            else if (e.key === 'Escape') { e.preventDefault(); showView(); }
+        });
+    })();
+
+    // === v11 Drawer 開關 fallback ===
+    // Odoo 18 portal 此環境 BS5 JS 沒載入(dobtor_doc_editor asset error 阻斷 frontend bundle),
+    // data-bs-toggle="offcanvas" 不會自動 work。所以 vanilla JS 接管:
+    // 觸發 .cy-hud-menu-avatar (或任何 [data-bs-toggle=offcanvas][data-bs-target=#cyDrawer])
+    // 關閉:✕ / backdrop / ESC
+    // 視覺(滑入/translateX/visibility):BS5 CSS 有載入,我們加 .show class 即可
+    (function setupDrawerVanilla() {
+        var drawer = document.getElementById('cyDrawer');
+        if (!drawer) return;
+
+        // 移到 body root level 避免 .cy-v10-app stacking context 把 drawer 困住,
+        // 否則 backdrop(append 在 body root)會蓋過 drawer 即使 drawer z-index 較高
+        if (drawer.parentElement !== document.body) {
+            document.body.appendChild(drawer);
+        }
+
+        // BS5 CSS 沒給 backdrop element,自己建一個並附在 body
+        var backdrop = document.createElement('div');
+        backdrop.className = 'offcanvas-backdrop fade';
+        backdrop.style.display = 'none';
+        document.body.appendChild(backdrop);
+
+        function openDrawer() {
+            drawer.classList.add('show');
+            drawer.style.visibility = 'visible';
+            drawer.style.transform = 'translateX(0)';
+            drawer.removeAttribute('aria-hidden');
+            backdrop.style.display = 'block';
+            // force reflow 才能讓 fade-in 動畫運作
+            void backdrop.offsetWidth;
+            backdrop.classList.add('show');
+            document.body.classList.add('cy-drawer-open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeDrawer() {
+            drawer.classList.remove('show');
+            drawer.style.transform = '';
+            drawer.setAttribute('aria-hidden', 'true');
+            backdrop.classList.remove('show');
+            setTimeout(function () {
+                drawer.style.visibility = '';
+                backdrop.style.display = 'none';
+            }, 300);
+            document.body.classList.remove('cy-drawer-open');
+            document.body.style.overflow = '';
+        }
+
+        document.querySelectorAll('[data-bs-toggle="offcanvas"][data-bs-target="#cyDrawer"]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                openDrawer();
+            });
+        });
+        drawer.querySelectorAll('[data-bs-dismiss="offcanvas"]').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                closeDrawer();
+            });
+        });
+        backdrop.addEventListener('click', closeDrawer);
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && drawer.classList.contains('show')) {
+                closeDrawer();
+            }
+        });
+
+        // === Drawer placeholder 項目點擊 alert(使用說明/意見回饋/關於/通知設定)===
+        drawer.querySelectorAll('[data-cy-drawer-todo]').forEach(function (a) {
+            a.addEventListener('click', function (e) {
+                e.preventDefault();
+                alert(a.getAttribute('data-cy-drawer-todo'));
+            });
+        });
+    })();
+
+    // === v11.1 HUD 工程下拉切換器 ===
+    // 點 .cy-switcher-btn 展開 menu;再次點擊 / Esc / 外部點擊 / 視窗 resize 關閉。
+    (function setupProjectSwitcher() {
+        var switchers = document.querySelectorAll('.cy-switcher');
+        if (!switchers.length) { return; }
+
+        function closeAll(except) {
+            switchers.forEach(function (sw) {
+                if (sw === except) { return; }
+                sw.classList.remove('is-open');
+                var btn = sw.querySelector('.cy-switcher-btn');
+                var menu = sw.querySelector('.cy-switcher-menu');
+                if (btn) { btn.setAttribute('aria-expanded', 'false'); }
+                if (menu) { menu.hidden = true; }
+            });
+        }
+
+        switchers.forEach(function (sw) {
+            var btn = sw.querySelector('.cy-switcher-btn');
+            var menu = sw.querySelector('.cy-switcher-menu');
+            if (!btn || !menu) { return; }
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var willOpen = !sw.classList.contains('is-open');
+                closeAll(willOpen ? sw : null);
+                if (willOpen) {
+                    sw.classList.add('is-open');
+                    btn.setAttribute('aria-expanded', 'true');
+                    menu.hidden = false;
+                } else {
+                    sw.classList.remove('is-open');
+                    btn.setAttribute('aria-expanded', 'false');
+                    menu.hidden = true;
+                }
+            });
+            // menu 內點擊不應冒泡到 document 觸發 closeAll
+            menu.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+        });
+
+        document.addEventListener('click', function () { closeAll(null); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { closeAll(null); }
+        });
+        window.addEventListener('resize', function () { closeAll(null); });
+    })();
 
     } // end initPortalV10
 

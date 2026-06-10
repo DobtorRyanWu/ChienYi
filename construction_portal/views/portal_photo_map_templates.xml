@@ -14,7 +14,7 @@
 
                 <!-- 頂部 App Bar (Google Maps 風搜尋列) -->
                 <nav class="cy-map-topbar">
-                    <a t-attf-href="/construction/#{project.id}/photos" class="cy-map-back" title="返回照片列表">
+                    <a t-attf-href="/construction/#{project.id}" class="cy-map-back" title="返回首頁">
                         <i class="fa fa-arrow-left"></i>
                     </a>
                     <div class="cy-map-search">
@@ -32,8 +32,8 @@
                         <span class="cy-map-stat" title="GPS 照片數">
                             <strong t-esc="gps_photos"/>
                         </span>
-                        <a t-attf-href="/construction/#{project.id}/photos"
-                           class="cy-map-view-toggle" title="格狀檢視">
+                        <a t-attf-href="/construction/#{project.id}/photos/grid"
+                           class="cy-map-view-toggle" title="圖庫檢視">
                             <i class="fa fa-th"></i>
                         </a>
                     </div>
@@ -93,8 +93,12 @@
 
                 <!-- Bottom Sheet（Google Maps 風） -->
                 <div id="photoMapSheet" class="cy-map-sheet cy-map-sheet-peek">
-                    <div class="cy-sheet-handle" id="sheetHandle">
+                    <div class="cy-sheet-handle" id="sheetHandle" role="button" aria-label="拖曳此處調整資訊欄高度">
                         <div class="cy-sheet-grip"></div>
+                        <span class="cy-sheet-handle-label">拖曳調整高度 / 點擊收起</span>
+                        <button type="button" class="cy-sheet-collapse" id="sheetCollapse" title="收起一格" aria-label="收起一格">
+                            <i class="fa fa-chevron-down"></i>
+                        </button>
                     </div>
 
                     <!-- Segmented control -->

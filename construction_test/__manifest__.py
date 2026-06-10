@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 檢試驗管理模組',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Construction/Test',
     'summary': '工程監造檢試驗項目管理與管制記錄',
     'description': """
@@ -45,6 +45,7 @@
     'depends': [
         'construction_supervision_base',
         'construction_daily_log',
+        'construction_photo',
         'mail',
     ],
     'data': [

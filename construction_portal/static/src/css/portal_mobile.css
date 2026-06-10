@@ -50,6 +50,107 @@
   --wb-radius-sm: 8px;
 }
 
+/* === 深色模式（[data-theme="dark"] 由 portal_v10.js 切換） === */
+[data-theme="dark"] {
+  --wb-bg0: #0e131c;
+  --wb-bg2: #1a2030;
+  --wb-bg3: #232a3d;
+  --wb-bg4: #2c3450;
+  --wb-bdr: #2c3450;
+  --wb-bdr-soft: #1f2535;
+
+  --wb-t1: #e8ecf3;
+  --wb-t2: #a8b0c0;
+  --wb-t3: #6e7588;
+
+  --wb-brand: #8fb6dc;
+  --wb-brand-light: #a8c5e2;
+  --wb-brand-dark: #6694c4;
+  --wb-brand-darker: #4d7fb0;
+  --wb-brand-soft: #1f2a40;
+  --wb-brand-soft2: #2c3a55;
+  --wb-brand-border: #8fb6dc;
+  --wb-amber: #8fb6dc;
+
+  --wb-warn: #f0a652;
+  --wb-red: #ff5a72;
+  --wb-green: #4ed085;
+  --wb-blue: #5ea8e0;
+
+  --wb-shadow: 0 1px 3px rgba(0,0,0,0.40), 0 2px 8px rgba(0,0,0,0.25);
+  --wb-shadow-lg: 0 4px 20px rgba(0,0,0,0.50);
+}
+
+/* 深色模式下覆寫寫死色的元件（breadcrumb 用了 rgba 白底漸變） */
+[data-theme="dark"] .cy-breadcrumb {
+  background: linear-gradient(180deg, rgba(26,32,48,0.97), rgba(20,25,38,0.92));
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+[data-theme="dark"] .cy-breadcrumb-item {
+  border-right-color: rgba(143,182,220,0.18);
+}
+[data-theme="dark"] .cy-breadcrumb-item.active {
+  background: rgba(143,182,220,0.10);
+}
+
+/* === 主題切換浮鈕（右上角） === */
+.cy-theme-toggle {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr);
+  color: var(--wb-t1);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 200;
+  box-shadow: var(--wb-shadow);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  padding: 0;
+  user-select: none;
+}
+.cy-theme-toggle:hover {
+  border-color: var(--wb-brand);
+  color: var(--wb-brand);
+}
+.cy-theme-toggle:active {
+  transform: scale(0.92);
+}
+
+/* HUD 內注入版：與 avatar 同尺寸、透明圓融入 bar
+   margin-left: auto 把按鈕推到 flex 容器末端，緊貼 avatar 形成「按鈕-avatar」配對 */
+.cy-theme-toggle--inhud {
+  position: static;
+  top: auto;
+  right: auto;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  flex-shrink: 0;
+  font-size: 18px;
+  margin-left: auto;
+  margin-right: 8px;
+  background: transparent;
+  border-color: var(--wb-bdr-soft);
+  color: var(--wb-t2);
+  box-shadow: none;
+  z-index: auto;
+}
+[data-theme="dark"] .cy-theme-toggle--inhud {
+  border-color: rgba(143, 182, 220, 0.25);
+  color: var(--wb-brand-light);
+}
+.cy-theme-toggle--inhud:hover {
+  background: rgba(118, 159, 205, 0.08);
+}
+
 /* === 全域設定 === */
 .cy-v10-app {
   background: var(--wb-bg0);
@@ -81,6 +182,15 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  position: relative;
+}
+/* 工程名強制視覺居中（dark mode 按鈕用 margin-left:auto 推到右側時，
+   project name 也會被一起擠左，所以用 absolute 讓它跟 flex 解耦） */
+.cy-hud-top .cy-hud-project {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 /* Logo + DAY 左側群組 */
@@ -134,6 +244,92 @@
   justify-content: center;
   text-decoration: none;
   flex-shrink: 0;
+}
+
+/* === v11 合併按鈕 cy-hud-menu-avatar(身份徽章+drawer 入口二合一) ===
+   - 套用在 button.cy-hud-avatar.cy-hud-menu-avatar
+   - 覆蓋基本 avatar 視覺,settings 頁的 a.cy-hud-avatar 不受影響
+   - 44×44 圓角方 + brand 漸層底 + 白字「千」+ 右下角 ▾ 徽章
+   - dark mode toggle 仍能注入(因為保留 cy-hud-avatar class) */
+.cy-hud-avatar.cy-hud-menu-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--wb-brand), var(--wb-brand-dark));
+  border: none;
+  position: relative;
+  box-shadow: 0 2px 6px rgba(118, 159, 205, 0.32),
+              inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 0;
+  overflow: visible;
+  transition: transform 0.12s ease, box-shadow 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.cy-hud-avatar.cy-hud-menu-avatar:hover {
+  box-shadow: 0 4px 12px rgba(118, 159, 205, 0.42),
+              inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.cy-hud-avatar.cy-hud-menu-avatar:active {
+  transform: scale(0.95);
+}
+.cy-hud-menu-avatar-initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  letter-spacing: 0.5px;
+}
+.cy-hud-menu-avatar-chevron {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-brand);
+  color: var(--wb-brand-darker);
+  font-size: 0.6rem;
+  font-weight: 900;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(60, 100, 160, 0.16);
+}
+
+/* === HUD 左側返回箭頭(子頁:settings、未來其他子頁用)===
+   取代 DAY 區塊顯示;視覺輕量,跟 menu-avatar(右側)做對稱呼應 */
+.cy-hud-back {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--wb-bdr);
+  background: var(--wb-bg2);
+  color: var(--wb-t2);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.cy-hud-back:hover {
+  background: var(--wb-brand-soft);
+  color: var(--wb-brand-darker);
+  text-decoration: none;
+}
+.cy-hud-back:active {
+  transform: scale(0.95);
 }
 
 /* HUD 資源列（3 等寬方塊）*/
@@ -724,7 +920,9 @@
   padding: 0 4px;
 }
 
-/* === 等寬分段 breadcrumb（prototype 風格：amber 漸層背景 + 垂直分隔）=== */
+/* === 等寬分段 breadcrumb（prototype 風格：amber 漸層背景 + 垂直分隔）===
+   注意：HUD 已在頂部 sticky（z-index:100），麵包屑不再 sticky，
+   避免 scroll 時兩個元件互相覆蓋（issue: 麵包屑會蓋住 topbar） */
 .cy-breadcrumb {
   display: flex;
   align-items: stretch;
@@ -735,9 +933,8 @@
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   min-height: 48px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  position: relative;
+  z-index: 1;
 }
 
 .cy-breadcrumb-item {
@@ -1532,125 +1729,105 @@
   display: none !important;
 }
 
-/* === Splash 載入動畫 ===
+/* === Splash 載入動畫（v11 設計）===
    時間軸：
-   0.00-1.65s  4 條斜線依序從底部長高（stagger 0.15s, duration 1.2s）
-   1.50-2.91s  8 根柱子依序從底部長高（stagger 0.13s, duration 0.5s）
-   2.60s       ChienYi 大標
-   2.80s       QIAN YI TECHNOLOGY
-   3.00s       水資源工程監造管理系統
-   3.50-4.00s  fadeout
+   0.00-1.65s  4 條斜線依序從底部長高（每條 1.2s, stagger 0.15s）
+   1.50-2.91s  8 根柱子依序從底部長高（每根 0.5s, stagger 0.13s）
+   2.60s       SVG 內英文「Qian Yi Technology Co., Ltd.」浮現
+   3.20s       SVG 外中文「千溢科技，智創未來」浮現
+   3.80-6.00s  hold ~2.2 秒
+   6.00-6.50s  fadeout
 */
 .cy-splash {
   position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
+  inset: 0;
   z-index: 9999;
-  background: var(--wb-bg0);
+  background: #F7FBFC;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  animation: splashFade 0.5s ease 3.5s forwards;
+  animation: splashFade 0.5s ease 6.0s forwards;
 }
 
-/* 背景光暈 — 鋼藍放射（跟 ChienYi 大標同步出現） */
+/* 背景放射裝飾（柔藍） */
 .cy-splash-glow {
   position: absolute;
-  width: 420px; height: 420px;
-  background: radial-gradient(ellipse at center, rgba(118,159,205,0.18) 0%, rgba(118,159,205,0.06) 45%, transparent 70%);
-  border-radius: 50%;
-  opacity: 0;
-  animation: splashGlowIn 0.8s ease 2.60s forwards;
-}
-@keyframes splashGlowIn {
-  from { opacity: 0; transform: scale(0.7); }
-  to { opacity: 1; transform: scale(1); }
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(118,159,205,0.12) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 0;
 }
 
-/* Logo 舞台（比例對齊新版 viewBox 53.74 × 51.81） */
 .cy-splash-stage {
   position: relative;
-  width: 280px; height: 270px;
-  z-index: 2;
+  z-index: 1;
+  margin-bottom: 28px;
+  width: 260px;
+  height: 251px;
 }
 
-/* SVG 舞台 — 直接使用 logo_chienyi.svg 拆出的真 path 來動畫 */
 .cy-splash-draw {
-  position: absolute;
-  inset: 0;
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100%;
   overflow: visible;
-  filter: drop-shadow(0 8px 22px rgba(118,159,205,0.28));
 }
 
-/* === 4 條斜線：從底部 scaleY(0) 長起來，stagger 0.15s，duration 1.2s === */
-.cy-line {
-  fill: var(--wb-metal-flat);
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  transform: scaleY(0);
-}
-.cy-line-1 { animation: lineGrow 1.2s cubic-bezier(0.65,0,0.35,1) 0s forwards; }
-.cy-line-2 { animation: lineGrow 1.2s cubic-bezier(0.65,0,0.35,1) 0.15s forwards; }
-.cy-line-3 { animation: lineGrow 1.2s cubic-bezier(0.65,0,0.35,1) 0.30s forwards; }
-.cy-line-4 { animation: lineGrow 1.2s cubic-bezier(0.65,0,0.35,1) 0.45s forwards; }
-@keyframes lineGrow {
-  to { transform: scaleY(1); }
-}
-
-/* === 8 根柱體：依序（col-1 → col-8）從底部長起，stagger 0.13s，duration 0.5s === */
-.cy-col {
-  fill: var(--wb-metal-flat);
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  transform: scaleY(0);
-}
-.cy-col-1 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.50s forwards; }
-.cy-col-2 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.63s forwards; }
-.cy-col-3 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.76s forwards; }
-.cy-col-4 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 1.89s forwards; }
-.cy-col-5 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 2.02s forwards; }
-.cy-col-6 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 2.15s forwards; }
-.cy-col-7 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 2.28s forwards; }
-.cy-col-8 { animation: colGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) 2.41s forwards; }
-@keyframes colGrow {
-  to { transform: scaleY(1); }
-}
-
-/* === 文字三段淡入 === */
-.cy-splash-brand {
-  margin-top: 24px;
-  font-size: 2.4rem; font-weight: 800;
-  color: var(--wb-brand); letter-spacing: 8px;
-  position: relative; z-index: 2;
+/* === 4 條斜線：cy-grow-up 動畫（duration 1.2s）；delay 由 SVG inline style 提供 === */
+.cy-diag-v2 {
   opacity: 0;
-  animation: splashTextIn 0.4s ease 2.60s forwards;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: cy-grow-up 1.2s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
 }
-.cy-splash-name {
-  margin-top: 10px;
-  font-size: 1.0rem; font-weight: 700;
-  color: var(--wb-t2); letter-spacing: 4px;
-  position: relative; z-index: 2;
+
+/* === 8 根柱子：cy-grow-up 動畫（duration 0.5s） === */
+.cy-pillar-v2 {
   opacity: 0;
-  animation: splashTextIn 0.4s ease 2.80s forwards;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: cy-grow-up 0.5s cubic-bezier(0.34, 1.3, 0.64, 1) forwards;
 }
+
+@keyframes cy-grow-up {
+  0%   { opacity: 0; transform: scaleY(0); }
+  30%  { opacity: 1; }
+  100% { opacity: 1; transform: scaleY(1); }
+}
+
+/* === SVG 內原 logo 英文「Qian Yi Technology Co., Ltd.」純 fade in === */
+.cy-svg-text {
+  opacity: 0;
+  animation: cy-svg-fade 0.6s ease-out forwards;
+}
+
+@keyframes cy-svg-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* === SVG 外中文公司名「千溢科技，智創未來」鋼藍粗體加大 === */
 .cy-splash-sub {
-  margin-top: 8px;
-  font-size: 0.85rem; color: var(--wb-t3); letter-spacing: 3px;
-  position: relative; z-index: 2;
+  position: relative;
+  z-index: 1;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--wb-brand);
+  letter-spacing: 4px;
   opacity: 0;
-  animation: splashTextIn 0.4s ease 3.00s forwards;
-}
-@keyframes splashTextIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  animation: cy-text-rise 0.6s ease-out 3.2s forwards;
 }
 
-/* 整體淡出（3.50s → 4.00s） */
+@keyframes cy-text-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 整體淡出 — 6.00s 開始、6.50s 完全消失 */
 @keyframes splashFade {
   from { opacity: 1; pointer-events: auto; }
-  to { opacity: 0; pointer-events: none; visibility: hidden; }
+  to   { opacity: 0; pointer-events: none; visibility: hidden; }
 }
 
 /* === Splash 預覽模式 ===
@@ -1665,16 +1842,12 @@
   pointer-events: auto;
   visibility: visible;
 }
-.cy-splash.cy-splash-preview .cy-splash-glow {
+.cy-splash.cy-splash-preview .cy-diag-v2,
+.cy-splash.cy-splash-preview .cy-pillar-v2 {
   opacity: 1;
-  transform: scale(1);
-}
-.cy-splash.cy-splash-preview .cy-line,
-.cy-splash.cy-splash-preview .cy-col {
   transform: scaleY(1);
 }
-.cy-splash.cy-splash-preview .cy-splash-brand,
-.cy-splash.cy-splash-preview .cy-splash-name,
+.cy-splash.cy-splash-preview .cy-svg-text,
 .cy-splash.cy-splash-preview .cy-splash-sub {
   opacity: 1;
   transform: none;
@@ -1899,3 +2072,384 @@
   padding: 5px 14px;
   border-radius: 14px;
 }
+
+/* ============================================================
+   v11 右側抽屜選單內容樣式
+   - BS5 offcanvas JS 在此 Odoo 環境因 dobtor_doc_editor asset error 沒載入,
+     portal_v10.js setupDrawerVanilla() 接管 open/close/ESC/scroll-lock/backdrop
+   - 以下 CSS 補完 BS5 在此環境可能缺失的 z-index / backdrop 視覺 / 動畫
+   ============================================================ */
+.cy-drawer.offcanvas-end {
+  width: min(85vw, 320px);
+  z-index: 1045;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  visibility: hidden;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  background: var(--wb-bg2);
+  display: flex;
+  flex-direction: column;
+}
+.cy-drawer.offcanvas-end.show {
+  visibility: visible;
+  transform: translateX(0);
+}
+.offcanvas-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1040;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 0.15s linear;
+}
+.offcanvas-backdrop.show {
+  opacity: 1;
+}
+
+/* Header — 淺藍底 + logo + 公司名 + ✕ */
+.cy-drawer-header {
+  background: var(--wb-brand-soft);
+  border-bottom: 1px solid var(--wb-bdr);
+  padding: 18px 16px;
+}
+.cy-drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.cy-drawer-logo {
+  width: 32px;
+  height: 31px;
+  flex-shrink: 0;
+}
+.cy-drawer-brand-text {
+  min-width: 0;
+}
+.cy-drawer-brand-zh {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--wb-brand-darker);
+  letter-spacing: 1px;
+  line-height: 1.2;
+}
+.cy-drawer-brand-sub {
+  font-size: 0.78rem;
+  color: var(--wb-t2);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+.cy-drawer-close {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* Body — 取消 BS5 預設 padding,讓 section 滿版 */
+.cy-drawer-body {
+  padding: 0;
+}
+
+/* User block — 可點擊版本(整塊是 <a>,點下去跳 /my/account 編輯個人資料) */
+.cy-drawer-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--wb-bdr-soft);
+  color: var(--wb-t1);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.cy-drawer-user:hover,
+.cy-drawer-user:active {
+  background: var(--wb-brand-soft);
+  color: var(--wb-t1);
+  text-decoration: none;
+}
+.cy-drawer-user-logo {
+  width: 40px;
+  height: 39px;
+  flex-shrink: 0;
+}
+.cy-drawer-user-info {
+  flex: 1;
+  min-width: 0;
+}
+.cy-drawer-user-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--wb-t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cy-drawer-user-role {
+  font-size: 0.8rem;
+  color: var(--wb-t3);
+  margin-top: 2px;
+}
+.cy-drawer-user-arrow {
+  font-size: 1.2rem;
+  color: var(--wb-t3);
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+/* Sections — 工程 / 系統 */
+.cy-drawer-section {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--wb-bdr-soft);
+}
+.cy-drawer-section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--wb-t3);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 8px 16px 4px;
+}
+.cy-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  min-height: 56px;
+  color: var(--wb-t1);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.cy-drawer-item:hover,
+.cy-drawer-item:active {
+  background: var(--wb-brand-soft);
+  text-decoration: none;
+  color: var(--wb-t1);
+}
+.cy-drawer-item-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+.cy-drawer-item-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cy-drawer-item-aux {
+  font-size: 0.8rem;
+  color: var(--wb-t3);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+}
+.cy-drawer-item-arrow {
+  font-size: 1.1rem;
+  color: var(--wb-t3);
+  flex-shrink: 0;
+}
+
+/* Footer — 登出 */
+.cy-drawer-footer {
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--wb-bdr-soft);
+  flex-shrink: 0;
+}
+.cy-drawer-logout {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  text-align: center;
+  background: transparent;
+  border: 1px solid var(--wb-bdr);
+  border-radius: 10px;
+  color: var(--wb-red);
+  font-size: 1rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.cy-drawer-logout:hover {
+  background: rgba(232, 54, 79, 0.06);
+  color: var(--wb-red);
+  text-decoration: none;
+}
+
+/* === v11.1 HUD 工程下拉切換器 === */
+/* 切換器外層即是 .cy-hud-project,所以接管 absolute 置中,並允許點擊 */
+.cy-hud-top .cy-hud-project.cy-switcher {
+  pointer-events: auto;
+  max-width: 65%;
+}
+.cy-switcher {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.cy-switcher-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--wb-t1);
+  cursor: pointer;
+  max-width: 100%;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.cy-switcher-btn:hover,
+.cy-switcher-btn:focus {
+  background: rgba(118, 159, 205, 0.08);
+  border-color: var(--wb-bdr);
+  outline: none;
+}
+.cy-switcher-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.cy-switcher-caret {
+  font-size: 0.7rem;
+  color: var(--wb-t3);
+  transition: transform 0.15s ease;
+}
+.cy-switcher.is-open .cy-switcher-caret {
+  transform: rotate(180deg);
+}
+.cy-switcher-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(70vh, 480px);
+  display: flex;
+  flex-direction: column;
+  background: var(--wb-card, #ffffff);
+  border: 1px solid var(--wb-bdr, #e5e7eb);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  z-index: 1050;
+  overflow: hidden;
+}
+.cy-switcher-menu[hidden] {
+  display: none !important;
+}
+.cy-switcher-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--wb-bdr);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--wb-t2);
+  background: rgba(118, 159, 205, 0.06);
+}
+.cy-switcher-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--wb-blue, #2563eb);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.cy-switcher-all:hover {
+  text-decoration: underline;
+}
+.cy-switcher-menu-list {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.cy-switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  color: var(--wb-t1);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  font-size: 0.95rem;
+}
+.cy-switcher-item:last-child {
+  border-bottom: none;
+}
+.cy-switcher-item:hover {
+  background: rgba(118, 159, 205, 0.08);
+  text-decoration: none;
+  color: var(--wb-t1);
+}
+.cy-switcher-item-current {
+  background: rgba(245, 158, 11, 0.08);
+}
+.cy-switcher-item-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wb-t3);
+  flex-shrink: 0;
+}
+.cy-switcher-item-dot-draft { background: #cbd5e1; }
+.cy-switcher-item-dot-construction { background: #3b82f6; }
+.cy-switcher-item-dot-completion { background: #eab308; }
+.cy-switcher-item-dot-acceptance { background: #ef4444; }
+.cy-switcher-item-dot-closed { background: #22c55e; }
+.cy-switcher-item-dot-suspended { background: #f97316; }
+.cy-switcher-item-dot-terminated { background: #dc2626; }
+.cy-switcher-item-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.cy-switcher-item-state,
+.cy-switcher-item-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cy-switcher-item-badge {
+  background: var(--wb-amber, #f59e0b);
+  color: #fff;
+}
+.cy-switcher-item-state {
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--wb-t2);
+}
+.cy-switcher-item-state-construction { background: #dbeafe; color: #1d4ed8; }
+.cy-switcher-item-state-completion { background: #fef3c7; color: #b45309; }
+.cy-switcher-item-state-acceptance { background: #fee2e2; color: #b91c1c; }
+.cy-switcher-item-state-closed { background: #dcfce7; color: #15803d; }
+.cy-switcher-item-state-suspended { background: #ffedd5; color: #c2410c; }
+.cy-switcher-item-state-terminated { background: #fecaca; color: #991b1b; }
+.cy-switcher-empty {
+  padding: 18px 14px;
+  text-align: center;
+  color: var(--wb-t3);
+  font-size: 0.9rem;
+}
+

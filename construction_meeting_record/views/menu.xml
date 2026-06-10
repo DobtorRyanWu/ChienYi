@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_construction_meeting_record"
+              name="會議記錄"
+              parent="construction_supervision_base.menu_document_management"
+              action="action_construction_meeting_record"
+              sequence="20"/>
+</odoo>

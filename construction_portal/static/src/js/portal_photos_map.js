@@ -111,9 +111,46 @@
         });
         L.control.zoom({ position: 'topleft' }).addTo(state.map);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap', maxZoom: 19,
-        }).addTo(state.map);
+        // Tile layer + 失敗自動 fallback
+        // 為何不用 {s}.tile.openstreetmap.org：
+        //   iOS Safari + 部分內容封鎖器（1Blocker/AdGuard）/ DNS（Pi-hole/Tailscale Magic DNS）
+        //   會擋 a.tile/b.tile/c.tile 子網域輪替，造成只有 Safari 看不到底圖。
+        //   modern OSM 用 HTTP/2 多工，無子網域已足夠。
+        var TILE_PRIMARY = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+        var TILE_FALLBACK = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+        var fallbackSwitched = false;
+        var primaryFailCount = 0;
+
+        var tileLayer = L.tileLayer(TILE_PRIMARY, {
+            attribution: '&copy; OpenStreetMap',
+            maxZoom: 19,
+            crossOrigin: true,
+        });
+        tileLayer.on('tileerror', function () {
+            primaryFailCount += 1;
+            // 連續 3 張失敗就切 fallback（避免單張瞬斷誤觸發）
+            if (!fallbackSwitched && primaryFailCount >= 3) {
+                fallbackSwitched = true;
+                state.map.removeLayer(tileLayer);
+                L.tileLayer(TILE_FALLBACK, {
+                    attribution: '&copy; OpenStreetMap &copy; CARTO',
+                    maxZoom: 19,
+                    subdomains: 'abcd',
+                    crossOrigin: true,
+                }).addTo(state.map);
+                if (window.console) {
+                    console.warn('[photo-map] OSM tile failed, switched to CartoDB fallback');
+                }
+            }
+        });
+        tileLayer.addTo(state.map);
+
+        // Safari 在 IIFE 即時執行時 layout 可能還沒 settle，
+        // 雙保險：load 後 + 短延遲再 invalidateSize
+        window.addEventListener('load', function () {
+            if (state.map) state.map.invalidateSize();
+        });
+        setTimeout(function () { if (state.map) state.map.invalidateSize(); }, 300);
 
         state.markerCluster = L.markerClusterGroup({
             maxClusterRadius: 50,
@@ -794,27 +831,205 @@
     function initSheetDrag() {
         var handle = $('sheetHandle');
         var sheet = $('photoMapSheet');
-        var startY = 0, startState = 'peek';
-        handle.addEventListener('touchstart', function (e) {
-            startY = e.touches[0].clientY;
-            startState = state.sheetState;
-        }, { passive: true });
-        handle.addEventListener('touchend', function (e) {
-            var dy = (e.changedTouches[0].clientY - startY);
-            if (dy < -40) {
-                // 上拉
-                setSheetState(startState === 'peek' ? 'half' : 'full');
-            } else if (dy > 40) {
-                // 下拉
-                setSheetState(startState === 'full' ? 'half' : 'peek');
+        var collapse = $('sheetCollapse');
+        if (!handle || !sheet) return;
+
+        var startY = null, startHeight = 0, dragging = false, moved = false;
+        var TAP_THRESHOLD = 6; // 6px 內視為點擊
+        // 計算 px 高度
+        function getCssVarPx(name, fallback) {
+            var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            if (!v) return fallback;
+            // vh / calc 用 element 實測法太麻煩，直接 build 一個臨時 div 求 px
+            var probe = document.createElement('div');
+            probe.style.cssText = 'position:absolute;visibility:hidden;height:' + v + ';';
+            document.body.appendChild(probe);
+            var px = probe.getBoundingClientRect().height;
+            document.body.removeChild(probe);
+            return px || fallback;
+        }
+        function snapPoints() {
+            return {
+                peek: getCssVarPx('--map-sheet-peek', 72),
+                half: getCssVarPx('--map-sheet-half', window.innerHeight * 0.48),
+                full: getCssVarPx('--map-sheet-full', window.innerHeight - 100),
+            };
+        }
+        function nearestSnap(h) {
+            var sp = snapPoints();
+            var entries = [['peek', sp.peek], ['half', sp.half], ['full', sp.full]];
+            entries.sort(function (a, b) { return Math.abs(a[1] - h) - Math.abs(b[1] - h); });
+            return entries[0][0];
+        }
+
+        function onPointerDown(e) {
+            if (e.target.closest('.cy-sheet-collapse')) return; // 給 button 處理
+            // 不要因前次 dragging 殘留卡死後續拖曳，改成無條件 reset 起始點
+            startY = e.clientY;
+            startHeight = sheet.getBoundingClientRect().height;
+            dragging = true;
+            moved = false;
+            // 拖曳中關掉 transition，讓 height 即時跟手
+            sheet.style.transition = 'none';
+            try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+            // 阻止瀏覽器把觸控當作 page scroll／viewport 縮放
+            if (e.cancelable) { try { e.preventDefault(); } catch (err) {} }
+        }
+        function onPointerMove(e) {
+            if (!dragging) return;
+            var dy = e.clientY - startY;
+            if (Math.abs(dy) > TAP_THRESHOLD) moved = true;
+            // 上拉(dy 負) → height 增加；下拉(dy 正) → height 減少
+            var sp = snapPoints();
+            var newHeight = Math.max(sp.peek, Math.min(sp.full, startHeight - dy));
+            sheet.style.height = newHeight + 'px';
+            // 阻止 iOS Safari 把這當作 elastic scroll 而中斷 capture
+            if (e.cancelable) { try { e.preventDefault(); } catch (err) {} }
+        }
+        function onPointerUp(e) {
+            if (!dragging) return;
+            dragging = false;
+            // 還原 transition + 移除 inline height（讓 class 控制最終高度）
+            sheet.style.transition = '';
+            var finalHeight = sheet.getBoundingClientRect().height;
+            sheet.style.height = '';
+            if (!moved) {
+                // 視為點擊：循環下一格
+                if (state.sheetState === 'peek') setSheetState('half');
+                else if (state.sheetState === 'half') setSheetState('full');
+                else setSheetState('peek');
+            } else {
+                // snap 到最近的 state
+                setSheetState(nearestSnap(finalHeight));
             }
-        });
-        handle.addEventListener('click', function () {
-            // 點擊把手：循環 peek → half → full → peek
-            if (state.sheetState === 'peek') setSheetState('half');
-            else if (state.sheetState === 'half') setSheetState('full');
-            else setSheetState('peek');
-        });
+            startY = null;
+        }
+        function onPointerCancel() {
+            if (!dragging) return;
+            dragging = false;
+            sheet.style.transition = '';
+            sheet.style.height = '';
+            startY = null;
+        }
+
+        handle.addEventListener('pointerdown', onPointerDown);
+        handle.addEventListener('pointermove', onPointerMove);
+        handle.addEventListener('pointerup', onPointerUp);
+        handle.addEventListener('pointercancel', onPointerCancel);
+
+        // === Touch events fallback（iOS Safari 對 pointer events 在 elastic scroll 時會中斷） ===
+        // 把 touch 事件 wrap 成相容 pointer 物件丟給上面的 handler
+        function wrapTouch(e) {
+            var t = e.changedTouches[0] || e.touches[0];
+            return { clientY: t ? t.clientY : 0, target: e.target, pointerId: 99, cancelable: e.cancelable, preventDefault: function () { try { e.preventDefault(); } catch (err) {} } };
+        }
+        handle.addEventListener('touchstart', function (e) { onPointerDown(wrapTouch(e)); }, { passive: false });
+        handle.addEventListener('touchmove', function (e) { onPointerMove(wrapTouch(e)); }, { passive: false });
+        handle.addEventListener('touchend', function (e) { onPointerUp(wrapTouch(e)); }, { passive: false });
+        handle.addEventListener('touchcancel', function () { onPointerCancel(); }, { passive: false });
+
+        // === sheet 內部捲動區的「邊界拖曳」===
+        // 在 full state 下，使用者通常滑 sheet 內容（cy-sheet-scroll inner scroll）。
+        // 但如果他想下拉收合 sheet，傳統會被 inner scroll 吃掉，sheet 拉不回。
+        // 修法：當 inner scroll 已捲到頂（scrollTop=0）且使用者繼續往下拖，
+        // 就把這次拖曳視為 sheet drag（取代 inner scroll），即時調整 sheet 高度。
+        var scroll = sheet.querySelector('.cy-sheet-scroll');
+        if (scroll) {
+            var scrollStartY = null, scrollStartHeight = 0, scrollDragging = false;
+            scroll.addEventListener('touchstart', function (e) {
+                scrollStartY = e.touches[0].clientY;
+                scrollStartHeight = sheet.getBoundingClientRect().height;
+                scrollDragging = false;
+            }, { passive: true });
+            scroll.addEventListener('touchmove', function (e) {
+                if (scrollStartY === null) return;
+                var dy = e.touches[0].clientY - scrollStartY;
+                if (!scrollDragging) {
+                    // 啟動條件：
+                    // a) 下拉(dy>8) 且 inner scroll 已到頂 (scrollTop<=0)，要把 sheet 拖小
+                    // b) 上拉(dy<-8) 且尚未 full 時，要把 sheet 拖大
+                    var atTop = scroll.scrollTop <= 0;
+                    var notFull = state.sheetState !== 'full';
+                    if ((dy > 8 && atTop) || (dy < -8 && notFull)) {
+                        scrollDragging = true;
+                        startY = scrollStartY;
+                        startHeight = scrollStartHeight;
+                        dragging = true;
+                        moved = true;
+                        sheet.style.transition = 'none';
+                    }
+                }
+                if (scrollDragging) {
+                    var sp = snapPoints();
+                    var newH = Math.max(sp.peek, Math.min(sp.full, startHeight - dy));
+                    sheet.style.height = newH + 'px';
+                    if (e.cancelable) { try { e.preventDefault(); } catch (err) {} }
+                }
+            }, { passive: false });
+            scroll.addEventListener('touchend', function (e) {
+                if (scrollDragging) {
+                    sheet.style.transition = '';
+                    var finalH = sheet.getBoundingClientRect().height;
+                    sheet.style.height = '';
+                    setSheetState(nearestSnap(finalH));
+                    scrollDragging = false;
+                    dragging = false;
+                    startY = null;
+                }
+                scrollStartY = null;
+            }, { passive: true });
+
+            // PC pointer events 在 inner scroll 上做同樣處理
+            scroll.addEventListener('pointerdown', function (e) {
+                if (e.pointerType === 'mouse') return; // PC 滾輪/拖曳就讓 inner scroll 處理，不接管
+                scrollStartY = e.clientY;
+                scrollStartHeight = sheet.getBoundingClientRect().height;
+                scrollDragging = false;
+            });
+            scroll.addEventListener('pointermove', function (e) {
+                if (e.pointerType === 'mouse' || scrollStartY === null) return;
+                var dy = e.clientY - scrollStartY;
+                if (!scrollDragging) {
+                    var atTop = scroll.scrollTop <= 0;
+                    var notFull = state.sheetState !== 'full';
+                    if ((dy > 8 && atTop) || (dy < -8 && notFull)) {
+                        scrollDragging = true;
+                        startY = scrollStartY;
+                        startHeight = scrollStartHeight;
+                        dragging = true;
+                        moved = true;
+                        sheet.style.transition = 'none';
+                    }
+                }
+                if (scrollDragging) {
+                    var sp = snapPoints();
+                    var newH = Math.max(sp.peek, Math.min(sp.full, startHeight - dy));
+                    sheet.style.height = newH + 'px';
+                    if (e.cancelable) { try { e.preventDefault(); } catch (err) {} }
+                }
+            });
+            scroll.addEventListener('pointerup', function (e) {
+                if (scrollDragging) {
+                    sheet.style.transition = '';
+                    var finalH = sheet.getBoundingClientRect().height;
+                    sheet.style.height = '';
+                    setSheetState(nearestSnap(finalH));
+                    scrollDragging = false;
+                    dragging = false;
+                    startY = null;
+                }
+                scrollStartY = null;
+            });
+        }
+
+        // 顯式「下拉一格」按鈕：full→half→peek
+        if (collapse) {
+            collapse.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (state.sheetState === 'full') setSheetState('half');
+                else if (state.sheetState === 'half') setSheetState('peek');
+            });
+        }
     }
 
     // =============================================

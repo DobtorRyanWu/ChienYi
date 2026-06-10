@@ -132,10 +132,15 @@ class ConstructionPortal(CustomerPortal):
         return request.env['supervision.project']._get_portal_projects_domain(partner)
 
     def _get_project_day_count(self, project):
-        """計算 DAY 天數（從開工日到今天）"""
-        if project.contract_start_date:
-            return (date.today() - project.contract_start_date).days
-        return 0
+        """計算 DAY 天數（從開工日到今天；已竣工則凍結至實際完工日）
+
+        含頭含尾：與 actual_duration 一致 = (end - start).days + 1
+        """
+        if not project.contract_start_date:
+            return 0
+        end_date = project.actual_end_date or date.today()
+        delta = (end_date - project.contract_start_date).days
+        return max(delta + 1, 0) if end_date >= project.contract_start_date else 0
 
     def _get_nav_badges(self, project):
         """計算底部導航 badge 數字（檢查/缺失/日誌）"""
@@ -231,6 +236,9 @@ class ConstructionPortal(CustomerPortal):
             elif len(accessible) == 1:
                 return request.redirect('/construction/%s' % accessible.id)
             else:
+                # v11.1: 純 GPS splash — 找到最近立刻 redirect。
+                # 「手動列表」入口從 drawer 的「工程列表」走 /construction?view=list,
+                # 跳過此 splash。
                 return request.render(
                     'construction_portal.portal_construction_locator',
                     {'page_name': 'construction'},
@@ -313,7 +321,14 @@ class ConstructionPortal(CustomerPortal):
             projects,
             key=lambda p: _haversine_km(user_lat, user_lng, p.latitude, p.longitude),
         )
-        return {'project_id': nearest.id}
+        distance_km = _haversine_km(
+            user_lat, user_lng, nearest.latitude, nearest.longitude,
+        )
+        return {
+            'project_id': nearest.id,
+            'project_name': nearest.name or '',
+            'distance_km': round(distance_km, 2),
+        }
 
     @http.route(['/construction/splash-preview'], type='http', auth='user', website=True)
     def portal_construction_splash_preview(self, **kw):
@@ -339,11 +354,8 @@ class ConstructionPortal(CustomerPortal):
 
         today = date.today()
 
-        # DAY 計數：(today - contract_start_date).days
-        day_count = 0
-        if project.contract_start_date:
-            delta = today - project.contract_start_date
-            day_count = max(delta.days, 0)
+        # DAY 計數：(today - contract_start_date).days；已竣工凍結至 actual_end_date
+        day_count = self._get_project_day_count(project)
 
         # 進度百分比：從 actual_progress 或計算
         progress_pct = project.actual_progress or 0.0
@@ -514,19 +526,21 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        today = date.today()
-        day_count = 0
-        if project.contract_start_date:
-            day_count = max((today - project.contract_start_date).days, 0)
+        # DAY 計數：已竣工則凍結至 actual_end_date
+        day_count = self._get_project_day_count(project)
 
         # 工程進度：從進度表 cumulative_actual 取（= project.actual_progress）
         progress_pct = project.actual_progress or 0.0
         # 工期進度：已過天數佔總工期比例（含展延）
         total_duration = project.total_approved_duration or project.contract_duration or 0
         schedule_pct = (day_count / total_duration * 100.0) if total_duration else 0.0
-        remaining = 0
-        if project.total_approved_duration:
-            remaining = project.total_approved_duration - day_count
+        # 已竣工：剩餘工期 = 0（不再倒數）
+        if project.actual_end_date:
+            remaining = 0
+        elif project.total_approved_duration:
+            remaining = max(project.total_approved_duration - day_count, 0)
+        else:
+            remaining = 0
 
         values = {
             'project': project,
@@ -535,7 +549,6 @@ class ConstructionPortal(CustomerPortal):
             'progress_pct': progress_pct,
             'schedule_pct': schedule_pct,
             'remaining_days': remaining,
-            'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
         }
 
@@ -650,6 +663,49 @@ class ConstructionPortal(CustomerPortal):
             'construction_portal.portal_construction_project_edit', values
         )
 
+    @http.route(['/construction/<int:project_id>/code/update'],
+                type='json', auth='user', methods=['POST'])
+    def portal_construction_project_code_update(self, project_id, **kw):
+        """工程編號單欄位更新（inline edit，不受 state 限制）。
+
+        為什麼獨立路由：完整 /update 強制 state=='draft' 才能改，
+        但工程編號可能在標案匯入後、案件已開工才需要校正，
+        因此 code 單欄位放寬限制。其他欄位仍走 /update + state guard。
+        """
+        try:
+            project = self._document_check_access(
+                'supervision.project', project_id,
+            )
+        except (AccessError, MissingError):
+            return {'success': False, 'error': '無權限或案件不存在'}
+
+        code = (kw.get('code') or '').strip()
+        if not code:
+            return {'success': False, 'error': '工程編號不可為空'}
+        if len(code) > 64:
+            return {'success': False, 'error': '工程編號最多 64 字元'}
+
+        # 重複檢查（同編號不同案件視為衝突）
+        Project = request.env['supervision.project'].sudo()
+        dup = Project.search(
+            [('code', '=', code), ('id', '!=', project_id)], limit=1,
+        )
+        if dup:
+            return {
+                'success': False,
+                'error': f'工程編號「{code}」已被案件「{dup.name}」使用',
+            }
+
+        try:
+            project.sudo().write({'code': code})
+        except Exception as e:
+            _logger.warning(
+                'portal code update failed pid=%s: %s', project_id, e,
+            )
+            return {'success': False, 'error': str(e)}
+
+        return {'success': True, 'code': code}
+
     @http.route(['/construction/<int:project_id>/update'],
                 type='http', auth='user', website=True,
                 methods=['POST'], csrf=True)
@@ -719,6 +775,11 @@ class ConstructionPortal(CustomerPortal):
                         pp.with_context(lang=_lang).write({'name': name})
                     except Exception as _e:
                         _logger.warning('portal update: name lang=%s failed: %s', _lang, _e)
+
+        if _in('code'):
+            code = _s('code')
+            if code:
+                vals['code'] = code
 
         if _in('project_type'):
             project_type = _s('project_type')
@@ -961,9 +1022,43 @@ class ConstructionPortal(CustomerPortal):
         photo_categories = request.env['supervision.photo'].fields_get(
             ['category'])['category']['selection']
 
+        # daily.log.line _inherits account.analytic.line，timesheet ir.rule 會擋到 line_ids
+        # 用 sudo 預讀 + SimpleNamespace 包裝（QWeb 才能用 dot-access）
+        from types import SimpleNamespace
+        log_su = log.sudo()
+        log_lines = []
+        for ln in log_su.line_ids:
+            log_lines.append(SimpleNamespace(
+                id=ln.id,
+                item_no=ln.item_no or '',
+                item_name=ln.item_name or (ln.work_item_id.name if ln.work_item_id else ''),
+                unit=ln.unit or '',
+                contract_qty=ln.contract_qty or 0.0,
+                daily_qty=ln.daily_qty or 0.0,
+                cumulative_qty=ln.cumulative_qty or 0.0,
+                completion_rate=ln.completion_rate or 0.0,
+                is_over_contract=ln.is_over_contract or False,
+                location=ln.location or '',
+                work_description=ln.work_description or '',
+                has_issue=ln.has_issue or False,
+                issue_description=ln.issue_description or '',
+            ))
+        log_materials = []
+        for mat in log_su.material_ids:
+            log_materials.append(SimpleNamespace(
+                id=mat.id,
+                name=mat.name or '',
+                unit=mat.unit or '',
+                contract_qty=mat.contract_qty or 0.0,
+                daily_qty=mat.daily_qty or 0.0,
+                cumulative_qty=mat.cumulative_qty or 0.0,
+                note=mat.note or '',
+            ))
         values = {
             'project': project,
             'log': log,
+            'log_lines': log_lines,
+            'log_materials': log_materials,
             'weather_selection': weather_selection,
             'page_name': 'construction_daily_log_detail',
             'day_count': self._get_project_day_count(project),
@@ -2775,10 +2870,12 @@ class ConstructionPortal(CustomerPortal):
 
     # ==================== 照片管理 ====================
 
-    @http.route(['/construction/<int:project_id>/photos', '/construction/<int:project_id>/photos/page/<int:page>'],
+    @http.route(['/construction/<int:project_id>/photos/grid',
+                 '/construction/<int:project_id>/photos/grid/page/<int:page>',
+                 '/construction/<int:project_id>/photos/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_photos(self, project_id, page=1, **kw):
-        """照片列表（含篩選、日期分群）"""
+        """照片列表（含篩選、日期分群） — 圖庫樣貌（第二順位）"""
         try:
             project = self._document_check_access('supervision.project', project_id)
         except (AccessError, MissingError):
@@ -2803,7 +2900,7 @@ class ConstructionPortal(CustomerPortal):
             url_args['category'] = category_filter
 
         pager = portal_pager(
-            url=f'/construction/{project_id}/photos',
+            url=f'/construction/{project_id}/photos/grid',
             total=photo_count,
             page=page,
             step=24,
@@ -2840,7 +2937,7 @@ class ConstructionPortal(CustomerPortal):
             'date_groups': date_groups,
             'page_name': 'construction_photos',
             'pager': pager,
-            'default_url': f'/construction/{project_id}/photos',
+            'default_url': f'/construction/{project_id}/photos/grid',
             'source_options': source_options,
             'category_options': category_options,
             'source_filter': source_filter or '',
@@ -2909,13 +3006,16 @@ class ConstructionPortal(CustomerPortal):
             if post.get('location_description'):
                 vals['location_description'] = post['location_description']
 
-            # GPS
+            # GPS — 過濾無效值（空字串、0,0、超出地球範圍）避免落在赤道大西洋
             lat = post.get('latitude')
             lng = post.get('longitude')
             if lat and lng:
                 try:
-                    vals['latitude'] = float(lat)
-                    vals['longitude'] = float(lng)
+                    lat_f = float(lat)
+                    lng_f = float(lng)
+                    if (lat_f != 0 or lng_f != 0) and -90 <= lat_f <= 90 and -180 <= lng_f <= 180:
+                        vals['latitude'] = lat_f
+                        vals['longitude'] = lng_f
                 except (ValueError, TypeError):
                     pass
 
@@ -2962,13 +3062,16 @@ class ConstructionPortal(CustomerPortal):
         if post.get('location_description'):
             vals['location_description'] = post['location_description']
 
-        # GPS
+        # GPS — 過濾無效值（同上）
         lat = post.get('latitude')
         lng = post.get('longitude')
         if lat and lng:
             try:
-                vals['latitude'] = float(lat)
-                vals['longitude'] = float(lng)
+                lat_f = float(lat)
+                lng_f = float(lng)
+                if (lat_f != 0 or lng_f != 0) and -90 <= lat_f <= 90 and -180 <= lng_f <= 180:
+                    vals['latitude'] = lat_f
+                    vals['longitude'] = lng_f
             except (ValueError, TypeError):
                 pass
 
@@ -3307,42 +3410,9 @@ class ConstructionPortal(CustomerPortal):
     @http.route(['/construction/settings'],
                 type='http', auth='user', website=True)
     def portal_construction_settings(self, **kw):
-        """設定頁面"""
-        partner = request.env.user.partner_id
-        Project = request.env['supervision.project']
-        domain = self._get_construction_projects_domain(partner)
-        projects = Project.search(domain, order='name')
-
-        # 從 query string 取得來源專案,讓 HUD top bar 顯示對應工程資訊 + 回首頁
-        from_project_id = kw.get('from_project')
-        back_url = '/construction'
-        back_label = '工程列表'
-        project = None
-        day_count = 0
-        if from_project_id:
-            try:
-                pid = int(from_project_id)
-                candidate = Project.browse(pid)
-                if candidate.exists() and candidate.id in projects.ids:
-                    project = candidate
-                    day_count = self._get_project_day_count(project)
-                    back_url = f'/construction/{pid}'
-                    back_label = '首頁'
-            except (ValueError, TypeError):
-                pass
-
-        values = {
-            'user': request.env.user,
-            'partner': partner,
-            'projects': projects,
-            'project': project,
-            'day_count': day_count,
-            'page_name': 'construction_settings',
-            'back_url': back_url,
-            'back_label': back_label,
-        }
-
-        return request.render('construction_portal.portal_construction_settings', values)
+        """個人帳號入口 — v11 起併入 Odoo 原生 /my/account,直接 redirect。
+        Drawer user block 已直接連 /my/account,此路由保留作舊書籤/外部連結相容。"""
+        return request.redirect('/my/account')
 
     @http.route(['/construction/switch-project'],
                 type='http', auth='user', website=True)
@@ -3433,10 +3503,11 @@ class ConstructionPortal(CustomerPortal):
             'location_description': photo.location_description or '',
         }
 
-    @http.route(['/construction/<int:project_id>/photos/map'],
+    @http.route(['/construction/<int:project_id>/photos',
+                 '/construction/<int:project_id>/photos/map'],
                 type='http', auth='user', website=True)
     def portal_construction_photos_map(self, project_id, **kw):
-        """照片地圖頁面"""
+        """照片地圖頁面（照片中心預設入口） — 第一順位顯示"""
         try:
             project_sudo = self._document_check_access('supervision.project', project_id)
         except (AccessError, MissingError):

@@ -20,4 +20,12 @@
               sequence="20"
               groups="base.group_user,construction_supervision_base.group_supervisor_admin,base.group_portal"/>
 
+    <!-- 照片分類（master data） -->
+    <menuitem id="menu_photo_category"
+              name="照片分類"
+              action="action_supervision_photo_category"
+              parent="construction_supervision_base.menu_photo_management"
+              sequence="30"
+              groups="construction_supervision_base.group_supervisor_admin"/>
+
 </odoo>

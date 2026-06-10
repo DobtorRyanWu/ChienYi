@@ -213,13 +213,23 @@ class SupervisionPhoto(models.Model):
                 photo.gps_location = False
 
     # === 照片分類 ===
+    # 舊欄位（保留向後相容，但新流程都使用 category_id）
+    # 既有 A 標 58 張資料的值會在 migration 中遷移到 category_id
     category = fields.Selection([
         ('STL', '鋼筋'), ('CON', '混凝土'), ('FRM', '模板'),
         ('PIP', '管線'), ('ELC', '電氣'), ('DEF', '缺失'),
         ('EXC', '開挖'), ('BKF', '回填'), ('PAV', '鋪面'),
         ('DRN', '排水'), ('OTH', '其他'),
-    ], string='材料分類',
-       help='照片的材料/工項分類')
+    ], string='材料分類 (舊)',
+       help='舊版固定分類，已由 category_id 取代。保留供既有資料相容')
+
+    category_id = fields.Many2one(
+        'supervision.photo.category',
+        string='材料分類',
+        help='照片的材料/工項分類（可在後台 supervision.photo.category 自由維護）',
+        ondelete='restrict',
+        index=True,
+    )
 
     construction_phase = fields.Selection([
         ('before', '施工前'),

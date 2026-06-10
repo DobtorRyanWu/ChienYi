@@ -8,7 +8,8 @@
     --map-nav-h: var(--wb-nav-h, 76px);
     --map-sheet-peek: 72px;
     --map-sheet-half: 48vh;
-    --map-sheet-full: calc(100vh - var(--map-topbar-h) - var(--map-pillbar-h) - 8px);
+    /* full 高度需減 nav_h，否則 sheet top 會跑進 pillbar 後面被遮（z-index 比 pillbar 低）*/
+    --map-sheet-full: calc(100vh - var(--map-topbar-h) - var(--map-pillbar-h) - var(--map-nav-h) - 8px);
 }
 
 .cy-photos-map-app {
@@ -225,10 +226,56 @@
 .cy-map-sheet-full { height: var(--map-sheet-full); }
 
 .cy-sheet-handle {
-    padding: 10px 0 4px;
-    cursor: pointer;
+    padding: 10px 0 8px;
+    cursor: grab;
     flex-shrink: 0;
-    touch-action: pan-y;
+    /* none 才能完整接管手指上下拖曳，pan-y 會被瀏覽器拿去做 page scroll */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    position: relative;
+    background: transparent;
+    transition: background 0.2s ease;
+}
+.cy-sheet-handle:active { cursor: grabbing; }
+
+/* peek state：保持 minimal、優雅小條 */
+.cy-map-sheet-peek .cy-sheet-handle {
+    min-height: auto;
+    padding: 10px 0 4px;
+    background: transparent;
+    border: none;
+}
+.cy-map-sheet-peek .cy-sheet-handle-label { display: none; }
+.cy-map-sheet-peek .cy-sheet-collapse { display: none; }
+
+/* half / full state：明顯熱區（44px、背景、底線、提示文字） */
+.cy-map-sheet-half .cy-sheet-handle,
+.cy-map-sheet-full .cy-sheet-handle {
+    min-height: 44px;
+    padding: 8px 0 6px;
+    background: linear-gradient(180deg, rgba(118,159,205,0.05), transparent);
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.cy-map-sheet-half .cy-sheet-handle:hover,
+.cy-map-sheet-full .cy-sheet-handle:hover {
+    background: linear-gradient(180deg, rgba(118,159,205,0.10), rgba(118,159,205,0.02));
+}
+.cy-map-sheet-half .cy-sheet-handle:active,
+.cy-map-sheet-full .cy-sheet-handle:active {
+    background: rgba(118,159,205,0.14);
+}
+
+/* 提示文字（只在 half/full 顯示） */
+.cy-sheet-handle-label {
+    display: block;
+    font-size: 11px;
+    color: var(--wb-t3, #8b90a0);
+    text-align: center;
+    margin-top: 4px;
+    pointer-events: none;
+    letter-spacing: 0.3px;
+    opacity: 0.7;
 }
 .cy-sheet-grip {
     width: 40px; height: 4px; border-radius: 2px;
@@ -236,6 +283,31 @@
     opacity: 0.4;
     margin: 0 auto;
 }
+/* sheet 右上「下拉一格」按鈕：full→half→peek，給 PC 與不熟拖曳手勢的使用者 */
+.cy-sheet-collapse {
+    position: absolute;
+    top: 2px;
+    right: 8px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.10);
+    background: #fff;
+    color: var(--wb-t1, #1a1d26);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    z-index: 2;
+}
+.cy-sheet-collapse:hover { background: #f5f6fa; }
+.cy-sheet-collapse:active { transform: scale(0.92); }
+/* 在 peek 狀態箭頭沒意義就隱藏 */
+.cy-map-sheet-peek .cy-sheet-collapse { display: none; }
 
 /* Segmented control */
 .cy-sheet-segment {
