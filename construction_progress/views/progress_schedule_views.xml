@@ -183,6 +183,42 @@
                                        placeholder="請說明本版本進度表的變更原因..."/>
                             </group>
                         </page>
+                        <page string="計畫基準校正" name="plan_correction"
+                              invisible="version == 1">
+                            <div class="alert alert-warning" role="alert"
+                                 invisible="not needs_plan_correction">
+                                <strong>⚠️ 計畫倒退校正模式</strong>：此版本進度表包含負值過渡區間，用於修正因契約展延後新版計畫基準低於舊版的情況。
+                                啟用後，過渡區間的「預定進度」可為負數，累計曲線將從校正後目標重新計算。
+                            </div>
+                            <group string="校正設定">
+                                <group>
+                                    <field name="needs_plan_correction"
+                                           readonly="state != 'draft'"/>
+                                    <field name="correction_date"
+                                           readonly="state != 'draft'"
+                                           invisible="not needs_plan_correction"
+                                           required="needs_plan_correction"/>
+                                    <field name="correction_target_cumulative"
+                                           readonly="state != 'draft'"
+                                           invisible="not needs_plan_correction"
+                                           required="needs_plan_correction"/>
+                                </group>
+                                <group invisible="not needs_plan_correction">
+                                    <field name="correction_period_start"/>
+                                    <field name="correction_period_end"/>
+                                    <field name="correction_pre_cumulative"/>
+                                    <field name="plan_correction_offset"
+                                           widget="float"
+                                           decoration-danger="plan_correction_offset &lt; 0"/>
+                                </group>
+                            </group>
+                            <div invisible="not needs_plan_correction or not correction_period_start">
+                                <button name="action_apply_correction" type="object"
+                                        string="套用校正至過渡區間" class="btn-warning"
+                                        invisible="state != 'draft'"
+                                        confirm="確定要套用校正？系統將把過渡區間切割為子區間（基準日前 / 基準日當天 / 基準日後），並將基準日之後的所有區間預定進度歸零。此操作不可還原。"/>
+                            </div>
+                        </page>
                         <page string="備註" name="notes">
                             <field name="notes"
                                    readonly="state == 'archived'"

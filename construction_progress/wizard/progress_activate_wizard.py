@@ -69,10 +69,9 @@ class ProgressActivateWizard(models.TransientModel):
             start = wiz.start_date
             end = wiz.end_date
 
-            # 非首版：僅計算啟用日之後的範圍
-            if wiz.schedule_id.version > 1:
-                start = max(start, fields.Date.today())
-
+            # 註：不再以「今天」夾住非首版的起日——「跳過已存在日誌」(下方 existing_dates)
+            #     已足以保護既有/鎖定的歷史日誌；用今天夾住反而會漏建「完工日已過但
+            #     尚未建立」的延伸期日誌（例如以過去時間軸補登時）。一律用進度表起日。
             # 查詢範圍內已存在的日誌
             existing_dates = set()
             if sup_project and wiz.employee_id:
@@ -139,15 +138,9 @@ class ProgressActivateWizard(models.TransientModel):
         if not start or not end:
             return 0
 
-        # 非首版：僅處理啟用日之後的日誌，保護已鎖定的歷史日誌
-        if schedule.version > 1:
-            activation_date = fields.Date.today()
-            start = max(start, activation_date)
-            _logger.info(
-                '非首版啟用（v%d）：僅處理 %s 之後的日誌',
-                schedule.version, activation_date,
-            )
-
+        # 註：非首版不再以「今天」夾住起日。下方「跳過已存在日誌」(existing_dates) 已
+        #     保護既有/鎖定的歷史日誌不被重建；用今天夾住會漏建延伸期（完工日已過但
+        #     尚未建立）的日誌。一律以進度表起日為範圍、靠 skip-existing 保護歷史。
         if start > end:
             return 0
 

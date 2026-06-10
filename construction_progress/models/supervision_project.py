@@ -290,6 +290,8 @@ class SupervisionProjectProgress(models.Model):
         all_schedules = self.schedule_ids.sorted('version')
 
         # === 步驟 1：確定每個版本的有效期間 ===
+        # 使用 effective_change_date（有校正時 = correction_date，否則 = change_date）
+        # 確保計畫基準校正的轉折點反映在圖表上
         version_periods = []
         for idx, schedule in enumerate(all_schedules):
             if not schedule.line_ids:
@@ -299,12 +301,13 @@ class SupervisionProjectProgress(models.Model):
             if idx == 0:
                 start_date = schedule.start_date
             else:
-                start_date = schedule.change_date
+                start_date = schedule.effective_change_date or schedule.change_date
 
             # 結束日期
             if idx < len(all_schedules) - 1:
                 next_schedule = all_schedules[idx + 1]
-                end_date = next_schedule.change_date if next_schedule.change_date else schedule.adjusted_end_date
+                next_boundary = next_schedule.effective_change_date or next_schedule.change_date
+                end_date = next_boundary if next_boundary else schedule.adjusted_end_date
             else:
                 end_date = schedule.adjusted_end_date
 
@@ -328,10 +331,11 @@ class SupervisionProjectProgress(models.Model):
             if not start_date or not end_date:
                 continue
 
-            # 記錄版本變更點
+            # 記錄版本變更點（使用 effective_change_date，有校正時指向 correction_date）
             if version > 1:
+                boundary = schedule.effective_change_date or schedule.change_date
                 version_changes.append({
-                    'date': schedule.change_date.isoformat() if schedule.change_date else None,
+                    'date': boundary.isoformat() if boundary else None,
                     'version': version,
                     'reason': schedule.change_reason or f'進度表版本 v{version}',
                     'change_orders': [co.name for co in schedule.related_change_order_ids] if schedule.related_change_order_ids else [],

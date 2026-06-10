@@ -355,6 +355,122 @@ class ProgressSchedule(models.Model):
     # === 備註 ===
     notes = fields.Html(string='備註說明')
 
+    # === 計畫倒退校正 ===
+    needs_plan_correction = fields.Boolean(
+        string='需要計畫基準校正',
+        default=False,
+        copy=False,
+        help='啟用後允許進度表在過渡區間使用負值，修正因版本切換造成的計畫倒退問題',
+    )
+    correction_date = fields.Date(
+        string='校正基準日',
+        copy=False,
+        help='計畫倒退的發生日（通常為新版進度表生效日，即本版 change_date）',
+    )
+    correction_period_start = fields.Date(
+        string='校正區間開始日',
+        copy=False,
+        compute='_compute_correction_period',
+        store=True,
+        readonly=True,
+        help='包含校正基準日的明細區間開始日（系統自動偵測）',
+    )
+    correction_period_end = fields.Date(
+        string='校正區間結束日',
+        copy=False,
+        compute='_compute_correction_period',
+        store=True,
+        readonly=True,
+        help='包含校正基準日的明細區間結束日（系統自動偵測）',
+    )
+    correction_pre_cumulative = fields.Float(
+        string='校正前累計預定進度 (%)',
+        copy=False,
+        compute='_compute_correction_pre_cumulative',
+        store=True,
+        readonly=True,
+        digits=(5, 2),
+        help='校正區間開始前的累計預定進度（即前一區間的 cumulative_planned）',
+    )
+    correction_target_cumulative = fields.Float(
+        string='校正後目標累計進度 (%)',
+        copy=False,
+        digits=(5, 2),
+        help='使用者設定：到校正基準日當天（含當天）應達到的累計預定進度目標',
+    )
+    plan_correction_offset = fields.Float(
+        string='校正增量 (%)',
+        copy=False,
+        compute='_compute_plan_correction_offset',
+        store=True,
+        readonly=True,
+        digits=(5, 2),
+        help='校正後目標累計進度 - 校正前累計預定進度 = 過渡區間的 planned_progress（可為負數）',
+    )
+    effective_change_date = fields.Date(
+        string='實際生效日',
+        compute='_compute_effective_change_date',
+        store=True,
+        readonly=True,
+        help='進度計畫實際生效的日期：啟用計畫基準校正時為校正基準日，否則為變更時間。'
+             '供施工日誌以此為界切換舊版/新版進度值。',
+    )
+
+    @api.depends('change_date', 'correction_date', 'needs_plan_correction')
+    def _compute_effective_change_date(self):
+        """實際生效日：有校正時用 correction_date，否則用 change_date"""
+        for rec in self:
+            if rec.needs_plan_correction and rec.correction_date:
+                rec.effective_change_date = rec.correction_date
+            else:
+                rec.effective_change_date = rec.change_date
+
+    @api.depends('needs_plan_correction', 'correction_date',
+                 'line_ids.date_start', 'line_ids.date_end')
+    def _compute_correction_period(self):
+        """根據 correction_date 找到對應的明細區間"""
+        for rec in self:
+            if not rec.needs_plan_correction or not rec.correction_date or not rec.line_ids:
+                rec.correction_period_start = False
+                rec.correction_period_end = False
+                continue
+            transition = rec.line_ids.filtered(
+                lambda l: l.date_start and l.date_end
+                and l.date_start <= rec.correction_date <= l.date_end
+            )
+            if transition:
+                t = transition[0]
+                rec.correction_period_start = t.date_start
+                rec.correction_period_end = t.date_end
+            else:
+                rec.correction_period_start = False
+                rec.correction_period_end = False
+
+    @api.depends('needs_plan_correction', 'correction_period_start',
+                 'line_ids.planned_progress', 'line_ids.date_end')
+    def _compute_correction_pre_cumulative(self):
+        """校正前累計 = 校正區間開始日之前所有明細的 planned_progress 總和"""
+        for rec in self:
+            if not rec.needs_plan_correction or not rec.correction_period_start or not rec.line_ids:
+                rec.correction_pre_cumulative = 0.0
+                continue
+            pre_lines = rec.line_ids.filtered(
+                lambda l: l.date_end and l.date_end < rec.correction_period_start
+            )
+            rec.correction_pre_cumulative = sum(pre_lines.mapped('planned_progress'))
+
+    @api.depends('needs_plan_correction', 'correction_target_cumulative',
+                 'correction_pre_cumulative')
+    def _compute_plan_correction_offset(self):
+        """校正增量 = 目標累計 - 校正前累計"""
+        for rec in self:
+            if rec.needs_plan_correction and rec.correction_target_cumulative:
+                rec.plan_correction_offset = (
+                    rec.correction_target_cumulative - rec.correction_pre_cumulative
+                )
+            else:
+                rec.plan_correction_offset = 0.0
+
     # === 名稱計算 ===
     @api.depends('project_id', 'version')
     def _compute_name(self):
@@ -707,7 +823,8 @@ class ProgressSchedule(models.Model):
         total_planned = sum(self.line_ids.mapped('planned_progress'))
         if total_planned <= 0:
             raise ValidationError('請至少填寫一筆預定進度')
-        if total_planned > 100:
+        # 計畫倒退校正版本允許總和不等於 100%（過渡區間有負值）
+        if total_planned > 100 and not self.needs_plan_correction:
             raise ValidationError(f'預定進度總和 ({total_planned:.2f}%) 不可超過 100%')
 
         return {
@@ -761,32 +878,191 @@ class ProgressSchedule(models.Model):
         )
 
         # ── 觸發相關施工日誌重算 ──────────────────────────────────────────
-        # change_date 為新版進度表的生效日（通常 = 今天）
-        change_date = self.change_date
+        # 以 effective_change_date 為觸發起點：
+        #   - 無校正：effective_change_date = change_date
+        #   - 有校正：effective_change_date = correction_date（早於 change_date）
+        # 使用 effective_date 確保 correction_date ~ change_date 之間的日誌也能被更新
+        effective_date = self.effective_change_date or self.change_date
 
-        # 1. change_date 當天的日誌：重算 has_progress_change / changed_planned_progress
-        #    以及 active_progress_schedule_id（過時警告用）
-        logs_on_change = self.env['daily.log.sheet'].search([
+        # 1. effective_date 當天的日誌：重算進度變更標記（本日預定仍用舊版）
+        # 生效日當天及之後的日誌一律重算衍生進度欄位（含已鎖定的歷史日誌）——這些是依
+        # 核定計畫推導的衍生值，更新它們不算竄改使用者輸入；鎖定守門已放行衍生欄位寫入。
+        logs_on_effective = self.env['daily.log.sheet'].search([
             ('supervision_project_id', '=', self.project_id.id),
-            ('log_date', '=', change_date),
+            ('log_date', '=', effective_date),
         ])
-        if logs_on_change:
-            logs_on_change._compute_active_progress_schedule()
-            logs_on_change._compute_has_progress_change()
-            logs_on_change._compute_changed_planned_progress()
-            # base_progress_schedule_id 在變更當天仍返回舊版，不需重算
-            # （change_date < log_date 嚴格小於，v2 不符合）
+        if logs_on_effective:
+            logs_on_effective._compute_active_progress_schedule()
+            logs_on_effective._compute_has_progress_change()
+            logs_on_effective._compute_changed_planned_progress()
+            # base_progress_schedule_id 在 effective_date 當天仍返回舊版，不需重算
+            # （effective_change_date < log_date 嚴格小於，v2 不符合當天）
 
-        # 2. change_date 之後的日誌：切換到新版進度表
-        logs_after_change = self.env['daily.log.sheet'].search([
+        # 2. effective_date 之後的日誌：切換到新版進度表，並重算所有進度欄位
+        #    包含 correction_date ~ change_date 之間原本被漏掉的歷史日誌
+        logs_after_effective = self.env['daily.log.sheet'].search([
             ('supervision_project_id', '=', self.project_id.id),
-            ('log_date', '>', change_date),
+            ('log_date', '>', effective_date),
         ])
-        if logs_after_change:
-            logs_after_change._compute_active_progress_schedule()
-            logs_after_change._compute_base_progress_schedule()
-            logs_after_change._compute_progress_line()
-            logs_after_change._compute_daily_planned_progress()
+        if logs_after_effective:
+            logs_after_effective._compute_active_progress_schedule()
+            logs_after_effective._compute_base_progress_schedule()
+            logs_after_effective._compute_progress_line()
+            logs_after_effective._compute_daily_planned_progress()
+            logs_after_effective._compute_has_progress_change()
+            logs_after_effective._compute_changed_planned_progress()
+
+    def _resequence_lines(self):
+        """切割前整理：依 date_start 排序後以 10 為步長重設 sequence，確保有足夠間距插入新行"""
+        for idx, line in enumerate(self.line_ids.sorted('date_start')):
+            line.sequence = (idx + 1) * 10
+
+    def action_apply_correction(self):
+        """套用計畫倒退校正：將過渡區間切割為 3 個子區間（基準日前 / 基準日當天 / 基準日後）"""
+        self.ensure_one()
+        if not self.needs_plan_correction:
+            raise UserError('請先啟用「需要計畫基準校正」')
+        if not self.correction_date:
+            raise UserError('請設定「校正基準日」')
+        if not self.correction_period_start:
+            raise ValidationError(
+                '找不到包含校正基準日的進度明細區間，請先產生進度區間再套用校正'
+            )
+        if not self.correction_target_cumulative:
+            raise UserError('請填寫「校正後目標累計進度」')
+        if self.state != 'draft':
+            raise UserError('只有草稿狀態可以套用校正')
+
+        # 找過渡行
+        transition = self.line_ids.filtered(
+            lambda l: l.date_start and l.date_end
+            and l.date_start <= self.correction_date <= l.date_end
+        )
+        if not transition:
+            raise ValidationError('找不到包含校正基準日的過渡區間明細行')
+
+        t = transition[0]
+        period_start     = t.date_start
+        period_end       = t.date_end
+        original_planned = t.planned_progress
+        total_days       = (period_end - period_start).days + 1
+        correction_date  = self.correction_date
+
+        # 判斷子區間是否存在
+        has_part1 = correction_date > period_start
+        has_part3 = correction_date < period_end
+
+        # 計算各子區間的 planned_progress
+        if has_part1:
+            part1_days    = (correction_date - timedelta(days=1) - period_start).days + 1
+            part1_planned = round(original_planned * part1_days / total_days, 2)
+        else:
+            part1_planned = 0.0
+
+        # Part 2 吸收差值，使累計恰好等於 correction_target_cumulative
+        part2_planned = round(
+            self.correction_target_cumulative - self.correction_pre_cumulative - part1_planned, 2
+        )
+
+        # 整理序列空間，確保有足夠間距
+        self._resequence_lines()
+        prev_seq = max(
+            (l.sequence for l in self.line_ids if l.date_end and l.date_end < period_start),
+            default=0,
+        )
+
+        # 收集關聯日誌（切割後重新連結用）
+        linked_logs = self.env['daily.log.sheet'].search([
+            ('progress_line_id', '=', t.id)
+        ])
+
+        # 先刪除原始過渡行，避免新子區間建立時觸發日期重疊驗證
+        t.unlink()
+
+        # 建立子區間
+        ScheduleLine = self.env['progress.schedule.line']
+        base_vals = {
+            'schedule_id': self.id,
+            'project_id':  self.project_id.id,
+            'company_id':  self.company_id.id,
+        }
+        part1_line = part2_line = part3_line = None
+
+        if has_part1:
+            part1_line = ScheduleLine.create({**base_vals,
+                'date_start':       period_start,
+                'date_end':         correction_date - timedelta(days=1),
+                'planned_progress': part1_planned,
+                'sequence':         prev_seq + 1,
+            })
+        part2_line = ScheduleLine.create({**base_vals,
+            'date_start':       correction_date,
+            'date_end':         correction_date,
+            'planned_progress': part2_planned,
+            'sequence':         prev_seq + 2,
+        })
+        if has_part3:
+            part3_line = ScheduleLine.create({**base_vals,
+                'date_start':       correction_date + timedelta(days=1),
+                'date_end':         period_end,
+                'planned_progress': 0.0,
+                'sequence':         prev_seq + 3,
+            })
+
+        # 重新連結關聯日誌到對應子區間
+        for log in linked_logs:
+            if log.log_date < correction_date and part1_line:
+                log.progress_line_id = part1_line.id
+            elif log.log_date == correction_date:
+                log.progress_line_id = part2_line.id
+            elif part3_line:
+                log.progress_line_id = part3_line.id
+
+        # 歸零基準日之後的所有區間（等待新版填入）
+        post_lines = self.line_ids.filtered(
+            lambda l: l.date_start and l.date_start > correction_date
+        )
+        post_lines.write({'planned_progress': 0.0})
+
+        # 重算各子區間的 actual_progress（若日誌已有資料）
+        for line in filter(None, [part1_line, part2_line, part3_line]):
+            line.action_sync_from_daily_log()
+
+        # Chatter 訊息
+        parts_info = []
+        if part1_line:
+            parts_info.append(
+                f'Part1（{period_start}～{correction_date - timedelta(days=1)}）'
+                f'：{part1_planned:+.2f}%'
+            )
+        parts_info.append(
+            f'Part2（{correction_date}）：{part2_planned:+.2f}%'
+        )
+        if part3_line:
+            parts_info.append(
+                f'Part3（{correction_date + timedelta(days=1)}～{period_end}）：0.00%'
+            )
+        if post_lines:
+            parts_info.append(f'基準日後 {len(post_lines)} 個區間已歸零')
+
+        self.message_post(
+            body=(
+                f'✅ 計畫基準校正已套用：'
+                f'校正前累計 {self.correction_pre_cumulative:.2f}%，'
+                f'目標累計 {self.correction_target_cumulative:.2f}%。'
+                f'過渡區間切割結果：{" / ".join(parts_info)}'
+            ),
+            message_type='notification',
+        )
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+            'context': dict(self.env.context),
+        }
 
     def action_archive(self):
         """歸檔"""

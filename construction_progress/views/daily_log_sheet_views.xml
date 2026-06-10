@@ -29,10 +29,14 @@
                             <field name="daily_planned_progress" 
                                 string="本日預定進度(%)"
                                 readonly="1"/>
-                            <field name="daily_actual_progress" 
+                            <field name="daily_actual_progress"
                                 string="本日實際進度(%)"
                                 readonly="state not in ('new', 'draft')"/>
-                            
+                            <field name="daily_progress_reference"
+                                string="參考值 (%)"
+                                readonly="1"
+                                digits="[10, 4]"/>
+
                             <!-- 有無進度變更 -->
                             <field name="has_progress_change" 
                                 string="有無進度變更"

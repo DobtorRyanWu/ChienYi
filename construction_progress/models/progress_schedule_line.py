@@ -192,6 +192,7 @@ class ProgressScheduleLine(models.Model):
                 ('supervision_project_id', '=', line.schedule_id.project_id.id),
                 ('log_date', '>=', line.date_start),
                 ('log_date', '<=', line.date_end),
+                ('state', 'in', ('filled', 'auto_locked', 'locked')),
             ])
             total = sum(logs.mapped('daily_actual_progress'))
             line.with_context(allow_sync_progress=True).write({
@@ -238,8 +239,9 @@ class ProgressScheduleLine(models.Model):
     _sql_constraints = [
         ('date_check', 'CHECK(date_end >= date_start)',
          '結束日期必須晚於或等於開始日期'),
-        ('planned_progress_range', 'CHECK(planned_progress >= 0 AND planned_progress <= 100)',
-         '預定進度必須在 0 到 100 之間'),
+        # planned_progress 的下限由 Python 約束處理（允許計畫倒退校正使用負值）
+        ('planned_progress_max', 'CHECK(planned_progress <= 100)',
+         '預定進度不可超過 100%'),
         ('actual_progress_range', 'CHECK(actual_progress >= 0 AND actual_progress <= 100)',
          '實際進度必須在 0 到 100 之間'),
     ]
@@ -247,6 +249,24 @@ class ProgressScheduleLine(models.Model):
     # =========================================================================
     # 約束驗證
     # =========================================================================
+
+    @api.constrains('planned_progress')
+    def _check_planned_progress(self):
+        """預定進度只有在計畫倒退校正的過渡區間才允許負值"""
+        for line in self:
+            if line.planned_progress < 0:
+                sched = line.schedule_id
+                if not (
+                    sched.needs_plan_correction
+                    and sched.correction_period_start
+                    and sched.correction_period_end
+                    and sched.correction_period_start <= line.date_start
+                    and line.date_end <= sched.correction_period_end
+                ):
+                    raise ValidationError(
+                        f'預定進度不可為負數（{line.planned_progress:.2f}%）。\n'
+                        f'若需要修正計畫倒退，請在進度表上啟用「需要計畫基準校正」並套用校正。'
+                    )
 
     @api.constrains('date_start', 'date_end', 'schedule_id')
     def _check_date_in_project_range(self):
@@ -297,13 +317,13 @@ class ProgressScheduleLine(models.Model):
             if not line.schedule_id.project_id:
                 continue
             
-            # 查找該區間內所有已核准的日誌
+            # 查找該區間內已填寫或已鎖定的日誌（排除草稿）
             DailyLogSheet = self.env['daily.log.sheet']
             logs = DailyLogSheet.search([
                 ('supervision_project_id', '=', line.schedule_id.project_id.id),
                 ('log_date', '>=', line.date_start),
                 ('log_date', '<=', line.date_end),
-                ('state', '=', 'done'),  # 只取已核准的日誌
+                ('state', 'in', ('filled', 'auto_locked', 'locked')),
             ])
             
             if logs:

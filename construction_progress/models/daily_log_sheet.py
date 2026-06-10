@@ -87,6 +87,15 @@ class DailyLogSheet(models.Model):
         help='新版進度表對應當天的預定進度（每日份額）',
     )
 
+    # 本日進度參考值（由施工明細推算）
+    daily_progress_reference = fields.Float(
+        string='參考值 (%)',
+        compute='_compute_daily_progress_reference',
+        store=False,
+        digits=(10, 4),
+        help='= Σ(本日完成數量 × 施工項目單價) ÷ 契約總金額 × 100',
+    )
+
     # -------------------------------------------------------------------------
     # Compute Methods
     # -------------------------------------------------------------------------
@@ -112,35 +121,38 @@ class DailyLogSheet(models.Model):
         """
         找到 log_date 當天「生效」的進度表（日期感知版）
 
-        規則：
-        - 優先找 change_date < log_date（嚴格小於）的最新版
-          → 進度表變更當天（102/6/30），v2 的 change_date 等於 log_date，
-            被排除，仍返回 v1，使 daily_planned_progress 顯示舊版數值
-        - 若無（例如工程第一天），退後找 change_date = log_date 的最舊版
+        使用 effective_change_date（實際生效日）作為邊界：
+        - 無校正版本：effective_change_date = change_date
+        - 有校正版本：effective_change_date = correction_date
 
-        日期 → 返回版本：
-          102/6/29 以前 → v1（change_date = 100/1/1 < 102/6/29）
-          102/6/30      → v1（v2.change_date = 102/6/30，不滿足嚴格小於）
-          102/7/1 以後  → v2（v2.change_date = 102/6/30 < 102/7/1）
+        規則：
+        - 優先找 effective_change_date < log_date（嚴格小於）的最新版
+          → 確保在 effective_change_date 當天仍使用舊版（「本日預定進度」顯示舊值）
+        - 若無（工程第一天），退後找 effective_change_date = log_date 的最舊版
+
+        範例（v2 有校正，change_date=5/15，correction_date=5/22）：
+          5/21 以前 → v1（v2.effective = 5/22，不滿足 < 5/21）
+          5/22      → v1（v2.effective = 5/22，不滿足嚴格小於）
+          5/23 以後 → v2（v2.effective = 5/22 < 5/23）
         """
         for sheet in self:
             if not sheet.supervision_project_id or not sheet.log_date:
                 sheet.base_progress_schedule_id = False
                 continue
 
-            # 主查詢：change_date 嚴格小於 log_date，取最高版本
+            # 主查詢：effective_change_date 嚴格小於 log_date，取最高版本
             schedule = self.env['progress.schedule'].search([
                 ('project_id', '=', sheet.supervision_project_id.id),
                 ('state', 'in', ('active', 'archived')),
-                ('change_date', '<', sheet.log_date),
+                ('effective_change_date', '<', sheet.log_date),
             ], order='version desc', limit=1)
 
             if not schedule:
-                # 退後：找 change_date = log_date 的最舊版（工程第一天）
+                # 退後：找 effective_change_date = log_date 的最舊版（工程第一天）
                 schedule = self.env['progress.schedule'].search([
                     ('project_id', '=', sheet.supervision_project_id.id),
                     ('state', 'in', ('active', 'archived')),
-                    ('change_date', '=', sheet.log_date),
+                    ('effective_change_date', '=', sheet.log_date),
                 ], order='version asc', limit=1)
 
             sheet.base_progress_schedule_id = schedule
@@ -177,35 +189,35 @@ class DailyLogSheet(models.Model):
 
     @api.depends('supervision_project_id', 'log_date')
     def _compute_has_progress_change(self):
-        """偵測當天是否有新版進度表被啟用"""
+        """偵測當天是否有新版進度表在此日生效（使用 effective_change_date 統一判斷）"""
         for sheet in self:
             if not sheet.supervision_project_id or not sheet.log_date:
                 sheet.has_progress_change = False
                 continue
             changed = self.env['progress.schedule'].search_count([
                 ('project_id', '=', sheet.supervision_project_id.id),
-                ('change_date', '=', sheet.log_date),
+                ('effective_change_date', '=', sheet.log_date),
                 ('state', 'in', ('active', 'archived')),
             ])
             sheet.has_progress_change = bool(changed)
 
     @api.depends('supervision_project_id', 'log_date', 'has_progress_change')
     def _compute_changed_planned_progress(self):
-        """從當天啟用的新版進度表計算變更後的本日預定進度（每日份額）"""
+        """從新版進度表計算「變更後的預定進度」（使用 effective_change_date 定位新版）"""
         for sheet in self:
             if not sheet.has_progress_change or not sheet.log_date:
                 sheet.changed_planned_progress = 0.0
                 continue
-            # 找當天啟用的最新版進度表
+            # 以 effective_change_date = log_date 找到當天生效的新版進度表
             new_schedule = self.env['progress.schedule'].search([
                 ('project_id', '=', sheet.supervision_project_id.id),
-                ('change_date', '=', sheet.log_date),
+                ('effective_change_date', '=', sheet.log_date),
                 ('state', 'in', ('active', 'archived')),
             ], limit=1, order='version desc')
             if not new_schedule:
                 sheet.changed_planned_progress = 0.0
                 continue
-            # 找包含當天的進度區間
+            # 找包含當天的進度區間（校正切割後 Part2 是單天區間，total_days=1）
             line = new_schedule.line_ids.filtered(
                 lambda l: l.date_start and l.date_end
                           and l.date_start <= sheet.log_date <= l.date_end
@@ -218,6 +230,21 @@ class DailyLogSheet(models.Model):
                 )
             else:
                 sheet.changed_planned_progress = 0.0
+
+    @api.depends('line_ids.daily_qty', 'line_ids.work_item_id.unit_price',
+                 'supervision_project_id.contract_amount')
+    def _compute_daily_progress_reference(self):
+        """計算本日進度參考值：Σ(本日完成數量 × 施工項目單價) ÷ 契約總金額 × 100"""
+        for sheet in self:
+            contract_amount = sheet.supervision_project_id.contract_amount
+            if not contract_amount:
+                sheet.daily_progress_reference = 0.0
+                continue
+            total = sum(
+                line.daily_qty * (line.work_item_id.unit_price or 0.0)
+                for line in sheet.line_ids
+            )
+            sheet.daily_progress_reference = (total / contract_amount) * 100.0
 
     # -------------------------------------------------------------------------
     # Constraints
