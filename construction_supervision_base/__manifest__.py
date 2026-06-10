@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 核心基礎模組',
-    'version': '18.0.4.0.0',  # UI 調整：移除未用頁籤/按鈕、新增編號前綴初始化步驟、放大 UI
+    'version': '18.0.4.1.0',  # project_task 必填欄位(planned_qty/unit/unit_price)既有 NULL 回填 pre-migrate
     'category': 'Construction/Supervision',
     'summary': '工程監造與施工協作管理系統核心模組',
     'description': """
