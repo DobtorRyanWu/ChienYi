@@ -97,12 +97,21 @@ class SupervisionProject(models.Model):
         # 2. 遍歷每個工項
         for idx, task in enumerate(tasks, 1):
             try:
-                # 3. 匹配或建立價格庫項目（唯一鍵：company_id, name, unit）
+                # 3. 匹配或建立價格庫項目
+                # 層 1：精確名稱 + 單位；層 2：正規化名稱 + 單位
                 library_item = PriceLibraryItem.search([
                     ('company_id', '=', self.company_id.id),
                     ('name', '=', task.name),
                     ('unit', '=', task.unit),
                 ], limit=1)
+                if not library_item:
+                    norm = PriceLibraryItem._do_normalize(task.name)
+                    if norm:
+                        library_item = PriceLibraryItem.search([
+                            ('company_id', '=', self.company_id.id),
+                            ('name_normalized', '=', norm),
+                            ('unit', '=', task.unit),
+                        ], limit=1)
 
                 if not library_item:
                     # 建立新的價格庫項目
@@ -133,6 +142,8 @@ class SupervisionProject(models.Model):
                         'price_source': f'專案: {self.code}',
                     })
                     _logger.debug(f'建立新價格庫項目: {library_item.name}')
+                else:
+                    pass  # 現有項目：單價由 source_ids 統計，不覆寫主記錄
 
                 # 4. 建立價格來源記錄
                 # 檢查是否已經提取過（避免重複）

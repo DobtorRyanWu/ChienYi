@@ -8,7 +8,7 @@
         <field name="name">price.library.item.tree</field>
         <field name="model">price.library.item</field>
         <field name="arch" type="xml">
-            <list string="價格庫項目" multi_edit="1">
+            <list string="價格庫項目" create="false" edit="false" delete="false">
                 <field name="item_no"/>
                 <field name="name"/>
                 <field name="category_id"/>
@@ -31,7 +31,7 @@
         <field name="name">price.library.item.form</field>
         <field name="model">price.library.item</field>
         <field name="arch" type="xml">
-            <form string="價格庫項目">
+            <form string="價格庫項目" create="false" delete="false">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_sources"
@@ -52,34 +52,36 @@
                     <div class="oe_title">
                         <label for="name"/>
                         <h1>
-                            <field name="name" placeholder="項目名稱..."/>
+                            <field name="name" placeholder="項目名稱..." readonly="1"/>
                         </h1>
                         <div class="o_row">
                             <label for="item_no"/>
-                            <field name="item_no" placeholder="項目編號"/>
+                            <field name="item_no" placeholder="項目編號" readonly="1"/>
                         </div>
                     </div>
                     <group>
                         <group string="基本資訊">
-                            <field name="category_id"/>
-                            <field name="unit"/>
-                            <field name="specification"/>
-                            <field name="active"/>
+                            <field name="category_id" readonly="1"/>
+                            <field name="unit" readonly="1"/>
+                            <field name="specification" readonly="1"/>
+                            <field name="product_id" readonly="1"/>
+                            <field name="ref_item_code" optional="show" readonly="1"/>
+                            <field name="active" readonly="1"/>
                         </group>
                         <group string="價格資訊">
-                            <field name="unit_price"/>
-                            <field name="price_date"/>
-                            <field name="price_source"/>
+                            <field name="unit_price" readonly="1"/>
+                            <field name="price_date" readonly="1"/>
+                            <field name="price_source" readonly="1"/>
                         </group>
                     </group>
                     <notebook>
                         <page string="成本組成" name="cost_breakdown">
                             <group>
                                 <group string="成本明細">
-                                    <field name="material_cost"/>
-                                    <field name="labor_cost"/>
-                                    <field name="equipment_cost"/>
-                                    <field name="overhead_cost"/>
+                                    <field name="material_cost" readonly="1"/>
+                                    <field name="labor_cost" readonly="1"/>
+                                    <field name="equipment_cost" readonly="1"/>
+                                    <field name="overhead_cost" readonly="1"/>
                                 </group>
                                 <group string="合計">
                                     <field name="cost_breakdown_total"/>
@@ -114,7 +116,7 @@
                         </page>
                         <page string="價格來源" name="price_sources">
                             <field name="source_ids">
-                                <list editable="bottom" create="false" delete="false" limit="20">
+                                <list create="false" edit="false" delete="false" limit="20">
                                     <field name="project_name"/>
                                     <field name="project_code"/>
                                     <field name="task_id"/>
@@ -128,7 +130,7 @@
                         </page>
                         <page string="價格歷史" name="history">
                             <field name="history_ids">
-                                <list string="價格歷史" editable="bottom">
+                                <list string="價格歷史" create="false" edit="false" delete="false">
                                     <field name="change_date"/>
                                     <field name="old_price"/>
                                     <field name="new_price"/>
@@ -141,6 +143,7 @@
                         </page>
                         <page string="說明" name="description">
                             <field name="description" nolabel="1"
+                                   readonly="1"
                                    placeholder="輸入項目詳細說明..."/>
                         </page>
                     </notebook>
@@ -203,7 +206,7 @@
         <field name="name">price.library.item.kanban</field>
         <field name="model">price.library.item</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_mobile">
+            <kanban class="o_kanban_mobile" create="false">
                 <field name="name"/>
                 <field name="item_no"/>
                 <field name="category_id"/>

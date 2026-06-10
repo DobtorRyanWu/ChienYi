@@ -29,6 +29,7 @@
     'license': 'LGPL-3',
     'depends': [
         'construction_supervision_base',
+        'uom',
     ],
     'data': [
         # Security

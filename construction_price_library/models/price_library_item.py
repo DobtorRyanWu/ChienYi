@@ -39,6 +39,36 @@ class PriceLibraryItem(models.Model):
         index=True,
         help='父工項編號，用於參考層級關係（僅供參考，不參與唯一性判斷）')
 
+    ref_item_code = fields.Char(
+        string='參考工項代碼',
+        index=True,
+        help='來自政府採購標單 XML 的 refItemCode，由結案提取自動填入')
+
+    product_id = fields.Many2one(
+        'product.product',
+        string='標準工項',
+        ondelete='set null',
+        index=True,
+        help='關聯標準工項產品，提升跨工程比對精準度並支援未來開票整合')
+
+    name_normalized = fields.Char(
+        string='正規化名稱（比對用）',
+        compute='_compute_name_normalized',
+        store=True,
+        help='用於成本分析比對，NFKC 正規化後轉小寫，自動計算')
+
+    @api.depends('name')
+    def _compute_name_normalized(self):
+        for item in self:
+            item.name_normalized = self._do_normalize(item.name)
+
+    @staticmethod
+    def _do_normalize(s):
+        import unicodedata
+        import re
+        s = unicodedata.normalize('NFKC', s or '')  # 全形→半形、全形括號→半形
+        return re.sub(r'\s+', ' ', s).strip().lower()
+
     # === 多公司支援 ===
     company_id = fields.Many2one(
         'res.company',

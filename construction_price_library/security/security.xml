@@ -2,44 +2,12 @@
 <odoo>
     <data>
 
-        <!-- ============================================== -->
-        <!-- 步驟 1：刪除舊的 ir.model.access 記錄             -->
-        <!-- ============================================== -->
-
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_category_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_category_editor'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_category_viewer'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_item_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_item_editor'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_item_viewer'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_item_history_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_item_history_editor'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_item_history_viewer'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_import_wizard_manager'))]"/>
-        <delete model="ir.model.access" search="[('id', '=', ref('access_price_library_import_wizard_editor'))]"/>
-
-        <!-- ============================================== -->
-        <!-- 步驟 2：刪除舊的 ir.rule 記錄                     -->
-        <!-- ============================================== -->
-
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_category_global_read'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_category_editor'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_category_manager'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_item_global_read'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_item_editor'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_item_manager'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_item_history_global_read'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_item_history_editor'))]"/>
-        <delete model="ir.rule" search="[('id', '=', ref('rule_price_library_item_history_manager'))]"/>
-
-        <!-- ============================================== -->
-        <!-- 步驟 3：刪除舊的群組定義                           -->
-        <!-- ============================================== -->
-
-        <delete model="res.groups" search="[('id', '=', ref('group_price_library_viewer'))]"/>
-        <delete model="res.groups" search="[('id', '=', ref('group_price_library_editor'))]"/>
-        <delete model="res.groups" search="[('id', '=', ref('group_price_library_manager'))]"/>
-        <delete model="res.groups" search="[('id', '=', ref('group_supervision_manager_price_library'))]"/>
+        <!-- 註：已移除過時的「舊權限清理」<delete> 區塊。
+             此模組權限早已改為「僅系統管理者統一管理」(見下方 rule_*_admin)；
+             舊的 viewer/editor/manager 群組、ir.rule、ir.model.access 已不存在。
+             原本用 ref('group_price_library_viewer') 等做 <delete>，會在每次升級時
+             因找不到 External ID 而噴出無害的 traceback（被 Odoo skip）。清理任務
+             早已完成，故移除以保持升級 log 乾淨。 -->
 
         <!-- ============================================== -->
         <!-- 新的記錄規則 (Record Rules)                      -->
