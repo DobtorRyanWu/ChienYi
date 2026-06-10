@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 標準工項管理 - product.product 專用視圖           -->
+    <!-- ============================================== -->
+
+    <!-- List View -->
+    <record id="view_product_standard_work_item_list" model="ir.ui.view">
+        <field name="name">product.product.standard.work.item.list</field>
+        <field name="model">product.product</field>
+        <field name="arch" type="xml">
+            <list string="標準工項">
+                <field name="default_code" string="工項代碼"/>
+                <field name="name" string="工項名稱"/>
+                <field name="uom_id" string="標準單位"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_product_standard_work_item_search" model="ir.ui.view">
+        <field name="name">product.product.standard.work.item.search</field>
+        <field name="model">product.product</field>
+        <field name="arch" type="xml">
+            <search string="搜尋標準工項">
+                <field name="default_code" string="工項代碼"/>
+                <field name="name" string="工項名稱"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- Form View（明確定義，避免衝突 Odoo 原生 product.product form） -->
+    <record id="view_product_standard_work_item_form" model="ir.ui.view">
+        <field name="name">product.product.standard.work.item.form</field>
+        <field name="model">product.product</field>
+        <field name="arch" type="xml">
+            <form string="標準工項">
+                <sheet>
+                    <group>
+                        <group string="基本資料">
+                            <field name="default_code" string="工項代碼" required="1"/>
+                            <field name="name" string="工項名稱" required="1"/>
+                            <field name="uom_id" string="標準計量單位" required="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="使用紀錄">
+                            <field name="supervision_task_ids" readonly="1"
+                                   limit="80">
+                                <list>
+                                    <field name="supervision_project_id"
+                                           string="工程案件"/>
+                                    <field name="name" string="工項名稱"/>
+                                    <field name="planned_qty" string="契約數量"/>
+                                    <field name="unit_price" string="契約單價"/>
+                                    <field name="planned_amount" string="契約複價"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action（明確指定 view_ids，避免衝突原生商品表單） -->
+    <record id="action_standard_work_item" model="ir.actions.act_window">
+        <field name="name">標準工項管理</field>
+        <field name="res_model">product.product</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('is_standard_work_item', '=', True)]</field>
+        <field name="context">{
+            'default_is_standard_work_item': True,
+            'default_type': 'service'
+        }</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_product_standard_work_item_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_product_standard_work_item_form')}),
+        ]"/>
+    </record>
+
+</odoo>

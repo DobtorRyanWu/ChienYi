@@ -12,6 +12,13 @@
               name="工程管理"
               sequence="10"/>
 
+    <!-- ============================================== -->
+    <!-- 檔案管理 - 文件與照片                            -->
+    <!-- ============================================== -->
+    <menuitem id="menu_file_management_root"
+              name="檔案管理"
+              sequence="15"/>
+
     <!-- 1.1 工程總覽 -->
     <menuitem id="menu_project_overview"
               name="工程總覽"
@@ -54,11 +61,11 @@
               parent="menu_project_management_root"
               sequence="45"/>
 
-    <!-- 1.5 文件管理 -->
+    <!-- 1.5 文件管理（已移至「檔案管理」App） -->
     <menuitem id="menu_document_management"
               name="文件管理"
-              parent="menu_project_management_root"
-              sequence="50"/>
+              parent="menu_file_management_root"
+              sequence="10"/>
 
     <menuitem id="menu_supervision_document"
               name="工程文件"
@@ -80,20 +87,19 @@
               parent="menu_construction_execution_root"
               sequence="10"/>
 
-    <!-- 2.2 通報單管理 (由 construction_notification_slip 填充) -->
+    <!-- 2.2 通報單管理 (由 construction_notification_slip 填充，獨立 App) -->
     <menuitem id="menu_notification_slip"
               name="通報單管理"
-              parent="menu_construction_execution_root"
-              sequence="20"/>
+              sequence="25"/>
 
     <!-- 2.3 人機管理 - 已移至工程管理 (見下方) -->
     <!-- <menuitem id="menu_manpower_equipment" 已移至工程管理區塊 -->
 
-    <!-- 2.4 照片管理 (由 construction_photo 填充) -->
+    <!-- 2.4 照片管理（已移至「檔案管理」App） -->
     <menuitem id="menu_photo_management"
               name="照片管理"
-              parent="menu_construction_execution_root"
-              sequence="40"/>
+              parent="menu_file_management_root"
+              sequence="20"/>
 
     <!-- 2.5 工時管理 (由 construction_timeline 填充) -->
     <menuitem id="menu_timesheet_management"
@@ -215,6 +221,15 @@
               parent="menu_system_config_root"
               sequence="40"/>
 
+    <!-- ============================================== -->
+    <!-- 7. 標準工項管理 - 獨立 App（與系統設定同層級）    -->
+    <!-- ============================================== -->
+    <menuitem id="menu_standard_work_item_root"
+              name="標準工項管理"
+              sequence="85"
+              groups="construction_supervision_base.group_supervisor_admin"
+              action="action_standard_work_item"/>
+
     <!-- 6.5 稽核管理 (由 construction_audit 填充) -->
     <menuitem id="menu_audit_config"
               name="稽核管理"
@@ -228,7 +243,7 @@
               name="報表"
               parent="menu_project_management_root"
               sequence="80"
-              groups="construction_supervision_base.group_supervisor_admin"/>
+              groups="base.group_no_one"/>
 
     <!-- 工項分析報表 (來自 project 模組) -->
     <menuitem id="menu_task_analysis_report"

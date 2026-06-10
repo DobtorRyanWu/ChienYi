@@ -2,34 +2,7 @@
 <odoo>
     <data>
 
-        <!-- ============================================== -->
-        <!-- 步驟 1：刪除舊的 ir.model.access 記錄             -->
-        <!-- 注意：使用 group_id 搜尋，可一次刪除所有模組中使用這些群組的記錄 -->
-        <!-- ============================================== -->
-
-        <delete model="ir.model.access" search="[('group_id', '=', ref('group_supervision_manager'))]"/>
-        <delete model="ir.model.access" search="[('group_id', '=', ref('group_supervision_engineer'))]"/>
-        <delete model="ir.model.access" search="[('group_id', '=', ref('group_contractor_manager'))]"/>
-        <delete model="ir.model.access" search="[('group_id', '=', ref('group_contractor_engineer'))]"/>
-
-        <!-- ============================================== -->
-        <!-- 步驟 2：刪除舊的 ir.rule 記錄                     -->
-        <!-- 注意：使用 groups 欄位搜尋，刪除所有參照這些群組的 ir.rule -->
-        <!-- ============================================== -->
-
-        <delete model="ir.rule" search="[('groups', 'in', [ref('group_supervision_manager')])]"/>
-        <delete model="ir.rule" search="[('groups', 'in', [ref('group_supervision_engineer')])]"/>
-        <delete model="ir.rule" search="[('groups', 'in', [ref('group_contractor_manager')])]"/>
-        <delete model="ir.rule" search="[('groups', 'in', [ref('group_contractor_engineer')])]"/>
-
-        <!-- ============================================== -->
-        <!-- 步驟 3：刪除舊的群組定義                           -->
-        <!-- ============================================== -->
-
-        <delete model="res.groups" search="[('id', '=', ref('group_supervision_manager'))]"/>
-        <delete model="res.groups" search="[('id', '=', ref('group_supervision_engineer'))]"/>
-        <delete model="res.groups" search="[('id', '=', ref('group_contractor_manager'))]"/>
-        <delete model="res.groups" search="[('id', '=', ref('group_contractor_engineer'))]"/>
+        <!-- 舊群組清理已完成，delete 操作已移除（避免在未曾安裝舊群組的 DB 升級時出錯） -->
 
         <!-- ============================================== -->
         <!-- 模組分類                                        -->

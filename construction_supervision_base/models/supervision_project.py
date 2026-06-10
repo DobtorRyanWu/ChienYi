@@ -90,6 +90,12 @@ class SupervisionProject(models.Model):
     # === 契約資訊 ===
     contract_no = fields.Char(string='契約編號', tracking=True)
 
+    tender_xml_data = fields.Binary(
+        string='原始標單 XML',
+        attachment=True,
+        help='標單匯入時自動儲存，供後續契約變更 XLSX 匯入使用')
+    tender_xml_filename = fields.Char(string='原始標單 XML 檔名')
+
     contract_amount = fields.Monetary(
         string='契約金額',
         currency_field='currency_id',
@@ -161,15 +167,15 @@ class SupervisionProject(models.Model):
                 (project.extension_duration or 0)
             )
 
-    @api.depends('task_ids.planned_amount', 'task_ids.active')
+    @api.depends('task_ids.planned_amount', 'task_ids.active', 'task_ids.parent_id')
     def _compute_contract_amount(self):
-        """從工項計算契約金額"""
+        """從工項計算契約金額
+        只加總頂層工項（parent_id=False）；頂層工項的 planned_amount 已遞迴包含所有子孫，
+        若加總所有層級的 task 則會重複計算彙總項。"""
         for project in self:
-            if project.task_count > 0:
-                # 有工項：自動從工項計算
-                project.contract_amount = sum(
-                    project.task_ids.filtered('active').mapped('planned_amount'))
-                
+            top_tasks = project.task_ids.filtered(lambda t: t.active and not t.parent_id)
+            if top_tasks:
+                project.contract_amount = sum(t.planned_amount for t in top_tasks)
                 # 首次計算時，如果沒有原始金額則設定
                 if not project.original_contract_amount:
                     project.original_contract_amount = project.contract_amount
@@ -218,6 +224,11 @@ class SupervisionProject(models.Model):
         'res.users', string='工地主任',
         help='施工廠商指派的工地主任')
 
+    project_leader_id = fields.Many2one(
+        'res.users', string='專案負責人',
+        tracking=True,
+        help='負責審核及核定此工程案件契約變更單的人員')
+
     # === 活動指派設定 ===
     activity_default_user_id = fields.Many2one(
         'res.users', string='預設活動負責人',
@@ -262,7 +273,14 @@ class SupervisionProject(models.Model):
         ('closed', '已結案'),
         ('suspended', '停工'),
         ('terminated', '終止'),
+        ('correction', '更正中'),
     ], string='狀態', default='draft', tracking=True, index=True)
+
+    pre_correction_state = fields.Char(
+        string='更正前狀態', readonly=True, copy=False,
+        help='提出更正前的原始狀態，完成更正後自動回復')
+    correction_submitted_date = fields.Datetime(
+        string='提出更正時間', readonly=True, copy=False)
 
     # === 初始化設定指標 ===
     INIT_STATUS_SELECTION = [
@@ -640,6 +658,24 @@ class SupervisionProject(models.Model):
             },
         }
 
+    def action_resequence_tasks(self):
+        """一鍵重新整理工項排序：以樹狀 DFS 重編整個專案的 sequence。
+        用於修復歷史契約變更造成的跨彙總項排序錯亂。"""
+        self.ensure_one()
+        if not self.project_id:
+            raise UserError('此工程尚未建立契約工項，無法整理排序。')
+        self.env['project.task']._resequence_project_sequence(self.project_id.id)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '工項排序已整理',
+                'message': '已依階層重新整理工項顯示順序。',
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
     # === CRUD 覆寫 ===
     @api.model_create_multi
     def create(self, vals_list):
@@ -650,9 +686,50 @@ class SupervisionProject(models.Model):
 
     def unlink(self):
         for project in self:
-            if project.state not in ('draft', 'terminated'):
-                raise UserError('只有草稿或已終止的專案可以刪除')
+            if project.state != 'draft':
+                raise UserError(
+                    f'工程案件「{project.name}」已開始施工，無法刪除。\n'
+                    '如需修正資料，請使用「提出更正」功能；如需停用，請使用「封存」功能。'
+                )
+        # project.task.project_id 在 Odoo 18 是 computed field，DB 層為 SET NULL，
+        # 必須在刪除 supervision.project 前明確刪除所有契約工項
+        native_project_ids = self.mapped('project_id').ids
+        if native_project_ids:
+            tasks = self.env['project.task'].with_context(active_test=False).search([
+                ('project_id', 'in', native_project_ids)
+            ])
+            tasks.unlink()
         return super().unlink()
+
+    def action_submit_correction(self):
+        self.ensure_one()
+        if self.state not in ('construction', 'completion', 'acceptance'):
+            raise UserError('只有施工中、已竣工、驗收中的專案可以提出更正')
+        self.write({
+            'pre_correction_state': self.state,
+            'correction_submitted_date': fields.Datetime.now(),
+            'state': 'correction',
+        })
+
+    def action_complete_correction(self):
+        self.ensure_one()
+        if self.state != 'correction':
+            return
+        self.write({
+            'state': self.pre_correction_state or 'construction',
+            'pre_correction_state': False,
+            'correction_submitted_date': False,
+        })
+
+    def _auto_complete_correction(self):
+        """Cron：超過1天的更正中專案自動回復原狀態"""
+        deadline = fields.Datetime.now() - timedelta(days=1)
+        overdue = self.search([
+            ('state', '=', 'correction'),
+            ('correction_submitted_date', '<=', deadline),
+        ])
+        for project in overdue:
+            project.action_complete_correction()
 
     def name_get(self):
         result = []

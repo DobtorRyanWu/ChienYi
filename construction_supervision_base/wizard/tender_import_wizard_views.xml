@@ -10,20 +10,48 @@
         <field name="arch" type="xml">
             <form string="匯入契約標單">
                 <header>
-                    <button name="action_import"
+                    <!-- 上傳階段 -->
+                    <button name="action_preview"
+                            string="預覽金額核對"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'upload'"/>
+
+                    <!-- 確認階段：有差異時用警告色 -->
+                    <button name="action_confirm_import"
+                            string="確認匯入（忽略差異）"
+                            type="object"
+                            class="btn-warning"
+                            invisible="state != 'previewing' or not has_validation_warning"/>
+
+                    <!-- 確認階段：無差異時正常色 -->
+                    <button name="action_confirm_import"
                             string="確認匯入"
                             type="object"
                             class="oe_highlight"
-                            invisible="state != 'upload'"
-                            confirm="確定要匯入這些工項嗎？"/>
+                            invisible="state != 'previewing' or has_validation_warning"/>
+
+                    <!-- 確認階段：回到上傳 -->
+                    <button name="action_reset_upload"
+                            string="重新上傳"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'previewing'"/>
+
+                    <!-- 完成階段 -->
+                    <button name="action_open_task_list"
+                            string="開啟工項列表"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'done'"/>
 
                     <button string="關閉"
-                            class="btn-primary"
+                            class="btn-secondary"
                             special="cancel"
                             invisible="state != 'done'"/>
 
                     <field name="state" widget="statusbar"
-                           statusbar_visible="upload,done"/>
+                           statusbar_visible="upload,previewing,done"/>
                 </header>
 
                 <sheet>
@@ -57,6 +85,33 @@
                             </div>
                         </page>
 
+                        <!-- 金額核對預覽頁 -->
+                        <page string="金額核對預覽" name="previewing"
+                              invisible="state != 'previewing'">
+                            <group>
+                                <group>
+                                    <field name="preview_count" string="預計匯入工項數" readonly="1"/>
+                                </group>
+                            </group>
+
+                            <div class="alert alert-success mt-3" role="status"
+                                 invisible="has_validation_warning">
+                                <strong>✅ 金額核對通過</strong><br/>
+                                所有工項系統計算金額與 XML 宣告值吻合，可直接確認匯入。<br/>
+                                <field name="validation_report" widget="text" readonly="1" nolabel="1"/>
+                            </div>
+
+                            <div class="alert alert-warning mt-3" role="alert"
+                                 invisible="not has_validation_warning">
+                                <strong>⚠ 金額核對發現差異</strong><br/>
+                                以下工項的系統計算金額（qty × 單價）與 XML 宣告的 Amount 不符，請確認後決定是否匯入：<br/>
+                                <field name="validation_report" widget="text" readonly="1" nolabel="1"/>
+                                <p class="mt-2 text-muted">
+                                    若確認匯入，系統將以<strong>計算值</strong>（qty × 單價）為準；XML 宣告值僅作為參考記錄。
+                                </p>
+                            </div>
+                        </page>
+
                         <!-- 匯入完成頁 -->
                         <page string="匯入完成" name="done"
                               invisible="state != 'done'">
@@ -66,14 +121,25 @@
                                 </group>
                             </group>
 
-                            <div class="alert alert-success mt-3" role="status">
-                                <h5>✅ 匯入成功！</h5>
-                                <p>已成功匯入 <strong><field name="imported_count"/></strong> 個契約工項。</p>
-                                <p>點擊「關閉」返回工程案件，或從智慧按鈕查看工項。</p>
+                            <div class="alert alert-success mt-3" role="status"
+                                 invisible="has_validation_warning">
+                                <strong>匯入成功，金額核對無誤</strong><br/>
+                                已成功匯入 <field name="imported_count" class="oe_inline"/> 個契約工項。<br/>
+                                <field name="validation_report" widget="text" readonly="1" nolabel="1"/>
+                            </div>
+
+                            <div class="alert alert-warning mt-3" role="alert"
+                                 invisible="not has_validation_warning">
+                                <strong>匯入成功，但金額核對發現差異</strong><br/>
+                                已成功匯入 <field name="imported_count" class="oe_inline"/> 個契約工項，但以下工項的系統計算金額與 XML 宣告值不符：<br/>
+                                <field name="validation_report" widget="text" readonly="1" nolabel="1"/>
                             </div>
                         </page>
                     </notebook>
                 </sheet>
+                <footer>
+                    <button string="捨棄" special="cancel" class="btn-secondary"/>
+                </footer>
             </form>
         </field>
     </record>

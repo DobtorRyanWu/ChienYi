@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="ir_cron_auto_complete_correction" model="ir.cron">
+        <field name="name">工程案件：自動回復更正狀態</field>
+        <field name="model_id" ref="model_supervision_project"/>
+        <field name="state">code</field>
+        <field name="code">model._auto_complete_correction()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+    </record>
+</odoo>

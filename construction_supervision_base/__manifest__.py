@@ -35,6 +35,8 @@
         'contacts',
         'mail',
         'resource',
+        'uom',
+        'product',
     ],
     'data': [
         # Security
@@ -46,6 +48,7 @@
         # Data
         'data/ir_sequence_data.xml',
         'data/document_category_data.xml',
+        'data/ir_cron_data.xml',
         # Wizard
         'wizard/tender_import_wizard_views.xml',
         'wizard/document_replace_attachment_wizard_views.xml',
@@ -55,6 +58,7 @@
         'views/supervision_project_views.xml',
         'views/project_task_views.xml',
         'views/supervision_document_views.xml',
+        'views/product_views.xml',
         'views/menu.xml',
         'views/supervision_document_category_views.xml',
         'views/hide_official_menus.xml',
@@ -69,4 +73,5 @@
     'application': True,
     'auto_install': False,
     'sequence': 1,
+    'post_migrate': 'construction_supervision_base.hooks.post_migrate',
 }

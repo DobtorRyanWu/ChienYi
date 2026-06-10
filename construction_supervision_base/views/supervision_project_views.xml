@@ -31,8 +31,16 @@
                             invisible="state != 'suspended'"/>
                     <button name="action_terminate" string="終止"
                             type="object"
-                            invisible="state in ('closed', 'terminated')"
+                            invisible="state in ('closed', 'terminated', 'correction')"
                             confirm="確定要終止此專案嗎？此操作無法復原。"/>
+                    <!-- 更正機制按鈕 -->
+                    <button name="action_submit_correction" string="提出更正"
+                            type="object"
+                            invisible="state not in ('construction', 'completion', 'acceptance')"
+                            confirm="提出更正後，表單將開放編輯。完成後請手動點擊「完成更正」，或1天後系統將自動回復原狀態。確定要繼續嗎？"/>
+                    <button name="action_complete_correction" string="完成更正"
+                            type="object" class="oe_highlight"
+                            invisible="state != 'correction'"/>
                     <!-- 匯入標單按鈕 -->
                     <button name="action_import_tender"
                             string="匯入契約標單"
@@ -42,6 +50,14 @@
                             invisible="state != 'draft'"
                             groups="construction_supervision_base.group_supervisor_admin"
                             help="匯入政府採購標單 XML 檔案"/>
+                    <!-- 重新整理工項排序（修復契約變更造成的跨彙總項排序錯亂）-->
+                    <button name="action_resequence_tasks"
+                            string="重新整理工項排序"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-sort-amount-asc"
+                            groups="construction_supervision_base.group_supervisor_admin"
+                            help="以階層重新整理工項顯示順序，修復契約變更後的排序錯亂"/>
                     <!-- 初始化循序確認按鈕（僅 draft 狀態，依序顯示）-->
                     <!-- 步驟 1: 人機管理 -->
                     <button name="action_init_done_equipment" type="object"
@@ -105,7 +121,8 @@
                                decoration-primary="state == 'construction'"
                                decoration-warning="state in ('completion', 'suspended')"
                                decoration-danger="state in ('acceptance', 'terminated')"
-                               decoration-success="state == 'closed'"/>
+                               decoration-success="state == 'closed'"
+                               decoration-muted="state == 'correction'"/>
                     </div>
                     <div class="oe_button_box" name="button_box">
                         <button name="action_view_documents" type="object"
@@ -218,7 +235,6 @@
                             <field name="year"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="authority_id"
-                                   context="{'default_partner_type': 'authority'}"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="authority_contact_id"/>
                             <field name="location"
@@ -228,12 +244,14 @@
                             <field name="company_id" invisible="1"/>
                             <field name="supervision_engineer_id"
                                    domain="[('active', '=', True)]"/>
+                            <field name="project_leader_id"
+                                   domain="[('active', '=', True)]"/>
                         </group>
                         <group string="契約資訊" name="contract_info">
                             <field name="contract_no"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="contract_amount"
-                                   readonly="state != 'draft'"
+                                   readonly="state not in ('draft', 'correction')"
                                    placeholder="未匯入工項前可手動輸入"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="contract_start_date"
@@ -244,6 +262,11 @@
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="extension_duration" readonly="1"/>
                             <field name="total_approved_duration" readonly="1"/>
+                            <field name="tender_xml_data" widget="binary"
+                                   filename="tender_xml_filename"
+                                   string="原始標單 XML"
+                                   readonly="1"/>
+                            <field name="tender_xml_filename" invisible="1"/>
                         </group>
                     </group>
                     <group>
