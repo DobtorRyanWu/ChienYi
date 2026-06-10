@@ -199,6 +199,15 @@ export function importXlsxToOSpreadsheetData(buffer: ArrayBuffer): OSpreadsheetD
         ? _ThemeParser.parse(pkg.getPartText(thPart))
         : _ThemeParser.default();
 
+    // chart series schemeClr 解析用的 theme 色彩對照（§5.2）
+    const cs = theme.colorScheme;
+    const themeColors: Record<string, string> = {
+        accent1: `#${cs.accent1}`, accent2: `#${cs.accent2}`, accent3: `#${cs.accent3}`,
+        accent4: `#${cs.accent4}`, accent5: `#${cs.accent5}`, accent6: `#${cs.accent6}`,
+        dk1: `#${cs.dk1}`, lt1: `#${cs.lt1}`, dk2: `#${cs.dk2}`, lt2: `#${cs.lt2}`,
+        tx1: `#${cs.dk1}`, bg1: `#${cs.lt1}`, tx2: `#${cs.dk2}`, bg2: `#${cs.lt2}`,
+    };
+
     const sheets: _SheetInput[] = wb.sheets
         .filter((s) => s.target && pkg.hasPart(s.target))
         .map((s, i) => {
@@ -206,7 +215,7 @@ export function importXlsxToOSpreadsheetData(buffer: ArrayBuffer): OSpreadsheetD
             return {
                 name: s.name,
                 ws,
-                figures: _resolveSheetCharts(pkg, s.target!, `sheet${i + 1}`),
+                figures: _resolveSheetCharts(pkg, s.target!, `sheet${i + 1}`, themeColors),
                 tables: _resolveSheetTables(pkg, s.target!),
                 hyperlinks: _resolveHyperlinks(pkg, s.target!, ws.hyperlinks),
             };

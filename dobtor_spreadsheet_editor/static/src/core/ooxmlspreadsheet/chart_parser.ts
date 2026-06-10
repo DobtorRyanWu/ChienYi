@@ -2,7 +2,7 @@
 //
 // 解析圖表類型、series（categories/values cell ref）、title。用 parseXmlNoNs 去前綴（c:/a:）。
 
-import { parseXmlNoNs, toArray, textOf } from './xml_util';
+import { parseXmlNoNs, toArray, textOf, attr } from './xml_util';
 
 export type ChartType = 'bar' | 'line' | 'pie' | 'scatter';
 
@@ -13,6 +13,8 @@ export interface ChartSeries {
     categoriesRef?: string;
     /** 數值 cell ref。*/
     valuesRef?: string;
+    /** series 顏色（§5.2）：`#RRGGBB`（srgbClr）或 `scheme:accent1`（schemeClr，由 compiler 經 theme 解析）。*/
+    color?: string;
 }
 
 export interface ChartAst {
@@ -48,6 +50,20 @@ function refOf(node: unknown): string | undefined {
     return f && !f.includes('#REF!') ? f : undefined;
 }
 
+/** 取 series spPr 的填色（§5.2）：srgbClr→#RRGGBB、schemeClr→scheme:name。*/
+function colorOf(ser: Record<string, unknown>): string | undefined {
+    const spPr = ser['spPr'] as Record<string, unknown> | undefined;
+    const fill = spPr?.['solidFill'] as Record<string, unknown> | undefined;
+    if (!fill) return undefined;
+    const srgb = fill['srgbClr'] as Record<string, unknown> | undefined;
+    const srgbVal = srgb && attr(srgb, 'val');
+    if (srgbVal) return `#${srgbVal}`;
+    const scheme = fill['schemeClr'] as Record<string, unknown> | undefined;
+    const schemeVal = scheme && attr(scheme, 'val');
+    if (schemeVal) return `scheme:${schemeVal}`;
+    return undefined;
+}
+
 function parseSeries(ser: Record<string, unknown>): ChartSeries {
     const tx = ser['tx'] as Record<string, unknown> | undefined;
     const literalName = tx ? textOf(tx['v']).trim() : '';
@@ -55,6 +71,7 @@ function parseSeries(ser: Record<string, unknown>): ChartSeries {
         name: literalName || undefined,
         categoriesRef: refOf(ser['cat']),
         valuesRef: refOf(ser['val']),
+        color: colorOf(ser),
     };
 }
 

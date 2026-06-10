@@ -6485,6 +6485,22 @@
         const f = textOf(r['f']).trim();
         return f && !f.includes('#REF!') ? f : undefined;
     }
+    /** 取 series spPr 的填色（§5.2）：srgbClr→#RRGGBB、schemeClr→scheme:name。*/
+    function colorOf(ser) {
+        const spPr = ser['spPr'];
+        const fill = spPr?.['solidFill'];
+        if (!fill)
+            return undefined;
+        const srgb = fill['srgbClr'];
+        const srgbVal = srgb && attr(srgb, 'val');
+        if (srgbVal)
+            return `#${srgbVal}`;
+        const scheme = fill['schemeClr'];
+        const schemeVal = scheme && attr(scheme, 'val');
+        if (schemeVal)
+            return `scheme:${schemeVal}`;
+        return undefined;
+    }
     function parseSeries(ser) {
         const tx = ser['tx'];
         const literalName = tx ? textOf(tx['v']).trim() : '';
@@ -6492,6 +6508,7 @@
             name: literalName || undefined,
             categoriesRef: refOf(ser['cat']),
             valuesRef: refOf(ser['val']),
+            color: colorOf(ser),
         };
     }
     /** 從 c:title 抽出標題文字（title>tx>rich>p>r>t，去前綴後遞迴收集 t）。*/
@@ -6600,8 +6617,23 @@
     const ROW_PX = 20;
     const MIN_W = 300;
     const MIN_H = 200;
-    function chartToFigure(ast, anchor, id) {
-        const dataSets = ast.series.filter((s) => s.valuesRef).map((s) => ({ dataRange: s.valuesRef }));
+    /** series 顏色解析（§5.2）：#hex 直用；scheme:name 經 themeColors 對照。*/
+    function resolveSeriesColor(color, themeColors) {
+        if (!color)
+            return undefined;
+        if (color.startsWith('#'))
+            return color;
+        if (color.startsWith('scheme:'))
+            return themeColors?.[color.slice(7)];
+        return undefined;
+    }
+    function chartToFigure(ast, anchor, id, themeColors) {
+        const dataSets = ast.series
+            .filter((s) => s.valuesRef)
+            .map((s) => {
+            const bg = resolveSeriesColor(s.color, themeColors);
+            return bg ? { dataRange: s.valuesRef, backgroundColor: bg } : { dataRange: s.valuesRef };
+        });
         if (dataSets.length === 0)
             return undefined; // 無數值 ref → 無法成圖
         const labelRange = ast.series.find((s) => s.categoriesRef)?.categoriesRef;
@@ -6625,7 +6657,7 @@
         return { id, x, y, width, height, tag: 'chart', data };
     }
     /** 解析某 worksheet part 連結的所有圖表 → o-spreadsheet figures。*/
-    function resolveSheetCharts(pkg, sheetPart, idPrefix) {
+    function resolveSheetCharts(pkg, sheetPart, idPrefix, themeColors) {
         const figures = [];
         let n = 0;
         const drawingRels = pkg.getRels(sheetPart).filter((r) => r.type.endsWith('/drawing'));
@@ -6644,7 +6676,7 @@
                 const ast = parseChart(pkg.getPartText(chartPart));
                 if (!ast)
                     continue;
-                const fig = chartToFigure(ast, anchor, `${idPrefix}_fig${n}`);
+                const fig = chartToFigure(ast, anchor, `${idPrefix}_fig${n}`, themeColors);
                 if (fig) {
                     figures.push(fig);
                     n++;
@@ -6931,6 +6963,14 @@
         const theme = thPart && pkg.hasPart(thPart)
             ? ThemeParser.parse(pkg.getPartText(thPart))
             : ThemeParser.default();
+        // chart series schemeClr 解析用的 theme 色彩對照（§5.2）
+        const cs = theme.colorScheme;
+        const themeColors = {
+            accent1: `#${cs.accent1}`, accent2: `#${cs.accent2}`, accent3: `#${cs.accent3}`,
+            accent4: `#${cs.accent4}`, accent5: `#${cs.accent5}`, accent6: `#${cs.accent6}`,
+            dk1: `#${cs.dk1}`, lt1: `#${cs.lt1}`, dk2: `#${cs.dk2}`, lt2: `#${cs.lt2}`,
+            tx1: `#${cs.dk1}`, bg1: `#${cs.lt1}`, tx2: `#${cs.dk2}`, bg2: `#${cs.lt2}`,
+        };
         const sheets = wb.sheets
             .filter((s) => s.target && pkg.hasPart(s.target))
             .map((s, i) => {
@@ -6938,7 +6978,7 @@
             return {
                 name: s.name,
                 ws,
-                figures: resolveSheetCharts(pkg, s.target, `sheet${i + 1}`),
+                figures: resolveSheetCharts(pkg, s.target, `sheet${i + 1}`, themeColors),
                 tables: resolveSheetTables(pkg, s.target),
                 hyperlinks: resolveHyperlinks(pkg, s.target, ws.hyperlinks),
             };

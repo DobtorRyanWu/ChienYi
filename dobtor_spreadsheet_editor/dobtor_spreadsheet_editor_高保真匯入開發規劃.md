@@ -634,7 +634,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
   - `bubble` → scatter 降級
   - `stock` → line 降級
   - `surface` → 不支援
-- [ ] 套用 theme color（Phase 2.2 ThemeResolver 已就緒）
+- [x] 套用 theme color：series srgbClr/schemeClr → dataSet.backgroundColor（經 theme accent 對照）
 - [ ] Chart 與 cell range 連動（編輯資料時 chart 同步）
 
 #### 5.3 Drawing / Image（1-2 週）

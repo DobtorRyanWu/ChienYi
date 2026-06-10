@@ -17,7 +17,7 @@ export interface OFigure {
         type: ChartType;
         title: { text: string };
         background: string;
-        dataSets: { dataRange: string }[];
+        dataSets: { dataRange: string; backgroundColor?: string }[];
         legendPosition: string;
         labelRange?: string;
         dataSetsHaveTitle: boolean;
@@ -32,8 +32,26 @@ const ROW_PX = 20;
 const MIN_W = 300;
 const MIN_H = 200;
 
-export function chartToFigure(ast: ChartAst, anchor: DrawingChartAnchor, id: string): OFigure | undefined {
-    const dataSets = ast.series.filter((s) => s.valuesRef).map((s) => ({ dataRange: s.valuesRef as string }));
+/** series 顏色解析（§5.2）：#hex 直用；scheme:name 經 themeColors 對照。*/
+function resolveSeriesColor(color: string | undefined, themeColors?: Record<string, string>): string | undefined {
+    if (!color) return undefined;
+    if (color.startsWith('#')) return color;
+    if (color.startsWith('scheme:')) return themeColors?.[color.slice(7)];
+    return undefined;
+}
+
+export function chartToFigure(
+    ast: ChartAst,
+    anchor: DrawingChartAnchor,
+    id: string,
+    themeColors?: Record<string, string>,
+): OFigure | undefined {
+    const dataSets = ast.series
+        .filter((s) => s.valuesRef)
+        .map((s) => {
+            const bg = resolveSeriesColor(s.color, themeColors);
+            return bg ? { dataRange: s.valuesRef as string, backgroundColor: bg } : { dataRange: s.valuesRef as string };
+        });
     if (dataSets.length === 0) return undefined; // 無數值 ref → 無法成圖
     const labelRange = ast.series.find((s) => s.categoriesRef)?.categoriesRef;
 
@@ -59,7 +77,12 @@ export function chartToFigure(ast: ChartAst, anchor: DrawingChartAnchor, id: str
 }
 
 /** 解析某 worksheet part 連結的所有圖表 → o-spreadsheet figures。*/
-export function resolveSheetCharts(pkg: PackageReader, sheetPart: string, idPrefix: string): OFigure[] {
+export function resolveSheetCharts(
+    pkg: PackageReader,
+    sheetPart: string,
+    idPrefix: string,
+    themeColors?: Record<string, string>,
+): OFigure[] {
     const figures: OFigure[] = [];
     let n = 0;
     const drawingRels = pkg.getRels(sheetPart).filter((r) => r.type.endsWith('/drawing'));
@@ -74,7 +97,7 @@ export function resolveSheetCharts(pkg: PackageReader, sheetPart: string, idPref
             if (!chartPart || !pkg.hasPart(chartPart)) continue;
             const ast = parseChart(pkg.getPartText(chartPart));
             if (!ast) continue;
-            const fig = chartToFigure(ast, anchor, `${idPrefix}_fig${n}`);
+            const fig = chartToFigure(ast, anchor, `${idPrefix}_fig${n}`, themeColors);
             if (fig) {
                 figures.push(fig);
                 n++;
