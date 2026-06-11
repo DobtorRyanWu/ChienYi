@@ -3,9 +3,22 @@ from odoo import _, api, fields, models
 
 
 class PaymentEstimate(models.Model):
-    """估驗計價：關聯由本估驗匯入建立的試算表。"""
+    """估驗計價：關聯由本估驗匯入建立的試算表。
 
-    _inherit = "payment.estimate"
+    §4.5.2：改繼承通用 xlsx.linked.mixin（res_model/res_id 通用回掛），
+    保留既有 payment_estimate_id FK 與方法以維持向後相容。
+    """
+
+    _name = "payment.estimate"
+    _inherit = ["payment.estimate", "xlsx.linked.mixin"]
+
+    # ── §4.5.2 mixin hook 覆寫 ──
+    def _xlsx_default_name(self):
+        self.ensure_one()
+        return _("%s 工項試算表") % (self.name or _("估驗計價"))
+
+    def _xlsx_build_data(self):
+        return self._build_estimate_workbook_data()
 
     spreadsheet_ids = fields.One2many(
         comodel_name="spreadsheet.spreadsheet",
@@ -145,6 +158,9 @@ class PaymentEstimate(models.Model):
                 "name": _("%s 工項試算表") % (self.name or _("估驗計價")),
                 "spreadsheet_raw": self._build_estimate_workbook_data(),
                 "payment_estimate_id": self.id,
+                # §4.5.2 通用回掛（與 mixin 一致）
+                "res_model": self._name,
+                "res_id": self.id,
             }
         )
         return {
