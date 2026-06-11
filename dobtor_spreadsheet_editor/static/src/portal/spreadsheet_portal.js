@@ -42,7 +42,7 @@ export class PortalSpreadsheet extends Component {
     };
 
     setup() {
-        this.state = useState({ loading: true, error: "", SpreadsheetComp: null });
+        this.state = useState({ loading: true, error: "", SpreadsheetComp: null, readonlyHint: false });
         this.model = null;
         this._saveTimer = null;
         onWillStart(() => this._boot());
@@ -59,10 +59,14 @@ export class PortalSpreadsheet extends Component {
             }
             const { Model, Spreadsheet, load } = oSpreadsheet;
             const data = await rpc(`/my/spreadsheet/${this.props.spreadsheetId}/data`);
+            // 行動版降級唯讀（手機編輯 xlsx 體驗差；§4.5.3）
+            const isMobile = window.matchMedia("(max-width: 767px)").matches;
+            const editable = this.props.editable && !isMobile;
+            this.state.readonlyHint = this.props.editable && isMobile;
             this.model = new Model(load(data.spreadsheet_raw), {
-                mode: this.props.editable ? "normal" : "readonly",
+                mode: editable ? "normal" : "readonly",
             });
-            if (this.props.editable) {
+            if (editable) {
                 this.model.on("update", this, () => this._scheduleSave());
             }
             this.state.SpreadsheetComp = Spreadsheet;

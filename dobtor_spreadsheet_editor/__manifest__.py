@@ -28,6 +28,8 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
         'spreadsheet_oca',
     ],
     'data': [
+        'security/ir.model.access.csv',
+        'security/portal_security.xml',
         'views/menu.xml',
         'views/portal_templates.xml',
     ],

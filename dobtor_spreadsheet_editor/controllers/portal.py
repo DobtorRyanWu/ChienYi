@@ -60,11 +60,12 @@ class SpreadsheetPortal(CustomerPortal):
             spreadsheet = self._document_check_access(spreadsheet_id, "read")
         except (AccessError, MissingError):
             return request.redirect("/my")
-        editable = spreadsheet.check_access_rights("write", raise_exception=False) and spreadsheet.has_access("write")
+        # 可編輯旗標（模型層 ACL）；存檔 rpc 另以 check_access_rule('write') 二次把關記錄規則
+        editable = spreadsheet.check_access_rights("write", raise_exception=False)
         values = {
             "spreadsheet": spreadsheet,
             "spreadsheet_id": spreadsheet_id,
-            "editable": editable,
+            "sse_editable": editable,
             "page_name": "spreadsheet",
         }
         return request.render("dobtor_spreadsheet_editor.portal_spreadsheet_page", values)

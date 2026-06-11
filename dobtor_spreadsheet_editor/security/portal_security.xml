@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo noupdate="1">
+
+    <!-- §4.5.3 Portal 試算表存取規則
+         安全預設：portal user 僅能存取「owner_id 為自己」的試算表（不洩漏他人資料）。
+         ChienYi 業務模組可新增 ir.rule（如：估驗承包商可存取該估驗關聯試算表，
+         以 res_model/res_id 比對業務記錄的授權對象）擴充存取範圍。 -->
+    <record id="spreadsheet_portal_owner_rule" model="ir.rule">
+        <field name="name">Portal: 僅自己擁有的試算表</field>
+        <field name="model_id" ref="spreadsheet_oca.model_spreadsheet_spreadsheet"/>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="domain_force">[('owner_id', '=', user.id)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+</odoo>

@@ -7,6 +7,9 @@
                 載入失敗：<span t-esc="state.error"/>
             </div>
             <t t-elif="state.SpreadsheetComp">
+                <div t-if="state.readonlyHint" class="alert alert-info py-1 px-2 m-1 small">
+                    行動裝置以唯讀模式檢視（編輯請用電腦）。
+                </div>
                 <t t-component="state.SpreadsheetComp" model="model"/>
             </t>
         </div>

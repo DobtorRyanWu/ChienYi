@@ -585,7 +585,7 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 #### 4.5.3 Portal 嵌入（1 週）
 - [x] `/my/spreadsheet/<id>` 路由（auth='user'，ir.rule 從 OCA security 繼承）
 - [x] OWL Component 嵌入 portal layout
-- [ ] 行動版降級為 read-only viewer（手機編輯 xlsx 體驗差）
+- [x] 行動版降級 read-only（<768px 強制 readonly + 提示）
 
 #### 4.5.4 安全與穩定（1 週）
 - [x] Zip bomb defense：解壓後總大小 < 100MB、worksheet count < 100、cell count < 5M

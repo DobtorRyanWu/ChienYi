@@ -50,7 +50,7 @@
             <div class="o_portal_spreadsheet_wrap" style="height:calc(100vh - 120px);min-height:480px">
                 <owl-component
                     name="dobtor_spreadsheet_editor.PortalSpreadsheet"
-                    t-att-props="json.dumps({'spreadsheetId': spreadsheet_id, 'editable': bool(editable)})"/>
+                    t-att-props="json.dumps({'spreadsheetId': spreadsheet_id, 'editable': bool(sse_editable)})"/>
             </div>
         </t>
     </template>
