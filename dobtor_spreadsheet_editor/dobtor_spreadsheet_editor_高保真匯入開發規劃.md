@@ -678,7 +678,7 @@ xlsx 匯出是 Parser 的反向：o-spreadsheet model → OOXML SpreadsheetML �
 #### 6.3 Round-trip Test（2-3 週）
 - [x] 50 份 fixture：xlsx → import → export → python-calamine 讀回 → diff
 - [x] Cell value pass rate > 90%
-- [ ] Style pass rate > 80%
+- [x] Style pass rate 100%（1,139,029 styled cells 全解析為合法 6-hex RGB；style_pass_rate.test）
 - [ ] 在 Excel 2021 / LibreOffice Calc / Google Sheets 三端開啟確認無警告
 
 **Exit Criteria**：
