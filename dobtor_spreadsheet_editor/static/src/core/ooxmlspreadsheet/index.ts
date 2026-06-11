@@ -133,6 +133,8 @@ import { resolveSheetCharts as _resolveSheetCharts } from './chart_compiler';
 import { resolveSheetTables as _resolveSheetTables } from './table_compiler';
 import { resolveHyperlinks as _resolveHyperlinks } from './hyperlink_resolver';
 import { resolvePreviewImages as _resolvePreviewImages, previewImagesHtml as _previewImagesHtml } from './preview_images';
+export { extractXlsxImages } from './image_extractor';
+export type { ExtractedImage } from './image_extractor';
 
 export { buildOSpreadsheetData } from './to_ospreadsheet';
 export type { OSpreadsheetData, OSheet, OCell, OStyle, SheetInput } from './to_ospreadsheet';

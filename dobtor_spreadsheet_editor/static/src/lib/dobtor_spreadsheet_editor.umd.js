@@ -6648,8 +6648,8 @@
     //
     // 解析鏈：worksheet rels → drawingN.xml → drawing rels → chartN.xml → ChartAst → figure。
     // 錨點格座標 → px 估算（o-spreadsheet 預設欄寬/列高近似）
-    const COL_PX = 64;
-    const ROW_PX = 20;
+    const COL_PX$1 = 64;
+    const ROW_PX$1 = 20;
     const MIN_W = 300;
     const MIN_H = 200;
     /** series 顏色解析（§5.2）：#hex 直用；scheme:name 經 themeColors 對照。*/
@@ -6672,10 +6672,10 @@
         if (dataSets.length === 0)
             return undefined; // 無數值 ref → 無法成圖
         const labelRange = ast.series.find((s) => s.categoriesRef)?.categoriesRef;
-        const x = anchor.fromCol * COL_PX;
-        const y = anchor.fromRow * ROW_PX;
-        const width = Math.max((anchor.toCol - anchor.fromCol) * COL_PX, MIN_W);
-        const height = Math.max((anchor.toRow - anchor.fromRow) * ROW_PX, MIN_H);
+        const x = anchor.fromCol * COL_PX$1;
+        const y = anchor.fromRow * ROW_PX$1;
+        const width = Math.max((anchor.toCol - anchor.fromCol) * COL_PX$1, MIN_W);
+        const height = Math.max((anchor.toRow - anchor.fromRow) * ROW_PX$1, MIN_H);
         const data = {
             type: ast.type,
             title: { text: ast.title ?? '' },
@@ -6810,6 +6810,83 @@
     //
     // 僅供 HTML 預覽（<img src=data-url>，瀏覽器原生支援）。
     // 可編輯 o-spreadsheet 的圖片需 ir.attachment + imageProvider，另案處理。
+    const MAX_IMAGE_BYTES$1 = 4 * 1024 * 1024;
+    const B64$1 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    function toBase64$1(bytes) {
+        let out = '';
+        let i = 0;
+        for (; i + 2 < bytes.length; i += 3) {
+            const n = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+            out += B64$1[(n >> 18) & 63] + B64$1[(n >> 12) & 63] + B64$1[(n >> 6) & 63] + B64$1[n & 63];
+        }
+        const rem = bytes.length - i;
+        if (rem === 1) {
+            const n = bytes[i] << 16;
+            out += B64$1[(n >> 18) & 63] + B64$1[(n >> 12) & 63] + '==';
+        }
+        else if (rem === 2) {
+            const n = (bytes[i] << 16) | (bytes[i + 1] << 8);
+            out += B64$1[(n >> 18) & 63] + B64$1[(n >> 12) & 63] + B64$1[(n >> 6) & 63] + '=';
+        }
+        return out;
+    }
+    const MIME$1 = {
+        jpeg: 'image/jpeg',
+        jpg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        bmp: 'image/bmp',
+    };
+    /** 解析某 worksheet part 連結的圖片 → data URL（預覽用）。*/
+    function resolvePreviewImages(pkg, sheetPart) {
+        const out = [];
+        const drawingRels = pkg.getRels(sheetPart).filter((r) => r.type.endsWith('/drawing'));
+        for (const dr of drawingRels) {
+            const drawingPart = dr.resolvedTarget;
+            if (!drawingPart || !pkg.hasPart(drawingPart))
+                continue;
+            const pics = parseDrawingPics(pkg.getPartText(drawingPart));
+            if (pics.length === 0)
+                continue;
+            const relMap = new Map(pkg.getRels(drawingPart).map((r) => [r.id, r.resolvedTarget]));
+            for (const pic of pics) {
+                const mediaPart = relMap.get(pic.blipRId);
+                if (!mediaPart || !pkg.hasPart(mediaPart))
+                    continue;
+                const ext = (mediaPart.split('.').pop() ?? '').toLowerCase();
+                const mimetype = MIME$1[ext];
+                if (!mimetype)
+                    continue;
+                const bytes = pkg.getPart(mediaPart);
+                if (!bytes || bytes.byteLength > MAX_IMAGE_BYTES$1)
+                    continue;
+                out.push({
+                    dataUrl: `data:${mimetype};base64,${toBase64$1(bytes)}`,
+                    row: pic.fromRow + 1,
+                    col: pic.fromCol + 1,
+                });
+            }
+        }
+        return out;
+    }
+    /** 圖片清單 → 預覽 gallery HTML 片段。*/
+    function previewImagesHtml(images) {
+        if (images.length === 0)
+            return '';
+        const items = images
+            .map((im) => `<figure style="margin:4px;display:inline-block;text-align:center;vertical-align:top">` +
+            `<img src="${im.dataUrl}" style="max-width:300px;max-height:240px;border:1px solid #ccc"/>` +
+            `<figcaption style="color:#888;font-size:12px">錨點 R${im.row}C${im.col}</figcaption></figure>`)
+            .join('');
+        return `<div style="margin-top:12px;padding-top:8px;border-top:1px solid #ddd"><div style="color:#666;margin-bottom:4px">內嵌圖片（${images.length}）：</div>${items}</div>`;
+    }
+
+    // image_extractor.ts — xlsx 內嵌圖片 → base64 + 位置（§5.3 可編輯版）
+    //
+    // 供 OWL 端建 ir.attachment、組 o-spreadsheet image figure（data.path = /web/image/...）。
+    // 與 preview_images（HTML 預覽用 data URL）分離：此處不產 data URL，只給 base64 讓 OWL 上傳。
+    const COL_PX = 64;
+    const ROW_PX = 20;
     const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
     const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
     function toBase64(bytes) {
@@ -6837,48 +6914,48 @@
         gif: 'image/gif',
         bmp: 'image/bmp',
     };
-    /** 解析某 worksheet part 連結的圖片 → data URL（預覽用）。*/
-    function resolvePreviewImages(pkg, sheetPart) {
+    /** 解析 xlsx 全部內嵌圖片 → base64 + 位置（sheetIndex 對應 importXlsxToOSpreadsheetData 的 sheets 順序）。*/
+    function extractXlsxImages(buffer) {
+        const pkg = PackageReader.fromBuffer(buffer);
+        const wbp = new WorkbookParser(pkg);
+        const wb = wbp.parse();
         const out = [];
-        const drawingRels = pkg.getRels(sheetPart).filter((r) => r.type.endsWith('/drawing'));
-        for (const dr of drawingRels) {
-            const drawingPart = dr.resolvedTarget;
-            if (!drawingPart || !pkg.hasPart(drawingPart))
-                continue;
-            const pics = parseDrawingPics(pkg.getPartText(drawingPart));
-            if (pics.length === 0)
-                continue;
-            const relMap = new Map(pkg.getRels(drawingPart).map((r) => [r.id, r.resolvedTarget]));
-            for (const pic of pics) {
-                const mediaPart = relMap.get(pic.blipRId);
-                if (!mediaPart || !pkg.hasPart(mediaPart))
+        // 與 importXlsxToOSpreadsheetData 相同的 sheet 過濾順序，確保 sheetIndex 對齊
+        const sheets = wb.sheets.filter((s) => s.target && pkg.hasPart(s.target));
+        sheets.forEach((s, sheetIndex) => {
+            const drawingRels = pkg.getRels(s.target).filter((r) => r.type.endsWith('/drawing'));
+            for (const dr of drawingRels) {
+                const drawingPart = dr.resolvedTarget;
+                if (!drawingPart || !pkg.hasPart(drawingPart))
                     continue;
-                const ext = (mediaPart.split('.').pop() ?? '').toLowerCase();
-                const mimetype = MIME[ext];
-                if (!mimetype)
+                const pics = parseDrawingPics(pkg.getPartText(drawingPart));
+                if (pics.length === 0)
                     continue;
-                const bytes = pkg.getPart(mediaPart);
-                if (!bytes || bytes.byteLength > MAX_IMAGE_BYTES)
-                    continue;
-                out.push({
-                    dataUrl: `data:${mimetype};base64,${toBase64(bytes)}`,
-                    row: pic.fromRow + 1,
-                    col: pic.fromCol + 1,
-                });
+                const relMap = new Map(pkg.getRels(drawingPart).map((r) => [r.id, r.resolvedTarget]));
+                for (const pic of pics) {
+                    const mediaPart = relMap.get(pic.blipRId);
+                    if (!mediaPart || !pkg.hasPart(mediaPart))
+                        continue;
+                    const ext = (mediaPart.split('.').pop() ?? '').toLowerCase();
+                    const mimetype = MIME[ext];
+                    if (!mimetype)
+                        continue;
+                    const bytes = pkg.getPart(mediaPart);
+                    if (!bytes || bytes.byteLength > MAX_IMAGE_BYTES)
+                        continue;
+                    out.push({
+                        sheetIndex,
+                        base64: toBase64(bytes),
+                        mimetype,
+                        x: pic.fromCol * COL_PX,
+                        y: pic.fromRow * ROW_PX,
+                        width: Math.max((pic.toCol - pic.fromCol) * COL_PX, 32),
+                        height: Math.max((pic.toRow - pic.fromRow) * ROW_PX, 32),
+                    });
+                }
             }
-        }
+        });
         return out;
-    }
-    /** 圖片清單 → 預覽 gallery HTML 片段。*/
-    function previewImagesHtml(images) {
-        if (images.length === 0)
-            return '';
-        const items = images
-            .map((im) => `<figure style="margin:4px;display:inline-block;text-align:center;vertical-align:top">` +
-            `<img src="${im.dataUrl}" style="max-width:300px;max-height:240px;border:1px solid #ccc"/>` +
-            `<figcaption style="color:#888;font-size:12px">錨點 R${im.row}C${im.col}</figcaption></figure>`)
-            .join('');
-        return `<div style="margin-top:12px;padding-top:8px;border-top:1px solid #ddd"><div style="color:#666;margin-bottom:4px">內嵌圖片（${images.length}）：</div>${items}</div>`;
     }
 
     // csv_parser.ts — CSV → o-spreadsheet WorkbookData / HTML 預覽
@@ -7217,6 +7294,7 @@
     exports.emuToPoints = emuToPoints;
     exports.excelSerialToYmd = excelSerialToYmd;
     exports.exportXlsxFromBuffer = exportXlsxFromBuffer;
+    exports.extractXlsxImages = extractXlsxImages;
     exports.fillBackgroundColor = fillBackgroundColor;
     exports.formatExcelDate = formatExcelDate;
     exports.formatNumber = formatNumber;
