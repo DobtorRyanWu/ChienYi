@@ -31,7 +31,7 @@ class XlsxLinkedMixin(models.AbstractModel):
     _description = "可關聯可編輯試算表的 mixin"
 
     linked_spreadsheet_count = fields.Integer(
-        string="試算表數",
+        string="關聯試算表數",
         compute="_compute_linked_spreadsheet_count",
     )
 
