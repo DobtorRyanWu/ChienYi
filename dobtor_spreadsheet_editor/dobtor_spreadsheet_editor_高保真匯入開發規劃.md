@@ -583,8 +583,8 @@ Phase 2 先用查表法（每個 CJK Unicode block 對應的寬度因子），Ph
 - [ ] ChienYi 業務模型可 `_inherit = ['xlsx.linked.mixin']`：估驗、契約變更、月報
 
 #### 4.5.3 Portal 嵌入（1 週）
-- [ ] `/my/spreadsheet/<id>` 路由（auth='user'，ir.rule 從 OCA security 繼承）
-- [ ] OWL Component 嵌入 portal layout
+- [x] `/my/spreadsheet/<id>` 路由（auth='user'，ir.rule 從 OCA security 繼承）
+- [x] OWL Component 嵌入 portal layout
 - [ ] 行動版降級為 read-only viewer（手機編輯 xlsx 體驗差）
 
 #### 4.5.4 安全與穩定（1 週）

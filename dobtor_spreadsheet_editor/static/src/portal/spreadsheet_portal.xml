@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="dobtor_spreadsheet_editor.PortalSpreadsheet">
+        <div class="o_dobtor_portal_spreadsheet h-100 w-100">
+            <div t-if="state.loading" class="text-center text-muted p-4">載入試算表中…</div>
+            <div t-elif="state.error" class="alert alert-danger m-3">
+                載入失敗：<span t-esc="state.error"/>
+            </div>
+            <t t-elif="state.SpreadsheetComp">
+                <t t-component="state.SpreadsheetComp" model="model"/>
+            </t>
+        </div>
+    </t>
+</templates>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- Portal 首頁加「試算表」卡片 -->
+    <template id="portal_my_home_spreadsheet" inherit_id="portal.portal_my_home" name="Portal 試算表入口"
+              customize_show="True" priority="40">
+        <xpath expr="//div[hasclass('o_portal_docs')]" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="title">試算表</t>
+                <t t-set="url" t-value="'/my/spreadsheets'"/>
+                <t t-set="placeholder_count" t-value="'spreadsheet_count'"/>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- 試算表清單 -->
+    <template id="portal_my_spreadsheets" name="我的試算表">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+            <t t-call="portal.portal_searchbar">
+                <t t-set="title">試算表</t>
+            </t>
+            <t t-if="not spreadsheets">
+                <div class="alert alert-info">目前沒有試算表。</div>
+            </t>
+            <t t-if="spreadsheets" t-call="portal.portal_table">
+                <thead>
+                    <tr class="active">
+                        <th>名稱</th>
+                        <th class="text-end">最後修改</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-foreach="spreadsheets" t-as="sp">
+                        <td>
+                            <a t-attf-href="/my/spreadsheet/#{sp.id}" t-esc="sp.name or sp.id"/>
+                        </td>
+                        <td class="text-end">
+                            <span t-field="sp.write_date" t-options="{'widget': 'datetime'}"/>
+                        </td>
+                    </tr>
+                </tbody>
+            </t>
+        </t>
+    </template>
+
+    <!-- 試算表編輯器頁（全螢幕 mount o-spreadsheet）-->
+    <template id="portal_spreadsheet_page" name="試算表編輯器">
+        <t t-call="portal.portal_layout">
+            <div class="o_portal_spreadsheet_wrap" style="height:calc(100vh - 120px);min-height:480px">
+                <owl-component
+                    name="dobtor_spreadsheet_editor.PortalSpreadsheet"
+                    t-att-props="json.dumps({'spreadsheetId': spreadsheet_id, 'editable': bool(editable)})"/>
+            </div>
+        </t>
+    </template>
+
+</odoo>

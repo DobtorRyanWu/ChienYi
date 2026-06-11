@@ -29,8 +29,14 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
     ],
     'data': [
         'views/menu.xml',
+        'views/portal_templates.xml',
     ],
     'assets': {
+        # §4.5.3 Portal 試算表編輯器（前台 mount o-spreadsheet Spreadsheet 元件）
+        'web.assets_frontend': [
+            'dobtor_spreadsheet_editor/static/src/portal/spreadsheet_portal.js',
+            'dobtor_spreadsheet_editor/static/src/portal/spreadsheet_portal.xml',
+        ],
         'web.assets_backend': [
             # parser UMD bundle（暴露 window.DobtorSpreadsheetEditor）— 須先於 OWL component 載入
             'dobtor_spreadsheet_editor/static/src/lib/dobtor_spreadsheet_editor.umd.js',
