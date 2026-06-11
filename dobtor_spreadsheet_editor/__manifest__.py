@@ -41,8 +41,11 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
             'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/choose.js',
             'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/extra_functions.js',
         ],
-        # OCA spreadsheet_oca 已掛 spreadsheet.o_spreadsheet bundle；
-        # 本模組 xlsx parser → o-spreadsheet model commands 對接於後續 sprint
+        # OCA spreadsheet_oca 的 spreadsheet.o_spreadsheet bundle（SpreadsheetRenderer 所在）
+        # §5.3 可編輯圖片：patch renderer 載入後 dispatch CREATE_IMAGE 注入圖片
+        'spreadsheet.o_spreadsheet': [
+            'dobtor_spreadsheet_editor/static/src/components/image_inject/image_inject_patch.esm.js',
+        ],
     },
     'external_dependencies': {
         'python': [

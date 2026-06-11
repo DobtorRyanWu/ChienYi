@@ -148,6 +148,47 @@ export class XlsxImportAction extends Component {
                 { name, spreadsheet_raw: data, ...extraVals },
             ]);
             const id = Array.isArray(ids) ? ids[0] : ids;
+            // §5.3 可編輯圖片：建 ir.attachment + 存 dobtor_pending_images（JSON）。
+            // 不注入 spreadsheet_raw（避免 o-spreadsheet v1→v22 遷移崩潰）；改由 renderer
+            // 載入後 dispatch CREATE_IMAGE（image_inject_patch.esm.js）。
+            if (this.fileType !== "csv" && typeof this.lib.extractXlsxImages === "function") {
+                const images = this.lib.extractXlsxImages(this.buffer);
+                const pending = [];
+                for (let k = 0; k < images.length; k++) {
+                    const img = images[k];
+                    if (!data.sheets[img.sheetIndex]) continue;
+                    const ext = (img.mimetype.split("/")[1] || "png").replace("jpeg", "jpg");
+                    const attIds = await this.orm.create("ir.attachment", [
+                        {
+                            name: `sse_img_${id}_${k}.${ext}`,
+                            datas: img.base64,
+                            res_model: "spreadsheet.spreadsheet",
+                            res_id: id,
+                            mimetype: img.mimetype,
+                        },
+                    ]);
+                    const attId = Array.isArray(attIds) ? attIds[0] : attIds;
+                    const tokenRes = await this.orm.call("ir.attachment", "generate_access_token", [[attId]]);
+                    const token = Array.isArray(tokenRes) ? tokenRes[0] : tokenRes;
+                    const size = { width: img.width, height: img.height };
+                    pending.push({
+                        sheetId: `sheet${img.sheetIndex + 1}`,
+                        figureId: `sse_img_${id}_${k}`,
+                        position: { x: img.x, y: img.y },
+                        size,
+                        definition: {
+                            path: `/web/image/${attId}?access_token=${token}`,
+                            mimetype: img.mimetype,
+                            size,
+                        },
+                    });
+                }
+                if (pending.length) {
+                    await this.orm.write("spreadsheet.spreadsheet", [id], {
+                        dobtor_pending_images: JSON.stringify(pending),
+                    });
+                }
+            }
             action = {
                 type: "ir.actions.client",
                 tag: "action_spreadsheet_oca",

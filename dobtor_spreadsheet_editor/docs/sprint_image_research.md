@@ -23,3 +23,15 @@
 
 ## 現況
 預覽圖片已交付；可編輯圖片 building block（image_extractor）就緒；完整可編輯圖片待 post-load 方案。
+
+## ✅ 完整交付（post-load 方案，已驗證）
+1. models/spreadsheet_spreadsheet.py：spreadsheet.spreadsheet 加 `dobtor_pending_images`（Text/JSON）
+2. xlsx_import.js：建 ir.attachment + generate_access_token，圖片定義存 dobtor_pending_images
+   （含 sheetId=`sheet{i+1}`、figureId、position、size、definition.path=/web/image/...）
+3. image_inject_patch.esm.js（spreadsheet.o_spreadsheet bundle）：patch SpreadsheetRenderer
+   onMounted → 讀 dobtor_pending_images → dispatch CREATE_IMAGE → 清空欄位
+4. **關鍵**：圖片不進初始 spreadsheet_raw（version 1 維持，公式遷移正常），
+   載入後（遷移完成）才注入 → 避開 image figure 的 dataSets 遷移崩潰
+
+驗證：GRID errDialog=0、EDITABLE_IMG_COUNT=1（圖片以 /web/image img 渲染）、
+chart/cf/standalone 無回歸。
