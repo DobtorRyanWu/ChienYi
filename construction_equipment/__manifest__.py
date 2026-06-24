@@ -58,10 +58,10 @@
         "views/daily_log_sheet_views.xml",
         "views/wizard_copy_man_machine_views.xml",
         "views/daily_log_add_man_machine_wizard_views.xml",
-        # Views - 進階功能（暫時註解，保留作為未來付費功能）
-        # "views/equipment_category_views.xml",
-        # "views/equipment_views.xml",
-        # "views/equipment_request_views.xml",
+        # Views - 進階功能（機具設備管理，已啟用）
+        "views/equipment_category_views.xml",
+        "views/equipment_views.xml",
+        "views/equipment_request_views.xml",
         # Menu
         "views/menu.xml",
     ],

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ============================================================== -->
+        <!-- 定期閱覽者（臨時帳號）到期自動停用                                -->
+        <!--                                                                -->
+        <!-- 每日掃描「有設定 portal_valid_until 且已逾期」的閱覽者帳號，       -->
+        <!-- 將 active 設為 False（直接擋登入）。                             -->
+        <!-- 需復用時由千溢（Settings/Technical）手動 active=True 並更新到期日。 -->
+        <!-- ============================================================== -->
+        <record id="cron_deactivate_expired_portal_users" model="ir.cron">
+            <field name="name">Portal: 停用逾期的定期閱覽者帳號</field>
+            <field name="model_id" ref="base.model_res_users"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_deactivate_expired_portal_users()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+            <field name="priority">10</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
+    </data>
+</odoo>

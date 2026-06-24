@@ -63,19 +63,19 @@
                             type="object"
                             class="btn-primary"
                             invisible="state != 'submitted'"
-                            groups="construction_general.group_general_manager"/>
+                            groups="construction_supervision_base.group_supervisor_admin"/>
                     <button name="action_approve"
                             string="核准"
                             type="object"
                             class="btn-primary"
                             invisible="state != 'reviewed'"
-                            groups="construction_general.group_general_manager"/>
+                            groups="construction_supervision_base.group_supervisor_admin"/>
                     <button name="action_return"
                             string="退回"
                             type="object"
                             class="btn-warning"
                             invisible="state not in ('submitted', 'reviewed')"
-                            groups="construction_general.group_general_manager"/>
+                            groups="construction_supervision_base.group_supervisor_admin"/>
                     <button name="action_reset_draft"
                             string="重設"
                             type="object"

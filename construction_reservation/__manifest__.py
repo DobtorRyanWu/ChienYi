@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 預約式工程專用模組',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Construction/Reservation',
     'summary': '預約式工程通報單整合自主檢查與缺失改善',
     'description': """
@@ -32,6 +32,10 @@
         'construction_quality',
     ],
     'data': [
+        # Security
+        'security/ir.model.access.csv',
+        # Wizards
+        'views/create_reservation_defect_wizard_views.xml',
         # Views
         'views/notification_slip_views.xml',
         'views/reservation_self_inspection_views.xml',

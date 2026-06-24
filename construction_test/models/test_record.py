@@ -155,11 +155,9 @@ class TestRecord(models.Model):
         help='舊系統欄位: sampleRate，累計抽樣/累計進場 x 100')
 
     # === 抽驗及會同人員 ===
-    owner_member_ids = fields.Many2many(
-        'res.users',
-        'test_record_owner_member_rel',
-        'record_id', 'user_id',
-        string='業主方人員')
+    owner_member = fields.Char(
+        string='業主方人員',
+        help='業主方會同人員（手動輸入文字；業主方人員多非系統使用者）')
 
     supervision_member_ids = fields.Many2many(
         'res.users',
@@ -394,6 +392,12 @@ class TestRecord(models.Model):
         for vals in vals_list:
             if vals.get('name', '/') == '/':
                 vals['name'] = self.env['ir.sequence'].next_by_code('supervision.test.record') or '/'
+            # 未指定負責人時，由工程案件的「檢試驗負責人」帶入（程式/Portal 建立也適用）
+            if not vals.get('responsible_user_id') and vals.get('project_id'):
+                project = self.env['supervision.project'].browse(vals['project_id'])
+                user = project._get_activity_user('test')
+                if user:
+                    vals['responsible_user_id'] = user.id
         records = super().create(vals_list)
         # 觸發同專案同標準其他記錄的累計重算
         records._trigger_cumulative_recompute()
@@ -533,11 +537,13 @@ class TestRecord(models.Model):
 
     @api.onchange('project_id')
     def _onchange_project_id(self):
-        """當專案變更時，清空試驗工項和材料名稱"""
+        """當專案變更時，清空試驗工項/材料，並由工程案件帶入預設檢試驗負責人（可手動覆寫）"""
         if self.project_id:
             if self.standard_id and self.standard_id.project_id != self.project_id:
                 self.standard_id = False
             self.task_id = False
+            # 預設負責人繼承自工程案件的「檢試驗負責人」設定；使用者仍可在本筆改成他人
+            self.responsible_user_id = self.project_id._get_activity_user('test')
             return {
                 'domain': {
                     'standard_id': [('project_id', '=', self.project_id.id)],

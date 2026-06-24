@@ -116,7 +116,7 @@
                     </group>
                     <group string="抽驗及會同人員">
                         <group string="業主方">
-                            <field name="owner_member_ids" widget="many2many_tags" nolabel="1"/>
+                            <field name="owner_member" nolabel="1"/>
                         </group>
                         <group string="監造方">
                             <field name="supervision_member_ids" widget="many2many_tags" nolabel="1"/>

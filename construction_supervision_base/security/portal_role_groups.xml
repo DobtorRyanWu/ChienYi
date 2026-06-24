@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- ============================================================== -->
+        <!-- 前台角色群組（v11 四角色）                                        -->
+        <!--                                                                -->
+        <!-- 設計原則：                                                      -->
+        <!-- 1. 每個新角色 implies 對應的舊權限等級群組，藉此「繼承」舊群組      -->
+        <!--    在各模組既有的 ir.model.access（daily.log / 通報單 / 估驗…），  -->
+        <!--    避免新角色帳號在非 sudo 路徑因缺 ACL 而存取失敗。               -->
+        <!--    舊群組只有 ACL、沒有專案可見性 record rule（可見性一律由         -->
+        <!--    construction_portal 的成員制 rule 控制），故 imply 不會放水。   -->
+        <!--    對應：observer→viewer、field→user、manager→leader、boss→subscriber -->
+        <!-- 2. 可見性：base.group_portal 套「成員制」rule（只看參與成員專案），  -->
+        <!--    老闆另加「公司範圍」rule OR 疊加（見 construction_portal）。      -->
+        <!-- 3. 每個前台帳號只指派其中一個。                                   -->
+        <!-- 4. category 沿用 module_category_supervision_level（權限等級單選區）。-->
+        <!-- ============================================================== -->
+
+        <!-- 老闆：公司範圍內全部專案可見、可前台新增專案、可審核 -->
+        <record id="group_portal_boss" model="res.groups">
+            <field name="name">Portal - 老闆</field>
+            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="implied_ids" eval="[(4, ref('group_portal_subscriber'))]"/>
+            <field name="comment">公司負責人。可查看公司承包的所有專案（不受專案參與成員限制）、可從前台新增專案、可執行審核（推進單據狀態到核定/結案）。</field>
+        </record>
+
+        <!-- 現場人員：create/write 限自己建立(create_uid=self)的交易單 -->
+        <record id="group_portal_field" model="res.groups">
+            <field name="name">Portal - 現場人員</field>
+            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="implied_ids" eval="[(4, ref('group_portal_user'))]"/>
+            <field name="comment">工地現場人員。可查看範圍內全部資料，但只能新增與編輯自己建立的施工日誌、自主檢查、照片等交易單，無法修改他人建立的內容，也不能審核。</field>
+        </record>
+
+        <!-- 主管：範圍內全部可讀，可審核（推進 state 到核定） -->
+        <record id="group_portal_manager" model="res.groups">
+            <field name="name">Portal - 主管</field>
+            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="implied_ids" eval="[(4, ref('group_portal_leader'))]"/>
+            <field name="comment">工地主管。可查看範圍內全部資料並執行審核（推進估驗、契約變更、缺失等單據的狀態到核定/結案），自己也能建立交易單。</field>
+        </record>
+
+        <!-- 定期閱覽者：範圍內全唯讀；帳號帶到期日，逾期 cron 自動停用 -->
+        <record id="group_portal_observer" model="res.groups">
+            <field name="name">Portal - 定期閱覽者（臨時帳號）</field>
+            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="implied_ids" eval="[(4, ref('group_portal_viewer'))]"/>
+            <field name="comment">臨時閱覽帳號。範圍內全部資料唯讀，無任何寫入權。帳號帶「有效期至」(portal_valid_until)，逾期由每日排程自動停用登入。</field>
+        </record>
+
+    </data>
+</odoo>

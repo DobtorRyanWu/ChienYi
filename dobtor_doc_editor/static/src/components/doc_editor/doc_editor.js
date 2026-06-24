@@ -300,6 +300,18 @@ export class DocEditor extends Component {
             // localStorage 存 '1' 顯示、'0' 或 null 隱藏
             // Sprint Y25：改走 _lsGet helper
             showLegacyToolbar: _lsGet('dobtor_doc_editor_show_legacy_toolbar') === '1',
+            // ─── 表格編輯（Google Docs 化）───
+            // inTable：游標是否在表格儲存格內（由 rangeStyleChange 偵測 ctx.isTable）→ 控制表格工具列顯示
+            inTable: false,
+            // 網格插入表格 picker（hover 選列×欄，最大 10×8）
+            showTablePicker: false,
+            tablePickerRows: 0,
+            tablePickerCols: 0,
+            // ─── 工具列下拉（欄位/簽名/掃描收合，Google Docs 風）───
+            // null = 全關；'fields'|'signature'|'scan' = 該下拉展開
+            openToolbarMenu: null,
+            // 標題樣式 select 當前值（''=內文；'first'|'second'|'third'）
+            activeTitle: '',
         });
         // Sprint C：縮圖重生 timer（debounce、避免每次 contentChange 都全頁 toDataURL）
         this._thumbnailTimer = null;
@@ -416,6 +428,15 @@ export class DocEditor extends Component {
                 this.state.showColorPalette = null;
                 dirty = true;
             }
+            // Esc 關閉表格網格 picker / 工具列下拉
+            if (event.key === 'Escape' && this.state?.showTablePicker) {
+                this.state.showTablePicker = false;
+                dirty = true;
+            }
+            if (event.key === 'Escape' && this.state?.openToolbarMenu) {
+                this.state.openToolbarMenu = null;
+                dirty = true;
+            }
             // Sprint Y4：Ctrl/Cmd+F 開尋找、Ctrl/Cmd+H 開取代
             if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey
                 && (event.key === 'f' || event.key === 'F')) {
@@ -455,6 +476,16 @@ export class DocEditor extends Component {
                 }
                 if (this.state.showColorPalette && !ev.target.closest('.doc-format-color-wrap')) {
                     this.state.showColorPalette = null;
+                    dirty = true;
+                }
+                // 表格網格 picker：點外關閉
+                if (this.state.showTablePicker && !ev.target.closest('.doc-table-picker-wrap')) {
+                    this.state.showTablePicker = false;
+                    dirty = true;
+                }
+                // 欄位/簽名/掃描下拉：點外關閉
+                if (this.state.openToolbarMenu && !ev.target.closest('.doc-toolbar-dropdown-wrap')) {
+                    this.state.openToolbarMenu = null;
                     dirty = true;
                 }
             } catch (e) { /* ignore */ }
@@ -817,8 +848,16 @@ export class DocEditor extends Component {
         this.editor.listener.rangeStyleChange = () => {
             try {
                 const ctx = this.editor.command.getRangeContext();
-                if (!ctx) return;
+                if (!ctx) {
+                    // 游標移出文件 / 無選區 → 隱藏表格工具列
+                    if (this.state.inTable) this.state.inTable = false;
+                    return;
+                }
                 const el = ctx.startElement || ctx.endElement || ctx.element || null;
+
+                // 表格偵測：游標在儲存格內時顯示表格工具列（canvas-editor ctx.isTable）
+                const inTable = !!ctx.isTable;
+                if (this.state.inTable !== inTable) this.state.inTable = inTable;
 
                 // 既有：control conceptId 反查 → selectedFieldId
                 const conceptId = el?.control?.conceptId;
@@ -855,6 +894,9 @@ export class DocEditor extends Component {
                     // rowFlex 通常在 element 或 row 上、fallback 到 left
                     const rowFlex = el.rowFlex || ctx?.rowFlex || 'left';
                     if (this.state.activeRowFlex !== rowFlex) this.state.activeRowFlex = rowFlex;
+                    // 標題樣式 select 同步（el.title = 'first'|'second'|… ；無 = 內文）
+                    const title = el.title || '';
+                    if (this.state.activeTitle !== title) this.state.activeTitle = title;
                 }
             } catch (e) {
                 // 不要讓 listener 抛例外破壞 canvas-editor 內部流程
@@ -4496,7 +4538,7 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 case 'view:zoom-fit': this.onZoomFitChange({ target: { value: 'width' } }); break;
                 case 'view:fullscreen': this._requestFullscreen(); break;
 
-                case 'insert:table': this._executeCmd('executeInsertTable', 3, 3); break;
+                case 'insert:table': this.state.showTablePicker = true; break;
                 case 'insert:image': this._insertImagePicker(); break;
                 case 'insert:var-text': this.onFieldButtonClick('text'); break;
                 case 'insert:var-date': this.onFieldButtonClick('date'); break;
@@ -4521,6 +4563,11 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                 case 'tools:word-count': this._countWords(); break;
                 case 'tools:version-history': this.onShowVersionPanel(); break;
                 case 'tools:doc-settings': this.onOpenDocSettings(); break;
+
+                case 'panel:templates': this.onSubNavClick('templates'); break;
+                case 'panel:dashboard': this.onSubNavClick('dashboard'); break;
+                case 'panel:requests': this.onSubNavClick('requests'); break;
+                case 'panel:settings': this.onSubNavClick('settings'); break;
             }
         } catch (e) {
             console.error('[DocEditor.menubar] action failed:', action, e);
@@ -5016,8 +5063,11 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         } else if (type === 'highlight') {
             this.state.highlightColor = color;
             this._executeCmd('executeHighlight', color);
+        } else if (type === 'cellbg') {
+            // 表格儲存格底色（重用色盤 popover）
+            this._executeCmd('executeTableTdBackgroundColor', color);
         }
-        this._pushRecentColor(type, color);    // Y13
+        if (type !== 'cellbg') this._pushRecentColor(type, color);    // Y13
         this.state.showColorPalette = null;
     }
 
@@ -5054,6 +5104,77 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             ev.preventDefault();
             this.closeFindReplace();
         }
+    }
+
+    // ─── 格式列補充功能（Google Docs 化）──────────────────────────────
+    // 標題樣式 select：''=內文（executeTitle(null)）、first/second/third
+    onTitleChange(ev) {
+        const v = ev?.target?.value || '';
+        this.state.activeTitle = v;
+        this._executeCmd('executeTitle', v || null);
+    }
+
+    // 項目符號 / 編號清單（canvas-editor executeList(type, style)）
+    onInsertList(type) {
+        if (type === 'ul') this._executeCmd('executeList', 'ul', 'disc');
+        else if (type === 'ol') this._executeCmd('executeList', 'ol', 'decimal');
+    }
+
+    // 插入超連結：取選取文字當顯示文字（無選取則用 URL），prompt 輸入網址
+    onInsertHyperlink() {
+        const url = window.prompt('輸入連結網址（URL）：', 'https://');
+        if (!url) return;
+        let text = '';
+        try { text = this.editor?.command?.getRangeText?.() || ''; } catch (e) { /* ignore */ }
+        if (!text) text = url;
+        const size = Number(this.state.activeFontSize) || 16;
+        this._executeCmd('executeHyperlink', {
+            type: 'hyperlink',
+            value: '',
+            url,
+            valueList: Array.from(text).map((ch) => ({ value: ch, size })),
+        });
+    }
+
+    // ─── 表格網格插入 picker（Google Docs 風 hover 選列×欄）──────────────
+    get TABLE_PICKER_MAX_ROWS() { return 10; }
+    get TABLE_PICKER_MAX_COLS() { return 8; }
+    // XML t-foreach 用：[1..max] 陣列
+    get tablePickerRowRange() {
+        return Array.from({ length: this.TABLE_PICKER_MAX_ROWS }, (_, i) => i + 1);
+    }
+    get tablePickerColRange() {
+        return Array.from({ length: this.TABLE_PICKER_MAX_COLS }, (_, i) => i + 1);
+    }
+    onTablePickerToggle(ev) {
+        if (ev) ev.stopPropagation();
+        this.state.showTablePicker = !this.state.showTablePicker;
+        if (!this.state.showTablePicker) {
+            this.state.tablePickerRows = 0;
+            this.state.tablePickerCols = 0;
+        }
+    }
+    onTablePickerHover(rows, cols) {
+        this.state.tablePickerRows = rows;
+        this.state.tablePickerCols = cols;
+    }
+    onTablePickerPick(rows, cols, ev) {
+        if (ev) ev.stopPropagation();
+        this._executeCmd('executeInsertTable', rows, cols);
+        this.state.showTablePicker = false;
+        this.state.tablePickerRows = 0;
+        this.state.tablePickerCols = 0;
+    }
+
+    // ─── 欄位/簽名/掃描下拉（工具列收合）────────────────────────────────
+    onToolbarMenuToggle(name, ev) {
+        if (ev) ev.stopPropagation();
+        this.state.openToolbarMenu = (this.state.openToolbarMenu === name) ? null : name;
+    }
+    // 點下拉項目後執行並關閉下拉
+    onToolbarMenuAction(fn) {
+        try { fn?.(); } catch (e) { console.error('[DocEditor] toolbar menu action', e); }
+        this.state.openToolbarMenu = null;
     }
 
     // 6 個 menu × N item 的設定表；XML 用 t-foreach 渲染
@@ -5118,7 +5239,7 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             {
                 name: 'insert', label: '插入',
                 items: [
-                    { label: '表格（3×3）', action: 'insert:table' },
+                    { label: '表格…', action: 'insert:table' },
                     { label: '圖片...', action: 'insert:image' },
                     { type: 'separator' },
                     { label: '變數欄位（文字）', action: 'insert:var-text' },
@@ -5163,6 +5284,18 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
                     { type: 'separator' },
                     { label: '版本歷史', action: 'tools:version-history', shortcut: 'Alt+H' },
                     { label: '文件設定', action: 'tools:doc-settings' },
+                ],
+            },
+            {
+                // 面板：把次要分頁（儀表板/請求/設定）收進此下拉，
+                // 編輯器預設停在「範本（編輯）」主畫面，更像 Google Docs。
+                name: 'panel', label: '面板',
+                items: [
+                    { label: (this.state.activeSubNav === 'templates' ? '✓ ' : '   ') + '範本（編輯）', action: 'panel:templates' },
+                    { type: 'separator' },
+                    { label: (this.state.activeSubNav === 'dashboard' ? '✓ ' : '   ') + '儀表板', action: 'panel:dashboard' },
+                    { label: (this.state.activeSubNav === 'requests'  ? '✓ ' : '   ') + '填寫請求', action: 'panel:requests' },
+                    { label: (this.state.activeSubNav === 'settings'  ? '✓ ' : '   ') + '設定', action: 'panel:settings' },
                 ],
             },
         ];

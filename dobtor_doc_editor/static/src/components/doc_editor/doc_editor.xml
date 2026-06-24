@@ -68,34 +68,10 @@
                 </div>
             </div>
 
-            <!-- ═══ Row 2：Sub-nav（儀表板/請求/範本/設定）═══
-                 Sprint A：4 個分頁全部解封；每個分頁渲染對應內容（見 Row 6 後方）。 -->
-            <nav class="doc-subnav" role="navigation" aria-label="模組分頁">
-                <button class="doc-subnav-btn"
-                        t-att-class="state.activeSubNav === 'dashboard' ? 'active' : ''"
-                        t-on-click="() => this.onSubNavClick('dashboard')"
-                        title="儀表板：範本欄位統計與最近修改">
-                    <i class="fa fa-tachometer me-1"/>儀表板
-                </button>
-                <button class="doc-subnav-btn"
-                        t-att-class="state.activeSubNav === 'requests' ? 'active' : ''"
-                        t-on-click="() => this.onSubNavClick('requests')"
-                        title="請求：本範本的填寫請求清單">
-                    <i class="fa fa-paper-plane me-1"/>請求
-                </button>
-                <button class="doc-subnav-btn"
-                        t-att-class="state.activeSubNav === 'templates' ? 'active' : ''"
-                        t-on-click="() => this.onSubNavClick('templates')"
-                        title="範本：欄位拖曳與屬性編輯">
-                    <i class="fa fa-file-text me-1"/>範本
-                </button>
-                <button class="doc-subnav-btn"
-                        t-att-class="state.activeSubNav === 'settings' ? 'active' : ''"
-                        t-on-click="() => this.onSubNavClick('settings')"
-                        title="設定：頁面格式與自動儲存">
-                    <i class="fa fa-cog me-1"/>設定
-                </button>
-            </nav>
+            <!-- ═══ Row 2：Sub-nav 已移除（改收進 menubar「面板 ▾」下拉）═══
+                 編輯器預設停在「範本（編輯）」主畫面；儀表板/請求/設定改由
+                 menubar 面板 menu 切換，省一整列高度、更像 Google Docs。
+                 分頁內容（見 Row 6 後方）與 onSubNavClick 邏輯不變。 -->
 
             <!-- ═══ Row 2.5：Google Docs 風 功能 menu bar（Sprint Y3） ═══
                  6 個下拉 menu：檔案 / 編輯 / 查看 / 插入 / 格式 / 工具
@@ -244,6 +220,31 @@
                  editor-component="format-toolbar"
                  role="toolbar"
                  aria-label="格式化工具列">
+                <!-- 復原 / 重做（Google Docs 標配，置於最前） -->
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeUndo')"
+                        title="復原 (Ctrl+Z)" aria-label="復原">
+                    <i class="fa fa-undo" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeRedo')"
+                        title="重做 (Ctrl+Y)" aria-label="重做">
+                    <i class="fa fa-repeat" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 標題樣式 -->
+                <select class="doc-format-select doc-format-title"
+                        t-att-value="state.activeTitle"
+                        t-on-change="onTitleChange"
+                        title="段落樣式" aria-label="段落樣式">
+                    <option value="" t-att-selected="state.activeTitle === ''">內文</option>
+                    <option value="first" t-att-selected="state.activeTitle === 'first'">標題 1</option>
+                    <option value="second" t-att-selected="state.activeTitle === 'second'">標題 2</option>
+                    <option value="third" t-att-selected="state.activeTitle === 'third'">標題 3</option>
+                </select>
+                <span class="doc-format-sep" aria-hidden="true"/>
                 <select class="doc-format-select doc-format-font"
                         t-att-value="state.activeFontFamily"
                         t-on-change="onFontFamilyChange"
@@ -328,6 +329,80 @@
                         t-att-aria-pressed="state.activeRowFlex === 'alignment' ? 'true' : 'false'">
                     <i class="fa fa-align-justify" aria-hidden="true"/>
                 </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 項目符號 / 編號清單 + 行距 -->
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this.onInsertList('ul')"
+                        title="項目符號清單" aria-label="項目符號清單">
+                    <i class="fa fa-list-ul" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this.onInsertList('ol')"
+                        title="編號清單" aria-label="編號清單">
+                    <i class="fa fa-list-ol" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="onOpenLineSpacing"
+                        title="行距" aria-label="行距">
+                    <i class="fa fa-arrows-v" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 上標 / 下標 -->
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeSuperscript')"
+                        title="上標" aria-label="上標">
+                    <i class="fa fa-superscript" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeSubscript')"
+                        title="下標" aria-label="下標">
+                    <i class="fa fa-subscript" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 超連結 -->
+                <button class="doc-format-btn"
+                        t-on-mousedown.prevent="() => {}"
+                        t-on-click="onInsertHyperlink"
+                        title="插入連結" aria-label="插入連結">
+                    <i class="fa fa-link" aria-hidden="true"/>
+                </button>
+                <!-- 插入表格（Google Docs 風網格選擇器） -->
+                <span class="doc-table-picker-wrap">
+                    <button class="doc-format-btn"
+                            t-att-class="{ 'is-active': state.showTablePicker }"
+                            t-on-mousedown.prevent="() => {}"
+                            t-on-click="(ev) => this.onTablePickerToggle(ev)"
+                            title="插入表格" aria-label="插入表格" aria-haspopup="true">
+                        <i class="fa fa-table" aria-hidden="true"/>
+                        <i class="fa fa-caret-down doc-format-color-caret" aria-hidden="true"/>
+                    </button>
+                    <div class="doc-table-picker" t-if="state.showTablePicker">
+                        <div class="doc-table-picker-label">
+                            <t t-if="state.tablePickerRows > 0">
+                                <t t-esc="state.tablePickerRows"/> × <t t-esc="state.tablePickerCols"/>
+                            </t>
+                            <t t-else="">插入表格</t>
+                        </div>
+                        <div class="doc-table-picker-grid"
+                             t-on-mouseleave="() => this.onTablePickerHover(0, 0)">
+                            <t t-foreach="tablePickerRowRange" t-as="r" t-key="r">
+                                <div class="doc-table-picker-row">
+                                    <t t-foreach="tablePickerColRange" t-as="c" t-key="c">
+                                        <span class="doc-table-picker-cell"
+                                              t-att-class="{ 'is-on': r &lt;= state.tablePickerRows and c &lt;= state.tablePickerCols }"
+                                              t-on-mouseover="() => this.onTablePickerHover(r, c)"
+                                              t-on-click="(ev) => this.onTablePickerPick(r, c, ev)"/>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </span>
                 <span class="doc-format-sep" aria-hidden="true"/>
                 <!-- Sprint Y12：字色 24-color palette dropdown（取代 Y6 native picker；保留自訂色逃生口）-->
                 <span class="doc-format-color-wrap"
@@ -460,6 +535,105 @@
                 </button>
             </div>
 
+            <!-- ═══ 表格工具列：游標在表格儲存格內時才顯示（Google Docs 風）═══
+                 全部接 canvas-editor 既有 table command；icon-only + 繁中 title。
+                 mousedown.prevent 防按下時 canvas 失焦丟選區。 -->
+            <div class="doc-table-toolbar" t-if="state.inTable" role="toolbar" aria-label="表格工具列">
+                <span class="doc-table-toolbar-label"><i class="fa fa-table me-1"/>表格</span>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 列：上插 / 下插 / 刪列 -->
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeInsertTableTopRow')"
+                        title="上方插入列" aria-label="上方插入列">
+                    <i class="fa fa-arrow-up" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeInsertTableBottomRow')"
+                        title="下方插入列" aria-label="下方插入列">
+                    <i class="fa fa-arrow-down" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeDeleteTableRow')"
+                        title="刪除列" aria-label="刪除列">
+                    <i class="fa fa-minus" aria-hidden="true"/><span class="doc-tt-glyph">列</span>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 欄：左插 / 右插 / 刪欄 -->
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeInsertTableLeftCol')"
+                        title="左方插入欄" aria-label="左方插入欄">
+                    <i class="fa fa-arrow-left" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeInsertTableRightCol')"
+                        title="右方插入欄" aria-label="右方插入欄">
+                    <i class="fa fa-arrow-right" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeDeleteTableCol')"
+                        title="刪除欄" aria-label="刪除欄">
+                    <i class="fa fa-minus" aria-hidden="true"/><span class="doc-tt-glyph">欄</span>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 合併 / 取消合併 -->
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeMergeTableCell')"
+                        title="合併儲存格" aria-label="合併儲存格">
+                    <i class="fa fa-compress" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeCancelMergeTableCell')"
+                        title="取消合併" aria-label="取消合併">
+                    <i class="fa fa-expand" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 垂直對齊 上 / 中 / 下 -->
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeTableTdVerticalAlign', 'top')"
+                        title="儲存格靠上" aria-label="儲存格靠上對齊">
+                    <i class="fa fa-align-left fa-rotate-90" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeTableTdVerticalAlign', 'middle')"
+                        title="儲存格置中" aria-label="儲存格垂直置中">
+                    <i class="fa fa-align-center fa-rotate-90" aria-hidden="true"/>
+                </button>
+                <button class="doc-format-btn" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeTableTdVerticalAlign', 'bottom')"
+                        title="儲存格靠下" aria-label="儲存格靠下對齊">
+                    <i class="fa fa-align-right fa-rotate-90" aria-hidden="true"/>
+                </button>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 儲存格底色（重用色盤 popover，type='cellbg'）-->
+                <span class="doc-format-color-wrap"
+                      t-att-class="{ 'is-open': state.showColorPalette === 'cellbg' }"
+                      title="儲存格底色" aria-label="儲存格底色"
+                      t-on-click="(ev) => this.onColorTriggerClick('cellbg', ev)">
+                    <i class="fa fa-paint-brush" aria-hidden="true"/>
+                    <i class="fa fa-caret-down doc-format-color-caret" aria-hidden="true"/>
+                    <div class="doc-color-palette" t-if="state.showColorPalette === 'cellbg'">
+                        <t t-foreach="COLOR_PALETTE" t-as="row" t-key="row_index">
+                            <div class="doc-color-palette-row">
+                                <t t-foreach="row" t-as="color" t-key="color">
+                                    <button class="doc-color-swatch"
+                                            t-attf-style="background: #{color};"
+                                            t-attf-aria-label="儲存格底色 #{color}"
+                                            t-att-title="color"
+                                            t-on-click="(ev) => this.onColorSwatchPick('cellbg', color, ev)"/>
+                                </t>
+                            </div>
+                        </t>
+                    </div>
+                </span>
+                <span class="doc-format-sep" aria-hidden="true"/>
+                <!-- 刪除整個表格 -->
+                <button class="doc-format-btn doc-table-toolbar-danger" t-on-mousedown.prevent="() => {}"
+                        t-on-click="() => this._executeCmd('executeDeleteTable')"
+                        title="刪除整個表格" aria-label="刪除整個表格">
+                    <i class="fa fa-trash" aria-hidden="true"/>
+                </button>
+            </div>
+
             <!-- ═══ Row 4：Field toolbar（欄位類型按鈕 + Odoo 欄位）═══
                  Sprint A：僅在「範本」分頁顯示 -->
             <t t-if="state.activeSubNav === 'templates'">
@@ -467,72 +641,114 @@
                  role="toolbar"
                  aria-label="範本欄位工具列">
                 <span class="doc-field-toolbar-label">欄位：</span>
-                <t t-foreach="FIELD_TYPES" t-as="ft" t-key="ft.key">
-                    <button class="doc-field-btn"
-                            t-att-data-field-type="ft.key"
-                            draggable="true"
-                            t-on-click="() => this.onFieldButtonClick(ft.key)"
-                            t-on-dragstart="(ev) => this.onFieldDragStart(ev, ft.key)"
-                            t-on-dragend="onFieldDragEnd"
-                            t-attf-title="點擊插入游標位置，或拖到文件任意處新增「#{ft.label}」欄位"
-                            t-attf-aria-label="新增 #{ft.label} 欄位">
-                        <t t-if="ft.icon === 'A'">
-                            <span class="doc-field-btn-glyph">A</span>
-                        </t>
-                        <t t-else="">
-                            <i t-attf-class="fa #{ft.icon}" aria-hidden="true"/>
-                        </t>
-                        <span t-esc="ft.label"/>
+
+                <!-- 插入欄位 ▾：原 10 顆欄位類型鈕（不含簽名）收進下拉，更像 Google Docs -->
+                <div class="doc-toolbar-dropdown-wrap">
+                    <button class="doc-field-btn doc-field-dropdown-trigger"
+                            t-att-class="state.openToolbarMenu === 'fields' ? 'is-open' : ''"
+                            t-on-click="(ev) => this.onToolbarMenuToggle('fields', ev)"
+                            aria-haspopup="true"
+                            title="插入變數欄位">
+                        <span class="doc-field-btn-glyph">A</span> 插入欄位
+                        <i class="fa fa-caret-down ms-1" aria-hidden="true"/>
                     </button>
-                </t>
+                    <div class="doc-toolbar-dropdown" t-if="state.openToolbarMenu === 'fields'" role="menu">
+                        <t t-foreach="FIELD_TYPES" t-as="ft" t-key="ft.key">
+                            <t t-if="ft.key !== 'signature' and ft.key !== 'initial'">
+                                <button class="doc-toolbar-dropdown-item"
+                                        role="menuitem"
+                                        t-att-data-field-type="ft.key"
+                                        draggable="true"
+                                        t-on-click="() => this.onToolbarMenuAction(() => this.onFieldButtonClick(ft.key))"
+                                        t-on-dragstart="(ev) => this.onFieldDragStart(ev, ft.key)"
+                                        t-on-dragend="onFieldDragEnd"
+                                        t-attf-title="點擊插入游標位置，或拖到文件任意處新增「#{ft.label}」欄位">
+                                    <t t-if="ft.icon === 'A'">
+                                        <span class="doc-field-btn-glyph">A</span>
+                                    </t>
+                                    <t t-else="">
+                                        <i t-attf-class="fa #{ft.icon}" aria-hidden="true"/>
+                                    </t>
+                                    <span t-esc="ft.label"/>
+                                </button>
+                            </t>
+                        </t>
+                        <div class="doc-menu-separator" role="separator"/>
+                        <button class="doc-toolbar-dropdown-item"
+                                role="menuitem"
+                                t-on-click="() => this.onToolbarMenuAction(() => this.onOdooFieldClick())"
+                                title="插入 Odoo 模型欄位">
+                            <i class="fa fa-database" aria-hidden="true"/>
+                            <span>Odoo 欄位</span>
+                        </button>
+                    </div>
+                </div>
 
-                <div class="doc-field-toolbar-sep" role="separator" aria-hidden="true"/>
-
-                <button class="doc-field-btn doc-field-btn-odoo"
-                        t-on-click="onOdooFieldClick"
-                        title="插入 Odoo 模型欄位"
-                        aria-label="插入 Odoo 模型欄位">
-                    <i class="fa fa-database" aria-hidden="true"/>
-                    Odoo 欄位
-                </button>
-
-                <!-- Sprint G：批次掃描文件內 {{ var }} 自動建 Odoo 欄位 record -->
-                <button class="doc-field-btn doc-field-btn-scan"
-                        t-on-click="onScanVariablesClick"
-                        title="掃描文件內所有 {{ }} 變數、批次建立 Odoo 欄位 record（不替換文字）"
-                        aria-label="掃描變數">
-                    <i class="fa fa-magic" aria-hidden="true"/>
-                    掃描變數
-                </button>
-
-                <!-- Sprint H：掃描 + 建 record + 文字替換為 control（實驗性） -->
-                <button class="doc-field-btn doc-field-btn-scan-replace"
-                        t-on-click="onScanAndReplaceClick"
-                        title="掃描文件內 {{ }} 變數、建立 record、並將 main + table 內文字替換為可編輯 control（實驗性，不可回復）"
-                        aria-label="掃描並替換">
-                    <i class="fa fa-magic" aria-hidden="true"/>
-                    掃描並替換
-                </button>
-
-                <!-- Sprint K：預覽變數（toggle 高亮，純讀、安全） -->
-                <button class="doc-field-btn doc-field-btn-preview-vars"
-                        t-on-click="onPreviewVariablesClick"
-                        title="在文件內高亮所有 {{ }} 變數（toggle、純讀、不修改文件）"
-                        aria-label="預覽變數">
-                    <i class="fa fa-search" aria-hidden="true"/>
-                    預覽變數
-                </button>
-
-                <!-- Sprint N：復原最近一次掃描並替換（只在 snapshot 存在時顯示） -->
-                <t t-if="state.lastScanReplaceSnapshot">
-                    <button class="doc-field-btn doc-field-btn-rollback"
-                            t-on-click="onRollbackScanReplaceClick"
-                            title="復原最近一次「掃描並替換」（還原文件 + 刪除本次新建的 record）"
-                            aria-label="復原掃描並替換">
-                        <i class="fa fa-undo" aria-hidden="true"/>
-                        復原
+                <!-- 簽名 ▾：簽名 / 繕寫簽名 -->
+                <div class="doc-toolbar-dropdown-wrap">
+                    <button class="doc-field-btn doc-field-dropdown-trigger"
+                            t-att-class="state.openToolbarMenu === 'signature' ? 'is-open' : ''"
+                            t-on-click="(ev) => this.onToolbarMenuToggle('signature', ev)"
+                            aria-haspopup="true"
+                            title="插入簽名欄位">
+                        <i class="fa fa-pencil" aria-hidden="true"/> 簽名
+                        <i class="fa fa-caret-down ms-1" aria-hidden="true"/>
                     </button>
-                </t>
+                    <div class="doc-toolbar-dropdown" t-if="state.openToolbarMenu === 'signature'" role="menu">
+                        <t t-foreach="FIELD_TYPES" t-as="ft" t-key="ft.key">
+                            <t t-if="ft.key === 'signature' or ft.key === 'initial'">
+                                <button class="doc-toolbar-dropdown-item"
+                                        role="menuitem"
+                                        t-att-data-field-type="ft.key"
+                                        draggable="true"
+                                        t-on-click="() => this.onToolbarMenuAction(() => this.onFieldButtonClick(ft.key))"
+                                        t-on-dragstart="(ev) => this.onFieldDragStart(ev, ft.key)"
+                                        t-on-dragend="onFieldDragEnd"
+                                        t-attf-title="新增「#{ft.label}」欄位">
+                                    <i t-attf-class="fa #{ft.icon}" aria-hidden="true"/>
+                                    <span t-esc="ft.label"/>
+                                </button>
+                            </t>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- 掃描 ▾：掃描變數 / 掃描並替換 / 預覽變數 / 復原（條件） -->
+                <div class="doc-toolbar-dropdown-wrap">
+                    <button class="doc-field-btn doc-field-dropdown-trigger"
+                            t-att-class="state.openToolbarMenu === 'scan' ? 'is-open' : ''"
+                            t-on-click="(ev) => this.onToolbarMenuToggle('scan', ev)"
+                            aria-haspopup="true"
+                            title="變數掃描工具">
+                        <i class="fa fa-magic" aria-hidden="true"/> 掃描
+                        <i class="fa fa-caret-down ms-1" aria-hidden="true"/>
+                    </button>
+                    <div class="doc-toolbar-dropdown" t-if="state.openToolbarMenu === 'scan'" role="menu">
+                        <button class="doc-toolbar-dropdown-item" role="menuitem"
+                                t-on-click="() => this.onToolbarMenuAction(() => this.onScanVariablesClick())"
+                                title="掃描文件內所有 {{ }} 變數、批次建立 Odoo 欄位 record（不替換文字）">
+                            <i class="fa fa-magic" aria-hidden="true"/><span>掃描變數</span>
+                        </button>
+                        <button class="doc-toolbar-dropdown-item" role="menuitem"
+                                t-on-click="() => this.onToolbarMenuAction(() => this.onScanAndReplaceClick())"
+                                title="掃描 + 建 record + 文字替換為可編輯 control（實驗性，不可回復）">
+                            <i class="fa fa-magic" aria-hidden="true"/><span>掃描並替換</span>
+                        </button>
+                        <button class="doc-toolbar-dropdown-item" role="menuitem"
+                                t-on-click="() => this.onToolbarMenuAction(() => this.onPreviewVariablesClick())"
+                                title="在文件內高亮所有 {{ }} 變數（toggle、純讀、不修改文件）">
+                            <i class="fa fa-search" aria-hidden="true"/><span>預覽變數</span>
+                        </button>
+                        <t t-if="state.lastScanReplaceSnapshot">
+                            <div class="doc-menu-separator" role="separator"/>
+                            <button class="doc-toolbar-dropdown-item" role="menuitem"
+                                    t-on-click="() => this.onToolbarMenuAction(() => this.onRollbackScanReplaceClick())"
+                                    title="復原最近一次「掃描並替換」">
+                                <i class="fa fa-undo" aria-hidden="true"/><span>復原替換</span>
+                            </button>
+                        </t>
+                    </div>
+                </div>
 
                 <!-- Sprint D：版面模式切換（inline / overlay） -->
                 <div class="doc-field-toolbar-sep" role="separator" aria-hidden="true"/>

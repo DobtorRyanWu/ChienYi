@@ -72,11 +72,19 @@ class SupervisionProjectPortal(models.Model):
                 ('state', '!=', 'terminated'),
             ]
 
-        # Portal 用戶：承包廠商（維持原邏輯）
+        # Portal 用戶：依角色分流（與 ir.rule 對齊）
+        # - 老闆 group_portal_boss：公司承包的所有專案
+        # - 主管/現場/閱覽：只看被指派為「參與成員」的專案
         company_partner = partner.commercial_partner_id or partner
 
+        if user.has_group('construction_supervision_base.group_portal_boss'):
+            return [
+                ('contractor_partner_ids', 'in', [company_partner.id]),
+                ('state', 'not in', ['draft', 'terminated']),
+            ]
+
         return [
-            ('contractor_partner_ids', 'in', [company_partner.id]),
+            ('member_user_ids', 'in', [user.id]),
             ('state', 'not in', ['draft', 'terminated']),
         ]
 

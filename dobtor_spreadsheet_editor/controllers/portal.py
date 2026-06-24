@@ -57,7 +57,7 @@ class SpreadsheetPortal(CustomerPortal):
     @http.route(["/my/spreadsheet/<int:spreadsheet_id>"], type="http", auth="user", website=True)
     def portal_spreadsheet(self, spreadsheet_id, **kw):
         try:
-            spreadsheet = self._document_check_access(spreadsheet_id, "read")
+            spreadsheet = self._spreadsheet_check_access(spreadsheet_id, "read")
         except (AccessError, MissingError):
             return request.redirect("/my")
         # 可編輯旗標（模型層 ACL）；存檔 rpc 另以 check_access_rule('write') 二次把關記錄規則
@@ -70,7 +70,7 @@ class SpreadsheetPortal(CustomerPortal):
         }
         return request.render("dobtor_spreadsheet_editor.portal_spreadsheet_page", values)
 
-    def _document_check_access(self, spreadsheet_id, access):
+    def _spreadsheet_check_access(self, spreadsheet_id, access):
         spreadsheet = request.env["spreadsheet.spreadsheet"].browse(spreadsheet_id)
         spreadsheet.check_access_rights(access)
         spreadsheet.check_access_rule(access)
@@ -81,7 +81,7 @@ class SpreadsheetPortal(CustomerPortal):
     # ── 編輯器資料 / 存檔（JSON rpc）──
     @http.route(["/my/spreadsheet/<int:spreadsheet_id>/data"], type="json", auth="user")
     def portal_spreadsheet_data(self, spreadsheet_id, **kw):
-        sp = self._document_check_access(spreadsheet_id, "read")
+        sp = self._spreadsheet_check_access(spreadsheet_id, "read")
         return {
             "name": sp.name,
             "spreadsheet_raw": sp.spreadsheet_raw,
@@ -90,7 +90,7 @@ class SpreadsheetPortal(CustomerPortal):
 
     @http.route(["/my/spreadsheet/<int:spreadsheet_id>/save"], type="json", auth="user")
     def portal_spreadsheet_save(self, spreadsheet_id, data=None, **kw):
-        sp = self._document_check_access(spreadsheet_id, "write")
+        sp = self._spreadsheet_check_access(spreadsheet_id, "write")
         if data is not None:
             sp.write({"spreadsheet_raw": data})
         return {"ok": True}

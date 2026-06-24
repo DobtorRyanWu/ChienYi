@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 核心基礎模組',
-    'version': '18.0.4.1.0',  # project_task 必填欄位(planned_qty/unit/unit_price)既有 NULL 回填 pre-migrate
+    'version': '18.0.4.1.1',  # 4.1.1: 業主欄位 authority_id→authority_name 純文字化資料回填 post-migrate；4.1.0: project_task 必填欄位 NULL 回填 pre-migrate
     'category': 'Construction/Supervision',
     'summary': '工程監造與施工協作管理系統核心模組',
     'description': """
@@ -44,11 +44,13 @@
         'security/security.xml',
         'security/portal_groups.xml',  # 包含 group_operator 定義
         'security/new_portal_groups.xml',  # 新架構：4 個權限等級 + 2 個組織類型
+        'security/portal_role_groups.xml',  # v11 前台三角色：現場人員/主管/定期閱覽者
         'security/ir.model.access.csv',
         # Data
         'data/ir_sequence_data.xml',
         'data/document_category_data.xml',
         'data/ir_cron_data.xml',
+        'data/portal_account_cron.xml',  # 臨時帳號到期自動停用
         # Wizard
         'wizard/tender_import_wizard_views.xml',
         'wizard/document_replace_attachment_wizard_views.xml',

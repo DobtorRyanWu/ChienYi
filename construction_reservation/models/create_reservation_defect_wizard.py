@@ -1,0 +1,90 @@
+# -*- coding: utf-8 -*-
+
+from odoo import models, fields, api
+from odoo.exceptions import UserError
+
+
+class CreateReservationDefectWizard(models.TransientModel):
+    """
+    建立預約式缺失改善 Wizard
+
+    設計說明：
+    - 讓使用者在建立缺失改善前選擇記錄類型（監造 / 營造）
+    - 由預約式自主檢查的「建立缺失改善」按鈕（整張或逐行）觸發
+    - 與一般式 create.defect.improvement.wizard 對齊
+    """
+    _name = 'create.reservation.defect.wizard'
+    _description = '建立預約式缺失改善 - 選擇記錄類型'
+
+    inspection_id = fields.Many2one(
+        'reservation.self.inspection',
+        string='自主檢查',
+        required=True,
+        ondelete='cascade')
+
+    record_type = fields.Selection([
+        ('supervision', '監造'),
+        ('contractor', '營造'),
+    ], string='記錄類型', required=True, default='supervision')
+
+    item_ids = fields.Many2many(
+        'reservation.self.inspection.item',
+        relation='create_rsv_defect_wiz_item_rel',
+        column1='wizard_id', column2='item_id',
+        string='缺失項目',
+        help='要建立缺失改善的檢查項目；逐行建立時為單一項，整張批次時為全部未建立缺失項')
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        # 若未由 context 指定 item_ids（逐行建立），則自動帶入整張檢查的未建立缺失項
+        if 'item_ids' in fields_list and not res.get('item_ids'):
+            inspection_id = res.get('inspection_id') or self.env.context.get('default_inspection_id')
+            if inspection_id:
+                inspection = self.env['reservation.self.inspection'].browse(inspection_id)
+                defect_items = inspection.checklist_ids.filtered(
+                    lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
+                res['item_ids'] = [(6, 0, defect_items.ids)]
+        return res
+
+    def action_confirm(self):
+        """確認並建立缺失改善單"""
+        self.ensure_one()
+        inspection = self.inspection_id
+
+        # 只處理本 wizard 指定、仍為缺失且尚未建立改善的項目
+        defect_items = self.item_ids.filtered(
+            lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
+
+        if not defect_items:
+            raise UserError('所有缺失項目皆已建立缺失改善單')
+
+        created = self.env['reservation.defect.improvement']
+        for item in defect_items:
+            defect = self.env['reservation.defect.improvement'].create({
+                'slip_id': inspection.slip_id.id,
+                'record_type': self.record_type,
+                'check_type': 'construction',
+                'defect_category': 'workmanship',
+                'defect_description': f'{item.check_item}\n實際情形: {item.actual_result or ""}',
+                'defect_location': inspection.inspection_location or inspection.slip_id.location,
+                'notification_date': fields.Date.today(),
+            })
+            item.defect_improvement_id = defect.id
+            created |= defect
+
+        if len(created) == 1:
+            return {
+                'type': 'ir.actions.act_window',
+                'name': '缺失改善',
+                'res_model': 'reservation.defect.improvement',
+                'view_mode': 'form',
+                'res_id': created.id,
+            }
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '已建立的缺失改善',
+            'res_model': 'reservation.defect.improvement',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', created.ids)],
+        }

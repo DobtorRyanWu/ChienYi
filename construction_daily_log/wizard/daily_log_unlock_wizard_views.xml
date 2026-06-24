@@ -30,10 +30,16 @@
                            placeholder="請說明解鎖原因（例如：需要補充當日施工照片、修正數量記錄錯誤等）"/>
                 </group>
                 
+                <field name="can_unlock" invisible="1"/>
                 <footer>
                     <button string="確認解鎖" type="object"
                             name="action_confirm_unlock"
-                            class="btn-primary"/>
+                            class="btn-primary"
+                            invisible="not can_unlock"/>
+                    <button string="提出申請" type="object"
+                            name="action_request_unlock"
+                            class="btn-primary"
+                            invisible="can_unlock"/>
                     <button string="取消" special="cancel"/>
                 </footer>
             </form>

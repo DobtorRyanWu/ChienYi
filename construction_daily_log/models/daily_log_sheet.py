@@ -348,6 +348,23 @@ class DailyLogSheet(models.Model):
         help='使用者是否有解鎖權限',
     )
 
+    # === Unlock Request Flow ===
+    unlock_request_state = fields.Selection([
+        ('none', '無申請'),
+        ('pending', '待審核'),
+        ('approved', '已批准'),
+        ('rejected', '已駁回'),
+    ], string='解鎖申請狀態', default='none', tracking=True)
+
+    unlock_requested_by_id = fields.Many2one(
+        'res.users', string='解鎖申請人', readonly=True)
+
+    unlock_request_duration = fields.Selection([
+        ('24', '1天'), ('72', '3天'), ('120', '5天'), ('168', '7天'),
+    ], string='申請解鎖時長')
+
+    unlock_request_reason = fields.Text(string='申請解鎖原因')
+
     # === Progress Information ===
     has_progress_change = fields.Boolean(
         string='有進度變更',
@@ -636,26 +653,34 @@ class DailyLogSheet(models.Model):
         return sheets
 
     def write(self, vals):
-        """檢查鎖定狀態，防止修改已鎖定的記錄"""
-        # 檢查是否嘗試修改已鎖定的記錄
+        """檢查鎖定狀態：鎖定只凍結「使用者輸入欄位」，不阻擋系統重算「衍生計算欄位」。"""
         locked_sheets = self.filtered(lambda s: s.is_locked and not s.is_unlocked)
-        
-        # 排除允許在鎖定狀態下修改的欄位
-        unlock_fields = {
-            'is_unlocked', 'unlocked_by_id', 'unlock_date',
-            'unlock_reason', 'unlock_expires_at', 'lock_date',
-            'state',  # cron auto_lock 需要修改 state
-        }
-        
-        # 如果有鎖定的記錄，且不是解鎖操作
-        if locked_sheets and not (set(vals.keys()) <= unlock_fields):
-            raise UserError(
-                '無法修改已鎖定的日誌！\n\n'
-                f'以下日誌已鎖定（超過14天）：\n' +
-                '\n'.join([f'- {s.complete_name}' for s in locked_sheets]) +
-                '\n\n請聯繫管理員申請解鎖。'
-            )
-        
+
+        if locked_sheets:
+            # 解鎖管理欄位 + state（cron 自動鎖定需改 state）
+            # 含解鎖「申請」相關欄位：鎖定中的日誌本來就需要透過「申請解鎖 → 審核」
+            # 流程才能解鎖，故這些欄位必須允許在鎖定狀態下寫入，否則申請與審核都會被擋。
+            unlock_fields = {
+                'is_unlocked', 'unlocked_by_id', 'unlock_date',
+                'unlock_reason', 'unlock_expires_at', 'lock_date',
+                'state',
+                'unlock_request_state', 'unlock_requested_by_id',
+                'unlock_request_reason', 'unlock_request_duration',
+            }
+            # 計算（衍生）欄位：如「本日預定進度／有無進度變更／變更後本日預定進度／
+            # 完成率」等，是依「當下核定計畫」推導出來的值。新版進度表啟用時系統會重算
+            # 這些欄位，屬「衍生視圖更新」而非「竄改歷史輸入」，故允許寫入已鎖定日誌。
+            # 真正受鎖定保護的是「使用者輸入欄位」（本日完成數量、天氣、人機、備註…）。
+            computed_fields = {n for n, f in self._fields.items() if f.compute}
+            blocked = set(vals.keys()) - unlock_fields - computed_fields
+            if blocked:
+                raise UserError(
+                    '無法修改已鎖定的日誌！\n\n'
+                    f'以下日誌已鎖定（超過14天）：\n' +
+                    '\n'.join([f'- {s.complete_name}' for s in locked_sheets]) +
+                    '\n\n請聯繫管理員申請解鎖。'
+                )
+
         res = super().write(vals)
         return res
 
@@ -680,18 +705,12 @@ class DailyLogSheet(models.Model):
     # -------------------------------------------------------------------------
 
     def action_unlock(self):
-        """開啟解鎖精靈"""
+        """開啟解鎖精靈（有權限者直接解鎖，無權限者提出申請）"""
         self.ensure_one()
-        
-        if not self.can_unlock:
-            raise UserError(
-                '您沒有解鎖權限！\n'
-                '只有系統管理員、監造管理者或 HR 經理可以解鎖日誌。'
-            )
-        
+
         if not self.is_locked:
             raise UserError('此日誌尚未鎖定，無需解鎖。')
-        
+
         # 開啟解鎖精靈
         return {
             'type': 'ir.actions.act_window',
@@ -702,6 +721,63 @@ class DailyLogSheet(models.Model):
             'context': {
                 'default_sheet_id': self.id,
             },
+        }
+
+    def action_approve_unlock_request(self):
+        """批准解鎖申請"""
+        self.ensure_one()
+        if not self.can_unlock:
+            raise UserError('您沒有解鎖權限！')
+        hours = int(self.unlock_request_duration)
+        expires_at = fields.Datetime.now() + timedelta(hours=hours)
+        self.write({
+            'is_unlocked': True,
+            'unlocked_by_id': self.env.uid,
+            'unlock_date': fields.Datetime.now(),
+            'unlock_reason': self.unlock_request_reason,
+            'unlock_expires_at': expires_at,
+            'unlock_request_state': 'approved',
+        })
+        if self.state == 'auto_locked':
+            self.state = 'draft'
+        if self.unlock_requested_by_id and self.unlock_requested_by_id.partner_id:
+            self.message_post(
+                body=f'✅ 解鎖申請已批准，有效至 {expires_at.strftime("%Y-%m-%d %H:%M")}',
+                partner_ids=[self.unlock_requested_by_id.partner_id.id],
+                message_type='notification',
+            )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '已批准',
+                'message': f'解鎖申請已批准，有效至 {expires_at.strftime("%Y-%m-%d %H:%M")}',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
+    def action_reject_unlock_request(self):
+        """駁回解鎖申請"""
+        self.ensure_one()
+        if not self.can_unlock:
+            raise UserError('您沒有解鎖權限！')
+        self.write({'unlock_request_state': 'rejected'})
+        if self.unlock_requested_by_id and self.unlock_requested_by_id.partner_id:
+            self.message_post(
+                body='❌ 解鎖申請已駁回',
+                partner_ids=[self.unlock_requested_by_id.partner_id.id],
+                message_type='notification',
+            )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '已駁回',
+                'message': '解鎖申請已駁回',
+                'type': 'warning',
+                'sticky': False,
+            }
         }
 
     def action_relock(self):

@@ -51,6 +51,27 @@ class ReservationDefectImprovementReservation(models.Model):
         compute='_compute_is_from_inspection',
         store=True)
 
+    # 單一來源（供「關聯與備註」頁籤以與一般式相同的三欄格式呈現）
+    source_inspection_id = fields.Many2one(
+        'reservation.self.inspection',
+        string='來源自主檢查',
+        compute='_compute_single_source')
+    source_inspection_item_id = fields.Many2one(
+        'reservation.self.inspection.item',
+        string='來源檢查項目',
+        compute='_compute_single_source')
+    source_inspection_no = fields.Char(
+        string='檢查編號',
+        compute='_compute_single_source')
+
+    @api.depends('source_inspection_item_ids')
+    def _compute_single_source(self):
+        for record in self:
+            item = record.source_inspection_item_ids[:1]
+            record.source_inspection_item_id = item
+            record.source_inspection_id = item.inspection_id
+            record.source_inspection_no = item.inspection_id.inspection_no
+
     # === 計算方法 ===
     @api.depends('source_inspection_item_ids')
     def _compute_source_inspection_count(self):
@@ -74,43 +95,6 @@ class ReservationDefectImprovementReservation(models.Model):
             'view_mode': 'list,form',
             'domain': [('id', 'in', inspection_ids)],
         }
-
-    def action_schedule_recheck(self):
-        """安排複查"""
-        self.ensure_one()
-        if self.state not in ('notified', 'improving'):
-            raise UserError('只有已通知或改善中狀態可以安排複查')
-        self.write({
-            'recheck_date': fields.Date.today(),
-            'recheck_result': 'pending',
-        })
-        return True
-
-    def action_recheck_pass(self):
-        """複查通過 → 標記為已改善"""
-        self.ensure_one()
-        if not self.recheck_date:
-            raise UserError('請先設定複查日期')
-        self.write({
-            'recheck_result': 'pass',
-            'state': 'improved',
-            'improvement_date': fields.Date.today(),
-            'verifier_id': self.env.uid,
-            'verify_date': fields.Date.today(),
-            'improvement_progress': 100,
-        })
-        return True
-
-    def action_recheck_fail(self):
-        """複查不通過"""
-        self.ensure_one()
-        if not self.recheck_date:
-            raise UserError('請先設定複查日期')
-        self.write({
-            'recheck_result': 'fail',
-            'recheck_date': False,
-        })
-        return True
 
     def action_reopen(self):
         """重新開啟 - 擴展"""

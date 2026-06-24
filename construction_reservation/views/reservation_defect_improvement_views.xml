@@ -7,25 +7,6 @@
         <field name="model">reservation.defect.improvement</field>
         <field name="inherit_id" ref="construction_quality.view_reservation_defect_improvement_form"/>
         <field name="arch" type="xml">
-            <!-- 新增複查相關按鈕（放在 action_reopen 後） -->
-            <xpath expr="//button[@name='action_reopen']" position="after">
-                <button name="action_schedule_recheck"
-                        string="安排複查"
-                        type="object"
-                        class="btn-secondary"
-                        invisible="state not in ('notified', 'improving')"/>
-                <button name="action_recheck_pass"
-                        string="複查通過"
-                        type="object"
-                        class="btn-success"
-                        invisible="recheck_result != 'pending'"/>
-                <button name="action_recheck_fail"
-                        string="複查不通過"
-                        type="object"
-                        class="btn-danger"
-                        invisible="recheck_result != 'pending'"/>
-            </xpath>
-
             <!-- 在通報單資訊後加入通報單摘要欄位 -->
             <xpath expr="//field[@name='project_id']" position="after">
                 <field name="slip_number" invisible="not slip_id"/>
@@ -43,22 +24,16 @@
                         invisible="not is_from_inspection"/>
             </xpath>
 
-            <!-- 在 複查資訊 頁籤後加入 來源檢查 頁籤 -->
-            <xpath expr="//page[@name='recheck']" position="after">
-                <page string="來源檢查" name="source_inspections"
-                      invisible="source_inspection_count == 0">
-                    <field name="source_inspection_item_ids" readonly="1">
-                        <list>
-                            <field name="inspection_id"/>
-                            <field name="stage"/>
-                            <field name="check_item"/>
-                            <field name="actual_result"/>
-                            <field name="check_result" widget="badge"
-                                   decoration-danger="check_result == 'defect'"/>
-                        </list>
-                    </field>
-                </page>
+            <!-- 在「關聯與備註」頁籤以與一般式相同的三欄格式顯示來源自主檢查 -->
+            <xpath expr="//page[@name='relations']/group" position="before">
+                <group string="來源自主檢查" invisible="not is_from_inspection">
+                    <field name="source_inspection_id" string="來源自主檢查" readonly="1"/>
+                    <field name="source_inspection_no" string="檢查編號"/>
+                    <field name="source_inspection_item_id" string="來源檢查項目"
+                           readonly="1" options="{'no_open': True}"/>
+                </group>
             </xpath>
+
         </field>
     </record>
 

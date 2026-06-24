@@ -125,10 +125,6 @@
                                decoration-muted="state == 'correction'"/>
                     </div>
                     <div class="oe_button_box" name="button_box">
-                        <button name="action_view_documents" type="object"
-                                class="oe_stat_button" icon="fa-file-text-o">
-                            <field name="document_count" string="文件" widget="statinfo"/>
-                        </button>
                         <!-- 初始化 Smart Buttons（僅 draft 狀態顯示，點擊前往設定頁面）-->
                         <button name="action_init_goto_equipment" type="object"
                                 class="oe_stat_button" icon="fa-wrench"
@@ -210,6 +206,17 @@
                                 <span class="o_stat_text">樣板</span>
                             </div>
                         </button>
+                        <!-- 文件（移到進度表之後、照片之前；由 progress/photo 以 anchor 插入）-->
+                        <button name="action_view_documents" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o">
+                            <field name="document_count" string="文件" widget="statinfo"/>
+                        </button>
+                        <!-- 契約工項（最末顆；邏輯 task_count / action_view_tasks 同在 base）
+                             照片由 construction_photo 以 anchor 插在「文件」之後 -->
+                        <button name="action_view_tasks" type="object"
+                                class="oe_stat_button" icon="fa-list">
+                            <field name="task_count" string="契約工項" widget="statinfo"/>
+                        </button>
                     </div>
                     <widget name="web_ribbon" title="已結案" bg_color="text-bg-success"
                             invisible="state != 'closed'"/>
@@ -234,9 +241,9 @@
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="year"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="authority_id"
+                            <field name="authority_name"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="authority_contact_id"/>
+                            <field name="authority_contact_name"/>
                             <field name="location"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="management_company_name"
@@ -312,6 +319,19 @@
                             </group>
                         </page>
 
+                        <!-- 頁籤: 參與成員 (逐帳號可見性) -->
+                        <page string="參與成員" name="members">
+                            <div class="text-muted mb-2">
+                                <p>指派可在前台存取本專案的帳號。主管/現場人員/定期閱覽者只看得到自己被加入的專案；老闆角色不受此限（可見公司承包的所有專案）。</p>
+                            </div>
+                            <field name="member_ids">
+                                <list editable="bottom">
+                                    <field name="user_id"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+
                         <!-- 頁籤 4: 備註 (例外可編輯) -->
                         <page string="備註" name="notes">
                             <group>
@@ -341,7 +361,7 @@
                 <field name="name"/>
                 <field name="year"/>
                 <field name="project_type" widget="badge"/>
-                <field name="authority_id"/>
+                <field name="authority_name"/>
                 <field name="contract_amount" sum="契約金額合計"/>
                 <field name="contract_start_date"/>
                 <field name="contract_end_date"/>
@@ -367,7 +387,7 @@
                 <field name="name"/>
                 <field name="state"/>
                 <field name="project_type"/>
-                <field name="authority_id"/>
+                <field name="authority_name"/>
                 <field name="contract_amount"/>
                 <progressbar field="state"
                              colors='{"construction": "info", "acceptance": "warning", "closed": "success"}'/>
@@ -387,7 +407,7 @@
                             <div class="o_kanban_record_body">
                                 <field name="name"/>
                                 <div class="mt-2">
-                                    <field name="authority_id"/>
+                                    <field name="authority_name"/>
                                 </div>
                             </div>
                             <div class="o_kanban_record_bottom">
@@ -414,7 +434,7 @@
                 <field name="name"/>
                 <field name="year"/>
                 <field name="contract_no"/>
-                <field name="authority_id"/>
+                <field name="authority_name"/>
                 <field name="supervision_engineer_id"/>
                 <separator/>
                 <filter string="未開始" name="draft" domain="[('state', '=', 'draft')]"/>
@@ -431,7 +451,7 @@
                     <filter string="年份" name="group_year" context="{'group_by': 'year'}"/>
                     <filter string="狀態" name="group_state" context="{'group_by': 'state'}"/>
                     <filter string="工程類型" name="group_type" context="{'group_by': 'project_type'}"/>
-                    <filter string="業主" name="group_authority" context="{'group_by': 'authority_id'}"/>
+                    <filter string="業主" name="group_authority" context="{'group_by': 'authority_name'}"/>
                     <filter string="開工月份" name="group_start_month" context="{'group_by': 'contract_start_date:month'}"/>
                 </group>
             </search>

@@ -40,6 +40,7 @@ class ReservationNotificationSlipLine(models.Model):
     # === 工項關聯 ===
     task_id = fields.Many2one(
         'project.task', string='契約工項',
+        required=True,
         domain="[('supervision_project_id', '=', project_id)]",
         help='關聯的契約工項')
 
@@ -52,8 +53,11 @@ class ReservationNotificationSlipLine(models.Model):
         string='項目編號', required=True,
         help='工項編號')
 
+    display_item_no = fields.Char(
+        related='task_id.display_item_no', string='項次', store=True)
+
     description = fields.Char(
-        string='項目及說明', required=True)
+        string='項目及說明', related='task_id.name', store=True, readonly=True)
 
     unit = fields.Char(
         string='單位', required=True,

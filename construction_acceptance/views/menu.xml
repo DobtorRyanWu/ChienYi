@@ -16,7 +16,7 @@
               parent="construction_supervision_base.menu_preliminary_acceptance"
               action="action_acceptance_preliminary_pending"
               sequence="20"
-              />
+              groups="base.group_user"/>
 
     <!-- 正驗管理 -->
     <menuitem id="menu_acceptance_final_list"
@@ -30,7 +30,7 @@
               parent="construction_supervision_base.menu_final_acceptance"
               action="action_acceptance_final_pending"
               sequence="20"
-              />
+              groups="base.group_user"/>
 
     <!-- 驗收缺失 -->
     <menuitem id="menu_acceptance_defect_list"
@@ -44,14 +44,14 @@
               parent="construction_supervision_base.menu_acceptance_defect"
               action="action_acceptance_defect_overdue"
               sequence="20"
-              />
+              groups="base.group_user"/>
 
     <menuitem id="menu_acceptance_defect_pending_recheck"
               name="待覆驗缺失"
               parent="construction_supervision_base.menu_acceptance_defect"
               action="action_acceptance_defect_pending_recheck"
               sequence="30"
-              />
+              groups="base.group_user"/>
 
     <!-- 結案管理 -->
     <menuitem id="menu_project_closure_list"
@@ -71,6 +71,6 @@
               parent="construction_supervision_base.menu_closure"
               action="action_project_closure_retention"
               sequence="30"
-              />
+              groups="base.group_user"/>
 
 </odoo>

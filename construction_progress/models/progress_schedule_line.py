@@ -120,6 +120,13 @@ class ProgressScheduleLine(models.Model):
         store=True,
         digits=(5, 2),
     )
+    from_plan_correction = fields.Boolean(
+        string='計畫校正過渡明細',
+        default=False,
+        copy=True,   # 跨版本複製時保留，使歷史校正負值永遠合法
+        help='標記此明細由「套用計畫基準校正」產生；其負值預定進度視為合法歷史，'
+             '不受後續新版本另設校正視窗影響',
+    )
 
     @api.depends('schedule_id.line_ids.planned_progress', 'sequence', 'planned_progress')
     def _compute_cumulative_planned(self):
@@ -252,9 +259,13 @@ class ProgressScheduleLine(models.Model):
 
     @api.constrains('planned_progress')
     def _check_planned_progress(self):
-        """預定進度只有在計畫倒退校正的過渡區間才允許負值"""
+        """預定進度負值僅限：(a) 校正過渡明細(歷史) 或 (b) 當前校正視窗內"""
         for line in self:
             if line.planned_progress < 0:
+                # (a) 由套用校正產生的過渡明細，永久視為合法（支援跨版本多次校正）
+                if line.from_plan_correction:
+                    continue
+                # (b) 保留舊行為：當前校正視窗內允許負值
                 sched = line.schedule_id
                 if not (
                     sched.needs_plan_correction

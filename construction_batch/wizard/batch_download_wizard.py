@@ -27,11 +27,9 @@ class BatchDownloadWizard(models.TransientModel):
     # === 下載類型選擇 ===
     download_type = fields.Selection([
         ('daily_log', '施工日誌'),
-        ('self_inspection', '自主檢查表'),
         ('estimate', '估驗計價表'),
-        ('test_record', '檢試驗記錄'),
     ], string='下載類型', required=True, default='daily_log',
-       help='選擇要批次下載的文件類型')
+       help='選擇要批次下載的文件類型（Excel/ZIP）；單筆/多筆 PDF 請用清單的「列印」')
 
     # === 日誌下載選項 ===
     log_format = fields.Selection([
@@ -237,10 +235,6 @@ class BatchDownloadWizard(models.TransientModel):
             return self._download_daily_logs()
         elif self.download_type == 'estimate':
             return self._download_estimates()
-        elif self.download_type == 'self_inspection':
-            return self._download_self_inspections()
-        elif self.download_type == 'test_record':
-            return self._download_test_records()
         else:
             raise UserError('尚未支援的下載類型')
 

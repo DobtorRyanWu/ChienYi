@@ -14,33 +14,33 @@
                     <group>
                         <field name="schedule_id" invisible="1"/>
                         <field name="project_id" readonly="1"/>
+                        <field name="available_task_ids" invisible="1"/>
                     </group>
                     <group>
                         <field name="available_item_count" readonly="1"/>
                     </group>
                 </group>
 
-                <field name="line_ids" nolabel="1">
-                    <list editable="bottom" create="false" delete="false">
-                        <field name="selected" nolabel="1" width="40px"/>
-                        <field name="name" string="施工項目" readonly="1"/>
-                        <field name="parent_item_path" string="父工項路徑" readonly="1" optional="show"/>
-                        <field name="parent_id" column_invisible="1"/>
-                        <field name="display_item_no" string="項次" readonly="1" width="60px"/>
-                        <field name="item_no" string="完整項次" readonly="1" optional="hide"/>
-                        <field name="unit" string="單位" readonly="1"/>
-                        <field name="planned_qty" string="契約數量" readonly="1"
-                               digits="[16, 4]"/>
-                        <field name="task_id" column_invisible="1" force_save="1"/>
+                <!-- 點「加入資料行」開啟工項選擇對話框（可搜尋 項目及說明/工項編號/項次路徑/父工項，
+                     CJK 逐字比對）；domain 限定尚未在排程中的可選工項。 -->
+                <field name="selected_task_ids" nolabel="1"
+                       domain="[('id', 'in', available_task_ids)]"
+                       context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}">
+                    <list>
+                        <field name="display_item_no" string="項次"/>
+                        <field name="name" string="項目及說明"/>
+                        <field name="parent_id" string="父工項"/>
+                        <field name="item_no" string="完整項次" optional="hide"/>
+                        <field name="unit" string="單位"/>
+                        <field name="planned_qty" string="契約數量" digits="[16, 4]"/>
                     </list>
                 </field>
 
                 <footer>
                     <button string="新增選取工項" type="object"
                             name="action_add_selected"
-                            class="btn-primary"
-                            invisible="available_item_count == 0"/>
-                    <button string="全部新增" type="object"
+                            class="btn-primary"/>
+                    <button string="全部新增（所有可選）" type="object"
                             name="action_add_all"
                             class="btn-secondary"
                             invisible="available_item_count == 0"/>

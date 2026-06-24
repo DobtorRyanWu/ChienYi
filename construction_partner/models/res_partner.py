@@ -204,9 +204,10 @@ class ResPartner(models.Model):
         for partner in self:
             projects = Project.browse()
 
-            # 作為業主的專案
-            if partner.construction_partner_type == 'owner':
-                projects |= Project.search([('authority_id', '=', partner.id)])
+            # 作為業主的專案：authority 已改為純文字(authority_name)，無 FK 關聯，
+            # 僅能以名稱字串相等比對（可能因名稱不一致而漏抓）
+            if partner.construction_partner_type == 'owner' and partner.name:
+                projects |= Project.search([('authority_name', '=', partner.name)])
 
             partner.supervision_project_ids = projects
 

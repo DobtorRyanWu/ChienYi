@@ -34,6 +34,7 @@ v2.0.0 (Portal v10)
         'portal',
         'construction_supervision_base',
         'construction_quality',
+        'construction_general',  # 前台缺失頁實際使用 general.defect.improvement（補上隱性依賴）
         'construction_photo',
         'construction_daily_log',
         'construction_notification_slip',
@@ -46,6 +47,7 @@ v2.0.0 (Portal v10)
         # Views
         'views/portal_templates.xml',
         'views/portal_inspection_templates.xml',
+        'views/portal_inspection_type_templates.xml',
         'views/portal_defect_templates.xml',
         'views/portal_photo_templates.xml',
         'views/portal_photo_map_templates.xml',
@@ -57,9 +59,7 @@ v2.0.0 (Portal v10)
         # 登入頁品牌化（EAGLE 風格）
         'views/login_templates.xml',
         # 停用 Odoo Website 預設 /contactus 頁面（客服走另一系統）
-        # 註：本部署未安裝 website 模組，website.page/website.menu 等 external id 不存在，
-        #     啟用此檔會讓 -u 升級因 KeyError: 'website.page' 失敗（chienyi 即為此情況）。
-        #     若日後安裝 website 再取消註解。
+        # 註：本部署未安裝 website 模組，/contactus 不存在，故停用此資料檔。若日後安裝 website 再取消註解。
         # 'data/disable_contactus.xml',
     ],
     'assets': {

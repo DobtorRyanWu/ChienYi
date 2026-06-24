@@ -69,9 +69,6 @@
                             <field name="authority_level"/>
                             <field name="authority_code"/>
                         </group>
-                        <group string="主辦工程">
-                            <field name="owned_project_count"/>
-                        </group>
                     </group>
                 </page>
             </xpath>

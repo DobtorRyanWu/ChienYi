@@ -5,6 +5,7 @@ access_daily_log_weather_admin,daily.log.weather.admin,model_daily_log_weather,c
 access_daily_log_unlock_wizard_all,daily.log.unlock.wizard.all,model_daily_log_unlock_wizard,base.group_user,1,1,1,1
 access_daily_log_add_items_wizard_all,daily.log.add.items.wizard.all,model_daily_log_add_items_wizard,base.group_user,1,1,1,1
 access_daily_log_add_items_wizard_line_all,daily.log.add.items.wizard.line.all,model_daily_log_add_items_wizard_line,base.group_user,1,1,1,1
+access_daily_log_add_items_wizard_extra_all,daily.log.add.items.wizard.extra.all,model_daily_log_add_items_wizard_extra,base.group_user,1,1,1,1
 access_daily_log_sheet_subscriber,daily.log.sheet.subscriber,model_daily_log_sheet,construction_supervision_base.group_portal_subscriber,1,1,1,1
 access_daily_log_sheet_leader,daily.log.sheet.leader,model_daily_log_sheet,construction_supervision_base.group_portal_leader,1,1,1,1
 access_daily_log_sheet_user,daily.log.sheet.user,model_daily_log_sheet,construction_supervision_base.group_portal_user,1,1,1,1

@@ -22,88 +22,67 @@ class WeeklyScheduleAddItemsWizard(models.TransientModel):
         readonly=True,
     )
 
-    line_ids = fields.One2many(
-        'weekly.schedule.add.items.wizard.line',
-        'wizard_id',
-        string='可選工項',
+    # 可選工項（排除已在排程中的）——供 selected_task_ids 的 domain 與「全部新增」使用
+    available_task_ids = fields.Many2many(
+        'project.task',
+        'wssched_add_wiz_avail_rel', 'wizard_id', 'task_id',
+        string='可選工項(內部)',
+        compute='_compute_available_task_ids',
     )
-
+    # 使用者勾選/搜尋加入的工項（透過 SelectCreateDialog，享有改良後的工項搜尋）
+    selected_task_ids = fields.Many2many(
+        'project.task',
+        'wssched_add_wiz_sel_rel', 'wizard_id', 'task_id',
+        string='選擇施工項目',
+    )
     available_item_count = fields.Integer(
         string='可選工項數',
-        compute='_compute_available_item_count',
+        compute='_compute_available_task_ids',
     )
 
-    @api.depends('line_ids')
-    def _compute_available_item_count(self):
+    @api.depends('schedule_id')
+    def _compute_available_task_ids(self):
         for wizard in self:
-            wizard.available_item_count = len(wizard.line_ids)
+            project = wizard.schedule_id.supervision_project_id.project_id \
+                if wizard.schedule_id else False
+            if not project:
+                wizard.available_task_ids = False
+                wizard.available_item_count = 0
+                continue
+            existing_items = wizard.schedule_id.line_ids.mapped('task_id')
+            all_leaf_items = self.env['project.task'].search([
+                ('project_id', '=', project.id),
+                ('is_summary_item', '=', False),
+                ('active', '=', True),
+            ])
+            available = all_leaf_items - existing_items
+            wizard.available_task_ids = available
+            wizard.available_item_count = len(available)
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        wizards = super().create(vals_list)
-        for wizard in wizards:
-            if not wizard.line_ids and wizard.schedule_id:
-                schedule = wizard.schedule_id
-                # 直接從 supervision_project_id 取得 project_id，避免 related 欄位未同步
-                project = schedule.supervision_project_id.project_id
-                if not project:
-                    continue
-                # 已在排程中的工項
-                existing_items = schedule.line_ids.mapped('task_id')
-                # 所有末端工項
-                all_leaf_items = self.env['project.task'].search([
-                    ('project_id', '=', project.id),
-                    ('is_summary_item', '=', False),
-                    ('active', '=', True),
-                ])
-                available = all_leaf_items - existing_items
-                line_vals = [
-                    {'wizard_id': wizard.id, 'task_id': task.id}
-                    for task in available
-                ]
-                if line_vals:
-                    self.env['weekly.schedule.add.items.wizard.line'].create(line_vals)
-        return wizards
+    def _create_schedule_lines(self, tasks):
+        """從 project.task recordset 建立排程明細（跳過已存在的）"""
+        schedule = self.schedule_id
+        to_add = tasks - schedule.line_ids.mapped('task_id')
+        if not to_add:
+            raise UserError('選取的工項都已在排程中！')
+        max_seq = max(schedule.line_ids.mapped('sequence') or [0])
+        vals_list = [
+            {'schedule_id': schedule.id, 'task_id': task.id, 'sequence': max_seq + (idx * 10)}
+            for idx, task in enumerate(to_add, start=1)
+        ]
+        self.env['construction.weekly.schedule.line'].create(vals_list)
+        return {'type': 'ir.actions.act_window_close'}
 
     def action_add_selected(self):
-        """新增勾選的工項"""
+        """新增使用者選取的工項"""
         self.ensure_one()
-        selected = self.line_ids.filtered(lambda l: l.selected)
-        if not selected:
-            raise UserError('請至少勾選一個工項！')
-
-        schedule = self.schedule_id
-        existing_seqs = schedule.line_ids.mapped('sequence')
-        max_seq = max(existing_seqs) if existing_seqs else 0
-
-        vals_list = []
-        for idx, wiz_line in enumerate(selected, start=1):
-            vals_list.append({
-                'schedule_id': schedule.id,
-                'task_id': wiz_line.task_id.id,
-                'sequence': max_seq + (idx * 10),
-            })
-
-        self.env['construction.weekly.schedule.line'].create(vals_list)
-        return {'type': 'ir.actions.act_window_close'}
+        if not self.selected_task_ids:
+            raise UserError('請至少選取一個工項！')
+        return self._create_schedule_lines(self.selected_task_ids)
 
     def action_add_all(self):
-        """全部新增"""
+        """全部新增（所有尚未在排程中的可選工項）"""
         self.ensure_one()
-        if not self.line_ids:
+        if not self.available_task_ids:
             raise UserError('沒有可選的工項！')
-
-        schedule = self.schedule_id
-        existing_seqs = schedule.line_ids.mapped('sequence')
-        max_seq = max(existing_seqs) if existing_seqs else 0
-
-        vals_list = []
-        for idx, wiz_line in enumerate(self.line_ids, start=1):
-            vals_list.append({
-                'schedule_id': schedule.id,
-                'task_id': wiz_line.task_id.id,
-                'sequence': max_seq + (idx * 10),
-            })
-
-        self.env['construction.weekly.schedule.line'].create(vals_list)
-        return {'type': 'ir.actions.act_window_close'}
+        return self._create_schedule_lines(self.available_task_ids)

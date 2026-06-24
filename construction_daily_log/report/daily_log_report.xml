@@ -275,8 +275,8 @@
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">construction_daily_log.report_daily_log_batch</field>
         <field name="report_file">construction_daily_log.report_daily_log_batch</field>
-        <field name="print_report_name">'施工日誌彙整_%s' % (len(objects))</field>
-        <field name="binding_model_id" ref="model_daily_log_sheet"/>
+        <!-- 彙整(批次)報表不綁到單筆表單列印下拉；由批次/下載中心直接以 report_name 呼叫 -->
+        <field name="binding_model_id" eval="False"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="paperformat_daily_log"/>
     </record>

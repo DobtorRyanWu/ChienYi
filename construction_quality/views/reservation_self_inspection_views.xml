@@ -80,10 +80,11 @@
                     </group>
                     <group>
                         <group string="廠商資訊">
-                            <field name="contractor_name"/>
+                            <field name="contractor_company_id"/>
                             <field name="subcontractor_name"/>
                         </group>
                         <group string="人員資訊">
+                            <field name="responsible_user_id"/>
                             <field name="inspector_id"/>
                         </group>
                     </group>

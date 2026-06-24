@@ -13,6 +13,33 @@
             <xpath expr="//form" position="inside">
                 <field name="is_project_approved" invisible="1"/>
                 <field name="project_state" invisible="1"/>
+                <field name="is_summary_item" invisible="1"/>
+            </xpath>
+
+            <!-- 移除原生智慧按鈕（子任務、工時等），契約工項不需要 -->
+            <xpath expr="//div[@name='button_box']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- 移除原生欄位：客戶、截止日期、受指派人、獲分配時間 -->
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <xpath expr="//field[@name='date_deadline']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <xpath expr="//field[@name='date_assign']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <xpath expr="//field[@name='user_ids']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <!-- 隱藏 label 和外層 div（hr_timesheet 將 allocated_hours 替換成含 progress% 和子任務資訊的 div） -->
+            <xpath expr="//label[@for='allocated_hours']" position="attributes">
+                <attribute name="invisible">True</attribute>
+            </xpath>
+            <xpath expr="//field[@name='allocated_hours']/.." position="attributes">
+                <attribute name="invisible">True</attribute>
             </xpath>
             
             <!-- 修改必填欄位 -->
@@ -46,6 +73,11 @@
                                 <field name="planned_qty" required="1" readonly="is_project_approved"/>
                                 <field name="unit_price" required="1" readonly="is_project_approved"/>
                                 <field name="planned_amount" class="oe_inline" readonly="1"/>
+                                <field name="product_id" string="標準工項"
+                                       domain="[('is_standard_work_item', '=', True)]"
+                                       context="{'tree_view_ref': 'construction_supervision_base.view_product_standard_work_item_list', 'search_view_ref': 'construction_supervision_base.view_product_standard_work_item_search'}"
+                                       options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True}"
+                                       readonly="is_project_approved"/>
                             </group>
                             <group string="實際執行">
                                 <field name="actual_qty" readonly="1"/>
@@ -64,77 +96,51 @@
                         </group>
                     </page>
 
-                    <!-- 第2頁：備註 -->
+                    <!-- 第2頁：子工項（僅彙總項顯示，列出下一層級工項） -->
+                    <page string="子工項" name="child_items" invisible="not is_summary_item">
+                        <field name="child_ids" nolabel="1" readonly="1">
+                            <list string="子工項" default_order="sequence,item_no">
+                                <field name="display_item_no" string="項次" width="80"/>
+                                <field name="name" string="項目及說明"/>
+                                <field name="unit" string="單位" width="70"/>
+                                <field name="planned_qty" string="契約數量" width="100"/>
+                                <field name="unit_price" string="契約單價" width="110"/>
+                                <field name="planned_amount" string="契約複價" sum="合計" width="120"/>
+                                <field name="is_summary_item" column_invisible="1"/>
+                            </list>
+                        </field>
+                    </page>
+
+                    <!-- 第3頁：歷史紀錄 -->
+                    <page string="歷史紀錄" name="change_history">
+                        <field name="version_ids" nolabel="1" readonly="1">
+                            <list string="歷史紀錄" default_order="version">
+                                <field name="version" string="版本" width="60"/>
+                                <field name="planned_qty" string="契約數量" width="120"/>
+                                <field name="unit_price" string="契約單價" width="120"/>
+                                <field name="planned_amount" string="契約金額" width="130"/>
+                                <field name="change_order_id" string="變更單編號"/>
+                            </list>
+                        </field>
+                    </page>
+
+                    <!-- 第3頁：詳細描述（原生） -->
+                    <page string="詳細描述" name="description">
+                        <field name="description" placeholder="工項詳細說明..." readonly="is_project_approved"/>
+                    </page>
+
+                    <!-- 第3頁：備註 -->
                     <page string="備註" name="notes">
                         <group>
-                            <field name="construction_notes" 
+                            <field name="construction_notes"
                                    placeholder="輸入施工注意事項、備註說明..."
-                                   readonly="is_project_approved"
-                                   nolabel="1"/>
+                                   readonly="is_project_approved"/>
                         </group>
                         <group>
-                            <field name="specification" 
+                            <field name="specification"
                                    placeholder="輸入規格說明..."
-                                   readonly="is_project_approved"
-                                   nolabel="1"/>
+                                   readonly="is_project_approved"/>
                         </group>
-                    </page>
-
-                    <!-- 第3頁：時程管理 -->
-                    <page string="時程管理" name="schedule">
-                        <group>
-                            <group string="預定時程" name="planned_schedule">
-                                <field name="planned_date_start" readonly="is_project_approved"/>
-                                <field name="planned_date_end" readonly="is_project_approved"/>
-                                <field name="planned_duration"/>
-                            </group>
-                            <group string="實際時程" name="actual_schedule">
-                                <field name="actual_date_start"/>
-                                <field name="actual_date_end"/>
-                                <field name="actual_duration"/>
-                            </group>
-                        </group>
-                        <group>
-                            <group string="時程分析" name="schedule_analysis">
-                                <field name="schedule_variance"/>
-                                <field name="schedule_status" widget="badge"
-                                       decoration-success="schedule_status == 'ahead'"
-                                       decoration-warning="schedule_status == 'on_schedule'"
-                                       decoration-danger="schedule_status == 'delayed'"/>
-                            </group>
-                        </group>
-                    </page>
-
-                    <!-- 第4頁：廠商分配 -->
-                    <page string="廠商分配" name="contractor"
-                          groups="construction_supervision_base.group_supervisor_admin">
-                        <group>
-                            <group string="分配資訊">
-                                <field name="assigned_company_id"
-                                       options="{'no_create': True}"/>
-                                <field name="assignment_date"/>
-                                <field name="assigned_by_id"/>
-                            </group>
-                            <group string="分配狀態">
-                                <field name="assignment_state" widget="badge"
-                                       decoration-muted="assignment_state == 'unassigned'"
-                                       decoration-info="assignment_state == 'assigned'"
-                                       decoration-warning="assignment_state == 'in_progress'"
-                                       decoration-success="assignment_state in ('completed', 'accepted')"/>
-                            </group>
-                        </group>
-                        <group>
-                            <button name="action_assign_to_contractor"
-                                    string="分配/變更廠商"
-                                    type="object"
-                                    class="btn-primary"
-                                    invisible="not supervision_project_id"/>
-                        </group>
-                    </page>
-
-                    <!-- 第5頁：描述（原生） -->
-                    <page string="描述" name="description">
-                        <field name="description" placeholder="工項詳細說明..." readonly="is_project_approved"/>
                     </page>
 
                     <!-- 其他原生頁籤（附加檔案、檢核清單等）會自動繼承-->
@@ -169,6 +175,7 @@
                 <field name="planned_qty" optional="hide" sum="數量合計"/>
                 <field name="unit" optional="hide"/>
                 <field name="unit_price" optional="hide"/>
+                <field name="product_id" string="標準工項" optional="hide" readonly="1"/>
                 <field name="planned_amount" optional="show" sum="金額合計"/>
                 <field name="construction_notes" string="備註" optional="hide"/>
                 <field name="completion_rate" widget="progressbar" optional="show"/>
@@ -188,8 +195,20 @@
         <field name="model">project.task</field>
         <field name="inherit_id" ref="project.view_task_search_form"/>
         <field name="arch" type="xml">
+            <!-- 搜尋框預設欄位(name)改標「項目及說明」，並做 CJK 逐字比對 +
+                 同時搜尋工項編號/項次路徑（讓「預力基樁」能命中「預力混凝土基樁…」）。
+                 影響所有指向 project.task 的 m2o「選擇」對話框（皆吃預設搜尋視圖）。 -->
+            <!-- 搜 display_name → 伺服器端觸發 project.task._search_display_name（CJK 逐字
+                 比對 name + 同搜 item_no/item_no_path）。filter_domain 由瀏覽器 py.js 評估，
+                 故只能用簡單運算式，複雜比對交給伺服器端的 _search_display_name。 -->
+            <xpath expr="//field[@name='name']" position="attributes">
+                <attribute name="string">項目及說明</attribute>
+                <attribute name="filter_domain">[('display_name', 'ilike', self)]</attribute>
+            </xpath>
             <xpath expr="//field[@name='name']" position="after">
-                <field name="item_no"/>
+                <field name="item_no" string="工項編號"/>
+                <field name="item_no_path" string="項次路徑"/>
+                <field name="parent_id" string="父工項"/>
                 <field name="assigned_company_id"/>
             </xpath>
             <xpath expr="//filter[@name='my_tasks']" position="after">
@@ -231,11 +250,12 @@
         <field name="model">project.task</field>
         <field name="priority">25</field>
         <field name="arch" type="xml">
-            <list string="契約工項" 
+            <list string="契約工項"
                   default_order="sequence,item_no"
                   decoration-warning="schedule_status == 'delayed'"
                   decoration-success="assignment_state == 'accepted'"
-                  decoration-muted="is_summary_item"
+                  decoration-info="item_level == 1"
+                  decoration-muted="item_level >= 2"
                   editable="bottom">
                 <!-- 排序控制 -->
                 <field name="sequence" widget="handle"/>
@@ -249,7 +269,10 @@
 
                 <!-- 工項編號（顯示：葉節點只顯示末段，非葉節點顯示完整）-->
                 <field name="display_item_no" string="項次" readonly="1"/>
-                <field name="item_no" string="完整項次" optional="hide" readonly="is_project_approved"/>
+                <!-- 完整項次：從階層計算（一致格式），取代直接顯示 item_no -->
+                <field name="full_item_no" string="完整項次" optional="hide" readonly="1"/>
+                <!-- 原始項次編號（item_no）：各專案存法不一，保留供匯入比對／進階編輯 -->
+                <field name="item_no" string="原始項次編號" optional="hide" readonly="is_project_approved"/>
                 
                 <!-- 項目及說明 -->
                 <field name="name" string="項目及說明" readonly="is_project_approved"/>
@@ -305,12 +328,14 @@
                 <!-- 排序控制 -->
                 <field name="sequence" widget="handle"/>
                 
-                <!-- 工程案件 -->
-                <field name="project_id" string="工程案件"/>
+                <!-- 工程案件（已由 domain 過濾，預設隱藏） -->
+                <field name="project_id" string="工程案件" optional="hide"/>
                 
                 <!-- 工項編號（顯示：葉節點末段，非葉節點完整）-->
                 <field name="display_item_no" string="項次"/>
-                <field name="item_no" string="完整項次" optional="hide"/>
+                <!-- 完整項次：從階層計算（一致格式） -->
+                <field name="full_item_no" string="完整項次" optional="hide" readonly="1"/>
+                <field name="item_no" string="原始項次編號" optional="hide"/>
 
                 <!-- 項目及說明 -->
                 <field name="name" string="項目及說明"/>

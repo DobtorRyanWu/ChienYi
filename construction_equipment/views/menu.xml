@@ -28,72 +28,63 @@
          進階功能選單 (暫時隱藏，保留作為未來付費功能)
          =================================================================== -->
 
-    <!-- 機具設備 - 暫時隱藏 -->
-    <!--menuitem id="menu_equipment_list"
+    <!-- 機具設備 -->
+    <menuitem id="menu_equipment_list"
               name="機具設備"
               parent="construction_supervision_base.menu_manpower_equipment"
-              sequence="20"
-              active="False"/>
+              sequence="20"/>
 
     <menuitem id="menu_supervision_equipment"
               name="機具設備"
               parent="menu_equipment_list"
               action="action_supervision_equipment"
-              sequence="10"
-              active="False"/>
+              sequence="10"/>
 
     <menuitem id="menu_supervision_equipment_maintenance"
               name="維護中設備"
               parent="menu_equipment_list"
               action="action_supervision_equipment_maintenance"
-              sequence="20"
-              active="False"/-->
+              sequence="20"/>
 
-    <!-- 維護請求 - 暫時隱藏 -->
-    <!--menuitem id="menu_equipment_maintenance"
+    <!-- 維護請求 -->
+    <menuitem id="menu_equipment_maintenance"
               name="維護請求"
               parent="construction_supervision_base.menu_manpower_equipment"
-              sequence="30"
-              active="False"/>
+              sequence="30"/>
 
     <menuitem id="menu_supervision_equipment_request"
               name="所有維護請求"
               parent="menu_equipment_maintenance"
               action="action_supervision_equipment_request"
-              sequence="10"
-              active="False"/>
+              sequence="10"/>
 
     <menuitem id="menu_supervision_equipment_request_my"
               name="我的維護請求"
               parent="menu_equipment_maintenance"
               action="action_supervision_equipment_request_my"
-              sequence="20"
-              active="False"/>
+              sequence="20"/>
 
     <menuitem id="menu_supervision_equipment_request_overdue"
               name="逾期維護請求"
               parent="menu_equipment_maintenance"
               action="action_supervision_equipment_request_overdue"
-              sequence="30"
-              active="False"/-->
+              sequence="30"/>
 
     <!-- ===================================================================
          設備設定 (歸屬於 系統設定 > 設備設定) - 暫時隱藏
          =================================================================== -->
 
-    <!--menuitem id="menu_supervision_equipment_category"
+    <menuitem id="menu_supervision_equipment_category"
               name="機具設備分類"
               parent="construction_supervision_base.menu_equipment_config"
               action="action_supervision_equipment_category"
-              sequence="10"
-              active="False"/>
+              sequence="10"/>
 
     <menuitem id="menu_supervision_equipment_request_stage"
               name="維護請求階段"
               parent="construction_supervision_base.menu_equipment_config"
               action="action_supervision_equipment_request_stage"
-              sequence="20"
-              active="False"/-->
+              sequence="20"/>
 
     <!-- ===================================================================
          隱藏官方保養選單 (由本模組接管維護功能)

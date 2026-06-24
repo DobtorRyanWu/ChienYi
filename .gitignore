@@ -3,3 +3,4 @@ REPO_MAP.md
 __pycache__/
 *.pyc
 *.pyo
+node_modules/

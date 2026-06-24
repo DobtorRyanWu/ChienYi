@@ -185,6 +185,7 @@
                 <filter string="從專案匯入" name="filter_from_project" domain="[('import_mode', '=', 'project')]"/>
                 <filter string="從 XML 匯入" name="filter_from_xml" domain="[('import_mode', '=', 'xml')]"/>
                 <group expand="0" string="分組">
+                    <filter string="工程案件" name="group_project" context="{'group_by': 'source_project_id'}"/>
                     <filter string="狀態" name="group_by_state" context="{'group_by': 'state'}"/>
                     <filter string="匯入模式" name="group_by_import_mode" context="{'group_by': 'import_mode'}"/>
                     <filter string="公司" name="group_by_company" context="{'group_by': 'company_id'}"
@@ -202,7 +203,7 @@
         <field name="res_model">cost.analysis</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_cost_analysis_search"/>
-        <field name="context">{}</field>
+        <field name="context">{'search_default_group_project': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立新的成本分析

@@ -39,6 +39,7 @@
         'views/notification_slip_views.xml',
         'wizard/add_slip_line_wizard_views.xml',
         'views/menu.xml',
+        'report/notification_slip_report.xml',
     ],
     'demo': [],
     'installable': True,

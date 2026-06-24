@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 品質管理模組',
-    'version': '18.0.2.1.0',
+    'version': '18.0.2.1.1',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """
@@ -40,6 +40,7 @@
         'security/security.xml',
         # Data
         'data/ir_sequence_data.xml',
+        'data/ir_cron_data.xml',  # 缺失逾期通知（每日自動）
         # Views
         'views/defect_improvement_prefix_config_views.xml',
         'views/self_inspection_type_views.xml',
@@ -49,6 +50,8 @@
         'views/reservation_defect_improvement_views.xml',
         'views/supervision_defect_views.xml',
         'views/menu.xml',
+        'report/self_inspection_report.xml',
+        'report/reservation_defect_report.xml',
     ],
     'demo': [],
     'installable': True,

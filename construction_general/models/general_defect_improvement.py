@@ -3,6 +3,12 @@
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 
+from odoo.addons.construction_quality.models.defect_constants import (
+    CHECK_TYPE_PREFIX,
+    CHECK_TYPE_TO_CATEGORIES,
+    CHECK_TYPE_DEFAULT_CATEGORY,
+)
+
 
 class GeneralDefectImprovementPhoto(models.Model):
     """
@@ -185,6 +191,12 @@ class GeneralDefectImprovement(models.Model):
         domain="[('inspection_id', '=', self_inspection_id)]",
         help='自主檢查中的具體缺失項目')
 
+    # 來源自主檢查的檢查編號（供「關聯與備註」頁籤獨立顯示）
+    source_inspection_no = fields.Char(
+        related='self_inspection_id.name',
+        string='檢查編號',
+        readonly=True)
+
     ncr_id = fields.Many2one(
         'supervision.defect',
         string='關聯 NCR',
@@ -207,6 +219,27 @@ class GeneralDefectImprovement(models.Model):
         ('document', '文件缺漏'),
         ('other', '其他'),
     ], string='缺失類別', required=True, default='workmanship', tracking=True)
+
+    # 缺失類別「分身」欄位：依檢查類型只顯示對應子集（畫面用，真值仍寫回 defect_category）
+    defect_category_construction = fields.Selection(
+        selection=[
+            ('material', '材料品質'),
+            ('workmanship', '施工品質'),
+            ('dimension', '尺寸偏差'),
+            ('document', '文件缺漏'),
+            ('other', '其他'),
+        ],
+        string='缺失類別',
+        compute='_compute_defect_category_proxy',
+        inverse='_inverse_defect_category_proxy')
+    defect_category_safety = fields.Selection(
+        selection=[
+            ('safety', '安全衛生'),
+            ('environment', '環境清潔'),
+        ],
+        string='缺失類別',
+        compute='_compute_defect_category_proxy',
+        inverse='_inverse_defect_category_proxy')
 
     severity = fields.Selection([
         ('minor', '輕微'),
@@ -606,13 +639,29 @@ class GeneralDefectImprovement(models.Model):
     @api.onchange('project_id', 'found_date', 'check_type', 'record_type')
     def _onchange_sequence_fields(self):
         """工程、日期、類型變更時，即時計算下一個可用序號"""
-        if self.project_id and self.found_date:
-            self.sequence_number = self._get_daily_sequence(
-                self.project_id.id,
-                self.found_date,
-                self.check_type or 'construction',
-                self.record_type or 'supervision',
+        if not (self.project_id and self.found_date):
+            return
+        origin = self._origin
+        # 編輯已存檔記錄時：只有分組(工程/日期/檢查類型/記錄類型)真的改變才重算；
+        # 若切回原分組則保留原序號，避免無謂跳號
+        if origin and origin.id:
+            same_group = (
+                origin.project_id.id == self.project_id.id
+                and origin.found_date == self.found_date
+                and origin.check_type == self.check_type
+                and origin.record_type == self.record_type
             )
+            if same_group:
+                self.sequence_number = origin.sequence_number
+                return
+        self.sequence_number = self._get_daily_sequence(
+            self.project_id.id,
+            self.found_date,
+            self.check_type or 'construction',
+            self.record_type or 'supervision',
+            # 排除自己，避免把自己算進去而跳號
+            exclude_id=origin.id if origin else False,
+        )
 
     # === 編號生成輔助方法 ===
     def _get_minguo_date_string(self, date_obj):
@@ -623,12 +672,33 @@ class GeneralDefectImprovement(models.Model):
         return f"{minguo_year}{date_obj.month:02d}{date_obj.day:02d}"
 
     def _get_check_type_prefix(self, check_type):
-        """取得檢查類型對應的首字"""
-        check_type_map = {
-            'construction': '施',
-            'safety_env': '安',
-        }
-        return check_type_map.get(check_type, '施')
+        """取得檢查類型對應的首字（讀共用對應表）"""
+        return CHECK_TYPE_PREFIX.get(check_type, '施')
+
+    # === 缺失類別分身欄位：與真值 defect_category 同步 ===
+    @api.depends('defect_category')
+    def _compute_defect_category_proxy(self):
+        """把真值 defect_category 映射到對應檢查類型的分身欄位"""
+        cons = CHECK_TYPE_TO_CATEGORIES['construction']
+        safe = CHECK_TYPE_TO_CATEGORIES['safety_env']
+        for rec in self:
+            rec.defect_category_construction = rec.defect_category if rec.defect_category in cons else False
+            rec.defect_category_safety = rec.defect_category if rec.defect_category in safe else False
+
+    def _inverse_defect_category_proxy(self):
+        """使用者在分身欄位選的值寫回真值 defect_category"""
+        for rec in self:
+            if rec.check_type == 'safety_env' and rec.defect_category_safety:
+                rec.defect_category = rec.defect_category_safety
+            elif rec.check_type == 'construction' and rec.defect_category_construction:
+                rec.defect_category = rec.defect_category_construction
+
+    @api.onchange('check_type')
+    def _onchange_check_type_reset_category(self):
+        """切換檢查類型時，若目前缺失類別不合法則重設為該類型預設值"""
+        allowed = CHECK_TYPE_TO_CATEGORIES.get(self.check_type, [])
+        if self.defect_category not in allowed:
+            self.defect_category = CHECK_TYPE_DEFAULT_CATEGORY.get(self.check_type, False)
 
     def _get_daily_sequence(self, project_id, found_date, check_type, record_type, exclude_id=None):
         """計算當天同工程同類型的下一個序號"""
@@ -690,13 +760,9 @@ class GeneralDefectImprovement(models.Model):
             if not vals.get('found_date'):
                 vals['found_date'] = fields.Date.today()
 
-            # 確保 record_type 從 context 帶入（由選單決定）
-            if 'record_type' not in vals and self.env.context.get('default_record_type'):
-                vals['record_type'] = self.env.context['default_record_type']
-
-            # 若仍未設定則使用預設值
-            if not vals.get('record_type'):
-                vals['record_type'] = 'supervision'
+            # record_type 判定（v11）：依建立者的監造/營造身分自動決定，
+            # 監造身分只能建監造缺失單、營造身分只能建營造缺失單。
+            self._resolve_record_type(vals)
 
             # 永遠重算序號，確保不重複（不信任傳入的預設值 1）
             key = (
@@ -718,8 +784,43 @@ class GeneralDefectImprovement(models.Model):
 
         return super().create(vals_list)
 
+    # 缺失「定義」欄位：離開草稿後前台不可再改（防竄改）
+    _DEFINITION_FIELDS = (
+        'defect_description', 'defect_category', 'severity', 'found_date', 'check_type',
+    )
+
+    @api.model
+    def _resolve_record_type(self, vals):
+        """依建立者監造/營造身分自動判定 record_type（監造/營造缺失單）
+
+        規則：
+        - 單一監造身分 → supervision；單一營造身分 → contractor（強制，覆蓋表單值，防止建錯類型）
+        - 後台選單明確帶 default_record_type → 沿用
+        - 前台帳號但無唯一監造/營造身分 → 擋下，避免建出別人不能改的單
+        - 後台內部用戶無身分 → 維持預設 supervision
+        """
+        user = self.env.user
+        is_sup = user.is_supervision_org
+        is_con = user.is_contractor_org
+        if is_sup and not is_con:
+            vals['record_type'] = 'supervision'
+        elif is_con and not is_sup:
+            vals['record_type'] = 'contractor'
+        elif 'record_type' not in vals and self.env.context.get('default_record_type'):
+            vals['record_type'] = self.env.context['default_record_type']
+        elif not vals.get('record_type'):
+            if user.share:
+                raise UserError('您的帳號未設定唯一的監造/營造身分，無法判定缺失單類型，請聯絡管理者')
+            vals['record_type'] = 'supervision'
+
     def write(self, vals):
         """修改記錄時，若影響編號則重新計算"""
+        # 防竄改（v11）：前台帳號在缺失離開草稿後，不可再改缺失定義欄位；
+        # 改善回覆欄位不受限。後台/sudo（env.user 為超級用戶,share=False）不受此限。
+        if self.env.user.share and any(f in vals for f in self._DEFINITION_FIELDS):
+            if self.filtered(lambda r: r.state and r.state != 'draft'):
+                raise UserError('缺失已送出，缺失說明、類別、嚴重度等定義欄位不可再修改')
+
         result = super().write(vals)
 
         # 若修改影響編號的欄位，觸發重新計算

@@ -63,37 +63,22 @@ class ReservationSelfInspectionReservation(models.Model):
         }
 
     def action_create_defect_improvements(self):
-        """從缺失項目建立缺失改善記錄"""
+        """開啟建立缺失改善 Wizard（選監造/營造），整張檢查的未建立缺失項"""
         self.ensure_one()
 
-        # 找出有缺失但尚未建立改善記錄的項目
         defect_items = self.checklist_ids.filtered(
             lambda x: x.check_result == 'defect' and not x.defect_improvement_id
         )
-
         if not defect_items:
             raise UserError('沒有需要建立缺失改善記錄的檢查項目')
 
-        created_improvements = self.env['reservation.defect.improvement']
-        for item in defect_items:
-            vals = {
-                'slip_id': self.slip_id.id,
-                'check_type': 'construction',
-                'defect_description': f'{item.check_item}\n實際情形: {item.actual_result or ""}',
-                'defect_location': self.inspection_location or self.slip_id.location,
-                'notification_date': fields.Date.today(),
-            }
-            defect = self.env['reservation.defect.improvement'].create(vals)
-            item.defect_improvement_id = defect.id
-            created_improvements |= defect
-
         return {
             'type': 'ir.actions.act_window',
-            'name': '已建立的缺失改善記錄',
-            'res_model': 'reservation.defect.improvement',
-            'view_mode': 'list,form',
-            'domain': [('id', 'in', created_improvements.ids)],
-            'context': {'create': False},
+            'name': '建立缺失改善',
+            'res_model': 'create.reservation.defect.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_inspection_id': self.id},
         }
 
     # === 約束驗證 ===
@@ -130,9 +115,9 @@ class ReservationSelfInspectionItemReservation(models.Model):
     # === 缺失改善關聯 ===
     defect_improvement_id = fields.Many2one(
         'reservation.defect.improvement',
-        string='缺失改善記錄',
+        string='關聯缺失改善',
         ondelete='set null',
-        help='若此項目有缺失，關聯的缺失改善記錄')
+        help='若此項目有缺失，關聯的缺失改善單')
 
     has_improvement = fields.Boolean(
         string='已建立改善',
@@ -164,29 +149,21 @@ class ReservationSelfInspectionItemReservation(models.Model):
         }
 
     def action_create_improvement(self):
-        """建立缺失改善記錄"""
+        """逐行建立缺失改善：開啟 wizard（選監造/營造），僅針對本項目"""
         self.ensure_one()
         if self.check_result != 'defect':
             raise UserError('只有缺失項目可以建立缺失改善記錄')
-
         if self.defect_improvement_id:
             raise UserError('已建立缺失改善記錄')
 
-        inspection = self.inspection_id
-        vals = {
-            'slip_id': inspection.slip_id.id,
-            'check_type': 'construction',
-            'defect_description': f'{self.check_item}\n實際情形: {self.actual_result or ""}',
-            'defect_location': inspection.inspection_location or inspection.slip_id.location,
-            'notification_date': fields.Date.today(),
-        }
-        defect = self.env['reservation.defect.improvement'].create(vals)
-        self.defect_improvement_id = defect.id
-
         return {
             'type': 'ir.actions.act_window',
-            'name': '缺失改善記錄',
-            'res_model': 'reservation.defect.improvement',
+            'name': '建立缺失改善',
+            'res_model': 'create.reservation.defect.wizard',
             'view_mode': 'form',
-            'res_id': defect.id,
+            'target': 'new',
+            'context': {
+                'default_inspection_id': self.inspection_id.id,
+                'default_item_ids': [(6, 0, [self.id])],
+            },
         }

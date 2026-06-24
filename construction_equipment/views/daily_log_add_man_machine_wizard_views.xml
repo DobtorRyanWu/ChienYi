@@ -21,47 +21,46 @@
                         <field name="project_id" readonly="1"/>
                         <field name="log_date" readonly="1"/>
                     </group>
-                    <group>
-                        <field name="available_type_count" readonly="1" string="可選項數"/>
-                    </group>
                 </group>
 
-                <!-- 搜尋列 -->
-                <div class="o_row mb-2">
-                    <field name="search_keyword"
-                           placeholder="輸入人員/機具名稱..."
-                           class="oe_inline"
-                           style="min-width: 250px;"/>
-                    <button name="action_search" type="object"
-                            string="搜尋"
-                            class="btn-primary ms-2"
-                            icon="fa-search"/>
-                </div>
+                <notebook>
+                    <!-- Tab 1：選擇人員/機具（Many2many，支援原生搜尋更多） -->
+                    <page string="選擇人員/機具" name="select_types">
+                        <field name="selected_type_ids" nolabel="1"
+                               domain="[('active', '=', True)]"
+                               options="{'no_create': True, 'no_open': True}">
+                            <list>
+                                <field name="record_type" string="類型"
+                                       decoration-info="record_type == 'personnel'"
+                                       decoration-warning="record_type == 'equipment'"/>
+                                <field name="name" string="名稱"/>
+                                <field name="sequence" column_invisible="1"/>
+                            </list>
+                        </field>
+                    </page>
 
-                <!-- 人員/機具列表（可勾選） -->
-                <field name="line_ids" nolabel="1">
-                    <list editable="bottom" create="false" delete="false">
-                        <field name="selected" nolabel="1" width="40px"/>
-                        <field name="record_type" string="類型" readonly="1" width="60px"
-                               decoration-info="record_type == 'personnel'"
-                               decoration-warning="record_type == 'equipment'"/>
-                        <field name="personnel_type_id" string="名稱" readonly="1"/>
-                        <field name="quantity" string="數量"/>
-                        <field name="hours" string="時數（小時）"/>
-                        <field name="sequence" column_invisible="1"/>
-                    </list>
-                </field>
+                    <!-- Tab 2：設定數量與時數 -->
+                    <page string="數量與時數" name="qty_hours">
+                        <field name="line_ids" nolabel="1">
+                            <list editable="bottom" create="false" delete="false">
+                                <field name="personnel_type_id" string="名稱"
+                                       decoration-info="record_type == 'personnel'"
+                                       decoration-warning="record_type == 'equipment'"/>
+                                <field name="record_type" string="類型" readonly="1" width="60px"/>
+                                <field name="quantity" string="數量"/>
+                                <field name="hours" string="時數（小時）"/>
+                                <field name="sequence" column_invisible="1"/>
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
 
                 <!-- 底部按鈕 -->
                 <footer>
-                    <button string="新增選取" type="object"
+                    <button string="新增" type="object"
                             name="action_add_selected"
                             class="btn-primary"
-                            invisible="available_type_count == 0"/>
-                    <button string="全部新增" type="object"
-                            name="action_add_all"
-                            class="btn-secondary"
-                            invisible="available_type_count == 0"/>
+                            invisible="not selected_type_ids"/>
                     <button string="關閉" special="cancel"/>
                 </footer>
             </form>

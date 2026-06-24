@@ -48,16 +48,6 @@
                             手動選擇要下載的估驗計價表，或留空以依據上方篩選條件自動選取已核定的估驗單。
                         </p>
                     </page>
-                    <page string="自主檢查" invisible="download_type != 'self_inspection'">
-                        <p class="text-warning">
-                            自主檢查表批次下載功能開發中...
-                        </p>
-                    </page>
-                    <page string="檢試驗記錄" invisible="download_type != 'test_record'">
-                        <p class="text-warning">
-                            檢試驗記錄批次下載功能開發中...
-                        </p>
-                    </page>
                 </notebook>
 
                 <field name="state" invisible="1"/>

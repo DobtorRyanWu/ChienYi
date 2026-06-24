@@ -31,63 +31,6 @@
                 </header>
             </xpath>
 
-            <!-- 擴展時程管理分頁 -->
-            <xpath expr="//page[@name='schedule']//group[@name='schedule_analysis']" position="inside">
-                <field name="schedule_variance_hours"/>
-                <field name="duration_variance"/>
-                <field name="efficiency_rate" widget="progressbar"/>
-                <field name="schedule_alert" widget="badge"
-                       decoration-warning="schedule_alert == 'warning'"
-                       decoration-danger="schedule_alert == 'critical'"/>
-                <field name="schedule_alert_message" invisible="not schedule_alert_message"/>
-            </xpath>
-
-            <!-- 新增時程依賴分頁 -->
-            <xpath expr="//page[@name='schedule']" position="after">
-                <page string="時程依賴" name="dependencies">
-                    <group>
-                        <group string="前置工項">
-                            <field name="depend_on_ids" widget="many2many_tags"
-                                   options="{'color_field': 'timeline_color'}"
-                                   domain="[('project_id', '=', project_id), ('id', '!=', id)]"/>
-                            <field name="has_dependency" invisible="1"/>
-                        </group>
-                        <group string="後續工項">
-                            <field name="dependent_ids" widget="many2many_tags" readonly="1"/>
-                        </group>
-                    </group>
-                    <group>
-                        <group string="關鍵路徑分析">
-                            <field name="is_critical_path"/>
-                            <field name="slack_days"/>
-                        </group>
-                        <group string="動作">
-                            <button name="action_auto_schedule"
-                                    string="自動排程"
-                                    type="object"
-                                    class="btn-secondary"
-                                    invisible="not has_dependency"/>
-                            <button name="action_view_timeline"
-                                    string="查看時程圖"
-                                    type="object"
-                                    class="btn-link"/>
-                        </group>
-                    </group>
-                </page>
-            </xpath>
-
-            <!-- 新增執行中工時記錄 -->
-            <xpath expr="//page[@name='schedule']//group[@name='actual_schedule']" position="after">
-                <group string="計時器狀態" invisible="running_timesheet_count == 0">
-                    <field name="running_timesheet_count"/>
-                    <button name="action_view_running_timesheet"
-                            string="查看執行中工時"
-                            type="object"
-                            class="btn-link"
-                            invisible="running_timesheet_count == 0"/>
-                </group>
-            </xpath>
-
             <!-- 隱藏欄位 -->
             <xpath expr="//form" position="inside">
                 <field name="running_timesheet_count" invisible="1"/>

@@ -29,11 +29,22 @@
                 </div>
             </div>
 
-            <!-- 在檢查項目 tree 增加缺失改善關聯欄位 -->
+            <!-- 在檢查項目 tree 增加缺失改善關聯欄位與逐行按鈕 -->
             <field name="defect_id" position="after">
                 <field name="defect_improvement_id"
+                       string="關聯缺失改善"
                        invisible="check_result != 'defect'"
                        optional="hide"/>
+                <button name="action_create_improvement"
+                        type="object"
+                        string="建立改善"
+                        class="btn-sm btn-warning"
+                        invisible="check_result != 'defect' or defect_improvement_id"/>
+                <button name="action_view_improvement"
+                        type="object"
+                        string="查看改善"
+                        class="btn-sm btn-info"
+                        invisible="not defect_improvement_id"/>
             </field>
         </field>
     </record>

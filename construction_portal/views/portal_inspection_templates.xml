@@ -133,6 +133,26 @@
                         </span>
                     </div>
 
+                    <!-- 審核動作（限老闆/主管） -->
+                    <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_boss') or request.env.user.has_group('construction_supervision_base.group_portal_manager') or request.env.user.has_group('base.group_system')">
+                        <t t-if="request.params.get('error')">
+                            <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                                <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                                <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="request.params.get('error')"/></div></div>
+                            </div>
+                        </t>
+                        <div style="display: flex; gap: 8px; margin-bottom: 16px;" t-if="inspection.state in ('inspected', 'confirmed')">
+                            <form t-if="inspection.state == 'inspected'" t-attf-action="/construction/inspection/#{inspection.id}/confirm" method="post" style="flex:1;">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-check"/> 確認</button>
+                            </form>
+                            <form t-if="inspection.state == 'confirmed'" t-attf-action="/construction/inspection/#{inspection.id}/close" method="post" style="flex:1;">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-flag-checkered"/> 結案</button>
+                            </form>
+                        </div>
+                    </t>
+
                     <!-- 綜合結果（一般式）-->
                     <t t-if="inspection.overall_result">
                         <div t-attf-class="cy-event-card #{inspection.overall_result == 'pass' and 'cy-event-info' or inspection.overall_result == 'fail' and 'cy-event-urgent' or 'cy-event-warn'}" style="margin-bottom: 12px;">
@@ -172,9 +192,9 @@
                             <span class="cy-info-label">檢查人員</span>
                             <span class="cy-info-value"><t t-esc="inspection.inspector_id.name or '-'"/></span>
                         </div>
-                        <div class="cy-info-row" t-if="inspection.contractor_company_id">
+                        <div class="cy-info-row" t-if="inspection.contractor_name">
                             <span class="cy-info-label">承攬廠商</span>
-                            <span class="cy-info-value"><t t-esc="inspection.contractor_company_id.name"/></span>
+                            <span class="cy-info-value"><t t-esc="inspection.contractor_name"/></span>
                         </div>
                     </div>
 

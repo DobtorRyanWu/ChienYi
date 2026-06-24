@@ -89,7 +89,7 @@
                                 <list string="施工詳細表" editable="bottom" create="false">
                                     <field name="description" string="項目及說明" readonly="1"/>
                                     <field name="parent_item_name" string="父工項" readonly="1" optional="show"/>
-                                    <field name="item_no" string="項目編號" readonly="1"/>
+                                    <field name="display_item_no" string="項次" readonly="1"/>
                                     <field name="unit" string="單位" readonly="1"/>
                                     <field name="unit_price" string="單價" readonly="1"/>
                                     <field name="planned_qty" string="預估數量"/>

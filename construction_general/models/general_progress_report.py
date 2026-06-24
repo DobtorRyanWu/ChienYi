@@ -12,8 +12,7 @@ class GeneralProgressReport(models.Model):
     設計說明：
     - 定期記錄工程施工進度
     - 支援週報/月報等不同週期
-    - 記錄預定進度與實際進度差異
-    - 追蹤重要里程碑與待辦事項
+    - 資料自動從施工日誌與進度表同步
     """
     _name = 'general.progress.report'
     _description = '一般式進度報告'
@@ -33,6 +32,7 @@ class GeneralProgressReport(models.Model):
         'supervision.project',
         string='所屬工程',
         required=True,
+        ondelete='cascade',
         tracking=True,
         index=True,
         domain="[('project_type', '=', 'general')]")
@@ -76,26 +76,18 @@ class GeneralProgressReport(models.Model):
         default=lambda self: self.env.uid,
         tracking=True)
 
-    reviewer_id = fields.Many2one(
-        'res.users',
-        string='審核人',
-        tracking=True)
-
-    review_date = fields.Date(
-        string='審核日期')
-
-    # === 進度資訊 ===
+    # === 進度資訊（從進度表同步，唯讀） ===
     planned_progress = fields.Float(
         string='預定累計進度 (%)',
         digits=(5, 2),
-        tracking=True,
-        help='截至報告日期的預定累計進度')
+        readonly=True,
+        help='來自啟用中進度表，報告期間迄所在區間的累計預定進度')
 
     actual_progress = fields.Float(
         string='實際累計進度 (%)',
         digits=(5, 2),
-        tracking=True,
-        help='截至報告日期的實際累計進度')
+        readonly=True,
+        help='來自啟用中進度表，報告期間迄所在區間的累計實際進度')
 
     progress_variance = fields.Float(
         string='進度差異 (%)',
@@ -125,17 +117,6 @@ class GeneralProgressReport(models.Model):
                 record.progress_status = 'delayed'
             else:
                 record.progress_status = 'critical'
-
-    # === 本期進度 ===
-    period_planned_progress = fields.Float(
-        string='本期預定進度 (%)',
-        digits=(5, 2),
-        help='本報告期間的預定進度增量')
-
-    period_actual_progress = fields.Float(
-        string='本期實際進度 (%)',
-        digits=(5, 2),
-        help='本報告期間的實際進度增量')
 
     # === 工期資訊 ===
     contract_duration = fields.Integer(
@@ -182,24 +163,7 @@ class GeneralProgressReport(models.Model):
         'report_id',
         string='工項進度明細')
 
-    # === 重要事項 ===
-    milestone_description = fields.Text(
-        string='重要里程碑說明',
-        help='已達成或即將達成的重要里程碑')
-
-    issue_description = fields.Text(
-        string='遭遇問題',
-        help='施工期間遭遇的問題或困難')
-
-    solution_description = fields.Text(
-        string='解決方案',
-        help='針對問題採取的解決方案')
-
-    next_period_plan = fields.Text(
-        string='下期工作計畫',
-        help='下一報告期間的施工計畫')
-
-    # === 品質與安全 ===
+    # === 品質與安全（從缺失紀錄同步，唯讀） ===
     quality_summary = fields.Text(
         string='品質管理摘要',
         help='本期品質管理執行情況')
@@ -210,100 +174,30 @@ class GeneralProgressReport(models.Model):
 
     defect_count = fields.Integer(
         string='本期缺失數',
-        help='本期發現的缺失數量')
+        readonly=True,
+        help='本期在報告區間內發現的缺失數量（自動統計）')
 
     defect_improved_count = fields.Integer(
         string='本期改善數',
-        help='本期已改善的缺失數量')
+        readonly=True,
+        help='本期在報告區間內改善完成的缺失數量（自動統計）')
 
     # === 天氣與施工日 ===
     work_days = fields.Integer(
         string='本期工作日',
-        help='本期實際施工天數')
+        readonly=True,
+        help='本期有施工日誌確認記錄的天數（由同步功能帶入）')
 
     rain_days = fields.Integer(
         string='本期雨天數',
-        help='本期因雨無法施工天數')
+        readonly=True,
+        help='本期天氣記錄為雨天/豪雨/颱風的天數（由同步功能帶入）')
 
     holiday_days = fields.Integer(
         string='本期假日數',
-        help='本期假日天數')
+        help='本期假日天數（手動填寫）')
 
-    # === 照片附件 ===
-    photo_ids = fields.Many2many(
-        'ir.attachment',
-        'general_progress_photo_rel',
-        'report_id', 'attachment_id',
-        string='施工照片')
-
-    attachment_ids = fields.Many2many(
-        'ir.attachment',
-        'general_progress_attachment_rel',
-        'report_id', 'attachment_id',
-        string='相關附件')
-
-    # === 審核意見 ===
-    review_comment = fields.Text(
-        string='審核意見')
-
-    # === 狀態 ===
-    state = fields.Selection([
-        ('draft', '草稿'),
-        ('submitted', '已提交'),
-        ('reviewed', '已審核'),
-        ('approved', '已核准'),
-    ], string='狀態', default='draft', tracking=True, index=True)
-
-    # === 動作方法 ===
-    def action_submit(self):
-        """提交報告"""
-        for record in self:
-            if record.state != 'draft':
-                raise UserError('只有草稿狀態可以提交')
-            record.state = 'submitted'
-
-    def action_review(self):
-        """審核報告"""
-        for record in self:
-            if record.state != 'submitted':
-                raise UserError('只有已提交狀態可以審核')
-            record.write({
-                'state': 'reviewed',
-                'reviewer_id': self.env.uid,
-                'review_date': fields.Date.today(),
-            })
-
-    def action_approve(self):
-        """核准報告"""
-        for record in self:
-            if record.state != 'reviewed':
-                raise UserError('只有已審核狀態可以核准')
-            record.state = 'approved'
-
-    def action_return(self):
-        """退回修改"""
-        for record in self:
-            if record.state not in ('submitted', 'reviewed'):
-                raise UserError('只有已提交或已審核狀態可以退回')
-            record.state = 'draft'
-
-    def action_reset_draft(self):
-        """重設為草稿"""
-        for record in self:
-            if record.state != 'submitted':
-                raise UserError('只有已提交狀態可以重設')
-            record.state = 'draft'
-
-    # === 計算方法 ===
-    def action_compute_progress(self):
-        """從工程計算進度"""
-        self.ensure_one()
-        if self.project_id:
-            # 從工程主檔取得預定進度
-            self.planned_progress = self.project_id.planned_progress
-            # 從工程主檔取得實際進度
-            self.actual_progress = self.project_id.actual_progress
-
+    # === 同步紀錄 ===
     last_sync_date = fields.Datetime(
         string='最後同步時間',
         readonly=True)
@@ -422,6 +316,7 @@ class GeneralProgressReport(models.Model):
             'defect_improved_count': len(improved),
         })
 
+    # === 工項載入方法 ===
     def action_load_task_progress(self):
         """載入工項進度"""
         self.ensure_one()
@@ -433,7 +328,6 @@ class GeneralProgressReport(models.Model):
 
         tasks = self.env['project.task'].search([
             ('project_id', '=', self.project_id.project_id.id),
-            ('assigned_company_id', '!=', False),
         ])
 
         lines = []
@@ -441,11 +335,14 @@ class GeneralProgressReport(models.Model):
             lines.append(Command.create({
                 'task_id': task.id,
                 'planned_qty': task.planned_qty,
-                'actual_qty': task.actual_qty,
             }))
 
         if lines:
             self.progress_line_ids = lines
+
+        # 載入後若已設定期間，自動同步一次
+        if self.period_start and self.period_end:
+            self.action_sync_all()
 
         return True
 
@@ -457,12 +354,6 @@ class GeneralProgressReport(models.Model):
                 vals['name'] = self.env['ir.sequence'].next_by_code('general.progress.report') or '/'
         return super().create(vals_list)
 
-    def unlink(self):
-        for record in self:
-            if record.state not in ('draft',):
-                raise UserError('只有草稿狀態的報告可以刪除')
-        return super().unlink()
-
     # === 約束 ===
     @api.constrains('period_start', 'period_end')
     def _check_period_dates(self):
@@ -470,14 +361,6 @@ class GeneralProgressReport(models.Model):
             if record.period_start and record.period_end:
                 if record.period_end < record.period_start:
                     raise ValidationError('報告期間迄日不得早於起日')
-
-    @api.constrains('planned_progress', 'actual_progress')
-    def _check_progress_values(self):
-        for record in self:
-            if record.planned_progress < 0 or record.planned_progress > 100:
-                raise ValidationError('預定進度必須介於 0-100%')
-            if record.actual_progress < 0 or record.actual_progress > 100:
-                raise ValidationError('實際進度必須介於 0-100%')
 
     # === Onchange ===
     @api.onchange('report_type', 'report_date')
@@ -488,15 +371,12 @@ class GeneralProgressReport(models.Model):
                 self.period_start = self.report_date
                 self.period_end = self.report_date
             elif self.report_type == 'weekly':
-                # 週報：往前推7天
                 self.period_end = self.report_date
                 self.period_start = self.report_date - timedelta(days=6)
             elif self.report_type == 'biweekly':
-                # 雙週報：往前推14天
                 self.period_end = self.report_date
                 self.period_start = self.report_date - timedelta(days=13)
             elif self.report_type == 'monthly':
-                # 月報：當月1日至報告日
                 self.period_start = self.report_date.replace(day=1)
                 self.period_end = self.report_date
 
@@ -507,7 +387,7 @@ class GeneralProgressReportLine(models.Model):
 
     設計說明：
     - 記錄各工項的進度詳情
-    - 追蹤預定與實際數量
+    - 數量由 action_sync_all 自動從施工日誌帶入
     """
     _name = 'general.progress.report.line'
     _description = '一般式進度報告明細'
@@ -550,38 +430,31 @@ class GeneralProgressReportLine(models.Model):
         string='契約數量',
         digits=(16, 4))
 
-    prev_qty = fields.Float(
-        string='前期累計數量',
-        digits=(16, 4),
-        help='截至上期的累計完成數量')
-
     period_qty = fields.Float(
-        string='本期完成數量',
+        string='本次完成數量',
         digits=(16, 4),
-        help='本報告期間完成的數量')
+        help='本報告期間內完成的數量（由同步功能自動帶入）')
 
     actual_qty = fields.Float(
         string='累計完成數量',
-        compute='_compute_actual_qty',
-        store=True,
-        digits=(16, 4))
+        digits=(16, 4),
+        help='工程開始至報告期間迄的累計完成數量（由同步功能自動帶入）')
 
     remaining_qty = fields.Float(
         string='剩餘數量',
-        compute='_compute_actual_qty',
+        compute='_compute_remaining_completion',
         store=True,
         digits=(16, 4))
 
     completion_rate = fields.Float(
         string='完成率 (%)',
-        compute='_compute_actual_qty',
+        compute='_compute_remaining_completion',
         store=True,
         digits=(5, 2))
 
-    @api.depends('planned_qty', 'prev_qty', 'period_qty')
-    def _compute_actual_qty(self):
+    @api.depends('planned_qty', 'actual_qty')
+    def _compute_remaining_completion(self):
         for line in self:
-            line.actual_qty = line.prev_qty + line.period_qty
             line.remaining_qty = line.planned_qty - line.actual_qty
             if line.planned_qty:
                 line.completion_rate = (line.actual_qty / line.planned_qty) * 100

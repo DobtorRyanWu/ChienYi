@@ -93,6 +93,7 @@
                             <field name="subcontractor_name"/>
                         </group>
                         <group string="人員資訊">
+                            <field name="responsible_user_id"/>
                             <field name="inspector_id"/>
                         </group>
                     </group>
@@ -111,9 +112,9 @@
                                            decoration-success="check_result == 'pass'"
                                            decoration-danger="check_result == 'defect'"
                                            decoration-muted="check_result == 'na'"/>
+                                    <!-- 關聯缺失單(NCR)：NCR 系統已停用，隱藏；保留欄位作為擴展錨點 -->
                                     <field name="defect_id"
-                                           optional="hide"
-                                           column_invisible="parent.state == 'closed'"/>
+                                           column_invisible="1"/>
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
@@ -143,28 +144,6 @@
                         </page>
                         <page string="備註" name="notes">
                             <field name="note" placeholder="輸入備註說明..."/>
-                        </page>
-                        <page string="關聯照片" name="related_photos">
-                            <field name="related_photo_count" invisible="1"/>
-                            <field name="related_photo_ids" nolabel="1" readonly="1"
-                                   options="{'no_create': True, 'no_open': False}">
-                                <kanban>
-                                    <templates>
-                                        <t t-name="card" class="row g-0">
-                                            <aside class="col-3">
-                                                <field name="attachment_id" widget="image"
-                                                       options="{'preview_image': 'datas'}"/>
-                                            </aside>
-                                            <main class="col-9 ps-3">
-                                                <field name="name" class="fw-bold"/>
-                                                <field name="shot_at" widget="datetime"/>
-                                                <field name="category_id"/>
-                                                <field name="description"/>
-                                            </main>
-                                        </t>
-                                    </templates>
-                                </kanban>
-                            </field>
                         </page>
                     </notebook>
                 </sheet>

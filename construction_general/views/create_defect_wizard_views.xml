@@ -7,6 +7,7 @@
             <form string="建立缺失改善">
                 <group>
                     <field name="inspection_id" invisible="1"/>
+                    <field name="item_ids" invisible="1"/>
                     <field name="record_type" widget="radio"/>
                 </group>
                 <footer>

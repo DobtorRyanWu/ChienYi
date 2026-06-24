@@ -7,7 +7,7 @@ from odoo.exceptions import UserError
 
 
 class DailyLogAddManMachineWizardLine(models.TransientModel):
-    """批次新增人機使用精靈明細"""
+    """批次新增人機使用精靈明細（數量與時數）"""
     _name = 'daily.log.add.man.machine.wizard.line'
     _description = '批次新增人機使用精靈明細'
     _order = 'record_type, sequence, id'
@@ -17,13 +17,10 @@ class DailyLogAddManMachineWizardLine(models.TransientModel):
         required=True,
         ondelete='cascade')
 
-    selected = fields.Boolean(string='勾選', default=False)
-
     personnel_type_id = fields.Many2one(
         'personnel.type',
         string='人員/機具',
-        required=True,
-        readonly=True)
+        required=True)
 
     record_type = fields.Selection(
         related='personnel_type_id.record_type',
@@ -65,87 +62,39 @@ class DailyLogAddManMachineWizard(models.TransientModel):
         readonly=True,
     )
 
+    selected_type_ids = fields.Many2many(
+        'personnel.type',
+        'dl_mm_wiz_type_rel',
+        'wizard_id',
+        'type_id',
+        string='選擇人員/機具',
+    )
+
     line_ids = fields.One2many(
         'daily.log.add.man.machine.wizard.line',
         'wizard_id',
-        string='可選人員/機具',
+        string='數量與時數明細',
     )
 
-    search_keyword = fields.Char(
-        string='搜尋',
-        help='輸入名稱關鍵字過濾列表')
-
-    available_type_count = fields.Integer(
-        string='可選項數',
-        compute='_compute_available_type_count',
-    )
-
-    @api.depends('line_ids')
-    def _compute_available_type_count(self):
-        for wizard in self:
-            wizard.available_type_count = len(wizard.line_ids)
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        wizards = super().create(vals_list)
-        for wizard in wizards:
-            if not wizard.line_ids:
-                all_types = self.env['personnel.type'].search(
-                    [('active', '=', True)],
-                    order='record_type, sequence, name',
-                )
-                if all_types:
-                    self.env['daily.log.add.man.machine.wizard.line'].create([
-                        {
-                            'wizard_id': wizard.id,
-                            'personnel_type_id': pt.id,
-                            'quantity': 1.0,
-                            'hours': 8.0,
-                        }
-                        for pt in all_types
-                    ])
-        return wizards
-
-    def action_search(self):
-        """依關鍵字過濾列表，保留已勾選狀態"""
-        self.ensure_one()
-
-        # 記錄目前已勾選的 personnel_type
-        selected_ids = set(
-            self.line_ids.filtered('selected').mapped('personnel_type_id').ids
-        )
-
-        # 搜尋符合條件的 personnel.type
-        domain = [('active', '=', True)]
-        kw = (self.search_keyword or '').strip()
-        if kw:
-            domain += [('name', 'ilike', kw)]
-
-        all_types = self.env['personnel.type'].search(
-            domain, order='record_type, sequence, name'
-        )
-
-        # 重建列表，還原勾選狀態
-        self.line_ids.unlink()
-        if all_types:
-            self.env['daily.log.add.man.machine.wizard.line'].create([
-                {
-                    'wizard_id': self.id,
+    @api.onchange('selected_type_ids')
+    def _onchange_selected_type_ids(self):
+        """同步 selected_type_ids → line_ids，保留已編輯的 qty/hours"""
+        existing = {
+            line.personnel_type_id.id: line
+            for line in self.line_ids
+            if line.personnel_type_id
+        }
+        new_lines = self.env['daily.log.add.man.machine.wizard.line']
+        for pt in self.selected_type_ids:
+            if pt.id in existing:
+                new_lines |= existing[pt.id]
+            else:
+                new_lines |= self.env['daily.log.add.man.machine.wizard.line'].new({
                     'personnel_type_id': pt.id,
-                    'selected': pt.id in selected_ids,
                     'quantity': 1.0,
                     'hours': 8.0,
-                }
-                for pt in all_types
-            ])
-
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'daily.log.add.man.machine.wizard',
-            'view_mode': 'form',
-            'res_id': self.id,
-            'target': 'new',
-        }
+                })
+        self.line_ids = new_lines
 
     def _create_man_machine_details(self, wiz_lines):
         """從 wizard lines 建立 daily.log.man.machine.detail 記錄"""
@@ -163,20 +112,25 @@ class DailyLogAddManMachineWizard(models.TransientModel):
             self.env['daily.log.man.machine.detail'].create(vals_list)
 
     def action_add_selected(self):
-        """新增勾選的項目，刷新列表讓 wizard 停留"""
+        """新增已選取項目並關閉 wizard（父表單自動刷新）"""
         self.ensure_one()
-        selected = self.line_ids.filtered(lambda l: l.selected)
-        if not selected:
-            raise UserError('請至少勾選一個項目！')
-        self._create_man_machine_details(selected)
-        self.line_ids.write({'selected': False})
-        return self.action_search()
-
-    def action_add_all(self):
-        """全部新增，刷新列表讓 wizard 停留"""
-        self.ensure_one()
-        if not self.line_ids:
-            raise UserError('沒有可選的項目！')
-        self._create_man_machine_details(self.line_ids)
-        self.line_ids.write({'selected': False})
-        return self.action_search()
+        if not self.selected_type_ids:
+            raise UserError('請至少選取一個人員/機具！')
+        # selected_type_ids 已確實存入 M2M junction，是可靠的 personnel_type_id 來源
+        # line_ids 用來取使用者在 Tab2 調整過的 qty/hours（若存在）
+        line_overrides = {
+            line.personnel_type_id.id: (line.quantity, line.hours)
+            for line in self.line_ids
+            if line.personnel_type_id
+        }
+        vals_list = [
+            {
+                'daily_log_id': self.sheet_id.id,
+                'personnel_type_id': pt.id,
+                'quantity': line_overrides.get(pt.id, (1.0, 8.0))[0],
+                'hours': line_overrides.get(pt.id, (1.0, 8.0))[1],
+            }
+            for pt in self.selected_type_ids
+        ]
+        self.env['daily.log.man.machine.detail'].create(vals_list)
+        return {'type': 'ir.actions.act_window_close'}

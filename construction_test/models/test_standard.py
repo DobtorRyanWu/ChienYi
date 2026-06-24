@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api
+from odoo.osv import expression
 
 
 class TestStandard(models.Model):
@@ -215,16 +216,20 @@ class TestStandard(models.Model):
             rec.display_name = rec.material if rec.material else rec.name
 
     @api.model
-    def _name_search(self, name, domain=None, operator='ilike', limit=None, order=None):
-        """支援依名稱和試驗工項搜尋"""
-        domain = domain or []
-        if name:
-            domain = [
-                '|',
-                ('name', operator, name),
-                ('material', operator, name)
-            ] + domain
-        return self._search(domain, limit=limit, order=order)
+    def _search_display_name(self, operator, value):
+        """支援依名稱(name)與試驗工項(material)搜尋，並做 CJK 逐字比對。
+        ⚠️ Odoo 18 已移除 _name_search hook；display_name 搜尋改走 _search_display_name，
+        故原本的 _name_search 覆寫其實是死碼（從未被呼叫）。"""
+        if value and operator in ('ilike', 'like', '=ilike', '=like'):
+            terms = [t.strip() for t in value.split() if t.strip()]
+            if terms:
+                def per_char(fname):
+                    return expression.AND([
+                        [(fname, operator, '%' + '%'.join(list(t)) + '%')]
+                        for t in terms
+                    ])
+                return expression.OR([per_char('name'), per_char('material')])
+        return super()._search_display_name(operator, value)
 
     @api.onchange('project_id')
     def _onchange_project_id(self):

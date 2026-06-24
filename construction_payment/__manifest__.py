@@ -59,6 +59,7 @@
         'views/supervision_project_views.xml',
         'views/estimate_sync_wizard_views.xml',
         'views/menu.xml',
+        'report/payment_estimate_report.xml',
     ],
     'demo': [],
     'installable': True,

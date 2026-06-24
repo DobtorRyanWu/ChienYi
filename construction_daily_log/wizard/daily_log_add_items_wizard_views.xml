@@ -6,7 +6,8 @@
 <odoo>
 
     <!-- ===================================================================
-         新增施工項目 Wizard
+         新增施工項目 Wizard（雙分頁：契約工項 + 自填項目，確認後關閉）
+         切換分頁不會清空另一頁已填內容（兩者皆為 wizard 欄位）。
          =================================================================== -->
 
     <record id="daily_log_add_items_wizard_form" model="ir.ui.view">
@@ -14,86 +15,59 @@
         <field name="model">daily.log.add.items.wizard</field>
         <field name="arch" type="xml">
             <form string="新增施工項目">
-                <!-- 基本資訊 -->
                 <group>
                     <group>
                         <field name="sheet_id" invisible="1"/>
                         <field name="project_id" readonly="1"/>
                         <field name="log_date" readonly="1"/>
                     </group>
-                    <group>
-                        <field name="available_item_count" readonly="1"/>
-                    </group>
                 </group>
 
-                <!-- 分頁 -->
                 <notebook>
-                    <page string="選擇工項" name="select_items">
-                        <!-- 搜尋列 -->
-                        <div class="o_row mb-2">
-                            <field name="search_keyword"
-                                   placeholder="輸入工項名稱或編號..."
-                                   class="oe_inline"
-                                   style="min-width: 250px;"/>
-                            <button name="action_search" type="object"
-                                    string="搜尋"
-                                    class="btn-primary ms-2"
-                                    icon="fa-search"/>
-                        </div>
-                        <!-- 工項列表（可勾選） -->
-                        <field name="line_ids" nolabel="1">
-                            <list editable="bottom" create="false" delete="false">
-                                <field name="selected" nolabel="1" width="40px"/>
-                                <field name="name" string="施工項目" readonly="1"/>
-                                <field name="parent_item_path" string="父工項路徑" readonly="1" optional="show"/>
-                                <field name="parent_id" column_invisible="1"/>
+                    <!-- 分頁一：契約工項 -->
+                    <page string="契約工項" name="contract_items">
+                        <field name="selected_task_ids" nolabel="1"
+                               domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True)]"
+                               options="{'no_create': True, 'no_open': True}"
+                               context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}">
+                            <list>
                                 <field name="display_item_no" string="項次" readonly="1" width="60px"/>
-                                <field name="item_no" string="完整項次" readonly="1" optional="hide"/>
+                                <field name="name" string="施工項目" readonly="1"/>
                                 <field name="unit" string="單位" readonly="1"/>
                                 <field name="planned_qty" string="契約數量" readonly="1" digits="[16, 4]"/>
-                                <field name="construction_notes" string="備註" readonly="1" optional="show"/>
-                                <field name="task_id" column_invisible="1" force_save="1"/>
+                                <field name="item_no" string="完整項次" readonly="1" optional="hide"/>
                             </list>
                         </field>
                     </page>
 
-                    <page string="已有工項" name="existing_items">
-                        <field name="existing_line_ids" nolabel="1">
-                            <list create="false" edit="false" default_order="work_item_sequence">
-                                <field name="item_name" string="施工項目"/>
-                                <field name="parent_item_name" string="父工項"/>
-                                <field name="item_no" string="工項編號"/>
-                                <field name="unit" string="單位"/>
-                                <field name="contract_qty" string="契約數量" digits="[16, 4]"/>
-                                <field name="daily_qty" string="本日完成數量" digits="[16, 4]"/>
-                                <button name="action_remove_from_sheet"
-                                        type="object"
-                                        string="移除"
-                                        class="btn-link text-danger"
-                                        icon="fa-trash"
-                                        confirm="確定要移除此工項嗎？"/>
+                    <!-- 分頁二：自填項目（純文字，不登記為契約工項） -->
+                    <page string="自填項目（非契約工項）" name="extra_items">
+                        <div class="text-muted mb-2">
+                            無法量化的施工動作（如「工區復舊」）可在此自填；僅為文字，不會登記為契約工項。
+                        </div>
+                        <field name="extra_line_ids" nolabel="1">
+                            <list editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="name" string="項目說明" placeholder="如：工區復舊"/>
+                                <field name="location" string="位置" optional="show"/>
+                                <field name="work_description" string="備註" optional="show"/>
                             </list>
                         </field>
                     </page>
                 </notebook>
 
-                <!-- 底部按鈕 -->
                 <footer>
                     <button string="新增選取工項" type="object"
                             name="action_add_selected"
                             class="btn-primary"
-                            invisible="available_item_count == 0"/>
-                    <button string="全部新增" type="object"
-                            name="action_add_all"
-                            class="btn-secondary"
-                            invisible="available_item_count == 0"/>
+                            invisible="not selected_task_ids and not extra_line_ids"/>
                     <button string="關閉" special="cancel"/>
                 </footer>
             </form>
         </field>
     </record>
 
-    <!-- 移除工項後重新開啟用（預設顯示「已有工項」分頁） -->
+    <!-- 保留 form_existing 記錄以避免升級錯誤（內容與主 form 相同） -->
     <record id="daily_log_add_items_wizard_form_existing" model="ir.ui.view">
         <field name="name">daily.log.add.items.wizard.form.existing</field>
         <field name="model">daily.log.add.items.wizard</field>
@@ -105,55 +79,34 @@
                         <field name="project_id" readonly="1"/>
                         <field name="log_date" readonly="1"/>
                     </group>
-                    <group>
-                        <field name="available_item_count" readonly="1"/>
-                    </group>
                 </group>
 
                 <notebook>
-                    <page string="選擇工項" name="select_items">
-                        <!-- 搜尋列 -->
-                        <div class="o_row mb-2">
-                            <field name="search_keyword"
-                                   placeholder="輸入工項名稱或編號..."
-                                   class="oe_inline"
-                                   style="min-width: 250px;"/>
-                            <button name="action_search" type="object"
-                                    string="搜尋"
-                                    class="btn-primary ms-2"
-                                    icon="fa-search"/>
-                        </div>
-                        <field name="line_ids" nolabel="1">
-                            <list editable="bottom" create="false" delete="false">
-                                <field name="selected" nolabel="1" width="40px"/>
-                                <field name="name" string="施工項目" readonly="1"/>
-                                <field name="parent_item_path" string="父工項路徑" readonly="1" optional="show"/>
-                                <field name="parent_id" column_invisible="1"/>
+                    <page string="契約工項" name="contract_items">
+                        <field name="selected_task_ids" nolabel="1"
+                               domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True)]"
+                               options="{'no_create': True, 'no_open': True}"
+                               context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}">
+                            <list>
                                 <field name="display_item_no" string="項次" readonly="1" width="60px"/>
-                                <field name="item_no" string="完整項次" readonly="1" optional="hide"/>
+                                <field name="name" string="施工項目" readonly="1"/>
                                 <field name="unit" string="單位" readonly="1"/>
                                 <field name="planned_qty" string="契約數量" readonly="1" digits="[16, 4]"/>
-                                <field name="construction_notes" string="備註" readonly="1" optional="show"/>
-                                <field name="task_id" column_invisible="1" force_save="1"/>
+                                <field name="item_no" string="完整項次" readonly="1" optional="hide"/>
                             </list>
                         </field>
                     </page>
 
-                    <page string="已有工項" name="existing_items" autofocus="autofocus">
-                        <field name="existing_line_ids" nolabel="1">
-                            <list create="false" edit="false" default_order="work_item_sequence">
-                                <field name="item_name" string="施工項目"/>
-                                <field name="parent_item_name" string="父工項"/>
-                                <field name="item_no" string="工項編號"/>
-                                <field name="unit" string="單位"/>
-                                <field name="contract_qty" string="契約數量" digits="[16, 4]"/>
-                                <field name="daily_qty" string="本日完成數量" digits="[16, 4]"/>
-                                <button name="action_remove_from_sheet"
-                                        type="object"
-                                        string="移除"
-                                        class="btn-link text-danger"
-                                        icon="fa-trash"
-                                        confirm="確定要移除此工項嗎？"/>
+                    <page string="自填項目（非契約工項）" name="extra_items">
+                        <div class="text-muted mb-2">
+                            無法量化的施工動作（如「工區復舊」）可在此自填；僅為文字，不會登記為契約工項。
+                        </div>
+                        <field name="extra_line_ids" nolabel="1">
+                            <list editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="name" string="項目說明" placeholder="如：工區復舊"/>
+                                <field name="location" string="位置" optional="show"/>
+                                <field name="work_description" string="備註" optional="show"/>
                             </list>
                         </field>
                     </page>
@@ -163,11 +116,7 @@
                     <button string="新增選取工項" type="object"
                             name="action_add_selected"
                             class="btn-primary"
-                            invisible="available_item_count == 0"/>
-                    <button string="全部新增" type="object"
-                            name="action_add_all"
-                            class="btn-secondary"
-                            invisible="available_item_count == 0"/>
+                            invisible="not selected_task_ids and not extra_line_ids"/>
                     <button string="關閉" special="cancel"/>
                 </footer>
             </form>

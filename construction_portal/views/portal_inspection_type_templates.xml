@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        自主檢查樣板庫管理 /construction/inspection-types（v11）
+        - 全域樣板庫（project_id=False）+ 各工程專案層級樣板
+        - 瀏覽 / 下載：全角色；新增 / 編輯 / 刪除 / 停用：限 can_manage
+        - 沿用 v11 外殼：web.frontend_layout + cy-v10-app + wb-* CSS 變數 + 右側 drawer
+        - 入口：右側漢堡 drawer「品質」組
+    -->
+
+    <!-- ============ 共用 HUD（返回 + 標題 + avatar 開 drawer） ============ -->
+    <template id="portal_inspection_type_hud" name="樣板庫 HUD">
+        <div class="cy-hud" style="padding-bottom: 0;">
+            <div class="cy-hud-top">
+                <div class="cy-hud-left">
+                    <a t-att-href="back_url or '/construction/inspection-types'"
+                       class="cy-hud-back" t-att-title="back_label or '返回'">‹</a>
+                </div>
+                <div class="cy-hud-project"><t t-esc="hud_title or '自主檢查樣板庫'"/></div>
+                <button type="button" class="cy-hud-avatar cy-hud-menu-avatar"
+                        data-bs-toggle="offcanvas" data-bs-target="#cyDrawer"
+                        aria-controls="cyDrawer" aria-label="開啟主選單">
+                    <span class="cy-hud-menu-avatar-initial"><t t-esc="request.env.user.name[:1]"/></span>
+                    <span class="cy-hud-menu-avatar-chevron" aria-hidden="true">▾</span>
+                </button>
+            </div>
+        </div>
+    </template>
+
+    <!-- ==================== 列表頁 ==================== -->
+    <template id="portal_inspection_type_list" name="自主檢查樣板庫列表">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_inspection_type_hud">
+                    <t t-set="back_url" t-value="'/construction'"/>
+                    <t t-set="hud_title" t-value="'自主檢查樣板庫'"/>
+                </t>
+
+                <div class="cy-content">
+                    <!-- 訊息提示 -->
+                    <t t-set="msg" t-value="request.params.get('message')"/>
+                    <t t-if="msg">
+                        <div class="cy-card" t-attf-style="margin-bottom:12px;padding:12px 14px;border-left:3px solid var(--wb-#{'red' if msg=='deleted' else 'green'});font-size:.88rem;color:var(--wb-t1);">
+                            <t t-if="msg=='saved'">✓ 樣板已儲存</t>
+                            <t t-elif="msg=='deleted'">✓ 樣板已刪除</t>
+                            <t t-elif="msg=='archived'">⏸ 樣板有檢查記錄引用，已改為停用</t>
+                            <t t-elif="msg=='toggled'">✓ 啟用狀態已更新</t>
+                        </div>
+                    </t>
+
+                    <!-- 範圍 chips + 新增 -->
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+                        <a t-attf-href="/construction/inspection-types#{('?category=' + cur_category) if cur_category else ''}"
+                           t-attf-class="cy-chip #{'cy-chip-on' if not cur_scope else ''}"
+                           style="text-decoration:none;">全部</a>
+                        <a t-attf-href="/construction/inspection-types?scope=global#{('&amp;category=' + cur_category) if cur_category else ''}"
+                           t-attf-class="cy-chip #{'cy-chip-on' if cur_scope=='global' else ''}"
+                           style="text-decoration:none;">全域 <t t-esc="count_global"/></a>
+                        <a t-attf-href="/construction/inspection-types?scope=project#{('&amp;category=' + cur_category) if cur_category else ''}"
+                           t-attf-class="cy-chip #{'cy-chip-on' if cur_scope=='project' else ''}"
+                           style="text-decoration:none;">專案 <t t-esc="count_project"/></a>
+                        <t t-if="can_manage">
+                            <a href="/construction/inspection-types/new"
+                               style="margin-left:auto;background:var(--wb-brand);color:#fff;border-radius:10px;padding:8px 14px;font-size:.88rem;font-weight:700;text-decoration:none;">➕ 新增樣板</a>
+                        </t>
+                    </div>
+
+                    <!-- 搜尋 + 分類 -->
+                    <form method="get" action="/construction/inspection-types"
+                          style="display:flex;gap:8px;margin-bottom:16px;">
+                        <input type="hidden" name="scope" t-att-value="cur_scope"/>
+                        <input type="text" name="search" t-att-value="search"
+                               placeholder="搜尋名稱 / 代碼…"
+                               style="flex:1;border:1px solid var(--wb-line);border-radius:10px;padding:9px 12px;font-size:.9rem;min-height:42px;"/>
+                        <select name="category" onchange="this.form.submit()"
+                                style="border:1px solid var(--wb-line);border-radius:10px;padding:9px 10px;font-size:.9rem;min-height:42px;background:#fff;">
+                            <option value="">全部類別</option>
+                            <t t-foreach="categories_map.items()" t-as="cat">
+                                <option t-att-value="cat[0]" t-att-selected="'selected' if cur_category==cat[0] else None">
+                                    <t t-esc="cat[1]"/>
+                                </option>
+                            </t>
+                        </select>
+                    </form>
+
+                    <!-- 樣板卡片列表 -->
+                    <t t-if="not types">
+                        <div class="cy-card" style="padding:32px 16px;text-align:center;color:var(--wb-t3);">
+                            查無符合條件的樣板
+                        </div>
+                    </t>
+                    <t t-foreach="types" t-as="t">
+                        <a t-attf-href="/construction/inspection-types/#{t.id}"
+                           class="cy-card"
+                           style="display:block;padding:14px;margin-bottom:10px;text-decoration:none;color:inherit;">
+                            <div style="display:flex;align-items:flex-start;gap:10px;">
+                                <span style="font-size:1.4rem;line-height:1;">📑</span>
+                                <div style="flex:1;min-width:0;">
+                                    <div style="font-size:.98rem;font-weight:700;color:var(--wb-t1);">
+                                        <t t-esc="t.name"/>
+                                        <t t-if="not t.active">
+                                            <span style="font-size:.72rem;font-weight:700;color:var(--wb-t3);background:var(--wb-bg2);border-radius:6px;padding:1px 6px;margin-left:6px;">已停用</span>
+                                        </t>
+                                    </div>
+                                    <div style="font-size:.78rem;color:var(--wb-t3);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap;">
+                                        <span><t t-esc="categories_map.get(t.category, t.category)"/></span>
+                                        <span>· <t t-esc="len(t.default_item_ids)"/> 個項目</span>
+                                        <span t-if="t.project_id">· <t t-esc="t.project_id.name"/></span>
+                                        <span t-else="">· 全域</span>
+                                        <span t-if="t.template_file" style="color:var(--wb-brand);">· 📎 含 docx</span>
+                                    </div>
+                                </div>
+                                <span style="color:var(--wb-t3);font-size:1.1rem;">›</span>
+                            </div>
+                        </a>
+                    </t>
+                </div>
+
+                <t t-call="construction_portal.portal_v10_drawer"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ==================== 詳情頁 ==================== -->
+    <template id="portal_inspection_type_detail" name="自主檢查樣板詳情">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_inspection_type_hud">
+                    <t t-set="back_url" t-value="'/construction/inspection-types'"/>
+                    <t t-set="hud_title" t-value="rec.name"/>
+                </t>
+
+                <div class="cy-content">
+                    <!-- 基本資訊 -->
+                    <div class="cy-card" style="padding:16px;margin-bottom:14px;">
+                        <div style="font-size:1.1rem;font-weight:800;color:var(--wb-t1);">
+                            <t t-esc="rec.name"/>
+                            <t t-if="not rec.active">
+                                <span style="font-size:.72rem;font-weight:700;color:var(--wb-t3);background:var(--wb-bg2);border-radius:6px;padding:1px 6px;margin-left:6px;">已停用</span>
+                            </t>
+                        </div>
+                        <div style="font-size:.82rem;color:var(--wb-t3);margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">
+                            <span>類別：<t t-esc="categories_map.get(rec.category, rec.category)"/></span>
+                            <span t-if="rec.code">代碼：<t t-esc="rec.code"/></span>
+                            <span t-if="rec.project_id">所屬：<t t-esc="rec.project_id.name"/></span>
+                            <span t-else="">全域樣板</span>
+                        </div>
+                        <t t-if="rec.description">
+                            <div style="font-size:.85rem;color:var(--wb-t2);margin-top:10px;white-space:pre-wrap;"><t t-esc="rec.description"/></div>
+                        </t>
+                        <!-- docx 下載 -->
+                        <t t-if="rec.template_file">
+                            <a t-attf-href="/construction/inspection-types/#{rec.id}/template/download"
+                               style="display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:var(--wb-bg2);color:var(--wb-brand);border-radius:10px;padding:8px 14px;font-size:.85rem;font-weight:700;text-decoration:none;">
+                                📎 下載樣板 docx
+                            </a>
+                        </t>
+                    </div>
+
+                    <!-- 管理操作 -->
+                    <t t-if="can_manage">
+                        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+                            <a t-attf-href="/construction/inspection-types/#{rec.id}/edit"
+                               style="flex:1;text-align:center;background:var(--wb-brand);color:#fff;border-radius:10px;padding:10px;font-size:.88rem;font-weight:700;text-decoration:none;min-width:90px;">✏ 編輯</a>
+                            <form t-attf-action="/construction/inspection-types/#{rec.id}/toggle" method="post" style="flex:1;min-width:90px;">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit" style="width:100%;background:var(--wb-bg2);color:var(--wb-t1);border:none;border-radius:10px;padding:10px;font-size:.88rem;font-weight:700;min-height:42px;">
+                                    <t t-if="rec.active">⏸ 停用</t><t t-else="">▶ 啟用</t>
+                                </button>
+                            </form>
+                            <form t-attf-action="/construction/inspection-types/#{rec.id}/delete" method="post" style="flex:1;min-width:90px;"
+                                  onsubmit="return confirm('確定刪除此樣板？若已被檢查記錄引用將改為停用。');">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit" style="width:100%;background:rgba(232,54,79,.06);color:var(--wb-red);border:1px solid rgba(232,54,79,.2);border-radius:10px;padding:10px;font-size:.88rem;font-weight:700;min-height:42px;">🗑 刪除</button>
+                            </form>
+                        </div>
+                    </t>
+
+                    <!-- 分階段檢查項目 -->
+                    <div class="cy-section-title">檢查項目（<t t-esc="len(rec.default_item_ids)"/>）</div>
+                    <t t-if="not stage_groups">
+                        <div class="cy-card" style="padding:24px 16px;text-align:center;color:var(--wb-t3);">尚無檢查項目</div>
+                    </t>
+                    <t t-foreach="stage_groups" t-as="g">
+                        <div style="font-size:.82rem;font-weight:700;color:var(--wb-t2);margin:12px 2px 6px;">
+                            <t t-esc="g['label']"/>（<t t-esc="len(g['items'])"/>）
+                        </div>
+                        <div class="cy-card" style="overflow:hidden;">
+                            <t t-foreach="g['items']" t-as="item">
+                                <div t-attf-style="padding:12px 14px;#{'border-top:1px solid var(--wb-line);' if not item_first else ''}">
+                                    <div style="font-size:.92rem;font-weight:600;color:var(--wb-t1);"><t t-esc="item.name"/></div>
+                                    <t t-if="item.check_standard">
+                                        <div style="font-size:.8rem;color:var(--wb-t3);margin-top:4px;white-space:pre-wrap;">標準：<t t-esc="item.check_standard"/></div>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+                </div>
+
+                <t t-call="construction_portal.portal_v10_drawer"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ==================== 新增 / 編輯表單 ==================== -->
+    <template id="portal_inspection_type_form" name="自主檢查樣板表單">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_inspection_type_hud">
+                    <t t-set="back_url" t-value="(rec and ('/construction/inspection-types/%s' % rec.id)) or '/construction/inspection-types'"/>
+                    <t t-set="hud_title" t-value="(rec and '編輯樣板') or '新增樣板'"/>
+                </t>
+
+                <form class="cy-content" method="post" action="/construction/inspection-types/save"
+                      enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                    <input type="hidden" name="type_id" t-att-value="rec.id if rec else ''"/>
+
+                    <!-- 基本欄位 -->
+                    <div class="cy-card" style="padding:16px;margin-bottom:14px;">
+                        <label class="cyf-label">類型名稱 <span style="color:var(--wb-red);">*</span></label>
+                        <input type="text" name="name" required="required" t-att-value="rec.name if rec else ''"
+                               class="cyf-input" placeholder="例如：鋼筋綁紮、混凝土澆置"/>
+
+                        <div style="display:flex;gap:10px;">
+                            <div style="flex:1;">
+                                <label class="cyf-label">工程類別</label>
+                                <select name="category" class="cyf-input">
+                                    <t t-foreach="categories" t-as="cat">
+                                        <option t-att-value="cat[0]" t-att-selected="'selected' if (rec and rec.category==cat[0]) else None">
+                                            <t t-esc="cat[1]"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+                            <div style="width:90px;">
+                                <label class="cyf-label">排序</label>
+                                <input type="number" name="sequence" t-att-value="rec.sequence if rec else 10" class="cyf-input"/>
+                            </div>
+                        </div>
+
+                        <label class="cyf-label">類型代碼</label>
+                        <input type="text" name="code" t-att-value="rec.code if rec else ''" class="cyf-input" placeholder="選填"/>
+
+                        <label class="cyf-label">類型說明</label>
+                        <textarea name="description" rows="2" class="cyf-input" placeholder="選填"><t t-esc="rec.description if rec else ''"/></textarea>
+
+                        <label class="cyf-label">樣板 docx（選填，上傳即取代原檔）</label>
+                        <t t-if="rec and rec.template_filename">
+                            <div style="font-size:.8rem;color:var(--wb-t3);margin-bottom:6px;">目前：📎 <t t-esc="rec.template_filename"/></div>
+                        </t>
+                        <input type="file" name="template_file" accept=".docx"
+                               style="font-size:.85rem;width:100%;"/>
+                    </div>
+
+                    <!-- 檢查項目編輯 -->
+                    <div class="cy-section-title">檢查項目</div>
+                    <div class="cy-card" style="padding:12px;margin-bottom:14px;">
+                        <div id="itemRows">
+                            <t t-foreach="rec.default_item_ids if rec else []" t-as="item">
+                                <div class="cyf-item-row" t-attf-data-idx="#{item_index}"
+                                     style="display:flex;gap:6px;align-items:flex-start;margin-bottom:8px;">
+                                    <input type="hidden" t-attf-name="item_id_#{item_index}" t-att-value="item.id"/>
+                                    <input type="hidden" t-attf-name="item_seq_#{item_index}" t-att-value="item.sequence"/>
+                                    <select t-attf-name="item_stage_#{item_index}" class="cyf-input" style="width:84px;margin:0;flex-shrink:0;">
+                                        <t t-foreach="stage_labels" t-as="st">
+                                            <option t-att-value="st[0]" t-att-selected="'selected' if item.stage==st[0] else None"><t t-esc="st[1]"/></option>
+                                        </t>
+                                    </select>
+                                    <div style="flex:1;min-width:0;">
+                                        <input type="text" t-attf-name="item_name_#{item_index}" t-att-value="item.name"
+                                               class="cyf-input" style="margin:0 0 4px;" placeholder="檢查項目"/>
+                                        <input type="text" t-attf-name="item_standard_#{item_index}" t-att-value="item.check_standard or ''"
+                                               class="cyf-input" style="margin:0;" placeholder="管理標準（選填）"/>
+                                    </div>
+                                    <button type="button" class="cyf-del-row"
+                                            style="background:rgba(232,54,79,.06);color:var(--wb-red);border:none;border-radius:8px;width:36px;min-height:42px;font-size:1rem;flex-shrink:0;">✕</button>
+                                </div>
+                            </t>
+                        </div>
+                        <button type="button" id="addItemRow"
+                                style="width:100%;background:var(--wb-bg2);color:var(--wb-brand);border:1px dashed var(--wb-brand);border-radius:10px;padding:9px;font-size:.85rem;font-weight:700;min-height:42px;">➕ 新增項目</button>
+                    </div>
+
+                    <!-- 範本列（JS clone 用，__IDX__ 會被替換） -->
+                    <template id="itemRowTpl">
+                        <div class="cyf-item-row" data-idx="__IDX__"
+                             style="display:flex;gap:6px;align-items:flex-start;margin-bottom:8px;">
+                            <input type="hidden" name="item_id___IDX__" value=""/>
+                            <input type="hidden" name="item_seq___IDX__" value=""/>
+                            <select name="item_stage___IDX__" class="cyf-input" style="width:84px;margin:0;flex-shrink:0;">
+                                <option value="stage1">施工前</option>
+                                <option value="stage2">施工中</option>
+                                <option value="stage3">施工後</option>
+                            </select>
+                            <div style="flex:1;min-width:0;">
+                                <input type="text" name="item_name___IDX__" class="cyf-input" style="margin:0 0 4px;" placeholder="檢查項目"/>
+                                <input type="text" name="item_standard___IDX__" class="cyf-input" style="margin:0;" placeholder="管理標準（選填）"/>
+                            </div>
+                            <button type="button" class="cyf-del-row"
+                                    style="background:rgba(232,54,79,.06);color:var(--wb-red);border:none;border-radius:8px;width:36px;min-height:42px;font-size:1rem;flex-shrink:0;">✕</button>
+                        </div>
+                    </template>
+
+                    <button type="submit"
+                            style="width:100%;background:var(--wb-brand);color:#fff;border:none;border-radius:14px;padding:15px;font-size:1rem;font-weight:800;min-height:52px;margin-bottom:24px;">
+                        儲存樣板
+                    </button>
+                </form>
+
+                <t t-call="construction_portal.portal_v10_drawer"/>
+            </div>
+
+            <!-- 表單樣式 + items 動態增刪 JS -->
+            <style>
+                .cyf-label { display:block; font-size:.82rem; font-weight:600; color:var(--wb-t2); margin:12px 0 5px; }
+                .cyf-input { width:100%; border:1px solid var(--wb-line); border-radius:10px; padding:9px 12px; font-size:.9rem; min-height:42px; background:#fff; box-sizing:border-box; }
+            </style>
+            <script type="text/javascript">
+                (function () {
+                    var nextIdx = parseInt("<t t-esc="len(rec.default_item_ids) if rec else 0"/>", 10) || 0;
+                    var rows = document.getElementById('itemRows');
+                    var tpl = document.getElementById('itemRowTpl');
+                    var addBtn = document.getElementById('addItemRow');
+                    if (!rows || !tpl || !addBtn) { return; }
+
+                    function bindDel(row) {
+                        var btn = row.querySelector('.cyf-del-row');
+                        if (!btn) { return; }
+                        btn.addEventListener('click', function () {
+                            // 清空名稱 + 隱藏：保持 idx 連續，後端視空名為刪除既有/略過新列
+                            var nameIn = row.querySelector('input[name^="item_name_"]');
+                            if (nameIn) { nameIn.value = ''; }
+                            row.style.display = 'none';
+                        });
+                    }
+                    Array.prototype.forEach.call(rows.querySelectorAll('.cyf-item-row'), bindDel);
+
+                    addBtn.addEventListener('click', function () {
+                        var html = tpl.innerHTML.replace(/__IDX__/g, String(nextIdx));
+                        var wrap = document.createElement('div');
+                        wrap.innerHTML = html;
+                        var row = wrap.firstElementChild;
+                        rows.appendChild(row);
+                        bindDel(row);
+                        nextIdx += 1;
+                    });
+                })();
+            </script>
+        </t>
+    </template>
+</odoo>

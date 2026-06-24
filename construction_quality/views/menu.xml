@@ -67,4 +67,13 @@
               action="action_reservation_self_inspection"
               sequence="30"/>
 
+    <!-- ========== 系統設定 > 樣板設定：自主檢查項目樣板庫 ========== -->
+    <!-- 讓匯入的全域自主檢查樣板（self.inspection.type）出現在「系統設定 > 樣板設定」下，
+         與文件列印樣板(document.template)並列，供瀏覽與選取 -->
+    <menuitem id="menu_self_inspection_type_library"
+              name="自主檢查項目樣板庫"
+              parent="construction_supervision_base.menu_template_config"
+              action="action_self_inspection_type_library"
+              sequence="2"/>
+
 </odoo>

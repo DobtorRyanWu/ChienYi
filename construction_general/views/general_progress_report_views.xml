@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- 一般式進度報告 Tree View -->
+    <!-- 一般式進度報告 List View -->
     <record id="view_general_progress_report_tree" model="ir.ui.view">
         <field name="name">general.progress.report.tree</field>
         <field name="model">general.progress.report</field>
         <field name="arch" type="xml">
-            <list decoration-muted="state == 'approved'">
+            <list>
                 <field name="name"/>
                 <field name="project_id"/>
                 <field name="report_type"/>
@@ -25,12 +25,7 @@
                        decoration-danger="progress_status == 'critical'"
                        widget="badge"/>
                 <field name="reporter_id"/>
-                <field name="state"
-                       decoration-info="state == 'draft'"
-                       decoration-warning="state == 'submitted'"
-                       decoration-primary="state == 'reviewed'"
-                       decoration-success="state == 'approved'"
-                       widget="badge"/>
+                <field name="last_sync_date"/>
             </list>
         </field>
     </record>
@@ -41,54 +36,6 @@
         <field name="model">general.progress.report</field>
         <field name="arch" type="xml">
             <form>
-                <header>
-                    <button name="action_compute_progress"
-                            string="同步進度"
-                            type="object"
-                            class="btn-secondary"
-                            invisible="state != 'draft'"/>
-                    <button name="action_load_task_progress"
-                            string="載入工項進度"
-                            type="object"
-                            class="btn-secondary"
-                            invisible="state != 'draft' or progress_line_ids"/>
-                    <button name="action_sync_all"
-                            string="一鍵同步"
-                            type="object"
-                            class="btn-primary"
-                            invisible="state != 'draft'"
-                            help="從施工日誌、進度表、缺失紀錄自動帶入本期數量、累計進度、缺失統計與施工日數"/>
-                    <button name="action_submit"
-                            string="提交"
-                            type="object"
-                            class="btn-primary"
-                            invisible="state != 'draft'"/>
-                    <button name="action_review"
-                            string="審核"
-                            type="object"
-                            class="btn-primary"
-                            invisible="state != 'submitted'"
-                            groups="construction_general.group_general_manager"/>
-                    <button name="action_approve"
-                            string="核准"
-                            type="object"
-                            class="btn-primary"
-                            invisible="state != 'reviewed'"
-                            groups="construction_general.group_general_manager"/>
-                    <button name="action_return"
-                            string="退回"
-                            type="object"
-                            class="btn-warning"
-                            invisible="state not in ('submitted', 'reviewed')"
-                            groups="construction_general.group_general_manager"/>
-                    <button name="action_reset_draft"
-                            string="重設"
-                            type="object"
-                            class="btn-secondary"
-                            invisible="state != 'submitted'"/>
-                    <field name="state" widget="statusbar"
-                           statusbar_visible="draft,submitted,reviewed,approved"/>
-                </header>
                 <sheet>
                     <widget name="web_ribbon" title="落後" bg_color="text-bg-warning"
                             invisible="progress_status != 'delayed'"/>
@@ -98,6 +45,22 @@
                         <h1>
                             <field name="name" readonly="1"/>
                         </h1>
+                    </div>
+                    <!-- 操作列：同步按鈕 + 上次同步時間 -->
+                    <div class="d-flex align-items-center gap-3 mb-3"
+                         invisible="not period_start or not period_end">
+                        <button name="action_sync_all"
+                                string="同步數據"
+                                type="object"
+                                class="btn btn-secondary btn-sm"/>
+                        <button name="action_load_task_progress"
+                                string="載入工項進度"
+                                type="object"
+                                class="btn btn-secondary btn-sm"
+                                invisible="progress_line_ids"/>
+                        <span class="text-muted small" invisible="not last_sync_date">
+                            最後同步：<field name="last_sync_date" readonly="1" nolabel="1"/>
+                        </span>
                     </div>
                     <group>
                         <group string="工程資訊">
@@ -125,10 +88,6 @@
                                    decoration-danger="progress_status == 'critical'"
                                    widget="badge"/>
                         </group>
-                        <group string="本期進度">
-                            <field name="period_planned_progress"/>
-                            <field name="period_actual_progress"/>
-                        </group>
                     </group>
                     <group>
                         <group string="工期資訊">
@@ -146,20 +105,8 @@
                         <group string="報告人">
                             <field name="reporter_id"/>
                         </group>
-                        <group string="審核人">
-                            <field name="reviewer_id"/>
-                            <field name="review_date"/>
-                        </group>
                     </group>
                     <notebook>
-                        <page string="施工概況" name="summary">
-                            <group string="本期施工概況">
-                                <field name="work_summary" nolabel="1"/>
-                            </group>
-                            <group string="本期施工項目">
-                                <field name="work_items" nolabel="1"/>
-                            </group>
-                        </page>
                         <page string="工項進度明細" name="progress_lines">
                             <field name="progress_line_ids">
                                 <list editable="bottom">
@@ -169,7 +116,6 @@
                                     <field name="item_name"/>
                                     <field name="unit"/>
                                     <field name="planned_qty"/>
-                                    <field name="prev_qty"/>
                                     <field name="period_qty"/>
                                     <field name="actual_qty"/>
                                     <field name="remaining_qty"/>
@@ -182,18 +128,12 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="重要事項" name="issues">
-                            <group string="重要里程碑說明">
-                                <field name="milestone_description" nolabel="1"/>
+                        <page string="施工概況" name="summary">
+                            <group string="本期施工概況">
+                                <field name="work_summary" nolabel="1"/>
                             </group>
-                            <group string="遭遇問題">
-                                <field name="issue_description" nolabel="1"/>
-                            </group>
-                            <group string="解決方案">
-                                <field name="solution_description" nolabel="1"/>
-                            </group>
-                            <group string="下期工作計畫">
-                                <field name="next_period_plan" nolabel="1"/>
+                            <group string="本期施工項目">
+                                <field name="work_items" nolabel="1"/>
                             </group>
                         </page>
                         <page string="品質安全" name="quality_safety">
@@ -210,19 +150,6 @@
                                     <field name="defect_count"/>
                                     <field name="defect_improved_count"/>
                                 </group>
-                            </group>
-                        </page>
-                        <page string="照片附件" name="attachments">
-                            <group string="施工照片">
-                                <field name="photo_ids" widget="many2many_binary" nolabel="1"/>
-                            </group>
-                            <group string="相關附件">
-                                <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
-                            </group>
-                        </page>
-                        <page string="審核" name="review">
-                            <group string="審核意見">
-                                <field name="review_comment" nolabel="1"/>
                             </group>
                         </page>
                     </notebook>
@@ -242,15 +169,6 @@
                 <field name="project_id"/>
                 <field name="reporter_id"/>
                 <separator/>
-                <filter string="草稿" name="draft"
-                        domain="[('state', '=', 'draft')]"/>
-                <filter string="已提交" name="submitted"
-                        domain="[('state', '=', 'submitted')]"/>
-                <filter string="已審核" name="reviewed"
-                        domain="[('state', '=', 'reviewed')]"/>
-                <filter string="已核准" name="approved"
-                        domain="[('state', '=', 'approved')]"/>
-                <separator/>
                 <filter string="週報" name="weekly"
                         domain="[('report_type', '=', 'weekly')]"/>
                 <filter string="月報" name="monthly"
@@ -269,8 +187,6 @@
                             context="{'group_by': 'report_type'}"/>
                     <filter string="進度狀態" name="group_progress"
                             context="{'group_by': 'progress_status'}"/>
-                    <filter string="狀態" name="group_state"
-                            context="{'group_by': 'state'}"/>
                     <filter string="報告日期" name="group_date"
                             context="{'group_by': 'report_date:month'}"/>
                 </group>
@@ -283,14 +199,13 @@
         <field name="name">general.progress.report.kanban</field>
         <field name="model">general.progress.report</field>
         <field name="arch" type="xml">
-            <kanban default_group_by="state" class="o_kanban_mobile">
+            <kanban class="o_kanban_mobile">
                 <field name="name"/>
                 <field name="project_id"/>
                 <field name="report_type"/>
                 <field name="report_date"/>
                 <field name="actual_progress"/>
                 <field name="progress_status"/>
-                <field name="state"/>
                 <templates>
                     <t t-name="card">
                         <div class="oe_kanban_content">

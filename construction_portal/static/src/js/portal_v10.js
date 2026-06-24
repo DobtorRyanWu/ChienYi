@@ -276,8 +276,39 @@
         _origSelectHTML = _origSelect.outerHTML;
     }
 
-    // 選定工項 → 自動帶入單位（讀 option 的 data-unit）
-    // 切換工項時若使用者沒手動改過單位就覆寫；手動改過則保留
+    // 切換某一列的模式：'contract'(契約工項下拉) ↔ 'extra'(自填純文字)
+    // extra 模式：欄位改名 line_custom_name_{idx}，並把 line_entry_type 設為 'extra'
+    function setLineMode(card, mode) {
+        var idx = card.getAttribute('data-index');
+        var field = card.querySelector('.work-item-select');
+        var hidden = card.querySelector('.line-entry-type');
+        var toggleBtn = card.querySelector('.toggle-input-mode');
+        if (!field) return;
+
+        if (mode === 'extra' && field.tagName === 'SELECT') {
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.name = 'line_custom_name_' + idx;
+            input.className = 'form-control work-item-select';
+            input.placeholder = '輸入自填項目（如：工區復舊）';
+            field.parentElement.replaceChild(input, field);
+            if (hidden) hidden.value = 'extra';
+            if (toggleBtn) toggleBtn.textContent = '切換下拉選擇';
+        } else if (mode === 'contract' && field.tagName !== 'SELECT' && _origSelectHTML) {
+            var temp = document.createElement('div');
+            temp.innerHTML = _origSelectHTML;
+            var newSel = temp.firstChild;
+            newSel.name = 'line_work_item_id_' + idx;
+            newSel.selectedIndex = 0;
+            field.parentElement.replaceChild(newSel, field);
+            if (hidden) hidden.value = 'contract';
+            if (toggleBtn) toggleBtn.textContent = '切換自行輸入';
+            // V3 合併：還原成下拉後，重新綁定「選工項自動帶入單位」(同事 V2 功能)
+            bindWorkItemUnitSync(card);
+        }
+    }
+
+    // 選定工項 → 自動帶入單位（讀 option 的 data-unit）— 同事 V2 功能
     function bindWorkItemUnitSync(card) {
         var sel = card.querySelector('select.work-item-select');
         if (!sel) return;
@@ -289,39 +320,21 @@
             unitInput.value = unit;
         });
     }
-    document.querySelectorAll('.work-line-item').forEach(bindWorkItemUnitSync);
 
-    document.querySelectorAll('.toggle-input-mode').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var card = btn.closest('.work-line-item');
-            if (!card) return;
-            var sel = card.querySelector('.work-item-select');
-            if (!sel) return;
-            var idx = card.getAttribute('data-index');
-
-            if (sel.tagName === 'SELECT') {
-                // 切換為手動輸入
-                var input = document.createElement('input');
-                input.type = 'text';
-                input.name = sel.name;
-                input.className = 'form-control work-item-select';
-                input.placeholder = '輸入工項名稱';
-                sel.parentElement.replaceChild(input, sel);
-                btn.textContent = '切換下拉選擇';
-            } else {
-                // 切換回下拉（用備份的 HTML 還原）
-                if (_origSelectHTML) {
-                    var temp = document.createElement('div');
-                    temp.innerHTML = _origSelectHTML;
-                    var newSel = temp.firstChild;
-                    newSel.name = 'line_work_item_id_' + idx;
-                    sel.parentElement.replaceChild(newSel, sel);
-                    // 還原後是新的 DOM element，需重新綁 change → 單位同步
-                    bindWorkItemUnitSync(card);
-                }
-                btn.textContent = '切換自行輸入';
-            }
+    function bindToggle(card) {
+        var toggleBtn = card.querySelector('.toggle-input-mode');
+        if (!toggleBtn) return;
+        toggleBtn.addEventListener('click', function () {
+            var field = card.querySelector('.work-item-select');
+            if (!field) return;
+            setLineMode(card, field.tagName === 'SELECT' ? 'extra' : 'contract');
         });
+    }
+
+    // V3 合併：每列同時綁定「自填切換(你 V1)」與「單位自動帶入(同事 V2)」
+    document.querySelectorAll('.work-line-item').forEach(function (card) {
+        bindToggle(card);
+        bindWorkItemUnitSync(card);
     });
 
     // === 新增/刪除工項行 ===
@@ -339,28 +352,39 @@
             if (!firstLine) return;
             var newLine = firstLine.cloneNode(true);
 
-            // 更新 index
+            // 更新 index 與標題
             newLine.setAttribute('data-index', idx);
-            newLine.querySelector('span').textContent = '工項 #' + (idx + 1);
+            var titleSpan = newLine.querySelector('span');
+            if (titleSpan) titleSpan.textContent = '項目 ' + (idx + 1);
 
-            // 更新 name 屬性
+            // 若來源列當下是「自填輸入」狀態，clone 會帶 input；先還原成契約工項下拉
+            var field = newLine.querySelector('.work-item-select');
+            if (field && field.tagName !== 'SELECT' && _origSelectHTML) {
+                var temp = document.createElement('div');
+                temp.innerHTML = _origSelectHTML;
+                field.parentElement.replaceChild(temp.firstChild, field);
+            }
+
+            // 更新 name/id 並清空值
             var inputs = newLine.querySelectorAll('input, select, textarea');
             inputs.forEach(function (inp) {
-                if (inp.name) {
-                    inp.name = inp.name.replace(/_\d+$/, '_' + idx);
-                }
-                if (inp.id) {
-                    inp.id = inp.id.replace(/_\d+$/, '_' + idx);
-                }
-                // 清空值
+                if (inp.name) inp.name = inp.name.replace(/_\d+$/, '_' + idx);
+                if (inp.id) inp.id = inp.id.replace(/_\d+$/, '_' + idx);
                 if (inp.tagName === 'SELECT') {
                     inp.selectedIndex = 0;
                 } else if (inp.type === 'checkbox') {
                     inp.checked = false;
+                } else if (inp.classList.contains('line-entry-type')) {
+                    inp.value = 'contract';   // 預設為契約工項
                 } else {
                     inp.value = '';
                 }
             });
+            // 確保工項下拉 name 正確、切換鈕文字復位
+            var sel2 = newLine.querySelector('select.work-item-select');
+            if (sel2) sel2.name = 'line_work_item_id_' + idx;
+            var toggleBtn2 = newLine.querySelector('.toggle-input-mode');
+            if (toggleBtn2) toggleBtn2.textContent = '切換自行輸入';
 
             // 隱藏問題說明
             var issueWrap = newLine.querySelector('.issue-desc-wrap');
@@ -373,23 +397,7 @@
                     issueWrap.style.display = issueCb.checked ? '' : 'none';
                 });
             }
-
-            var toggleBtn = newLine.querySelector('.toggle-input-mode');
-            if (toggleBtn) {
-                toggleBtn.addEventListener('click', function () {
-                    var sel = newLine.querySelector('.work-item-select');
-                    if (!sel) return;
-                    if (sel.tagName === 'SELECT') {
-                        var input = document.createElement('input');
-                        input.type = 'text';
-                        input.name = sel.name;
-                        input.className = 'form-control work-item-select';
-                        input.placeholder = '輸入工項名稱';
-                        sel.parentElement.replaceChild(input, sel);
-                        toggleBtn.textContent = '切換下拉選擇';
-                    }
-                });
-            }
+            bindToggle(newLine);
 
             // 綁定新行的工項 select → 單位同步
             bindWorkItemUnitSync(newLine);
@@ -953,6 +961,13 @@
     // === 缺失類型按鈕 toggle ===
     var defectTypeBtns = document.getElementById('defect_type_btns');
     var defectTypeHidden = document.getElementById('defect_type_hidden');
+    // 缺失類別 → 檢查類型 反推對應（須與後端 defect_constants.py 一致）
+    var CATEGORY_TO_CHECK_TYPE = {
+        material: '施工檢查', workmanship: '施工檢查', dimension: '施工檢查',
+        document: '施工檢查', other: '施工檢查',
+        safety: '安衛及環境清潔檢查', environment: '安衛及環境清潔檢查'
+    };
+    var checkTypeDisplay = document.getElementById('check_type_display');
     if (defectTypeBtns && defectTypeHidden) {
         defectTypeBtns.querySelectorAll('.cy-type-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -962,7 +977,12 @@
                 });
                 btn.style.background = 'var(--wb-amber)';
                 btn.style.color = '#fff';
-                defectTypeHidden.value = btn.getAttribute('data-value');
+                var val = btn.getAttribute('data-value');
+                defectTypeHidden.value = val;
+                // 即時反推並顯示對應檢查類型
+                if (checkTypeDisplay) {
+                    checkTypeDisplay.textContent = CATEGORY_TO_CHECK_TYPE[val] || '施工檢查';
+                }
             });
         });
     }

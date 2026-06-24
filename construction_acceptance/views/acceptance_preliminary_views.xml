@@ -80,7 +80,7 @@
                     <group>
                         <group string="基本資訊">
                             <field name="project_id"/>
-                            <field name="authority_id"/>
+                            <field name="authority_name"/>
                             <field name="contractor_company_id"/>
                             <field name="company_id" invisible="1"/>
                         </group>
@@ -207,7 +207,7 @@
         <field name="res_model">acceptance.preliminary</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_acceptance_preliminary_search"/>
-        <field name="context">{}</field>
+        <field name="context">{'search_default_group_by_project': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一筆初驗紀錄

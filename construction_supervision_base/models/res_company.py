@@ -128,16 +128,5 @@ class ResPartner(models.Model):
         help='政府機關代碼')
 
     # === 工程專案關聯 ===
-    owned_project_ids = fields.One2many(
-        'supervision.project', 'authority_id',
-        string='主辦工程',
-        help='此機關作為業主的工程案件')
-
-    owned_project_count = fields.Integer(
-        string='主辦工程數',
-        compute='_compute_owned_project_count')
-
-    @api.depends('owned_project_ids')
-    def _compute_owned_project_count(self):
-        for partner in self:
-            partner.owned_project_count = len(partner.owned_project_ids)
+    # 註：V2 的「主辦工程(owned_project_ids)」依賴 supervision.project.authority_id (Many2one)，
+    #     但本系統「業主/主辦機關」維持文字欄位(authority_name)，故此關聯不適用，已移除。

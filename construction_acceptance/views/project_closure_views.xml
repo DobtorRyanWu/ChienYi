@@ -78,7 +78,7 @@
                             <field name="acceptance_date"/>
                             <field name="certificate_no"/>
                             <field name="closure_date"/>
-                            <field name="authority_id"/>
+                            <field name="authority_name"/>
                             <field name="company_id" invisible="1"/>
                         </group>
                         <group string="結算金額">
@@ -223,7 +223,7 @@
         <field name="res_model">project.closure</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_project_closure_search"/>
-        <field name="context">{}</field>
+        <field name="context">{'search_default_group_by_project': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一筆結案記錄

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_create_reservation_defect_wizard_form" model="ir.ui.view">
+        <field name="name">create.reservation.defect.wizard.form</field>
+        <field name="model">create.reservation.defect.wizard</field>
+        <field name="arch" type="xml">
+            <form string="建立缺失改善">
+                <group>
+                    <field name="inspection_id" invisible="1"/>
+                    <field name="item_ids" invisible="1"/>
+                    <field name="record_type" widget="radio"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" string="確認建立"
+                            type="object" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

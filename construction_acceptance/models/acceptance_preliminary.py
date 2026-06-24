@@ -34,6 +34,7 @@ class AcceptancePreliminary(models.Model):
         'supervision.project',
         string='所屬工程',
         required=True,
+        ondelete='cascade',
         tracking=True,
         index=True,
         readonly=True,
@@ -52,10 +53,9 @@ class AcceptancePreliminary(models.Model):
         tracking=True,
         help='被驗收的施工廠商')
 
-    authority_id = fields.Many2one(
-        'res.partner',
+    authority_name = fields.Char(
         string='業主/主辦機關',
-        related='project_id.authority_id',
+        related='project_id.authority_name',
         store=True)
 
     # === 驗收日期與期間 ===

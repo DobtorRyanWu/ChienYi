@@ -245,9 +245,11 @@
                             <div class="cy-hud-resbox-label">快速新增</div>
                             <!-- 下拉選單 -->
                             <div class="cy-quick-add-menu" id="quickAddMenu" style="display: none;">
-                                <a t-attf-href="/construction/project/new?from_project=#{project.id}" class="cy-quick-add-item">
-                                    <span>➕</span><span>新增專案</span>
-                                </a>
+                                <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_boss') or request.env.user.has_group('construction_supervision_base.group_portal_manager') or request.env.user.has_group('base.group_system')">
+                                    <a t-attf-href="/construction/project/new?from_project=#{project.id}" class="cy-quick-add-item">
+                                        <span>➕</span><span>新增專案</span>
+                                    </a>
+                                </t>
                                 <t t-if="project.project_type == 'reservation'">
                                     <a t-attf-href="/construction/#{project.id}/slips" class="cy-quick-add-item">
                                         <span>📄</span><span>通報單</span>
@@ -291,7 +293,7 @@
                                 <div style="flex: 1;">
                                     <div style="font-size: 0.8rem; font-weight: 700; color: var(--wb-red); margin-bottom: 4px;">缺失逾期</div>
                                     <div style="font-size: 1.125rem; font-weight: 700;">
-                                        <t t-esc="od.name"/> <t t-esc="od.description or ''"/> 逾期 <t t-esc="od.overdue_days"/> 天
+                                        <t t-esc="od.name if 'name' in od._fields else od.display_name"/> <t t-esc="od.defect_description or ''"/> 逾期 <t t-esc="od.overdue_days"/> 天
                                     </div>
                                 </div>
                                 <a t-attf-href="/construction/defect/#{od.id}"
@@ -588,7 +590,7 @@
                         <div class="cy-info-row">
                             <span class="cy-info-label">核定工期</span>
                             <span class="cy-info-value">
-                                <t t-if="project.current_duration"><t t-esc="project.current_duration"/> 天</t>
+                                <t t-if="project.total_approved_duration"><t t-esc="project.total_approved_duration"/> 天</t>
                                 <t t-elif="project.contract_duration"><t t-esc="project.contract_duration"/> 天</t>
                                 <t t-else="">-</t>
                             </span>
@@ -644,7 +646,7 @@
                     <div class="cy-info-section">
                         <div class="cy-info-row">
                             <span class="cy-info-label">業主機關</span>
-                            <span class="cy-info-value"><t t-esc="project.authority_id.name or '-'"/></span>
+                            <span class="cy-info-value"><t t-esc="project.authority_name or '-'"/></span>
                         </div>
                         <div class="cy-info-row">
                             <span class="cy-info-label">監造單位</span>
@@ -823,6 +825,7 @@
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
                     <a class="cy-drawer-item"
+                       t-if="request.env.user.has_group('construction_supervision_base.group_portal_boss') or request.env.user.has_group('construction_supervision_base.group_portal_manager') or request.env.user.has_group('base.group_system')"
                        t-attf-href="/construction/project/new#{project and ('?from_project=' + str(project.id)) or ''}">
                         <span class="cy-drawer-item-icon">➕</span>
                         <span class="cy-drawer-item-label">新增專案</span>
@@ -832,6 +835,16 @@
                        t-attf-href="/construction/#{project.id}/documents">
                         <span class="cy-drawer-item-icon">📂</span>
                         <span class="cy-drawer-item-label">檔案管理</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
+                </div>
+
+                <!-- 品質組 — v11 自主檢查樣板庫管理（全角色可瀏覽 / 下載；CRUD 限管理者） -->
+                <div class="cy-drawer-section">
+                    <div class="cy-drawer-section-title">品質</div>
+                    <a class="cy-drawer-item" href="/construction/inspection-types">
+                        <span class="cy-drawer-item-icon">📑</span>
+                        <span class="cy-drawer-item-label">自主檢查樣板庫</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
                 </div>
@@ -1232,31 +1245,30 @@
 
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">業主機關</label>
-                                <select name="authority_id" class="form-select">
-                                    <option value="">—</option>
+                                <!-- 業主改為純文字欄位(authority_name)；datalist 提供既有機關建議，亦可自行輸入 -->
+                                <input type="text" name="authority_name" class="form-control"
+                                       list="authority_options"
+                                       t-att-value="project.authority_name or ''"
+                                       placeholder="可從清單挑選或自行輸入"/>
+                                <datalist id="authority_options">
                                     <t t-foreach="authorities" t-as="a">
-                                        <option t-att-value="a.id"
-                                                t-att-selected="'selected' if project.authority_id.id == a.id else None">
-                                            <t t-esc="a.name"/>
-                                        </option>
+                                        <option t-att-value="a.name"/>
                                     </t>
-                                </select>
+                                </datalist>
                             </div>
 
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">機關承辦人</label>
-                                <select name="authority_contact_id" class="form-select">
-                                    <option value="">—</option>
+                                <!-- 承辦人改為純文字欄位(authority_contact_name)；datalist 提供建議，亦可自行輸入 -->
+                                <input type="text" name="authority_contact_name" class="form-control"
+                                       list="authority_contact_options"
+                                       t-att-value="project.authority_contact_name or ''"
+                                       placeholder="可從清單挑選或自行輸入"/>
+                                <datalist id="authority_contact_options">
                                     <t t-foreach="authority_contacts" t-as="ac">
-                                        <option t-att-value="ac.id"
-                                                t-att-selected="'selected' if project.authority_contact_id.id == ac.id else None">
-                                            <t t-esc="ac.name"/>
-                                        </option>
+                                        <option t-att-value="ac.name"/>
                                     </t>
-                                </select>
-                                <small style="color: var(--wb-t3); display: block; margin-top: 4px;">
-                                    更換業主機關後請先儲存，再回來才會看到對應的承辦人選項
-                                </small>
+                                </datalist>
                             </div>
 
                             <div style="margin-bottom: 14px;">

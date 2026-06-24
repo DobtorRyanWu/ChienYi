@@ -48,6 +48,7 @@
         'views/general_self_inspection_extend_views.xml',
         'views/create_defect_wizard_views.xml',
         'views/menu.xml',
+        'report/print_reports.xml',
     ],
     'assets': {
         'web.assets_backend': [

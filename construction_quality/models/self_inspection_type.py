@@ -61,16 +61,26 @@ class SelfInspectionType(models.Model):
         'type_id',
         'task_id',
         string='關聯契約工項',
+        copy=False,  # 契約工項因專案而異，不可跨工程複製（Many2many 預設會複製）
         domain="[('supervision_project_id', '=', project_id), ('is_summary_item', '=', False)]",
         help='此檢查類型適用的契約工項')
 
     # === 說明 ===
     description = fields.Text(string='類型說明')
 
+    # === 原始樣板檔 ===
+    template_file = fields.Binary(
+        string='檢查表樣板檔',
+        attachment=True,  # 存成 ir.attachment，不佔 model row
+        help='此檢查類型的原始 docx 樣板檔，供下載參考')
+    template_filename = fields.Char(
+        string='樣板檔名')
+
     # === 預設檢查項目 ===
     default_item_ids = fields.One2many(
         'self.inspection.type.item', 'type_id',
         string='預設檢查項目',
+        copy=True,  # 複製檢查類型時一併複製預設項目（One2many 預設不複製）
         help='新增檢查時可自動帶入的預設項目')
 
     # === 統計 ===
@@ -110,8 +120,8 @@ class SelfInspectionType(models.Model):
 
     # === SQL 約束 ===
     _sql_constraints = [
-        ('code_unique', 'UNIQUE(code)',
-         '類型代碼必須唯一！'),
+        ('code_project_unique', 'UNIQUE(code, project_id)',
+         '同一工程內的類型代碼必須唯一！'),
     ]
 
     # === 動作方法 ===
@@ -176,8 +186,9 @@ class SelfInspectionTypeCopyWizard(models.TransientModel):
 
     設計說明：
     - 將選擇的檢查類型複製到指定工程
-    - 複製時清空類型代碼以避免唯一約束冲突
-    - 預設檢查項目隨主記錄一起複製
+    - 類型代碼一併複製（唯一性已改為「同工程內唯一」，跨工程不衝突）
+    - 預設檢查項目 (default_item_ids) 隨主記錄一起複製
+    - 關聯契約工項 (task_ids) 因各工程契約不一致，不複製
     """
     _name = 'self.inspection.type.copy.wizard'
     _description = '複製自主檢查類型到其他工程'
@@ -207,10 +218,11 @@ class SelfInspectionTypeCopyWizard(models.TransientModel):
             raise UserError('請先選擇要複製的檢查類型')
 
         for type_record in self.type_ids:
-            # 複製主記錄，清空 code 避免唯一約束冲突
-            # default_item_ids (One2many) 由 copy() 自動複製
+            # 複製到目標工程：
+            # - default_item_ids（預設檢查項目）由欄位 copy=True 一併複製
+            # - task_ids（關聯契約工項）由欄位 copy=False 不複製
+            # - code 一併保留，因唯一性已改為「同工程內唯一」，跨工程不衝突
             type_record.copy({
-                'code': False,
                 'project_id': self.project_id.id,
             })
 

@@ -112,7 +112,13 @@
                             <field name="self_inspection_id"
                                    invisible="source_type != 'self_inspection'"/>
                             <field name="check_type"/>
-                            <field name="defect_category"/>
+                            <field name="defect_category" invisible="1"/>
+                            <field name="defect_category_construction"
+                                   invisible="check_type != 'construction'"
+                                   required="check_type == 'construction'"/>
+                            <field name="defect_category_safety"
+                                   invisible="check_type != 'safety_env'"
+                                   required="check_type == 'safety_env'"/>
                             <field name="severity" invisible="not id"/>
                         </group>
                     </group>
@@ -361,10 +367,16 @@
                         <!-- 關聯與備註（僅編輯模式） -->
                         <page string="關聯與備註" name="relations" invisible="not id">
                             <group>
-                                <group string="關聯單據">
-                                    <field name="self_inspection_id"/>
-                                    <field name="self_inspection_item_id"/>
-                                    <field name="ncr_id"/>
+                                <group string="來源自主檢查"
+                                       invisible="not self_inspection_id">
+                                    <field name="self_inspection_id" string="來源自主檢查" readonly="1"/>
+                                    <field name="source_inspection_no" string="檢查編號"/>
+                                    <field name="self_inspection_item_id" string="來源檢查項目"
+                                           readonly="1" options="{'no_open': True}"/>
+                                </group>
+                                <!-- 關聯 NCR：NCR 系統已停用，僅在實際有關聯時才顯示 -->
+                                <group string="其他關聯" invisible="not ncr_id">
+                                    <field name="ncr_id" readonly="1"/>
                                 </group>
                             </group>
                             <group string="備註">
@@ -372,7 +384,7 @@
                             </group>
                         </page>
 
-                        <!-- 編號資訊（除錯用） -->
+                        <!-- 編號資訊 -->
                         <page string="編號資訊" name="number_info">
                             <group>
                                 <group>
@@ -383,17 +395,17 @@
                                 </group>
                                 <group>
                                     <div class="alert alert-info" role="alert">
-                                        <strong>📌 說明</strong>：<br/>
-                                        • 記錄類型由進入的選單自動決定<br/>
-                                        • 從「監造缺失改善」進入 = 監造<br/>
-                                        • 從「營造缺失改善」進入 = 營造<br/>
+                                        <strong>📌 記錄類型（監造／營造）的決定方式</strong>：<br/>
+                                        • 直接從選單新增：依進入的選單決定（「監造缺失改善」=監造、「營造缺失改善」=營造）<br/>
+                                        • 從自主檢查「建立缺失改善」精靈建立：於精靈中選擇<br/>
                                         <br/>
-                                        <strong>⚠️ 注意</strong>：修改序號後編號會自動重新計算。<br/>
+                                        <strong>⚠️ 注意</strong>：修改「當日序號」後編號會自動重新計算，<br/>
                                         請確保不會與其他記錄產生衝突。
                                     </div>
                                 </group>
                             </group>
                         </page>
+
                     </notebook>
                 </sheet>
                 <chatter/>
@@ -433,7 +445,7 @@
                         domain="[('is_overdue', '=', True)]"/>
                 <separator/>
                 <filter string="品質缺失" name="quality"
-                        domain="[('defect_category', '=', 'quality')]"/>
+                        domain="[('defect_category', 'in', ('material', 'workmanship', 'dimension'))]"/>
                 <filter string="安全缺失" name="safety"
                         domain="[('defect_category', '=', 'safety')]"/>
                 <filter string="嚴重缺失" name="critical"

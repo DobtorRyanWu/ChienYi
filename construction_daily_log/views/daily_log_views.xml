@@ -20,10 +20,18 @@
                             type="object"
                             invisible="state != 'filled' or is_locked"/>
 
-                    <!-- 解鎖按鈕（只有高權限且日誌已鎖定時顯示）-->
+                    <!-- 解鎖按鈕：有權限者直接解鎖，無權限者提出申請 -->
                     <button name="action_unlock" string="申請解鎖"
                             type="object" class="oe_highlight"
-                            invisible="not is_locked or not can_unlock or is_unlocked"/>
+                            invisible="not is_locked or is_unlocked"/>
+
+                    <!-- 待審核時：有權限者可批准/駁回 -->
+                    <button name="action_approve_unlock_request"
+                            string="批准解鎖申請" type="object" class="btn-success"
+                            invisible="unlock_request_state != 'pending' or not can_unlock"/>
+                    <button name="action_reject_unlock_request"
+                            string="駁回解鎖申請" type="object" class="btn-danger"
+                            invisible="unlock_request_state != 'pending' or not can_unlock"/>
 
                     <button name="action_relock" string="重新鎖定"
                             type="object"
@@ -49,9 +57,16 @@
                          invisible="not is_locked or is_unlocked">
                         <strong>此日誌已鎖定</strong>
                         <p>日誌日期已超過 <field name="days_since_log" readonly="1"/> 天（超過14天自動鎖定）</p>
-                        <p invisible="not can_unlock">您可以申請解鎖以進行修改</p>
+                        <p>您可以點擊「申請解鎖」以提出解鎖申請</p>
                     </div>
-                    
+
+                    <!-- 解鎖申請待審核提示 -->
+                    <div class="alert alert-info" role="alert"
+                         invisible="unlock_request_state != 'pending'">
+                        <strong>解鎖申請待審核</strong>
+                        <p>申請人：<field name="unlock_requested_by_id" readonly="1"/>，請監造工程師於上方按鈕批准或駁回</p>
+                    </div>
+
                     <!-- 解鎖中提示 -->
                     <div class="alert alert-info" role="alert" 
                          invisible="not is_unlocked">
@@ -142,13 +157,19 @@
                                    context="{'default_sheet_id': id, 'default_project_id': project_id}"
                                    readonly="is_locked and not is_unlocked">
                                 <list editable="bottom" create="false"
-                                      default_order="work_item_sequence"
+                                      default_order="type_order, work_item_sequence, sequence"
                                       decoration-danger="is_over_contract"
+                                      decoration-muted="entry_type == 'extra'"
                                       decoration-warning="completion_rate >= 90 and completion_rate &lt; 100 and not is_over_contract">
+                                    <field name="type_order" column_invisible="1"/>
+                                    <field name="entry_type" string="類型" readonly="1" width="90px"/>
                                     <field name="work_item_id"
                                            domain="[('project_id', '=', parent.project_id), ('is_summary_item', '=', False), ('active', '=', True)]"
                                            options="{'no_create': True, 'no_open': True}"
-                                           placeholder="選擇施工項目..."/>
+                                           placeholder="選擇施工項目..."
+                                           readonly="entry_type == 'extra'"/>
+                                    <field name="custom_name" string="自填說明" optional="show"
+                                           readonly="entry_type == 'contract'"/>
                                     <field name="parent_item_name" string="父工項" readonly="1"/>
                                     <field name="item_no" optional="show"/>
                                     <field name="unit" readonly="1"/>
@@ -477,12 +498,19 @@
         <field name="model">daily.log.line</field>
         <field name="arch" type="xml">
             <list string="施工日誌明細" create="false"
+                  default_order="type_order, work_item_sequence, sequence"
                   decoration-danger="is_over_contract"
+                  decoration-muted="entry_type == 'extra'"
                   decoration-warning="completion_rate >= 90 and completion_rate &lt; 100 and not is_over_contract">
                 <field name="sequence" widget="handle"/>
+                <field name="type_order" column_invisible="1"/>
                 <field name="date"/>
-                <field name="work_item_id" 
-                       options="{'no_create': True, 'no_open': True}"/>
+                <field name="entry_type" string="類型" readonly="1"/>
+                <field name="work_item_id"
+                       options="{'no_create': True, 'no_open': True}"
+                       readonly="entry_type == 'extra'"/>
+                <field name="custom_name" string="自填說明" optional="show"
+                       readonly="entry_type == 'contract'"/>
                 <field name="item_no" optional="show"/>
                 <field name="unit" readonly="1"/>
                 <field name="contract_qty" readonly="1"/>

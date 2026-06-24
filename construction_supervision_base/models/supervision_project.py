@@ -75,17 +75,29 @@ class SupervisionProject(models.Model):
         domain="[('company_type', '=', 'contractor')]",
         help='參與此專案的施工廠商公司')
 
-    # === 業主資訊 ===
-    authority_id = fields.Many2one(
-        'res.partner', string='業主/主辦機關',
-        domain="[('partner_type', '=', 'authority')]",
-        tracking=True,
-        help='政府機關，為請款對象')
+    # === 專案參與成員（逐帳號可見性） ===
+    member_ids = fields.One2many(
+        'supervision.project.member', 'project_id',
+        string='參與成員',
+        help='指派可存取本專案的前台帳號；前台可見性據此過濾（老闆角色除外）')
 
-    authority_contact_id = fields.Many2one(
-        'res.partner', string='機關承辦人',
-        domain="[('parent_id', '=', authority_id)]",
-        help='機關承辦聯絡人')
+    member_user_ids = fields.Many2many(
+        'res.users',
+        compute='_compute_member_user_ids', store=True,
+        string='參與成員帳號',
+        help='參與成員對應的帳號，供前台 record rule domain 使用')
+
+    @api.depends('member_ids', 'member_ids.user_id')
+    def _compute_member_user_ids(self):
+        """彙整參與成員帳號，供 ir.rule domain 過濾（沿用 contractor_partner_ids 的 stored-compute 模式）"""
+        for project in self:
+            project.member_user_ids = project.member_ids.mapped('user_id')
+
+    # === 業主資訊 ===
+    # 決定：業主/承辦人維持文字（不改聯絡人關聯）
+    authority_name = fields.Char(string='業主/主辦機關', tracking=True)
+
+    authority_contact_name = fields.Char(string='機關承辦人')
 
     # === 契約資訊 ===
     contract_no = fields.Char(string='契約編號', tracking=True)

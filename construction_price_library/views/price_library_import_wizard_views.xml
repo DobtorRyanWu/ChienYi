@@ -85,13 +85,7 @@
                         invisible="state != 'draft'"
                         context="{'default_project_id': id}"/>
             </xpath>
-            <!-- 以「契約工項」stat button 取代原本的「匯入價格庫」stat button -->
-            <xpath expr="//div[@name='button_box']" position="inside">
-                <button name="action_view_tasks" type="object"
-                        class="oe_stat_button" icon="fa-list">
-                    <field name="task_count" string="契約工項" widget="statinfo"/>
-                </button>
-            </xpath>
+            <!-- 「契約工項」stat button 已移至 construction_supervision_base（與 task_count 同住）-->
         </field>
     </record>
 

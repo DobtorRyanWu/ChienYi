@@ -26,13 +26,33 @@ class CreateDefectImprovementWizard(models.TransientModel):
         ('contractor', '營造'),
     ], string='記錄類型', required=True, default='supervision')
 
+    item_ids = fields.Many2many(
+        'general.self.inspection.item',
+        relation='create_gen_defect_wiz_item_rel',
+        column1='wizard_id', column2='item_id',
+        string='缺失項目',
+        help='要建立缺失改善的檢查項目；逐行建立時為單一項，整張批次時為全部未建立缺失項')
+
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        # 若未由 context 指定 item_ids（逐行建立），則自動帶入整張檢查的未建立缺失項
+        if 'item_ids' in fields_list and not res.get('item_ids'):
+            inspection_id = res.get('inspection_id') or self.env.context.get('default_inspection_id')
+            if inspection_id:
+                inspection = self.env['general.self.inspection'].browse(inspection_id)
+                defect_items = inspection.checklist_ids.filtered(
+                    lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
+                res['item_ids'] = [(6, 0, defect_items.ids)]
+        return res
+
     def action_confirm(self):
         """確認並建立缺失改善單"""
         self.ensure_one()
         inspection = self.inspection_id
 
-        # 找出尚未建立缺失改善的缺失項目
-        defect_items = inspection.checklist_ids.filtered(
+        # 只處理本 wizard 指定、仍為缺失且尚未建立改善的項目
+        defect_items = self.item_ids.filtered(
             lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
 
         if not defect_items:
@@ -49,7 +69,7 @@ class CreateDefectImprovementWizard(models.TransientModel):
                 'self_inspection_item_id': item.id,
                 'record_type': self.record_type,
                 'check_type': 'construction',
-                'defect_category': 'quality',
+                'defect_category': 'workmanship',
                 'defect_location': inspection.inspection_location,
                 'defect_description': f"[{item.check_item}] {item.actual_result or ''}",
                 'discovery_user_id': inspection.inspector_id.id if inspection.inspector_id else self.env.uid,

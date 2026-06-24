@@ -18,6 +18,8 @@ class SupervisionDocument(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'create_date desc'
 
+    active = fields.Boolean(string='啟用', default=True)
+
     name = fields.Char(
         string='文件名稱', required=True, tracking=True)
 

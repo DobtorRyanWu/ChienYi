@@ -33,6 +33,7 @@ class AcceptanceDefect(models.Model):
         'supervision.project',
         string='所屬工程',
         required=True,
+        ondelete='cascade',
         tracking=True,
         index=True)
 
@@ -125,6 +126,13 @@ class AcceptanceDefect(models.Model):
         'res.users',
         string='負責人',
         tracking=True)
+
+    discovery_user_id = fields.Many2one(
+        'res.users',
+        string='發現人',
+        default=lambda self: self.env.uid,
+        tracking=True,
+        help='實際發現此驗收缺失的人員')
 
     # === 改善期限 ===
     deadline = fields.Date(
@@ -280,6 +288,30 @@ class AcceptanceDefect(models.Model):
                 raise UserError('只有開立狀態可以開始改善')
             record.state = 'improving'
 
+    def write(self, vals):
+        """覆寫 write：responsible_user_id 首次設定時發送通知"""
+        needs_notify = {}
+        if 'responsible_user_id' in vals and vals['responsible_user_id']:
+            for record in self:
+                if not record.responsible_user_id:
+                    needs_notify[record.id] = vals['responsible_user_id']
+        result = super().write(vals)
+        for record in self:
+            if record.id in needs_notify:
+                partner = record.responsible_user_id.partner_id
+                record.message_subscribe(partner_ids=partner.ids)
+                record.message_post(
+                    body=(
+                        f'驗收缺失 <b>{record.name}</b> 已指派給您處理，'
+                        f'請於 <b>{record.effective_deadline}</b> 前完成改善。<br/>'
+                        f'缺失說明：{record.description or "（無）"}'
+                    ),
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
+        return result
+
     def action_submit_improvement(self):
         """提交改善結果"""
         for record in self:
@@ -292,6 +324,15 @@ class AcceptanceDefect(models.Model):
                 'improvement_date': fields.Date.today(),
                 'improver_id': self.env.uid,
             })
+            notify_user = record.discovery_user_id
+            if notify_user:
+                partner = notify_user.partner_id
+                record.message_post(
+                    body=f'驗收缺失 <b>{record.name}</b> 已完成改善，請複查。',
+                    partner_ids=partner.ids,
+                    message_type='notification',
+                    subtype_xmlid='mail.mt_comment',
+                )
 
     def action_start_recheck(self):
         """開始覆驗"""

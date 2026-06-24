@@ -34,6 +34,7 @@ class AcceptanceFinal(models.Model):
         'supervision.project',
         string='所屬工程',
         required=True,
+        ondelete='cascade',
         tracking=True,
         index=True,
         readonly=True)
@@ -50,10 +51,9 @@ class AcceptanceFinal(models.Model):
         domain="[('company_type', '=', 'contractor')]",
         tracking=True)
 
-    authority_id = fields.Many2one(
-        'res.partner',
+    authority_name = fields.Char(
         string='業主/主辦機關',
-        related='project_id.authority_id',
+        related='project_id.authority_name',
         store=True)
 
     # === 關聯初驗 ===

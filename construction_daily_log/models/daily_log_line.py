@@ -15,7 +15,9 @@ class DailyLogLine(models.Model):
     _name = 'daily.log.line'
     _description = 'Construction Daily Log Line'
     _inherits = {'account.analytic.line': 'analytic_line_id'}
-    _order = 'sheet_id, sequence, date desc, id desc'
+    # 排序：同一日誌內，契約工項(type_order=0) 永遠排在自填項目(type_order=1) 之前；
+    # 契約工項間依工項排序，自填項目間依 sequence。與「分批新增的時間先後」無關。
+    _order = 'sheet_id, type_order, work_item_sequence, sequence, id'
 
     # === Delegation Inheritance ===
     analytic_line_id = fields.Many2one(
@@ -59,13 +61,34 @@ class DailyLogLine(models.Model):
         ('6', '星期日'),
     ], string='星期', compute='_compute_day_week', store=True)
 
+    # === 項目類型：契約工項 / 自填純文字 ===
+    entry_type = fields.Selection([
+        ('contract', '契約工項'),
+        ('extra', '其他項目（自填）'),
+    ], string='項目類型', default='contract', required=True,
+       help='契約工項：連結契約工項並計算數量／完成率；'
+            '其他項目：純文字自填（如「工區復舊」），不登記為契約工項')
+
+    custom_name = fields.Char(
+        string='項目說明',
+        help='自填項目名稱（如「工區復舊」），僅為文字，不會登記為契約工項',
+    )
+
+    type_order = fields.Integer(
+        string='類型排序',
+        compute='_compute_type_order',
+        store=True,
+        index=True,
+        help='排序用：契約工項(0) 永遠排在自填項目(1) 之前',
+    )
+
     # === Work Item Reference ===
     work_item_id = fields.Many2one(
         'project.task',
         string='施工項目',
-        required=True,
+        required=False,  # 自填項目(entry_type='extra')不需契約工項
         domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True)]",
-        help='只能選擇最細項工項（無子項的工項）',
+        help='契約工項類型才需選擇；只能選最細項工項（無子項的工項）',
     )
 
     # === 內容來自工項（自動帶入）===
@@ -112,11 +135,13 @@ class DailyLogLine(models.Model):
     )
     
     contract_qty = fields.Float(
-        related='work_item_id.planned_qty',
         string='契約數量',
+        compute='_compute_contract_qty',
+        store=True,
         readonly=True,
         digits=(16, 4),
-        store=True,
+        help='依日誌日期取該工項「當時有效」的契約數量（從工項版本 version_ids 依生效日取），'
+             '使歷史日誌不被日後契約變更／歸零污染。',
     )
     
     # === 本日完成數量（可編輯）===
@@ -202,6 +227,12 @@ class DailyLogLine(models.Model):
                 line.day_week = str(line.date.weekday())
             else:
                 line.day_week = False
+
+    @api.depends('entry_type')
+    def _compute_type_order(self):
+        """契約工項排序值 0、自填項目排序值 1（保證契約恆在自填之前）"""
+        for line in self:
+            line.type_order = 1 if line.entry_type == 'extra' else 0
     
     @api.depends('work_item_id', 'daily_qty', 'date')
     def _compute_cumulative_qty(self):
@@ -233,6 +264,34 @@ class DailyLogLine(models.Model):
                 line.remaining_qty = 0.0
                 line.is_over_contract = False
 
+    @api.depends('work_item_id', 'date',
+                 'work_item_id.planned_qty', 'work_item_id.original_planned_qty',
+                 'work_item_id.version_ids.planned_qty',
+                 'work_item_id.version_ids.change_date',
+                 'work_item_id.version_ids.version')
+    def _compute_contract_qty(self):
+        """依日誌日期取該工項「當時有效」的契約數量。
+        規則：取「生效日(change_date) <= 日誌日期」且 version>1 的變更版本中、version 最大者；
+              若無（日誌日期早於任何契約變更）→ 取原始版本 v1（或 original_planned_qty/planned_qty）。
+        ⚠️ v1（原始契約）的 change_date 可能是匯入日（未必等於契約起日），故 v1 不參與日期比對，
+           僅作為「尚無契約變更生效」時的基準，避免匯入日晚於日誌日期時取值錯誤。"""
+        for line in self:
+            task = line.work_item_id
+            if not task:
+                line.contract_qty = 0.0
+                continue
+            d = line.date
+            versions = task.version_ids
+            changes = versions.filtered(
+                lambda v: v.version > 1 and v.change_date and d and v.change_date <= d)
+            if changes:
+                line.contract_qty = max(changes, key=lambda v: v.version).planned_qty
+            else:
+                v1 = versions.filtered(lambda v: v.version == 1)
+                line.contract_qty = (
+                    v1[0].planned_qty if v1
+                    else (task.original_planned_qty or task.planned_qty))
+
     # -------------------------------------------------------------------------
     # Onchange Methods
     # -------------------------------------------------------------------------
@@ -257,8 +316,32 @@ class DailyLogLine(models.Model):
     @api.onchange('work_item_id')
     def _onchange_work_item_update_name(self):
         """Update name when work item changes"""
-        if self.work_item_id:
+        if self.entry_type == 'contract' and self.work_item_id:
             self.name = f'施工記錄 - {self.work_item_id.name}'
+
+    @api.onchange('entry_type')
+    def _onchange_entry_type(self):
+        """切換類型時清掉不適用欄位並同步名稱"""
+        if self.entry_type == 'extra':
+            self.work_item_id = False
+            self.daily_qty = 0.0
+        else:
+            self.custom_name = False
+        self._sync_line_name()
+
+    @api.onchange('custom_name')
+    def _onchange_custom_name(self):
+        """自填項目改名稱時同步顯示名稱"""
+        if self.entry_type == 'extra':
+            self._sync_line_name()
+
+    def _sync_line_name(self):
+        """依類型同步底層 analytic line 的 name"""
+        for line in self:
+            if line.entry_type == 'extra':
+                line.name = f'施工記錄 - {line.custom_name}' if line.custom_name else '施工記錄'
+            elif line.work_item_id:
+                line.name = f'施工記錄 - {line.work_item_id.name}'
     
     # -------------------------------------------------------------------------
     # Constraint Methods
@@ -296,6 +379,15 @@ class DailyLogLine(models.Model):
         for line in self:
             if line.daily_qty < 0:
                 raise ValidationError('本日完成數量不可為負數！')
+
+    @api.constrains('entry_type', 'work_item_id', 'custom_name')
+    def _check_entry_type(self):
+        """契約工項必須選工項；自填項目必須填說明"""
+        for line in self:
+            if line.entry_type == 'contract' and not line.work_item_id:
+                raise ValidationError('「契約工項」類型必須選擇施工項目。')
+            if line.entry_type == 'extra' and not line.custom_name:
+                raise ValidationError('「其他項目」類型必須填寫「項目說明」。')
 
     @api.constrains('sheet_id', 'date')
     def _check_date_in_sheet_range(self):
@@ -339,7 +431,10 @@ class DailyLogLine(models.Model):
         for vals in vals_list:
             # Ensure required fields for analytic line
             if 'name' not in vals or not vals.get('name'):
-                vals['name'] = '施工日誌記錄'
+                if vals.get('entry_type') == 'extra' and vals.get('custom_name'):
+                    vals['name'] = f"施工記錄 - {vals['custom_name']}"
+                else:
+                    vals['name'] = '施工日誌記錄'
 
             # Get sheet info for defaults
             sheet_id = vals.get('sheet_id')

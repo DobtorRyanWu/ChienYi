@@ -17,6 +17,7 @@ class ReservationSelfInspection(models.Model):
     _description = '預約式自主檢查 (通報單內)'
     _inherit = ['mail.thread', 'photo.sync.mixin']
     _order = 'inspection_date desc, id desc'
+    _rec_name = 'sub_project_name'   # 以分項工程名稱顯示，較易辨識是哪張檢查單
 
     # === 通報單關聯 ===
     slip_id = fields.Many2one(
@@ -67,11 +68,23 @@ class ReservationSelfInspection(models.Model):
         help='具體施工位置')
 
     # === 廠商資訊 ===
+    contractor_company_id = fields.Many2one(
+        'res.company',
+        string='承攬廠商',
+        domain="[('company_type', '=', 'contractor')]")
+
     contractor_name = fields.Char(
-        string='承攬廠商')
+        string='承攬廠商名稱',
+        compute='_compute_contractor_name',
+        store=True)
 
     subcontractor_name = fields.Char(
         string='協力廠商')
+
+    @api.depends('contractor_company_id')
+    def _compute_contractor_name(self):
+        for record in self:
+            record.contractor_name = record.contractor_company_id.name if record.contractor_company_id else ''
 
     # === 檢查時機 ===
     inspection_timing = fields.Selection([
@@ -87,6 +100,12 @@ class ReservationSelfInspection(models.Model):
         string='填表人',
         default=lambda self: self.env.uid,
         tracking=True)
+
+    responsible_user_id = fields.Many2one(
+        'res.users',
+        string='自主檢查負責人',
+        tracking=True,
+        help='本檢查的負責人；預設繼承工程案件的「自主檢查負責人」，可於本筆覆寫')
 
     # === 檢查項目 ===
     checklist_ids = fields.One2many(
@@ -183,12 +202,26 @@ class ReservationSelfInspection(models.Model):
 
         return True
 
+    @api.onchange('slip_id')
+    def _onchange_slip_responsible(self):
+        """選通報單(帶出工程案件)時，由工程案件帶入預設「自主檢查負責人」（可覆寫）"""
+        project = self.slip_id.project_id
+        if project:
+            self.responsible_user_id = project._get_activity_user('inspection')
+
     # === CRUD 覆寫 ===
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             if not vals.get('inspection_no') or vals.get('inspection_no') == '/':
                 vals['inspection_no'] = self.env['ir.sequence'].next_by_code('reservation.self.inspection') or '/'
+            # 未指定負責人時，由工程案件(經通報單)的「自主檢查負責人」帶入
+            if not vals.get('responsible_user_id') and vals.get('slip_id'):
+                project = self.env['reservation.notification.slip'].browse(
+                    vals['slip_id']).project_id
+                user = project._get_activity_user('inspection') if project else False
+                if user:
+                    vals['responsible_user_id'] = user.id
         return super().create(vals_list)
     
     # === 照片自動同步配置 ===
@@ -216,6 +249,7 @@ class ReservationSelfInspectionItem(models.Model):
     _name = 'reservation.self.inspection.item'
     _description = '預約式自主檢查項目'
     _order = 'sequence, id'
+    _rec_name = 'check_item'   # 顯示檢查項目文字，避免 M2O 顯示成 model,id
 
     # === 關聯 ===
     inspection_id = fields.Many2one(

@@ -17,6 +17,7 @@ class GeneralSelfInspection(models.Model):
     _description = '一般式自主檢查'
     _inherit = ['mail.thread', 'mail.activity.mixin', 'photo.sync.mixin']
     _order = 'inspection_date desc, id desc'
+    _rec_name = 'sub_project_name'   # 以分項工程名稱顯示，較易辨識是哪張檢查單
 
     # === 基本資料 ===
     name = fields.Char(
@@ -106,6 +107,12 @@ class GeneralSelfInspection(models.Model):
         'res.users',
         string='監造人員',
         help='監造確認人員')
+
+    responsible_user_id = fields.Many2one(
+        'res.users',
+        string='自主檢查負責人',
+        tracking=True,
+        help='本檢查的負責人；預設繼承工程案件的「自主檢查負責人」，可於本筆覆寫')
 
     # === 檢查項目 ===
     checklist_ids = fields.One2many(
@@ -239,12 +246,24 @@ class GeneralSelfInspection(models.Model):
 
         return True
 
+    @api.onchange('project_id')
+    def _onchange_project_id_responsible(self):
+        """選工程案件時，由工程案件帶入預設「自主檢查負責人」（可手動覆寫）"""
+        if self.project_id:
+            self.responsible_user_id = self.project_id._get_activity_user('inspection')
+
     # === CRUD 覆寫 ===
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', '/') == '/':
                 vals['name'] = self.env['ir.sequence'].next_by_code('general.self.inspection') or '/'
+            # 未指定負責人時，由工程案件的「自主檢查負責人」帶入
+            if not vals.get('responsible_user_id') and vals.get('project_id'):
+                user = self.env['supervision.project'].browse(
+                    vals['project_id'])._get_activity_user('inspection')
+                if user:
+                    vals['responsible_user_id'] = user.id
         return super().create(vals_list)
     
     # === 照片自動同步配置 ===
@@ -298,6 +317,7 @@ class GeneralSelfInspectionItem(models.Model):
     _name = 'general.self.inspection.item'
     _description = '一般式自主檢查項目'
     _order = 'sequence, id'
+    _rec_name = 'check_item'   # 顯示檢查項目文字，避免 M2O 顯示成 model,id
 
     # === 關聯 ===
     inspection_id = fields.Many2one(

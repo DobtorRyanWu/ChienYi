@@ -32,7 +32,7 @@ class DailyLogAddItemsWizardLine(models.TransientModel):
     name = fields.Char(related='task_id.name', string='施工項目')
     parent_id = fields.Many2one(related='task_id.parent_id', string='父工項')
     parent_item_path = fields.Char(related='task_id.parent_id.full_item_path', string='父工項路徑')
-    item_no = fields.Char(related='task_id.item_no', string='完整項次')
+    item_no = fields.Char(related='task_id.full_item_no', string='完整項次')
     display_item_no = fields.Char(related='task_id.display_item_no', string='項次')
     unit = fields.Char(related='task_id.unit', string='單位')
     planned_qty = fields.Float(related='task_id.planned_qty', string='契約數量')

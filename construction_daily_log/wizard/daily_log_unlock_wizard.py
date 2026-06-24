@@ -10,7 +10,9 @@ class DailyLogUnlockWizard(models.TransientModel):
     """施工日誌解鎖精靈"""
     _name = 'daily.log.unlock.wizard'
     _description = '施工日誌解鎖精靈'
-    
+
+    _DURATION_LABELS = {'24': '1天', '72': '3天', '120': '5天', '168': '7天'}
+
     sheet_id = fields.Many2one(
         'daily.log.sheet',
         string='日誌',
@@ -43,7 +45,9 @@ class DailyLogUnlockWizard(models.TransientModel):
         ('168', '7天'),
     ], string='解鎖時長', default='120', required=True,
        help='解鎖後在指定時間內可以修改，時間到後自動重新鎖定')
-    
+
+    can_unlock = fields.Boolean(related='sheet_id.can_unlock')
+
     def action_confirm_unlock(self):
         """確認解鎖"""
         self.ensure_one()
@@ -78,3 +82,32 @@ class DailyLogUnlockWizard(models.TransientModel):
                 'sticky': False,
             }
         }
+
+    def action_request_unlock(self):
+        """提出解鎖申請（無權限使用者）"""
+        self.ensure_one()
+        sheet = self.sheet_id
+        user = self.env.user
+        duration_label = self._DURATION_LABELS.get(self.unlock_duration, self.unlock_duration)
+
+        sheet.write({
+            'unlock_request_state': 'pending',
+            'unlock_requested_by_id': user.id,
+            'unlock_request_duration': self.unlock_duration,
+            'unlock_request_reason': self.unlock_reason,
+        })
+
+        # 取得監造工程師通知
+        engineer = sheet.supervision_project_id.supervision_engineer_id
+        partner_ids = engineer.partner_id.ids if engineer and engineer.partner_id else []
+
+        sheet.message_post(
+            body=(f'🔓 {user.name} 針對【{sheet.supervision_project_id.name}】'
+                  f' {sheet.log_date} 的施工日誌提出解鎖申請。\n'
+                  f'申請解鎖時長：{duration_label}\n'
+                  f'原因：{self.unlock_reason}'),
+            partner_ids=partner_ids,
+            message_type='notification',
+            subtype_xmlid='mail.mt_comment',
+        )
+        return {'type': 'ir.actions.act_window_close'}

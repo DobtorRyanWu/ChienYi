@@ -488,12 +488,16 @@ class ProgressSchedule(models.Model):
          '同一工程的進度表版本號不可重複'),
     ]
 
-    @api.constrains('current_extension')
-    def _check_current_extension_non_negative(self):
-        """本次核准展延工期不可為負數"""
+    @api.constrains('current_extension', 'base_extension_duration')
+    def _check_extension_not_below_contract(self):
+        """累計工期展延不可為負（不可短於原合約工期）；
+        本次核准展延允許為負，用於跨版本修正前一版的過度展延。"""
         for rec in self:
-            if (rec.current_extension or 0) < 0:
-                raise ValidationError('本次核准展延工期不可為負數')
+            if rec.duration_extension < 0:
+                raise ValidationError(
+                    f'累計工期展延（{rec.duration_extension} 天）不可為負數，'
+                    f'工期不可短於原合約工期。'
+                )
 
     # =========================================================================
     # Onchange 方法
@@ -842,13 +846,12 @@ class ProgressSchedule(models.Model):
         """實際執行啟用（由 wizard 呼叫）"""
         self.ensure_one()
 
-        # 【安全防護】展延天數不可逆向減少
+        # 【安全防護】累計展延不可短於原合約工期（允許跨版本修正減少，但不可為負）
         current_project_extension = self.project_id.extension_duration or 0
-        if self.duration_extension < current_project_extension:
+        if self.duration_extension < 0:
             raise UserError(
-                f'無法啟用：本進度表的累計工期展延（{self.duration_extension} 天）'
-                f'小於工程案件目前的展延天數（{current_project_extension} 天）。\n'
-                f'展延天數只能增加，不可逆向減少。'
+                f'無法啟用：本進度表的累計工期展延（{self.duration_extension} 天）為負數，'
+                f'工期不可短於原合約工期。'
             )
 
         # 將同專案其他進度表歸檔
@@ -985,6 +988,7 @@ class ProgressSchedule(models.Model):
             'schedule_id': self.id,
             'project_id':  self.project_id.id,
             'company_id':  self.company_id.id,
+            'from_plan_correction': True,   # 標記為校正過渡明細（含可能為負的 Part2）
         }
         part1_line = part2_line = part3_line = None
 

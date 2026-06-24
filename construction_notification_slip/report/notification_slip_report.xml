@@ -27,7 +27,8 @@
         <field name="report_name">construction_notification_slip.report_notification_slip</field>
         <field name="report_file">construction_notification_slip.report_notification_slip</field>
         <field name="print_report_name">'通報單_%s_%s' % (object.slip_number or '', object.location or '')</field>
-        <field name="binding_model_id" ref="model_reservation_notification_slip"/>
+        <!-- 不在單筆列印下拉顯示（依需求移除通報單列印按鈕） -->
+        <field name="binding_model_id" eval="False"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="paperformat_notification_slip"/>
     </record>
@@ -71,7 +72,7 @@
                         </tr>
                         <tr>
                             <td style="background-color: #f5f5f5; font-weight: bold;">發包機關</td>
-                            <td><t t-esc="slip.project_id.authority_id.name or '-'"/></td>
+                            <td><t t-esc="slip.project_id.authority_name or '-'"/></td>
                             <td style="background-color: #f5f5f5; font-weight: bold;">監造單位</td>
                             <td><t t-esc="slip.project_id.company_id.name or '-'"/></td>
                         </tr>

@@ -49,30 +49,6 @@
                         class="btn-sm btn-info"
                         invisible="not has_improvement"/>
             </xpath>
-
-            <!-- 新增缺失改善頁籤 -->
-            <xpath expr="//page[@name='notes']" position="after">
-                <page string="缺失改善" name="defect_improvements"
-                      invisible="defect_improvement_count == 0">
-                    <group>
-                        <field name="defect_improvement_count"/>
-                    </group>
-                    <field name="defect_improvement_ids" readonly="1">
-                        <list>
-                            <field name="record_no"/>
-                            <field name="defect_description" widget="text"/>
-                            <field name="defect_location"/>
-                            <field name="notification_date"/>
-                            <field name="deadline"/>
-                            <field name="improvement_progress" widget="progressbar"/>
-                            <field name="state" widget="badge"
-                                   decoration-info="state == 'draft'"
-                                   decoration-warning="state in ('notified', 'improving')"
-                                   decoration-success="state in ('improved', 'verified', 'closed')"/>
-                        </list>
-                    </field>
-                </page>
-            </xpath>
         </field>
     </record>
 

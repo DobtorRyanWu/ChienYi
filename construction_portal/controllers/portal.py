@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from odoo import http, _, fields
 from odoo.http import request
 from odoo.addons.portal.controllers.portal import CustomerPortal, pager as portal_pager
+from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 
@@ -105,6 +106,13 @@ def _haversine_km(lat1, lng1, lat2, lng2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
+# 前台角色群組 XML id（v11 權限分級）
+GROUP_BOSS = 'construction_supervision_base.group_portal_boss'
+GROUP_MANAGER = 'construction_supervision_base.group_portal_manager'
+GROUP_FIELD = 'construction_supervision_base.group_portal_field'
+GROUP_OBSERVER = 'construction_supervision_base.group_portal_observer'
+
+
 class ConstructionPortal(CustomerPortal):
     """
     工程監造系統 Portal Controller（v10）
@@ -115,6 +123,33 @@ class ConstructionPortal(CustomerPortal):
     - 缺失改善提交
     - 照片上傳
     """
+
+    # ==================== 角色權限 Guard（v11） ====================
+    # 因前台 create/write 多走 .sudo()（會繞過 ir.rule / ir.model.access），
+    # 「建專案/審核限老闆+主管」「現場人員只改自己建的」由以下 guard 在 controller 強制。
+
+    def _can_manage(self):
+        """老闆 / 主管 / 內部系統管理者：可建專案、可審核"""
+        user = request.env.user
+        return (user.has_group(GROUP_BOSS) or user.has_group(GROUP_MANAGER)
+                or user.has_group('base.group_system'))
+
+    def _require_manage(self, msg=None):
+        if not self._can_manage():
+            raise AccessError(msg or _('權限不足：此操作限老闆或主管'))
+
+    def _is_field_only(self):
+        """現場人員（且非老闆/主管/內部）：寫入只能限自己建立的單據"""
+        user = request.env.user
+        if (user.has_group(GROUP_BOSS) or user.has_group(GROUP_MANAGER)
+                or user.has_group('base.group_system')):
+            return False
+        return user.has_group(GROUP_FIELD)
+
+    def _require_owner_or_manager(self, record):
+        """現場人員只能編輯自己建立的記錄；老闆/主管/內部不受限"""
+        if self._is_field_only() and record and record.sudo().create_uid.id != request.env.user.id:
+            raise AccessError(_('您只能編輯自己建立的單據'))
 
     def _prepare_home_portal_values(self, counters):
         """Portal 首頁計數器"""
@@ -154,7 +189,7 @@ class ConstructionPortal(CustomerPortal):
         except Exception:
             badges['insp'] = 0
         try:
-            badges['def'] = request.env['supervision.defect'].search_count([
+            badges['def'] = request.env[self._defect_model(project)].search_count([
                 ('project_id', '=', project.id),
                 ('state', 'not in', ['verified', 'closed']),
             ])
@@ -361,9 +396,9 @@ class ConstructionPortal(CustomerPortal):
         progress_pct = project.actual_progress or 0.0
 
         # 逾期缺失
-        overdue_defects = request.env['supervision.defect'].search([
+        overdue_defects = request.env[self._defect_model(project)].search([
             ('project_id', '=', project.id),
-            ('state', '=', 'open'),
+            ('state', 'not in', ['verified', 'closed']),
             ('is_overdue', '=', True),
         ], limit=5, order='deadline asc')
 
@@ -429,7 +464,7 @@ class ConstructionPortal(CustomerPortal):
             ('project_id', '=', project.id),
         ])
         draft_insp_count = len(draft_inspections)
-        open_defect_count = request.env['supervision.defect'].search_count([
+        open_defect_count = request.env[self._defect_model(project)].search_count([
             ('project_id', '=', project.id),
             ('state', 'not in', ['verified', 'closed']),
         ])
@@ -592,17 +627,11 @@ class ConstructionPortal(CustomerPortal):
                 ('parent_id', '=', False),
                 ('id', 'not in', company_main_ids),
             ], order='name', limit=500)
-        # 確保目前已綁定的業主仍在下拉內（避免 domain 收斂後選不到）
-        if project.authority_id and project.authority_id not in authorities:
-            authorities = authorities | project.authority_id
-
-        # 承辦人：已綁定業主的所有 child partner
+        # 業主/承辦人已改為純文字欄位(authority_name)，無 per-project FK 關聯。
+        # authorities 僅作為 datalist 的建議來源；承辦人建議列出各業主機關底下的聯絡人。
         authority_contacts = (
-            Partner.search(
-                [('parent_id', '=', project.authority_id.id)],
-                order='name'
-            )
-            if project.authority_id
+            Partner.search([('parent_id', 'in', authorities.ids)], order='name')
+            if authorities
             else Partner.browse()
         )
 
@@ -835,12 +864,17 @@ class ConstructionPortal(CustomerPortal):
                 vals['extension_duration'] = 0
 
         # ---- 相關單位 ----
-        for _m2o in ('authority_id', 'authority_contact_id',
-                     'supervision_engineer_id', 'site_manager_id',
+        for _m2o in ('supervision_engineer_id', 'site_manager_id',
                      'activity_default_user_id', 'activity_test_user_id',
                      'activity_inspection_user_id'):
             if _in(_m2o):
                 vals[_m2o] = _to_int(_m2o)
+
+        # 業主/承辦人改為純文字欄位，直接存字串
+        if _in('authority_name'):
+            vals['authority_name'] = (post.get('authority_name') or '').strip()
+        if _in('authority_contact_name'):
+            vals['authority_contact_name'] = (post.get('authority_contact_name') or '').strip()
 
         if _in('company_id'):
             vals['company_id'] = _to_int('company_id') or project.company_id.id
@@ -944,9 +978,9 @@ class ConstructionPortal(CustomerPortal):
         except Exception:
             pass
 
-        open_defects = request.env['supervision.defect'].search([
+        open_defects = request.env[self._defect_model(project)].search([
             ('project_id', '=', project.id),
-            ('state', '=', 'open'),
+            ('state', 'not in', ['verified', 'closed']),
         ], limit=10)
         draft_inspections = request.env['general.self.inspection'].search([
             ('project_id', '=', project.id),
@@ -1030,8 +1064,10 @@ class ConstructionPortal(CustomerPortal):
         for ln in log_su.line_ids:
             log_lines.append(SimpleNamespace(
                 id=ln.id,
+                entry_type=ln.entry_type or 'contract',
+                custom_name=ln.custom_name or '',
                 item_no=ln.item_no or '',
-                item_name=ln.item_name or (ln.work_item_id.name if ln.work_item_id else ''),
+                item_name=ln.item_name or ln.custom_name or (ln.work_item_id.name if ln.work_item_id else ''),
                 unit=ln.unit or '',
                 contract_qty=ln.contract_qty or 0.0,
                 daily_qty=ln.daily_qty or 0.0,
@@ -1330,29 +1366,50 @@ class ConstructionPortal(CustomerPortal):
         DailyLog = request.env['daily.log.sheet'].sudo()
         log = DailyLog.create(vals)
 
-        # 處理工項明細（line_ids）
+        # 處理工項明細（line_ids）：支援「契約工項」與「自填項目（純文字）」
+        # 排序由 daily.log.line.type_order 決定（契約恆在自填之前），與建立先後無關。
         line_index = 0
         while True:
+            entry_type = post.get(f'line_entry_type_{line_index}')
             work_item_id = post.get(f'line_work_item_id_{line_index}')
-            if work_item_id is None:
+            custom_name = post.get(f'line_custom_name_{line_index}')
+            # 三個 key 都不存在 → 沒有更多明細列
+            if entry_type is None and work_item_id is None and custom_name is None:
                 break
-            if work_item_id:
-                daily_qty = post.get(f'line_daily_qty_{line_index}', '0')
-                location = post.get(f'line_location_{line_index}', '')
-                work_desc = post.get(f'line_work_description_{line_index}', '')
-                has_issue = post.get(f'line_has_issue_{line_index}') == 'on'
-                issue_desc = post.get(f'line_issue_description_{line_index}', '')
 
-                line_vals = {
-                    'sheet_id': log.id,
-                    'work_item_id': int(work_item_id),
-                    'daily_qty': float(daily_qty) if daily_qty else 0.0,
-                    'location': location,
-                    'work_description': work_desc,
-                    'has_issue': has_issue,
-                    'issue_description': issue_desc if has_issue else '',
-                }
-                request.env['daily.log.line'].sudo().create(line_vals)
+            location = post.get(f'line_location_{line_index}', '')
+            work_desc = post.get(f'line_work_description_{line_index}', '')
+            has_issue = post.get(f'line_has_issue_{line_index}') == 'on'
+            issue_desc = post.get(f'line_issue_description_{line_index}', '')
+
+            if (entry_type or 'contract') == 'extra':
+                # 自填項目：純文字，不登記為契約工項
+                name = (custom_name or '').strip()
+                if name:
+                    request.env['daily.log.line'].sudo().create({
+                        'sheet_id': log.id,
+                        'entry_type': 'extra',
+                        'custom_name': name,
+                        'name': f'施工記錄 - {name}',
+                        'location': location,
+                        'work_description': work_desc,
+                        'has_issue': has_issue,
+                        'issue_description': issue_desc if has_issue else '',
+                    })
+            else:
+                # 契約工項
+                if work_item_id and str(work_item_id).isdigit():
+                    daily_qty = post.get(f'line_daily_qty_{line_index}', '0')
+                    request.env['daily.log.line'].sudo().create({
+                        'sheet_id': log.id,
+                        'entry_type': 'contract',
+                        'work_item_id': int(work_item_id),
+                        'daily_qty': float(daily_qty) if daily_qty else 0.0,
+                        'location': location,
+                        'work_description': work_desc,
+                        'has_issue': has_issue,
+                        'issue_description': issue_desc if has_issue else '',
+                    })
 
             line_index += 1
 
@@ -1445,6 +1502,14 @@ class ConstructionPortal(CustomerPortal):
         if log.is_locked:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}?error=locked'
+            )
+
+        # 角色 guard：現場人員只能編輯自己建立的日誌（老闆/主管不受限）
+        try:
+            self._require_owner_or_manager(log)
+        except AccessError:
+            return request.redirect(
+                f'/construction/{project_id}/daily-log/{log.id}?error=not_owner'
             )
 
         log.write({
@@ -1768,6 +1833,255 @@ class ConstructionPortal(CustomerPortal):
         }
 
         return request.render('construction_portal.portal_construction_inspections', values)
+
+    # ==================== 自主檢查樣板庫管理（v11） ====================
+    # 管理 self.inspection.type：全域樣板庫（project_id=False）+ 各工程專案層級樣板。
+    # 瀏覽 / 下載 docx：全角色；新增 / 編輯 / 刪除 / 停用：限 _can_manage()（老闆 / 主管 / 內部）。
+
+    # 查驗階段中文標籤（對齊模型 stage Selection）
+    INSP_STAGE_LABELS = [('stage1', '施工前'), ('stage2', '施工中'), ('stage3', '施工後')]
+
+    def _inspection_type_categories(self):
+        """工程類別 Selection 從 fields_get 拉（不寫死）"""
+        return request.env['self.inspection.type'].fields_get(
+            ['category'])['category']['selection']
+
+    def _accessible_type_domain(self):
+        """可見樣板 domain：全域(project_id=False) + 用戶可存取專案的 type。"""
+        partner = request.env.user.partner_id
+        proj_domain = self._get_construction_projects_domain(partner)
+        proj_ids = request.env['supervision.project'].sudo().search(proj_domain).ids
+        return ['|', ('project_id', '=', False), ('project_id', 'in', proj_ids)]
+
+    def _get_visible_inspection_type(self, type_id):
+        """取得使用者可見的樣板 record，不可見回 None。"""
+        InspType = request.env['self.inspection.type'].sudo()
+        rec = InspType.browse(type_id)
+        if not rec.exists():
+            return None
+        # 用可見 domain 二次過濾（含已停用：active 預設過濾，故用 active_test=False）
+        visible = InspType.with_context(active_test=False).search(
+            AND([self._accessible_type_domain(), [('id', '=', type_id)]]))
+        return rec if rec.id in visible.ids else None
+
+    def _inspection_type_stage_groups(self, rec):
+        """把 default_item_ids 依 stage 分群，回傳 [{key,label,items}]（保留有項目的階段）。"""
+        groups = []
+        for key, label in self.INSP_STAGE_LABELS:
+            items = rec.default_item_ids.filtered(lambda i, k=key: i.stage == k)
+            if items:
+                groups.append({'key': key, 'label': label, 'items': items})
+        return groups
+
+    @http.route(['/construction/inspection-types'],
+                type='http', auth='user', website=True)
+    def portal_inspection_types(self, category=None, scope=None, search=None, **kw):
+        """自主檢查樣板庫列表（分類 / 範圍篩選 + 關鍵字搜尋）"""
+        InspType = request.env['self.inspection.type'].sudo()
+        domain = self._accessible_type_domain()
+        if category:
+            domain = AND([domain, [('category', '=', category)]])
+        if scope == 'global':
+            domain = AND([domain, [('project_id', '=', False)]])
+        elif scope == 'project':
+            domain = AND([domain, [('project_id', '!=', False)]])
+        if search:
+            domain = AND([domain, ['|', ('name', 'ilike', search),
+                                   ('code', 'ilike', search)]])
+        types = InspType.search(domain)
+
+        # 統計（不受目前篩選影響，給 chips 顯示總量）
+        base = self._accessible_type_domain()
+        values = {
+            'types': types,
+            'categories_map': dict(self._inspection_type_categories()),
+            'count_global': InspType.search_count(
+                AND([base, [('project_id', '=', False)]])),
+            'count_project': InspType.search_count(
+                AND([base, [('project_id', '!=', False)]])),
+            'cur_category': category or '',
+            'cur_scope': scope or '',
+            'search': search or '',
+            'can_manage': self._can_manage(),
+            'page_name': 'inspection_types',
+        }
+        return request.render('construction_portal.portal_inspection_type_list', values)
+
+    @http.route(['/construction/inspection-types/new'],
+                type='http', auth='user', website=True)
+    def portal_inspection_type_new(self, **kw):
+        """新增樣板表單（限管理者）"""
+        self._require_manage()
+        values = {
+            'rec': False,
+            'categories': self._inspection_type_categories(),
+            'stage_labels': self.INSP_STAGE_LABELS,
+            'page_name': 'inspection_types',
+        }
+        return request.render('construction_portal.portal_inspection_type_form', values)
+
+    @http.route(['/construction/inspection-types/<int:type_id>/edit'],
+                type='http', auth='user', website=True)
+    def portal_inspection_type_edit(self, type_id, **kw):
+        """編輯樣板表單（限管理者）"""
+        self._require_manage()
+        rec = self._get_visible_inspection_type(type_id)
+        if not rec:
+            return request.redirect('/construction/inspection-types')
+        values = {
+            'rec': rec,
+            'categories': self._inspection_type_categories(),
+            'stage_labels': self.INSP_STAGE_LABELS,
+            'page_name': 'inspection_types',
+        }
+        return request.render('construction_portal.portal_inspection_type_form', values)
+
+    @http.route(['/construction/inspection-types/save'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_inspection_type_save(self, **post):
+        """新增 / 編輯儲存（含 items 增刪改、docx 上傳）。限管理者。"""
+        self._require_manage()
+        InspType = request.env['self.inspection.type'].sudo()
+        type_id = int(post.get('type_id') or 0)
+
+        vals = {
+            'name': (post.get('name') or '').strip(),
+            'code': (post.get('code') or '').strip(),
+            'category': post.get('category') or 'structure',
+            'sequence': int(post.get('sequence') or 10),
+            'description': post.get('description') or '',
+        }
+        if not vals['name']:
+            return request.redirect('/construction/inspection-types/new?error=name')
+
+        # docx 上傳（可選，未選則不動原檔）
+        upload = request.httprequest.files.get('template_file')
+        if upload and upload.filename:
+            data = base64.b64encode(upload.read())
+            vals['template_file'] = data
+            vals['template_filename'] = upload.filename
+
+        if type_id:
+            rec = self._get_visible_inspection_type(type_id)
+            if not rec:
+                return request.redirect('/construction/inspection-types')
+            rec.write(vals)
+        else:
+            rec = InspType.create(vals)
+
+        self._save_inspection_type_items(rec, post)
+        return request.redirect(
+            '/construction/inspection-types/%s?message=saved' % rec.id)
+
+    def _save_inspection_type_items(self, rec, post):
+        """依表單提交同步 default_item_ids：保留/更新提交的、刪除被移除的、新增新列。
+
+        表單欄位慣例（idx 連續）：
+          item_id_<idx>（既有列 id，空=新列）、item_name_<idx>、
+          item_stage_<idx>、item_standard_<idx>、item_seq_<idx>
+        """
+        Item = request.env['self.inspection.type.item'].sudo()
+        submitted_ids = set()
+        idx = 0
+        while True:
+            if post.get('item_name_%d' % idx) is None and \
+                    post.get('item_id_%d' % idx) is None:
+                # 連續 idx 中斷即結束（容忍中間空列）
+                if idx > 0 and ('item_name_%d' % (idx + 1)) not in post and \
+                        ('item_id_%d' % (idx + 1)) not in post:
+                    break
+                idx += 1
+                if idx > 500:   # 安全上限，避免異常無限迴圈
+                    break
+                continue
+            name = (post.get('item_name_%d' % idx) or '').strip()
+            item_id = post.get('item_id_%d' % idx)
+            ivals = {
+                'name': name,
+                'stage': post.get('item_stage_%d' % idx) or 'stage1',
+                'check_standard': post.get('item_standard_%d' % idx) or '',
+                'sequence': int(post.get('item_seq_%d' % idx) or ((idx + 1) * 10)),
+                'type_id': rec.id,
+            }
+            if item_id:
+                item = Item.browse(int(item_id))
+                if item.exists() and item.type_id.id == rec.id:
+                    if name:
+                        item.write(ivals)
+                        submitted_ids.add(item.id)
+                    else:
+                        item.unlink()      # 名稱清空＝刪除該列
+            elif name:
+                new_item = Item.create(ivals)
+                submitted_ids.add(new_item.id)
+            idx += 1
+            if idx > 500:
+                break
+        # 刪除未出現在提交中的既有列
+        for old in rec.default_item_ids:
+            if old.id not in submitted_ids:
+                old.unlink()
+
+    @http.route(['/construction/inspection-types/<int:type_id>/delete'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_inspection_type_delete(self, type_id, **post):
+        """刪除樣板；被檢查記錄引用則改停用（archive）。限管理者。"""
+        self._require_manage()
+        rec = self._get_visible_inspection_type(type_id)
+        if not rec:
+            return request.redirect('/construction/inspection-types')
+        if rec.inspection_count:
+            # 有檢查記錄引用，FK 擋下硬刪 → 改停用，保留資料完整
+            rec.write({'active': False})
+            return request.redirect(
+                '/construction/inspection-types?message=archived')
+        rec.unlink()
+        return request.redirect('/construction/inspection-types?message=deleted')
+
+    @http.route(['/construction/inspection-types/<int:type_id>/toggle'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_inspection_type_toggle(self, type_id, **post):
+        """切換啟用 / 停用。限管理者。"""
+        self._require_manage()
+        rec = self._get_visible_inspection_type(type_id)
+        if not rec:
+            return request.redirect('/construction/inspection-types')
+        rec.write({'active': not rec.active})
+        return request.redirect(
+            '/construction/inspection-types/%s?message=toggled' % rec.id)
+
+    @http.route(['/construction/inspection-types/<int:type_id>/template/download'],
+                type='http', auth='user', website=True)
+    def portal_inspection_type_download(self, type_id, **kw):
+        """下載樣板 docx 原檔（全角色可下載）。"""
+        from urllib.parse import quote
+        rec = self._get_visible_inspection_type(type_id)
+        if not rec or not rec.template_file:
+            return request.redirect('/construction/inspection-types')
+        content = base64.b64decode(rec.template_file)
+        filename = rec.template_filename or ('%s.docx' % rec.name)
+        return request.make_response(content, headers=[
+            ('Content-Type',
+             'application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
+            ('Content-Disposition',
+             "attachment; filename*=UTF-8''%s" % quote(filename)),
+        ])
+
+    @http.route(['/construction/inspection-types/<int:type_id>'],
+                type='http', auth='user', website=True)
+    def portal_inspection_type_detail(self, type_id, **kw):
+        """樣板詳情：類型資訊 + 分階段項目 + 檢查標準 + docx 下載。"""
+        rec = self._get_visible_inspection_type(type_id)
+        if not rec:
+            return request.redirect('/construction/inspection-types')
+        values = {
+            'rec': rec,
+            'categories_map': dict(self._inspection_type_categories()),
+            'stage_groups': self._inspection_type_stage_groups(rec),
+            'can_manage': self._can_manage(),
+            'page_name': 'inspection_types',
+        }
+        return request.render('construction_portal.portal_inspection_type_detail', values)
 
     @http.route(['/construction/<int:project_id>/inspection/new'],
                 type='http', auth='user', website=True)
@@ -2665,6 +2979,20 @@ class ConstructionPortal(CustomerPortal):
         return request.redirect(
             f'{base_url}?imported={imported}&skipped={skipped}&failed={failed}')
 
+    # ── 缺失改善：依工程類型選擇模型 ──
+    def _defect_model(self, project):
+        """一般式 → general.defect.improvement；預約式 → reservation.defect.improvement"""
+        if project and getattr(project, 'project_type', False) == 'reservation':
+            return 'reservation.defect.improvement'
+        return 'general.defect.improvement'
+
+    def _browse_defect(self, defect_id, access_token=None):
+        """以 id 取缺失（先一般式、後預約式）並做存取檢查"""
+        for model in ('general.defect.improvement', 'reservation.defect.improvement'):
+            if request.env[model].sudo().browse(defect_id).exists():
+                return self._document_check_access(model, defect_id, access_token=access_token)
+        raise MissingError(_('找不到缺失紀錄'))
+
     @http.route(['/construction/<int:project_id>/defects', '/construction/<int:project_id>/defects/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_defects(self, project_id, page=1, filterby=None, **kw):
@@ -2674,7 +3002,7 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        Defect = request.env['supervision.defect']
+        Defect = request.env[self._defect_model(project)]
         domain = [('project_id', '=', project.id)]
 
         # 篩選選項
@@ -2727,10 +3055,10 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        Defect = request.env['supervision.defect']
-        fields_info = Defect.fields_get(['defect_type', 'source'])
-        type_options = fields_info['defect_type']['selection']
-        source_options = fields_info['source']['selection']
+        Defect = request.env[self._defect_model(project)]
+        fields_info = Defect.fields_get(['defect_category', 'source_type'])
+        type_options = fields_info['defect_category']['selection']
+        source_options = fields_info['source_type']['selection']
 
         values = {
             'project': project,
@@ -2756,17 +3084,21 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        model = self._defect_model(project)
+        # portal 反推：依所選缺失類別自動決定檢查類型（影響缺失編號首字 施/安）
+        category = post.get('defect_type') or 'workmanship'
         vals = {
             'project_id': project_id,
-            'description': post.get('description', ''),
-            'location': post.get('location', ''),
-            'defect_type': post.get('defect_type') or 'quality',
-            'source': post.get('source') or 'daily_check',
+            'defect_description': post.get('description', ''),
+            'defect_location': post.get('location', ''),
+            'defect_category': category,
+            'check_type': CATEGORY_TO_CHECK_TYPE.get(category, 'construction'),
+            'source_type': post.get('source') or 'daily_check',
             'found_date': post.get('found_date') or date.today().isoformat(),
             'deadline': post.get('deadline') or False,
         }
 
-        Defect = request.env['supervision.defect'].sudo()
+        Defect = request.env[model].sudo()
         defect = Defect.create(vals)
 
         # 處理照片上傳
@@ -2777,7 +3109,7 @@ class ConstructionPortal(CustomerPortal):
             attachment = request.env['ir.attachment'].sudo().create({
                 'name': uploaded_file.filename,
                 'datas': file_data,
-                'res_model': 'supervision.defect',
+                'res_model': model,
                 'res_id': defect.id,
                 'type': 'binary',
                 'public': True,
@@ -2791,17 +3123,13 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defect_detail(self, defect_id, **kw):
         """缺失詳情"""
         try:
-            defect = self._document_check_access(
-                'supervision.defect', defect_id,
-                access_token=kw.get('access_token')
-            )
+            defect = self._browse_defect(defect_id, access_token=kw.get('access_token'))
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        Defect = request.env['supervision.defect']
-        fields_info = Defect.fields_get(['defect_type', 'source', 'state', 'responsible_party'])
-        type_selection = dict(fields_info['defect_type']['selection'])
-        source_selection = dict(fields_info['source']['selection'])
+        fields_info = defect.fields_get(['defect_category', 'source_type', 'state', 'responsible_party'])
+        type_selection = dict(fields_info['defect_category']['selection'])
+        source_selection = dict(fields_info['source_type']['selection'])
         state_selection = dict(fields_info['state']['selection'])
         party_selection = dict(fields_info['responsible_party']['selection'])
 
@@ -2830,7 +3158,7 @@ class ConstructionPortal(CustomerPortal):
         partner = request.env.user.partner_id
 
         try:
-            defect = self._document_check_access('supervision.defect', defect_id)
+            defect = self._browse_defect(defect_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2852,19 +3180,31 @@ class ConstructionPortal(CustomerPortal):
             attachment = request.env['ir.attachment'].sudo().create({
                 'name': f.filename,
                 'datas': base64.b64encode(raw),
-                'res_model': 'supervision.defect',
+                'res_model': defect._name,
                 'res_id': defect.id,
                 'type': 'binary',
                 'public': True,
             })
             attachment_ids.append(attachment.id)
 
-        defect.portal_submit_improvement(
-            improvement_text, partner,
-            after_photos=attachment_ids or None,
-            corrective_action=corrective_action or None,
-            preventive_action=preventive_action or None,
-        )
+        if hasattr(defect, 'portal_submit_improvement'):
+            defect.portal_submit_improvement(
+                improvement_text, partner,
+                after_photos=attachment_ids or None,
+                corrective_action=corrective_action or None,
+                preventive_action=preventive_action or None,
+            )
+        else:
+            # 一般式/預約式：直接寫入改善欄位
+            wvals = {}
+            if improvement_text:
+                wvals['improvement_result'] = improvement_text
+            if corrective_action:
+                wvals['improvement_action'] = corrective_action
+            if attachment_ids:
+                wvals['after_photo_ids'] = [(4, aid) for aid in attachment_ids]
+            if wvals:
+                defect.sudo().write(wvals)
 
         return request.redirect(f'/construction/defect/{defect_id}?message=success')
 
@@ -3322,8 +3662,11 @@ class ConstructionPortal(CustomerPortal):
     @http.route(['/construction/project/create'],
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_construction_project_create(self, **post):
-        """建立工程專案"""
+        """建立工程專案（限老闆或主管）"""
         from datetime import datetime as dt
+
+        # 角色 guard：僅老闆/主管/內部可新增專案
+        self._require_manage(_('僅老闆或主管可新增工程專案'))
 
         name = post.get('name', '').strip()
         if not name:
@@ -3392,18 +3735,122 @@ class ConstructionPortal(CustomerPortal):
 
         sup_project = SuperProject.create(vals)
 
-        # 加入當前用戶為專案成員
-        partner = request.env.user.partner_id
-        try:
-            request.env['supervision.project.member'].sudo().create({
-                'project_id': sup_project.id,
-                'partner_id': partner.id,
-                'permission_level': 'admin',
-            })
-        except Exception:
-            pass
+        # 加入建立者為專案參與成員（逐帳號可見性；建立者本人才看得到自己剛建的專案）
+        request.env['supervision.project.member'].sudo().create({
+            'project_id': sup_project.id,
+            'user_id': request.env.user.id,
+        })
 
         return request.redirect(f'/construction/{sup_project.id}')
+
+    # ==================== 前台審核（限老闆 + 主管，v11） ====================
+    # 每個審核動作 = 一條 POST route → _require_manage() 守 → 呼叫 model 的 action 方法。
+    # 以建立者本人身分呼叫（boss/manager 透過 implied 舊群組已具寫入 ACL），
+    # 故 action 內 self.env.uid 設定的審核人欄位（verifier_id/supervisor_id…）歸屬正確。
+    # 範圍：先以可存取的工程/單據過濾（_document_check_access / search by project），
+    # 非成員專案的單據抓不到 → 自然擋住。
+
+    def _run_review_action(self, record, method, ok_url, err_url):
+        """共用：守門 + 呼叫審核動作 + 導回（攔 UserError/ValidationError 顯示訊息）"""
+        self._require_manage(_('僅老闆或主管可審核'))
+        if not record:
+            return request.redirect(err_url)
+        try:
+            getattr(record, method)()
+        except (UserError, ValidationError) as e:
+            from urllib.parse import quote
+            return request.redirect(f'{err_url}?error={quote(str(e))}')
+        return request.redirect(f'{ok_url}?msg=reviewed')
+
+    @http.route(['/construction/defect/<int:defect_id>/verify'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_defect_verify(self, defect_id, **post):
+        """缺失：驗證改善（improved → verified）"""
+        try:
+            defect = self._browse_defect(defect_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        return self._run_review_action(
+            defect, 'action_verify_pass',
+            f'/construction/defect/{defect_id}', f'/construction/defect/{defect_id}')
+
+    @http.route(['/construction/defect/<int:defect_id>/close'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_defect_close(self, defect_id, **post):
+        """缺失：結案（verified → closed）"""
+        try:
+            defect = self._browse_defect(defect_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        return self._run_review_action(
+            defect, 'action_close',
+            f'/construction/defect/{defect_id}', f'/construction/defect/{defect_id}')
+
+    @http.route(['/construction/inspection/<int:inspection_id>/confirm'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_inspection_confirm(self, inspection_id, **post):
+        """自主檢查：確認（inspected → confirmed）"""
+        try:
+            insp = self._document_check_access('general.self.inspection', inspection_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        return self._run_review_action(
+            insp, 'action_confirm',
+            f'/construction/inspection/{inspection_id}', f'/construction/inspection/{inspection_id}')
+
+    @http.route(['/construction/inspection/<int:inspection_id>/close'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_inspection_close(self, inspection_id, **post):
+        """自主檢查：結案（confirmed → closed）"""
+        try:
+            insp = self._document_check_access('general.self.inspection', inspection_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        return self._run_review_action(
+            insp, 'action_close',
+            f'/construction/inspection/{inspection_id}', f'/construction/inspection/{inspection_id}')
+
+    @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/confirm'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_slip_confirm(self, project_id, slip_id, **post):
+        """通報單：核定（draft → not_started）"""
+        try:
+            project = self._document_check_access('supervision.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        slip = request.env['reservation.notification.slip'].search(
+            [('id', '=', slip_id), ('project_id', '=', project.id)], limit=1)
+        return self._run_review_action(
+            slip, 'action_confirm',
+            f'/construction/{project_id}/slip/{slip_id}', f'/construction/{project_id}/slip/{slip_id}')
+
+    @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/close'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_slip_close(self, project_id, slip_id, **post):
+        """通報單：結案（in_progress → closed）"""
+        try:
+            project = self._document_check_access('supervision.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        slip = request.env['reservation.notification.slip'].search(
+            [('id', '=', slip_id), ('project_id', '=', project.id)], limit=1)
+        return self._run_review_action(
+            slip, 'action_close',
+            f'/construction/{project_id}/slip/{slip_id}', f'/construction/{project_id}/slip/{slip_id}')
+
+    @http.route(['/construction/<int:project_id>/daily-log/<int:log_id>/mark-filled'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_daily_log_mark_filled(self, project_id, log_id, **post):
+        """施工日誌：鎖定/定稿（draft → filled）"""
+        try:
+            project = self._document_check_access('supervision.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        log = request.env['daily.log.sheet'].search(
+            [('id', '=', log_id), ('supervision_project_id', '=', project.id)], limit=1)
+        return self._run_review_action(
+            log, 'action_mark_filled',
+            f'/construction/{project_id}/daily-log/{log_id}', f'/construction/{project_id}/daily-log/{log_id}')
 
     # ==================== 設定 ====================
 

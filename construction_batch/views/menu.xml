@@ -6,7 +6,21 @@
 <odoo>
 
     <!-- ===================================================================
-         批次下載選單
+         獨立 App：報表 / 下載（中心）
+         =================================================================== -->
+    <menuitem id="menu_report_download_app"
+              name="報表 / 下載"
+              sequence="90"
+              web_icon="construction_batch,static/description/icon.png"/>
+
+    <menuitem id="menu_report_download_center"
+              name="批次下載"
+              parent="menu_report_download_app"
+              action="action_batch_download_wizard"
+              sequence="10"/>
+
+    <!-- ===================================================================
+         保留「就地入口」：在各功能底下也能開批次下載（同一 action）
          =================================================================== -->
 
     <!-- 施工日誌批次下載 (歸屬於 施工執行 > 施工日誌) -->

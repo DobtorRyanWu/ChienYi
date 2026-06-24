@@ -3,3 +3,4 @@
 from . import notification_slip
 from . import reservation_self_inspection
 from . import reservation_defect_improvement
+from . import create_reservation_defect_wizard

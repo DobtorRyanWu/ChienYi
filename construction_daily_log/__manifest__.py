@@ -47,6 +47,7 @@
         "views/daily_log_views.xml",
         "views/construction_weekly_schedule_views.xml",
         "views/menu.xml",
+        "report/daily_log_report.xml",
     ],
     "installable": True,
     "auto_install": False,

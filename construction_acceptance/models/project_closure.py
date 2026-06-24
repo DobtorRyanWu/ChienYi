@@ -35,6 +35,7 @@ class ProjectClosure(models.Model):
         'supervision.project',
         string='所屬工程',
         required=True,
+        ondelete='cascade',
         tracking=True,
         index=True,
         readonly=True,
@@ -46,10 +47,9 @@ class ProjectClosure(models.Model):
         related='project_id.company_id',
         store=True)
 
-    authority_id = fields.Many2one(
-        'res.partner',
+    authority_name = fields.Char(
         string='業主/主辦機關',
-        related='project_id.authority_id',
+        related='project_id.authority_name',
         store=True)
 
     # === 關聯正驗 ===

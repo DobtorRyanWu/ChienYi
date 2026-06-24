@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    預約式缺失改善單 的「列印」按鈕（佔位）
+    ⚠️ 僅提供列印入口；實際 PDF 版面由報表負責人於 <template> 設計，現為佔位。
+-->
+<odoo>
+
+    <record id="action_report_reservation_defect" model="ir.actions.report">
+        <field name="name">缺失改善單</field>
+        <field name="model">reservation.defect.improvement</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">construction_quality.report_reservation_defect</field>
+        <field name="report_file">construction_quality.report_reservation_defect</field>
+        <field name="binding_model_id" ref="model_reservation_defect_improvement"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_reservation_defect">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2 style="text-align:center;">缺失改善單（預約式）</h2>
+                        <p>編號／名稱：<span t-field="doc.display_name"/></p>
+                        <p class="text-muted" style="margin-top:40px;">
+                            （此列印格式尚待設計，將由報表負責人完成；本頁為佔位內容。）
+                        </p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

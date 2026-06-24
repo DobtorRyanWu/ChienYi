@@ -298,6 +298,7 @@
                         domain="[('stage_id.done', '=', True)]"/>
                 <separator/>
                 <group expand="0" string="群組">
+                    <filter string="所屬工程" name="group_project" context="{'group_by': 'project_id'}"/>
                     <filter string="階段" name="group_stage" context="{'group_by': 'stage_id'}"/>
                     <filter string="維護類型" name="group_type" context="{'group_by': 'maintenance_type'}"/>
                     <filter string="設備" name="group_equipment" context="{'group_by': 'equipment_id'}"/>
@@ -316,7 +317,7 @@
         <field name="res_model">supervision.equipment.request</field>
         <field name="view_mode">kanban,list,form,calendar</field>
         <field name="search_view_id" ref="view_supervision_equipment_request_search"/>
-        <field name="context">{'search_default_in_progress': 1}</field>
+        <field name="context">{'search_default_in_progress': 1, 'search_default_group_project': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一個維護請求

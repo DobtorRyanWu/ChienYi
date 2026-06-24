@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Sprint 21：在既有 general.self.inspection.form 加入「開啟線上文件」按鈕。
+        繼承 construction_quality.view_general_self_inspection_form。
+        button_box 內顯示 stat 數量；header 提供主操作入口。
+    -->
+    <record id="view_general_self_inspection_form_dobtor" model="ir.ui.view">
+        <field name="name">general.self.inspection.form.dobtor</field>
+        <field name="model">general.self.inspection</field>
+        <field name="inherit_id" ref="construction_quality.view_general_self_inspection_form"/>
+        <field name="arch" type="xml">
+
+            <!-- 1) header 區加主按鈕 -->
+            <xpath expr="//header" position="inside">
+                <button name="action_open_linked_doc"
+                        string="開啟線上文件"
+                        type="object"
+                        class="oe_highlight"
+                        icon="fa-file-text-o"
+                        invisible="state == 'closed'"/>
+            </xpath>
+
+            <!-- 2) sheet 開頭加 stat button + 隱藏欄位 -->
+            <xpath expr="//sheet" position="inside">
+                <field name="linked_doc_id" invisible="1"/>
+                <field name="linked_doc_count" invisible="1"/>
+            </xpath>
+
+            <!-- 3) 在標題上方加 button_box（若原 view 沒有，先 inject）-->
+            <xpath expr="//div[@class='oe_title']" position="before">
+                <div class="oe_button_box" name="dobtor_button_box">
+                    <button name="action_open_linked_doc"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-file-text-o"
+                            invisible="linked_doc_count == 0">
+                        <field name="linked_doc_count" widget="statinfo"
+                               string="線上文件"/>
+                    </button>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -101,7 +101,13 @@
                         <group string="缺失分類">
                             <field name="source_type"/>
                             <field name="check_type"/>
-                            <field name="defect_category"/>
+                            <field name="defect_category" invisible="1"/>
+                            <field name="defect_category_construction"
+                                   invisible="check_type != 'construction'"
+                                   required="check_type == 'construction'"/>
+                            <field name="defect_category_safety"
+                                   invisible="check_type != 'safety_env'"
+                                   required="check_type == 'safety_env'"/>
                             <field name="severity" invisible="not id"/>
                         </group>
                     </group>
@@ -368,12 +374,11 @@
                                 </group>
                                 <group>
                                     <div class="alert alert-info" role="alert">
-                                        <strong>📌 說明</strong>：<br/>
-                                        • 記錄類型由進入的選單自動決定<br/>
-                                        • 從「監造缺失改善」進入 = 監造<br/>
-                                        • 從「營造缺失改善」進入 = 營造<br/>
+                                        <strong>📌 記錄類型（監造／營造）的決定方式</strong>：<br/>
+                                        • 直接從選單新增：依進入的選單決定（「監造缺失改善」=監造、「營造缺失改善」=營造）<br/>
+                                        • 從自主檢查「建立缺失改善」精靈建立：於精靈中選擇<br/>
                                         <br/>
-                                        <strong>⚠️ 注意</strong>：修改序號後編號會自動重新計算。<br/>
+                                        <strong>⚠️ 注意</strong>：修改「當日序號」後編號會自動重新計算，<br/>
                                         請確保不會與其他記錄產生衝突。
                                     </div>
                                 </group>
