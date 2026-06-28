@@ -818,13 +818,16 @@ export class DocEditor extends Component {
                 return;
             }
             try {
-                const json = JSON.stringify(this.editor.command.getValue().data);
-                if (this._offlineManager.isOnline) {
-                    this._autoSave.onContentChange(json);
-                } else {
-                    this._offlineManager.bufferOperation({ type: "save", json });
-                    this.state.statusMsg = "離線緩存中";
-                    this.state.statusType = "saving";
+                // 自動儲存關閉時不寫回 DB（使用者改用手動儲存）；其餘同步（縮圖、Del 同步）照常
+                if (this.state.autoSaveEnabled) {
+                    const json = JSON.stringify(this.editor.command.getValue().data);
+                    if (this._offlineManager.isOnline) {
+                        this._autoSave.onContentChange(json);
+                    } else {
+                        this._offlineManager.bufferOperation({ type: "save", json });
+                        this.state.statusMsg = "離線緩存中";
+                        this.state.statusType = "saving";
+                    }
                 }
             } catch (e) {
                 console.error("[DocEditor] contentChange 處理失敗：", e);
@@ -1240,6 +1243,26 @@ export class DocEditor extends Component {
         input.click();
     }
 
+    /**
+     * 安全解析 fetch 回應為 JSON。type='http' 路由出錯時 Odoo 會回傳 HTML 錯誤頁，
+     * 直接 resp.json() 會丟「Unexpected token '<'」。此處改抓 HTML → 給可讀訊息。
+     */
+    async _readJsonResponse(resp) {
+        const text = await resp.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            const snippet = (text || "")
+                .replace(/<[^>]*>/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 200);
+            throw new Error(
+                `伺服器錯誤 (HTTP ${resp.status})${snippet ? "：" + snippet : ""}`
+            );
+        }
+    }
+
     async _handleImportFile(file) {
         if (!file) return;
 
@@ -1256,7 +1279,7 @@ export class DocEditor extends Component {
                     method: "POST",
                     body: formData,
                 });
-                const result = await resp.json();
+                const result = await this._readJsonResponse(resp);
 
                 if (!result.success) throw new Error(result.error || "上傳失敗");
 
@@ -1319,7 +1342,7 @@ export class DocEditor extends Component {
                 method: "POST",
                 body: formData,
             });
-            const result = await resp.json();
+            const result = await this._readJsonResponse(resp);
             if (result.error) throw new Error(result.error);
             if (!Array.isArray(result.elements)) {
                 throw new Error("Backend 未回傳 elements 陣列（engine=ts 可能 fallback 到 libreoffice）");
@@ -1767,12 +1790,11 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
     onAutoSaveToggle(event) {
         const enabled = !!event.target.checked;
         this.state.autoSaveEnabled = enabled;
-        if (this._autoSaveManager) {
-            if (enabled && typeof this._autoSaveManager.enable === "function") {
-                this._autoSaveManager.enable();
-            } else if (!enabled && typeof this._autoSaveManager.disable === "function") {
-                this._autoSaveManager.disable();
-            }
+        // 關閉時取消殘留的 debounce/idle/maxWait 計時器，避免關閉後又自動存一次。
+        // 「之後不再自動存」由 contentChange 監聽器檢查 state.autoSaveEnabled 達成
+        //（AutoSaveManager 本身無 enable/disable 方法，原本的 this._autoSaveManager 也是錯名）。
+        if (!enabled && this._autoSave) {
+            this._autoSave.cancel();
         }
         this.notification.add(
             enabled ? "已啟用自動儲存。" : "已關閉自動儲存（請手動按儲存）。",

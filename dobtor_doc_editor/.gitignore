@@ -10,6 +10,7 @@ yarn-error.log*
 # CI 輸出（Sprint 20 補入）
 tests/vitest-junit.xml
 tests/fixtures/sprint18_ratio_grid_report.json
+test-results/
 
 # VR run 暫存（Sprint 158 補入）
 tests/fixtures/.visual_regression_tmp/

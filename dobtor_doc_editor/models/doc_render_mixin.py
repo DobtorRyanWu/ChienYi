@@ -1,7 +1,37 @@
 import re
 
+from jinja2.sandbox import SandboxedEnvironment
+
 from odoo import models, api
 from odoo.exceptions import UserError, AccessError
+
+
+# 禁止透過屬性存取觸碰的 ORM 提權／IO 向量。
+# SandboxedEnvironment 預設只擋「底線開頭」屬性（_cr、__class__、_fields…），
+# 但 env/sudo/browse/search/write 等是公開 recordset 介面 → 預設放行，
+# 等於任何有 doc write 權限的內部使用者可在範本寫
+#   {{ object.env['res.users'].sudo().browse(1).write({...}) }}
+# 以 sudo 跑任意 ORM。故額外黑名單封死這些公開向量。
+_UNSAFE_ATTRS = frozenset({
+    'env', 'sudo', 'with_user', 'with_env', 'with_company', 'with_context',
+    'browse', 'search', 'search_read', 'search_count', 'read', 'read_group',
+    'create', 'write', 'unlink', 'copy', 'load', 'fields_get', 'get_metadata',
+    'pool', 'cr', 'registry',
+})
+
+
+class _DocSandboxedEnvironment(SandboxedEnvironment):
+    """收斂版 Jinja sandbox：在預設防護上額外封死 ORM 提權／IO 公開屬性。
+
+    範本只需欄位讀取（object.<field>、.display_name）與注入的 helper，
+    因此把 env/sudo/browse/search/write… 一律視為 unsafe，
+    阻止 {{ object.env[...].sudo()... }} 這類 SSTI 提權（非理論，低權編輯者即可觸發）。
+    """
+
+    def is_safe_attribute(self, obj, attr, value):
+        if attr in _UNSAFE_ATTRS:
+            return False
+        return super().is_safe_attribute(obj, attr, value)
 
 
 # 中文 token 標記符號。前後綴用《》（U+300A / U+300B），降低與正文衝突機率。
@@ -34,8 +64,7 @@ class DocRenderMixin(models.AbstractModel):
             return html or ''
         try:
             html = self._apply_field_aliases(html, with_chip=with_chip)
-            from jinja2.sandbox import SandboxedEnvironment
-            env = SandboxedEnvironment()
+            env = _DocSandboxedEnvironment()
             for name, fn in self._get_render_helpers(record).items():
                 env.globals[name] = fn
             template = env.from_string(html)

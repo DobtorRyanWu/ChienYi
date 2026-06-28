@@ -53,11 +53,8 @@
         <field name="target">new</field>
     </record>
 
-    <menuitem id="menu_doc_bulk_import"
-              name="批次匯入"
-              parent="menu_dobtor_doc_root"
-              action="action_doc_bulk_import_wizard"
-              sequence="30"
-              groups="dobtor_doc_editor.group_doc_manager"/>
+    <!-- 注意：menu_doc_bulk_import 的 <menuitem> 已移至 views/menu.xml，
+         因為它 parent 指向 menu_dobtor_doc_root（在 menu.xml 定義），
+         而本檔在 manifest 中先於 menu.xml 載入，原地放會造成前向引用 ParseError。 -->
 
 </odoo>
