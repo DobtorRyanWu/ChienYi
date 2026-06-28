@@ -1,0 +1,29 @@
+# ChienYi — Odoo 18 模組外部 Python 依賴
+# 部署安裝：pip install --break-system-packages -r requirements.txt
+#   （Debian / PEP 668 externally-managed 環境需要 --break-system-packages）
+#
+# 注意：此檔用 pip 套件名；各模組 __manifest__.py 的 external_dependencies
+#       用 import 名稱（python-docx → docx、odfpy → odf、python-calamine → python_calamine）。
+
+# ── 自訂模組（construction_* / dobtor_*）──
+python-docx                 # docx            — dobtor_doc_editor, construction_portal
+docxtpl                     #                 — dobtor_doc_editor 模板填充
+odfpy                       # odf             — dobtor_doc_editor .odt 匯入
+openpyxl                    #                 — construction_contract_change, construction_portal, excel_import_export
+python-calamine             # python_calamine — construction_portal xlsm/xlsx 解析
+shapely                     #                 — base_geoengine
+geojson                     #                 — base_geoengine
+
+# ── 3rd-party / OCA 模組 ──
+cryptography                # auto_backup
+paramiko<4.0.0              # auto_backup
+pysftp                      # auto_backup
+pygount                     # module_analysis
+odoorpc                     # upgrade_analysis
+openupgradelib              # upgrade_analysis, attachment_queue
+odoo-test-helper            # base_sequence_option, base_geoengine（測試用）
+unittest-xml-reporting      # odoo_test_xmlrunner（測試用）
+sentry-sdk>=2.0.0,<=2.22.0  # sentry
+
+# 註：upgrade_analysis 的 manifest 宣告了 dataclasses，但它自 Python 3.7 起已是
+#     標準庫（Odoo 18 需 Python 3.10+），無需 pip 安裝，故不列入。

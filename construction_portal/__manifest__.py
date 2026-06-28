@@ -40,6 +40,13 @@ v2.0.0 (Portal v10)
         'construction_notification_slip',
         'web_leaflet_lib',
     ],
+    # 外部 Python 套件（import 名稱，非 pip 名稱）：
+    #   openpyxl        ← pip openpyxl         （xlsm/xlsx 解析，utils 載入時即 import）
+    #   docx            ← pip python-docx      （defect_docx_parser 解析缺失單 .docx）
+    #   python_calamine ← pip python-calamine  （xlsm/xlsx 快速讀取，缺則該功能報錯）
+    'external_dependencies': {
+        'python': ['openpyxl', 'docx', 'python_calamine'],
+    },
     'data': [
         # Security
         'security/security.xml',

@@ -39,6 +39,10 @@
         'mail',  # 關鍵！支援 Chatter 功能
         'construction_supervision_base',
     ],
+    # openpyxl ← pip openpyxl（契約變更 XLSX 匯入精靈解析用）
+    'external_dependencies': {
+        'python': ['openpyxl'],
+    },
     'data': [
         # Security
         # 注意：ir.model.access.csv 必須先載入，才能刪除舊群組
