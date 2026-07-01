@@ -117,6 +117,11 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor.umd.min.js',
             'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor-shim.js',
             'dobtor_doc_editor/static/src/lib/canvas_editor/canvas-editor-plugin-docx.umd.js',
+            # Odoo 欄位選擇器 Dialog（doc_editor.js import DocFieldPickerDialog，
+            # 缺這兩行會讓 portal 前台 bundle 出現 unmet dependency → 編輯器無法掛載。
+            # 依賴僅 @odoo/owl + @web/core，frontend bundle 皆有，可安全納入。）
+            'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.xml',
+            'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.js',
             # Sprint G/H：jinja2 變數掃描器（純函式 util，必須在 doc_editor.js 之前）
             'dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js',
             # 主編輯器 Component

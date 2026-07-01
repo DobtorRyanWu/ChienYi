@@ -5,7 +5,7 @@
 §4.5.1：通用關聯（res_model/res_id）+ 匯入來源 metadata，供 xlsx.linked.mixin
         讓任何 ChienYi 業務模型回掛試算表（取代硬編碼 FK）。
 """
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class SpreadsheetSpreadsheet(models.Model):
@@ -45,3 +45,28 @@ class SpreadsheetSpreadsheet(models.Model):
         string="解析記錄",
         help="匯入解析摘要/警告（工作表數、未支援項目等）。",
     )
+
+    @api.model
+    def create_from_xlsx(self, name, file_bytes, res_model=None, res_id=None,
+                         source_filename=None):
+        """由 xlsx 二進位建立一筆試算表（後端 openpyxl → o-spreadsheet WorkbookData）。
+
+        回傳建立的 recordset；呼叫端可接 `.open_spreadsheet()` 開啟編輯器。
+        """
+        from .xlsx_to_workbook import xlsx_bytes_to_workbook_data
+
+        base = self._empty_spreadsheet_data()  # 沿用 OCA 底稿（正確 version/locale/revisionId）
+        data, log = xlsx_bytes_to_workbook_data(file_bytes, base)
+        vals = {
+            'name': name,
+            'spreadsheet_raw': data,
+            'fidelity_grade': 'B',
+            'parse_log': log,
+        }
+        if res_model:
+            vals['res_model'] = res_model
+        if res_id:
+            vals['res_id'] = res_id
+        if source_filename:
+            vals['source_filename'] = source_filename
+        return self.create(vals)

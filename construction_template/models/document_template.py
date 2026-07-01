@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import base64
 import json
+import logging
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class DocumentTemplate(models.Model):
@@ -150,6 +154,17 @@ class DocumentTemplate(models.Model):
         string='版本說明',
         help='此版本的更新說明')
 
+    # 線上編輯器文件 id（dobtor_doc_editor 的 doc.document）。
+    # 用 Integer 軟關聯，避免 construction_template 硬依賴 dobtor_doc_editor。
+    editor_doc_id = fields.Integer(
+        string='編輯器文件 id', readonly=True, copy=False,
+        help='此範本以文件編輯器開啟時對應的 doc.document 記錄 id')
+
+    # 線上試算表 id（dobtor_spreadsheet_editor / spreadsheet.spreadsheet）。同樣用 Integer 軟關聯。
+    editor_spreadsheet_id = fields.Integer(
+        string='編輯器試算表 id', readonly=True, copy=False,
+        help='此範本以試算表編輯器開啟時對應的 spreadsheet.spreadsheet 記錄 id')
+
     # === SQL 約束 ===
     _sql_constraints = [
         ('unique_default_type_company',
@@ -287,6 +302,78 @@ class DocumentTemplate(models.Model):
                 'target': 'self',
             }
         raise UserError('此類型尚無系統內建預設樣板！')
+
+    def action_open_in_editor(self):
+        """用系統內建編輯器開啟本範本。
+
+        - .docx → dobtor_doc_editor 文件編輯器（解析成可編輯 canvas 內容）
+        - .xlsx → 試算表編輯器（目前尚未支援 xlsx 二進位匯入，先擋下並提示）
+        """
+        self.ensure_one()
+        if not self.attachment_id:
+            raise UserError('尚未上傳樣板檔案，無法開啟編輯器！')
+        fname = (self.file_name or self.attachment_id.name or '').lower()
+        if fname.endswith('.docx'):
+            doc = self._sync_editor_doc()
+            return doc.action_open_editor()
+        if fname.endswith('.xlsx'):
+            ss = self._sync_editor_spreadsheet()
+            return ss.open_spreadsheet()
+        raise UserError('僅支援 .docx / .xlsx 範本以編輯器開啟。')
+
+    def _sync_editor_doc(self):
+        """建立或更新對應的 doc.document，並把目前的 docx 解析成可編輯內容。
+
+        每次開啟都重新解析目前附件，確保範本更新後編輯器內容同步。
+        """
+        self.ensure_one()
+        try:
+            from odoo.addons.dobtor_doc_editor.controllers.doc_controller import (
+                _ts_parse_docx_to_elements,
+            )
+        except ImportError:
+            raise UserError('文件編輯器模組（dobtor_doc_editor）未安裝，無法開啟。')
+
+        file_bytes = base64.b64decode(self.attachment_id.datas or b'')
+        elements = _ts_parse_docx_to_elements(file_bytes)
+        if not elements:
+            raise UserError('DOCX 解析失敗，無法轉為可編輯內容（請確認檔案格式）。')
+        content_json = json.dumps({'main': elements}, ensure_ascii=False)
+
+        Doc = self.env['doc.document'].sudo()
+        doc = Doc.browse(self.editor_doc_id) if self.editor_doc_id else Doc
+        if doc and doc.exists():
+            doc.write({'content_json': content_json})
+        else:
+            doc = Doc.create({
+                'name': self.name or (self.file_name or '範本'),
+                'content_json': content_json,
+            })
+            self.editor_doc_id = doc.id
+        return doc
+
+    def _sync_editor_spreadsheet(self):
+        """建立或更新對應的 spreadsheet.spreadsheet，把目前的 xlsx 匯入為可編輯試算表。"""
+        self.ensure_one()
+        if 'spreadsheet.spreadsheet' not in self.env:
+            raise UserError('試算表編輯器模組（dobtor_spreadsheet_editor）未安裝，無法開啟。')
+        file_bytes = base64.b64decode(self.attachment_id.datas or b'')
+        Sheet = self.env['spreadsheet.spreadsheet'].sudo()
+        name = self.name or (self.file_name or '範本')
+
+        existing = (
+            Sheet.browse(self.editor_spreadsheet_id)
+            if self.editor_spreadsheet_id else Sheet
+        )
+        if existing and existing.exists():
+            existing.unlink()  # 重新匯入：直接以最新附件重建，避免殘留舊修訂
+        ss = Sheet.create_from_xlsx(
+            name, file_bytes,
+            res_model='document.template', res_id=self.id,
+            source_filename=self.file_name,
+        )
+        self.editor_spreadsheet_id = ss.id
+        return ss
 
     def action_test_template(self):
         """測試樣板 (使用測試資料產生檔案)"""
