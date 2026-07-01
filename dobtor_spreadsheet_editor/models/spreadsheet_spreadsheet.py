@@ -56,7 +56,7 @@ class SpreadsheetSpreadsheet(models.Model):
         from .xlsx_to_workbook import xlsx_bytes_to_workbook_data
 
         base = self._empty_spreadsheet_data()  # 沿用 OCA 底稿（正確 version/locale/revisionId）
-        data, log = xlsx_bytes_to_workbook_data(file_bytes, base)
+        data, log, images = xlsx_bytes_to_workbook_data(file_bytes, base)
         vals = {
             'name': name,
             'spreadsheet_raw': data,
@@ -69,4 +69,40 @@ class SpreadsheetSpreadsheet(models.Model):
             vals['res_id'] = res_id
         if source_filename:
             vals['source_filename'] = source_filename
-        return self.create(vals)
+        ss = self.create(vals)
+        if images:
+            ss._dobtor_store_pending_images(images, source_filename)
+        return ss
+
+    def _dobtor_store_pending_images(self, images, source_filename=None):
+        """把匯入的內嵌圖片建成 ir.attachment，並寫入 dobtor_pending_images（供
+        image_inject_patch 於編輯器載入後 dispatch CREATE_IMAGE 注入）。"""
+        self.ensure_one()
+        import json
+
+        Att = self.env['ir.attachment'].sudo()
+        pending = []
+        for k, img in enumerate(images):
+            ext = (img.get('mimetype') or 'image/png').split('/')[-1]
+            att = Att.create({
+                'name': '%s_img_%d.%s' % (source_filename or 'xlsx', k, ext),
+                'datas': img['base64'],
+                'mimetype': img.get('mimetype') or 'image/png',
+                'res_model': 'spreadsheet.spreadsheet',
+                'res_id': self.id,
+            })
+            token = att.generate_access_token()[0]
+            size = {'width': img['width'], 'height': img['height']}
+            pending.append({
+                'sheetId': 'sheet%d' % (img['sheet_index'] + 1),
+                'figureId': 'sse_img_%d_%d' % (self.id, k),
+                'position': {'x': img['x'], 'y': img['y']},
+                'size': size,
+                'definition': {
+                    'path': '/web/image/%d?access_token=%s' % (att.id, token),
+                    'mimetype': img.get('mimetype') or 'image/png',
+                    'size': size,
+                },
+            })
+        if pending:
+            self.dobtor_pending_images = json.dumps(pending)
