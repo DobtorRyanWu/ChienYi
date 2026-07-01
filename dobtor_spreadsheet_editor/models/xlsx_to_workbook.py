@@ -195,6 +195,81 @@ def _norm_path(base_dir, target):
     return posixpath.normpath(posixpath.join(base_dir, target))
 
 
+_VML_V = 'urn:schemas-microsoft-com:vml'
+_VML_O = 'urn:schemas-microsoft-com:office:office'
+
+
+def _pt_to_px(val):
+    """VML style 尺寸字串 → px（預設單位 pt，96/72）。"""
+    if val is None:
+        return 0
+    s = str(val).strip().lower()
+    try:
+        if s.endswith('px'):
+            return int(round(float(s[:-2])))
+        if s.endswith('pt'):
+            return int(round(float(s[:-2]) * 96.0 / 72.0))
+        return int(round(float(s) * 96.0 / 72.0))
+    except ValueError:
+        return 0
+
+
+def _parse_vml_style(style):
+    out = {}
+    for part in (style or '').replace('\n', '').split(';'):
+        if ':' in part:
+            k, v = part.split(':', 1)
+            out[k.strip().lower()] = v.strip()
+    return out
+
+
+def _parse_vml_images(zf, vml_part, names, sheet_index):
+    """解析 VML（舊版）內嵌圖：<v:shape style=...><v:imagedata o:relid=.../>。"""
+    import base64 as _b64
+    import posixpath
+    import xml.etree.ElementTree as ET
+    if vml_part not in names:
+        return []
+    vml_base = posixpath.dirname(vml_part)
+    vml_rels = _parse_rels(
+        zf, _norm_path(vml_base, '_rels/%s.rels' % posixpath.basename(vml_part)))
+    try:
+        root = ET.fromstring(zf.read(vml_part))
+    except Exception:
+        return []
+    out = []
+    for shape in root.iter('{%s}shape' % _VML_V):
+        imed = shape.find('{%s}imagedata' % _VML_V)
+        if imed is None:
+            continue
+        relid = imed.get('{%s}relid' % _VML_O) or imed.get('relid')
+        media_t = vml_rels.get(relid, (None, None))[0]
+        if not media_t:
+            continue
+        media_part = _norm_path(vml_base, media_t)
+        if media_part not in names:
+            continue
+        data = zf.read(media_part)
+        if not data or len(data) > 4 * 1024 * 1024:
+            continue
+        ext = media_part.rsplit('.', 1)[-1].lower()
+        mimetype = _MIME_BY_EXT.get(ext)
+        if not mimetype:
+            continue
+        st = _parse_vml_style(shape.get('style'))
+        x = _pt_to_px(st.get('margin-left', '0'))
+        y = _pt_to_px(st.get('margin-top', '0'))
+        width = max(_pt_to_px(st.get('width', '120')) or 120, 32)
+        height = max(_pt_to_px(st.get('height', '60')) or 60, 32)
+        out.append({
+            'sheet_index': sheet_index,
+            'base64': _b64.b64encode(data).decode(),
+            'mimetype': mimetype,
+            'x': max(x, 0), 'y': max(y, 0), 'width': width, 'height': height,
+        })
+    return out
+
+
 def _parse_rels(zf, rels_path):
     import xml.etree.ElementTree as ET
     if rels_path not in zf.namelist():
@@ -250,6 +325,9 @@ def extract_images(file_bytes):
         base = posixpath.dirname(sheet_part)
         sheet_rels = _norm_path(base, '_rels/%s.rels' % posixpath.basename(sheet_part))
         rels = _parse_rels(zf, sheet_rels)
+        # 舊版 VML 內嵌圖（表頭 logo 常見）
+        for vt in [t for (t, typ) in rels.values() if typ.endswith('/vmlDrawing')]:
+            out.extend(_parse_vml_images(zf, _norm_path(base, vt), names, si))
         drawing_targets = [t for (t, typ) in rels.values() if typ.endswith('/drawing')]
         for dt in drawing_targets:
             draw_part = _norm_path(base, dt)
