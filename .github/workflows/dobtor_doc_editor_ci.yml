@@ -1,0 +1,231 @@
+name: dobtor_doc_editor CI
+
+on:
+  push:
+    branches: [main, master, develop]
+    paths:
+      - 'dobtor_doc_editor/**'
+      - '.github/workflows/dobtor_doc_editor_ci.yml'
+  pull_request:
+    paths:
+      - 'dobtor_doc_editor/**'
+      - '.github/workflows/dobtor_doc_editor_ci.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: dobtor_doc_editor
+
+jobs:
+  frontend:
+    name: Frontend (TS / vitest / build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: dobtor_doc_editor/package-lock.json
+
+      - name: Install npm deps
+        run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      - name: Vitest unit + integration
+        run: npm test -- --reporter=default --reporter=junit --outputFile.junit=tests/vitest-junit.xml
+
+      - name: Upload vitest report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-junit-report
+          path: dobtor_doc_editor/tests/vitest-junit.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Rollup build
+        run: npm run build:frontend
+
+      - name: Verify bundle exists
+        run: |
+          test -f static/src/lib/canvas_editor/canvas-editor-custom.umd.js || (echo "::error::bundle missing"; exit 1)
+          size=$(stat -c%s static/src/lib/canvas_editor/canvas-editor-custom.umd.js)
+          echo "bundle size: $size bytes"
+          if [ "$size" -lt 50000 ]; then
+            echo "::error::bundle suspiciously small ($size bytes)"; exit 1
+          fi
+
+  python:
+    name: Python (flake8 + manifest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install lint deps
+        run: pip install flake8
+
+      - name: Flake8 (errors only)
+        run: |
+          flake8 --max-line-length=120 \
+                 --extend-ignore=E501,W503 \
+                 --select=E9,F63,F7,F82 \
+                 controllers models wizards
+
+      - name: Manifest is valid Python literal
+        run: python -c "import ast; ast.literal_eval(open('__manifest__.py').read())"
+
+      - name: Pytest collect-only (Odoo-dependent tests are not executed in CI)
+        run: |
+          # 這些測試需要實際 Odoo runtime，CI 不執行，僅做 collect 確認語法正確
+          pip install pytest
+          python -m pytest --collect-only tests/ -q 2>/tmp/pytest_err || (
+            # collect-only 在缺少 odoo 模組時會 ImportError；只要不是 SyntaxError 就視為 PASS
+            if grep -E "SyntaxError|IndentationError" /tmp/pytest_err >/dev/null; then
+              echo "::error::Python tests have syntax errors"
+              cat /tmp/pytest_err
+              exit 1
+            fi
+            echo "::notice::pytest collect-only skipped due to missing Odoo runtime (expected in CI)"
+          )
+
+      - name: Bash scripts syntax check
+        run: |
+          fails=0
+          for f in tests/scripts/*.sh; do
+            if ! bash -n "$f"; then
+              echo "::error file=$f::bash syntax error"
+              fails=$((fails+1))
+            fi
+          done
+          if [ "$fails" -gt 0 ]; then exit 1; fi
+
+  xml:
+    name: XML well-formed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install xmllint
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils
+      - name: Validate all XML files
+        run: |
+          fails=0
+          while IFS= read -r f; do
+            if ! xmllint --noout "$f" 2>/tmp/xml_err; then
+              echo "::error file=$f::$(cat /tmp/xml_err)"
+              fails=$((fails+1))
+            fi
+          done < <(find . -name '*.xml' -not -path './node_modules/*')
+          if [ "$fails" -gt 0 ]; then
+            echo "::error::$fails XML file(s) failed validation"
+            exit 1
+          fi
+
+  backend-tests:
+    # Sprint 114(2026-05-16):font_serve / zip_guard backend HttpCase 進 CI、
+    # 目前 workflow_dispatch 手動觸發(mirror visual-regression 模式)、
+    # 連續 3 次成功後 Sprint 115+ 候選 promote 到 push:main / PR gate。
+    # 紀律 #14.b / #18 enforce — 漸進式 CI gate、避免新增 flaky check block 真 PR。
+    name: Backend Tests (font_serve, manual)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.event_name == 'workflow_dispatch'
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull Odoo 18 image
+        # 用 upstream odoo:18、避免依賴 outer odoo18-docker repo 的 Dockerfile(geo/docxtpl 等
+        # 額外 deps 與 font_serve 測試無關、Sprint 114 範圍刻意縮限)
+        run: docker pull odoo:18.0
+
+        # font_serve 12 HttpCase 真跑:啟動 odoo、install dobtor_doc_editor、run --test-tags=font_serve
+        # 結果驗證走「grep -E '[1-9][0-9]* failed'」反向 gate(0 failed = green)
+      - name: Install module + run font_serve tests
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/odoo-backend
+          docker run --rm --network host \
+            -v "${GITHUB_WORKSPACE}":/mnt/extra-addons \
+            -v /tmp/odoo-backend:/tmp/odoo-backend \
+            -e HOST=localhost -e USER=odoo -e PASSWORD=odoo \
+            odoo:18.0 \
+            odoo \
+              --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons \
+              -d ci_backend_test \
+              --db_host=localhost --db_user=odoo --db_password=odoo \
+              -i dobtor_doc_editor \
+              --test-enable \
+              --test-tags=font_serve \
+              --stop-after-init \
+              --max-cron-threads=0 \
+              --http-port=8169 \
+              --logfile=/tmp/odoo-backend/run.log \
+              2>&1 | tee /tmp/odoo-backend/stdout.log
+
+          # 反向 gate:任何 "[1-9][0-9]* failed" 或 "[1-9][0-9]* error" 都 fail
+          if grep -aE "[1-9][0-9]* (failed|error\(s\))" /tmp/odoo-backend/stdout.log; then
+            echo "::error::backend tests reported failures"
+            exit 1
+          fi
+
+          # 正向 gate:必須看到「12 tests」字樣(防止 0 test 假綠)
+          if ! grep -aE "of 12 tests when loading database" /tmp/odoo-backend/stdout.log; then
+            echo "::error::expected 12 font_serve tests, but pattern not found in log"
+            exit 1
+          fi
+
+          echo "✓ All 12 font_serve tests passed"
+
+      - name: Upload backend test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-log
+          path: /tmp/odoo-backend/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  visual-regression:
+    name: Visual Regression (manual / nightly only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+      - name: Note
+        run: |
+          echo "::warning::Visual regression requires running Odoo + LibreOffice container."
+          echo "Run locally via: bash tests/scripts/run_visual_regression.sh"
+          echo "Skipped in CI for now (Phase F infrastructure planned)."

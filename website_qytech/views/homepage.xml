@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 千溢科技完整首頁：組裝 6 區段 + 導覽列 + 頁尾 + 登入視窗 -->
+    <template id="qytech_homepage" name="千溢科技首頁">
+        <t t-call="website.layout">
+            <t t-set="pageName" t-value="'qytech_homepage'"/>
+            <div id="wrap" class="oe_structure">
+                <!-- Noto Sans TC 字型 -->
+                <link rel="stylesheet"
+                      href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&amp;display=swap"/>
+
+                <t t-call="website_qytech.s_qytech_navbar"/>
+                <t t-call="website_qytech.s_qytech_hero"/>
+                <t t-call="website_qytech.s_qytech_about"/>
+                <t t-call="website_qytech.s_qytech_products"/>
+                <t t-call="website_qytech.s_qytech_help"/>
+                <t t-call="website_qytech.s_qytech_contact"/>
+                <t t-call="website_qytech.s_qytech_footer"/>
+                <t t-call="website_qytech.s_qytech_login_modal"/>
+            </div>
+        </t>
+    </template>
+
+</odoo>
