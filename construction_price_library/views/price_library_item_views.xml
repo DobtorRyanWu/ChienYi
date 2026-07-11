@@ -9,11 +9,9 @@
         <field name="model">price.library.item</field>
         <field name="arch" type="xml">
             <list string="價格庫項目" create="false" edit="false" delete="false">
-                <field name="item_no"/>
                 <field name="name"/>
                 <field name="category_id"/>
                 <field name="unit"/>
-                <field name="company_id" groups="construction_supervision_base.group_supervisor_admin"/>
                 <field name="unit_price" sum="總計"/>
                 <field name="suggested_unit_price" optional="show"/>
                 <field name="price_cv" widget="percentage" optional="show"/>
@@ -54,10 +52,6 @@
                         <h1>
                             <field name="name" placeholder="項目名稱..." readonly="1"/>
                         </h1>
-                        <div class="o_row">
-                            <label for="item_no"/>
-                            <field name="item_no" placeholder="項目編號" readonly="1"/>
-                        </div>
                     </div>
                     <group>
                         <group string="基本資訊">
@@ -161,9 +155,7 @@
         <field name="model">price.library.item</field>
         <field name="arch" type="xml">
             <search string="搜尋價格庫項目">
-                <field name="name" string="名稱/編號"
-                       filter_domain="['|', ('name', 'ilike', self), ('item_no', 'ilike', self)]"/>
-                <field name="item_no"/>
+                <field name="name" string="名稱"/>
                 <field name="category_id"/>
                 <field name="unit"/>
                 <field name="specification"/>
@@ -186,8 +178,6 @@
                         domain="[('price_date', '&gt;=', (context_today()-relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
                 <separator/>
                 <group expand="0" string="群組">
-                    <filter name="group_by_company" string="公司" context="{'group_by': 'company_id'}"
-                            groups="construction_supervision_base.group_supervisor_admin"/>
                     <filter name="group_by_category" string="分類"
                             context="{'group_by': 'category_id'}"/>
                     <filter name="group_by_unit" string="單位"
@@ -208,7 +198,6 @@
         <field name="arch" type="xml">
             <kanban class="o_kanban_mobile" create="false">
                 <field name="name"/>
-                <field name="item_no"/>
                 <field name="category_id"/>
                 <field name="unit"/>
                 <field name="unit_price"/>
@@ -229,12 +218,7 @@
                             </div>
                         </div>
                         <div class="row">
-                            <div class="col-6">
-                                <span class="text-muted">
-                                    <field name="item_no"/>
-                                </span>
-                            </div>
-                            <div class="col-6 text-end">
+                            <div class="col-12 text-end">
                                 <field name="category_id"/>
                             </div>
                         </div>
@@ -253,8 +237,7 @@
         <field name="view_mode">list,kanban,form</field>
         <field name="search_view_id" ref="view_price_library_item_search"/>
         <field name="context">{
-            'search_default_filter_active': 1,
-            'search_default_group_by_company': 1
+            'search_default_filter_active': 1
         }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
@@ -277,7 +260,6 @@
             <list string="價格變更歷史" create="false" edit="false">
                 <field name="change_date"/>
                 <field name="item_id"/>
-                <field name="item_no"/>
                 <field name="category_id"/>
                 <field name="old_price"/>
                 <field name="new_price"/>
@@ -304,7 +286,6 @@
                     <group>
                         <group string="項目資訊">
                             <field name="item_id"/>
-                            <field name="item_no"/>
                             <field name="category_id"/>
                         </group>
                         <group string="變更資訊">
@@ -337,7 +318,6 @@
         <field name="arch" type="xml">
             <search string="搜尋價格變更歷史">
                 <field name="item_id"/>
-                <field name="item_no"/>
                 <field name="category_id"/>
                 <field name="change_reason"/>
                 <separator/>

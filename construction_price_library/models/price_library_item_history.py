@@ -32,12 +32,6 @@ class PriceLibraryItemHistory(models.Model):
         store=True,
         help='項目名稱（便於搜尋）')
 
-    item_no = fields.Char(
-        related='item_id.item_no',
-        string='項目編號',
-        store=True,
-        help='項目編號（便於搜尋）')
-
     category_id = fields.Many2one(
         related='item_id.category_id',
         string='分類',

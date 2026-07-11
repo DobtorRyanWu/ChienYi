@@ -11,7 +11,6 @@
             <form string="從專案匯入成本分析">
                 <group>
                     <group>
-                        <field name="company_id" groups="base.group_multi_company"/>
                         <field name="source_project_id"/>
                         <field name="task_count"/>
                         <field name="currency_id" invisible="1"/>
@@ -47,7 +46,6 @@
             <form string="從 XML 匯入成本分析">
                 <group>
                     <field name="state" invisible="1"/>
-                    <field name="company_id" groups="base.group_multi_company"/>
                     <field name="xml_file" filename="xml_filename"
                            invisible="state == 'preview'"/>
                     <field name="xml_filename" invisible="state == 'preview'"/>

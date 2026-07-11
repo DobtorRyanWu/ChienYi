@@ -59,7 +59,7 @@
         <record id="rule_price_library_category_multi_company" model="ir.rule">
             <field name="name">價格庫分類 - 多公司隔離</field>
             <field name="model_id" ref="model_price_library_category"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -71,7 +71,7 @@
         <record id="rule_price_library_item_multi_company" model="ir.rule">
             <field name="name">價格庫項目 - 多公司隔離</field>
             <field name="model_id" ref="model_price_library_item"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -83,7 +83,7 @@
         <record id="rule_price_library_item_source_multi_company" model="ir.rule">
             <field name="name">價格庫項目來源 - 多公司隔離</field>
             <field name="model_id" ref="model_price_library_item_source"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -95,7 +95,7 @@
         <record id="rule_price_library_item_history_multi_company" model="ir.rule">
             <field name="name">價格歷史 - 多公司隔離</field>
             <field name="model_id" ref="model_price_library_item_history"/>
-            <field name="domain_force">[('item_id.company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>

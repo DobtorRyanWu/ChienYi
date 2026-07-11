@@ -71,7 +71,6 @@
                         <page string="價格項目" name="items">
                             <field name="item_ids">
                                 <list string="價格項目">
-                                    <field name="item_no"/>
                                     <field name="name"/>
                                     <field name="unit"/>
                                     <field name="unit_price"/>

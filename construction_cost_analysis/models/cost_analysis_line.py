@@ -132,7 +132,6 @@ class CostAnalysisLine(models.Model):
     library_item_id = fields.Many2one(
         'price.library.item',
         string='價格庫項目',
-        domain="[('company_id', '=', company_id)]",
         help='關聯的價格庫項目')
 
     suggested_unit_price = fields.Float(

@@ -17,7 +17,7 @@ class PriceLibraryItem(models.Model):
     """
     _name = 'price.library.item'
     _description = '價格庫項目'
-    _order = 'category_id, item_no, name'
+    _order = 'category_id, name'
     _inherit = ['mail.thread']
 
     # === 基本資訊 ===
@@ -27,17 +27,6 @@ class PriceLibraryItem(models.Model):
         index=True,
         tracking=True,
         help='工項名稱')
-
-    item_no = fields.Char(
-        string='項目編號',
-        index=True,
-        tracking=True,
-        help='項目編號，用於快速識別和排序（注意：不同專案的相同編號可能指不同工項）')
-
-    parent_item_no = fields.Char(
-        string='父工項編號',
-        index=True,
-        help='父工項編號，用於參考層級關係（僅供參考，不參與唯一性判斷）')
 
     ref_item_code = fields.Char(
         string='參考工項代碼',
@@ -347,23 +336,8 @@ class PriceLibraryItem(models.Model):
 
     # === 顯示名稱 ===
     def name_get(self):
-        """顯示編號和名稱"""
-        result = []
-        for item in self:
-            if item.item_no:
-                name = f'[{item.item_no}] {item.name}'
-            else:
-                name = item.name
-            result.append((item.id, name))
-        return result
-
-    @api.model
-    def _name_search(self, name, domain=None, operator='ilike', limit=None, order=None):
-        """支援依編號或名稱搜尋"""
-        domain = domain or []
-        if name:
-            domain = ['|', ('item_no', operator, name), ('name', operator, name)] + domain
-        return self._search(domain, limit=limit, order=order)
+        """顯示名稱"""
+        return [(item.id, item.name) for item in self]
 
     # === 動作方法 ===
     def action_view_history(self):

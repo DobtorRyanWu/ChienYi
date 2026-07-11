@@ -117,7 +117,6 @@ class PriceLibraryImportWizard(models.TransientModel):
             task_vals_list.append({
                 'project_id': self.project_id.project_id.id,
                 'name': item.name,
-                'item_no': item.item_no or '',
                 'unit': item.unit,
                 'unit_price': item.unit_price,
                 'planned_qty': qty,

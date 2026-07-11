@@ -131,8 +131,6 @@ class SupervisionProject(models.Model):
 
                     library_item = PriceLibraryItem.create({
                         'name': task.name,
-                        'item_no': task.item_no,
-                        'parent_item_no': task.parent_id.item_no if task.parent_id else False,
                         'unit': task.unit,
                         'unit_price': task.unit_price,
                         'company_id': self.company_id.id,

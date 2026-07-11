@@ -434,7 +434,7 @@ class CostAnalysis(models.Model):
     # 價格庫匯入方法
     # ========================================
     def action_import_suggested_prices(self):
-        """從價格庫比對建議單價（策略 A + 策略 B）"""
+        """從價格庫比對建議單價（正規化名稱 + 正規化單位，忽略公司）"""
         import unicodedata
         import re
 
@@ -447,41 +447,47 @@ class CostAnalysis(models.Model):
             raise UserError('沒有可比對的明細！')
 
         PriceItem = self.env['price.library.item']
-        base_domain = [('company_id', '=', self.company_id.id), ('active', '=', True)]
+        Task = self.env['project.task']
+        # 單庫單公司：比對不以 company 過濾，僅限啟用中的項目
+        base_domain = [('active', '=', True)]
         by_name = ambiguous = 0
-        unmatched_names = []
+        unmatched_no_name = []   # 找不到同名項目
+        unmatched_unit = []      # 有同名但單位不符
 
         for line in self.line_ids.filtered(lambda l: not l.is_summary_item):
-            matched = False
+            # 以正規化名稱搜尋候選；單位改在 Python 端正規化後比對（較耐髒資料）
+            norm = normalize(line.name)
+            candidates = PriceItem.search(base_domain + [('name_normalized', '=', norm)])
 
-            # 策略 B：正規化名稱 + 單位比對
-            if not matched:
-                norm = normalize(line.name)
-                items = PriceItem.search(
-                    base_domain + [
-                        ('name_normalized', '=', norm),
-                        ('unit', '=', line.unit),
-                    ])
-                if len(items) == 1:
-                    line.library_item_id = items
-                    line.match_status = 'matched'
-                    by_name += 1
-                    matched = True
-                elif len(items) > 1:
-                    line.match_status = 'ambiguous'
-                    ambiguous += 1
-                    matched = True
-
-            if not matched:
+            if not candidates:
                 line.match_status = 'none'
-                unmatched_names.append(f'  • {line.item_no} {line.name}')
+                unmatched_no_name.append(f'  • {line.name}')
+                continue
 
-        total = by_name
-        msg = f'成功比對 {total} 筆（名稱比對 {by_name}）'
+            line_unit = Task._normalize_unit_display(line.unit)
+            unit_matched = candidates.filtered(
+                lambda it: Task._normalize_unit_display(it.unit) == line_unit
+            )
+            if len(unit_matched) == 1:
+                line.library_item_id = unit_matched
+                line.match_status = 'matched'
+                by_name += 1
+            elif len(unit_matched) > 1:
+                line.match_status = 'ambiguous'
+                ambiguous += 1
+            else:
+                # 找得到同名，但無單位相符者
+                line.match_status = 'none'
+                unmatched_unit.append(f'  • {line.name}（單位 {line.unit}）')
+
+        unmatched_count = len(unmatched_no_name) + len(unmatched_unit)
+        msg = f'成功比對 {by_name} 筆'
         if ambiguous:
             msg += f'\n{ambiguous} 筆有多個候選，請手動確認'
-        if unmatched_names:
-            msg += f'\n以下 {len(unmatched_names)} 筆無法比對：\n' + '\n'.join(unmatched_names)
+        if unmatched_unit:
+            msg += f'\n以下 {len(unmatched_unit)} 筆有同名項目但單位不符：\n' + '\n'.join(unmatched_unit)
+        if unmatched_no_name:
+            msg += f'\n以下 {len(unmatched_no_name)} 筆在價格庫找不到同名項目：\n' + '\n'.join(unmatched_no_name)
 
         return {
             'type': 'ir.actions.client',
@@ -489,8 +495,10 @@ class CostAnalysis(models.Model):
             'params': {
                 'title': '價格庫比對完成',
                 'message': msg,
-                'type': 'success' if not (ambiguous or unmatched_names) else 'warning',
-                'sticky': bool(unmatched_names),
+                'type': 'success' if not (ambiguous or unmatched_count) else 'warning',
+                'sticky': bool(unmatched_count),
+                # 通知後軟重整當前表單，讓比對後的建議單價/金額/統計即時刷新（否則畫面停在舊值）
+                'next': {'type': 'ir.actions.client', 'tag': 'soft_reload'},
             },
         }
 

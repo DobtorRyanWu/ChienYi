@@ -25,7 +25,7 @@
                 <field name="suggested_amount" sum="建議總金額"/>
                 <field name="price_variance_amount" sum="差異總額"/>
                 <field name="price_variance_pct"/>
-                <field name="price_variance_level" invisible="1"/>
+                <field name="price_variance_level" column_invisible="1"/>
                 <field name="has_suggestion"/>
                 <field name="is_summary_item"/>
             </list>
@@ -43,7 +43,6 @@
                   decoration-muted="state == 'done'"
                   decoration-success="state == 'confirmed'">
                 <field name="name"/>
-                <field name="company_id" groups="base.group_multi_company"/>
                 <field name="import_mode"/>
                 <field name="total_budget" sum="招標總計"/>
                 <field name="suggested_total" sum="建議總計"/>
@@ -107,7 +106,6 @@
                     </div>
                     <group>
                         <group>
-                            <field name="company_id" groups="base.group_multi_company"/>
                             <field name="import_mode"/>
                             <field name="source_project_id"
                                    invisible="import_mode != 'project'"/>
@@ -138,7 +136,12 @@
                     <notebook>
                         <page string="預算明細" name="lines">
                             <field name="line_ids" context="{'tree_view_ref': 'construction_cost_analysis.view_cost_analysis_line_tree'}">
-                                <list editable="bottom">
+                                <list editable="bottom"
+                                      decoration-success="price_variance_level == 'excellent'"
+                                      decoration-info="price_variance_level == 'good'"
+                                      decoration-warning="price_variance_level == 'warning'"
+                                      decoration-bf="price_variance_level == 'alert'"
+                                      decoration-danger="price_variance_level == 'critical'">
                                     <field name="sequence" widget="handle"/>
                                     <field name="item_no"/>
                                     <field name="name"/>
@@ -146,11 +149,11 @@
                                     <field name="quantity"/>
                                     <field name="contract_unit_price"/>
                                     <field name="contract_amount"/>
-                                    <field name="library_item_id"
-                                           domain="[('company_id', '=', parent.company_id)]"/>
+                                    <field name="library_item_id"/>
                                     <field name="suggested_unit_price"/>
                                     <field name="suggested_amount"/>
                                     <field name="price_variance_pct"/>
+                                    <field name="price_variance_level" column_invisible="1"/>
                                     <field name="has_suggestion"/>
                                     <field name="is_summary_item"/>
                                 </list>
@@ -177,7 +180,6 @@
         <field name="arch" type="xml">
             <search string="搜尋成本分析">
                 <field name="name"/>
-                <field name="company_id" groups="base.group_multi_company"/>
                 <filter string="草稿" name="filter_draft" domain="[('state', '=', 'draft')]"/>
                 <filter string="已確認" name="filter_confirmed" domain="[('state', '=', 'confirmed')]"/>
                 <filter string="已完成" name="filter_done" domain="[('state', '=', 'done')]"/>
@@ -185,11 +187,8 @@
                 <filter string="從專案匯入" name="filter_from_project" domain="[('import_mode', '=', 'project')]"/>
                 <filter string="從 XML 匯入" name="filter_from_xml" domain="[('import_mode', '=', 'xml')]"/>
                 <group expand="0" string="分組">
-                    <filter string="工程案件" name="group_project" context="{'group_by': 'source_project_id'}"/>
                     <filter string="狀態" name="group_by_state" context="{'group_by': 'state'}"/>
                     <filter string="匯入模式" name="group_by_import_mode" context="{'group_by': 'import_mode'}"/>
-                    <filter string="公司" name="group_by_company" context="{'group_by': 'company_id'}"
-                            groups="base.group_multi_company"/>
                 </group>
             </search>
         </field>
@@ -203,7 +202,7 @@
         <field name="res_model">cost.analysis</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_cost_analysis_search"/>
-        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="context">{}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立新的成本分析

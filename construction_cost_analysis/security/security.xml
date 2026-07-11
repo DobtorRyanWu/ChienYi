@@ -11,7 +11,7 @@
         <record id="rule_cost_analysis_multi_company" model="ir.rule">
             <field name="name">成本分析 - 多公司隔離</field>
             <field name="model_id" ref="model_cost_analysis"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
@@ -23,7 +23,7 @@
         <record id="rule_cost_analysis_line_multi_company" model="ir.rule">
             <field name="name">成本分析明細 - 多公司隔離</field>
             <field name="model_id" ref="model_cost_analysis_line"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="True"/>
