@@ -12,7 +12,9 @@ body:has(.oe_login_form) {
     background-position: center;
     background-repeat: no-repeat;
     background-attachment: fixed;
-    background-color: #1a2a4a;
+    /* !important 必要：無 website 模組的環境（雲端）body 帶 Bootstrap .bg-100，
+       其 background-color:#F8F9FA 是 !important，會蓋掉此處底色 */
+    background-color: #1a2a4a !important;
     min-height: 100vh !important;
 }
 
@@ -35,8 +37,14 @@ body:has(.oe_login_form) main {
     overflow-y: auto !important;
 }
 
-/* === 登入容器 → 漸層玻璃卡片 === */
-body:has(.oe_login_form) .oe_website_login_container {
+/* === 登入容器 → 漸層玻璃卡片 ===
+   登入頁最外層的容器由「有沒有裝 website 模組」決定，兩種都要涵蓋：
+   - .oe_website_login_container：有 website（website 模組 replace 掉 web.login_layout 根節點）
+   - .card.o_database_list      ：無 website（Odoo 原生 web.login_layout 的卡片）
+   選擇器前綴 body:has(.oe_login_form) 不可省略：Bootstrap 的 .bg-100 / .border-0 是
+   !important，要靠 specificity 才蓋得過（0,3,1 > 0,1,0），不是靠 CSS 來源順序。 */
+body:has(.oe_login_form) .oe_website_login_container,
+body:has(.oe_login_form) .card.o_database_list {
     max-width: 460px !important;
     width: 100% !important;
     margin: 0 auto !important;
@@ -56,6 +64,24 @@ body:has(.oe_login_form) .oe_website_login_container {
     overflow: hidden !important;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35),
                 inset 0 1px 0 rgba(255, 255, 255, 0.75) !important;
+}
+
+/* === 無 website 環境專屬修正（有 website 的環境沒有這些節點，規則零命中） === */
+
+/* web.login_layout 比 website 版多包一層 .card-body，它會帶入自己的 padding、
+   半透明白底與圓角，疊在玻璃卡片上變成「卡片裡又一張卡片」。
+   全部歸零，讓 .card-body 變成純粹的透明容器，視覺上與 website 版一致。
+   （padding 歸零也是 .cy-login-partners 負 margin 能對齊卡片邊緣的前提） */
+body:has(.oe_login_form) .card.o_database_list > .card-body {
+    padding: 0 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+}
+
+/* 隱藏 Odoo 預設公司 logo（/web/binary/company_logo）。
+   EAGLE logo 已由 login_brand_override 提供，不隱藏會變成上下兩個 logo */
+body:has(.oe_login_form) .card.o_database_list > .card-body > .border-bottom {
+    display: none !important;
 }
 
 /* === EAGLE 主視覺（大尺寸） === */
@@ -203,7 +229,10 @@ body:has(.oe_login_form) .text-center.small.mt-4.pt-3.border-top {
         align-items: center !important;
         padding: 1rem !important;
     }
-    body:has(.oe_login_form) .oe_website_login_container {
+    /* 兩種容器都要改：此處 padding 1.5rem 與下方 .cy-login-partners 的 margin -1.5rem
+       是成對的，只改其中一種容器會讓另一種環境的合作單位 logo 條左右露白邊 */
+    body:has(.oe_login_form) .oe_website_login_container,
+    body:has(.oe_login_form) .card.o_database_list {
         margin: 1rem auto !important;
         padding: 1.2rem 1.5rem !important;
         border-radius: 20px !important;
