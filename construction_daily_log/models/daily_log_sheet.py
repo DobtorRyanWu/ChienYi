@@ -707,7 +707,11 @@ class DailyLogSheet(models.Model):
             # 這些欄位，屬「衍生視圖更新」而非「竄改歷史輸入」，故允許寫入已鎖定日誌。
             # 真正受鎖定保護的是「使用者輸入欄位」（本日完成數量、天氣、人機、備註…）。
             computed_fields = {n for n, f in self._fields.items() if f.compute}
-            blocked = set(vals.keys()) - unlock_fields - computed_fields
+            # A（2026-07-14）：照片為附加證據，不改動日誌的「使用者輸入欄位」內容，
+            # 故鎖定（超過 14 天）後仍允許「補照片」（歷史建檔需求）。
+            # 真正受鎖定保護的輸入欄位（完成數量/天氣/人機/備註…）不受此影響。
+            photo_fields = {'photo_ids'}
+            blocked = set(vals.keys()) - unlock_fields - computed_fields - photo_fields
             if blocked:
                 raise UserError(
                     '無法修改已鎖定的日誌！\n\n'

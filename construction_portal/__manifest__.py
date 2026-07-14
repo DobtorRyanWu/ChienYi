@@ -60,6 +60,7 @@ v2.0.0 (Portal v10)
         'views/portal_photo_map_templates.xml',
         'views/portal_daily_log_templates.xml',
         'views/portal_slip_templates.xml',
+        'views/portal_test_templates.xml',
         'views/portal_document_templates.xml',
         'views/portal_settings_templates.xml',
         'views/portal_schedule_templates.xml',

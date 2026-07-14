@@ -847,6 +847,11 @@
                         <span class="cy-drawer-item-label">自主檢查樣板庫</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
+                    <a class="cy-drawer-item" t-if="project and 'supervision.test.record' in request.env" t-attf-href="/construction/#{project.id}/tests">
+                        <span class="cy-drawer-item-icon">🧪</span>
+                        <span class="cy-drawer-item-label">檢試驗管制</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
                 </div>
 
                 <!-- 系統組 (個人帳號入口已併到上方 user block,點名字即跳 /my/account) -->

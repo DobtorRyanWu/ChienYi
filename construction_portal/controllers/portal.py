@@ -71,7 +71,11 @@ def _portal_save_photos(env, record, supervision_project, files, meta):
             })
         new_atts.append(att.id)
 
-    if new_atts:
+    # C（2026-07-14）：僅在 record 真有 photo_ids 欄位時才寫入。
+    # 通報單(reservation.notification.slip)沒有 photo_ids，靠 computed
+    # related_photo_ids 反查 supervision.photo(source_model='notification')，
+    # 上面已建好 supervision.photo，故此處跳過即可正確顯示。
+    if new_atts and 'photo_ids' in record._fields:
         record.sudo().write({'photo_ids': [(4, aid) for aid in new_atts]})
     return new_atts
 
@@ -1559,11 +1563,9 @@ class ConstructionPortal(CustomerPortal):
                 'supervision.project', log.supervision_project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
-        if log.is_locked:
-            return request.redirect(
-                f'/construction/{project.id}/daily-log/{log.id}?error=locked'
-            )
-
+        # A（2026-07-14）：照片為附加證據、不改動已定稿的日誌欄位內容，
+        # 故鎖定（超過 14 天）的日誌仍允許「補上照片」（歷史建檔需求）。
+        # 日誌內容編輯仍受 is_locked 保護（在編輯路由把關），此處只加照片。
         meta = {
             'description': post.get('description') or '',
             'category': post.get('category') or False,
@@ -3312,6 +3314,36 @@ class ConstructionPortal(CustomerPortal):
 
         return request.render('construction_portal.portal_construction_photo_upload', values)
 
+    @http.route(['/construction/<int:project_id>/signboard/photo/upload'],
+                type='http', auth='user', website=True, methods=['POST'], csrf=True)
+    def portal_construction_signboard_photo_upload(self, project_id, **post):
+        """C（2026-07-14）：工程告示牌照片上傳（專案層級 signboard_photo_ids）。"""
+        try:
+            project = self._document_check_access('supervision.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        att_ids = []
+        for f in request.httprequest.files.getlist('photos'):
+            if not f or not f.filename:
+                continue
+            data = f.read()
+            if not data:
+                continue
+            att = request.env['ir.attachment'].sudo().create({
+                'name': f.filename,
+                'datas': base64.b64encode(data),
+                'res_model': 'supervision.project',
+                'res_id': project.id,
+                'mimetype': f.mimetype or 'image/jpeg',
+                'public': True,
+            })
+            att_ids.append(att.id)
+        if att_ids:
+            project.sudo().write(
+                {'signboard_photo_ids': [(4, aid) for aid in att_ids]})
+        return request.redirect(
+            f'/construction/{project.id}/photos?message=signboard_added')
+
     @http.route(['/construction/photo/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_photo_upload(self, **post):
@@ -3541,6 +3573,113 @@ class ConstructionPortal(CustomerPortal):
         }
 
         return request.render('construction_portal.portal_construction_slip_detail', values)
+
+    # ==================== 檢試驗管制（C 2026-07-14）====================
+
+    @http.route(['/construction/<int:project_id>/tests',
+                 '/construction/<int:project_id>/tests/page/<int:page>'],
+                type='http', auth='user', website=True)
+    def portal_construction_tests(self, project_id, page=1, **kw):
+        """檢試驗管制列表"""
+        try:
+            project = self._document_check_access('supervision.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+
+        # construction_test 非硬依賴（沿用 _get_test_alerts 的存在性守衛慣例）
+        if 'supervision.test.record' not in request.env:
+            return request.redirect(f'/construction/{project_id}')
+        Test = request.env['supervision.test.record']
+        domain = [('project_id', '=', project.id)]
+        result_filter = kw.get('result')
+        if result_filter in ('pass', 'fail', 'pending'):
+            domain.append(('result', '=', result_filter))
+
+        test_count = Test.search_count(domain)
+        pager = portal_pager(
+            url=f'/construction/{project_id}/tests',
+            url_args={'result': result_filter} if result_filter else {},
+            total=test_count,
+            page=page,
+            step=self._items_per_page,
+        )
+        tests = Test.search(
+            domain, order='sample_date desc, id desc',
+            limit=self._items_per_page, offset=pager['offset'])
+
+        values = {
+            'project': project,
+            'tests': tests,
+            'test_count': test_count,
+            'page_name': 'construction_tests',
+            'pager': pager,
+            'result_filter': result_filter or '',
+            'default_url': f'/construction/{project_id}/tests',
+            'day_count': self._get_project_day_count(project),
+            'nav_badges': self._get_nav_badges(project),
+        }
+        return request.render('construction_portal.portal_construction_tests', values)
+
+    @http.route(['/construction/<int:project_id>/test/<int:test_id>'],
+                type='http', auth='user', website=True)
+    def portal_construction_test_detail(self, project_id, test_id, **kw):
+        """檢試驗管制詳情"""
+        try:
+            project = self._document_check_access('supervision.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+
+        if 'supervision.test.record' not in request.env:
+            return request.redirect(f'/construction/{project_id}')
+        Test = request.env['supervision.test.record']
+        test = Test.search(
+            [('id', '=', test_id), ('project_id', '=', project.id)], limit=1)
+        if not test:
+            return request.redirect(f'/construction/{project_id}/tests')
+
+        result_selection = dict(Test.fields_get(['result'])['result']['selection'])
+        status_selection = dict(
+            Test.fields_get(['processing_status'])['processing_status']['selection'])
+
+        values = {
+            'project': project,
+            'test': test,
+            'page_name': 'construction_test_detail',
+            'result_selection': result_selection,
+            'status_selection': status_selection,
+            'day_count': self._get_project_day_count(project),
+            'nav_badges': self._get_nav_badges(project),
+            'object': test,
+            'disable_composer': False,
+            'message_per_page': 10,
+        }
+        return request.render('construction_portal.portal_construction_test_detail', values)
+
+    @http.route(['/construction/<int:project_id>/test/<int:test_id>/photo/upload'],
+                type='http', auth='user', website=True, methods=['POST'], csrf=True)
+    def portal_construction_test_photo_upload(self, project_id, test_id, **post):
+        """C（2026-07-14）：檢試驗照片上傳。
+
+        test.record 無 photo_ids 欄位，靠 computed related_photo_ids 反查
+        supervision.photo(source_model='test', source_id=test.id)。
+        """
+        try:
+            project = self._document_check_access('supervision.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        if 'supervision.test.record' not in request.env:
+            return request.redirect(f'/construction/{project_id}')
+        test = request.env['supervision.test.record'].search(
+            [('id', '=', test_id), ('project_id', '=', project.id)], limit=1)
+        if not test:
+            return request.redirect(f'/construction/{project_id}/tests')
+        files = request.httprequest.files.getlist('photos')
+        _portal_save_photos(
+            request.env, test, project, files,
+            {'source_model': 'test',
+             'description': post.get('description') or '',
+             'location_description': post.get('location_description') or ''})
+        return request.redirect(f'/construction/{project_id}/test/{test_id}?message=photo_added')
 
     # ==================== 檔案管理 ====================
 
@@ -3837,6 +3976,32 @@ class ConstructionPortal(CustomerPortal):
         return self._run_review_action(
             slip, 'action_close',
             f'/construction/{project_id}/slip/{slip_id}', f'/construction/{project_id}/slip/{slip_id}')
+
+    @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/photo/upload'],
+                type='http', auth='user', website=True, methods=['POST'], csrf=True)
+    def portal_construction_slip_photo_upload(self, project_id, slip_id, **post):
+        """C（2026-07-14）：通報單照片上傳。
+
+        slip 無 photo_ids 欄位，靠 computed related_photo_ids 反查
+        supervision.photo(source_model='notification', source_id=slip.id)。
+        _portal_save_photos 會建好 attachment(public) + supervision.photo，
+        故存檔後即出現在通報單詳情頁。
+        """
+        try:
+            project = self._document_check_access('supervision.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        slip = request.env['reservation.notification.slip'].search(
+            [('id', '=', slip_id), ('project_id', '=', project.id)], limit=1)
+        if not slip:
+            return request.redirect(f'/construction/{project_id}/slips')
+        files = request.httprequest.files.getlist('photos')
+        _portal_save_photos(
+            request.env, slip, project, files,
+            {'source_model': 'notification',
+             'description': post.get('description') or '',
+             'location_description': post.get('location_description') or ''})
+        return request.redirect(f'/construction/{project_id}/slip/{slip_id}?message=photo_added')
 
     @http.route(['/construction/<int:project_id>/daily-log/<int:log_id>/mark-filled'],
                 type='http', auth='user', website=True, methods=['POST'])

@@ -52,6 +52,30 @@
                         </div>
                     </t>
 
+                    <!-- C（2026-07-14）：工程告示牌照片（專案層級 signboard_photo_ids）-->
+                    <div class="cy-section-title" style="margin-top: 0;">
+                        <span><i class="fa fa-image" style="margin-right: 6px;"/>工程告示牌照片 (<t t-esc="len(project.signboard_photo_ids)"/>)</span>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <t t-if="project.signboard_photo_ids">
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+                                <t t-foreach="project.signboard_photo_ids" t-as="sbatt">
+                                    <img t-attf-src="/web/image/#{sbatt.id}"
+                                         style="width: 78px; height: 78px; object-fit: cover; border-radius: 6px;"/>
+                                </t>
+                            </div>
+                        </t>
+                        <form t-attf-action="/construction/#{project.id}/signboard/photo/upload"
+                              method="post" enctype="multipart/form-data">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <input type="file" name="photos" accept="image/*" multiple="multiple"
+                                   capture="environment" class="form-control" style="margin-bottom: 8px; padding: 10px;"/>
+                            <button type="submit" class="cy-btn cy-btn-outline" style="width: 100%;">
+                                <i class="fa fa-camera"/> 上傳告示牌照片
+                            </button>
+                        </form>
+                    </div>
+
                     <!-- 篩選面板（可摺疊）-->
                     <div class="cy-section-title" style="cursor: pointer; margin-top: 0;" data-collapse-toggle="photo_filter_panel">
                         <span>

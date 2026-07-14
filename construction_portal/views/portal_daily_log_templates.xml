@@ -191,9 +191,24 @@
                             <span class="cy-event-icon" style="color: var(--wb-amber);"><i class="fa fa-lock"/></span>
                             <div class="cy-event-body">
                                 <div class="cy-event-title" style="color: var(--wb-amber);">此日誌已鎖定</div>
-                                <div class="cy-event-desc">超過 14 天自動鎖定，無法編輯</div>
+                                <div class="cy-event-desc">超過 14 天自動鎖定，無法編輯日誌內容</div>
                             </div>
                         </div>
+                        <!-- A（2026-07-14）：日誌鎖定後仍可「補照片」（歷史建檔）；不開放編輯內容 -->
+                        <div class="cy-section-title" style="margin-bottom: 8px;">
+                            <span><i class="fa fa-camera" style="margin-right: 6px;"/>追加照片（已鎖定，仍可補上照片）</span>
+                        </div>
+                        <form t-attf-action="/construction/daily-log/#{log.id}/photo/upload"
+                              method="post" enctype="multipart/form-data" style="margin-bottom: 16px;">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <input type="file" name="photos" accept="image/*" multiple="multiple"
+                                   capture="environment" class="form-control" style="margin-bottom: 8px; padding: 10px;"/>
+                            <input type="text" name="description" placeholder="照片說明（選填）"
+                                   class="form-control" style="margin-bottom: 8px;"/>
+                            <button type="submit" class="cy-btn cy-btn-primary" style="width: 100%;">
+                                <i class="fa fa-camera"/> 上傳照片
+                            </button>
+                        </form>
                     </t>
 
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
