@@ -3104,19 +3104,18 @@ class ConstructionPortal(CustomerPortal):
         defect = Defect.create(vals)
 
         # 處理照片上傳
+        # 注意：before_photo_ids 是 One2many 到 *.defect.improvement.photo（非 ir.attachment），
+        # 需用 (0, 0, {...}) 直接建立照片記錄；image 為 attachment=True，ORM 會自動建附件。
         uploaded_file = post.get('photo')
         if uploaded_file:
             import base64
-            file_data = base64.b64encode(uploaded_file.read())
-            attachment = request.env['ir.attachment'].sudo().create({
-                'name': uploaded_file.filename,
-                'datas': file_data,
-                'res_model': model,
-                'res_id': defect.id,
-                'type': 'binary',
-                'public': True,
-            })
-            defect.write({'before_photo_ids': [(4, attachment.id)]})
+            raw = uploaded_file.read()
+            if raw:
+                defect.write({'before_photo_ids': [(0, 0, {
+                    'image': base64.b64encode(raw),
+                    'image_filename': uploaded_file.filename,
+                    'photo_stage': 'before',
+                })]})
 
         return request.redirect(f'/construction/defect/{defect.id}?message=created')
 
@@ -3156,57 +3155,44 @@ class ConstructionPortal(CustomerPortal):
     @http.route(['/construction/defect/<int:defect_id>/improve'],
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_construction_defect_improve(self, defect_id, **post):
-        """提交缺失改善（改善說明、矯正措施、預防措施、改善後照片）"""
-        partner = request.env.user.partner_id
-
+        """提交缺失改善（改善說明、矯正措施、改善後照片）"""
         try:
             defect = self._browse_defect(defect_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        # 收齊文字欄位
+        # 收齊文字欄位（一般式/預約式 model 無 preventive_action 欄位，故不收）
         improvement_text = post.get('improvement_description', '').strip()
         corrective_action = post.get('corrective_action', '').strip()
-        preventive_action = post.get('preventive_action', '').strip()
 
         # 收改善後照片（支援多張）
+        # after_photo_ids 是 One2many 到 *.defect.improvement.photo，用 (0, 0, {...}) 直接建照片記錄；
+        # image 為 attachment=True，ORM 會自動建立對應附件。
         import base64
         uploaded_files = request.httprequest.files.getlist('after_photo')
-        attachment_ids = []
+        photo_commands = []
         for f in uploaded_files:
             if not f or not f.filename:
                 continue
             raw = f.read()
             if not raw:
                 continue
-            attachment = request.env['ir.attachment'].sudo().create({
-                'name': f.filename,
-                'datas': base64.b64encode(raw),
-                'res_model': defect._name,
-                'res_id': defect.id,
-                'type': 'binary',
-                'public': True,
-            })
-            attachment_ids.append(attachment.id)
+            photo_commands.append((0, 0, {
+                'image': base64.b64encode(raw),
+                'image_filename': f.filename,
+                'photo_stage': 'after',
+            }))
 
-        if hasattr(defect, 'portal_submit_improvement'):
-            defect.portal_submit_improvement(
-                improvement_text, partner,
-                after_photos=attachment_ids or None,
-                corrective_action=corrective_action or None,
-                preventive_action=preventive_action or None,
-            )
-        else:
-            # 一般式/預約式：直接寫入改善欄位
-            wvals = {}
-            if improvement_text:
-                wvals['improvement_result'] = improvement_text
-            if corrective_action:
-                wvals['improvement_action'] = corrective_action
-            if attachment_ids:
-                wvals['after_photo_ids'] = [(4, aid) for aid in attachment_ids]
-            if wvals:
-                defect.sudo().write(wvals)
+        # 一般式/預約式缺失改善：寫入改善欄位與改善後照片
+        wvals = {}
+        if improvement_text:
+            wvals['improvement_result'] = improvement_text
+        if corrective_action:
+            wvals['improvement_action'] = corrective_action
+        if photo_commands:
+            wvals['after_photo_ids'] = photo_commands
+        if wvals:
+            defect.sudo().write(wvals)
 
         return request.redirect(f'/construction/defect/{defect_id}?message=success')
 

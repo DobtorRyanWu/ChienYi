@@ -30,6 +30,13 @@
               action="action_reservation_defect_improvement_contractor"
               sequence="16"/>
 
+    <!-- 預約式逾期缺失（不分監造/營造） -->
+    <menuitem id="menu_reservation_defect_improvement_overdue"
+              name="預約式逾期缺失"
+              parent="construction_supervision_base.menu_defect_management"
+              action="action_reservation_defect_improvement_overdue"
+              sequence="37"/>
+
     <!-- NCR 缺失管理（隱藏，目前用不到） -->
     <menuitem id="menu_supervision_defect"
               name="缺失管理 (NCR)"
@@ -37,12 +44,6 @@
               action="action_supervision_defect"
               sequence="20"
               active="0"/>
-
-    <menuitem id="menu_supervision_defect_overdue"
-              name="逾期缺失"
-              parent="construction_supervision_base.menu_defect_management"
-              action="action_supervision_defect_overdue"
-              sequence="25"/>
 
     <!-- ========== 自主檢查選單 ========== -->
 

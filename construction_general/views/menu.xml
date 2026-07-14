@@ -19,19 +19,12 @@
               action="action_general_defect_improvement_contractor"
               sequence="11"/>
 
-    <!-- 一般式監造逾期缺失 (歸屬於 品質安全 > 缺失管理) -->
-    <menuitem id="menu_general_defect_improvement_supervision_overdue"
-              name="一般式監造逾期缺失"
+    <!-- 一般式逾期缺失 (不分監造/營造，歸屬於 品質安全 > 缺失管理) -->
+    <menuitem id="menu_general_defect_improvement_overdue"
+              name="一般式逾期缺失"
               parent="construction_supervision_base.menu_defect_management"
-              action="action_general_defect_improvement_supervision_overdue"
+              action="action_general_defect_improvement_overdue"
               sequence="35"/>
-
-    <!-- 一般式營造逾期缺失 (歸屬於 品質安全 > 缺失管理) -->
-    <menuitem id="menu_general_defect_improvement_contractor_overdue"
-              name="一般式營造逾期缺失"
-              parent="construction_supervision_base.menu_defect_management"
-              action="action_general_defect_improvement_contractor_overdue"
-              sequence="36"/>
 
     <!-- 一般式進度報告 (歸屬於 工程管理 > 進度管理) -->
     <menuitem id="menu_general_progress_report"
