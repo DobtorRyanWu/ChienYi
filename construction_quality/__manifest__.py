@@ -31,6 +31,7 @@
     'depends': [
         'construction_supervision_base',
         'construction_photo',
+        'construction_notification_slip',  # reservation_defect/inspection 用 Many2one('reservation.notification.slip')
         'mail',
     ],
     'data': [

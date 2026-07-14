@@ -44,6 +44,60 @@ _VAR_NAME_RE = re.compile(r'^[A-Za-z_][\w]*$')
 _JINJA_VARNAME_PATTERN = re.compile(r'\{\{\s*([A-Za-z_][\w]*)\s*\}\}')
 
 
+class _SafeRecordProxy:
+    """唯讀欄位值的 record 代理，防 SSTI（Jinja `object` 洩漏活 ORM 物件）。
+
+    背景：SandboxedEnvironment 只擋 dunder（`__class__` 等），擋不住把活 recordset
+    餵進 template 後的合法屬性鏈——`{{ object.env.cr.execute(...) }}` /
+    `{{ object.sudo()... }}` 都是非底線屬性，sandbox 放行 → 任意 SQL / 讀 database.secret。
+
+    本代理只暴露：純量欄位值、many2one 的子代理、display_name；其餘一律回空字串
+    （env / sudo / cr / pool / search / write / 方法 / 底線屬性…）。search wire-up 生成的
+    合法 expression 只有 `object.<field>`、`object.<m2o>.display_name`、
+    `format_date(object.x)`、`selection_label('x')` 四種淺層形態，故 UX 無損。
+    """
+    __slots__ = ('__record',)
+
+    def __init__(self, record):
+        object.__setattr__(self, '_SafeRecordProxy__record', record)
+
+    def __getattr__(self, name):
+        rec = object.__getattribute__(self, '_SafeRecordProxy__record')
+        # 底線屬性一律封鎖（Jinja 也會擋，這是第二層）
+        if name.startswith('_'):
+            return ''
+        field = getattr(rec, '_fields', {}).get(name)
+        if field is None:
+            # display_name 為 computed，非 stored；特例放行（別名 object.m2o.display_name 需要）
+            if name == 'display_name':
+                try:
+                    return rec.display_name or ''
+                except Exception:
+                    return ''
+            # env / sudo / cr / search / write / ... 全部化為空字串
+            return ''
+        try:
+            value = rec[name]
+        except Exception:
+            return ''
+        if field.type == 'many2one':
+            return _SafeRecordProxy(value) if value else ''
+        if field.type in ('one2many', 'many2many'):
+            # 不暴露 recordset（否則可再鏈到 .env）
+            return ''
+        return '' if value in (False, None) else value
+
+    def __getitem__(self, key):
+        # 封鎖 object['env'] 這類 subscript 繞道
+        return ''
+
+    def __str__(self):
+        return ''
+
+    def __repr__(self):
+        return ''
+
+
 class DocRenderMixin(models.AbstractModel):
     _name = 'doc.render.mixin'
     _description = '文件渲染 Mixin'
@@ -68,9 +122,13 @@ class DocRenderMixin(models.AbstractModel):
             for name, fn in self._get_render_helpers(record).items():
                 env.globals[name] = fn
             template = env.from_string(html)
-            return template.render(object=record, user=self.env.user)
+            # 防 SSTI：以唯讀代理取代活 ORM 物件，封鎖 object.env / sudo / cr 穿透
+            return template.render(
+                object=_SafeRecordProxy(record),
+                user=_SafeRecordProxy(self.env.user),
+            )
         except Exception as e:
-            return html  # 渲染失敗時回傳原始 HTML
+            return html  # 渲染失敗時回傳原始 HTML（不執行任何運算式）
 
     def _get_render_helpers(self, record):
         """回傳要注入 Jinja2 globals 的 helper 對映。

@@ -1722,6 +1722,21 @@
   color: var(--wb-red);
 }
 
+/* 「無新進勞工」＝本項不適用，用中性藍與有(綠)/無(紅)區隔 */
+.cy-yesno-btn.active[data-value="no_new_worker"] {
+  background: rgba(59, 141, 224, 0.10);
+  border-color: var(--wb-blue);
+  color: var(--wb-blue);
+}
+
+/* 勞保這題有三顆按鈕，375px 窄螢幕下三等分會擠爆，收緊留白與字級 */
+.cy-yesno-group[data-field="safety_labor_insurance_check"] .cy-yesno-btn {
+  padding: 10px 4px;
+  font-size: 0.8rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 /* === 隱藏 Odoo 原生 header/footer（v10 app 自帶導航）=== */
 .cy-v10-app .o_portal_navbar,
 .cy-v10-app header,

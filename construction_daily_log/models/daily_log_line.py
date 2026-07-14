@@ -449,19 +449,45 @@ class DailyLogLine(models.Model):
                 if not vals.get('company_id'):
                     vals['company_id'] = sheet.company_id.id
 
-        return super().create(vals_list)
+        lines = super().create(vals_list)
+        # H3：cumulative_qty 為跨列聚合，新增列（尤其補登較早日期）須重算同工項後續列
+        lines._recompute_sibling_cumulative(lines.work_item_id)
+        return lines
+
+    _CUMULATIVE_TRIGGER_FIELDS = ('daily_qty', 'date', 'work_item_id')
 
     def write(self, vals):
         """Override write to sync with analytic line"""
-        return super().write(vals)
+        affected_items = self.work_item_id  # 變更前的工項
+        res = super().write(vals)
+        # H3：改量/改日期/換工項會影響同工項其他列的累計，需一併重算
+        if set(vals) & set(self._CUMULATIVE_TRIGGER_FIELDS):
+            self._recompute_sibling_cumulative(affected_items | self.work_item_id)
+        return res
 
     def unlink(self):
         """Delete analytic lines when deleting daily log lines"""
+        affected_items = self.work_item_id  # H3：刪列後同工項其餘列累計要重算
         analytic_lines = self.mapped('analytic_line_id')
         res = super().unlink()
         # Also delete orphan analytic lines
         analytic_lines.exists().unlink()
+        self.env['daily.log.line']._recompute_sibling_cumulative(affected_items)
         return res
+
+    def _recompute_sibling_cumulative(self, work_items):
+        """重算指定工項所有日誌列的 cumulative_qty（含下游 completion_rate 等）。
+
+        cumulative_qty 是「同工項、date<=本列」的跨列聚合但 @api.depends 只列自身欄位，
+        故 ORM 不會因兄弟列變動而重算（H3）。這裡顯式觸發同工項全部列重算。
+        """
+        work_items = work_items.exists()
+        if not work_items:
+            return
+        siblings = self.sudo().search([('work_item_id', 'in', work_items.ids)])
+        if siblings:
+            siblings.invalidate_recordset(['cumulative_qty'])
+            siblings.modified(['daily_qty'])
 
     # -------------------------------------------------------------------------
     # Action Methods

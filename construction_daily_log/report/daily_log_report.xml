@@ -169,7 +169,9 @@
                                     <td>新進勞工保險確認</td>
                                     <td style="text-align: center;">
                                         <t t-if="log.safety_labor_insurance_check == 'yes'">✅ 有</t>
-                                        <t t-else="">❌ 無</t>
+                                        <t t-elif="log.safety_labor_insurance_check == 'no'">❌ 無</t>
+                                        <t t-elif="log.safety_labor_insurance_check == 'no_new_worker'">— 無新進勞工</t>
+                                        <t t-else="">-</t>
                                     </td>
                                 </tr>
                                 <tr>

@@ -234,8 +234,9 @@ class DailyLogSheet(models.Model):
     safety_labor_insurance_check = fields.Selection([
         ('yes', '有'),
         ('no', '無'),
+        ('no_new_worker', '無新進勞工'),
     ], string='確認新進勞工是否提報勞工保險(或其他商業保險)資料及安全衛生教育訓練紀錄',
-       help='是否已確認新進勞工保險與訓練紀錄')
+       help='是否已確認新進勞工保險與訓練紀錄；當日無新進勞工請選「無新進勞工」（本項不適用）')
 
     safety_ppe_check = fields.Selection([
         ('yes', '有'),
@@ -293,11 +294,14 @@ class DailyLogSheet(models.Model):
             rec.state_sequence = self.STATE_SEQUENCE_MAP.get(rec.state, 9)
 
     # === Auto-Lock Mechanism (14 days) ===
+    # 自動鎖定天數（估驗/請款數量凍結窗口）。用具名常數取代散落的魔數 14。
+    LOCK_DAYS = 14
+
     is_locked = fields.Boolean(
         string='是否已鎖定',
         compute='_compute_is_locked',
         store=True,
-        help='日誌日期超過14天自動鎖定',
+        help='日誌日期超過14天自動鎖定（僅供顯示/搜尋；實際編輯封鎖以 write() 即時判斷為準）',
     )
     
     days_since_log = fields.Integer(
@@ -473,43 +477,49 @@ class DailyLogSheet(models.Model):
                 sheet.cumulative_duration = 0
                 sheet.remaining_duration = 0
 
+    def _is_validly_unlocked(self, now=None):
+        """臨時解鎖是否仍有效（is_unlocked 且未過期）。"""
+        self.ensure_one()
+        if not self.is_unlocked:
+            return False
+        if self.unlock_expires_at:
+            now = now or fields.Datetime.now()
+            return now < self.unlock_expires_at
+        # is_unlocked 但無到期時間 → 視為手動長期解鎖（沿用既有語意）
+        return True
+
+    def _is_edit_locked(self):
+        """即時判斷編輯是否應被封鎖（不信任 stored is_locked，防 stale）。
+
+        這是真正的封鎖判準：write()/unlink() 用它，而非 stored 的 is_locked——
+        後者是 store=True compute、無隨時間變動的觸發源，會 stale（H2）。
+        """
+        self.ensure_one()
+        if not self.log_date:
+            return False
+        if (fields.Date.today() - self.log_date).days < self.LOCK_DAYS:
+            return False
+        # 過 14 天：唯有「有效臨時解鎖」才可編輯（過期解鎖視同鎖定）
+        return not self._is_validly_unlocked()
+
     @api.depends('log_date', 'is_unlocked', 'unlock_expires_at')
     def _compute_is_locked(self):
-        """計算是否應該鎖定（14天規則）"""
-        from datetime import datetime, timedelta
+        """stored 值僅供顯示/搜尋；真正的編輯封鎖以 _is_edit_locked() 即時判斷。
+
+        注意：此為 store=True compute 但依賴的 log_date/解鎖欄位不隨時間變動，
+        stored 值會 stale（H2）。故不在此做任何 write 副作用（原本 compute 內
+        以 sudo().write 重置解鎖 / 寫 lock_date 是反模式），改由 _cron_auto_lock 維護。
+        """
         today = fields.Date.today()
         now = fields.Datetime.now()
-        
         for sheet in self:
             if not sheet.log_date:
                 sheet.days_since_log = 0
                 sheet.is_locked = False
                 continue
-            
-            # 計算距離今天的天數
             days = (today - sheet.log_date).days
             sheet.days_since_log = days
-            
-            # 檢查是否已解鎖且未過期
-            if sheet.is_unlocked and sheet.unlock_expires_at:
-                if now < sheet.unlock_expires_at:
-                    # 解鎖仍有效
-                    sheet.is_locked = False
-                    continue
-                else:
-                    # 解鎖已過期，重新鎖定
-                    sheet.sudo().write({
-                        'is_unlocked': False,
-                        'unlock_expires_at': False,
-                    })
-            
-            # 14天規則
-            if days >= 14:
-                sheet.is_locked = True
-                if not sheet.lock_date:
-                    sheet.sudo().lock_date = today
-            else:
-                sheet.is_locked = False
+            sheet.is_locked = (days >= sheet.LOCK_DAYS) and not sheet._is_validly_unlocked(now)
     
     def _compute_can_unlock(self):
         """計算使用者是否有解鎖權限"""
@@ -540,8 +550,21 @@ class DailyLogSheet(models.Model):
     # -------------------------------------------------------------------------
 
     def _cron_auto_lock(self):
-        """排程：自動鎖定超過14天的施工日誌"""
-        cutoff = fields.Date.today() - timedelta(days=14)
+        """排程：自動鎖定超過14天的施工日誌，並維護 stored is_locked 顯示值。"""
+        today = fields.Date.today()
+        now = fields.Datetime.now()
+        cutoff = today - timedelta(days=self.LOCK_DAYS)
+
+        # 0) 重置已過期的臨時解鎖（原本靠 compute 內 sudo().write，已移除該副作用）
+        expired = self.search([
+            ('is_unlocked', '=', True),
+            ('unlock_expires_at', '!=', False),
+            ('unlock_expires_at', '<', now),
+        ])
+        if expired:
+            expired.write({'is_unlocked': False, 'unlock_expires_at': False})
+
+        # 1) 狀態機：draft/filled 過期 → auto_locked
         logs = self.search([
             ('log_date', '<=', cutoff),
             ('state', 'in', ('draft', 'filled')),
@@ -550,6 +573,17 @@ class DailyLogSheet(models.Model):
         if logs:
             logs.write({'state': 'auto_locked'})
             _logger.info('自動鎖定 %d 筆施工日誌（超過14天）', len(logs))
+
+        # 2) 刷新 stored is_locked 顯示值（stored compute 無時間觸發會 stale）
+        stale = self.search([
+            ('log_date', '<=', cutoff),
+            ('is_locked', '=', False),
+            ('is_unlocked', '=', False),
+        ])
+        if stale:
+            stale.invalidate_recordset(['is_locked'])
+            stale.modified(['log_date'])  # 觸發 stored compute 重算並落庫
+            _logger.info('刷新 %d 筆 stale 的 is_locked 顯示值', len(stale))
 
     # -------------------------------------------------------------------------
     # Constraint Methods
@@ -654,7 +688,8 @@ class DailyLogSheet(models.Model):
 
     def write(self, vals):
         """檢查鎖定狀態：鎖定只凍結「使用者輸入欄位」，不阻擋系統重算「衍生計算欄位」。"""
-        locked_sheets = self.filtered(lambda s: s.is_locked and not s.is_unlocked)
+        # 用即時判斷（_is_edit_locked）而非 stale 的 stored is_locked（H2）
+        locked_sheets = self.filtered(lambda s: s._is_edit_locked())
 
         if locked_sheets:
             # 解鎖管理欄位 + state（cron 自動鎖定需改 state）
@@ -687,7 +722,7 @@ class DailyLogSheet(models.Model):
     def unlink(self):
         """防止刪除已鎖定的日誌"""
         for sheet in self:
-            if sheet.is_locked and not sheet.is_unlocked:
+            if sheet._is_edit_locked():
                 raise UserError(
                     f'無法刪除已鎖定的日誌: {sheet.complete_name}\n'
                     f'請先申請解鎖。'

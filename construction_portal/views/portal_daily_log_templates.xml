@@ -344,6 +344,7 @@
                             <span class="cy-info-value">
                                 <t t-if="log.safety_labor_insurance_check == 'yes'">✓ 有</t>
                                 <t t-elif="log.safety_labor_insurance_check == 'no'">✗ 無</t>
+                                <t t-elif="log.safety_labor_insurance_check == 'no_new_worker'">— 無新進勞工</t>
                                 <t t-else="">-</t>
                             </span>
                         </div>
@@ -579,6 +580,7 @@
                                             <input type="hidden" name="safety_labor_insurance_check" t-att-value="(log and log.safety_labor_insurance_check) or ''"/>
                                             <button type="button" class="cy-yesno-btn" data-value="yes">有</button>
                                             <button type="button" class="cy-yesno-btn" data-value="no">無</button>
+                                            <button type="button" class="cy-yesno-btn" data-value="no_new_worker">無新進勞工</button>
                                         </div>
                                     </div>
                                     <div style="margin-bottom: 12px;">

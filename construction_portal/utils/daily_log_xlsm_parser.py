@@ -126,7 +126,7 @@ def _parse_safety_checks(text):
     規則：每一項找 ■ 後面第一個非空字元：
         - ■有 → 'yes'
         - ■無 → 'no'
-        - ■無新進勞工 → 'no'
+    勞保那一題多一個框「■無新進勞工」→ 'no_new_worker'（本項不適用，語意與「無」相反）
     找不到打勾 → False
     """
     if not text:
@@ -147,6 +147,16 @@ def _parse_safety_checks(text):
             return 'no'
         return False
 
+    def _tick_labor(line):
+        """勞保這一題專用：先判「無新進勞工」
+
+        整行第一個 ■ 落在「■無新進勞工」時，_tick() 只看 ■ 的下一個字（「無」）
+        會誤判成 'no'。比對前去掉空白，避免「■ 無新進勞工」這種變體漏掉。
+        """
+        if '■無新進勞工' in re.sub(r'\s', '', line or ''):
+            return 'no_new_worker'
+        return _tick(line)
+
     pre_edu = False
     labor_ins = False
     ppe = False
@@ -155,7 +165,7 @@ def _parse_safety_checks(text):
         if '勤前教育' in line:
             pre_edu = _tick(line)
         elif '勞工保險' in line or '新進勞工' in line:
-            labor_ins = _tick(line)
+            labor_ins = _tick_labor(line)
         elif '防護具' in line:
             ppe = _tick(line)
 

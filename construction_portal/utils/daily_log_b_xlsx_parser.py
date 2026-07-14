@@ -173,8 +173,13 @@ def _tick(text):
 
 
 def _tick_with_no_new(text):
-    if '■無新進勞工' in text:
-        return 'no'
+    """勞保這一題有第三個框「無新進勞工」，語意是本項不適用，與「無」相反。
+
+    必須先判它：整行的第一個 ■ 在「■無新進勞工」時，_tick() 只看 ■ 的下一個字
+    會誤判成「無」。比對前去掉空白，避免「■ 無新進勞工」這種變體漏掉。
+    """
+    if '■無新進勞工' in re.sub(r'\s', '', text or ''):
+        return 'no_new_worker'
     return _tick(text)
 
 

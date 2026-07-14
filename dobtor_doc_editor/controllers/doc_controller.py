@@ -18,6 +18,7 @@ from ..models.doc_zip_guard import (
     inspect_zip_safe,
     ZipBombError,
 )
+from ..models.doc_render_mixin import _SafeRecordProxy
 
 _logger = logging.getLogger(__name__)
 
@@ -2207,13 +2208,16 @@ body {{
                 from jinja2 import StrictUndefined, UndefinedError
                 env = SandboxedEnvironment(undefined=StrictUndefined)
                 tpl = env.from_string(content_html)
+                # 防 SSTI：以唯讀代理取代活 ORM 物件（與 doc.render.mixin 一致）
+                safe_object = _SafeRecordProxy(doc)
+                safe_user = _SafeRecordProxy(request.env.user)
                 try:
-                    rendered_body = tpl.render(**ctx, object=doc, user=request.env.user)
+                    rendered_body = tpl.render(**ctx, object=safe_object, user=safe_user)
                 except UndefinedError as ue:
                     warnings.append(f'缺少變數：{ue}（已用空白替代）')
                     env_lax = SandboxedEnvironment()
                     rendered_body = env_lax.from_string(content_html).render(
-                        **ctx, object=doc, user=request.env.user
+                        **ctx, object=safe_object, user=safe_user
                     )
             except Exception as e:
                 warnings.append(f'渲染警告：{e}')

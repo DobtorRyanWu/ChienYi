@@ -882,10 +882,10 @@ class ContractChangeWizard(models.TransientModel):
 
         ol = self.env['contract.change.order.line'].create(vals)
 
-        # 刪除（delete）：封存 project.task，使其從工項列表消失
-        # 歸零（zero_out）：工項保留，僅記錄數量歸零
-        if wizard_line.change_type == 'delete' and wizard_line.task_id:
-            wizard_line.task_id.write({'active': False})
+        # H4：不在草稿確認階段封存 project.task（原本 delete 型別在此就 active=False，
+        # 繞過 提送→審查→核定→套用，且駁回不復原）。封存改由變更單 action_apply →
+        # _apply_changes_to_tasks() 於「核定後套用」時執行（見 contract_change_order.py
+        # 的 change_type=='delete' 分支），確保只有核定的變更才生效。
         return ol
 
     def _resequence_wizard_lines(self):
