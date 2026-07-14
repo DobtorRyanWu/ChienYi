@@ -276,8 +276,8 @@
                         <div class="cy-section-title">改善前照片</div>
                         <div class="cy-thumb-row" data-lightbox-group="before" style="margin-bottom: 14px;">
                             <t t-foreach="defect.before_photo_ids" t-as="photo">
-                                <div class="cy-thumb" t-attf-data-full="/web/image/ir.attachment/#{photo.id}/datas">
-                                    <img t-attf-src="/web/image/ir.attachment/#{photo.id}/datas/160x160?crop=true" alt="改善前"/>
+                                <div class="cy-thumb" t-if="photo.attachment_id" t-attf-data-full="/web/image/#{photo.attachment_id.id}">
+                                    <img t-attf-src="/web/image/#{photo.attachment_id.id}/160x160" alt="改善前"/>
                                 </div>
                             </t>
                         </div>
@@ -288,12 +288,30 @@
                         <div class="cy-section-title">改善後照片</div>
                         <div class="cy-thumb-row" data-lightbox-group="after" style="margin-bottom: 14px;">
                             <t t-foreach="defect.after_photo_ids" t-as="photo">
-                                <div class="cy-thumb" t-attf-data-full="/web/image/ir.attachment/#{photo.id}/datas">
-                                    <img t-attf-src="/web/image/ir.attachment/#{photo.id}/datas/160x160?crop=true" alt="改善後"/>
+                                <div class="cy-thumb" t-if="photo.attachment_id" t-attf-data-full="/web/image/#{photo.attachment_id.id}">
+                                    <img t-attf-src="/web/image/#{photo.attachment_id.id}/160x160" alt="改善後"/>
                                 </div>
                             </t>
                         </div>
                     </t>
+
+                    <!-- 追加照片（任何狀態皆可，含 draft；修復「缺失照片無法上傳」）-->
+                    <div class="cy-section-title" style="margin-top: 16px;">追加照片</div>
+                    <t t-if="request.params.get('message') == 'photo_added'">
+                        <div class="cy-event-card" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-green);"><i class="fa fa-check-circle"/></span>
+                            <div class="cy-event-body"><div class="cy-event-desc">照片已上傳</div></div>
+                        </div>
+                    </t>
+                    <form t-attf-action="/construction/defect/#{defect.id}/photo/upload"
+                          method="post" enctype="multipart/form-data" style="margin-bottom: 14px;">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="file" name="photos" accept="image/*" capture="environment"
+                               multiple="multiple" class="form-control" style="margin-bottom: 8px;"/>
+                        <button type="submit" class="cy-btn cy-btn-outline" style="width: 100%;">
+                            <i class="fa fa-camera"/> 上傳照片
+                        </button>
+                    </form>
 
                     <!-- Portal 改善表單（已通知/改善中狀態才顯示）-->
                     <t t-if="defect.state in ('notified', 'improving')">

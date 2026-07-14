@@ -80,6 +80,39 @@ def _portal_save_photos(env, record, supervision_project, files, meta):
     return new_atts
 
 
+def _defect_save_photos(env, defect, files, stage):
+    """建立缺失改善照片行(general/reservation.defect.improvement.photo)。
+
+    缺失的 before_photo_ids / during_photo_ids / after_photo_ids 是 One2many
+    到專用照片行模型(<defect_model>.photo),而非 ir.attachment 的 M2M。
+    因此照片要用 create 照片行(image 為 binary,模型 create() 會自動建 attachment),
+    不能用 (4, attachment_id) 去 link——那會被當成照片行 id 造成 MissingError。
+
+    files: list of werkzeug FileStorage
+    stage: 'before' / 'during' / 'after'
+    回傳: 新增照片行數
+    """
+    Photo = env[defect._name + '.photo'].sudo()
+    count = 0
+    for f in files:
+        if not f or not f.filename:
+            continue
+        raw = f.read()
+        if not raw:
+            continue
+        line = Photo.create({
+            'defect_improvement_id': defect.id,
+            'image': base64.b64encode(raw),
+            'image_filename': f.filename,
+            'photo_stage': stage,
+        })
+        # 自動建立的 attachment 設 public,前台 /web/image 才看得到
+        if line.attachment_id:
+            line.attachment_id.write({'public': True})
+        count += 1
+    return count
+
+
 def _portal_delete_photo(env, record, attachment_id):
     """從 record.photo_ids 移除一張 + 同步刪 supervision.photo + ir.attachment"""
     record.sudo().write({'photo_ids': [(3, attachment_id)]})
@@ -3103,20 +3136,11 @@ class ConstructionPortal(CustomerPortal):
         Defect = request.env[model].sudo()
         defect = Defect.create(vals)
 
-        # 處理照片上傳
-        uploaded_file = post.get('photo')
-        if uploaded_file:
-            import base64
-            file_data = base64.b64encode(uploaded_file.read())
-            attachment = request.env['ir.attachment'].sudo().create({
-                'name': uploaded_file.filename,
-                'datas': file_data,
-                'res_model': model,
-                'res_id': defect.id,
-                'type': 'binary',
-                'public': True,
-            })
-            defect.write({'before_photo_ids': [(4, attachment.id)]})
+        # 處理照片上傳（建立缺失改善照片行，stage=before；
+        # before_photo_ids 是 One2many 到照片行模型，不可用 attachment id link）
+        _defect_save_photos(
+            request.env, defect,
+            request.httprequest.files.getlist('photo'), 'before')
 
         return request.redirect(f'/construction/defect/{defect.id}?message=created')
 
@@ -3169,46 +3193,56 @@ class ConstructionPortal(CustomerPortal):
         corrective_action = post.get('corrective_action', '').strip()
         preventive_action = post.get('preventive_action', '').strip()
 
-        # 收改善後照片（支援多張）
-        import base64
-        uploaded_files = request.httprequest.files.getlist('after_photo')
-        attachment_ids = []
-        for f in uploaded_files:
-            if not f or not f.filename:
-                continue
-            raw = f.read()
-            if not raw:
-                continue
-            attachment = request.env['ir.attachment'].sudo().create({
-                'name': f.filename,
-                'datas': base64.b64encode(raw),
-                'res_model': defect._name,
-                'res_id': defect.id,
-                'type': 'binary',
-                'public': True,
-            })
-            attachment_ids.append(attachment.id)
+        # 收改善後照片（建立照片行 stage=after；after_photo_ids 為 One2many
+        # 到照片行模型，不可用 attachment id link，否則 MissingError）
+        _defect_save_photos(
+            request.env, defect,
+            request.httprequest.files.getlist('after_photo'), 'after')
 
         if hasattr(defect, 'portal_submit_improvement'):
             defect.portal_submit_improvement(
                 improvement_text, partner,
-                after_photos=attachment_ids or None,
                 corrective_action=corrective_action or None,
                 preventive_action=preventive_action or None,
             )
         else:
-            # 一般式/預約式：直接寫入改善欄位
+            # 一般式/預約式：直接寫入改善文字欄位（照片已建立照片行）
             wvals = {}
             if improvement_text:
                 wvals['improvement_result'] = improvement_text
             if corrective_action:
                 wvals['improvement_action'] = corrective_action
-            if attachment_ids:
-                wvals['after_photo_ids'] = [(4, aid) for aid in attachment_ids]
             if wvals:
                 defect.sudo().write(wvals)
 
         return request.redirect(f'/construction/defect/{defect_id}?message=success')
+
+    @http.route(['/construction/defect/<int:defect_id>/photo/upload'],
+                type='http', auth='user', website=True, methods=['POST'], csrf=True)
+    def portal_construction_defect_photo_upload(self, defect_id, **post):
+        """缺失照片上傳（任何狀態皆可，draft 缺失也能加照片）。
+
+        修復月月真琴回報「缺失改善照片都無法上傳」：原本只有 notified/improving
+        狀態的改善表單能上傳，draft 缺失完全沒有上傳入口。此路由不限狀態。
+        依缺失狀態決定 photo_stage：improved/verified/closed→after、improving→during、
+        其餘(draft/notified)→before；可由 stage 參數覆寫。
+        """
+        try:
+            defect = self._browse_defect(defect_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        stage = post.get('stage')
+        if stage not in ('before', 'during', 'after'):
+            if defect.state in ('improved', 'verified', 'closed'):
+                stage = 'after'
+            elif defect.state == 'improving':
+                stage = 'during'
+            else:
+                stage = 'before'
+        _defect_save_photos(
+            request.env, defect,
+            request.httprequest.files.getlist('photos'), stage)
+        return request.redirect(f'/construction/defect/{defect_id}?message=photo_added')
 
     # ==================== 照片管理 ====================
 
