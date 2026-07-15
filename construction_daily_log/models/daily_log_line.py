@@ -7,27 +7,22 @@ from odoo.exceptions import ValidationError
 
 class DailyLogLine(models.Model):
     """
-    Construction Daily Log Line - Inherits account.analytic.line
+    Construction Daily Log Line - 獨立表
 
-    Uses _inherits delegation inheritance pattern to extend
-    account.analytic.line with construction-specific fields.
+    施工日誌明細，為獨立模型（不再委派 account.analytic.line）。
+    原本借自 analytic line 的欄位（name/date/project_id/employee_id）已升格為自有欄位。
     """
     _name = 'daily.log.line'
     _description = 'Construction Daily Log Line'
-    _inherits = {'account.analytic.line': 'analytic_line_id'}
     # 排序：同一日誌內，契約工項(type_order=0) 永遠排在自填項目(type_order=1) 之前；
     # 契約工項間依工項排序，自填項目間依 sequence。與「分批新增的時間先後」無關。
     _order = 'sheet_id, type_order, work_item_sequence, sequence, id'
 
-    # === Delegation Inheritance ===
-    analytic_line_id = fields.Many2one(
-        'account.analytic.line',
-        string='分析帳明細',
-        required=True,
-        ondelete='cascade',
-        auto_join=True,
-        help='連結到底層的分析帳明細',
-    )
+    # === 自有基本欄位（原委派自 account.analytic.line，名稱型別不變）===
+    name = fields.Char(string='名稱', required=True)
+    date = fields.Date(string='日期', default=fields.Date.context_today)
+    project_id = fields.Many2one('project.project', string='專案')
+    employee_id = fields.Many2one('hr.employee', string='員工')
 
     # === Sheet Relationship ===
     sheet_id = fields.Many2one(
@@ -89,6 +84,15 @@ class DailyLogLine(models.Model):
         required=False,  # 自填項目(entry_type='extra')不需契約工項
         domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True)]",
         help='契約工項類型才需選擇；只能選最細項工項（無子項的工項）',
+    )
+
+    # task_id 與 work_item_id 等義（皆 project.task）；保留為 related 供既有 view 欄位解析。
+    task_id = fields.Many2one(
+        'project.task',
+        string='任務',
+        related='work_item_id',
+        store=True,
+        readonly=True,
     )
 
     # === 內容來自工項（自動帶入）===
@@ -336,7 +340,7 @@ class DailyLogLine(models.Model):
             self._sync_line_name()
 
     def _sync_line_name(self):
-        """依類型同步底層 analytic line 的 name"""
+        """依類型同步顯示名稱 name"""
         for line in self:
             if line.entry_type == 'extra':
                 line.name = f'施工記錄 - {line.custom_name}' if line.custom_name else '施工記錄'
@@ -404,9 +408,8 @@ class DailyLogLine(models.Model):
 
     @api.onchange('work_item_id')
     def _onchange_work_item_id(self):
-        """Update task and project from work item"""
+        """Update project from work item（task_id 為 related，會自動同步）"""
         if self.work_item_id:
-            self.task_id = self.work_item_id
             if self.work_item_id.project_id:
                 self.project_id = self.work_item_id.project_id
 
@@ -427,9 +430,9 @@ class DailyLogLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Create daily log lines with analytic line"""
+        """建立施工日誌明細（含從 sheet 帶入預設值）"""
         for vals in vals_list:
-            # Ensure required fields for analytic line
+            # 確保 name 必填欄位有值
             if 'name' not in vals or not vals.get('name'):
                 if vals.get('entry_type') == 'extra' and vals.get('custom_name'):
                     vals['name'] = f"施工記錄 - {vals['custom_name']}"
@@ -457,7 +460,7 @@ class DailyLogLine(models.Model):
     _CUMULATIVE_TRIGGER_FIELDS = ('daily_qty', 'date', 'work_item_id')
 
     def write(self, vals):
-        """Override write to sync with analytic line"""
+        """覆寫 write 以觸發 H3 跨列累計重算"""
         affected_items = self.work_item_id  # 變更前的工項
         res = super().write(vals)
         # H3：改量/改日期/換工項會影響同工項其他列的累計，需一併重算
@@ -466,12 +469,9 @@ class DailyLogLine(models.Model):
         return res
 
     def unlink(self):
-        """Delete analytic lines when deleting daily log lines"""
+        """刪除明細後重算同工項其餘列的累計"""
         affected_items = self.work_item_id  # H3：刪列後同工項其餘列累計要重算
-        analytic_lines = self.mapped('analytic_line_id')
         res = super().unlink()
-        # Also delete orphan analytic lines
-        analytic_lines.exists().unlink()
         self.env['daily.log.line']._recompute_sibling_cumulative(affected_items)
         return res
 
@@ -512,37 +512,3 @@ class DailyLogLine(models.Model):
                 'construction_daily_log.daily_log_add_items_wizard_form_existing'
             ).id,
         }
-
-    def action_view_analytic_line(self):
-        """View the underlying analytic line"""
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': '分析帳明細',
-            'res_model': 'account.analytic.line',
-            'view_mode': 'form',
-            'res_id': self.analytic_line_id.id,
-        }
-
-
-class AccountAnalyticLine(models.Model):
-    """Extend account.analytic.line with daily log reference"""
-    _inherit = 'account.analytic.line'
-
-    daily_log_line_ids = fields.One2many(
-        'daily.log.line',
-        'analytic_line_id',
-        string='施工日誌明細',
-        readonly=True,
-    )
-    is_daily_log = fields.Boolean(
-        string='是施工日誌',
-        compute='_compute_is_daily_log',
-        store=True,
-    )
-
-    @api.depends('daily_log_line_ids')
-    def _compute_is_daily_log(self):
-        """Check if this analytic line is linked to a daily log"""
-        for line in self:
-            line.is_daily_log = bool(line.daily_log_line_ids)

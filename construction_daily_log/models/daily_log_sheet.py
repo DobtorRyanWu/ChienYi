@@ -52,7 +52,7 @@ class DailyLogSheet(models.Model):
         string='工程案件',
         required=True,
         tracking=True,
-        domain="[('company_id', '=', company_id), ('state', 'in', ['construction', 'completion'])]",
+        domain="[('state', 'in', ['construction', 'completion'])]",
         help='關聯的工程案件',
     )
     
@@ -116,7 +116,7 @@ class DailyLogSheet(models.Model):
         default=lambda self: self._default_employee(),
         tracking=True,
         readonly=True,
-        help='自動帶入當前登入使用者對應的員工（限當前公司）',
+        help='自動帶入當前登入使用者對應的員工（優先當前公司，找不到則不限公司）',
     )
     user_id = fields.Many2one(
         'res.users',
@@ -420,13 +420,19 @@ class DailyLogSheet(models.Model):
             ('user_id', '=', self.env.uid),
             ('company_id', '=', self.env.company.id),
         ], limit=1)
-        
+
+        # 代操作員可能在當前公司沒有員工資料，但在其他公司有 → 放寬為不限公司
+        if not employee:
+            employee = self.env['hr.employee'].search([
+                ('user_id', '=', self.env.uid),
+            ], limit=1)
+
         if not employee:
             _logger.warning(
                 f'User {self.env.uid} ({self.env.user.name}) '
-                f'has no hr.employee record in company {self.env.company.name}'
+                f'has no hr.employee record in any company'
             )
-        
+
         return employee
 
     # -------------------------------------------------------------------------
@@ -606,32 +612,21 @@ class DailyLogSheet(models.Model):
                     f'同一專案在同一天已存在日誌: {overlapping.complete_name}'
                 )
 
-    @api.constrains('company_id', 'employee_id')
-    def _check_company_employee(self):
-        """Validate company and employee consistency"""
-        for sheet in self.sudo():
-            if (sheet.company_id and sheet.employee_id.company_id and
-                    sheet.company_id != sheet.employee_id.company_id):
-                raise ValidationError(
-                    '日誌表單和員工的公司必須相同。'
-                )
+    # 註：原 _check_company_employee（日誌公司必須等於員工公司）已移除。
+    # 代操作員跨公司建立日誌時，員工（提交人）與專案/日誌可屬不同公司，
+    # 日誌公司改為跟隨「選定的專案」，不再與員工公司綁定。
 
     # -------------------------------------------------------------------------
     # Onchange Methods
     # -------------------------------------------------------------------------
 
-    @api.onchange('employee_id')
-    def _onchange_employee_id(self):
-        """Update company when employee changes"""
-        if self.employee_id:
-            company = self.employee_id.company_id or self.env.company
-            self.company_id = company
-
     @api.onchange('supervision_project_id')
     def _onchange_supervision_project_id(self):
-        """Clear notification slip when project changes"""
+        """Clear notification slip when project changes; 公司跟隨選定的專案"""
         if self.supervision_project_id:
             self.notification_slip_id = False
+            if self.supervision_project_id.company_id:
+                self.company_id = self.supervision_project_id.company_id
 
     # -------------------------------------------------------------------------
     # Helper Methods
@@ -645,43 +640,34 @@ class DailyLogSheet(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """建立時確保 employee_id 有值且屬於正確的公司（需求二）"""
+        """建立時確保 employee_id 有值（不限公司）；公司跟隨選定的專案（代操作員可跨公司）"""
         for vals in vals_list:
-            # 如果沒有 employee_id，嘗試自動填入
+            # 如果沒有 employee_id，嘗試自動填入（不限公司）
             if 'employee_id' not in vals or not vals.get('employee_id'):
                 employee = self._default_employee()
-                
+
                 if employee:
                     vals['employee_id'] = employee.id
                 else:
-                    # 提供明確的錯誤訊息
+                    # 使用者在任何公司都沒有員工資料 → 提示建立
                     raise UserError(
                         f'無法建立施工日誌！\n\n'
                         f'您的使用者帳號 ({self.env.user.name}) '
-                        f'在公司「{self.env.company.name}」中沒有對應的員工資料。\n\n'
-                        f'可能的原因：\n'
-                        f'1. 您的員工資料尚未建立\n'
-                        f'2. 您的員工資料屬於其他公司\n'
-                        f'3. 您切換到了錯誤的公司\n\n'
+                        f'沒有對應的員工（hr.employee）資料。\n\n'
                         f'請依照以下步驟處理：\n'
-                        f'1. 確認當前選擇的公司是否正確（右上角公司選擇器）\n'
-                        f'2. 進入「人力資源 > 員工」\n'
-                        f'3. 確認您的員工資料存在且公司設定為「{self.env.company.name}」\n'
-                        f'4. 在員工資料的「工作資訊」頁籤中，設定「相關使用者」為您的帳號\n'
-                        f'5. 儲存後重新嘗試建立施工日誌'
+                        f'1. 進入「人力資源 > 員工」\n'
+                        f'2. 建立一筆您的員工資料\n'
+                        f'3. 在員工資料的「工作資訊」頁籤中，設定「相關使用者」為您的帳號\n'
+                        f'4. 儲存後重新嘗試建立施工日誌'
                     )
-            
-            # 額外驗證：employee 的公司必須與當前公司一致
-            if vals.get('employee_id'):
-                employee = self.env['hr.employee'].browse(vals['employee_id'])
-                if employee.company_id and employee.company_id != self.env.company:
-                    raise UserError(
-                        f'員工公司不符！\n\n'
-                        f'員工「{employee.name}」屬於公司「{employee.company_id.name}」，\n'
-                        f'但您目前在公司「{self.env.company.name}」中操作。\n\n'
-                        f'請切換到正確的公司後再建立施工日誌。'
-                    )
-        
+
+            # 公司跟隨選定的專案：代操作員跨公司時，日誌歸屬專案所屬公司
+            if vals.get('supervision_project_id'):
+                project = self.env['supervision.project'].browse(
+                    vals['supervision_project_id'])
+                if project.company_id:
+                    vals['company_id'] = project.company_id.id
+
         sheets = super().create(vals_list)
         # No need for state transition - default is already 'draft'
         return sheets

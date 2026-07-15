@@ -89,12 +89,10 @@ class DailyLogAddItemsWizard(models.TransientModel):
             {
                 'sheet_id': sheet.id,
                 'work_item_id': item.id,
-                'task_id': item.id,
                 'project_id': sheet.project_id.id,
                 'employee_id': sheet.employee_id.id,
                 'name': f'施工記錄 - {item.name}',
                 'date': sheet.log_date,
-                'unit_amount': 0.0,
                 'daily_qty': 0.0,
                 'sequence': max_seq + (idx * 10),
             }
@@ -119,7 +117,6 @@ class DailyLogAddItemsWizard(models.TransientModel):
                 'project_id': sheet.project_id.id,
                 'employee_id': sheet.employee_id.id,
                 'date': sheet.log_date,
-                'unit_amount': 0.0,
                 'daily_qty': 0.0,
                 'sequence': max_seq + (idx * 10),
             }

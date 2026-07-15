@@ -87,10 +87,11 @@ class TestDailyLogLock(TransactionCase):
         task = self.env['project.task'].create({
             'name': 'H3 工項',
             'project_id': self.project.project_id.id,
-        })
-        analytic = self.env['account.analytic.account'].create({
-            'name': 'H3 分析帳',
-            'plan_id': self.env['account.analytic.plan'].create({'name': 'H3 Plan'}).id,
+            # 以下為 construction_supervision_base 對 project.task 的 required 欄位
+            'item_no': 'H3-001',
+            'unit': '式',
+            'planned_qty': 100.0,
+            'unit_price': 0.0,
         })
 
         def make_line(sheet, qty):
@@ -100,7 +101,6 @@ class TestDailyLogLock(TransactionCase):
                 'entry_type': 'contract',
                 'daily_qty': qty,
                 'date': sheet.log_date,
-                'account_id': analytic.id,
             })
 
         sheet_later = self._make_sheet(today)
