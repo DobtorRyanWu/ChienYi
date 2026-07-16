@@ -72,7 +72,7 @@
     <!-- ============================================== -->
     <record id="view_supervision_project_form_inherit_price_library" model="ir.ui.view">
         <field name="name">supervision.project.form.inherit.price.library</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
         <field name="arch" type="xml">
             <!-- 在 header 的「匯入契約標單」按鈕後加入「從價格庫匯入工項」-->

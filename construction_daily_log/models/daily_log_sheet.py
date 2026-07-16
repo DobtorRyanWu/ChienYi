@@ -48,7 +48,7 @@ class DailyLogSheet(models.Model):
 
     # === Project Reference (需求一：改為直接關聯 supervision.project) ===
     supervision_project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程案件',
         required=True,
         tracking=True,
@@ -60,7 +60,7 @@ class DailyLogSheet(models.Model):
     project_id = fields.Many2one(
         'project.project',
         string='原生專案',
-        related='supervision_project_id.project_id',
+        related='supervision_project_id',
         store=True,
         readonly=True,
     )
@@ -663,7 +663,7 @@ class DailyLogSheet(models.Model):
 
             # 公司跟隨選定的專案：代操作員跨公司時，日誌歸屬專案所屬公司
             if vals.get('supervision_project_id'):
-                project = self.env['supervision.project'].browse(
+                project = self.env['project.project'].browse(
                     vals['supervision_project_id'])
                 if project.company_id:
                     vals['company_id'] = project.company_id.id

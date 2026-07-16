@@ -28,7 +28,7 @@ class ReservationSelfInspection(models.Model):
         tracking=True)
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         related='slip_id.project_id',
         store=True)

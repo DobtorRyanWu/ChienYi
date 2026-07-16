@@ -43,7 +43,7 @@ class WeeklyScheduleAddItemsWizard(models.TransientModel):
     @api.depends('schedule_id')
     def _compute_available_task_ids(self):
         for wizard in self:
-            project = wizard.schedule_id.supervision_project_id.project_id \
+            project = wizard.schedule_id.supervision_project_id \
                 if wizard.schedule_id else False
             if not project:
                 wizard.available_task_ids = False

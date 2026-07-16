@@ -25,7 +25,7 @@ class TestTaskStatistics(models.Model):
         readonly=True)
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         readonly=True)
 
@@ -143,7 +143,7 @@ class TestTaskStatistics(models.Model):
                 SELECT
                     ROW_NUMBER() OVER () AS id,
                     t.id AS task_id,
-                    sp.id AS project_id,
+                    pp.id AS project_id,
                     ts.id AS standard_id,
                     t.name AS task_name,
                     t.item_no,
@@ -162,12 +162,11 @@ class TestTaskStatistics(models.Model):
                     END AS pass_rate
                 FROM project_task t
                 INNER JOIN project_project pp ON pp.id = t.project_id
-                INNER JOIN supervision_project sp ON sp.project_id = pp.id
                 INNER JOIN test_standard_task_rel rel ON rel.task_id = t.id
                 INNER JOIN supervision_test_standard ts ON ts.id = rel.standard_id
                 LEFT JOIN supervision_test_record tr
                     ON tr.task_id = t.id AND tr.standard_id = ts.id
                 WHERE t.active = true
-                GROUP BY t.id, sp.id, ts.id, t.name, t.item_no, ts.name
+                GROUP BY t.id, pp.id, ts.id, t.name, t.item_no, ts.name
             )
         """)

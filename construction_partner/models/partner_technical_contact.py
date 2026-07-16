@@ -114,7 +114,7 @@ class PartnerTechnicalContact(models.Model):
 
     # === 專案指派 ===
     assigned_project_ids = fields.Many2many(
-        'supervision.project',
+        'project.project',
         'technical_contact_project_rel',
         'contact_id', 'project_id',
         string='指派專案',
@@ -186,7 +186,7 @@ class PartnerTechnicalContact(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 指派專案',
-            'res_model': 'supervision.project',
+            'res_model': 'project.project',
             'view_mode': 'list,form',
             'domain': [('id', 'in', self.assigned_project_ids.ids)],
         }

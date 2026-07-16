@@ -24,7 +24,7 @@ class PriceLibraryItemSource(models.Model):
         help='關聯的價格庫項目')
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='來源專案',
         required=True,
         ondelete='restrict',

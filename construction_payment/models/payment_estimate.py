@@ -34,7 +34,7 @@ class PaymentEstimate(models.Model):
 
     # === 工程資訊區塊（全部 readonly，由匯入帶入）===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         '所屬工程',
         ondelete='cascade',
         readonly=True,
@@ -125,17 +125,51 @@ class PaymentEstimate(models.Model):
     # === CRUD 覆寫 ===
     @api.model_create_multi
     def create(self, vals_list):
-        """建立時自動計算次數和名稱"""
+        """建立後依估驗日期重排次數與名稱
+
+        次數（第N次）以 estimate_date 先後決定，而非建立順序。故建立時先給暫定名稱，
+        再對受影響工程呼叫 _resequence_estimate_no 依日期整體重排。
+        """
         for vals in vals_list:
-            project_id = vals.get('project_id')
-            if project_id and not vals.get('estimate_no'):
-                count = self.search_count([
-                    ('project_id', '=', project_id)
-                ])
-                vals['estimate_no'] = count + 1
-            estimate_no = vals.get('estimate_no', 1)
-            vals['name'] = f'第{estimate_no}次估驗計價'
-        return super().create(vals_list)
+            if not vals.get('name'):
+                estimate_no = vals.get('estimate_no') or 1
+                vals['name'] = f'第{estimate_no}次估驗計價'
+        records = super().create(vals_list)
+        if not self.env.context.get('_skip_estimate_resequence'):
+            for project in records.mapped('project_id'):
+                self._resequence_estimate_no(project.id)
+        return records
+
+    def write(self, vals):
+        """估驗日期變動時，重排該工程所有估驗單的次數（第N次依日期先後）"""
+        res = super().write(vals)
+        if 'estimate_date' in vals and not self.env.context.get('_skip_estimate_resequence'):
+            for project in self.mapped('project_id'):
+                self._resequence_estimate_no(project.id)
+        return res
+
+    @api.model
+    def _resequence_estimate_no(self, project_id):
+        """依 estimate_date 先後，重排整個工程的 estimate_no 與 name。
+
+        無估驗日期者排在最後（PostgreSQL ASC 預設 NULLS LAST）。以 _skip 旗標
+        避免 write 遞迴。
+        """
+        if not project_id:
+            return
+        estimates = self.with_context(_skip_estimate_resequence=True).search(
+            [('project_id', '=', project_id)],
+            order='estimate_date asc, id asc',
+        )
+        for idx, est in enumerate(estimates, start=1):
+            vals = {}
+            if est.estimate_no != idx:
+                vals['estimate_no'] = idx
+            new_name = f'第{idx}次估驗計價'
+            if est.name != new_name:
+                vals['name'] = new_name
+            if vals:
+                est.with_context(_skip_estimate_resequence=True).write(vals)
 
     # === 動作方法 ===
     def action_open_import_wizard(self):
@@ -179,19 +213,18 @@ class PaymentEstimate(models.Model):
         return True
 
     def action_reset_to_draft(self):
-        """退回草稿"""
+        """退回草稿：僅切換狀態，保留明細與工程資訊
+
+        （原本會清空 line_ids 與 project_id，導致填寫的資料全失、且因清空工程而從
+        依工程分組的清單中消失。退回草稿的語意應僅為狀態回退，不應銷毀資料。）
+        """
         for rec in self:
             if rec.state != 'pending_approval':
                 raise UserError('只有「待核定」狀態才能退回草稿')
-            # 清空明細與工程資訊，讓使用者可重新匯入
-            rec.line_ids.unlink()
             rec.write({
                 'state': 'draft',
-                'project_id': False,
                 'submitted_by_id': False,
                 'submitted_date': False,
-                'approved_by_id': False,
-                'approved_date': False,
             })
         return True
 
@@ -349,13 +382,20 @@ class PaymentEstimateLine(models.Model):
         readonly=True,
         help='施工日誌截至估驗日期的累計完成數量（即時計算，日誌更新後自動反映）'
     )
+    previous_approved_qty = fields.Float(
+        '前期已核定累計數量',
+        digits=(16, 4),
+        compute='_compute_previous_approved_qty',
+        readonly=True,
+        help='估驗日期早於本次、且已核定的估驗單，本工項的估驗數量合計。'
+             '不依賴本次估驗數量，故本表即時編輯時保持穩定'
+    )
     cumulative_estimate_qty = fields.Float(
         '累計估驗數量',
         digits=(16, 4),
         compute='_compute_cumulative',
-        store=True,
         readonly=True,
-        help='歷次已核定估驗的數量合計 + 本次'
+        help='前期已核定累計 + 本次（純算術，即時更新；非儲存以反映他單核定）'
     )
     estimate_amount = fields.Float(
         '本次估驗金額',
@@ -369,9 +409,8 @@ class PaymentEstimateLine(models.Model):
         '累計估驗金額',
         digits=(16, 2),
         compute='_compute_cumulative',
-        store=True,
         readonly=True,
-        help='單價 × 累計估驗數量'
+        help='單價 × 累計估驗數量（非儲存）'
     )
 
     # === 備註 ===
@@ -483,31 +522,48 @@ class PaymentEstimateLine(models.Model):
             else:
                 line.estimate_amount = line.unit_price * line.estimate_qty
 
-    @api.depends('estimate_qty', 'task_id', 'estimate_id.project_id',
-                 'estimate_id.state', 'is_summary_item',
-                 'estimate_id.line_ids.estimate_qty')
-    def _compute_cumulative(self):
-        """計算累計估驗數量與金額"""
+    @api.depends('task_id', 'is_summary_item',
+                 'estimate_id.project_id', 'estimate_id.estimate_date')
+    def _compute_previous_approved_qty(self):
+        """前期已核定累計數量：估驗日期「早於本次」且已核定的估驗單合計。
+
+        以 estimate_date 作為先後判定（次數是「數量+1」不代表時間先後，日期最保險）。
+        本值不依賴本次 estimate_qty，故在估驗表即時編輯時保持穩定，
+        累計欄位得以純算術（前期 + 本次）即時重算。非儲存：他單核定後重讀即更新。
+        """
         for line in self:
-            # 彙總項：數量採「一式」固定 1，金額為底下葉節點累計金額之和
+            est = line.estimate_id
+            if (line.is_summary_item or not line.task_id
+                    or not est.project_id or not est.estimate_date):
+                line.previous_approved_qty = 0.0
+                continue
+            prev_lines = self.search([
+                ('task_id', '=', line.task_id.id),
+                ('estimate_id.project_id', '=', est.project_id.id),
+                ('estimate_id.state', '=', 'approved'),
+                ('estimate_id.estimate_date', '<', est.estimate_date),
+            ])
+            line.previous_approved_qty = sum(prev_lines.mapped('estimate_qty'))
+
+    @api.depends('estimate_qty', 'unit_price', 'previous_approved_qty', 'is_summary_item',
+                 'estimate_id.line_ids.estimate_qty',
+                 'estimate_id.line_ids.unit_price',
+                 'estimate_id.line_ids.previous_approved_qty')
+    def _compute_cumulative(self):
+        """計算累計估驗數量與金額（純算術，即時更新）
+
+        葉節點：累計 = 前期已核定累計 + 本次；金額 = 單價 × 累計。
+        彙總項：數量採「一式」固定 1；金額 = 底下葉節點的 單價×(前期+本次) 之和
+                （直接讀葉節點原始欄位算術，不讀其計算欄位，避免計算順序造成讀到舊值）。
+        """
+        for line in self:
             if line.is_summary_item:
                 leaf_lines = line._get_descendant_leaf_lines()
                 line.cumulative_estimate_qty = 1.0
                 line.cumulative_estimate_amount = sum(
-                    leaf_lines.mapped('cumulative_estimate_amount')
+                    l.unit_price * (l.previous_approved_qty + l.estimate_qty)
+                    for l in leaf_lines
                 )
                 continue
-            if not line.task_id or not line.estimate_id.project_id:
-                line.cumulative_estimate_qty = line.estimate_qty
-                line.cumulative_estimate_amount = line.unit_price * line.estimate_qty
-                continue
-            # 查詢同工程同工項已核定估驗的 estimate_qty 總和
-            prev_lines = self.search([
-                ('task_id', '=', line.task_id.id),
-                ('estimate_id.project_id', '=', line.estimate_id.project_id.id),
-                ('estimate_id.state', '=', 'approved'),
-                ('estimate_id', '!=', line.estimate_id.id),
-            ])
-            prev_total = sum(prev_lines.mapped('estimate_qty'))
-            line.cumulative_estimate_qty = prev_total + line.estimate_qty
+            line.cumulative_estimate_qty = line.previous_approved_qty + line.estimate_qty
             line.cumulative_estimate_amount = line.unit_price * line.cumulative_estimate_qty

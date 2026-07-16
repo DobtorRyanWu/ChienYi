@@ -40,7 +40,7 @@ class TestStandard(models.Model):
         default=True)
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         required=True,
         ondelete='cascade',
@@ -384,7 +384,7 @@ class TestStandard(models.Model):
         :param project_id: int, supervision.project ID
         :return: list of dict
         """
-        sup_project = self.env['supervision.project'].browse(project_id)
+        sup_project = self.env['project.project'].browse(project_id)
         if not sup_project.exists():
             return []
 

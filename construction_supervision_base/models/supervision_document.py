@@ -24,7 +24,7 @@ class SupervisionDocument(models.Model):
         string='文件名稱', required=True, tracking=True)
 
     project_id = fields.Many2one(
-        'supervision.project', string='所屬工程',
+        'project.project', string='所屬工程',
         required=True, ondelete='cascade', index=True, tracking=True)
 
     # === 文件分類 ===

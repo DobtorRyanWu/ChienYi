@@ -14,7 +14,7 @@ class AddSlipLineWizard(models.TransientModel):
         required=True, readonly=True)
 
     project_id = fields.Many2one(
-        'supervision.project', string='所屬工程',
+        'project.project', string='所屬工程',
         related='slip_id.project_id', readonly=True)
 
     selected_task_ids = fields.Many2many(

@@ -113,7 +113,7 @@ export class ProgressDashboard extends Component {
         this.state.dashboardLoading = true;
         try {
             const data = await this.orm.call(
-                "supervision.project",
+                "project.project",
                 "get_project_dashboard_data",
                 [projectId]
             );
@@ -174,7 +174,7 @@ export class ProgressDashboard extends Component {
 
         try {
             const data = await this.orm.call(
-                "supervision.project",
+                "project.project",
                 "get_progress_chart_data",
                 [projectId]
             );

@@ -12,7 +12,7 @@ class TestMeetingRecord(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.Meeting = cls.env['construction.meeting.record']
-        cls.project = cls.env['supervision.project'].create({
+        cls.project = cls.env['project.project'].create({
             'name': 'Sprint 24 會議測試工程',
             'code': 'S24-MEET',
             'project_type': 'general',

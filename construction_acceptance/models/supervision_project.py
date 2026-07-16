@@ -10,7 +10,7 @@ class SupervisionProject(models.Model):
 
     新增驗收與結案相關欄位
     """
-    _inherit = 'supervision.project'
+    _inherit = 'project.project'
 
     # === 驗收關聯 ===
     preliminary_acceptance_ids = fields.One2many(

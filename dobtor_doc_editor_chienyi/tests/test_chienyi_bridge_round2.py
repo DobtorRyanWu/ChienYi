@@ -21,7 +21,7 @@ class TestReservationSelfInspectionBridge(TransactionCase):
         cls.User = cls.env['res.users']
         cls.Inspection = cls.env['reservation.self.inspection']
 
-        cls.project = cls.env['supervision.project'].create({
+        cls.project = cls.env['project.project'].create({
             'name': 'Sprint 22 預約式測試工程',
             'code': 'S22-RES',
             'project_type': 'reservation',
@@ -103,7 +103,7 @@ class TestSupervisionDefectBridge(TransactionCase):
         cls.User = cls.env['res.users']
         cls.Defect = cls.env['supervision.defect']
 
-        cls.project = cls.env['supervision.project'].create({
+        cls.project = cls.env['project.project'].create({
             'name': 'Sprint 22 缺失測試工程',
             'code': 'S22-DEF',
             'project_type': 'general',
@@ -175,7 +175,7 @@ class TestPaymentEstimateBridge(TransactionCase):
         cls.User = cls.env['res.users']
         cls.Estimate = cls.env['payment.estimate']
 
-        cls.project = cls.env['supervision.project'].create({
+        cls.project = cls.env['project.project'].create({
             'name': 'Sprint 22 估驗測試工程',
             'code': 'S22-PAY',
             'project_type': 'general',

@@ -29,7 +29,7 @@ class GeneralSelfInspection(models.Model):
 
     # === 工程關聯 ===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         required=True,
         tracking=True,
@@ -260,7 +260,7 @@ class GeneralSelfInspection(models.Model):
                 vals['name'] = self.env['ir.sequence'].next_by_code('general.self.inspection') or '/'
             # 未指定負責人時，由工程案件的「自主檢查負責人」帶入
             if not vals.get('responsible_user_id') and vals.get('project_id'):
-                user = self.env['supervision.project'].browse(
+                user = self.env['project.project'].browse(
                     vals['project_id'])._get_activity_user('inspection')
                 if user:
                     vals['responsible_user_id'] = user.id

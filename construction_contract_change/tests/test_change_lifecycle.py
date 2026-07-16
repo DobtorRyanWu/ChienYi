@@ -15,7 +15,7 @@ class TestContractChangeDeleteLifecycle(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.project = cls.env['supervision.project'].create({
+        cls.project = cls.env['project.project'].create({
             'name': 'H4 變更測試工程',
             'code': 'H4-CHG',
             'project_type': 'general',
@@ -24,7 +24,7 @@ class TestContractChangeDeleteLifecycle(TransactionCase):
         })
         cls.task = cls.env['project.task'].create({
             'name': 'H4 待刪工項',
-            'project_id': cls.project.project_id.id,
+            'project_id': cls.project.id,
             'item_no': 'A-001',
             'planned_qty': 10.0,
             'unit_price': 100.0,

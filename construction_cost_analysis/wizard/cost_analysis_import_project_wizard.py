@@ -20,7 +20,7 @@ class CostAnalysisImportProjectWizard(models.TransientModel):
 
     # === 來源專案 ===
     source_project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='來源專案',
         required=True,
         domain="[('state', '!=', 'closed'), ('company_id', '=', company_id)]",

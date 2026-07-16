@@ -53,7 +53,7 @@ export class ProgressChartWidget extends Component {
 
         try {
             const data = await this.orm.call(
-                "supervision.project",
+                "project.project",
                 "get_progress_chart_data",
                 [projectId]
             );

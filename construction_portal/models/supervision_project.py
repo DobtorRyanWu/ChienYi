@@ -11,8 +11,10 @@ class SupervisionProjectPortal(models.Model):
     - 繼承 portal.mixin 提供 Portal 存取功能
     - Portal 用戶可透過關聯的承包廠商查看工程案件
     """
-    _inherit = ['supervision.project', 'portal.mixin']
-    _name = 'supervision.project'
+    # 原生 project.project 已含 portal.mixin，此處明列以保留本模組對 mixin hook 的覆寫。
+    # list 形式 _inherit 混入 mixin 時，必須顯式指定 _name，否則 Odoo 會用類別名當新 model
+    _name = 'project.project'
+    _inherit = ['project.project', 'portal.mixin']
 
     # === Portal 安全規則輔助欄位 ===
     # 因為 Many2many 欄位遍歷在 ir.rule domain 中無法正確運作

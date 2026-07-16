@@ -14,7 +14,7 @@ class CheckTestRequirementWizard(models.TransientModel):
     # ===================================================================
     
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程案件',
         required=True,
         default=lambda self: self._default_project_id(),
@@ -53,7 +53,7 @@ class CheckTestRequirementWizard(models.TransientModel):
             return project_id
         
         # 否則取得目前施工中的專案（如果只有一個）
-        projects = self.env['supervision.project'].search([
+        projects = self.env['project.project'].search([
             ('state', '=', 'construction')
         ])
         if len(projects) == 1:
@@ -248,7 +248,7 @@ class CheckTestRequirementCron(models.AbstractModel):
         自動檢查所有施工中的工程，建立需要的檢驗記錄
         """
         # 查詢所有施工中的工程
-        projects = self.env['supervision.project'].search([
+        projects = self.env['project.project'].search([
             ('state', '=', 'construction')
         ])
         

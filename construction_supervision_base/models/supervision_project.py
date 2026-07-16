@@ -14,17 +14,13 @@ class SupervisionProject(models.Model):
     - 支援一般式與預約式兩種工程類型
     - 多公司架構：管理公司(設計監造) + 承包廠商
     """
-    _name = 'supervision.project'
+    # 古典擴充：工程案件＝原生 project.project（無 _name、無委派 FK）。
+    # mail.thread / mail.activity.mixin 由原生 project.project 提供，無需重複繼承。
+    _inherit = 'project.project'
     _description = '工程案件主檔'
-    _inherits = {'project.project': 'project_id'}
-    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'code desc, id desc'
-
-    # === 關聯原生專案 ===
-    project_id = fields.Many2one(
-        'project.project', string='專案',
-        required=True, ondelete='cascade', auto_join=True,
-        help='關聯 Odoo 原生專案，自動繼承分析帳戶')
+    # Odoo 18 name search：以 code 或 name 命中（取代已移除的 _name_search）
+    _rec_names_search = ['code', 'name']
 
     # === 基本資料 ===
     code = fields.Char(
@@ -120,6 +116,15 @@ class SupervisionProject(models.Model):
     currency_id = fields.Many2one(
         'res.currency', string='幣別',
         default=lambda self: self.env.company.currency_id)
+
+    # 原始契約金額：開工時凍結，作為契約變更計算基準。
+    # 定義於 base（消費者所在地：_compute_contract_amount / action_approve 會讀寫），
+    # 與 original_contract_end_date / original_duration 並列；contract_change 僅延伸使用。
+    original_contract_amount = fields.Monetary(
+        string='原始契約金額',
+        currency_field='currency_id',
+        tracking=True,
+        help='初始契約金額 (不含變更)')
 
     contract_start_date = fields.Date(string='契約開工日', tracking=True)
     contract_end_date = fields.Date(
@@ -649,9 +654,9 @@ class SupervisionProject(models.Model):
             'res_model': 'project.task',
             'view_mode': 'list,form',
             'views': [(tree_view_id, 'list'), (False, 'form')],
-            'domain': [('project_id', '=', self.project_id.id)],
+            'domain': [('project_id', '=', self.id)],
             'context': {
-                'default_project_id': self.project_id.id,
+                'default_project_id': self.id,
             },
         }
 
@@ -674,9 +679,9 @@ class SupervisionProject(models.Model):
         """一鍵重新整理工項排序：以樹狀 DFS 重編整個專案的 sequence。
         用於修復歷史契約變更造成的跨彙總項排序錯亂。"""
         self.ensure_one()
-        if not self.project_id:
+        if not self.task_ids:
             raise UserError('此工程尚未建立契約工項，無法整理排序。')
-        self.env['project.task']._resequence_project_sequence(self.project_id.id)
+        self.env['project.task']._resequence_project_sequence(self.id)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -704,12 +709,11 @@ class SupervisionProject(models.Model):
                     '如需修正資料，請使用「提出更正」功能；如需停用，請使用「封存」功能。'
                 )
         # project.task.project_id 在 Odoo 18 是 computed field，DB 層為 SET NULL，
-        # 必須在刪除 supervision.project 前明確刪除所有契約工項
-        native_project_ids = self.mapped('project_id').ids
-        if native_project_ids:
-            tasks = self.env['project.task'].with_context(active_test=False).search([
-                ('project_id', 'in', native_project_ids)
-            ])
+        # 必須在刪除工程案件（project.project）前明確刪除所有契約工項
+        tasks = self.env['project.task'].with_context(active_test=False).search([
+            ('project_id', 'in', self.ids)
+        ])
+        if tasks:
             tasks.unlink()
         return super().unlink()
 
@@ -743,16 +747,11 @@ class SupervisionProject(models.Model):
         for project in overdue:
             project.action_complete_correction()
 
-    def name_get(self):
-        result = []
+    @api.depends('code', 'name')
+    def _compute_display_name(self):
+        # 顯示為 [code] name（Odoo 18 以 _compute_display_name 取代已移除的 name_get）
         for project in self:
-            name = f'[{project.code}] {project.name}'
-            result.append((project.id, name))
-        return result
-
-    @api.model
-    def _name_search(self, name, domain=None, operator='ilike', limit=None, order=None):
-        domain = domain or []
-        if name:
-            domain = ['|', ('code', operator, name), ('name', operator, name)] + domain
-        return self._search(domain, limit=limit, order=order)
+            if project.code:
+                project.display_name = f'[{project.code}] {project.name or ""}'.rstrip()
+            else:
+                project.display_name = project.name or ''

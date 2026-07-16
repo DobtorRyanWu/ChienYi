@@ -27,7 +27,7 @@ class EstimateSyncWizard(models.TransientModel):
         required=True,
     )
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         '所屬工程',
         related='change_order_id.project_id',
         readonly=True,

@@ -60,4 +60,8 @@ class GeneralSelfInspectionPortal(models.Model):
             'portal_creator_id': partner.id,
             'is_portal_created': True,
         })
-        return self.sudo().create(vals)
+        inspection = self.sudo().create(vals)
+        # 由檢查類型帶入預設檢查項目（前台送出後才能對應更新其結果）
+        if inspection.inspection_type_id and not inspection.checklist_ids:
+            inspection.action_load_default_items()
+        return inspection

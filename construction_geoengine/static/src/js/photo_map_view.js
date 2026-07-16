@@ -167,7 +167,7 @@ class PhotoMapController extends Component {
         ]);
 
         const projects = await this.orm.searchRead(
-            "supervision.project", [], ["id", "name", "latitude", "longitude"],
+            "project.project", [], ["id", "name", "latitude", "longitude"],
             { limit: 500, order: "name" }
         );
         this.state.projects = projects;

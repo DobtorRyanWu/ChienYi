@@ -16,7 +16,7 @@ class ConstructionWeeklySchedule(models.Model):
 
     # === 基本資訊 ===
     supervision_project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程案件',
         required=True,
         ondelete='cascade',
@@ -25,7 +25,7 @@ class ConstructionWeeklySchedule(models.Model):
     project_id = fields.Many2one(
         'project.project',
         string='原生專案',
-        related='supervision_project_id.project_id',
+        related='supervision_project_id',
         store=True,
         readonly=True,
     )

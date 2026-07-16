@@ -112,6 +112,7 @@
                                     <field name="estimate_qty"
                                            readonly="is_summary_item or parent.state in ('approved', 'archived')"/>
                                     <field name="available_qty"/>
+                                    <field name="previous_approved_qty" optional="show"/>
                                     <field name="cumulative_estimate_qty"/>
                                     <field name="estimate_amount"/>
                                     <field name="cumulative_estimate_amount"/>

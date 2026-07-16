@@ -47,12 +47,12 @@ class ResCompany(models.Model):
 
     # === 專案關聯 ===
     supervised_project_ids = fields.One2many(
-        'supervision.project', 'company_id',
+        'project.project', 'company_id',
         string='管理的專案',
         help='此公司作為設計監造單位管理的專案')
 
     contracted_project_ids = fields.Many2many(
-        'supervision.project', 'supervision_project_contractor_rel',
+        'project.project', 'supervision_project_contractor_rel',
         'company_id', 'project_id',
         string='承包的專案',
         help='此公司作為施工廠商參與的專案')
@@ -78,7 +78,7 @@ class ResCompany(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'name': '管理的專案',
-            'res_model': 'supervision.project',
+            'res_model': 'project.project',
             'view_mode': 'list,form',
             'domain': [('company_id', '=', self.id)],
             'context': {'default_company_id': self.id},
@@ -90,7 +90,7 @@ class ResCompany(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'name': '承包的專案',
-            'res_model': 'supervision.project',
+            'res_model': 'project.project',
             'view_mode': 'list,form',
             'domain': [('contractor_company_ids', 'in', [self.id])],
         }

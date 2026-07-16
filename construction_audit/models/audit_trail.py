@@ -157,7 +157,7 @@ class AuditTrail(models.Model):
         記錄操作軌跡
 
         Args:
-            model_name: 模型技術名稱 (如 'supervision.project')
+            model_name: 模型技術名稱 (如 'project.project')
             res_id: 記錄 ID
             operation_type: 操作類型 (create/write/state_change/unlink)
             old_values: 變更前的值 (dict)

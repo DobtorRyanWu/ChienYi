@@ -103,7 +103,7 @@ export class PhotoMapAction extends Component {
 
         // 工程案件
         const projects = await this.orm.searchRead(
-            "supervision.project",
+            "project.project",
             [],
             ["id", "name", "latitude", "longitude"],
             { limit: 500 }

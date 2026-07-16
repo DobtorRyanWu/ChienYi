@@ -12,7 +12,7 @@ class DefectImprovementPrefixConfig(models.Model):
 
     # === 工程關聯 ===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程案件',
         required=True,
         ondelete='cascade',

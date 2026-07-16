@@ -30,7 +30,7 @@ class AcceptanceDefect(models.Model):
 
     # === 工程關聯 ===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         required=True,
         ondelete='cascade',

@@ -17,7 +17,7 @@ class SupervisionProjectMember(models.Model):
     _order = 'project_id, id'
 
     project_id = fields.Many2one(
-        'supervision.project', string='工程案件',
+        'project.project', string='工程案件',
         required=True, ondelete='cascade', index=True)
     user_id = fields.Many2one(
         'res.users', string='參與帳號',

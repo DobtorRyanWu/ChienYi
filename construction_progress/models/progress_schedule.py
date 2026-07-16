@@ -30,7 +30,7 @@ class ProgressSchedule(models.Model):
         store=True,
     )
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         required=True,
         ondelete='cascade',
@@ -1161,7 +1161,7 @@ class ProgressSchedule(models.Model):
                     vals['version'] = 1
             # 快照當下工程案件的累計展延天數，作為本版基準
             if 'project_id' in vals and 'base_extension_duration' not in vals:
-                project = self.env['supervision.project'].browse(vals['project_id'])
+                project = self.env['project.project'].browse(vals['project_id'])
                 vals['base_extension_duration'] = project.extension_duration or 0
                 # 快照此刻的 contract_end_date 作為「前一版完工日」基準
                 if 'original_end_date' not in vals:

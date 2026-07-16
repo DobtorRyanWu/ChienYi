@@ -539,7 +539,7 @@
     <!-- ====================== -->
     <record id="supervision_project_view_form_change" model="ir.ui.view">
         <field name="name">supervision.project.form.change</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
         <field name="arch" type="xml">
             <!-- 在按鈕區增加變更單按鈕 -->

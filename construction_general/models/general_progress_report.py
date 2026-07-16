@@ -29,7 +29,7 @@ class GeneralProgressReport(models.Model):
 
     # === 工程關聯 ===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         required=True,
         ondelete='cascade',
@@ -323,11 +323,11 @@ class GeneralProgressReport(models.Model):
         if self.progress_line_ids:
             raise UserError('已有進度明細，如需重新載入請先清除')
 
-        if not self.project_id.project_id:
+        if not self.project_id:
             raise UserError('工程未關聯專案')
 
         tasks = self.env['project.task'].search([
-            ('project_id', '=', self.project_id.project_id.id),
+            ('project_id', '=', self.project_id.id),
         ])
 
         lines = []

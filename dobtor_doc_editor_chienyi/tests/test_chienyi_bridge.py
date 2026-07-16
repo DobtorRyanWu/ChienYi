@@ -24,7 +24,7 @@ class TestChienyiBridge(TransactionCase):
         cls.Doc = cls.env['doc.document']
 
         # 建立必要的支援資料
-        cls.project = cls.env['supervision.project'].create({
+        cls.project = cls.env['project.project'].create({
             'name': 'Sprint 21 測試工程',
             'code': 'S21-TEST',
             'project_type': 'general',

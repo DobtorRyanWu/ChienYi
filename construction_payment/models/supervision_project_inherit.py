@@ -5,7 +5,7 @@ from odoo import api, fields, models
 
 class SupervisionProjectPayment(models.Model):
     """擴展 supervision.project，加入估驗週期設定"""
-    _inherit = 'supervision.project'
+    _inherit = 'project.project'
 
     # === 估驗週期設定 ===
     valuation_cycle = fields.Selection([

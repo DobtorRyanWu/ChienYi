@@ -10,7 +10,7 @@ class ProfitLossEntry(models.Model):
     _order = 'estimate_id'
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程',
         required=True,
         ondelete='cascade',

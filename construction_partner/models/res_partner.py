@@ -95,7 +95,7 @@ class ResPartner(models.Model):
 
     # === 專案關聯 ===
     supervision_project_ids = fields.Many2many(
-        'supervision.project',
+        'project.project',
         string='參與專案',
         compute='_compute_supervision_project_ids',
         help='此單位參與的工程專案')
@@ -200,7 +200,7 @@ class ResPartner(models.Model):
     @api.depends('construction_partner_type')
     def _compute_supervision_project_ids(self):
         """計算關聯的工程專案"""
-        Project = self.env['supervision.project']
+        Project = self.env['project.project']
         for partner in self:
             projects = Project.browse()
 
@@ -282,7 +282,7 @@ class ResPartner(models.Model):
         return {
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 工程專案',
-            'res_model': 'supervision.project',
+            'res_model': 'project.project',
             'view_mode': 'list,kanban,form',
             'domain': [('id', 'in', self.supervision_project_ids.ids)],
         }

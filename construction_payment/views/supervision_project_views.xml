@@ -4,7 +4,7 @@
     <!-- 擴展工程案件表單：加入估驗週期欄位與 smart button -->
     <record id="view_supervision_project_form_payment" model="ir.ui.view">
         <field name="name">supervision.project.form.payment</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
         <field name="arch" type="xml">
             <!-- 估驗計價 smart button 已移除 -->

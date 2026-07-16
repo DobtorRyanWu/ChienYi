@@ -16,30 +16,15 @@
     -->
 
     <!-- ============================================================ -->
-    <!-- project.project：委派繼承的後盾讀取（維持公司範圍，不影響       -->
-    <!-- supervision.project 的成員制過濾，因前台查的是 supervision.project）-->
-    <!-- ============================================================ -->
-    <record id="project_project_portal_contractor_rule" model="ir.rule">
-        <field name="name">Portal: 工程專案 - 承包廠商關聯 (繞過關注者)</field>
-        <field name="model_id" ref="project.model_project_project"/>
-        <field name="domain_force">[
-            ('portal_contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])
-        ]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="False"/>
-        <field name="perm_create" eval="False"/>
-        <field name="perm_unlink" eval="False"/>
-    </record>
-
-    <!-- ============================================================ -->
-    <!-- supervision.project：可見性主閘門                              -->
+    <!-- 工程案件 project.project：可見性主閘門                          -->
+    <!-- （合併後工程案件＝project.project；原委派後盾 rule 已隨委派 FK  -->
+    <!--   消滅而移除，避免非老闆 portal 用戶取得公司範圍存取）           -->
     <!-- ============================================================ -->
 
     <!-- 預設（所有 portal 帳號）：只看被指派為參與成員的專案 -->
     <record id="supervision_project_portal_member_rule" model="ir.rule">
         <field name="name">Portal: 工程案件 - 僅參與成員專案（預設）</field>
-        <field name="model_id" ref="construction_supervision_base.model_supervision_project"/>
+        <field name="model_id" ref="project.model_project_project"/>
         <field name="domain_force">[
             ('member_user_ids', 'in', [user.id]),
             ('state', 'not in', ['draft', 'terminated'])
@@ -54,7 +39,7 @@
     <!-- 老闆：公司承包的所有專案（OR 疊加在成員制之上） -->
     <record id="supervision_project_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 工程案件 - 公司範圍全部</field>
-        <field name="model_id" ref="construction_supervision_base.model_supervision_project"/>
+        <field name="model_id" ref="project.model_project_project"/>
         <field name="domain_force">[
             ('contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id]),
             ('state', 'not in', ['draft', 'terminated'])

@@ -90,7 +90,7 @@ class ContractChangeWizardLine(models.TransientModel):
                 line.parent_line_id = False
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         related='wizard_id.project_id',
         readonly=True)
@@ -547,7 +547,7 @@ class ContractChangeWizard(models.TransientModel):
         readonly=True)
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         domain="[('state', 'in', ['construction', 'completion', 'acceptance'])]",
         help='選擇要匯入的工程案件')

@@ -103,7 +103,7 @@ class DocumentTemplate(models.Model):
        help='系統層級：所有公司可用；公司層級：僅該公司可用；專案層級：僅該專案可用')
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='專屬專案',
         tracking=True,
         help='若指定專案，則僅該專案使用此樣板；留空則為通用樣板')

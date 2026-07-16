@@ -30,7 +30,7 @@ class NotificationAcceptance(models.Model):
         tracking=True)
 
     project_id = fields.Many2one(
-        'supervision.project', string='所屬工程',
+        'project.project', string='所屬工程',
         related='slip_id.project_id', store=True)
 
     company_id = fields.Many2one(

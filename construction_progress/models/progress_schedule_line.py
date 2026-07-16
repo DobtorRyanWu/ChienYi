@@ -30,7 +30,7 @@ class ProgressScheduleLine(models.Model):
         index=True,
     )
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         related='schedule_id.project_id',
         store=True,

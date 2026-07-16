@@ -6,7 +6,7 @@
     <!-- ============================================== -->
     <record id="view_supervision_project_form_signboard" model="ir.ui.view">
         <field name="name">supervision.project.form.signboard</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
         <field name="arch" type="xml">
             <!-- 在 notebook 最後插入「工程告示牌」頁籤 -->

@@ -27,7 +27,7 @@ class ContractChangeOrderLine(models.Model):
         index=True)
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程案件',
         related='change_order_id.project_id',
         store=True)
@@ -45,10 +45,11 @@ class ContractChangeOrderLine(models.Model):
         store=True)
 
     # === 輔助欄位：用於 domain 過濾 ===
+    # 合併後工程案件即 project.project，此輔助欄位等同 project_id（保留供既有 domain 引用）
     project_project_id = fields.Many2one(
         'project.project',
         string='專案(Odoo)',
-        related='project_id.project_id',
+        related='project_id',
         store=True,
         help='關聯的 project.project，用於工項過濾')
 
@@ -334,7 +335,7 @@ class ContractChangeOrderLine(models.Model):
                 self.unit = self.parent_task_id.unit
             
             # 自動產生工項編號
-            if self.project_id and self.project_id.project_id:
+            if self.project_id and self.project_id:
                 self.item_no = self._generate_next_item_no()
     
     def _generate_next_item_no(self):
@@ -345,7 +346,7 @@ class ContractChangeOrderLine(models.Model):
         # 搜尋同父工項下的所有子工項
         ProjectTask = self.env['project.task']
         siblings = ProjectTask.search([
-            ('project_id', '=', self.project_id.project_id.id),
+            ('project_id', '=', self.project_id.id),
             ('parent_id', '=', self.parent_task_id.id),
             ('active', '=', True)
         ], order='sequence desc, id desc', limit=1)

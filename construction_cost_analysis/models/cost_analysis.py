@@ -59,7 +59,7 @@ class CostAnalysis(models.Model):
     )
 
     source_project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='來源專案',
         tracking=True,
         help='從此專案匯入契約工項'

@@ -59,7 +59,7 @@ class ContractChangeOrder(models.Model):
                 order.change_no = 0
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程案件',
         ondelete='cascade',
         tracking=True,
@@ -485,8 +485,8 @@ class ContractChangeOrder(models.Model):
         # ── 結構變更後，整個專案以樹狀 DFS 重編 sequence ──────────────
         # 新增/刪除會讓同父 max+10 的序號跨越下一彙總項區間造成亂序；
         # 重編後保證「父 < 子孫 < 下一兄弟」，徹底消除跨彙總項撞號。
-        if self.project_id and self.project_id.project_id:
-            ProjectTask._resequence_project_sequence(self.project_id.project_id.id)
+        if self.project_id and self.project_id:
+            ProjectTask._resequence_project_sequence(self.project_id.id)
 
     def _create_added_task(self, line, parent_id):
         """建立一筆新增工項 task（parent_id 已由拓樸解析：既有彙總項或本次新建群組）。
@@ -495,7 +495,7 @@ class ContractChangeOrder(models.Model):
         ProjectTask = self.env['project.task']
         display_unit = ProjectTask._normalize_unit_display(line.unit)
         vals = {
-            'project_id': self.project_id.project_id.id,
+            'project_id': self.project_id.id,
             'name': line.item_name,
             'item_no': line.item_no,
             'planned_qty': line.new_qty,

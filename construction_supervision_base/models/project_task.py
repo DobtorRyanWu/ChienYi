@@ -526,22 +526,12 @@ class ProjectTask(models.Model):
                 task.schedule_status = False
 
     # === 工程相關 ===
+    # 合併後工項所屬 project.project 即工程案件本身，直接 related 到 project_id
+    # （欄位名保留，供既有 view/domain/depends 續用）
     supervision_project_id = fields.Many2one(
-        'supervision.project', string='工程案件',
-        compute='_compute_supervision_project', store=True,
-        help='關聯的工程案件主檔')
-
-    @api.depends('project_id')
-    def _compute_supervision_project(self):
-        SupervisionProject = self.env['supervision.project']
-        for task in self:
-            if task.project_id:
-                supervision = SupervisionProject.search([
-                    ('project_id', '=', task.project_id.id)
-                ], limit=1)
-                task.supervision_project_id = supervision.id if supervision else False
-            else:
-                task.supervision_project_id = False
+        'project.project', string='工程案件',
+        related='project_id', store=True,
+        help='關聯的工程案件主檔（即本工項所屬 project.project）')
     
     # === 工程案件狀態 ===
     project_state = fields.Selection(

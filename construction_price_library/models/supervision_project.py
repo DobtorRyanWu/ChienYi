@@ -15,7 +15,7 @@ class SupervisionProject(models.Model):
     - 追蹤價格來源
     - 計算建議單價統計
     """
-    _inherit = 'supervision.project'
+    _inherit = 'project.project'
 
     # === 價格庫提取狀態 ===
     price_library_extracted = fields.Boolean(

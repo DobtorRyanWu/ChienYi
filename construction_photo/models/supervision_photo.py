@@ -35,7 +35,7 @@ class SupervisionPhoto(models.Model):
         help='詳細說明此照片的內容、拍攝目的、相關資訊等')
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         required=True,
         ondelete='cascade',

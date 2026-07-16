@@ -8,7 +8,7 @@ _logger = logging.getLogger(__name__)
 
 class SupervisionProjectProfitLoss(models.Model):
     """擴展工程案件 - 即時損益 Dashboard API"""
-    _inherit = 'supervision.project'
+    _inherit = 'project.project'
 
     @api.model
     def get_profit_loss_data(self, project_id):

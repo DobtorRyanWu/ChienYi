@@ -8,7 +8,7 @@
     <!-- Extend Project Form View -->
     <record id="view_supervision_project_form_acceptance" model="ir.ui.view">
         <field name="name">supervision.project.form.acceptance</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
         <field name="arch" type="xml">
             <!-- Add acceptance buttons to button_box -->
@@ -70,7 +70,7 @@
     <!-- Extend Project Tree View -->
     <record id="view_supervision_project_tree_acceptance" model="ir.ui.view">
         <field name="name">supervision.project.tree.acceptance</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_tree"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='state']" position="after">
@@ -85,7 +85,7 @@
     <!-- Extend Project Search View -->
     <record id="view_supervision_project_search_acceptance" model="ir.ui.view">
         <field name="name">supervision.project.search.acceptance</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_search"/>
         <field name="arch" type="xml">
             <xpath expr="//search" position="inside">

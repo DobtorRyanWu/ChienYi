@@ -19,7 +19,7 @@ class TenderImportWizard(models.TransientModel):
 
     # === 關聯工程案件 ===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程案件',
         required=True,
         readonly=True,
@@ -116,7 +116,7 @@ class TenderImportWizard(models.TransientModel):
         """解析 XML 並做前置驗證，回傳 items_data。共用於 preview 與 confirm。"""
         if not self.xml_file:
             raise UserError('請先上傳 XML 檔案')
-        if not self.project_id.project_id:
+        if not self.project_id:
             raise UserError('工程案件未關聯專案，無法建立工項')
         try:
             xml_data = base64.b64decode(self.xml_file)
@@ -313,7 +313,7 @@ class TenderImportWizard(models.TransientModel):
                 'view_mode': 'list,form',
                 'views': [(tree_view_id, 'list'), (False, 'form')],
                 'domain': [('id', 'in', created_tasks.ids)],
-                'context': {'default_project_id': self.project_id.project_id.id},
+                'context': {'default_project_id': self.project_id.id},
                 'target': 'current',
             }
         return {
@@ -330,7 +330,7 @@ class TenderImportWizard(models.TransientModel):
         tree_view_id = self.env.ref(
             'construction_supervision_base.view_task_tree_project_specific').id
         tasks = self.env['project.task'].search([
-            ('project_id', '=', self.project_id.project_id.id),
+            ('project_id', '=', self.project_id.id),
             ('active', '=', True),
         ])
         return {
@@ -341,7 +341,7 @@ class TenderImportWizard(models.TransientModel):
             'views': [(tree_view_id, 'list'), (False, 'form')],
             'domain': [('id', 'in', tasks.ids)],
             'context': {
-                'default_project_id': self.project_id.project_id.id,
+                'default_project_id': self.project_id.id,
             },
             'target': 'current',
         }
@@ -413,7 +413,7 @@ class TenderImportWizard(models.TransientModel):
 
             # 準備工項資料（item_level 由 compute 自動計算，無需傳入）
             task_vals = {
-                'project_id': self.project_id.project_id.id,
+                'project_id': self.project_id.id,
                 'name': item.get('name', ''),
                 'item_no': item.get('item_no', ''),
                 'sequence': index * 10,

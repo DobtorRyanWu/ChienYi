@@ -19,7 +19,7 @@ class TestMeetingRecordBridge(TransactionCase):
         cls.Meeting = cls.env['construction.meeting.record']
         cls.Partner = cls.env['res.partner']
 
-        cls.project = cls.env['supervision.project'].create({
+        cls.project = cls.env['project.project'].create({
             'name': 'Sprint 24 會議 bridge 測試工程',
             'code': 'S24-MEET-B',
             'project_type': 'general',

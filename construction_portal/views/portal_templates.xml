@@ -204,9 +204,9 @@
 
                 <!-- ===== HUD 固定頂部 ===== -->
                 <t t-set="_detail_switch_domain"
-                   t-value="request.env['supervision.project']._get_portal_projects_domain(request.env.user.partner_id) + [('id', '!=', project.id)]"/>
+                   t-value="request.env['project.project']._get_portal_projects_domain(request.env.user.partner_id) + [('id', '!=', project.id)]"/>
                 <t t-set="_detail_switch_projects"
-                   t-value="request.env['supervision.project'].search(_detail_switch_domain, order='create_date desc', limit=30)"/>
+                   t-value="request.env['project.project'].search(_detail_switch_domain, order='create_date desc', limit=30)"/>
                 <div class="cy-hud">
                     <div class="cy-hud-top">
                         <div class="cy-hud-left">
@@ -694,9 +694,9 @@
              沒有 project(個人帳號頁)時不顯示切換器,只顯示文字。 -->
         <t t-if="project" t-set="_switch_partner" t-value="request.env.user.partner_id"/>
         <t t-if="project" t-set="_switch_domain"
-           t-value="request.env['supervision.project']._get_portal_projects_domain(_switch_partner) + [('id', '!=', project.id)]"/>
+           t-value="request.env['project.project']._get_portal_projects_domain(_switch_partner) + [('id', '!=', project.id)]"/>
         <t t-if="project" t-set="_switch_projects"
-           t-value="request.env['supervision.project'].search(_switch_domain, order='create_date desc', limit=30)"/>
+           t-value="request.env['project.project'].search(_switch_domain, order='create_date desc', limit=30)"/>
         <div class="cy-hud" style="padding-bottom: 0;">
             <div class="cy-hud-top">
                 <div class="cy-hud-left">

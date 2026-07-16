@@ -19,7 +19,7 @@ class SupervisionProjectProgress(models.Model):
     - 提供快速存取使用中進度表的功能
     - 顯示目前進度狀態摘要
     """
-    _inherit = 'supervision.project'
+    _inherit = 'project.project'
 
     # === 進度表關聯 ===
     schedule_ids = fields.One2many(

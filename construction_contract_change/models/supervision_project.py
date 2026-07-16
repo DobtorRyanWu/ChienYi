@@ -13,7 +13,7 @@ class SupervisionProject(models.Model):
     - 累計變更計算
     - 現行契約狀態追蹤
     """
-    _inherit = 'supervision.project'
+    _inherit = 'project.project'
 
     # === 契約變更關聯 ===
     change_order_ids = fields.One2many(
@@ -30,11 +30,8 @@ class SupervisionProject(models.Model):
         compute='_compute_change_order_count')
 
     # === 原始契約資訊 ===
-    original_contract_amount = fields.Monetary(
-        string='原始契約金額',
-        currency_field='currency_id',
-        tracking=True,
-        help='初始契約金額 (不含變更)')
+    # original_contract_amount 已移至 construction_supervision_base（消費者所在地），
+    # 避免 base 的 _compute_contract_amount 在僅載入 base 時前向參照失敗。此處僅延伸使用。
 
     # === 累計變更資訊 (計算欄位) ===
     total_change_amount = fields.Monetary(

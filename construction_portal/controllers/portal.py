@@ -194,14 +194,14 @@ class ConstructionPortal(CustomerPortal):
         partner = request.env.user.partner_id
 
         if 'construction_count' in counters:
-            domain = request.env['supervision.project']._get_portal_projects_domain(partner)
-            values['construction_count'] = request.env['supervision.project'].search_count(domain)
+            domain = request.env['project.project']._get_portal_projects_domain(partner)
+            values['construction_count'] = request.env['project.project'].search_count(domain)
 
         return values
 
     def _get_construction_projects_domain(self, partner):
         """取得 Portal 用戶可存取的工程案件 domain"""
-        return request.env['supervision.project']._get_portal_projects_domain(partner)
+        return request.env['project.project']._get_portal_projects_domain(partner)
 
     def _get_project_day_count(self, project):
         """計算 DAY 天數（從開工日到今天；已竣工則凍結至實際完工日）
@@ -296,7 +296,7 @@ class ConstructionPortal(CustomerPortal):
           由前端 JS 取得座標後 POST 到 /construction/nearest 拿最近專案 id 再跳轉
         """
         partner = request.env.user.partner_id
-        Project = request.env['supervision.project']
+        Project = request.env['project.project']
         domain = self._get_construction_projects_domain(partner)
 
         force_list = kw.get('view') == 'list' or page > 1
@@ -321,7 +321,7 @@ class ConstructionPortal(CustomerPortal):
     def _render_construction_list(self, page=1, sortby=None, **kw):
         """工程案件列表(原 portal_my_construction_projects 邏輯)"""
         partner = request.env.user.partner_id
-        Project = request.env['supervision.project']
+        Project = request.env['project.project']
 
         domain = self._get_construction_projects_domain(partner)
 
@@ -378,7 +378,7 @@ class ConstructionPortal(CustomerPortal):
             return {'project_id': None}
 
         partner = request.env.user.partner_id
-        Project = request.env['supervision.project']
+        Project = request.env['project.project']
         domain = self._get_construction_projects_domain(partner)
         # 排除沒填座標的專案(latitude/longitude 預設 0.0 → 不可信)
         domain = AND([domain, [
@@ -418,7 +418,7 @@ class ConstructionPortal(CustomerPortal):
         """工程首頁（v10 HUD 設計）"""
         try:
             project = self._document_check_access(
-                'supervision.project', project_id,
+                'project.project', project_id,
                 access_token=kw.get('access_token')
             )
         except (AccessError, MissingError):
@@ -592,7 +592,7 @@ class ConstructionPortal(CustomerPortal):
         """工程資訊頁面（底部導航第一 tab）"""
         try:
             project = self._document_check_access(
-                'supervision.project', project_id,
+                'project.project', project_id,
                 access_token=kw.get('access_token')
             )
         except (AccessError, MissingError):
@@ -634,7 +634,7 @@ class ConstructionPortal(CustomerPortal):
         """工程資訊編輯頁（補填/修改 supervision.project，僅 draft 狀態可用）"""
         try:
             project = self._document_check_access(
-                'supervision.project', project_id,
+                'project.project', project_id,
                 access_token=kw.get('access_token'),
             )
         except (AccessError, MissingError):
@@ -705,9 +705,9 @@ class ConstructionPortal(CustomerPortal):
             supervision_users = all_users
 
         # Year Selection（callable）
-        year_field = env['supervision.project']._fields['year'].selection
+        year_field = env['project.project']._fields['year'].selection
         if callable(year_field):
-            year_selection = year_field(env['supervision.project'])
+            year_selection = year_field(env['project.project'])
         else:
             year_selection = year_field or []
 
@@ -740,7 +740,7 @@ class ConstructionPortal(CustomerPortal):
         """
         try:
             project = self._document_check_access(
-                'supervision.project', project_id,
+                'project.project', project_id,
             )
         except (AccessError, MissingError):
             return {'success': False, 'error': '無權限或案件不存在'}
@@ -752,7 +752,7 @@ class ConstructionPortal(CustomerPortal):
             return {'success': False, 'error': '工程編號最多 64 字元'}
 
         # 重複檢查（同編號不同案件視為衝突）
-        Project = request.env['supervision.project'].sudo()
+        Project = request.env['project.project'].sudo()
         dup = Project.search(
             [('code', '=', code), ('id', '!=', project_id)], limit=1,
         )
@@ -779,7 +779,7 @@ class ConstructionPortal(CustomerPortal):
         """儲存工程資訊編輯"""
         try:
             project = self._document_check_access(
-                'supervision.project', project_id,
+                'project.project', project_id,
             )
         except (AccessError, MissingError):
             return request.redirect('/my')
@@ -835,7 +835,7 @@ class ConstructionPortal(CustomerPortal):
         if _in('name'):
             name = _s('name')
             if name:
-                pp = project.project_id.sudo()
+                pp = project.sudo()
                 for _lang in ('zh_TW', 'en_US'):
                     try:
                         pp.with_context(lang=_lang).write({'name': name})
@@ -976,7 +976,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_daily_logs(self, project_id, page=1, **kw):
         """施工日誌列表"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1073,7 +1073,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_daily_log_detail(self, project_id, log_id, **kw):
         """施工日誌詳情"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1158,7 +1158,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_daily_logs_import(self, project_id, **kw):
         """施工日誌批次匯入頁（GET）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1182,7 +1182,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_daily_logs_import_submit(self, project_id, **post):
         """施工日誌批次匯入提交（POST multipart）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1201,7 +1201,7 @@ class ConstructionPortal(CustomerPortal):
         DailyLog = env['daily.log.sheet'].sudo()
         ProjectTask = env['project.task'].sudo()
         base_url = f'/construction/{project_id}/daily-logs/import'
-        project_record_id = project.project_id.id
+        project_record_id = project.id
         supervision_project_id = project.id
 
         for f in files:
@@ -1327,7 +1327,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_daily_log_new(self, project_id, **kw):
         """新增施工日誌表單"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1338,7 +1338,7 @@ class ConstructionPortal(CustomerPortal):
 
         # 工項列表（只取最細項，非彙總項）— 用 sudo() 避免 Portal 權限問題
         tasks = request.env['project.task'].sudo().search([
-            ('project_id', '=', project.project_id.id),
+            ('project_id', '=', project.id),
             ('is_summary_item', '=', False),
             ('active', '=', True),
         ], order='sequence, item_no')
@@ -1373,7 +1373,7 @@ class ConstructionPortal(CustomerPortal):
         project_id = int(post.get('project_id', 0))
 
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1476,7 +1476,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_daily_log_edit(self, project_id, log_id, **kw):
         """編輯施工日誌(共用 form 模板)"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1496,7 +1496,7 @@ class ConstructionPortal(CustomerPortal):
         weather_emoji = {'sunny': '☀', 'cloudy': '⛅', 'overcast': '☁', 'rainy': '🌧', 'heavy_rain': '⛈', 'typhoon': '🌀', 'foggy': '🌫'}
 
         tasks = request.env['project.task'].sudo().search([
-            ('project_id', '=', project.project_id.id),
+            ('project_id', '=', project.id),
             ('is_summary_item', '=', False),
             ('active', '=', True),
         ], order='sequence, item_no')
@@ -1525,7 +1525,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_daily_log_update(self, project_id, log_id, **post):
         """更新施工日誌(編輯儲存)"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1593,7 +1593,7 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
         try:
             project = self._document_check_access(
-                'supervision.project', log.supervision_project_id.id)
+                'project.project', log.supervision_project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         # A（2026-07-14）：照片為附加證據、不改動已定稿的日誌欄位內容，
@@ -1625,7 +1625,7 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
         try:
             project = self._document_check_access(
-                'supervision.project', log.supervision_project_id.id)
+                'project.project', log.supervision_project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         if log.is_locked:
@@ -1647,7 +1647,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_inspections_import(self, project_id, **kw):
         """自主檢查批次匯入頁（GET）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1671,7 +1671,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_inspections_import_submit(self, project_id, **post):
         """自主檢查批次匯入提交（POST multipart）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1821,7 +1821,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_inspections(self, project_id, page=1, **kw):
         """自主檢查列表"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -1885,7 +1885,7 @@ class ConstructionPortal(CustomerPortal):
         """可見樣板 domain：全域(project_id=False) + 用戶可存取專案的 type。"""
         partner = request.env.user.partner_id
         proj_domain = self._get_construction_projects_domain(partner)
-        proj_ids = request.env['supervision.project'].sudo().search(proj_domain).ids
+        proj_ids = request.env['project.project'].sudo().search(proj_domain).ids
         return ['|', ('project_id', '=', False), ('project_id', 'in', proj_ids)]
 
     def _get_visible_inspection_type(self, type_id):
@@ -2123,7 +2123,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_inspection_new(self, project_id, **kw):
         """新增自主檢查表單"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2156,7 +2156,7 @@ class ConstructionPortal(CustomerPortal):
         project_id = int(post.get('project_id', 0))
 
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2188,7 +2188,8 @@ class ConstructionPortal(CustomerPortal):
             meta,
         )
 
-        # 處理 checklist 項目結果
+        # 處理 checklist 項目結果（前台送出的 checklist_item_id 為「檢查類型預設項目 id」，
+        # 對應建立時由 action_load_default_items 複製、並記錄 type_item_id 的檢查項目）
         idx = 0
         while True:
             item_id_str = post.get(f'checklist_item_id_{idx}')
@@ -2197,8 +2198,9 @@ class ConstructionPortal(CustomerPortal):
             if item_id_str:
                 check_result = post.get(f'checklist_result_{idx}', 'pass')
                 actual_result = post.get(f'checklist_actual_{idx}', '')
-                item = request.env['general.self.inspection.item'].sudo().browse(int(item_id_str))
-                if item.exists() and item.inspection_id.id == inspection.id:
+                item = inspection.sudo().checklist_ids.filtered(
+                    lambda l: l.type_item_id.id == int(item_id_str))
+                if item:
                     item.write({
                         'check_result': check_result,
                         'actual_result': actual_result,
@@ -2354,7 +2356,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_reservation_inspections(self, project_id, page=1, **kw):
         """預約式自主檢查列表(掛在通報單下,但這裡彙總顯示)"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2406,7 +2408,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_reservation_inspection_new(self, project_id, slip_id=None, **kw):
         """預約式檢查新增表單(必須帶 slip_id)"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2456,7 +2458,7 @@ class ConstructionPortal(CustomerPortal):
         if not slip.exists():
             return request.redirect('/my')
         try:
-            project = self._document_check_access('supervision.project', slip.project_id.id)
+            project = self._document_check_access('project.project', slip.project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2521,7 +2523,7 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
         try:
             project = self._document_check_access(
-                'supervision.project', inspection.project_id.id)
+                'project.project', inspection.project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2570,7 +2572,7 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
         try:
             project = self._document_check_access(
-                'supervision.project', inspection.project_id.id)
+                'project.project', inspection.project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         meta = {
@@ -2599,7 +2601,7 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
         try:
             self._document_check_access(
-                'supervision.project', inspection.project_id.id)
+                'project.project', inspection.project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         if att_id in inspection.photo_ids.ids:
@@ -2615,7 +2617,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defects_import(self, project_id, **kw):
         """缺失批次匯入頁（GET）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2639,7 +2641,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defects_import_submit(self, project_id, **post):
         """缺失批次匯入提交（POST multipart）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2750,7 +2752,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defects_enrich(self, project_id, **kw):
         """缺失改善明細補充頁（GET）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2774,7 +2776,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defects_enrich_submit(self, project_id, **post):
         """缺失改善明細補充提交（POST multipart，上傳 zip）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2874,7 +2876,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defects_import_docx(self, project_id, **kw):
         """從 docx zip 直接建立缺失紀錄（沒有總表單的案場用）。"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -2898,7 +2900,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defects_import_docx_submit(self, project_id, **post):
         """從 docx zip 建立缺失紀錄提交。"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3033,7 +3035,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defects(self, project_id, page=1, filterby=None, **kw):
         """缺失列表"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3086,7 +3088,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_defect_new(self, project_id, **kw):
         """新增缺失表單"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3115,7 +3117,7 @@ class ConstructionPortal(CustomerPortal):
         project_id = int(post.get('project_id', 0))
 
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3253,7 +3255,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_photos(self, project_id, page=1, **kw):
         """照片列表（含篩選、日期分群） — 圖庫樣貌（第二順位）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3329,7 +3331,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_photo_upload_form(self, project_id, **kw):
         """照片上傳表單"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3353,7 +3355,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_signboard_photo_upload(self, project_id, **post):
         """C（2026-07-14）：工程告示牌照片上傳（專案層級 signboard_photo_ids）。"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         att_ids = []
@@ -3366,7 +3368,7 @@ class ConstructionPortal(CustomerPortal):
             att = request.env['ir.attachment'].sudo().create({
                 'name': f.filename,
                 'datas': base64.b64encode(data),
-                'res_model': 'supervision.project',
+                'res_model': 'project.project',
                 'res_id': project.id,
                 'mimetype': f.mimetype or 'image/jpeg',
                 'public': True,
@@ -3386,7 +3388,7 @@ class ConstructionPortal(CustomerPortal):
         project_id = int(post.get('project_id', 0))
 
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3441,7 +3443,7 @@ class ConstructionPortal(CustomerPortal):
         project_id = int(post.get('project_id', 0))
 
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return {'success': False, 'error': 'access_denied'}
 
@@ -3517,7 +3519,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_slips(self, project_id, page=1, **kw):
         """通報單列表"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3559,7 +3561,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_slip_detail(self, project_id, slip_id, **kw):
         """通報單詳情"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3616,7 +3618,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_tests(self, project_id, page=1, **kw):
         """檢試驗管制列表"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3659,7 +3661,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_test_detail(self, project_id, test_id, **kw):
         """檢試驗管制詳情"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3698,7 +3700,7 @@ class ConstructionPortal(CustomerPortal):
         supervision.photo(source_model='test', source_id=test.id)。
         """
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         if 'supervision.test.record' not in request.env:
@@ -3722,7 +3724,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_documents(self, project_id, page=1, **kw):
         """檔案管理列表"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3772,7 +3774,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_document_upload(self, project_id, **post):
         """文件上傳"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -3852,7 +3854,7 @@ class ConstructionPortal(CustomerPortal):
         })
 
         # 建立監造專案
-        SuperProject = request.env['supervision.project'].sudo()
+        SuperProject = request.env['project.project'].sudo()
         vals = {
             'project_id': odoo_project.id,
             'project_type': post.get('project_type', 'general'),
@@ -3988,7 +3990,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_slip_confirm(self, project_id, slip_id, **post):
         """通報單：核定（draft → not_started）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         slip = request.env['reservation.notification.slip'].search(
@@ -4002,7 +4004,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_slip_close(self, project_id, slip_id, **post):
         """通報單：結案（in_progress → closed）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         slip = request.env['reservation.notification.slip'].search(
@@ -4022,7 +4024,7 @@ class ConstructionPortal(CustomerPortal):
         故存檔後即出現在通報單詳情頁。
         """
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         slip = request.env['reservation.notification.slip'].search(
@@ -4042,7 +4044,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_daily_log_mark_filled(self, project_id, log_id, **post):
         """施工日誌：鎖定/定稿（draft → filled）"""
         try:
-            project = self._document_check_access('supervision.project', project_id)
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         log = request.env['daily.log.sheet'].search(
@@ -4155,7 +4157,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_construction_photos_map(self, project_id, **kw):
         """照片地圖頁面（照片中心預設入口） — 第一順位顯示"""
         try:
-            project_sudo = self._document_check_access('supervision.project', project_id)
+            project_sudo = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/construction')
 
@@ -4198,7 +4200,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_photos_map_markers(self, project_id, **post):
         """取得專案照片 markers"""
         try:
-            self._document_check_access('supervision.project', project_id)
+            self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return {'error': 'Access denied'}
 
@@ -4222,7 +4224,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_photos_map_area(self, project_id, **post):
         """取得地圖範圍內照片詳情"""
         try:
-            self._document_check_access('supervision.project', project_id)
+            self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return {'error': 'Access denied'}
 
@@ -4258,7 +4260,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_photos_map_nearby(self, project_id, **post):
         """取得附近照片（依距離排序）"""
         try:
-            self._document_check_access('supervision.project', project_id)
+            self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return {'error': 'Access denied'}
 
@@ -4314,7 +4316,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_schedule_extend_page(self, project_id, **kw):
         """工期展延頁面：顯示 draft 進度表並提供展延輸入"""
         try:
-            project = request.env['supervision.project'].browse(project_id)
+            project = request.env['project.project'].browse(project_id)
             project.check_access_rule('read')
             project.check_access_rights('read')
         except (AccessError, MissingError):
@@ -4342,7 +4344,7 @@ class ConstructionPortal(CustomerPortal):
     def portal_schedule_extend_submit(self, project_id, schedule_id, **post):
         """提交工期展延：寫入 current_extension 並呼叫 action_extend_lines"""
         try:
-            project = request.env['supervision.project'].browse(project_id)
+            project = request.env['project.project'].browse(project_id)
             project.check_access_rule('write')
             project.check_access_rights('write')
         except (AccessError, MissingError):

@@ -32,7 +32,7 @@ class TestRecord(models.Model):
         help='自動編號')
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         required=True,
         ondelete='cascade',
@@ -394,7 +394,7 @@ class TestRecord(models.Model):
                 vals['name'] = self.env['ir.sequence'].next_by_code('supervision.test.record') or '/'
             # 未指定負責人時，由工程案件的「檢試驗負責人」帶入（程式/Portal 建立也適用）
             if not vals.get('responsible_user_id') and vals.get('project_id'):
-                project = self.env['supervision.project'].browse(vals['project_id'])
+                project = self.env['project.project'].browse(vals['project_id'])
                 user = project._get_activity_user('test')
                 if user:
                     vals['responsible_user_id'] = user.id

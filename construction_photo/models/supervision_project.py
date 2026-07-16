@@ -13,8 +13,9 @@ class SupervisionProject(models.Model):
     - 加入工程告示牌照片欄位
     - 照片自動同步至照片管理模組
     """
-    _name = 'supervision.project'
-    _inherit = ['supervision.project', 'photo.sync.mixin']
+    # list 形式 _inherit 混入 mixin 時，必須顯式指定 _name，否則 Odoo 會用類別名當新 model
+    _name = 'project.project'
+    _inherit = ['project.project', 'photo.sync.mixin']
 
     # === 工程告示牌 ===
     signboard_photo_ids = fields.Many2many(

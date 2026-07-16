@@ -31,7 +31,7 @@ class EstimateImportWizard(models.TransientModel):
         help='估驗截止日期，施工日誌累計以此日期為節點'
     )
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         '所屬工程',
         required=True
     )
@@ -153,6 +153,7 @@ class EstimateImportWizard(models.TransientModel):
                 ('task_id', '=', task.id),
                 ('estimate_id.project_id', '=', self.project_id.id),
                 ('estimate_id.state', '=', 'approved'),
+                ('estimate_id.estimate_date', '<', self.estimate_date),
             ])
             previous_estimate_qty = sum(prev_lines.mapped('estimate_qty'))
 
@@ -172,7 +173,7 @@ class EstimateImportWizard(models.TransientModel):
     def _load_tasks_from_project(self):
         """從工程直接載入契約工項（一般式工程用）"""
         tasks = self.env['project.task'].search([
-            ('project_id', '=', self.project_id.project_id.id),
+            ('project_id', '=', self.project_id.id),
             ('active', '=', True),
         ], order='sequence, item_no')
 
@@ -207,6 +208,7 @@ class EstimateImportWizard(models.TransientModel):
                 ('task_id', '=', task.id),
                 ('estimate_id.project_id', '=', self.project_id.id),
                 ('estimate_id.state', '=', 'approved'),
+                ('estimate_id.estimate_date', '<', self.estimate_date),
             ])
             previous_estimate_qty = sum(prev_lines.mapped('estimate_qty'))
 
@@ -242,34 +244,24 @@ class EstimateImportWizard(models.TransientModel):
             raise UserError('此工程案件沒有可匯入的工項')
 
         estimate = self.estimate_id
+        EstimateLine = self.env['payment.estimate.line']
 
-        # 計算次數與名稱（首次設定 project_id 時）
-        if not estimate.project_id:
-            count = self.env['payment.estimate'].search_count([
-                ('project_id', '=', self.project_id.id)
-            ])
-            estimate_no = count + 1
-        else:
-            estimate_no = estimate.estimate_no
-
-        # 建立估驗明細
+        # 建立估驗明細：契約數量/核定數量/單價一律由 task 權威重新產生
+        # （精靈畫面這些欄位為 readonly，存檔時不會回傳伺服器，直接讀 wiz_line 會得到 0；
+        #   故改以 _prepare_line_vals 依 task 重算，僅本次估驗數量與備註取自使用者輸入）
         line_vals = []
         for wiz_line in self.line_ids:
-            line_vals.append(Command.create({
-                'task_id': wiz_line.task_id.id,
-                'sequence': wiz_line.sequence,
-                'contract_qty': wiz_line.contract_qty,
-                'approved_qty': wiz_line.approved_qty,
-                'unit_price': wiz_line.unit_price,
-                'estimate_qty': wiz_line.estimate_qty,
-                'note': wiz_line.note,
-            }))
+            if not wiz_line.task_id:
+                continue
+            vals = EstimateLine._prepare_line_vals(wiz_line.task_id, wiz_line.sequence)
+            vals['estimate_qty'] = wiz_line.estimate_qty
+            vals['note'] = wiz_line.note
+            line_vals.append(Command.create(vals))
 
+        # 次數與名稱由 payment.estimate 依 estimate_date 自動重排（write 帶 estimate_date 觸發）
         write_vals = {
             'project_id': self.project_id.id,
             'estimate_date': self.estimate_date,
-            'estimate_no': estimate_no,
-            'name': f'第{estimate_no}次估驗計價',
             'line_ids': line_vals,
         }
         if self.slip_id:

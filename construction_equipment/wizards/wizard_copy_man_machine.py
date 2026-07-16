@@ -17,7 +17,7 @@ class ManMachineCopyWizard(models.TransientModel):
 
     # === 目標工程 ===
     target_project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='目標工程',
         required=True,
         help='選擇要複製到的目標工程')

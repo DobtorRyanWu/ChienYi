@@ -26,7 +26,7 @@ class ReservationNotificationSlip(models.Model):
         default=lambda self: self.env['ir.sequence'].next_by_code('reservation.notification.slip') or '/')
 
     project_id = fields.Many2one(
-        'supervision.project', string='所屬工程', required=True,
+        'project.project', string='所屬工程', required=True,
         domain=[('project_type', '=', 'reservation')],
         tracking=True,
         help='僅可選擇預約式工程')

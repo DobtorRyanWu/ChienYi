@@ -19,7 +19,7 @@ class PriceLibraryImportWizard(models.TransientModel):
 
     # === 目標工程 ===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='目標工程',
         required=True,
         help='將價格項目匯入此工程案件')
@@ -105,7 +105,7 @@ class PriceLibraryImportWizard(models.TransientModel):
         if not self.item_ids:
             raise UserError('請至少選擇一個價格項目')
 
-        if not self.project_id.project_id:
+        if not self.project_id:
             raise UserError('工程案件未關聯專案，無法建立工項')
 
         # 取得數量
@@ -115,7 +115,7 @@ class PriceLibraryImportWizard(models.TransientModel):
         task_vals_list = []
         for item in self.item_ids:
             task_vals_list.append({
-                'project_id': self.project_id.project_id.id,
+                'project_id': self.project_id.id,
                 'name': item.name,
                 'unit': item.unit,
                 'unit_price': item.unit_price,
@@ -135,7 +135,7 @@ class PriceLibraryImportWizard(models.TransientModel):
             'view_mode': 'list,form',
             'domain': [('id', 'in', created_tasks.ids)],
             'context': {
-                'default_project_id': self.project_id.project_id.id,
+                'default_project_id': self.project_id.id,
             },
             'target': 'current',
         }

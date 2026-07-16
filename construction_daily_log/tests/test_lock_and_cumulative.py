@@ -25,7 +25,7 @@ class TestDailyLogLock(TransactionCase):
         super().setUpClass()
         cls.Sheet = cls.env['daily.log.sheet']
         cls.company = cls.env.company
-        cls.project = cls.env['supervision.project'].create({
+        cls.project = cls.env['project.project'].create({
             'name': 'H2 鎖定測試工程',
             'code': 'H2-LOCK',
             'project_type': 'general',
@@ -86,7 +86,7 @@ class TestDailyLogLock(TransactionCase):
         today = fields.Date.today()
         task = self.env['project.task'].create({
             'name': 'H3 工項',
-            'project_id': self.project.project_id.id,
+            'project_id': self.project.id,
             # 以下為 construction_supervision_base 對 project.task 的 required 欄位
             'item_no': 'H3-001',
             'unit': '式',

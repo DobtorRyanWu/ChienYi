@@ -27,7 +27,7 @@ class PaymentClaim(models.Model):
         default=lambda self: self.env['ir.sequence'].next_by_code('payment.claim') or '/'
     )
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         '所屬工程',
         required=True,
         ondelete='cascade',

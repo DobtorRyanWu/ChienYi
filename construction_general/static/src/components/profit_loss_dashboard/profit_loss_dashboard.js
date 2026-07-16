@@ -51,7 +51,7 @@ export class ProfitLossDashboard extends Component {
         try {
             // 只查詢一般式工程案件
             const projects = await this.orm.searchRead(
-                "supervision.project",
+                "project.project",
                 [["project_type", "=", "general"]],
                 ["id", "name", "code"],
                 { order: "code desc" }
@@ -96,7 +96,7 @@ export class ProfitLossDashboard extends Component {
 
         try {
             const data = await this.orm.call(
-                "supervision.project",
+                "project.project",
                 "get_profit_loss_data",
                 [projectId]
             );
@@ -122,7 +122,7 @@ export class ProfitLossDashboard extends Component {
         this.state.saving = true;
         try {
             const data = await this.orm.call(
-                "supervision.project",
+                "project.project",
                 "save_profit_loss_expense",
                 [projectId, estimateId, value]
             );

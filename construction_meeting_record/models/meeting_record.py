@@ -45,7 +45,7 @@ class ConstructionMeetingRecord(models.Model):
         string='出席者',
     )
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='關聯工程',
         tracking=True,
     )

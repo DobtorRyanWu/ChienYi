@@ -50,7 +50,7 @@ class SelfInspectionType(models.Model):
 
     # === 所屬工程 ===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='所屬工程',
         help='將此檢查類型設定綁定於特定工程案件')
 
@@ -194,7 +194,7 @@ class SelfInspectionTypeCopyWizard(models.TransientModel):
     _description = '複製自主檢查類型到其他工程'
 
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='目標工程',
         required=True,
         help='將選擇的檢查類型複製到此工程')

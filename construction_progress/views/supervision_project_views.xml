@@ -13,7 +13,7 @@
 
     <record id="view_supervision_project_form_progress" model="ir.ui.view">
         <field name="name">supervision.project.form.progress</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
         <field name="arch" type="xml">
             <!-- 進度表 smart button（含初始化狀態圖示 + 數量）；排在「樣板」之後 -->
@@ -84,7 +84,7 @@
 
     <record id="view_supervision_project_tree_progress" model="ir.ui.view">
         <field name="name">supervision.project.tree.progress</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_tree"/>
         <field name="arch" type="xml">
             <!-- Add schedule progress columns (optional) -->
@@ -100,7 +100,7 @@
 
     <record id="view_supervision_project_search_progress" model="ir.ui.view">
         <field name="name">supervision.project.search.progress</field>
-        <field name="model">supervision.project</field>
+        <field name="model">project.project</field>
         <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_search"/>
         <field name="arch" type="xml">
             <!-- Add schedule filters -->

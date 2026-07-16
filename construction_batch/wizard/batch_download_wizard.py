@@ -59,7 +59,7 @@ class BatchDownloadWizard(models.TransientModel):
 
     # === 專案篩選 ===
     project_id = fields.Many2one(
-        'supervision.project',
+        'project.project',
         string='工程案件',
         help='篩選特定工程案件的記錄')
 
@@ -150,7 +150,7 @@ class BatchDownloadWizard(models.TransientModel):
             return {
                 'domain': {
                     'daily_log_ids': [
-                        ('project_id', '=', self.project_id.project_id.id)
+                        ('project_id', '=', self.project_id.id)
                     ],
                     'estimate_ids': [
                         ('project_id', '=', self.project_id.id)
@@ -186,7 +186,7 @@ class BatchDownloadWizard(models.TransientModel):
 
         # 專案篩選
         if self.project_id:
-            domain.append(('project_id', '=', self.project_id.project_id.id))
+            domain.append(('project_id', '=', self.project_id.id))
 
         # 日期篩選
         if self.date_from:
