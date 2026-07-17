@@ -6,7 +6,7 @@
     可見性設計（採「base.group_portal 預設成員制 + 老闆 OR 公司範圍」）：
     - base.group_portal 一律套「成員制」rule：只看被指派為參與成員的專案。
       → 任何 portal 帳號（含尚未改派的舊 4 層群組）預設只看成員專案，安全 deny-by-default。
-    - 老闆 group_portal_boss 另加一條「公司範圍」rule，OR 疊加 → 老闆看公司承包全部。
+    - 老闆 group_portal_subscriber（v18.0.4.3.0 合併後）另加一條「公司範圍」rule，OR 疊加 → 老闆看公司承包全部。
       （老闆本身通常不是任何專案的成員，成員 rule 對他回空集合，OR 後等同公司範圍。）
 
     寫入說明：
@@ -21,7 +21,8 @@
     <!--   消滅而移除，避免非老闆 portal 用戶取得公司範圍存取）           -->
     <!-- ============================================================ -->
 
-    <!-- 預設（所有 portal 帳號）：只看被指派為參與成員的專案 -->
+    <!-- 預設（所有 portal 帳號）：只看被指派為參與成員的專案；排除草稿/終止。
+         老闆另有 boss_rule OR 疊加（全部專案、不分狀態），不受此狀態過濾影響。 -->
     <record id="supervision_project_portal_member_rule" model="ir.rule">
         <field name="name">Portal: 工程案件 - 僅參與成員專案（預設）</field>
         <field name="model_id" ref="project.model_project_project"/>
@@ -36,15 +37,12 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
-    <!-- 老闆：公司承包的所有專案（OR 疊加在成員制之上） -->
+    <!-- 老闆：全庫所有專案（一庫一公司＝公司全部；不受專案狀態限制，OR 疊加在成員制之上） -->
     <record id="supervision_project_portal_boss_rule" model="ir.rule">
-        <field name="name">Portal老闆: 工程案件 - 公司範圍全部</field>
+        <field name="name">Portal老闆: 工程案件 - 全部專案</field>
         <field name="model_id" ref="project.model_project_project"/>
-        <field name="domain_force">[
-            ('contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id]),
-            ('state', 'not in', ['draft', 'terminated'])
-        ]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_boss'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
         <field name="perm_create" eval="False"/>
@@ -69,8 +67,8 @@
     <record id="general_self_inspection_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 自主檢查 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_general_self_inspection"/>
-        <field name="domain_force">[('project_id.contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_boss'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -80,7 +78,7 @@
         <field name="name">Portal寫入: 自主檢查 - 成員專案（主管/現場）</field>
         <field name="model_id" ref="construction_quality.model_general_self_inspection"/>
         <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_manager')), (4, ref('construction_supervision_base.group_portal_field'))]"/>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_leader')), (4, ref('construction_supervision_base.group_portal_user'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -101,8 +99,8 @@
     <record id="general_self_inspection_item_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 檢查項目 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_general_self_inspection_item"/>
-        <field name="domain_force">[('inspection_id.project_id.contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_boss'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -112,7 +110,7 @@
         <field name="name">Portal寫入: 檢查項目 - 成員專案（主管/現場）</field>
         <field name="model_id" ref="construction_quality.model_general_self_inspection_item"/>
         <field name="domain_force">[('inspection_id.project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_manager')), (4, ref('construction_supervision_base.group_portal_field'))]"/>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_leader')), (4, ref('construction_supervision_base.group_portal_user'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -133,8 +131,8 @@
     <record id="supervision_defect_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 缺失 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_supervision_defect"/>
-        <field name="domain_force">[('project_id.contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_boss'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="False"/>
@@ -144,7 +142,7 @@
         <field name="name">Portal寫入: 缺失 - 成員專案（主管/現場）</field>
         <field name="model_id" ref="construction_quality.model_supervision_defect"/>
         <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_manager')), (4, ref('construction_supervision_base.group_portal_field'))]"/>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_leader')), (4, ref('construction_supervision_base.group_portal_user'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="False"/>
@@ -165,8 +163,8 @@
     <record id="supervision_photo_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 照片 - 公司範圍</field>
         <field name="model_id" ref="construction_photo.model_supervision_photo"/>
-        <field name="domain_force">[('project_id.contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_boss'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -176,7 +174,7 @@
         <field name="name">Portal寫入: 照片 - 成員專案（主管/現場）</field>
         <field name="model_id" ref="construction_photo.model_supervision_photo"/>
         <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_manager')), (4, ref('construction_supervision_base.group_portal_field'))]"/>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_leader')), (4, ref('construction_supervision_base.group_portal_user'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -203,8 +201,8 @@
     <record id="general_defect_improvement_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 一般式缺失改善 - 公司範圍</field>
         <field name="model_id" ref="construction_general.model_general_defect_improvement"/>
-        <field name="domain_force">[('project_id.contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_boss'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -214,7 +212,7 @@
         <field name="name">Portal寫入: 一般式缺失改善 - 成員專案（主管/現場）</field>
         <field name="model_id" ref="construction_general.model_general_defect_improvement"/>
         <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_manager')), (4, ref('construction_supervision_base.group_portal_field'))]"/>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_leader')), (4, ref('construction_supervision_base.group_portal_user'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -235,8 +233,8 @@
     <record id="reservation_defect_improvement_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 預約式缺失改善 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_reservation_defect_improvement"/>
-        <field name="domain_force">[('project_id.contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_boss'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -246,7 +244,7 @@
         <field name="name">Portal寫入: 預約式缺失改善 - 成員專案（主管/現場）</field>
         <field name="model_id" ref="construction_quality.model_reservation_defect_improvement"/>
         <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_manager')), (4, ref('construction_supervision_base.group_portal_field'))]"/>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_leader')), (4, ref('construction_supervision_base.group_portal_user'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -267,8 +265,8 @@
     <record id="reservation_self_inspection_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 預約式自主檢查 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_reservation_self_inspection"/>
-        <field name="domain_force">[('project_id.contractor_partner_ids', 'in', [user.partner_id.commercial_partner_id.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_boss'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
@@ -278,7 +276,7 @@
         <field name="name">Portal寫入: 預約式自主檢查 - 成員專案（主管/現場）</field>
         <field name="model_id" ref="construction_quality.model_reservation_self_inspection"/>
         <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_manager')), (4, ref('construction_supervision_base.group_portal_field'))]"/>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_leader')), (4, ref('construction_supervision_base.group_portal_user'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>

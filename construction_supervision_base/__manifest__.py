@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 核心基礎模組',
-    'version': '18.0.4.1.1',  # 4.1.1: 業主欄位 authority_id→authority_name 純文字化資料回填 post-migrate；4.1.0: project_task 必填欄位 NULL 回填 pre-migrate
+    'version': '18.0.4.4.0',  # 4.4.0: 新增 res.users.portal_role 自訂欄位管理前台角色(取代原生下拉,對Portal使用者可見可改;設定角色自動轉乾淨Portal,admin除外);角色群組移除 category_id；4.3.0: 前台四角色往下合併（boss/manager/field/observer 併入 subscriber/leader/user/viewer 並改名為 老闆/主管/現場人員/定期閱覽者、刪除新群組、到期邏輯解耦）post-migrate；4.1.1: 業主欄位 authority_id→authority_name 純文字化資料回填 post-migrate；4.1.0: project_task 必填欄位 NULL 回填 pre-migrate
     'category': 'Construction/Supervision',
     'summary': '工程監造與施工協作管理系統核心模組',
     'description': """
@@ -43,8 +43,7 @@
         # 注意：必須先建立群組，才能載入 ir.model.access.csv
         'security/security.xml',
         'security/portal_groups.xml',  # 包含 group_operator 定義
-        'security/new_portal_groups.xml',  # 新架構：4 個權限等級 + 2 個組織類型
-        'security/portal_role_groups.xml',  # v11 前台三角色：現場人員/主管/定期閱覽者
+        'security/new_portal_groups.xml',  # 前台四角色（老闆/主管/現場人員/定期閱覽者）+ 2 個組織類型
         'security/ir.model.access.csv',
         # Data
         'data/ir_sequence_data.xml',

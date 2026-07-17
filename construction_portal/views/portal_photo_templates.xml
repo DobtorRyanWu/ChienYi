@@ -213,10 +213,10 @@
                             <span class="cy-info-label">拍攝時間</span>
                             <span class="cy-info-value"><t t-esc="photo.shot_at"/></span>
                         </div>
-                        <div class="cy-info-row" t-if="photo.category">
+                        <div class="cy-info-row" t-if="photo.category_id or photo.category">
                             <span class="cy-info-label">材料分類</span>
                             <span class="cy-info-value">
-                                <t t-esc="dict(photo._fields['category'].selection).get(photo.category, photo.category)"/>
+                                <t t-esc="photo.category_id.name or dict(photo._fields['category'].selection).get(photo.category, photo.category)"/>
                             </span>
                         </div>
                         <div class="cy-info-row" t-if="photo.construction_phase">

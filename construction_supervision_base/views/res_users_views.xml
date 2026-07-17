@@ -10,8 +10,12 @@
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_form"/>
         <field name="arch" type="xml">
-            <!-- 在 Access Rights 頁面的末尾插入組織身分欄位 -->
+            <!-- 在 Access Rights 頁面的末尾插入前台角色與組織身分欄位 -->
             <xpath expr="//page[@name='access_rights']" position="inside">
+                <group string="前台角色（外部使用者）" name="portal_role_group">
+                    <field name="portal_role"
+                           help="設定後此帳號會成為 Portal（入口網站）外部使用者；留空則維持一般使用者。"/>
+                </group>
                 <group string="組織身分" name="org_identity">
                     <field name="is_supervision_org"/>
                     <field name="is_contractor_org"/>

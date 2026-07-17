@@ -52,8 +52,8 @@ class SupervisionProjectPortal(models.Model):
         邏輯：
         - 內部用戶（監造工程師等）：顯示所屬公司管理的案件，
           或自己為監造工程師的案件。僅排除「終止」狀態。
-        - Portal 用戶（承包廠商）：顯示公司為承包廠商的案件，
-          排除「未開始」和「終止」狀態。
+        - Portal 老闆：看全庫所有專案（不分狀態）。
+        - Portal 主管/現場/閱覽：看被指派為參與成員的專案，排除草稿/終止。
         """
         user = self.env.user
 
@@ -75,15 +75,10 @@ class SupervisionProjectPortal(models.Model):
             ]
 
         # Portal 用戶：依角色分流（與 ir.rule 對齊）
-        # - 老闆 group_portal_boss：公司承包的所有專案
-        # - 主管/現場/閱覽：只看被指派為「參與成員」的專案
-        company_partner = partner.commercial_partner_id or partner
-
-        if user.has_group('construction_supervision_base.group_portal_boss'):
-            return [
-                ('contractor_partner_ids', 'in', [company_partner.id]),
-                ('state', 'not in', ['draft', 'terminated']),
-            ]
+        # - 老闆 group_portal_subscriber：看全庫所有專案（不分狀態；一庫一公司＝公司全部）
+        # - 主管/現場/閱覽：只看被指派為「參與成員」的專案，且排除草稿/終止
+        if user.has_group('construction_supervision_base.group_portal_subscriber'):
+            return []
 
         return [
             ('member_user_ids', 'in', [user.id]),

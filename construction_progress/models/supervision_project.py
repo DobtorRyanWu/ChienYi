@@ -78,11 +78,13 @@ class SupervisionProjectProgress(models.Model):
                 daily_rate = line.planned_progress / total_days
                 project.daily_planned_progress = daily_rate
                 
-                # 查找今日的施工日誌
+                # 查找今日的施工日誌（daily.log.sheet 無 'done' 狀態，
+                # 權威狀態為 draft/filled/auto_locked/locked；
+                # 取「已填寫以上」才計入本日實際進度，草稿不計）
                 today_log = DailyLogSheet.search([
                     ('supervision_project_id', '=', project.id),
                     ('log_date', '=', today),
-                    ('state', '=', 'done'),
+                    ('state', 'in', ['filled', 'auto_locked', 'locked']),
                 ], limit=1)
                 
                 if today_log:

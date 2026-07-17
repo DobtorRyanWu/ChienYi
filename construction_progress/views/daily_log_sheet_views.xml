@@ -31,7 +31,7 @@
                                 readonly="1"/>
                             <field name="daily_actual_progress"
                                 string="本日實際進度(%)"
-                                readonly="state not in ('new', 'draft')"/>
+                                readonly="state != 'draft'"/>
                             <field name="daily_progress_reference"
                                 string="參考值 (%)"
                                 readonly="1"
@@ -40,13 +40,13 @@
                             <!-- 有無進度變更 -->
                             <field name="has_progress_change" 
                                 string="有無進度變更"
-                                readonly="state not in ('new', 'draft')"/>
+                                readonly="state != 'draft'"/>
                             
                             <!-- 變更後的預定進度（當有進度變更時顯示） -->
                             <field name="changed_planned_progress"
                                 string="變更後的預定進度(%)"
                                 invisible="not has_progress_change"
-                                readonly="state not in ('new', 'draft')"/>
+                                readonly="state != 'draft'"/>
                         </group>
                     </group>
                     

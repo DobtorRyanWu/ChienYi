@@ -6,36 +6,49 @@
         <!-- 新架構：權限等級群組（4 個，hierarchical）      -->
         <!-- ============================================== -->
 
-        <!-- 觀看者（最底層，所有 Portal 用戶的基礎） -->
+        <!-- ============================================================== -->
+        <!-- 前台四角色（v11 合併後：這四個群組同時是「角色」與「權限包」）  -->
+        <!-- 原新架構的 boss/manager/field/observer 已於 v18.0.4.3.0 合併進這     -->
+        <!-- 四個群組並刪除。xml_id 保留（承載 303 條跨模組 ACL）。            -->
+        <!--                                                                -->
+        <!-- ⚠️ category_id 明確設為 False（v18.0.4.4.0）：這四個群組不再以      -->
+        <!-- Odoo 原生「權限等級」下拉呈現（原生下拉對內部使用者會觸發使用者      -->
+        <!-- 類型衝突、對 Portal 使用者又被隱藏）。改由 res.users.portal_role    -->
+        <!-- 自訂欄位管理。                                                   -->
+        <!-- 註：必須用 eval="False" 明確清空；只是從 XML 移除 <field> 那行，     -->
+        <!--     升級時 Odoo 不會清掉 DB 既有的 category_id。                  -->
+        <!-- ============================================================== -->
+
+        <!-- 定期閱覽者（最底層，所有前台角色的基礎；臨時與否由 portal_valid_until 決定） -->
         <record id="group_portal_viewer" model="res.groups">
-            <field name="name">Portal - 觀看者</field>
-            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="name">Portal - 定期閱覽者（臨時帳號）</field>
+            <field name="category_id" eval="False"/>
             <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
-            <field name="comment">唯讀角色，所有功能僅可查看</field>
+            <field name="comment">臨時閱覽帳號。範圍內全部資料唯讀，無任何寫入權。帳號可帶「有效期至」(portal_valid_until)，逾期由每日排程自動停用登入。</field>
         </record>
 
-        <!-- 一般使用者（繼承觀看者） -->
+        <!-- 現場人員（繼承定期閱覽者） -->
         <record id="group_portal_user" model="res.groups">
-            <field name="name">Portal - 一般使用者</field>
-            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="name">Portal - 現場人員</field>
+            <field name="category_id" eval="False"/>
             <field name="implied_ids" eval="[(4, ref('group_portal_viewer'))]"/>
-            <field name="comment">現場工程師，大部分功能可修改</field>
+            <field name="comment">工地現場人員。可查看範圍內全部資料，但只能新增與編輯自己建立的施工日誌、自主檢查、照片等交易單，無法修改他人建立的內容，也不能審核。</field>
         </record>
 
-        <!-- 專案負責人（繼承一般使用者） -->
+        <!-- 主管（繼承現場人員） -->
         <record id="group_portal_leader" model="res.groups">
-            <field name="name">Portal - 專案負責人</field>
-            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="name">Portal - 主管</field>
+            <field name="category_id" eval="False"/>
             <field name="implied_ids" eval="[(4, ref('group_portal_user'))]"/>
-            <field name="comment">專案主管，除專案管理、成本分析外可修改其他功能</field>
+            <field name="comment">工地主管。可查看範圍內全部資料並執行審核（推進估驗、契約變更、缺失等單據的狀態到核定/結案），自己也能建立交易單。</field>
         </record>
 
-        <!-- 訂閱者（最高層，繼承專案負責人） -->
+        <!-- 老闆（最高層，繼承主管） -->
         <record id="group_portal_subscriber" model="res.groups">
-            <field name="name">Portal - 訂閱者（公司負責人）</field>
-            <field name="category_id" ref="module_category_supervision_level"/>
+            <field name="name">Portal - 老闆</field>
+            <field name="category_id" eval="False"/>
             <field name="implied_ids" eval="[(4, ref('group_portal_leader'))]"/>
-            <field name="comment">公司負責人，擁有最高權限，可管理專案與人員</field>
+            <field name="comment">公司負責人。可查看公司承包的所有專案（不受專案參與成員限制）、可從前台新增專案、可執行審核（推進單據狀態到核定/結案）。</field>
         </record>
 
         <!-- ============================================== -->

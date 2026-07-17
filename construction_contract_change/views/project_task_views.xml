@@ -26,7 +26,7 @@
                     <field name="change_order_ids" nolabel="1">
                         <list string="變更單列表">
                             <field name="name" string="變更單編號"/>
-                            <field name="sequence" string="第幾次"/>
+                            <field name="change_no" string="第幾次"/>
                             <field name="state" string="狀態" widget="badge"/>
                         </list>
                     </field>

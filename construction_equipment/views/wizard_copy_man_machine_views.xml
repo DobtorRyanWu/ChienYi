@@ -54,13 +54,18 @@
     </record>
 
     <!-- Wizard Action -->
+    <!-- 暫時隱藏：人機金額功能尚未啟用，且精靈本身有 name_get()/欄位 bug 待修。
+         先移除 binding，使「複製到其他工程」不出現在人機紀錄的動作選單。
+         未來要啟用時：修好 wizard_copy_man_machine.py 的 bug 後，
+         再把下方 binding_model_id / binding_view_types 兩行還原即可。 -->
     <record id="action_man_machine_copy_wizard" model="ir.actions.act_window">
         <field name="name">複製到其他工程</field>
         <field name="res_model">daily.log.man.machine.copy.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
-        <field name="binding_model_id" ref="model_daily_log_man_machine"/>
-        <field name="binding_view_types">list</field>
+        <!-- 明確清空 binding（不可只省略，否則升級時 DB 既有綁定不會被清除） -->
+        <field name="binding_model_id" eval="False"/>
+        <!-- 未來啟用時還原為：<field name="binding_model_id" ref="model_daily_log_man_machine"/> + <field name="binding_view_types">list</field> -->
     </record>
 
 </odoo>

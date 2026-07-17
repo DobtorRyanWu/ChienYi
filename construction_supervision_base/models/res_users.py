@@ -7,7 +7,8 @@ from datetime import timedelta
 from odoo import models, fields, api
 
 # 定期閱覽者（臨時帳號）預設有效天數：
-# 指派 group_portal_observer 但未填到期日時，自動帶今日 + 此天數
+# 頂層角色為「定期閱覽者」(group_portal_viewer 但無 group_portal_user)
+# 且未填到期日時，自動帶今日 + 此天數
 DEFAULT_OBSERVER_VALIDITY_DAYS = 90
 
 
@@ -30,6 +31,69 @@ class ResUsers(models.Model):
         help='僅對「定期閱覽者」臨時帳號有效。逾此日期後，由每日排程自動停用登入。'
              '留空表示不自動到期。',
     )
+
+    # 前台角色 key → 對應群組 xml_id（單選；四群組成繼承鏈，皆隱含 base.group_portal）
+    _ROLE_KEY_TO_XMLID = {
+        'observer': 'construction_supervision_base.group_portal_viewer',
+        'field': 'construction_supervision_base.group_portal_user',
+        'manager': 'construction_supervision_base.group_portal_leader',
+        'boss': 'construction_supervision_base.group_portal_subscriber',
+    }
+    # 高→低（取最高角色用；老闆 ⊃ 主管 ⊃ 現場人員 ⊃ 定期閱覽者）
+    _ROLE_KEYS_HIGH_TO_LOW = ('boss', 'manager', 'field', 'observer')
+
+    portal_role = fields.Selection(
+        selection=[
+            ('observer', '定期閱覽者（臨時帳號）'),
+            ('field', '現場人員'),
+            ('manager', '主管'),
+            ('boss', '老闆'),
+        ],
+        string='前台角色',
+        compute='_compute_portal_role',
+        inverse='_inverse_portal_role',
+        store=True,
+        help='外部前台使用者的角色。設定後此帳號會成為 Portal（入口網站）使用者。\n'
+             '老闆 ⊃ 主管 ⊃ 現場人員 ⊃ 定期閱覽者（高階含低階全部權限）。\n'
+             '系統管理者帳號不受此欄位轉換。',
+    )
+
+    @api.depends('groups_id')
+    def _compute_portal_role(self):
+        """由目前群組反推前台角色（取最高階）。"""
+        refs = {k: self.env.ref(x, raise_if_not_found=False)
+                for k, x in self._ROLE_KEY_TO_XMLID.items()}
+        for user in self:
+            role = False
+            for key in self._ROLE_KEYS_HIGH_TO_LOW:
+                g = refs.get(key)
+                if g and g in user.groups_id:
+                    role = key
+                    break
+            user.portal_role = role
+
+    def _inverse_portal_role(self):
+        """寫回：設定所選角色群組（移除其他角色群組）；指派角色且非系統管理者時，
+        一併移除內部使用者身分、補上 base.group_portal，成為乾淨的 Portal 帳號。"""
+        refs = {k: self.env.ref(x, raise_if_not_found=False)
+                for k, x in self._ROLE_KEY_TO_XMLID.items()}
+        all_roles = [g for g in refs.values() if g]
+        g_user = self.env.ref('base.group_user', raise_if_not_found=False)
+        g_portal = self.env.ref('base.group_portal', raise_if_not_found=False)
+        g_system = self.env.ref('base.group_system', raise_if_not_found=False)
+        for user in self:
+            target = refs.get(user.portal_role) if user.portal_role else None
+            cmds = [(3, g.id) for g in all_roles]          # 先移除全部角色群組
+            if target:
+                cmds.append((4, target.id))                # 補上所選角色
+            # 指派角色且非 admin → 轉為乾淨 Portal（移除內部身分群組、補 portal）
+            if target and g_user and g_portal and not (g_system and g_system in user.groups_id):
+                internal = user.groups_id.filtered(
+                    lambda g: g_user in (g | g.trans_implied_ids))
+                cmds += [(3, g.id) for g in internal]
+                cmds.append((4, g_portal.id))
+            if cmds:
+                user.groups_id = cmds
 
     @api.onchange('is_supervision_org')
     def _onchange_is_supervision_org(self):
@@ -126,15 +190,25 @@ class ResUsers(models.Model):
         return res
 
     def _apply_observer_default_validity(self):
-        """定期閱覽者帳號未填到期日時，自動帶今日 + DEFAULT_OBSERVER_VALIDITY_DAYS"""
-        observer_group = self.env.ref(
-            'construction_supervision_base.group_portal_observer',
+        """定期閱覽者帳號未填到期日時，自動帶今日 + DEFAULT_OBSERVER_VALIDITY_DAYS
+
+        合併後「定期閱覽者」= group_portal_viewer（鏈底，被所有前台角色 imply），
+        故「頂層角色就是定期閱覽者」= 有 viewer 但沒有 user
+        （現場人員/主管/老闆的 groups_id 都實體含 user）。
+        """
+        viewer_group = self.env.ref(
+            'construction_supervision_base.group_portal_viewer',
             raise_if_not_found=False)
-        if not observer_group:
+        user_group = self.env.ref(
+            'construction_supervision_base.group_portal_user',
+            raise_if_not_found=False)
+        if not viewer_group or not user_group:
             return
         default_date = fields.Date.today() + timedelta(days=DEFAULT_OBSERVER_VALIDITY_DAYS)
         for user in self:
-            if observer_group in user.groups_id and not user.portal_valid_until:
+            if (viewer_group in user.groups_id
+                    and user_group not in user.groups_id
+                    and not user.portal_valid_until):
                 user.portal_valid_until = default_date
 
     @api.model
@@ -144,19 +218,24 @@ class ResUsers(models.Model):
         條件（全部成立才停用）：
         - 有設定 portal_valid_until 且已逾期（< 今日）
         - 帳號目前仍啟用 active=True
-        - 屬於 group_portal_observer 群組
+        - 頂層角色是「定期閱覽者」= 有 viewer 但沒有 user
+          （現場人員/主管/老闆都帶 user，即使有到期日也不自動停用）
         """
-        observer_group = self.env.ref(
-            'construction_supervision_base.group_portal_observer',
+        viewer_group = self.env.ref(
+            'construction_supervision_base.group_portal_viewer',
             raise_if_not_found=False)
-        if not observer_group:
+        user_group = self.env.ref(
+            'construction_supervision_base.group_portal_user',
+            raise_if_not_found=False)
+        if not viewer_group or not user_group:
             return
         today = fields.Date.today()
         expired = self.search([
             ('portal_valid_until', '!=', False),
             ('portal_valid_until', '<', today),
             ('active', '=', True),
-            ('groups_id', 'in', observer_group.id),
+            ('groups_id', 'in', viewer_group.id),
+            ('groups_id', 'not in', user_group.id),
         ])
         if expired:
             expired.write({'active': False})

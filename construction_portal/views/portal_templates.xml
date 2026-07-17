@@ -245,7 +245,7 @@
                             <div class="cy-hud-resbox-label">快速新增</div>
                             <!-- 下拉選單 -->
                             <div class="cy-quick-add-menu" id="quickAddMenu" style="display: none;">
-                                <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_boss') or request.env.user.has_group('construction_supervision_base.group_portal_manager') or request.env.user.has_group('base.group_system')">
+                                <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')">
                                     <a t-attf-href="/construction/project/new?from_project=#{project.id}" class="cy-quick-add-item">
                                         <span>➕</span><span>新增專案</span>
                                     </a>
@@ -825,7 +825,7 @@
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
                     <a class="cy-drawer-item"
-                       t-if="request.env.user.has_group('construction_supervision_base.group_portal_boss') or request.env.user.has_group('construction_supervision_base.group_portal_manager') or request.env.user.has_group('base.group_system')"
+                       t-if="request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')"
                        t-attf-href="/construction/project/new#{project and ('?from_project=' + str(project.id)) or ''}">
                         <span class="cy-drawer-item-icon">➕</span>
                         <span class="cy-drawer-item-label">新增專案</span>

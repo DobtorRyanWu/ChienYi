@@ -61,7 +61,7 @@ def _portal_save_photos(env, record, supervision_project, files, meta):
                 'project_id': supervision_project.id,
                 'attachment_id': att.id,
                 'description': description or f.filename,
-                'category': category,
+                'category_id': _photo_category_to_id(category),
                 'source_model': source_model,
                 'source_id': record.id,
                 'shot_at': fields.Datetime.now(),
@@ -78,6 +78,30 @@ def _portal_save_photos(env, record, supervision_project, files, meta):
     if new_atts and 'photo_ids' in record._fields:
         record.sudo().write({'photo_ids': [(4, aid) for aid in new_atts]})
     return new_atts
+
+
+def _photo_category_options(env):
+    """照片分類下拉／篩選選項。
+
+    改用後台可自由維護的 supervision.photo.category 主檔（取代舊的固定
+    11 項 Selection `category`），讓前台選項與後台維護的分類一致。
+    回傳 [(str(id), name), ...]，沿用既有模板/JS 的 (value, label) 結構，
+    其中 value = 分類記錄 id 的字串。
+    """
+    cats = env['supervision.photo.category'].sudo().search(
+        [('active', '=', True)], order='sequence, name')
+    return [(str(c.id), c.name) for c in cats]
+
+
+def _photo_category_to_id(value):
+    """把前台送來的分類值（分類 id 字串）轉為可寫入 category_id 的整數。
+
+    空值或非數字（例如舊 Selection key 'civil'）一律回傳 False（視為未選）。
+    """
+    try:
+        return int(value) if value else False
+    except (TypeError, ValueError):
+        return False
 
 
 def _defect_save_photos(env, defect, files, stage):
@@ -143,11 +167,16 @@ def _haversine_km(lat1, lng1, lat2, lng2):
     return 2 * r * math.asin(math.sqrt(a))
 
 
-# 前台角色群組 XML id（v11 權限分級）
-GROUP_BOSS = 'construction_supervision_base.group_portal_boss'
-GROUP_MANAGER = 'construction_supervision_base.group_portal_manager'
-GROUP_FIELD = 'construction_supervision_base.group_portal_field'
-GROUP_OBSERVER = 'construction_supervision_base.group_portal_observer'
+# 前台角色群組 XML id
+# 註：v18.0.4.3.0 已將 boss/manager/field/observer 往下合併進
+#     subscriber/leader/user/viewer（改名為 老闆/主管/現場人員/定期閱覽者），
+#     故以下常數指向合併後的舊 xml_id。因四群組為單一繼承鏈
+#     （viewer⊂user⊂leader⊂subscriber），guard 的 has_group 判斷語意等價：
+#     _can_manage=subscriber or leader（老闆/主管）、_is_field_only=user 且非 leader。
+GROUP_BOSS = 'construction_supervision_base.group_portal_subscriber'
+GROUP_MANAGER = 'construction_supervision_base.group_portal_leader'
+GROUP_FIELD = 'construction_supervision_base.group_portal_user'
+GROUP_OBSERVER = 'construction_supervision_base.group_portal_viewer'
 
 
 class ConstructionPortal(CustomerPortal):
@@ -1090,8 +1119,7 @@ class ConstructionPortal(CustomerPortal):
             DailyLog.fields_get(['weather_am'])['weather_am']['selection']
         )
 
-        photo_categories = request.env['supervision.photo'].fields_get(
-            ['category'])['category']['selection']
+        photo_categories = _photo_category_options(request.env)
 
         # daily.log.line _inherits account.analytic.line，timesheet ir.rule 會擋到 line_ids
         # 用 sudo 預讀 + SimpleNamespace 包裝（QWeb 才能用 dot-access）
@@ -1346,8 +1374,7 @@ class ConstructionPortal(CustomerPortal):
         # 天氣 emoji 映射
         weather_emoji = {'sunny': '☀', 'cloudy': '⛅', 'overcast': '☁', 'rainy': '🌧', 'heavy_rain': '⛈', 'typhoon': '🌀', 'foggy': '🌫'}
 
-        photo_categories = request.env['supervision.photo'].fields_get(
-            ['category'])['category']['selection']
+        photo_categories = _photo_category_options(request.env)
 
         values = {
             'project': project,
@@ -1501,8 +1528,7 @@ class ConstructionPortal(CustomerPortal):
             ('active', '=', True),
         ], order='sequence, item_no')
 
-        photo_categories = request.env['supervision.photo'].fields_get(
-            ['category'])['category']['selection']
+        photo_categories = _photo_category_options(request.env)
 
         values = {
             'project': project,
@@ -2134,8 +2160,7 @@ class ConstructionPortal(CustomerPortal):
         Inspection = request.env['general.self.inspection']
         timing_selection = Inspection.fields_get(['inspection_timing'])['inspection_timing']['selection']
 
-        photo_categories = request.env['supervision.photo'].fields_get(
-            ['category'])['category']['selection']
+        photo_categories = _photo_category_options(request.env)
 
         values = {
             'project': project,
@@ -2281,8 +2306,7 @@ class ConstructionPortal(CustomerPortal):
             )['overall_result']['selection']
         )
 
-        photo_categories = request.env['supervision.photo'].fields_get(
-            ['category'])['category']['selection']
+        photo_categories = _photo_category_options(request.env)
 
         values = {
             'inspection': inspection,
@@ -2429,8 +2453,7 @@ class ConstructionPortal(CustomerPortal):
         Inspection = request.env['reservation.self.inspection']
         timing_selection = Inspection.fields_get(['inspection_timing'])['inspection_timing']['selection']
 
-        photo_categories = request.env['supervision.photo'].fields_get(
-            ['category'])['category']['selection']
+        photo_categories = _photo_category_options(request.env)
 
         values = {
             'project': project,
@@ -2540,8 +2563,7 @@ class ConstructionPortal(CustomerPortal):
             Inspection.fields_get(['inspection_timing'])['inspection_timing']['selection']
         )
 
-        photo_categories = request.env['supervision.photo'].fields_get(
-            ['category'])['category']['selection']
+        photo_categories = _photo_category_options(request.env)
 
         values = {
             'project': project,
@@ -3268,7 +3290,7 @@ class ConstructionPortal(CustomerPortal):
         if source_filter:
             domain.append(('source_model', '=', source_filter))
         if category_filter:
-            domain.append(('category', '=', category_filter))
+            domain.append(('category_id', '=', _photo_category_to_id(category_filter)))
 
         photo_count = Photo.search_count(domain)
         url_args = {}
@@ -3307,7 +3329,7 @@ class ConstructionPortal(CustomerPortal):
         # 篩選面板選項（從 fields_get）
         fields_info = Photo.fields_get(['source_model', 'category', 'construction_phase'])
         source_options = fields_info['source_model']['selection']
-        category_options = fields_info['category']['selection']
+        category_options = _photo_category_options(request.env)
 
         values = {
             'project': project,
@@ -3404,9 +3426,9 @@ class ConstructionPortal(CustomerPortal):
                 'photo_date': post.get('photo_date'),
             }
 
-            # 分類欄位
+            # 分類欄位（改寫入 category_id，對應後台維護的分類主檔）
             if post.get('category'):
-                vals['category'] = post['category']
+                vals['category_id'] = _photo_category_to_id(post['category'])
             if post.get('construction_phase'):
                 vals['construction_phase'] = post['construction_phase']
             if post.get('source_model'):
@@ -3460,9 +3482,9 @@ class ConstructionPortal(CustomerPortal):
             'photo_date': post.get('photo_date'),
         }
 
-        # 分類欄位
+        # 分類欄位（改寫入 category_id，對應後台維護的分類主檔）
         if post.get('category'):
-            vals['category'] = post['category']
+            vals['category_id'] = _photo_category_to_id(post['category'])
         if post.get('construction_phase'):
             vals['construction_phase'] = post['construction_phase']
         if post.get('source_model'):
@@ -4092,7 +4114,7 @@ class ConstructionPortal(CustomerPortal):
         if post.get('source_model'):
             domain.append(('source_model', '=', post['source_model']))
         if post.get('category'):
-            domain.append(('category', '=', post['category']))
+            domain.append(('category_id', '=', _photo_category_to_id(post['category'])))
         if post.get('construction_phase'):
             domain.append(('construction_phase', '=', post['construction_phase']))
         if post.get('date_from'):
@@ -4116,7 +4138,7 @@ class ConstructionPortal(CustomerPortal):
             'lng': photo.longitude,
             'name': photo.name or '',
             'source_model': photo.source_model or 'other',
-            'category': photo.category or '',
+            'category': photo.category_id.name or photo.category or '',
             'shot_date': str(photo.shot_date) if photo.shot_date else '',
             'thumbnail_url': (
                 '/web/image/ir.attachment/%d/datas/80x80?crop=true' % photo.attachment_id.id
@@ -4136,7 +4158,7 @@ class ConstructionPortal(CustomerPortal):
             'name': photo.name or '',
             'lat': photo.latitude,
             'lng': photo.longitude,
-            'category_label': category_labels.get(photo.category, photo.category or ''),
+            'category_label': photo.category_id.name or category_labels.get(photo.category, photo.category or ''),
             'source_model': photo.source_model or '',
             'source_label': source_labels.get(photo.source_model, photo.source_model or ''),
             'shot_date': str(photo.shot_date) if photo.shot_date else '',
@@ -4173,7 +4195,7 @@ class ConstructionPortal(CustomerPortal):
         fields_info = Photo.fields_get(['source_model', 'category', 'construction_phase'])
         filter_options = {
             'source_model': fields_info.get('source_model', {}).get('selection', []),
-            'category': fields_info.get('category', {}).get('selection', []),
+            'category': _photo_category_options(request.env),
             'construction_phase': fields_info.get('construction_phase', {}).get('selection', []),
         }
 

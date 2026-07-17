@@ -19,7 +19,7 @@
         <!-- 新架構：權限等級 category -->
         <record id="module_category_supervision_level" model="ir.module.category">
             <field name="name">工程監造 - 權限等級</field>
-            <field name="description">Portal 用戶的權限等級（訂閱者/專案負責人/一般使用者/觀看者）</field>
+            <field name="description">前台角色（老闆/主管/現場人員/定期閱覽者），每個帳號單選一個</field>
             <field name="sequence">102</field>
         </record>
 
