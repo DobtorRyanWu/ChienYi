@@ -177,6 +177,9 @@ GROUP_BOSS = 'construction_supervision_base.group_portal_subscriber'
 GROUP_MANAGER = 'construction_supervision_base.group_portal_leader'
 GROUP_FIELD = 'construction_supervision_base.group_portal_user'
 GROUP_OBSERVER = 'construction_supervision_base.group_portal_viewer'
+# 監造代操作員（內部）→ 前台管理權比照老闆/主管：可建案/審核/樣板 CRUD（_can_manage）。
+# 註：可見範圍由內部使用者的核心多公司 rule 決定（見 supervision_project._get_portal_projects_domain）。
+GROUP_OPERATOR = 'construction_supervision_base.group_operator'
 
 
 class ConstructionPortal(CustomerPortal):
@@ -195,10 +198,11 @@ class ConstructionPortal(CustomerPortal):
     # 「建專案/審核限老闆+主管」「現場人員只改自己建的」由以下 guard 在 controller 強制。
 
     def _can_manage(self):
-        """老闆 / 主管 / 內部系統管理者：可建專案、可審核"""
+        """老闆 / 主管 / 內部系統管理者 / 監造代操作員：可建專案、可審核"""
         user = request.env.user
         return (user.has_group(GROUP_BOSS) or user.has_group(GROUP_MANAGER)
-                or user.has_group('base.group_system'))
+                or user.has_group('base.group_system')
+                or user.has_group(GROUP_OPERATOR))
 
     def _require_manage(self, msg=None):
         if not self._can_manage():
