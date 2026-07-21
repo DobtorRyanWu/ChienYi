@@ -69,3 +69,69 @@ class TestContractChangeDeleteLifecycle(TransactionCase):
             self.task.active,
             "套用後 delete 工項應被封存",
         )
+
+
+@tagged('post_install', '-at_install', 'construction_contract_change')
+class TestContractChangeTotals(TransactionCase):
+    """H5：變更前/後契約總額須含「未變更的頂層彙總群組」。"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # 遷移後 supervision.project 已併入 project.project（工程案件＝原生 project.project）
+        cls.project = cls.env['project.project'].create({
+            'name': 'H5 總額測試工程',
+            'code': 'H5-TOT',
+            'project_type': 'general',
+            'state': 'construction',
+            'company_id': cls.env.company.id,
+        })
+        Task = cls.env['project.task']
+        pid = cls.project.id
+        # 兩個頂層彙總群組，各含一葉子工項；各群組基底金額 = 1000，總契約 = 2000
+        cls.grp_a = Task.create({'name': '群組A', 'project_id': pid, 'sequence': 10})
+        cls.leaf_a = Task.create({
+            'name': 'A1', 'project_id': pid, 'parent_id': cls.grp_a.id,
+            'item_no': 'A-1', 'planned_qty': 10.0, 'unit_price': 100.0, 'sequence': 11,
+        })
+        cls.grp_b = Task.create({'name': '群組B', 'project_id': pid, 'sequence': 20})
+        cls.leaf_b = Task.create({
+            'name': 'B1', 'project_id': pid, 'parent_id': cls.grp_b.id,
+            'item_no': 'B-1', 'planned_qty': 5.0, 'unit_price': 200.0, 'sequence': 21,
+        })
+
+    def test_before_total_includes_unchanged_group(self):
+        """只變更群組A，變更前契約金額仍須含群組B（未變更）的基底 → 2000 而非 1000。"""
+        # 前提：兩群組基底各 1000
+        self.assertEqual(self.grp_a.planned_amount, 1000.0)
+        self.assertEqual(self.grp_b.planned_amount, 1000.0)
+
+        order = self.env['contract.change.order'].create({'project_id': self.project.id})
+        wizard = self.env['contract.change.wizard'].create({
+            'change_order_id': order.id, 'project_id': self.project.id,
+        })
+        WL = self.env['contract.change.wizard.line']
+
+        def wline(task, change_type=False, new_qty=None, new_price=None, parent=None):
+            return WL.create({
+                'wizard_id': wizard.id, 'project_id': self.project.id,
+                'task_id': task.id, 'item_name': task.name,
+                'parent_task_id': parent.id if parent else False,
+                'change_type': change_type,
+                'new_qty': task.planned_qty if new_qty is None else new_qty,
+                'new_unit_price': task.unit_price if new_price is None else new_price,
+            })
+
+        # 群組A / 群組B 兩張彙總列；A1 修改（新量12→A 群組變更），B1 不變
+        wline(self.grp_a)
+        wline(self.leaf_a, change_type='modify', new_qty=12.0, new_price=100.0, parent=self.grp_a)
+        wline(self.grp_b)
+        wline(self.leaf_b, parent=self.grp_b)  # 未變更
+
+        wizard.action_confirm()
+
+        self.assertEqual(
+            order.original_contract_amount, 2000.0,
+            "H5：變更前契約金額漏計未變更的群組B（應 2000，得 %s）"
+            % order.original_contract_amount,
+        )

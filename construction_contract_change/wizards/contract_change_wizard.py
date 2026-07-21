@@ -740,12 +740,16 @@ class ContractChangeWizard(models.TransientModel):
 
         # 有 change_type 的明細行（葉節點、新增工項）
         explicit_lines = self.wizard_line_ids.filtered('change_type')
-        # 彙總項與稅什費：金額有實質變化者自動納入（不需使用者手動設定 change_type）
+        # 彙總項與稅什費自動納入：
+        #   - 金額有實質變化者（不論層級）→ 反映本次變更；
+        #   - H5：所有「頂層」彙總/稅什費項（item_level==0）即使未變更也必須納入，
+        #     否則 _compute_amount_totals 以 Σ 頂層項計算的「變更前/後契約金額」會漏掉
+        #     未變更群組的基底金額而短計。未變更的「子層」彙總項仍略過（不灌列）。
         auto_lines = self.wizard_line_ids.filtered(
             lambda l: not l.change_type
             and l.task_id
             and (l.is_summary_item or l.is_tax_misc_item)
-            and abs(l.change_amount) > 0.01
+            and (abs(l.change_amount) > 0.01 or l.task_id.item_level == 0)
         )
         lines_to_save = explicit_lines | auto_lines
         if not lines_to_save:
