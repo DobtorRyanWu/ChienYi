@@ -45,14 +45,16 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
             # Phase 4.5 Xlsx 匯入預覽 client action
             'dobtor_spreadsheet_editor/static/src/components/xlsx_import/xlsx_import.js',
             'dobtor_spreadsheet_editor/static/src/components/xlsx_import/xlsx_import.xml',
-            # Phase 3 公式 shim：補 o-spreadsheet 未內建的函數（functionRegistry）
-            'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/choose.js',
-            'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/extra_functions.js',
         ],
         # OCA spreadsheet_oca 的 spreadsheet.o_spreadsheet bundle（SpreadsheetRenderer 所在）
         # §5.3 可編輯圖片：patch renderer 載入後 dispatch CREATE_IMAGE 注入圖片
         'spreadsheet.o_spreadsheet': [
             'dobtor_spreadsheet_editor/static/src/components/image_inject/image_inject_patch.esm.js',
+            # Phase 3 公式 shim：補 o-spreadsheet 未內建的函數（functionRegistry）
+            # 須放在 o-spreadsheet bundle 內才 import 得到 @odoo/o-spreadsheet
+            # （原誤置於 web.assets_backend → 該 bundle 未載入 o-spreadsheet → module not defined）
+            'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/choose.js',
+            'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/extra_functions.js',
         ],
     },
     'external_dependencies': {
