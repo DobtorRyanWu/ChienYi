@@ -155,6 +155,13 @@
                                 <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="request.params.get('error')"/></div></div>
                             </div>
                         </t>
+                        <!-- 通知改善（draft → notified）：監造/主管 -->
+                        <t t-if="defect.state == 'draft'">
+                            <form t-attf-action="/construction/defect/#{defect.id}/notify" method="post" style="margin-bottom: 16px;">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-bullhorn"/> 通知改善</button>
+                            </form>
+                        </t>
                         <div style="display: flex; gap: 8px; margin-bottom: 16px;" t-if="defect.state in ('improved', 'verified')">
                             <form t-if="defect.state == 'improved'" t-attf-action="/construction/defect/#{defect.id}/verify" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>

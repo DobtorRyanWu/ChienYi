@@ -133,6 +133,20 @@
                         </span>
                     </div>
 
+                    <!-- 完成檢查（建立者本人或老闆/主管）：draft → inspected -->
+                    <t t-if="inspection.state == 'draft' and (inspection.create_uid.id == request.env.user.id or request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system') or request.env.user.has_group('construction_supervision_base.group_operator'))">
+                        <t t-if="request.params.get('error')">
+                            <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                                <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                                <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="request.params.get('error')"/></div></div>
+                            </div>
+                        </t>
+                        <form t-attf-action="/construction/inspection/#{inspection.id}/inspect" method="post" style="margin-bottom: 16px;">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-check-circle"/> 完成檢查</button>
+                        </form>
+                    </t>
+
                     <!-- 審核動作（限老闆/主管） -->
                     <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')">
                         <t t-if="request.params.get('error')">

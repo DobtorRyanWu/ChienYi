@@ -194,6 +194,16 @@
                                 <div class="cy-event-desc">超過 14 天自動鎖定，無法編輯日誌內容</div>
                             </div>
                         </div>
+                        <!-- 老闆/主管/代操：前台直接解鎖（限時 3 天，有解鎖記錄） -->
+                        <t t-if="log.can_unlock">
+                            <form t-attf-action="/construction/#{project.id}/daily-log/#{log.id}/unlock"
+                                  method="post" style="margin-bottom: 12px;">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <button type="submit" class="cy-btn cy-btn-primary" style="width: 100%;">
+                                    <i class="fa fa-unlock"/> 解鎖日誌（限時 3 天）
+                                </button>
+                            </form>
+                        </t>
                         <!-- A（2026-07-14）：日誌鎖定後仍可「補照片」（歷史建檔）；不開放編輯內容 -->
                         <div class="cy-section-title" style="margin-bottom: 8px;">
                             <span><i class="fa fa-camera" style="margin-right: 6px;"/>追加照片（已鎖定，仍可補上照片）</span>

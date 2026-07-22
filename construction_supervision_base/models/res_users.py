@@ -159,6 +159,12 @@ class ResUsers(models.Model):
         # 定期閱覽者：未填到期日時自動帶預設天數
         user._apply_observer_default_validity()
 
+        # 前台帳號未設監造/營造身分 → 預設「營造(承包商)」，避免建缺失單無法判定類型
+        user._apply_default_contractor_org()
+
+        # 會填施工日誌/進度表的帳號自動建立對應 hr.employee，免手動再去「員工」設定
+        user._ensure_construction_employee()
+
         return user
 
     def write(self, vals):
@@ -210,6 +216,64 @@ class ResUsers(models.Model):
                     and user_group not in user.groups_id
                     and not user.portal_valid_until):
                 user.portal_valid_until = default_date
+
+    def _apply_default_contractor_org(self):
+        """前台(portal)帳號未設監造/營造身分時，預設為營造(承包商)。
+
+        建缺失單時 general/reservation.defect.improvement._resolve_record_type
+        需靠 is_supervision_org / is_contractor_org 判定類型；前台帳號兩者皆空會被擋。
+        DB-per-承包商 架構下前台帳號多為承包商，故預設營造；監造方用 portal 的特例後台改。
+        只在兩者皆空時預設，不覆蓋已設值。
+        """
+        portal_group = self.env.ref('base.group_portal', raise_if_not_found=False)
+        if not portal_group:
+            return
+        for user in self:
+            if (portal_group in user.groups_id
+                    and not user.is_supervision_org
+                    and not user.is_contractor_org):
+                user.is_contractor_org = True
+
+    def _ensure_construction_employee(self):
+        """為會填施工日誌/進度表的帳號自動建立對應 hr.employee(若無)。
+
+        施工日誌/進度表的「填表人」= hr.employee(required)。原本建帳號後還要手動去
+        「員工」再建一筆並綁使用者，此處自動建立以省去兩頁操作。
+        略過：系統/public/範本帳號、純定期閱覽者(view-only 不填表)。
+        """
+        Employee = self.env['hr.employee'].sudo()
+        viewer_group = self.env.ref(
+            'construction_supervision_base.group_portal_viewer', raise_if_not_found=False)
+        user_group = self.env.ref(
+            'construction_supervision_base.group_portal_user', raise_if_not_found=False)
+        for user in self:
+            if user.login in ('__system__', 'public', 'default', 'portaltemplate'):
+                continue
+            if Employee.search([('user_id', '=', user.id)], limit=1):
+                continue
+            # 純定期閱覽者(有 viewer、無 user，且為前台帳號)不需填表 → 略過
+            if (viewer_group and user_group and user.share
+                    and viewer_group in user.groups_id
+                    and user_group not in user.groups_id):
+                continue
+            Employee.create({
+                'name': user.name or user.login,
+                'user_id': user.id,
+                'company_id': user.company_id.id,
+            })
+
+    def action_reset_password(self):
+        """允許無 email 的帳號直接建立/使用（登入帳號可任意、不必是 email）。
+
+        原生 auth_signup._action_reset_password 對無 email 使用者 raise
+        「Cannot send email: user ... has no email address」，導致以非 email 登入帳號
+        建帳號（會觸發邀請/重設密碼信）時流程中斷。此處僅對「有 email」的使用者走原生
+        寄信流程；無 email 者靜默略過（不寄、不報錯），帳號維持無 email。
+        """
+        valid = self.filtered(lambda u: (u.email or '').strip())
+        if not valid:
+            return True
+        return super(ResUsers, valid).action_reset_password()
 
     @api.model
     def _cron_deactivate_expired_portal_users(self):

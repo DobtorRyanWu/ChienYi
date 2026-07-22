@@ -1550,6 +1550,28 @@ class ConstructionPortal(CustomerPortal):
         }
         return request.render('construction_portal.portal_construction_daily_log_form', values)
 
+    @http.route(['/construction/<int:project_id>/daily-log/<int:log_id>/unlock'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_construction_daily_log_unlock(self, project_id, log_id, **post):
+        """前台解鎖已鎖定日誌（限老闆/主管/代操，限時 3 天）"""
+        try:
+            project = self._document_check_access('project.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+
+        log = request.env['daily.log.sheet'].search([
+            ('id', '=', log_id),
+            ('supervision_project_id', '=', project.id),
+        ], limit=1)
+        if not log:
+            return request.redirect(f'/construction/{project_id}/daily-logs')
+        if not log.can_unlock:
+            return request.redirect(
+                f'/construction/{project_id}/daily-log/{log.id}?error=no_unlock_permission')
+        log.sudo().portal_unlock(hours=72, reason='前台解鎖')
+        return request.redirect(
+            f'/construction/{project_id}/daily-log/{log.id}?message=unlocked')
+
     @http.route(['/construction/<int:project_id>/daily-log/<int:log_id>/update'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_daily_log_update(self, project_id, log_id, **post):
@@ -2158,7 +2180,9 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect('/my')
 
         InspType = request.env['self.inspection.type'].sudo()
-        inspection_types = InspType.search([])
+        # 只顯示全域樣板 + 當前專案專屬樣板（避免撈到別專案的設定）
+        inspection_types = InspType.search(
+            ['|', ('project_id', '=', False), ('project_id', '=', project.id)])
 
         # inspection_timing 選項從 fields_get 拉
         Inspection = request.env['general.self.inspection']
@@ -2452,7 +2476,9 @@ class ConstructionPortal(CustomerPortal):
             return request.redirect(f'/construction/{project_id}/slips')
 
         InspType = request.env['self.inspection.type'].sudo()
-        inspection_types = InspType.search([])
+        # 只顯示全域樣板 + 當前專案專屬樣板（避免撈到別專案的設定）
+        inspection_types = InspType.search(
+            ['|', ('project_id', '=', False), ('project_id', '=', project.id)])
 
         Inspection = request.env['reservation.self.inspection']
         timing_selection = Inspection.fields_get(['inspection_timing'])['inspection_timing']['selection']
@@ -3050,10 +3076,16 @@ class ConstructionPortal(CustomerPortal):
         return 'general.defect.improvement'
 
     def _browse_defect(self, defect_id, access_token=None):
-        """以 id 取缺失（先一般式、後預約式）並做存取檢查"""
+        """以 id 取缺失（先一般式、後預約式）並做存取檢查。
+
+        M1.4：缺失存取一律走登入（auth='user'）＋ ir.rule；general/reservation 缺失模型
+        沒有 access_token 欄位，故不把 token 傳進 `_document_check_access`（改名解除撞名後
+        本呼叫會落到 Odoo 原生版，帶 token 又缺欄位會 AttributeError）。access_token 參數
+        保留簽章相容但不使用。
+        """
         for model in ('general.defect.improvement', 'reservation.defect.improvement'):
             if request.env[model].sudo().browse(defect_id).exists():
-                return self._document_check_access(model, defect_id, access_token=access_token)
+                return self._document_check_access(model, defect_id)
         raise MissingError(_('找不到缺失紀錄'))
 
     @http.route(['/construction/<int:project_id>/defects', '/construction/<int:project_id>/defects/page/<int:page>'],
@@ -3242,6 +3274,19 @@ class ConstructionPortal(CustomerPortal):
                 wvals['improvement_action'] = corrective_action
             if wvals:
                 defect.sudo().write(wvals)
+
+        # 提交改善即推進狀態（notified → improving → improved），讓監造的「驗證」按鈕出現
+        defect_sudo = defect.sudo()
+        if defect_sudo.state in ('notified', 'improving'):
+            try:
+                if defect_sudo.state == 'notified':
+                    defect_sudo.action_start_improvement()
+                if defect_sudo.state == 'improving':
+                    defect_sudo.action_complete_improvement()
+            except (UserError, ValidationError) as e:
+                from urllib.parse import quote
+                return request.redirect(
+                    f'/construction/defect/{defect_id}?error={quote(str(e))}')
 
         return request.redirect(f'/construction/defect/{defect_id}?message=success')
 
@@ -4010,6 +4055,36 @@ class ConstructionPortal(CustomerPortal):
         return self._run_review_action(
             insp, 'action_close',
             f'/construction/inspection/{inspection_id}', f'/construction/inspection/{inspection_id}')
+
+    @http.route(['/construction/defect/<int:defect_id>/notify'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_defect_notify(self, defect_id, **post):
+        """缺失：通知改善（draft → notified）。限老闆/主管。"""
+        try:
+            defect = self._browse_defect(defect_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        return self._run_review_action(
+            defect, 'action_notify',
+            f'/construction/defect/{defect_id}', f'/construction/defect/{defect_id}')
+
+    @http.route(['/construction/inspection/<int:inspection_id>/inspect'],
+                type='http', auth='user', website=True, methods=['POST'])
+    def portal_inspection_inspect(self, inspection_id, **post):
+        """自主檢查：完成檢查（draft → inspected）。建立者本人或老闆/主管可執行。"""
+        try:
+            insp = self._document_check_access('general.self.inspection', inspection_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        try:
+            self._require_owner_or_manager(insp)
+            insp.action_inspect()
+        except (AccessError, UserError, ValidationError) as e:
+            from urllib.parse import quote
+            return request.redirect(
+                f'/construction/inspection/{inspection_id}?error={quote(str(e))}')
+        return request.redirect(
+            f'/construction/inspection/{inspection_id}?msg=inspected')
 
     @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/confirm'],
                 type='http', auth='user', website=True, methods=['POST'])

@@ -534,8 +534,35 @@ class DailyLogSheet(models.Model):
             sheet.can_unlock = (
                 user.has_group('base.group_system') or
                 user.has_group('construction_supervision_base.group_supervision_manager') or
-                user.has_group('hr.group_hr_manager')
+                user.has_group('hr.group_hr_manager') or
+                # 前台老闆/主管 + 監造代操：可直接解鎖（限時、有記錄）
+                user.has_group('construction_supervision_base.group_portal_subscriber') or
+                user.has_group('construction_supervision_base.group_portal_leader') or
+                user.has_group('construction_supervision_base.group_operator')
             )
+
+    def portal_unlock(self, hours=72, reason=None):
+        """限時解鎖（前台/後台共用）：寫入解鎖記錄，到期自動重新鎖定。
+
+        呼叫端須自行確認來源使用者可解鎖；本方法亦以 can_unlock 二次守門。
+        回傳解鎖到期時間。
+        """
+        self.ensure_one()
+        if not self.can_unlock:
+            raise UserError('您沒有解鎖權限！')
+        expires_at = fields.Datetime.now() + timedelta(hours=hours)
+        vals = {
+            'is_unlocked': True,
+            'unlocked_by_id': self.env.uid,
+            'unlock_date': fields.Datetime.now(),
+            'unlock_reason': reason or '解鎖',
+            'unlock_expires_at': expires_at,
+        }
+        # 自動鎖定的日誌解鎖後恢復為編輯中
+        if self.state == 'auto_locked':
+            vals['state'] = 'draft'
+        self.write(vals)
+        return expires_at
 
     # -------------------------------------------------------------------------
     # 狀態切換方法
