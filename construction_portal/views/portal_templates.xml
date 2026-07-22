@@ -220,6 +220,15 @@
                         <t t-call="construction_portal.portal_v10_project_switcher">
                             <t t-set="switch_projects" t-value="_detail_switch_projects"/>
                         </t>
+                        <!-- 通知鈴鐺（未讀數 badge） -->
+                        <a t-if="project" t-attf-href="/construction/#{project.id}/notifications"
+                           class="cy-hud-avatar" style="position: relative; text-decoration: none; margin-right: 8px;"
+                           aria-label="通知">
+                            <span style="font-size: 1.05rem;">🔔</span>
+                            <t t-if="nav_badges and nav_badges.get('notif')">
+                                <span class="cy-nav-badge"><t t-esc="nav_badges['notif']"/></span>
+                            </t>
+                        </a>
                         <!-- v11 合併按鈕:身份徽章 + 選單入口二合一(BS5 offcanvas 觸發) -->
                         <button type="button" class="cy-hud-avatar cy-hud-menu-avatar"
                                 data-bs-toggle="offcanvas" data-bs-target="#cyDrawer"
@@ -710,6 +719,15 @@
                 <t t-call="construction_portal.portal_v10_project_switcher">
                     <t t-set="switch_projects" t-value="_switch_projects"/>
                 </t>
+                <!-- 通知鈴鐺（未讀數 badge） -->
+                <a t-if="project" t-attf-href="/construction/#{project.id}/notifications"
+                   class="cy-hud-avatar" style="position: relative; text-decoration: none; margin-right: 8px;"
+                   aria-label="通知">
+                    <span style="font-size: 1.05rem;">🔔</span>
+                    <t t-if="nav_badges and nav_badges.get('notif')">
+                        <span class="cy-nav-badge"><t t-esc="nav_badges['notif']"/></span>
+                    </t>
+                </a>
                 <!-- v11 合併按鈕:身份徽章 + 選單入口二合一(BS5 offcanvas 觸發) -->
                 <button type="button" class="cy-hud-avatar cy-hud-menu-avatar"
                         data-bs-toggle="offcanvas" data-bs-target="#cyDrawer"
@@ -857,9 +875,12 @@
                 <!-- 系統組 (個人帳號入口已併到上方 user block,點名字即跳 /my/account) -->
                 <div class="cy-drawer-section">
                     <div class="cy-drawer-section-title">系統</div>
-                    <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="通知設定即將推出">
+                    <a t-if="project" class="cy-drawer-item" t-attf-href="/construction/#{project.id}/notifications">
                         <span class="cy-drawer-item-icon">🔔</span>
-                        <span class="cy-drawer-item-label">通知設定</span>
+                        <span class="cy-drawer-item-label">通知</span>
+                        <t t-if="nav_badges and nav_badges.get('notif')">
+                            <span class="cy-nav-badge" style="position: static; margin-left: auto;"><t t-esc="nav_badges['notif']"/></span>
+                        </t>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
                     <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="使用說明即將推出">

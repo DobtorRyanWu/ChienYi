@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================
+         前台通知中心 /construction/<pid>/notifications
+         列出派給當前使用者的所有通知（各模組 message_post）
+         ============================================ -->
+    <template id="portal_construction_notifications" name="Construction Notifications">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <span class="cy-breadcrumb-item active">通知</span>
+                </div>
+
+                <div class="cy-content">
+                    <div class="cy-sec-divider"><span>通知</span></div>
+                    <div class="cy-total-count">共 <t t-esc="notif_count"/> 則</div>
+
+                    <t t-if="not notif_items">
+                        <div class="cy-empty">
+                            <i class="fa fa-bell-o"/>
+                            <div class="cy-empty-text">目前沒有通知</div>
+                        </div>
+                    </t>
+
+                    <t t-foreach="notif_items" t-as="it">
+                        <div t-attf-class="cy-event-card #{it['is_unread'] and 'cy-event-warn' or ''}"
+                             style="margin-bottom: 10px;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-size: 0.8rem; font-weight: 700; color: var(--wb-t3); margin-bottom: 4px;">
+                                    <t t-if="it['is_unread']"><span style="color: var(--wb-red);">● 未讀 · </span></t>
+                                    <t t-esc="it['msg'].record_name or it['msg'].subject or '通知'"/>
+                                    <t t-if="it['msg'].date"> · <t t-esc="it['msg'].date"/></t>
+                                </div>
+                                <div style="font-size: 0.95rem; word-break: break-word;">
+                                    <t t-out="it['msg'].body"/>
+                                </div>
+                            </div>
+                            <t t-if="it['url']">
+                                <a t-att-href="it['url']"
+                                   style="padding: 10px 16px; border-radius: 10px; border: none; background: #3b82f6; color: #fff; font-size: 0.9rem; font-weight: 700; text-decoration: none; white-space: nowrap; display: flex; align-items: center;">
+                                    查看 →
+                                </a>
+                            </t>
+                        </div>
+                    </t>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+</odoo>

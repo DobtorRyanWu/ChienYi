@@ -279,7 +279,85 @@ class ConstructionPortal(CustomerPortal):
             badges['log'] = max(workdays - filled, 0)
         except Exception:
             badges['log'] = 0
+        try:
+            badges['notif'] = self._get_notif_unread_count()
+        except Exception:
+            badges['notif'] = 0
         return badges
+
+    # ==================== 前台通知中心 ====================
+
+    def _portal_notif_domain(self):
+        """當前前台使用者「被通知」的訊息（mail.message）domain。
+
+        以 notified_partner_ids = 當前 partner 為界（每人只看自己的通知）、
+        subtype = mail.mt_comment（construction 各模組發通知用的 subtype）。
+        """
+        partner = request.env.user.partner_id
+        mt_comment = request.env.ref('mail.mt_comment')
+        return [
+            ('notified_partner_ids', 'in', partner.ids),
+            ('subtype_id', '=', mt_comment.id),
+        ]
+
+    def _get_notif_unread_count(self):
+        """未讀通知數 = 晚於使用者「上次查看時間」的通知（前台通知天生 is_read，故自建浮水印）。"""
+        Message = request.env['mail.message'].sudo()
+        domain = self._portal_notif_domain()
+        last_seen = request.env.user.portal_notif_last_seen
+        if last_seen:
+            domain = domain + [('date', '>', last_seen)]
+        return Message.search_count(domain)
+
+    def _get_portal_notifications(self, limit=100):
+        """使用者的通知清單（新到舊），每筆附前台記錄連結（access_url）。"""
+        Message = request.env['mail.message'].sudo()
+        msgs = Message.search(self._portal_notif_domain(), order='date desc', limit=limit)
+        last_seen = request.env.user.portal_notif_last_seen
+        items = []
+        for m in msgs:
+            url = None
+            if m.model and m.res_id:
+                try:
+                    rec = request.env[m.model].sudo().browse(m.res_id)
+                    if rec.exists():
+                        if 'access_url' in rec._fields and rec.access_url:
+                            url = rec.access_url
+                        elif m.model in ('general.defect.improvement',
+                                         'reservation.defect.improvement',
+                                         'supervision.defect'):
+                            # 前台缺失模型無 access_url，照 _browse_defect 的 /construction/defect/<id>
+                            url = '/construction/defect/%s' % m.res_id
+                except Exception:
+                    url = None
+            items.append({
+                'msg': m,
+                'url': url,
+                'is_unread': bool(not last_seen or (m.date and m.date > last_seen)),
+            })
+        return items
+
+    @http.route(['/construction/<int:project_id>/notifications'],
+                type='http', auth='user', website=True)
+    def portal_construction_notifications(self, project_id, **kw):
+        """前台通知中心：列出派給當前使用者的所有通知；進頁即標記全部已看（未讀 badge 歸零）。"""
+        try:
+            project = self._document_check_access('project.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+
+        notif_items = self._get_portal_notifications(limit=100)
+        values = {
+            'project': project,
+            'notif_items': notif_items,
+            'notif_count': len(notif_items),
+            'page_name': 'notifications',
+            'day_count': self._get_project_day_count(project),
+            'nav_badges': self._get_nav_badges(project),
+        }
+        # 進頁即標記全部已看（只寫 res.users 自有欄位，走 sudo）
+        request.env.user.sudo().write({'portal_notif_last_seen': fields.Datetime.now()})
+        return request.render('construction_portal.portal_construction_notifications', values)
 
     # ==================== Portal 首頁 override ====================
 
