@@ -165,6 +165,9 @@ class ResUsers(models.Model):
         # 會填施工日誌/進度表的帳號自動建立對應 hr.employee，免手動再去「員工」設定
         user._ensure_construction_employee()
 
+        # 內部（監造）帳號改站內通知（inbox），免依賴 email 也能收通知
+        user._apply_internal_inbox_notification()
+
         return user
 
     def write(self, vals):
@@ -261,6 +264,17 @@ class ResUsers(models.Model):
                 'user_id': user.id,
                 'company_id': user.company_id.id,
             })
+
+    def _apply_internal_inbox_notification(self):
+        """內部（非 portal）帳號預設站內通知（inbox），免依賴 email 也能收通知。
+
+        portal（share）帳號受 Odoo SQL constraint「notification_type='email' OR NOT share」
+        強制 email，故只對內部帳號設 inbox（設 inbox 會透過 inverse 自動加入
+        mail.group_mail_notification_type_inbox 群組，compute 依此穩定判定）。
+        """
+        for user in self:
+            if not user.share and user.notification_type != 'inbox':
+                user.notification_type = 'inbox'
 
     def action_reset_password(self):
         """允許無 email 的帳號直接建立/使用（登入帳號可任意、不必是 email）。
