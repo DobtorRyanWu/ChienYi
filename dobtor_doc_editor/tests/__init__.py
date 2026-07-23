@@ -11,3 +11,4 @@ from . import test_bulk_import
 from . import test_template_autofill
 from . import test_font_serve  # Sprint 66 — Sprint 64b font_serve backend tests
 from . import test_template_field  # Phase 8 ADR-022 — doc.template.signer/field
+from . import test_portal_home_counter  # /my 首頁 doc_count counter 權限保護

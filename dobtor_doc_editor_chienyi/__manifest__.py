@@ -42,6 +42,7 @@ payment_estimate / meeting_record）全部有 host model 引用，引用率達 1
         'construction_review',
     ],
     'data': [
+        'security/doc_role_bridge.xml',
         'views/general_self_inspection_views.xml',
         'views/reservation_self_inspection_views.xml',
         'views/supervision_defect_views.xml',

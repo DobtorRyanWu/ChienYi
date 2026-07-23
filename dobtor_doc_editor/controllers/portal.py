@@ -43,7 +43,12 @@ class DobtorDocPortal(CustomerPortal):
         return [('active', '=', True)] if 'active' in request.env['doc.document']._fields else []
 
     def _get_documents_domain_count(self):
-        return request.env['doc.document'].search_count(self._get_documents_domain())
+        # 缺 doc.document 讀取權限（例如未綁 group_doc_portal 的前台帳號）時回 0，
+        # 不讓 /my 首頁 counter 拋 AccessError（對照 dobtor_spreadsheet_editor 同款保護）。
+        Doc = request.env['doc.document']
+        if not Doc.check_access_rights('read', raise_exception=False):
+            return 0
+        return Doc.search_count(self._get_documents_domain())
 
     # ── /my/documents 列表 ────────────────────────────────────────────
 

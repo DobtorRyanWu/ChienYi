@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        ChienYi 角色 → dobtor 文件群組 橋接
+        ================================================
+        讓 ChienYi 前台/內部角色能存取線上協作文件（doc.document），
+        修復「代操等帳號進 /my 首頁被 doc.document 權限擋下」的問題。
+
+        設計（見計畫 velvety-dancing-wind）：
+        - 前台主動角色（現場人員 → 主管 → 老闆，單一 implied 繼承鏈）：
+          只加在最底層 group_portal_user，即 cascade 給主管/老闆。
+          刻意「不加」到更底層的 group_portal_viewer（唯讀臨時帳號），
+          因 group_doc_portal 含寫入權，避免唯讀角色取得編輯權。
+        - 內部角色（代操 → 系統管理者）：加在 group_supervisor_admin，
+          cascade 給 group_operator。給 internal 系的 group_doc_editor
+          （portal 系 group_doc_portal 會與 base.group_user 衝突）。
+
+        noupdate="0"：本橋接為權限政策，每次模組升級重新套用並觸發
+        implied_ids 回溯傳遞給既有成員（(4,ref) 為加法、idempotent）。
+
+        可見範圍仍由既有 ir.rule 收斂：
+        - group_doc_portal → 只看 collaborator_ids 含自己的文件
+        - group_doc_editor → 只看 owner/collaborator ∪ 同公司的文件
+    -->
+    <data noupdate="0">
+
+        <!-- 前台：現場人員（cascade → 主管、老闆） -->
+        <record id="construction_supervision_base.group_portal_user" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('dobtor_doc_editor.group_doc_portal'))]"/>
+        </record>
+
+        <!-- 內部：系統管理者（cascade → 代操 group_operator） -->
+        <record id="construction_supervision_base.group_supervisor_admin" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('dobtor_doc_editor.group_doc_editor'))]"/>
+        </record>
+
+    </data>
+</odoo>
