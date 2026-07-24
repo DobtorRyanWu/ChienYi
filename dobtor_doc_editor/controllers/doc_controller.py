@@ -1010,7 +1010,7 @@ class DocEditorController(http.Controller):
     # ─── DOCX 模板引擎路由 ───────────────────────────────────────────
 
     @http.route('/dobtor_doc/upload_template', type='http', auth='user',
-                methods=['POST'], csrf=False)
+                methods=['POST'])
     def upload_template(self, doc_id, docx_file, **kw):
         """
         上傳 DOCX 模板：

@@ -112,7 +112,7 @@ class DobtorDocPortal(CustomerPortal):
         實際讀寫透過既有的 /dobtor_doc/load 與 /dobtor_doc/save JSON 路由。
         """
         try:
-            doc_sudo = self._document_check_access('doc.document', doc_id, access_token)
+            doc_sudo = self._doc_editor_check_access('doc.document', doc_id, access_token)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
@@ -141,8 +141,14 @@ class DobtorDocPortal(CustomerPortal):
         }
         return request.render('dobtor_doc_editor.portal_document_view', values)
 
-    def _document_check_access(self, model_name, doc_id, access_token=None):
-        """權限檢查（沿用 CustomerPortal 標準方式）。"""
+    def _doc_editor_check_access(self, model_name, doc_id, access_token=None):
+        """權限檢查（doc editor 專用；改名避免覆寫 CustomerPortal 標準 _document_check_access）。
+
+        M1.4：本 controller 繼承 CustomerPortal，若沿用標準名 `_document_check_access`
+        會污染整個 portal 組合類別（construction_portal 63 處在用）。改用模組專屬名稱，
+        讓其他 portal 走 Odoo 原生 `_document_check_access`，避免 2026-06-19 撞名連鎖 500 的
+        同類風險。
+        """
         document_sudo = request.env[model_name].browse(doc_id).sudo().exists()
         if not document_sudo:
             raise MissingError(f"找不到文件 id={doc_id}")

@@ -11,6 +11,7 @@ from odoo.addons.portal.controllers.portal import CustomerPortal, pager as porta
 from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
+from werkzeug.exceptions import NotFound
 
 _logger = logging.getLogger(__name__)
 
@@ -53,7 +54,9 @@ def _portal_save_photos(env, record, supervision_project, files, meta):
             'res_model': record._name,
             'res_id': record.id,
             'mimetype': f.mimetype or 'image/jpeg',
-            'public': True,
+            # M0.6：不再 public（避免 /web/content 枚舉洩漏）；
+            # 前台顯圖改走帶權限檢查的 /construction/img/<att_id>。
+            'public': False,
         })
         # 直接建 supervision.photo,不依賴 mixin
         if not Photo.search([('attachment_id', '=', att.id)], limit=1):
@@ -130,9 +133,8 @@ def _defect_save_photos(env, defect, files, stage):
             'image_filename': f.filename,
             'photo_stage': stage,
         })
-        # 自動建立的 attachment 設 public,前台 /web/image 才看得到
-        if line.attachment_id:
-            line.attachment_id.write({'public': True})
+        # M0.6：不再把附件設 public。缺失照片行的 image 欄位附件預設非 public，
+        # 前台改走帶權限檢查的 /construction/img/<att_id>（依 defect→專案成員判定）。
         count += 1
     return count
 
@@ -220,6 +222,126 @@ class ConstructionPortal(CustomerPortal):
         """現場人員只能編輯自己建立的記錄；老闆/主管/內部不受限"""
         if self._is_field_only() and record and record.sudo().create_uid.id != request.env.user.id:
             raise AccessError(_('您只能編輯自己建立的單據'))
+
+    def _require_write(self, msg=None):
+        """H1：禁止唯讀角色（定期閱覽者 / viewer / observer）建立或寫入單據。
+
+        前台 create / upload 路由多走 .sudo()（繞過 ir.rule / ir.model.access），
+        唯讀 viewer 仍可 POST 進來寫入 → 越權。放行條件：
+        - 內部使用者（base.group_user：監造單位員工 / 系統管理者）一律放行；
+        - 前台角色需現場人員（GROUP_FIELD）以上（含主管 / 老闆 / 代操作員）；
+        - 僅純前台 viewer（只有 base.group_portal + viewer）被擋。
+        """
+        user = request.env.user
+        if (user.has_group('base.group_user')
+                or self._can_manage()
+                or user.has_group(GROUP_FIELD)):
+            return
+        raise AccessError(msg or _('權限不足：閱覽角色不可建立或修改資料'))
+
+    # ==================== 帶權限的照片供圖（M0.6） ====================
+    # 取代 public=True 的裸 /web/content：附件不再 public，改由本端點以
+    # 「登入者對照片所屬專案的可見範圍」把關，通過後 sudo 委派 Odoo 影像
+    # pipeline（保留 resize/crop）。不在可見範圍一律 404（不洩漏存在性）。
+
+    def _resolve_photo_project(self, att):
+        """反解一張「前台照片」附件所屬的工程案件（project.project）。找不到回 None。
+
+        刻意採**允許清單**：只認得四種前台照片綁定型別，不做泛用
+        res_model→project_id 反解——否則本端點會淪為「任意附件下載器」，讓專案成員
+        枚舉下載掛在專案上的非照片附件（chatter / 計價 / 簽章）。（M0.6 抗辯 finding）
+        """
+        env = request.env
+        # 1) supervision.photo 綁定（_portal_save_photos 主流程、slip/test/inspection 關聯）
+        photo = env['supervision.photo'].sudo().search(
+            [('attachment_id', '=', att.id)], limit=1)
+        if photo and photo.project_id:
+            return photo.project_id
+        # 2) 缺失改善照片行的 image 欄位附件（<defect_model>.improvement.photo）
+        rm, rid = att.res_model, att.res_id
+        if rm and rid and rm.endswith('.improvement.photo') and rm in env:
+            rec = env[rm].sudo().browse(rid).exists()
+            if rec and 'defect_improvement_id' in rec._fields:
+                defect = rec.defect_improvement_id
+                if defect and 'project_id' in defect._fields and defect.project_id:
+                    return defect.project_id
+        # 3) 被前台照片 m2m 直接引用：signboard、缺失前/後照片、驗收缺失前/後照片
+        for model_name, field in (
+                ('project.project', 'signboard_photo_ids'),
+                ('supervision.defect', 'before_photo_ids'),
+                ('supervision.defect', 'after_photo_ids'),
+                ('acceptance.defect', 'before_photo_ids'),
+                ('acceptance.defect', 'after_photo_ids')):
+            if model_name in env and field in env[model_name]._fields:
+                rec = env[model_name].sudo().search([(field, 'in', att.id)], limit=1)
+                if rec:
+                    return rec if model_name == 'project.project' else rec.project_id
+        return None
+
+    def _user_can_see_project(self, project):
+        """登入者是否可看到此工程案件（與 /construction 列表同一條可見性 domain）。"""
+        if not project:
+            return False
+        partner = request.env.user.partner_id
+        domain = request.env['project.project']._get_portal_projects_domain(partner)
+        return bool(request.env['project.project'].sudo().search_count(
+            [('id', '=', project.id)] + domain))
+
+    @http.route(['/construction/img/<int:att_id>',
+                 '/construction/img/<int:att_id>/<int:width>x<int:height>'],
+                type='http', auth='user')
+    def portal_construction_photo_serve(self, att_id, width=0, height=0,
+                                        crop=False, download=False, **kw):
+        """帶專案權限檢查的照片供圖端點（M0.6，取代裸 public 供圖）。"""
+        att = request.env['ir.attachment'].sudo().browse(att_id).exists()
+        # 只服務影像附件：非影像（PDF / 簽章 / 任意二進位）一律 404。除了避免本端點
+        # 淪為任意附件下載器（抗辯 finding），也修掉「非影像餵進 image pipeline → 500」。
+        if not att or not (att.mimetype or '').startswith('image/'):
+            raise NotFound()
+        project = self._resolve_photo_project(att)
+        if not self._user_can_see_project(project):
+            raise NotFound()  # 404，不洩漏附件存在性
+        try:
+            w, h = int(width or 0), int(height or 0)
+        except (TypeError, ValueError):
+            w = h = 0
+        crop = str(crop).lower() in ('1', 'true', 'yes')
+        as_download = str(download).lower() in ('1', 'true', 'yes')
+        IrBinary = request.env['ir.binary'].sudo()
+        if as_download:
+            return IrBinary._get_stream_from(att, 'raw').get_response(as_attachment=True)
+        return IrBinary._get_image_stream_from(
+            att, 'raw', width=w, height=h, crop=crop).get_response()
+
+    def _resolve_document_project(self, att):
+        """反解一個文件附件所屬工程案件（只認 supervision.document.upload_attachment_ids）。
+
+        與照片端點同樣採允許清單：不做泛用反解，非文件庫附件一律 None（→404），
+        避免本端點淪為任意附件下載器。
+        """
+        env = request.env
+        doc = env['supervision.document'].sudo().search(
+            [('upload_attachment_ids', 'in', att.id)], limit=1)
+        if doc and 'project_id' in doc._fields and doc.project_id:
+            return doc.project_id
+        return None
+
+    @http.route(['/construction/doc/<int:att_id>'], type='http', auth='user')
+    def portal_construction_document_serve(self, att_id, **kw):
+        """帶專案權限檢查的文件下載端點（M0.6，取代 public=True 的裸 /web/content）。
+
+        允許清單：只服務屬於某 supervision.document.upload_attachment_ids 的附件，
+        依登入者對該文件所屬專案的可見範圍把關；不可見一律 404（不洩漏存在性）。
+        文件非影像，一律以下載串流回應。
+        """
+        att = request.env['ir.attachment'].sudo().browse(att_id).exists()
+        if not att:
+            raise NotFound()
+        project = self._resolve_document_project(att)
+        if not self._user_can_see_project(project):
+            raise NotFound()
+        return request.env['ir.binary'].sudo()._get_stream_from(
+            att, 'raw').get_response(as_attachment=True)
 
     def _prepare_home_portal_values(self, counters):
         """Portal 首頁計數器"""
@@ -856,6 +978,10 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return {'success': False, 'error': '無權限或案件不存在'}
 
+        # H1：修改工程編號屬專案主檔異動，限老闆 / 主管
+        if not self._can_manage():
+            return {'success': False, 'error': '權限不足：僅老闆或主管可修改工程編號'}
+
         code = (kw.get('code') or '').strip()
         if not code:
             return {'success': False, 'error': '工程編號不可為空'}
@@ -894,6 +1020,9 @@ class ConstructionPortal(CustomerPortal):
             )
         except (AccessError, MissingError):
             return request.redirect('/my')
+
+        # H1：修改工程資訊限老闆 / 主管（現場人員不得改專案主檔）
+        self._require_manage(_('僅老闆或主管可修改工程資訊'))
 
         if project.state != 'draft':
             return request.redirect(
@@ -1486,6 +1615,9 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        # H1：建立施工日誌限現場人員以上，閱覽角色不可寫入
+        self._require_write(_('權限不足：閱覽角色不可建立施工日誌'))
+
         # 基本欄位
         vals = {
             'supervision_project_id': project.id,
@@ -1726,6 +1858,8 @@ class ConstructionPortal(CustomerPortal):
                 'project.project', log.supervision_project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # H1：追加照片限現場人員以上，閱覽角色不可上傳
+        self._require_write(_('權限不足：閱覽角色不可上傳照片'))
         # A（2026-07-14）：照片為附加證據、不改動已定稿的日誌欄位內容，
         # 故鎖定（超過 14 天）的日誌仍允許「補上照片」（歷史建檔需求）。
         # 日誌內容編輯仍受 is_locked 保護（在編輯路由把關），此處只加照片。
@@ -2291,6 +2425,9 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        # H1：建立自主檢查限現場人員以上，閱覽角色不可寫入
+        self._require_write(_('權限不足：閱覽角色不可建立自主檢查'))
+
         vals = {
             'project_id': project_id,
             'inspection_type_id': int(post.get('inspection_type_id', 0)) or False,
@@ -2447,6 +2584,8 @@ class ConstructionPortal(CustomerPortal):
                 'general.self.inspection', inspection_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # H1：追加照片限現場人員以上，閱覽角色不可上傳
+        self._require_write(_('權限不足：閱覽角色不可上傳照片'))
         meta = {
             'description': post.get('description') or '',
             'category': post.get('category') or False,
@@ -2593,6 +2732,9 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        # H1：建立預約式自主檢查限現場人員以上，閱覽角色不可寫入
+        self._require_write(_('權限不足：閱覽角色不可建立自主檢查'))
+
         vals = {
             'slip_id': slip.id,
             'inspection_type_id': int(post.get('inspection_type_id', 0)) or False,
@@ -2705,6 +2847,8 @@ class ConstructionPortal(CustomerPortal):
                 'project.project', inspection.project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # H1：追加照片限現場人員以上，閱覽角色不可上傳
+        self._require_write(_('權限不足：閱覽角色不可上傳照片'))
         meta = {
             'description': post.get('description') or '',
             'category': post.get('category') or False,
@@ -3257,6 +3401,9 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        # H1：建立缺失限現場人員以上，閱覽角色不可寫入
+        self._require_write(_('權限不足：閱覽角色不可建立缺失'))
+
         model = self._defect_model(project)
         # portal 反推：依所選缺失類別自動決定檢查類型（影響缺失編號首字 施/安）
         category = post.get('defect_type') or 'workmanship'
@@ -3326,6 +3473,9 @@ class ConstructionPortal(CustomerPortal):
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        # H1：提交缺失改善限現場人員以上，閱覽角色不可寫入
+        self._require_write(_('權限不足：閱覽角色不可提交缺失改善'))
+
         # 收齊文字欄位
         improvement_text = post.get('improvement_description', '').strip()
         corrective_action = post.get('corrective_action', '').strip()
@@ -3382,6 +3532,8 @@ class ConstructionPortal(CustomerPortal):
             defect = self._browse_defect(defect_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # H1：追加缺失照片限現場人員以上，閱覽角色不可上傳
+        self._require_write(_('權限不足：閱覽角色不可上傳照片'))
         stage = post.get('stage')
         if stage not in ('before', 'during', 'after'):
             if defect.state in ('improved', 'verified', 'closed'):
@@ -3507,6 +3659,8 @@ class ConstructionPortal(CustomerPortal):
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # H1：告示牌照片上傳限現場人員以上，閱覽角色不可上傳
+        self._require_write(_('權限不足：閱覽角色不可上傳照片'))
         att_ids = []
         for f in request.httprequest.files.getlist('photos'):
             if not f or not f.filename:
@@ -3520,7 +3674,8 @@ class ConstructionPortal(CustomerPortal):
                 'res_model': 'project.project',
                 'res_id': project.id,
                 'mimetype': f.mimetype or 'image/jpeg',
-                'public': True,
+                # M0.6：告示牌照片不再 public，前台走 /construction/img/<att_id>
+                'public': False,
             })
             att_ids.append(att.id)
         if att_ids:
@@ -3540,6 +3695,9 @@ class ConstructionPortal(CustomerPortal):
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+
+        # H1：照片上傳限現場人員以上，閱覽角色不可上傳
+        self._require_write(_('權限不足：閱覽角色不可上傳照片'))
 
         uploaded_file = post.get('photo')
         if uploaded_file:
@@ -3932,13 +4090,14 @@ class ConstructionPortal(CustomerPortal):
             import base64
             file_data = base64.b64encode(uploaded_file.read())
 
-            # 建立 attachment(public=True 讓 portal user 能下載/預覽)
+            # M0.6：文件附件不再 public（避免 /web/content 枚舉）；
+            # 前台下載改走帶權限檢查的 /construction/doc/<att_id>。
             attachment = request.env['ir.attachment'].sudo().create({
                 'name': uploaded_file.filename,
                 'datas': file_data,
                 'res_model': 'supervision.document',
                 'type': 'binary',
-                'public': True,
+                'public': False,
             })
 
             cat_id = int(post.get('document_category_id', 0)) or False
@@ -4298,11 +4457,11 @@ class ConstructionPortal(CustomerPortal):
             'category': photo.category_id.name or photo.category or '',
             'shot_date': str(photo.shot_date) if photo.shot_date else '',
             'thumbnail_url': (
-                '/web/image/ir.attachment/%d/datas/80x80?crop=true' % photo.attachment_id.id
+                '/construction/img/%d/80x80?crop=true' % photo.attachment_id.id
                 if photo.attachment_id else ''
             ),
             'image_url': (
-                '/web/image/ir.attachment/%d/datas' % photo.attachment_id.id
+                '/construction/img/%d' % photo.attachment_id.id
                 if photo.attachment_id else ''
             ),
             'location_description': photo.location_description or '',
@@ -4320,11 +4479,11 @@ class ConstructionPortal(CustomerPortal):
             'source_label': source_labels.get(photo.source_model, photo.source_model or ''),
             'shot_date': str(photo.shot_date) if photo.shot_date else '',
             'thumbnail_url': (
-                '/web/image/ir.attachment/%d/datas/200x200?crop=true' % photo.attachment_id.id
+                '/construction/img/%d/200x200?crop=true' % photo.attachment_id.id
                 if photo.attachment_id else ''
             ),
             'image_url': (
-                '/web/image/ir.attachment/%d/datas' % photo.attachment_id.id
+                '/construction/img/%d' % photo.attachment_id.id
                 if photo.attachment_id else ''
             ),
             'location_description': photo.location_description or '',

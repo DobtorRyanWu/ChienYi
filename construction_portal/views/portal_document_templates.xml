@@ -106,7 +106,7 @@
                             </div>
                             <!-- 下載 -->
                             <t t-if="doc.upload_attachment_ids">
-                                <a t-attf-href="/web/content/ir.attachment/#{doc.upload_attachment_ids[0].id}/datas/#{doc.upload_attachment_ids[0].name}?download=true"
+                                <a t-attf-href="/construction/doc/#{doc.upload_attachment_ids[0].id}"
                                    class="cy-btn cy-btn-outline" style="font-size: 0.75rem; padding: 4px 10px; min-height: 30px;">
                                     <i class="fa fa-download"/>
                                 </a>

@@ -60,7 +60,7 @@
                         <t t-if="project.signboard_photo_ids">
                             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
                                 <t t-foreach="project.signboard_photo_ids" t-as="sbatt">
-                                    <img t-attf-src="/web/image/#{sbatt.id}"
+                                    <img t-attf-src="/construction/img/#{sbatt.id}"
                                          style="width: 78px; height: 78px; object-fit: cover; border-radius: 6px;"/>
                                 </t>
                             </div>
@@ -141,7 +141,7 @@
                             <t t-foreach="dg['photos']" t-as="photo">
                                 <a t-attf-href="/construction/photo/#{photo.id}" class="cy-photo-card-with-info" style="text-decoration: none; color: inherit;">
                                     <div class="cy-photo-card-thumb">
-                                        <img t-attf-src="/web/image/ir.attachment/#{photo.attachment_id.id}/datas/300x300?crop=true"
+                                        <img t-attf-src="/construction/img/#{photo.attachment_id.id}/300x300?crop=true"
                                              t-att-alt="photo.description or 'photo'" loading="lazy"/>
                                     </div>
                                     <div class="cy-photo-card-caption">
@@ -187,7 +187,7 @@
                 <div class="cy-content">
                     <!-- 照片大圖 -->
                     <div style="border-radius: var(--wb-radius); overflow: hidden; margin-bottom: 14px; background: var(--wb-bg3);">
-                        <img t-attf-src="/web/image/ir.attachment/#{photo.attachment_id.id}/datas"
+                        <img t-attf-src="/construction/img/#{photo.attachment_id.id}"
                              style="width: 100%; display: block;"
                              t-att-alt="photo.description or 'photo'"/>
                     </div>
@@ -257,7 +257,7 @@
 
                     <!-- 下載原圖 -->
                     <div style="margin-top: 16px;">
-                        <a t-attf-href="/web/content/ir.attachment/#{photo.attachment_id.id}/datas/#{photo.image_filename}?download=true"
+                        <a t-attf-href="/construction/img/#{photo.attachment_id.id}?download=true"
                            class="cy-btn cy-btn-outline cy-btn-block">
                             <i class="fa fa-download"/> 下載原圖
                         </a>

@@ -196,9 +196,9 @@
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px;">
                             <t t-foreach="test.related_photo_ids" t-as="photo">
                                 <t t-if="photo.attachment_id">
-                                    <a t-attf-href="/web/image/#{photo.attachment_id.id}" target="_blank"
+                                    <a t-attf-href="/construction/img/#{photo.attachment_id.id}" target="_blank"
                                        style="display: block; aspect-ratio: 1; overflow: hidden; border-radius: var(--wb-radius); border: 1px solid var(--wb-bdr);">
-                                        <img t-attf-src="/web/image/#{photo.attachment_id.id}"
+                                        <img t-attf-src="/construction/img/#{photo.attachment_id.id}"
                                              style="width: 100%; height: 100%; object-fit: cover;"
                                              t-att-alt="photo.description or ''"/>
                                     </a>

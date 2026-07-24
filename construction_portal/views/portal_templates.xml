@@ -1463,7 +1463,7 @@
                            class="cy-photo-card-with-info"
                            style="text-decoration: none; color: inherit;">
                             <div class="cy-photo-card-thumb">
-                                <img t-attf-src="/web/image/ir.attachment/#{att.id}/datas/300x300?crop=true"
+                                <img t-attf-src="/construction/img/#{att.id}/300x300?crop=true"
                                      t-att-alt="att.name" loading="lazy"/>
                             </div>
                             <div class="cy-photo-card-caption">

@@ -53,13 +53,14 @@ class SupervisionPhotoPortal(models.Model):
         Returns:
             新建立的照片記錄
         """
-        # 建立附件(public=True 讓 portal user 能透過 /web/image 看圖)
+        # M0.6：附件不再 public（避免 /web/content 枚舉）；前台顯圖改走
+        # 帶權限檢查的 /construction/img/<att_id>（依 supervision.photo→專案成員判定）。
         attachment = self.env['ir.attachment'].sudo().create({
             'name': vals.get('filename', 'photo.jpg'),
             'datas': attachment_data,
             'res_model': 'supervision.photo',
             'type': 'binary',
-            'public': True,
+            'public': False,
         })
 
         # 移除 filename，使用 name 作為照片說明

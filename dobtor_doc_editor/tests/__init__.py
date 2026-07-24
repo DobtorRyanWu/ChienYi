@@ -4,6 +4,7 @@ from . import test_doc_linked_mixin
 from . import test_security
 from . import test_jinja_sandbox
 from . import test_ssti_render
+from . import test_collision
 from . import test_controllers
 from . import test_optimistic_lock
 from . import test_telemetry

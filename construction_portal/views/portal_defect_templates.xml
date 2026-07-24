@@ -283,8 +283,8 @@
                         <div class="cy-section-title">改善前照片</div>
                         <div class="cy-thumb-row" data-lightbox-group="before" style="margin-bottom: 14px;">
                             <t t-foreach="defect.before_photo_ids" t-as="photo">
-                                <div class="cy-thumb" t-if="photo.attachment_id" t-attf-data-full="/web/image/#{photo.attachment_id.id}">
-                                    <img t-attf-src="/web/image/#{photo.attachment_id.id}/160x160" alt="改善前"/>
+                                <div class="cy-thumb" t-if="photo.attachment_id" t-attf-data-full="/construction/img/#{photo.attachment_id.id}">
+                                    <img t-attf-src="/construction/img/#{photo.attachment_id.id}/160x160" alt="改善前"/>
                                 </div>
                             </t>
                         </div>
@@ -295,8 +295,8 @@
                         <div class="cy-section-title">改善後照片</div>
                         <div class="cy-thumb-row" data-lightbox-group="after" style="margin-bottom: 14px;">
                             <t t-foreach="defect.after_photo_ids" t-as="photo">
-                                <div class="cy-thumb" t-if="photo.attachment_id" t-attf-data-full="/web/image/#{photo.attachment_id.id}">
-                                    <img t-attf-src="/web/image/#{photo.attachment_id.id}/160x160" alt="改善後"/>
+                                <div class="cy-thumb" t-if="photo.attachment_id" t-attf-data-full="/construction/img/#{photo.attachment_id.id}">
+                                    <img t-attf-src="/construction/img/#{photo.attachment_id.id}/160x160" alt="改善後"/>
                                 </div>
                             </t>
                         </div>

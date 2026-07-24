@@ -1274,6 +1274,8 @@ export class DocEditor extends Component {
                 const formData = new FormData();
                 formData.append("doc_id", String(this.state.docId));
                 formData.append("docx_file", file);
+                // M1.5：upload_template 已改為強制 csrf，前端須帶 token（否則 403）
+                formData.append("csrf_token", odoo.csrf_token);
 
                 const resp = await fetch("/dobtor_doc/upload_template", {
                     method: "POST",

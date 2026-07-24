@@ -9,6 +9,7 @@ doc_controller.py 邊界 security 測試 — 紀律 #5 + #11 + #15 廣域應用�
 
 import io
 import json
+import re
 
 from odoo.tests.common import HttpCase, TransactionCase, tagged
 
@@ -121,6 +122,18 @@ class TestControllerSecurityBoundary(HttpCase):
         # 用 admin 模擬合法登入
         self.authenticate('admin', 'admin')
 
+    def _get_csrf_token(self):
+        """從已登入頁面擷取 csrf_token（M1.5：upload_template 已強制 csrf）。
+
+        頁面以 JS 物件字面量輸出：`csrf_token: "<hex>o<ts>"`（鍵未加引號、冒號分隔），
+        session_info JSON 則為 `"csrf_token": "..."`；兩種都吃。
+        """
+        page = self.url_open('/odoo').text
+        m = re.search(r'csrf_token["\s]*[:=]\s*"([^"]+)"', page)
+        if m:
+            return m.group(1)
+        self.fail('無法從頁面擷取 csrf_token')
+
     # ── upload_template 邊界 ───────────────────────────────────────
 
     def test_upload_template_path_traversal_filename_handled(self):
@@ -133,7 +146,8 @@ class TestControllerSecurityBoundary(HttpCase):
         docx_bytes = _make_minimal_docx_bytes()
         resp = self.url_open(
             '/dobtor_doc/upload_template',
-            data={'doc_id': str(self.doc.id)},
+            data={'doc_id': str(self.doc.id),
+                  'csrf_token': self._get_csrf_token()},
             files={'docx_file': ('../../../etc/passwd.docx', docx_bytes,
                                  'application/vnd.openxmlformats-officedocument'
                                  '.wordprocessingml.document')},
@@ -155,7 +169,8 @@ class TestControllerSecurityBoundary(HttpCase):
         docx_bytes = _make_minimal_docx_bytes()
         resp = self.url_open(
             '/dobtor_doc/upload_template',
-            data={'doc_id': str(self.doc.id)},
+            data={'doc_id': str(self.doc.id),
+                  'csrf_token': self._get_csrf_token()},
             files={'docx_file': ('evil\x00.docx', docx_bytes,
                                  'application/vnd.openxmlformats-officedocument'
                                  '.wordprocessingml.document')},

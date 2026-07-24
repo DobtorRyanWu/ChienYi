@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - Portal 入口',
-    'version': '18.0.2.1.1',  # 2.1.1: 老闆看全庫所有專案(不分狀態);主管/現場/閱覽維持成員制且排除 draft/terminated。2.1.0: 移除老闆承包公司比對
+    'version': '18.0.2.2.1',  # 2.2.1: M0.6 文件庫附件收 public=False + 帶權限下載端點 /construction/doc。2.2.0: 照片附件收 public=False + /construction/img。2.1.1: 老闆看全庫所有專案(不分狀態)
     'category': 'Construction/Portal',
     'summary': '讓承包廠商聯絡人透過 Portal 查看工程、填寫日誌、檢查與缺失改善',
     'description': """

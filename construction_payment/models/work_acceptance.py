@@ -382,14 +382,38 @@ class WorkAcceptanceLine(models.Model):
                     f'驗收數量 ({line.accepted_qty}) 不可超過完成數量 ({line.completed_qty})'
                 )
 
-    @api.constrains('accepted_qty', 'contract_qty', 'previous_accepted_qty')
-    def _check_over_contract(self):
-        """警告累計驗收超過契約數量"""
+    # === 超約警告（M3.0 #3）===
+    # 原設計把 message_post 放在 @api.constrains 內，導致每次存檔（只要維持超約）
+    # 就重貼一則相同 chatter 洗版。改為只在 create/write 由「未超約 → 超約」的轉變
+    # 時發一次，既不洗版、也不遺失警告功能。
+    def _is_over_contract(self):
+        """本明細目前累計驗收是否超過契約數量。"""
+        self.ensure_one()
+        cumulative = self.previous_accepted_qty + self.accepted_qty
+        return self.contract_qty > 0 and cumulative > self.contract_qty
+
+    def _post_over_contract_warning(self):
+        """對驗收單發一則超約警告（不阻擋，可能有追加工程）。"""
+        self.ensure_one()
+        cumulative = self.previous_accepted_qty + self.accepted_qty
+        self.acceptance_id.message_post(
+            body=f'注意：項目 {self.item_no or self.task_id.name} '
+                 f'累計驗收數量 ({cumulative}) 已超過契約數量 ({self.contract_qty})'
+        )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        lines = super().create(vals_list)
+        for line in lines:
+            if line._is_over_contract():
+                line._post_over_contract_warning()
+        return lines
+
+    def write(self, vals):
+        # 記錄寫入前是否已超約；寫入後只有「未超 → 超」的新跨越才發警告
+        was_over = {line.id: line._is_over_contract() for line in self}
+        res = super().write(vals)
         for line in self:
-            cumulative = line.previous_accepted_qty + line.accepted_qty
-            if cumulative > line.contract_qty and line.contract_qty > 0:
-                # 發出警告但不阻擋（可能有追加工程）
-                line.acceptance_id.message_post(
-                    body=f'注意：項目 {line.item_no or line.task_id.name} '
-                         f'累計驗收數量 ({cumulative}) 已超過契約數量 ({line.contract_qty})'
-                )
+            if line._is_over_contract() and not was_over.get(line.id):
+                line._post_over_contract_warning()
+        return res
