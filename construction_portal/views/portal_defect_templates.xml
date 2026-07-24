@@ -155,19 +155,20 @@
                                 <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="request.params.get('error')"/></div></div>
                             </div>
                         </t>
-                        <!-- 通知改善（draft → notified）：監造/主管 -->
-                        <t t-if="defect.state == 'draft'">
+                        <!-- 通知改善（draft → notified）：監造/主管。C2：用 portal_workflow_state
+                             統一詞彙（supervision 起始為 open→'notified'，不會走 draft 通知步驟）-->
+                        <t t-if="defect.portal_workflow_state == 'draft'">
                             <form t-attf-action="/construction/defect/#{defect.id}/notify" method="post" style="margin-bottom: 16px;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-bullhorn"/> 通知改善</button>
                             </form>
                         </t>
-                        <div style="display: flex; gap: 8px; margin-bottom: 16px;" t-if="defect.state in ('improved', 'verified')">
-                            <form t-if="defect.state == 'improved'" t-attf-action="/construction/defect/#{defect.id}/verify" method="post" style="flex:1;">
+                        <div style="display: flex; gap: 8px; margin-bottom: 16px;" t-if="defect.portal_workflow_state in ('improved', 'verified')">
+                            <form t-if="defect.portal_workflow_state == 'improved'" t-attf-action="/construction/defect/#{defect.id}/verify" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-check"/> 驗證通過</button>
                             </form>
-                            <form t-if="defect.state == 'verified'" t-attf-action="/construction/defect/#{defect.id}/close" method="post" style="flex:1;">
+                            <form t-if="defect.portal_workflow_state == 'verified'" t-attf-action="/construction/defect/#{defect.id}/close" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-flag-checkered"/> 結案</button>
                             </form>
@@ -283,8 +284,9 @@
                         <div class="cy-section-title">改善前照片</div>
                         <div class="cy-thumb-row" data-lightbox-group="before" style="margin-bottom: 14px;">
                             <t t-foreach="defect.before_photo_ids" t-as="photo">
-                                <div class="cy-thumb" t-if="photo.attachment_id" t-attf-data-full="/construction/img/#{photo.attachment_id.id}">
-                                    <img t-attf-src="/construction/img/#{photo.attachment_id.id}/160x160" alt="改善前"/>
+                                <t t-set="att_id" t-value="photo.id if photo._name == 'ir.attachment' else (photo.attachment_id.id if photo.attachment_id else False)"/>
+                                <div class="cy-thumb" t-if="att_id" t-attf-data-full="/construction/img/#{att_id}">
+                                    <img t-attf-src="/construction/img/#{att_id}/160x160" alt="改善前"/>
                                 </div>
                             </t>
                         </div>
@@ -295,8 +297,9 @@
                         <div class="cy-section-title">改善後照片</div>
                         <div class="cy-thumb-row" data-lightbox-group="after" style="margin-bottom: 14px;">
                             <t t-foreach="defect.after_photo_ids" t-as="photo">
-                                <div class="cy-thumb" t-if="photo.attachment_id" t-attf-data-full="/construction/img/#{photo.attachment_id.id}">
-                                    <img t-attf-src="/construction/img/#{photo.attachment_id.id}/160x160" alt="改善後"/>
+                                <t t-set="att_id" t-value="photo.id if photo._name == 'ir.attachment' else (photo.attachment_id.id if photo.attachment_id else False)"/>
+                                <div class="cy-thumb" t-if="att_id" t-attf-data-full="/construction/img/#{att_id}">
+                                    <img t-attf-src="/construction/img/#{att_id}/160x160" alt="改善後"/>
                                 </div>
                             </t>
                         </div>
@@ -320,8 +323,9 @@
                         </button>
                     </form>
 
-                    <!-- Portal 改善表單（已通知/改善中狀態才顯示）-->
-                    <t t-if="defect.state in ('notified', 'improving')">
+                    <!-- Portal 改善表單（已通知/改善中狀態才顯示）。C2：用 portal_workflow_state
+                         統一詞彙（supervision open→'notified'、investigating→'improving' 皆顯示）-->
+                    <t t-if="defect.portal_workflow_state in ('notified', 'improving')">
                         <div class="cy-section-title">提交改善</div>
                         <form t-attf-action="/construction/defect/#{defect.id}/improve" method="post" enctype="multipart/form-data">
                             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>

@@ -265,6 +265,16 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
         ('closed', '結案'),
     ], string='狀態', default='draft', tracking=True, index=True)
 
+    # C2：前台流程狀態詞彙（general/reservation 就是 state 本身；supervision.defect 另有對映）。
+    # 讓前台共用缺失模板的 workflow gating 用同一欄位，不必比對各模型不同的 state 值集。
+    portal_workflow_state = fields.Char(
+        string='前台流程狀態', compute='_compute_portal_workflow_state', store=False)
+
+    @api.depends('state')
+    def _compute_portal_workflow_state(self):
+        for record in self:
+            record.portal_workflow_state = record.state
+
     # === 備註 ===
     note = fields.Text(string='備註說明')
 

@@ -119,6 +119,32 @@ def _defect_save_photos(env, defect, files, stage):
     stage: 'before' / 'during' / 'after'
     回傳: 新增照片行數
     """
+    # C2：supervision.defect 的照片是 M2M→ir.attachment（無 .photo 子模型）。
+    if defect._name == 'supervision.defect':
+        Attachment = env['ir.attachment'].sudo()
+        field = 'after_photo_ids' if stage == 'after' else 'before_photo_ids'
+        att_ids = []
+        for f in files:
+            if not f or not f.filename:
+                continue
+            raw = f.read()
+            if not raw:
+                continue
+            att = Attachment.create({
+                'name': f.filename,
+                'datas': base64.b64encode(raw),
+                'res_model': 'supervision.defect',
+                'res_id': defect.id,
+                'mimetype': f.mimetype or 'image/jpeg',
+                # M0.6：非 public，前台走 /construction/img（_resolve_photo_project 認得
+                # supervision.defect before/after m2m）
+                'public': False,
+            })
+            att_ids.append(att.id)
+        if att_ids:
+            defect.sudo().write({field: [(4, a) for a in att_ids]})
+        return len(att_ids)
+
     Photo = env[defect._name + '.photo'].sudo()
     count = 0
     for f in files:
@@ -3292,10 +3318,15 @@ class ConstructionPortal(CustomerPortal):
 
     # ── 缺失改善：依工程類型選擇模型 ──
     def _defect_model(self, project):
-        """一般式 → general.defect.improvement；預約式 → reservation.defect.improvement"""
+        """一般式 → supervision.defect（157 筆真資料、NCR 語意）；預約式 → reservation.defect.improvement。
+
+        C2：一般式缺失原本誤讀 general.defect.improvement（僅 07-14 批次測試資料），
+        真資料在 supervision.defect（匯入路由本就寫這裡）。已透過 supervision.defect 的前台
+        相容層（construction_portal/models/supervision_defect.py）讓共用模板/路由零改名相容。
+        """
         if project and getattr(project, 'project_type', False) == 'reservation':
             return 'reservation.defect.improvement'
-        return 'general.defect.improvement'
+        return 'supervision.defect'
 
     def _browse_defect(self, defect_id, access_token=None):
         """以 id 取缺失（先一般式、後預約式）並做存取檢查。
@@ -3305,7 +3336,8 @@ class ConstructionPortal(CustomerPortal):
         本呼叫會落到 Odoo 原生版，帶 token 又缺欄位會 AttributeError）。access_token 參數
         保留簽章相容但不使用。
         """
-        for model in ('general.defect.improvement', 'reservation.defect.improvement'):
+        for model in ('supervision.defect', 'general.defect.improvement',
+                      'reservation.defect.improvement'):
             if request.env[model].sudo().browse(defect_id).exists():
                 return self._document_check_access(model, defect_id)
         raise MissingError(_('找不到缺失紀錄'))
