@@ -2502,9 +2502,7 @@ class ConstructionPortal(CustomerPortal):
             idx += 1
 
         return request.redirect(
-            f'/construction/{project_id}/daily-log/../inspection/{inspection.id}'.replace(
-                '/daily-log/../', '/'
-            ) if False else f'/construction/inspection/{inspection.id}?message=created'
+            f'/construction/inspection/{inspection.id}?message=created'
         )
 
     @http.route(['/construction/inspection/get-items'],
