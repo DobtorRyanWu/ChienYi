@@ -42,7 +42,7 @@ class CreateDefectImprovementWizard(models.TransientModel):
             if inspection_id:
                 inspection = self.env['general.self.inspection'].browse(inspection_id)
                 defect_items = inspection.checklist_ids.filtered(
-                    lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
+                    lambda x: x.check_result == 'defect' and not x.supervision_defect_id)
                 res['item_ids'] = [(6, 0, defect_items.ids)]
         return res
 
@@ -53,46 +53,46 @@ class CreateDefectImprovementWizard(models.TransientModel):
 
         # 只處理本 wizard 指定、仍為缺失且尚未建立改善的項目
         defect_items = self.item_ids.filtered(
-            lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
+            lambda x: x.check_result == 'defect' and not x.supervision_defect_id)
 
         if not defect_items:
             raise UserError('所有缺失項目皆已建立缺失改善單')
 
-        created_improvements = self.env['general.defect.improvement']
-
+        # M4-b：改建 supervision.defect（一般式缺失唯一模型）。用 supervision 真欄位，
+        # 不依賴 portal 相容層。
+        Defect = self.env['supervision.defect']
+        created = Defect
         for item in defect_items:
-            improvement = self.env['general.defect.improvement'].create({
+            defect = Defect.create({
                 'project_id': inspection.project_id.id,
                 'task_id': inspection.task_id.id if inspection.task_id else False,
-                'source_type': 'self_inspection',
+                'source': 'self_inspection',
                 'self_inspection_id': inspection.id,
                 'self_inspection_item_id': item.id,
                 'record_type': self.record_type,
-                'check_type': 'construction',
-                'defect_category': 'workmanship',
-                'defect_location': inspection.inspection_location,
-                'defect_description': f"[{item.check_item}] {item.actual_result or ''}",
+                'defect_type': 'quality',
+                'location': inspection.inspection_location,
+                'description': f"[{item.check_item}] {item.actual_result or ''}",
                 'discovery_user_id': inspection.inspector_id.id if inspection.inspector_id else self.env.uid,
                 'found_date': inspection.inspection_date,
                 'responsible_company_id': inspection.contractor_company_id.id if inspection.contractor_company_id else False,
             })
-            item.defect_improvement_id = improvement.id
-            created_improvements |= improvement
+            item.supervision_defect_id = defect.id
+            created |= defect
 
-        # 返回建立的缺失改善單
-        if len(created_improvements) == 1:
+        # 返回建立的缺失
+        if len(created) == 1:
             return {
                 'type': 'ir.actions.act_window',
-                'name': '缺失改善',
-                'res_model': 'general.defect.improvement',
+                'name': '缺失',
+                'res_model': 'supervision.defect',
                 'view_mode': 'form',
-                'res_id': created_improvements.id,
+                'res_id': created.id,
             }
-        else:
-            return {
-                'type': 'ir.actions.act_window',
-                'name': '已建立的缺失改善',
-                'res_model': 'general.defect.improvement',
-                'view_mode': 'list,form',
-                'domain': [('id', 'in', created_improvements.ids)],
-            }
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '已建立的缺失',
+            'res_model': 'supervision.defect',
+            'view_mode': 'list,form',
+            'domain': [('id', 'in', created.ids)],
+        }

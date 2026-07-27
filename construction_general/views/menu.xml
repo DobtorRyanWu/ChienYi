@@ -40,4 +40,17 @@
               action="action_profit_loss_dashboard"
               sequence="35"/>
 
+    <!-- M4-b：一般式缺失已收斂到 supervision.defect（見 construction_quality「缺失管理」下的
+         監造缺失改善選單）。以下 3 個一般式缺失選單現為冗餘（general.defect.improvement 已空），
+         停用之。可逆：把 eval 改回 True 或移除本段即恢復。 -->
+    <record id="menu_general_defect_improvement_supervision" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+    <record id="menu_general_defect_improvement_contractor" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+    <record id="menu_general_defect_improvement_overdue" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
+
 </odoo>
