@@ -9,7 +9,7 @@ class AcceptanceDefect(models.Model):
     驗收缺失
 
     設計說明：
-    - 獨立於 NCR (supervision.defect) 的驗收缺失模型
+    - 獨立於施工階段缺失改善 (general/reservation.defect.improvement) 的驗收缺失模型
     - 專門追蹤初驗/正驗發現的缺失
     - 完整的改善追蹤與覆驗流程
     - 支援逾期自動警示

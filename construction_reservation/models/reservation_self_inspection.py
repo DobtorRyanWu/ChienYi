@@ -96,11 +96,17 @@ class ReservationSelfInspectionReservation(models.Model):
 
     @api.constrains('slip_id')
     def _check_slip_state(self):
-        """驗證通報單狀態"""
+        """驗證通報單狀態：草稿階段的通報單不得建立自主檢查。
+
+        注意：通報單的狀態流程是 draft → not_started → in_progress → closed
+        （construction_notification_slip/models/notification_slip.py:128-134），
+        沒有 approved / completed 這兩個值。
+        """
         for record in self:
-            if record.slip_id and record.slip_id.state not in ('approved', 'in_progress', 'completed'):
+            if record.slip_id and record.slip_id.state not in (
+                    'not_started', 'in_progress', 'closed'):
                 raise ValidationError(
-                    '只能在已核准、執行中或已完成的通報單中建立自主檢查')
+                    '草稿狀態的通報單不得建立自主檢查，請先確認通報單')
 
 
 class ReservationSelfInspectionItemReservation(models.Model):

@@ -1050,7 +1050,7 @@
                     html += '<div style="font-size: 0.85rem; font-weight: 700; color: var(--wb-amber); margin: 12px 0 8px;">' + stage.label + '</div>';
 
                     items.forEach(function (item) {
-                        if (item.stage !== stage.key) return;
+                        if (item.stage_id !== stage.key) return;
 
                         html += '<div class="cy-card" style="margin-bottom: 8px;">';
                         html += '<div class="cy-card-body" style="padding: 12px 14px;">';

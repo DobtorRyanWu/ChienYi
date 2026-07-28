@@ -217,7 +217,7 @@
             <field name="name">缺失改善通知樣板</field>
             <field name="category">letter</field>
             <field name="page_format">A4</field>
-            <field name="description">缺失改善通知書，可由 supervision.defect 或 reservation.defect.improvement 透過 doc.linked.mixin 整合。</field>
+            <field name="description">缺失改善通知書，可由 general.defect.improvement 或 reservation.defect.improvement 透過 doc.linked.mixin 整合。</field>
             <field name="content_html"><![CDATA[
 <h1 style="text-align:center">缺失改善通知書</h1>
 <p style="text-align:right">通知編號：{{ notice_no }}</p>
@@ -248,11 +248,10 @@
         </record>
 
         <!-- 缺失改善通知：severity → 下拉選單（嚴重程度）。
-             本部署實際缺失資料為 supervision.defect（157 筆），該 model 無 severity 欄位
-             （只有 defect_type/source/responsible_party）；有 severity 的 *.defect.improvement
-             目前 0 筆、未使用。故 severity 走 custom 固定清單（輕微/中等/重大/嚴重，code 與
-             *.defect.improvement 的 Selection 一致）+ inputAble 自填，不依賴綁定 model，
-             任何綁定（含 supervision.defect / 未綁）皆穩定顯示 4 選項。與會議地點同模式。 -->
+             缺失資料在 *.defect.improvement（general/reservation），該 model 有 severity 欄位。
+             severity 仍走 custom 固定清單（輕微/中等/重大/嚴重，code 與 *.defect.improvement
+             的 Selection 一致）+ inputAble 自填，不依賴綁定 model，未綁定時也穩定顯示
+             4 選項。與會議地點同模式。 -->
         <record id="signer_defect_default" model="doc.template.signer">
             <field name="template_id" ref="template_defect_improvement"/>
             <field name="name">填寫者</field>

@@ -38,7 +38,7 @@
 
 設計說明
 --------
-* 獨立的驗收缺失模型 (acceptance.defect)，與 NCR (supervision.defect) 區分
+* 獨立的驗收缺失模型 (acceptance.defect)，與施工階段的缺失改善 (general/reservation.defect.improvement) 區分
 * 完整的狀態流程與審核機制
 * 支援多公司架構（設計監造/施工廠商分離）
     """,

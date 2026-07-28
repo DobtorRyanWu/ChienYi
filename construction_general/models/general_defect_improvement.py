@@ -181,12 +181,6 @@ class GeneralDefectImprovement(models.Model):
         string='檢查編號',
         readonly=True)
 
-    ncr_id = fields.Many2one(
-        'supervision.defect',
-        string='關聯 NCR',
-        domain="[('project_id', '=', project_id)]",
-        help='若需關聯 NCR 缺失單')
-
     responsible_company_id = fields.Many2one(
         'res.company',
         string='責任廠商',
@@ -253,35 +247,9 @@ class GeneralDefectImprovement(models.Model):
     _reset_draft_error = '只有草稿或已通知狀態可以重設'
 
     # === 排程任務 ===
-    @api.model
-    def _cron_check_overdue(self):
-        """定期檢查逾期缺失"""
-        today = fields.Date.today()
-        # 更新所有未結案且逾期的記錄
-        overdue_records = self.search([
-            ('state', 'not in', ('improved', 'verified', 'closed')),
-            ('deadline', '<', today),
-            ('is_overdue', '=', False),
-        ])
-        # 觸發重新計算
-        for record in overdue_records:
-            record._compute_overdue()
-
-    @api.model
-    def _cron_send_overdue_notification(self):
-        """發送逾期通知"""
-        overdue_records = self.search([
-            ('is_overdue', '=', True),
-            ('state', 'not in', ('improved', 'verified', 'closed')),
-        ])
-        for record in overdue_records:
-            # 發送訊息通知負責人
-            if record.responsible_user_id:
-                record.message_post(
-                    body=f'缺失 {record.name} 已逾期 {record.overdue_days} 天，請儘速處理！',
-                    partner_ids=record.responsible_user_id.partner_id.ids,
-                    message_type='notification',
-                )
+    # `_cron_check_overdue` / `_cron_send_overdue_notification` 已上收到共用的
+    # construction.daily.defect.mixin（原本一般式/預約式各寫一份且行為不一致）。
+    # 排程註冊在 construction_general/data/ir_cron_data.xml。
 
     # === CRUD 覆寫 ===
     @api.model_create_multi

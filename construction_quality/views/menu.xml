@@ -37,14 +37,6 @@
               action="action_reservation_defect_improvement_overdue"
               sequence="37"/>
 
-    <!-- NCR 缺失管理（隱藏，目前用不到） -->
-    <menuitem id="menu_supervision_defect"
-              name="缺失管理 (NCR)"
-              parent="construction_supervision_base.menu_defect_management"
-              action="action_supervision_defect"
-              sequence="20"
-              active="0"/>
-
     <!-- ========== 自主檢查選單 ========== -->
 
     <!-- 自主檢查類型設定 -->

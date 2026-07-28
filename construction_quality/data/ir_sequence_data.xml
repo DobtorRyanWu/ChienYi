@@ -31,14 +31,4 @@
         <field name="number_increment">1</field>
     </record>
 
-    <!-- NCR 缺失管理序列 -->
-    <record id="seq_supervision_defect" model="ir.sequence">
-        <field name="name">缺失管理 (NCR)</field>
-        <field name="code">supervision.defect</field>
-        <field name="prefix">NCR-%(year)s%(month)s-</field>
-        <field name="padding">4</field>
-        <field name="number_next">1</field>
-        <field name="number_increment">1</field>
-    </record>
-
 </odoo>

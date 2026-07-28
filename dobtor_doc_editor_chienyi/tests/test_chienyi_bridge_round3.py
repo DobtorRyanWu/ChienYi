@@ -123,7 +123,7 @@ class TestMeetingRecordBridge(TransactionCase):
                 'general.self.inspection', 'reservation.self.inspection',
             ],
             'dobtor_doc_editor.template_defect_improvement': [
-                'supervision.defect',
+                'general.defect.improvement',
             ],
             'dobtor_doc_editor.template_payment_estimate': [
                 'payment.estimate',

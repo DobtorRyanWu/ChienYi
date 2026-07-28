@@ -265,7 +265,7 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
         ('closed', '結案'),
     ], string='狀態', default='draft', tracking=True, index=True)
 
-    # C2：前台流程狀態詞彙（general/reservation 就是 state 本身；supervision.defect 另有對映）。
+    # 前台流程狀態詞彙（general/reservation 就是 state 本身）。
     # 讓前台共用缺失模板的 workflow gating 用同一欄位，不必比對各模型不同的 state 值集。
     portal_workflow_state = fields.Char(
         string='前台流程狀態', compute='_compute_portal_workflow_state', store=False)
@@ -277,6 +277,13 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
 
     # === 備註 ===
     note = fields.Text(string='備註說明')
+
+    # === 來源追溯 ===
+    source_description = fields.Char(
+        string='來源登錄編號',
+        index=True,
+        help='自舊系統／彙總表匯入時的原始缺失單號（如 QA-001、Q01-1121007）。\n'
+             '供後續補充改善明細比對回配，並保留舊系統編號可回查。')
 
     # === 逾期計算 ===
     @api.depends('deadline', 'state', 'closure_date')
@@ -305,6 +312,46 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
             else:
                 record.is_overdue = False
                 record.overdue_days = 0
+
+    # === 逾期排程（一般式/預約式共用）===
+    # 上面的 is_overdue / overdue_days 是 store=True 的計算欄位，但 @api.depends 只有
+    # deadline/state/closure_date，**不含「今天」** —— 期限過了不會自己翻成逾期，
+    # 必須靠排程定期重算。後台的「一般式/預約式逾期缺失」選單 domain 都是
+    # is_overdue = True，沒有排程等於那兩個選單永遠是空的。
+    #
+    # 這兩支原本各自寫在 general/reservation，且行為不一致：
+    # reservation 的 `_cron_check_overdue` 名為檢查、實際只發通知，從不刷新 is_overdue。
+    # 上收到 mixin 讓兩邊行為一致。
+
+    @api.model
+    def _cron_check_overdue(self):
+        """每日刷新 is_overdue / overdue_days。"""
+        stale = self.search([
+            ('deadline', '!=', False),
+            ('state', 'not in', ('improved', 'verified', 'closed')),
+        ])
+        if stale:
+            # 通知 ORM「deadline 變了」→ 依賴它的 store 計算欄位排入重算佇列
+            stale.modified(['deadline'])
+
+    @api.model
+    def _cron_send_overdue_notification(self):
+        """對已逾期且未改善完成的缺失，通知負責人。"""
+        overdue = self.search([
+            ('is_overdue', '=', True),
+            ('state', 'not in', ('improved', 'verified', 'closed')),
+        ])
+        for record in overdue:
+            if not record.responsible_user_id:
+                continue
+            record.message_post(
+                body=(f'缺失 <b>{record.defect_no or record.id}</b> 已逾期 '
+                      f'{record.overdue_days} 天（期限：{record.deadline}），'
+                      f'請儘速完成改善。'),
+                partner_ids=record.responsible_user_id.partner_id.ids,
+                message_type='notification',
+                subtype_xmlid='mail.mt_comment',
+            )
 
     # === 動作方法（6 個逐位相同）===
     def action_notify(self):

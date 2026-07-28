@@ -150,7 +150,7 @@ class InspectionRoutesMixin:
                         for di in t.default_item_ids:
                             checklist_cmds.append((0, 0, {
                                 'type_item_id': di.id,
-                                'stage': di.stage or 'stage2',
+                                'stage_id': di.stage_id.id or False,
                                 'sequence': di.sequence or 10,
                                 'check_item': di.name,
                                 'design_standard': di.check_standard or '',
@@ -158,7 +158,9 @@ class InspectionRoutesMixin:
                             }))
                     else:
                         checklist_cmds.append((0, 0, {
-                            'stage': 'stage2',
+                            # 類型必有段落（新建時 default 帶三段、既有的由 migration 補），
+                            # 取第一段當 placeholder 的落點
+                            'stage_id': t.stage_ids[:1].id or False,
                             'sequence': 10,
                             'check_item': f'{type_name} - 施工中檢查',
                             'check_result': 'pass',
@@ -291,7 +293,9 @@ class InspectionRoutesMixin:
         values = {
             'rec': False,
             'categories': self._inspection_type_categories(),
-            'stage_labels': self.INSP_STAGE_LABELS,
+            # 尚未建檔，還沒有段落可選。儲存時類型會自動帶「施工前/中/後」三段，
+            # 項目一律落到第一段，之後可到編輯頁調整。
+            'stages': request.env['self.inspection.type.stage'].browse(),
             'page_name': 'inspection_types',
         }
         return request.render('construction_portal.portal_inspection_type_form', values)
@@ -307,7 +311,7 @@ class InspectionRoutesMixin:
         values = {
             'rec': rec,
             'categories': self._inspection_type_categories(),
-            'stage_labels': self.INSP_STAGE_LABELS,
+            'stages': rec.stage_ids,
             'page_name': 'inspection_types',
         }
         return request.render('construction_portal.portal_inspection_type_form', values)
@@ -344,6 +348,10 @@ class InspectionRoutesMixin:
             rec.write(vals)
         else:
             rec = InspType.create(vals)
+            # 新增頁沒有段落可選，所以不顯示項目編輯區；
+            # 建檔後（此時已自動帶三個預設段落）轉到編輯頁設定項目
+            return request.redirect(
+                '/construction/inspection-types/%s/edit?message=created' % rec.id)
 
         self._save_inspection_type_items(rec, post)
         return request.redirect(
@@ -519,24 +527,23 @@ class InspectionRoutesMixin:
         if not InspType.exists():
             return {'items': [], 'stages': []}
 
-        stage_labels = {'stage1': '第一查驗階段', 'stage2': '第二查驗階段', 'stage3': '第三查驗階段'}
         items = []
         for item in InspType.default_item_ids:
             items.append({
                 'id': item.id,
                 'name': item.name,
                 'standard': item.check_standard or '',
-                'stage': item.stage or 'stage1',
+                'stage_id': item.stage_id.id or 0,
                 'note': item.note or '',
             })
 
-        # 按 stage 分群
-        stages_seen = []
-        for item in items:
-            if item['stage'] not in stages_seen:
-                stages_seen.append(item['stage'])
-
-        stages = [{'key': s, 'label': stage_labels.get(s, s)} for s in stages_seen]
+        # 依段落分群。迭代 stage_ids 而非 items 的出現順序，
+        # 才會照段落自己的 sequence 排（原本是照項目出現順序，順序可能是錯的）。
+        used = {i['stage_id'] for i in items}
+        stages = [{'key': s.id, 'label': s.name}
+                  for s in InspType.stage_ids if s.id in used]
+        if 0 in used:
+            stages.append({'key': 0, 'label': '未分段'})
 
         return {'items': items, 'stages': stages}
 
@@ -552,14 +559,8 @@ class InspectionRoutesMixin:
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        # 按 stage 分群 checklist items
-        stage_groups = {}
-        stage_labels = {'stage1': '第一查驗階段', 'stage2': '第二查驗階段', 'stage3': '第三查驗階段'}
-        for item in inspection.checklist_ids:
-            stage = item.stage or 'stage1'
-            if stage not in stage_groups:
-                stage_groups[stage] = {'label': stage_labels.get(stage, stage), 'items': []}
-            stage_groups[stage]['items'].append(item)
+        # 依查驗段落分群 checklist items
+        stage_groups = self._inspection_stage_groups(inspection.checklist_ids)
 
         # inspection_timing Selection 選項
         timing_selection = dict(
@@ -781,14 +782,8 @@ class InspectionRoutesMixin:
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        # 按 stage 分群
-        stage_groups = {}
-        stage_labels = {'stage1': '施工前', 'stage2': '施工中', 'stage3': '施工後'}
-        for item in inspection.checklist_ids:
-            stage = item.stage or 'stage1'
-            if stage not in stage_groups:
-                stage_groups[stage] = {'label': stage_labels.get(stage, stage), 'items': []}
-            stage_groups[stage]['items'].append(item)
+        # 依查驗段落分群
+        stage_groups = self._inspection_stage_groups(inspection.checklist_ids)
 
         timing_selection = dict(
             Inspection.fields_get(['inspection_timing'])['inspection_timing']['selection']

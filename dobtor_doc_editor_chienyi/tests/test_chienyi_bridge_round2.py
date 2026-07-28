@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Sprint 22 — ChienYi mixin 第二輪整合測試
 
-涵蓋 reservation.self.inspection / supervision.defect / payment.estimate 三個 model。
+涵蓋 reservation.self.inspection / general.defect.improvement / payment.estimate 三個 model。
 測試方法沿用 Sprint 21 pattern：fields/methods 繼承、template 套用、
 collaborators、render context、ondelete 守則。
 """
@@ -94,32 +94,47 @@ class TestReservationSelfInspectionBridge(TransactionCase):
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor', 'dobtor_doc_editor_chienyi')
-class TestSupervisionDefectBridge(TransactionCase):
-    """缺失改善整合。"""
+class TestGeneralDefectImprovementBridge(TransactionCase):
+    """缺失改善整合（原掛 supervision.defect；NCR 移除後改指一般式缺失改善）。"""
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.User = cls.env['res.users']
-        cls.Defect = cls.env['supervision.defect']
+        cls.Defect = cls.env['general.defect.improvement']
 
         cls.project = cls.env['project.project'].create({
             'name': 'Sprint 22 缺失測試工程',
             'code': 'S22-DEF',
             'project_type': 'general',
         })
+        # 缺失編號需要工程層級前綴設定，否則 _compute_defect_no 會 raise UserError
+        cls.env['defect.improvement.prefix.config'].create({
+            'project_id': cls.project.id,
+            'supervision_prefix': 'S22QA',
+            'contractor_prefix': 'S22QR',
+        })
         cls.responsible = cls.User.create({
             'name': 'S22 缺失負責人',
             'login': 's22_def_resp@example.com',
+        })
+        cls.contractor = cls.env['res.company'].create({
+            'name': 'S22 測試施工廠商',
         })
 
     def _make(self, **vals):
         d = {
             'project_id': self.project.id,
-            'description': 'Sprint 22 自動測試缺失條目',
+            'record_type': 'supervision',
+            'check_type': 'construction',
+            'defect_category': 'workmanship',
+            'severity': 'minor',
+            'source_type': 'daily_check',
+            'defect_description': 'Sprint 22 自動測試缺失條目',
             'found_date': date.today(),
             'deadline': date.today() + timedelta(days=7),
             'responsible_user_id': self.responsible.id,
+            'responsible_company_id': self.contractor.id,
         }
         d.update(vals)
         return self.Defect.create(d)
@@ -159,10 +174,35 @@ class TestSupervisionDefectBridge(TransactionCase):
                     'description', 'found_date', 'deadline',
                     'responsible'):
             self.assertIn(key, ctx)
-        self.assertEqual(ctx['record_model'], 'supervision.defect')
+        self.assertEqual(ctx['record_model'], 'general.defect.improvement')
         self.assertEqual(ctx['responsible'], self.responsible.name)
         # 描述截短到 40 字內
         self.assertIn('Sprint 22', rec._doc_initial_name())
+
+    def test_render_context_covers_every_template_token(self):
+        """樣板的每個 {{ token }} 都必須在 context 有對應 key。
+
+        改指前 notice_no / responsible_company / defect_categories 三個 key
+        沒有提供，文件會留下未填充的佔位符。
+        """
+        import re
+        rec = self._make()
+        ctx = rec._doc_render_context()
+        tmpl = self.env.ref('dobtor_doc_editor.template_defect_improvement')
+        tokens = set(re.findall(r'\{\{\s*(\w+)\s*\}\}', str(tmpl.content_html)))
+        missing = sorted(t for t in tokens if t not in ctx)
+        self.assertFalse(missing, f'context 缺少樣板需要的 key：{missing}')
+
+    def test_render_context_uses_general_field_names(self):
+        """欄位名走 general 詞彙（defect_description / defect_category）。"""
+        rec = self._make()
+        ctx = rec._doc_render_context()
+        self.assertEqual(ctx['description'], 'Sprint 22 自動測試缺失條目')
+        self.assertEqual(ctx['notice_no'], rec.defect_no)
+        self.assertEqual(ctx['responsible_company'], self.contractor.name)
+        # defect_categories 給的是顯示名稱而非 code
+        self.assertTrue(ctx['defect_categories'])
+        self.assertNotEqual(ctx['defect_categories'], 'workmanship')
 
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor', 'dobtor_doc_editor_chienyi')

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'ChienYi × dobtor_doc_editor 整合橋接',
-    'version': '18.0.1.0.0',
+    # 1.1.0: 缺失改善橋接從 supervision.defect(NCR) 改指 general.defect.improvement
+    'version': '18.0.1.1.0',
     'category': 'Construction/Integration',
     'summary': '把 doc.linked.mixin 真實植入 ChienYi 模型（Sprint 21）',
     'description': """
@@ -25,7 +26,7 @@ Sprint 21 P1-2 second leg：讓 ChienYi 模組能透過 dobtor_doc_editor 的
 --------
 * general.self.inspection — 一般式自主檢查（Sprint 21）
 * reservation.self.inspection — 預約式自主檢查（Sprint 22）
-* supervision.defect — 缺失改善（Sprint 22）
+* general.defect.improvement — 一般式缺失改善（原掛 supervision.defect，NCR 移除後改指）
 * payment.estimate — 估驗計價（Sprint 22）
 * construction.meeting.record — 監造會議記錄（Sprint 24，搭配 construction_meeting_record 模組）
 
@@ -37,6 +38,7 @@ payment_estimate / meeting_record）全部有 host model 引用，引用率達 1
     'depends': [
         'dobtor_doc_editor',
         'construction_quality',
+        'construction_general',   # general.defect.improvement 橋接（NCR 移除後改指）
         'construction_payment',
         'construction_meeting_record',
         'construction_review',
@@ -45,7 +47,7 @@ payment_estimate / meeting_record）全部有 host model 引用，引用率達 1
         'security/doc_role_bridge.xml',
         'views/general_self_inspection_views.xml',
         'views/reservation_self_inspection_views.xml',
-        'views/supervision_defect_views.xml',
+        'views/general_defect_improvement_views.xml',
         'views/payment_estimate_views.xml',
         'views/meeting_record_views.xml',
         'views/review_application_views.xml',

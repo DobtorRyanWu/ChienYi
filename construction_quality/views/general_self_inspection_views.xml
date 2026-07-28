@@ -99,10 +99,15 @@
                     </group>
                     <notebook>
                         <page string="檢查項目" name="checklist">
-                            <field name="checklist_ids">
+                            <field name="first_stage_id" invisible="1"/>
+                            <field name="checklist_ids"
+                                   context="{'default_stage_id': first_stage_id}">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="stage" optional="show"/>
+                                    <!-- stage_id / type_item_id 的 domain 靠它求值，不可移除 -->
+                                    <field name="inspection_type_id" column_invisible="1"/>
+                                    <field name="stage_id" optional="show"
+                                           options="{'no_create': True, 'no_open': True}"/>
                                     <field name="type_item_id" string="從樣板選取" optional="show"/>
                                     <field name="check_item" string="檢查項目"/>
                                     <field name="design_standard" optional="show"/>
@@ -112,9 +117,6 @@
                                            decoration-success="check_result == 'pass'"
                                            decoration-danger="check_result == 'defect'"
                                            decoration-muted="check_result == 'na'"/>
-                                    <!-- 關聯缺失單(NCR)：NCR 系統已停用，隱藏；保留欄位作為擴展錨點 -->
-                                    <field name="defect_id"
-                                           column_invisible="1"/>
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>

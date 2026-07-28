@@ -1046,7 +1046,7 @@
 .cy-badge-suspended { background: rgba(253, 126, 20, 0.12); color: #fd7e14; }
 .cy-badge-terminated { background: rgba(232, 54, 79, 0.15); color: var(--wb-red); }
 
-/* 缺失狀態（supervision.defect） */
+/* 缺失狀態（general/reservation.defect.improvement） */
 .cy-badge-open { background: rgba(232, 54, 79, 0.12); color: var(--wb-red); }
 .cy-badge-investigating { background: rgba(253, 126, 20, 0.12); color: #fd7e14; }
 .cy-badge-action_taken { background: rgba(59, 141, 224, 0.12); color: var(--wb-blue); }

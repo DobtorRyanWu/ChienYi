@@ -26,7 +26,8 @@ class NotificationAcceptance(models.Model):
     slip_id = fields.Many2one(
         'reservation.notification.slip', string='通報單',
         required=True, index=True,
-        domain=[('state', 'in', ['approved', 'in_progress'])],
+        # 狀態流程為 draft → not_started → in_progress → closed，無 approved
+        domain=[('state', 'in', ['not_started', 'in_progress'])],
         tracking=True)
 
     project_id = fields.Many2one(
@@ -190,13 +191,15 @@ class NotificationAcceptance(models.Model):
             )
 
             if all_accepted:
-                # 更新通報單狀態為已完成
+                # 全部驗收完成 → 結案
+                # （狀態流程 draft → not_started → in_progress → closed，
+                #   原本寫的 'completed' 不在值域內，會直接 ValueError）
                 slip.write({
-                    'state': 'completed',
+                    'state': 'closed',
                     'acceptance_id': rec.id,
                 })
-            elif slip.state == 'approved':
-                # 如果是第一次驗收，更新為執行中
+            elif slip.state == 'not_started':
+                # 如果是第一次驗收，更新為施工中
                 slip.write({'state': 'in_progress'})
 
             rec.write({'state': 'accept'})

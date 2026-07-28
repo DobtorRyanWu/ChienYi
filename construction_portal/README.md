@@ -103,7 +103,6 @@ Portal 用戶登入後，在「我的帳號」頁面可以：
 |------|----------|
 | `supervision.project` | 繼承 `portal.mixin`，新增 Portal 統計欄位 |
 | `general.self.inspection` | 繼承 `portal.mixin`，新增 Portal 建立者欄位 |
-| `supervision.defect` | 繼承 `portal.mixin`，新增 Portal 改善欄位 |
 | `supervision.photo` | 繼承 `portal.mixin`，新增 Portal 上傳者欄位 |
 
 ### 新增欄位
@@ -117,11 +116,6 @@ Portal 用戶登入後，在「我的帳號」頁面可以：
 **general.self.inspection**
 - `portal_creator_id` - Portal 填表人
 - `is_portal_created` - 是否 Portal 建立
-
-**supervision.defect**
-- `portal_improver_id` - Portal 改善人
-- `portal_improvement_note` - Portal 改善說明
-- `portal_updated_date` - Portal 更新時間
 
 **supervision.photo**
 - `portal_uploader_id` - Portal 上傳者

@@ -3,6 +3,7 @@
 
 import base64
 import json
+import logging
 from datetime import date, datetime, timedelta
 
 from odoo import http, _, fields
@@ -17,11 +18,34 @@ from .portal_utils import (
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
     _photo_category_options, _photo_category_to_id, _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
-    _haversine_km,
+    _haversine_km, resolve_record_type,
 )
+
+# M4-a 抽檔時漏了 _logger（只定義在 portal.py），導致三條匯入路由 POST 一進入
+# 就 NameError。函式的 globals 綁在定義它的模組，必須在本檔自行定義。
+_logger = logging.getLogger(__name__)
 
 
 class DefectRoutesMixin:
+
+    # ── 缺失匯入共用輔助 ──────────────────────────────────────────
+    @staticmethod
+    def _defect_prefix_configured(project):
+        """該工程是否已設定缺失編號前綴。
+
+        general/reservation 的 defect_no 由 `_compute_defect_no` 依
+        `defect.improvement.prefix.config` 產生；沒設定會 raise UserError。
+        匯入前先整批擋下，比讓每一列各噴一次錯誤有用。
+        """
+        return bool(request.env['defect.improvement.prefix.config'].sudo()
+                    .search_count([('project_id', '=', project.id)]))
+
+    @staticmethod
+    def _defect_fallback_record_type(post):
+        """匯入頁下拉帶來的 record_type，只在資料判不出時當兜底用。"""
+        rt = (post.get('record_type') or '').strip()
+        return rt if rt in ('supervision', 'contractor') else 'supervision'
+
     @http.route(['/construction/<int:project_id>/defects/import'],
                 type='http', auth='user', website=True, methods=['GET'])
     def portal_construction_defects_import(self, project_id, **kw):
@@ -39,6 +63,7 @@ class DefectRoutesMixin:
             'imported': int(kw.get('imported', 0) or 0),
             'skipped': int(kw.get('skipped', 0) or 0),
             'failed': int(kw.get('failed', 0) or 0),
+            'error': kw.get('error') or '',
             'failed_details': request.session.pop(
                 'defect_import_failed_details', []),
         }
@@ -55,16 +80,23 @@ class DefectRoutesMixin:
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        from ..utils.defect_xlsm_parser import parse_defect_tracking_xlsx
+        from ..utils.defect_xlsm_parser import parse_defect_tracking_xlsx_verbose
 
         files = request.httprequest.files.getlist('files')
         _logger.warning(
             '[DEFECT_IMPORT] POST entered, files count=%s', len(files))
 
         env = request.env
-        Defect = env['supervision.defect'].sudo()
         base_url = f'/construction/{project_id}/defects/import'
+
+        # 缺失編號需要工程層級的前綴設定，否則 _compute_defect_no 會 raise UserError
+        # 導致每一列都失敗。整批擋下並給明確指示，比逐筆噴紅字有用。
+        if not self._defect_prefix_configured(project):
+            return request.redirect(f'{base_url}?error=no_prefix')
+
+        Defect = env[self._defect_model(project)].sudo()
         supervision_project_id = project.id
+        fallback_rt = self._defect_fallback_record_type(post)
 
         imported = 0
         skipped = 0
@@ -75,7 +107,8 @@ class DefectRoutesMixin:
             fname = upload.filename or 'unnamed.xlsx'
             try:
                 raw = upload.read()
-                rows = parse_defect_tracking_xlsx(raw, filename=fname)
+                rows, sheets_skipped = parse_defect_tracking_xlsx_verbose(
+                    raw, filename=fname)
             except ValueError as e:
                 failed += 1
                 failed_details.append({'filename': fname, 'error': str(e)[:200]})
@@ -86,6 +119,21 @@ class DefectRoutesMixin:
                 failed_details.append(
                     {'filename': fname, 'error': f'解析失敗：{e}'[:200]})
                 continue
+
+            # 被略過的工作表要講出來，不能靜默丟掉 —— 使用者才知道
+            # 是「那張表本來就不是缺失表」還是「表頭沒被認出來」
+            for sheet_name, why in sheets_skipped:
+                failed_details.append({
+                    'filename': fname,
+                    'error': f'工作表「{sheet_name}」略過：{why}',
+                })
+            if rows:
+                sheet_summary = ', '.join(sorted(
+                    {r.get('sheet_name') or '?' for r in rows}))
+                failed_details.append({
+                    'filename': fname,
+                    'error': f'已解析工作表：{sheet_summary}（共 {len(rows)} 筆）',
+                })
 
             for row in rows:
                 register_no = row.get('register_no') or ''
@@ -99,7 +147,7 @@ class DefectRoutesMixin:
                     existing = Defect.search([
                         ('project_id', '=', supervision_project_id),
                         ('found_date', '=', found_date),
-                        ('description', '=', description),
+                        ('defect_description', '=', description),
                     ], limit=1)
                     if existing:
                         skipped += 1
@@ -115,27 +163,46 @@ class DefectRoutesMixin:
                     if deadline and found_date and deadline < found_date:
                         deadline = found_date
 
-                    # 狀態：若有 improvement_date → closed；否則 open
-                    state = 'closed' if improvement_date else 'open'
+                    # 狀態：若有確認完成改善日期 → closed；否則 notified。
+                    # 不用 draft —— general 的防竄改邏輯以離開草稿為界，
+                    # 且匯入的歷史缺失本來就已經通知過了。
+                    state = 'closed' if improvement_date else 'notified'
 
+                    category = row.get('defect_category') or 'other'
                     vals = {
                         'project_id': supervision_project_id,
-                        'defect_type': row['defect_type'],
-                        'source': 'daily_check',
+                        'record_type': resolve_record_type(
+                            row, sheet_name=row.get('sheet_name'),
+                            fallback=fallback_rt),
+                        'defect_category': category,
+                        'check_type': CATEGORY_TO_CHECK_TYPE.get(
+                            category, 'construction'),
+                        'source_type': 'daily_check',
                         'source_description': register_no,
-                        'description': description,
+                        'defect_description': description,
                         'found_date': found_date,
+                        # 彙總表那欄就是「通知/改正日期」，一併帶入讓列表排序正確
+                        'notification_date': found_date,
                         'deadline': deadline or False,
                         'state': state,
                     }
+                    if row.get('note'):
+                        vals['note'] = row['note']
+                    if row.get('category_inferred'):
+                        # 彙總表沒有「改正單位」欄，類別是由工作表名 QA/QR 推論的，
+                        # 在備註留下痕跡，日後查得出來這欄不是原始資料
+                        vals['note'] = ((vals.get('note') or '') +
+                                        '\n（缺失類別由工作表名「%s」推論，'
+                                        '原始彙總表無「改正單位」欄）'
+                                        % row.get('sheet_name', '')).strip()
                     if improvement_date:
-                        from datetime import datetime, time
-                        imp_dt = datetime.combine(improvement_date, time(12, 0))
+                        # general 的 improvement_date/closure_date 都是 Date，
+                        # 不要再 datetime.combine 成 Datetime。
                         vals.update({
-                            'improvement_date': imp_dt,
-                            'improvement_description': (
-                                f'（總表單匯入，原始資料無詳細改善說明）'),
-                            'close_date': imp_dt,
+                            'improvement_date': improvement_date,
+                            'improvement_result': (
+                                '（總表單匯入，原始資料無詳細改善說明）'),
+                            'closure_date': improvement_date,
                             'close_comment': '自總表單匯入，原紀錄已標記完成',
                         })
 
@@ -174,6 +241,7 @@ class DefectRoutesMixin:
             'updated': int(kw.get('updated', 0) or 0),
             'unmatched': int(kw.get('unmatched', 0) or 0),
             'failed': int(kw.get('failed', 0) or 0),
+            'error': kw.get('error') or '',
             'failed_details': request.session.pop(
                 'defect_enrich_failed_details', []),
         }
@@ -190,23 +258,23 @@ class DefectRoutesMixin:
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        from ..utils.defect_docx_parser import parse_defect_zip
+        from ..utils.defect_docx_parser import (
+            parse_defect_zip, build_defect_index, match_defect, docx_hint_text)
 
         files = request.httprequest.files.getlist('files')
         _logger.warning(
             '[DEFECT_ENRICH] POST entered, files count=%s', len(files))
 
         env = request.env
-        Defect = env['supervision.defect'].sudo()
+        Defect = env[self._defect_model(project)].sudo()
         base_url = f'/construction/{project_id}/defects/enrich'
         supervision_project_id = project.id
 
-        # index 現有缺失 by source_description (register_no)
+        # 建分層索引（登錄編號 → 編號推出的日期 → 發現日期），docx 那側也產生
+        # 一組鍵，由精確到寬鬆逐層比對。這取代舊版「把檔名日期捏造成 Q01-xxx
+        # 再做等值比對」的 A 標專屬做法。
         defects = Defect.search([('project_id', '=', supervision_project_id)])
-        idx = {}
-        for d in defects:
-            if d.source_description:
-                idx.setdefault(d.source_description, d)
+        idx, ambiguous = build_defect_index(defects)
 
         updated = 0
         unmatched = 0
@@ -227,7 +295,8 @@ class DefectRoutesMixin:
 
             for row in parsed_rows:
                 inner_fn = row.get('filename', '')
-                reg = row.get('register_no')
+                keys = row.get('match_keys') or []
+                label = row.get('register_no') or (keys[0] if keys else inner_fn)
                 if row.get('error'):
                     failed += 1
                     failed_details.append({
@@ -235,33 +304,39 @@ class DefectRoutesMixin:
                         'error': row['error'],
                     })
                     continue
-                if not reg:
+                if not keys:
                     unmatched += 1
                     failed_details.append({
                         'filename': inner_fn,
-                        'error': '檔名無法推導 register_no',
+                        'error': '檔名推不出登錄編號也推不出日期，無從比對',
                     })
                     continue
-                target = idx.get(reg)
+
+                target, hit_ambiguous = match_defect(
+                    keys, idx, ambiguous, hint=docx_hint_text(row))
                 if not target:
                     unmatched += 1
-                    failed_details.append({
-                        'filename': inner_fn,
-                        'error': f'{reg} 無對應缺失紀錄',
-                    })
+                    if hit_ambiguous:
+                        why = (f'比對鍵 {hit_ambiguous} 對應到多筆缺失，無法確定是哪一筆'
+                               f'（該檔名沒有唯一登錄編號）')
+                    else:
+                        why = f'{"/".join(keys)} 無對應缺失紀錄'
+                    failed_details.append({'filename': inner_fn, 'error': why})
                     continue
 
                 try:
                     write_vals = {}
                     if row.get('improvement'):
-                        write_vals['improvement_description'] = row['improvement']
+                        write_vals['improvement_result'] = row['improvement']
                     if row.get('close_comment'):
                         write_vals['close_comment'] = row['close_comment']
+                    if row.get('location') and not target.defect_location:
+                        write_vals['defect_location'] = row['location']
                     if not write_vals:
                         unmatched += 1
                         failed_details.append({
                             'filename': inner_fn,
-                            'error': f'{reg}: 解析結果為空',
+                            'error': f'{label}: 解析結果為空',
                         })
                         continue
                     target.with_context(
@@ -274,7 +349,7 @@ class DefectRoutesMixin:
                     failed += 1
                     failed_details.append({
                         'filename': inner_fn,
-                        'error': f'{reg}: {e}'[:200],
+                        'error': f'{label}: {e}'[:200],
                     })
 
         request.session['defect_enrich_failed_details'] = failed_details
@@ -298,6 +373,7 @@ class DefectRoutesMixin:
             'imported': int(kw.get('imported', 0) or 0),
             'skipped': int(kw.get('skipped', 0) or 0),
             'failed': int(kw.get('failed', 0) or 0),
+            'error': kw.get('error') or '',
             'failed_details': request.session.pop(
                 'defect_create_docx_failed_details', []),
         }
@@ -321,9 +397,14 @@ class DefectRoutesMixin:
             '[DEFECT_CREATE_DOCX] POST entered, files count=%s', len(files))
 
         env = request.env
-        Defect = env['supervision.defect'].sudo()
         base_url = f'/construction/{project_id}/defects/import-docx'
+
+        if not self._defect_prefix_configured(project):
+            return request.redirect(f'{base_url}?error=no_prefix')
+
+        Defect = env[self._defect_model(project)].sudo()
         supervision_project_id = project.id
+        fallback_rt = self._defect_fallback_record_type(post)
 
         imported = 0
         skipped = 0
@@ -353,15 +434,23 @@ class DefectRoutesMixin:
                 reg = row.get('register_no')
                 found_date = row.get('found_date')
                 description = row.get('description') or ''
-                defect_type = row.get('defect_type') or 'other'
+                category = row.get('defect_category') or 'other'
                 improvement = row.get('improvement') or ''
                 close_comment = row.get('close_comment') or ''
 
                 if not description or not found_date:
                     failed += 1
+                    missing = []
+                    if not description:
+                        missing.append('缺失說明（docx 內文找不到「不符情形」或「缺失事項」）')
+                    if not found_date:
+                        missing.append(
+                            '發現日期（檔名開頭沒有 7 位民國日期。'
+                            '像 1-0803-…(QA-001).docx 只有月日沒有年份，'
+                            '這種請先用「批次匯入總表單」建立缺失，再用「補充改善明細」補內容）')
                     failed_details.append({
                         'filename': inner_fn,
-                        'error': f'缺失必要欄位 desc={bool(description)} date={bool(found_date)}',
+                        'error': '無法建立：' + '；'.join(missing),
                     })
                     continue
 
@@ -373,13 +462,13 @@ class DefectRoutesMixin:
                             existing = Defect.search([
                                 ('project_id', '=', supervision_project_id),
                                 ('source_description', '=', reg),
-                                ('description', '=', description),
+                                ('defect_description', '=', description),
                             ], limit=1)
                         if not existing:
                             existing = Defect.search([
                                 ('project_id', '=', supervision_project_id),
                                 ('found_date', '=', found_date),
-                                ('description', '=', description),
+                                ('defect_description', '=', description),
                             ], limit=1)
                         if existing:
                             skipped += 1
@@ -390,23 +479,34 @@ class DefectRoutesMixin:
                             continue
 
                         state = 'closed' if close_comment else (
-                            'action_taken' if improvement else 'open')
+                            'improved' if improvement else 'notified')
 
                         vals = {
                             'project_id': supervision_project_id,
-                            'defect_type': defect_type,
-                            'source': 'daily_check',
+                            'record_type': resolve_record_type(
+                                row, sheet_name=row.get('sheet_name'),
+                                fallback=fallback_rt),
+                            'defect_category': category,
+                            # 內文的「☑施工抽查／□安衛、環境清潔」勾選比檔名括號可靠，
+                            # 有抓到就用它，抓不到才由缺失類別反推
+                            'check_type': (row.get('check_type')
+                                           or CATEGORY_TO_CHECK_TYPE.get(
+                                               category, 'construction')),
+                            'source_type': 'daily_check',
                             'source_description': reg or '',
-                            'description': description,
+                            'defect_description': description,
                             'found_date': found_date,
+                            'notification_date': found_date,
                             'state': state,
                         }
+                        if row.get('location'):
+                            vals['defect_location'] = row['location']
                         if improvement:
-                            vals['improvement_description'] = improvement
+                            vals['improvement_result'] = improvement
                         if close_comment:
-                            from datetime import datetime, time
+                            # closure_date 是 Date，直接給 date 物件
                             vals['close_comment'] = close_comment
-                            vals['close_date'] = datetime.combine(found_date, time(12, 0))
+                            vals['closure_date'] = found_date
 
                         Defect.with_context(
                             tracking_disable=True,

@@ -490,10 +490,14 @@ class SupervisionProjectProgress(models.Model):
 
     def _dashboard_defect_summary(self):
         """缺失改善摘要：缺失總數量、已改善數量、未改善數量"""
-        if 'supervision.defect' not in self.env:
+        # 依工程類型選模型，與前台缺失列表一致
+        defect_model = ('reservation.defect.improvement'
+                        if self.project_type == 'reservation'
+                        else 'general.defect.improvement')
+        if defect_model not in self.env:
             return None
 
-        Defect = self.env['supervision.defect']
+        Defect = self.env[defect_model]
         domain = [('project_id', '=', self.id)]
 
         total_count = Defect.search_count(domain)
@@ -502,7 +506,7 @@ class SupervisionProjectProgress(models.Model):
         improved_count = Defect.search_count(
             domain + [('state', 'in', ('verified', 'closed'))])
 
-        # 未改善（open, investigating, action_taken）
+        # 未改善（draft, notified, improving, improved）
         unimproved_count = Defect.search_count(
             domain + [('state', 'not in', ('verified', 'closed'))])
 

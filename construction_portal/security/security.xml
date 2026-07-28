@@ -117,38 +117,6 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
-    <!-- 缺失 supervision.defect（前台不可新增；改善欄位可改） -->
-    <record id="supervision_defect_portal_member_rule" model="ir.rule">
-        <field name="name">Portal: 缺失 - 成員專案讀取（預設）</field>
-        <field name="model_id" ref="construction_quality.model_supervision_defect"/>
-        <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="False"/>
-        <field name="perm_create" eval="False"/>
-        <field name="perm_unlink" eval="False"/>
-    </record>
-    <record id="supervision_defect_portal_boss_rule" model="ir.rule">
-        <field name="name">Portal老闆: 缺失 - 公司範圍</field>
-        <field name="model_id" ref="construction_quality.model_supervision_defect"/>
-        <field name="domain_force">[(1, '=', 1)]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="True"/>
-        <field name="perm_create" eval="False"/>
-        <field name="perm_unlink" eval="False"/>
-    </record>
-    <record id="supervision_defect_portal_writer_rule" model="ir.rule">
-        <field name="name">Portal寫入: 缺失 - 成員專案（主管/現場）</field>
-        <field name="model_id" ref="construction_quality.model_supervision_defect"/>
-        <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
-        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_leader')), (4, ref('construction_supervision_base.group_portal_user'))]"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="True"/>
-        <field name="perm_create" eval="False"/>
-        <field name="perm_unlink" eval="False"/>
-    </record>
-
     <!-- 照片 supervision.photo -->
     <record id="supervision_photo_portal_member_rule" model="ir.rule">
         <field name="name">Portal: 照片 - 成員專案讀取（預設）</field>

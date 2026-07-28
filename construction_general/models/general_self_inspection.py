@@ -15,11 +15,11 @@ class GeneralSelfInspectionExtend(models.Model):
     """
     _inherit = 'general.self.inspection'
 
-    # === 缺失關聯（M4-b：收斂到 supervision.defect）===
+    # === 缺失改善關聯 ===
     defect_improvement_ids = fields.One2many(
-        'supervision.defect',
+        'general.defect.improvement',
         'self_inspection_id',
-        string='關聯缺失')
+        string='關聯缺失改善')
 
     defect_improvement_count = fields.Integer(
         string='缺失改善數',
@@ -36,14 +36,14 @@ class GeneralSelfInspectionExtend(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': '關聯缺失',
-            'res_model': 'supervision.defect',
+            'name': '關聯缺失改善',
+            'res_model': 'general.defect.improvement',
             'view_mode': 'list,form',
             'domain': [('self_inspection_id', '=', self.id)],
             'context': {
                 'default_self_inspection_id': self.id,
                 'default_project_id': self.project_id.id,
-                'default_source': 'self_inspection',
+                'default_source_type': 'self_inspection',
             },
         }
 
@@ -54,10 +54,10 @@ class GeneralSelfInspectionExtend(models.Model):
             raise UserError('此檢查無缺失項目')
 
         defect_items = self.checklist_ids.filtered(
-            lambda x: x.check_result == 'defect' and not x.supervision_defect_id)
+            lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
 
         if not defect_items:
-            raise UserError('所有缺失項目皆已建立缺失')
+            raise UserError('所有缺失項目皆已建立缺失改善單')
 
         # 用 context 開啟（讓 wizard 的 default_get 自動帶入未建立的缺失項目）
         return {
@@ -86,25 +86,25 @@ class GeneralSelfInspectionItemExtend(models.Model):
         help='若有缺失，可關聯一般式缺失改善單')
 
     def action_view_improvement(self):
-        """查看本項目關聯的缺失（M4-b：supervision.defect）"""
+        """查看本項目關聯的缺失改善單"""
         self.ensure_one()
-        if not self.supervision_defect_id:
-            raise UserError('尚未建立缺失')
+        if not self.defect_improvement_id:
+            raise UserError('尚未建立缺失改善單')
         return {
             'type': 'ir.actions.act_window',
-            'name': '缺失',
-            'res_model': 'supervision.defect',
+            'name': '缺失改善',
+            'res_model': 'general.defect.improvement',
             'view_mode': 'form',
-            'res_id': self.supervision_defect_id.id,
+            'res_id': self.defect_improvement_id.id,
         }
 
     def action_create_improvement(self):
-        """逐行建立缺失：開啟 wizard（選監造/營造），僅針對本項目"""
+        """逐行建立缺失改善：開啟 wizard（選監造/營造），僅針對本項目"""
         self.ensure_one()
         if self.check_result != 'defect':
-            raise UserError('只有缺失項目可以建立缺失')
-        if self.supervision_defect_id:
-            raise UserError('已建立缺失')
+            raise UserError('只有缺失項目可以建立缺失改善單')
+        if self.defect_improvement_id:
+            raise UserError('已建立缺失改善單')
         return {
             'type': 'ir.actions.act_window',
             'name': '建立缺失改善',

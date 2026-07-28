@@ -123,12 +123,17 @@ class SupervisionProjectPortal(models.Model):
             project.inspection_count = self.env['general.self.inspection'].search_count([
                 ('project_id', '=', project.id)
             ])
-            # 缺失數
-            project.defect_count = self.env['supervision.defect'].search_count([
+            # 缺失數：依工程類型選模型，與前台缺失列表（_defect_model）一致，
+            # 否則首頁 HUD 的數字會跟點進去看到的筆數對不起來。
+            defect_model = ('reservation.defect.improvement'
+                            if project.project_type == 'reservation'
+                            else 'general.defect.improvement')
+            Defect = self.env[defect_model]
+            project.defect_count = Defect.search_count([
                 ('project_id', '=', project.id)
             ])
-            # 待處理缺失
-            project.open_defect_count = self.env['supervision.defect'].search_count([
+            # 待處理缺失（已驗證/結案者不計）
+            project.open_defect_count = Defect.search_count([
                 ('project_id', '=', project.id),
                 ('state', 'not in', ['verified', 'closed'])
             ])

@@ -40,18 +40,6 @@
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
 
-        <!-- NCR 缺失管理 - 公司隔離 -->
-        <record id="rule_supervision_defect_company" model="ir.rule">
-            <field name="name">缺失管理: 公司隔離</field>
-            <field name="model_id" ref="model_supervision_defect"/>
-            <field name="domain_force">[
-                '|',
-                ('company_id', '=', False),
-                ('company_id', 'in', company_ids)
-            ]</field>
-            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
-        </record>
-
         <!-- 自主檢查類型 - 所有使用者可讀 -->
         <record id="rule_inspection_type_read" model="ir.rule">
             <field name="name">自主檢查類型: 所有使用者可讀</field>
@@ -82,13 +70,6 @@
         <record id="rule_admin_full_access_reservation_defect" model="ir.rule">
             <field name="name">管理者: 預約式缺失改善完整存取</field>
             <field name="model_id" ref="model_reservation_defect_improvement"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
-            <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
-        </record>
-
-        <record id="rule_admin_full_access_defect" model="ir.rule">
-            <field name="name">管理者: 缺失管理完整存取</field>
-            <field name="model_id" ref="model_supervision_defect"/>
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_supervisor_admin'))]"/>
         </record>

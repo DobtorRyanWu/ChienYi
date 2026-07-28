@@ -377,13 +377,14 @@ class TestRecord(models.Model):
             if rec.sample_quantity < 0:
                 raise ValidationError('抽樣數量不可為負數')
 
-    @api.constrains('sample_date', 'in_site_date')
-    def _check_sample_date(self):
-        """抽樣日期不可早於進場日期"""
-        for rec in self:
-            if rec.sample_date and rec.in_site_date:
-                if rec.sample_date < rec.in_site_date:
-                    raise ValidationError('抽樣日期不可早於進場日期')
+    # 【已移除】原本有一條 _check_sample_date：抽樣日期不可早於進場日期。
+    # 移除原因：該規則對「工地抽樣」成立，但對「廠驗（出廠前查驗）」不成立，而廠驗是
+    # 台灣公共工程的常規流程 —— 預鑄構件、預拌混凝土等在工廠/拌合廠抽樣檢驗合格後才運抵工地，
+    # 抽樣日必然早於進場日；同一批抽樣分多次進場也很常見。
+    # 實例：P11001「預力混凝土版樁廠驗」2021-08-26 抽樣，分別於 09-13、09-23 進場（皆合格）。
+    # 模型中沒有任何欄位可區分「廠驗」與「工地抽樣」，因此無法寫成正確的條件式約束；
+    # 硬性阻擋會讓合法的歷史資料無法建檔。若日後要恢復檢查，必須先新增
+    # 「出廠前抽樣」旗標欄位並僅在未勾選時檢查，不要直接把這條加回來。
 
     # === CRUD 覆寫 ===
     @api.model_create_multi

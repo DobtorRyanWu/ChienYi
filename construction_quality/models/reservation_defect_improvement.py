@@ -216,26 +216,13 @@ class ReservationDefectImprovement(models.Model):
     state = fields.Selection(string='缺失狀態')
 
     # === 排程任務 ===
-    @api.model
-    def _cron_check_overdue(self):
-        """定期檢查逾期缺失並發送提醒"""
-        today = fields.Date.today()
-        overdue_records = self.search([
-            ('state', 'in', ('notified', 'improving')),
-            ('deadline', '<', today),
-        ])
-        for record in overdue_records:
-            if record.responsible_user_id:
-                partner = record.responsible_user_id.partner_id
-                record.message_post(
-                    body=(
-                        f'缺失 <b>{record.record_no}</b> 已逾期（期限：{record.deadline}），'
-                        f'請盡快完成改善。'
-                    ),
-                    partner_ids=partner.ids,
-                    message_type='notification',
-                    subtype_xmlid='mail.mt_comment',
-                )
+    # 原本這裡的 `_cron_check_overdue` 名為「檢查」但實際只發通知、從不刷新 is_overdue，
+    # 與一般式的同名方法行為不一致，且沒有任何 ir.cron 註冊它 → 「預約式逾期缺失」選單
+    # （domain: is_overdue = True）等於永遠是空的。
+    # 已上收到共用的 construction.daily.defect.mixin：
+    #   _cron_check_overdue            → 刷新 is_overdue / overdue_days
+    #   _cron_send_overdue_notification → 通知負責人
+    # 排程註冊在 construction_quality/data/ir_cron_data.xml。
 
     # === CRUD 覆寫 ===
     @api.model_create_multi

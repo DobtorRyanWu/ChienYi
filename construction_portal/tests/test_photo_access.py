@@ -37,7 +37,7 @@ class TestPhotoAccess(TransactionCase):
         cls.att = cls.env['ir.attachment'].create({
             'name': 'test.png',
             'datas': b'aGVsbG8=',  # base64 "hello"
-            'res_model': 'supervision.defect',
+            'res_model': 'general.defect.improvement',
             'mimetype': 'image/png',
             'public': False,
         })
@@ -109,7 +109,7 @@ class TestPhotoAccess(TransactionCase):
         """非影像附件（即使綁定 supervision.photo）→ 404（image-only 端點）。"""
         pdf = self.env['ir.attachment'].create({
             'name': 'doc.pdf', 'datas': b'aGVsbG8=',
-            'res_model': 'supervision.defect', 'mimetype': 'application/pdf',
+            'res_model': 'general.defect.improvement', 'mimetype': 'application/pdf',
             'public': False,
         })
         self.env['supervision.photo'].create({

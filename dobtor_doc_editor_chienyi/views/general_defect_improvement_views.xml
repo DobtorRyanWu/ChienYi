@@ -1,10 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="view_supervision_defect_form_dobtor" model="ir.ui.view">
-        <field name="name">supervision.defect.form.dobtor</field>
-        <field name="model">supervision.defect</field>
-        <field name="inherit_id" ref="construction_quality.view_supervision_defect_form"/>
+    <!--
+        在既有 general.defect.improvement.form 加入「開啟線上文件」按鈕。
+        繼承 construction_general.view_general_defect_improvement_form。
+
+        原本掛在 construction_quality.view_supervision_defect_form（NCR）上；
+        NCR 移除後改指一般式缺失改善。state 值域改用 general 的 6 段
+        （draft/notified/improving/improved/verified/closed）。
+    -->
+    <record id="view_general_defect_improvement_form_dobtor" model="ir.ui.view">
+        <field name="name">general.defect.improvement.form.dobtor</field>
+        <field name="model">general.defect.improvement</field>
+        <field name="inherit_id" ref="construction_general.view_general_defect_improvement_form"/>
         <field name="arch" type="xml">
+
+            <!-- 1) header 區加主按鈕 -->
             <xpath expr="//header" position="inside">
                 <button name="action_open_linked_doc"
                         string="開啟線上文件"
@@ -13,10 +23,14 @@
                         icon="fa-file-text-o"
                         invisible="state == 'closed'"/>
             </xpath>
+
+            <!-- 2) sheet 內加隱藏欄位 -->
             <xpath expr="//sheet" position="inside">
                 <field name="linked_doc_id" invisible="1"/>
                 <field name="linked_doc_count" invisible="1"/>
             </xpath>
+
+            <!-- 3) 在標題上方加 button_box -->
             <xpath expr="//div[@class='oe_title']" position="before">
                 <div class="oe_button_box" name="dobtor_button_box">
                     <button name="action_open_linked_doc"

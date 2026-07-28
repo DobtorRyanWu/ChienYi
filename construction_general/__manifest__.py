@@ -41,6 +41,7 @@
         'security/security.xml',
         # Data
         'data/ir_sequence_data.xml',
+        'data/ir_cron_data.xml',  # 缺失逾期狀態更新與通知（原掛 NCR，改掛一般式）
         # Views
         'views/general_defect_improvement_views.xml',
         'views/general_progress_report_views.xml',

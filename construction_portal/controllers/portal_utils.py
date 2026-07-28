@@ -25,6 +25,67 @@ GROUP_OBSERVER = 'construction_supervision_base.group_portal_viewer'
 GROUP_OPERATOR = 'construction_supervision_base.group_operator'
 
 
+# ─────────────────────────────────────────────────────────────────────
+# 缺失匯入：record_type（監造／營造）四層優先序判定
+# ─────────────────────────────────────────────────────────────────────
+# QA=監造、QR=營造。權威依據是使用者自己的匯入管道 —— 匯入來源檔
+# `E:\work\匯入\磺港溪B標\B標匯入_合併_20260726.xlsx`「缺失改善」工作表 R1 註記：
+#   「⑦ record_type 由『原始編號(source_no)』前綴自動推導：
+#     QA→監造(supervision)、QR→營造(contractor)。空白或前綴非 QA/QR 將報 ERR 不匯入。」
+# 實測 B 標 43 筆 100% 符合；全庫 6 筆缺失編號前綴設定也一律是 XXXQA／XXXQR。
+_QAQR_TO_RECORD_TYPE = {'QA': 'supervision', 'QR': 'contractor'}
+
+# 第 3 層（代理推論）：缺失類別 → 監造／營造。
+# A 標 88 筆的登錄編號全部是 `Q01-`（不帶 QA/QR），「改正單位」是唯一可用訊號。
+# 標為推論而非權威：改正單位嚴格對應的是 check_type（施工檢查／安衛及環境清潔檢查），
+# 與「誰開的單」是兩個維度，在這些案場高度重合但非邏輯必然。
+_CATEGORY_TO_RECORD_TYPE = {
+    'material': 'supervision',
+    'workmanship': 'supervision',
+    'dimension': 'supervision',
+    'document': 'supervision',
+    'safety': 'contractor',
+    'environment': 'contractor',
+}
+
+
+def resolve_record_type(row, sheet_name=None, fallback='supervision'):
+    """判定缺失單屬監造還是營造，四層優先序（權威 → 推論 → 人工）。
+
+    1. 登錄編號前綴 QA/QR    —— 權威（B標 `QA-11309191`、P11001 `QA-001`）
+    2. 工作表名 QA/QR        —— 權威（P11001 `QA.QR-工程缺失改善追蹤一覽表.xlsx`）
+    3. 解析器自檔名推導      —— docx `derive_record_type()`
+    4. 缺失類別代理推論      —— A 標唯一可用訊號
+    5. 匯入頁下拉 fallback   —— 人工兜底
+
+    `sheet_name` 現階段一律為 None（xlsx parser 尚未回傳工作表名）；
+    介面先留著，parser 通用化後開始回傳即可生效，controller 不需再改。
+
+    :param row: parser 輸出的單筆 dict
+    :param sheet_name: 該筆所屬的工作表名（若 parser 有提供）
+    :param fallback: 全部判不出時採用的值（來自匯入頁下拉）
+    :return: 'supervision' 或 'contractor'
+    """
+    reg = (row.get('register_no') or '').strip().upper()
+    for token, rt in _QAQR_TO_RECORD_TYPE.items():
+        if reg.startswith(token):
+            return rt
+
+    if sheet_name:
+        key = str(sheet_name).strip().upper()
+        if key in _QAQR_TO_RECORD_TYPE:
+            return _QAQR_TO_RECORD_TYPE[key]
+
+    if row.get('record_type') in ('supervision', 'contractor'):
+        return row['record_type']
+
+    cat = row.get('defect_category')
+    if cat in _CATEGORY_TO_RECORD_TYPE:
+        return _CATEGORY_TO_RECORD_TYPE[cat]
+
+    return fallback if fallback in ('supervision', 'contractor') else 'supervision'
+
+
 def _photo_category_options(env):
     """照片分類下拉／篩選選項。
 
@@ -128,32 +189,6 @@ def _defect_save_photos(env, defect, files, stage):
     stage: 'before' / 'during' / 'after'
     回傳: 新增照片行數
     """
-    # C2：supervision.defect 的照片是 M2M→ir.attachment（無 .photo 子模型）。
-    if defect._name == 'supervision.defect':
-        Attachment = env['ir.attachment'].sudo()
-        field = 'after_photo_ids' if stage == 'after' else 'before_photo_ids'
-        att_ids = []
-        for f in files:
-            if not f or not f.filename:
-                continue
-            raw = f.read()
-            if not raw:
-                continue
-            att = Attachment.create({
-                'name': f.filename,
-                'datas': base64.b64encode(raw),
-                'res_model': 'supervision.defect',
-                'res_id': defect.id,
-                'mimetype': f.mimetype or 'image/jpeg',
-                # M0.6：非 public，前台走 /construction/img（_resolve_photo_project 認得
-                # supervision.defect before/after m2m）
-                'public': False,
-            })
-            att_ids.append(att.id)
-        if att_ids:
-            defect.sudo().write({field: [(4, a) for a in att_ids]})
-        return len(att_ids)
-
     Photo = env[defect._name + '.photo'].sudo()
     count = 0
     for f in files:

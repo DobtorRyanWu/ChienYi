@@ -215,6 +215,17 @@ class GeneralSelfInspection(models.Model):
                 raise UserError('只有草稿或已檢查狀態可以重設')
             record.state = 'draft'
 
+    first_stage_id = fields.Many2one(
+        'self.inspection.type.stage',
+        string='預設段落',
+        compute='_compute_first_stage_id',
+        help='供檢查項目內嵌清單的新列帶入預設段落')
+
+    @api.depends('inspection_type_id')
+    def _compute_first_stage_id(self):
+        for record in self:
+            record.first_stage_id = record.inspection_type_id.stage_ids[:1]
+
     @api.onchange('inspection_type_id')
     def _onchange_inspection_type_id(self):
         """自動帶入分項工程名稱"""
@@ -237,7 +248,7 @@ class GeneralSelfInspection(models.Model):
                 'type_item_id': item.id,
                 'check_item': item.name,
                 'design_standard': item.check_standard,
-                'stage': item.stage,
+                'stage_id': item.stage_id.id,
                 'note': item.note,
             }))
 
@@ -316,7 +327,8 @@ class GeneralSelfInspectionItem(models.Model):
     """
     _name = 'general.self.inspection.item'
     _description = '一般式自主檢查項目'
-    _order = 'sequence, id'
+    # stage_sequence 排前面，項目自然依段落分群排好
+    _order = 'stage_sequence, sequence, id'
     _rec_name = 'check_item'   # 顯示檢查項目文字，避免 M2O 顯示成 model,id
 
     # === 關聯 ===
@@ -326,12 +338,32 @@ class GeneralSelfInspectionItem(models.Model):
         required=True,
         ondelete='cascade')
 
-    # === 階段 ===
-    stage = fields.Selection([
-        ('stage1', '施工前'),
-        ('stage2', '施工中'),
-        ('stage3', '施工後'),
-    ], string='查驗階段', default='stage1')
+    # 段落與樣板項目的 domain 來源。用 stored related 而非 parent.inspection_type_id，
+    # 因為獨立 form view 沒有 parent（見 construction_reservation 那張 item form）。
+    # ⚠️ 凡是 domain 引用了此欄位的 view，都必須把它放進 view 裡（可 invisible），
+    #    否則 client 端求不出值、下拉會恆空。
+    inspection_type_id = fields.Many2one(
+        'self.inspection.type',
+        string='自主檢查類型',
+        related='inspection_id.inspection_type_id',
+        store=True,
+        readonly=True,
+        index=True)
+
+    # === 查驗段落 ===
+    stage_id = fields.Many2one(
+        'self.inspection.type.stage',
+        string='查驗段落',
+        ondelete='set null',
+        index=True,
+        domain="[('type_id', '=', inspection_type_id)]")
+
+    # 供 _order 使用
+    stage_sequence = fields.Integer(
+        related='stage_id.sequence',
+        store=True,
+        index=True,
+        string='段落排序')
 
     sequence = fields.Integer(
         string='序號',
@@ -341,8 +373,8 @@ class GeneralSelfInspectionItem(models.Model):
     type_item_id = fields.Many2one(
         'self.inspection.type.item',
         string='檢查項目',
-        domain="[('type_id', '=', parent.inspection_type_id), ('stage', '=', stage)]",
-        help='從自主檢查類型的對應查驗階段中選擇')
+        domain="[('type_id', '=', inspection_type_id), ('stage_id', '=', stage_id)]",
+        help='從自主檢查類型的對應查驗段落中選擇')
 
     check_item = fields.Char(
         string='檢查項目',
@@ -361,24 +393,24 @@ class GeneralSelfInspectionItem(models.Model):
         ('na', '無此項目'),
     ], string='檢查成果', default='pass')
 
-    # === 缺失關聯 ===
-    defect_id = fields.Many2one(
-        'supervision.defect',
-        string='關聯缺失單',
-        help='若有缺失，可關聯 NCR 缺失單')
+    # 註：缺失關聯欄位是 defect_improvement_id（→ general.defect.improvement），
+    #     定義在 construction_general/models/general_self_inspection.py，
+    #     由「建立缺失」精靈 create.defect.improvement.wizard 寫入。
 
     # === 備註 ===
     note = fields.Text(string='備註')
 
     @api.onchange('type_item_id')
     def _onchange_type_item_id(self):
-        """選擇檢查項目後自動帶入項目名稱與設計圖說"""
+        """選擇檢查項目後自動帶入項目名稱、設計圖說與段落"""
         if self.type_item_id:
             self.check_item = self.type_item_id.name
             self.design_standard = self.type_item_id.check_standard
+            if not self.stage_id:
+                self.stage_id = self.type_item_id.stage_id
 
-    @api.onchange('stage')
-    def _onchange_stage(self):
-        """查驗階段變更時，若已選的項目不屬於新階段則清除"""
-        if self.type_item_id and self.type_item_id.stage != self.stage:
+    @api.onchange('stage_id')
+    def _onchange_stage_id(self):
+        """查驗段落變更時，若已選的項目不屬於新段落則清除"""
+        if self.type_item_id and self.type_item_id.stage_id != self.stage_id:
             self.type_item_id = False

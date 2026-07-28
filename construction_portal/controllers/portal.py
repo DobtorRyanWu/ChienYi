@@ -112,8 +112,6 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         # 3) 被前台照片 m2m 直接引用：signboard、缺失前/後照片、驗收缺失前/後照片
         for model_name, field in (
                 ('project.project', 'signboard_photo_ids'),
-                ('supervision.defect', 'before_photo_ids'),
-                ('supervision.defect', 'after_photo_ids'),
                 ('acceptance.defect', 'before_photo_ids'),
                 ('acceptance.defect', 'after_photo_ids')):
             if model_name in env and field in env[model_name]._fields:
@@ -249,8 +247,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
                         if 'access_url' in rec._fields and rec.access_url:
                             url = rec.access_url
                         elif m.model in ('general.defect.improvement',
-                                         'reservation.defect.improvement',
-                                         'supervision.defect'):
+                                         'reservation.defect.improvement'):
                             # 前台缺失模型無 access_url，照 _browse_defect 的 /construction/defect/<id>
                             url = '/construction/defect/%s' % m.res_id
                 except Exception:
@@ -1015,9 +1012,6 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     # 管理 self.inspection.type：全域樣板庫（project_id=False）+ 各工程專案層級樣板。
     # 瀏覽 / 下載 docx：全角色；新增 / 編輯 / 刪除 / 停用：限 _can_manage()（老闆 / 主管 / 內部）。
 
-    # 查驗階段中文標籤（對齊模型 stage Selection）
-    INSP_STAGE_LABELS = [('stage1', '施工前'), ('stage2', '施工中'), ('stage3', '施工後')]
-
     def _inspection_type_categories(self):
         """工程類別 Selection 從 fields_get 拉（不寫死）"""
         return request.env['self.inspection.type'].fields_get(
@@ -1042,12 +1036,34 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         return rec if rec.id in visible.ids else None
 
     def _inspection_type_stage_groups(self, rec):
-        """把 default_item_ids 依 stage 分群，回傳 [{key,label,items}]（保留有項目的階段）。"""
+        """把 default_item_ids 依查驗段落分群，回傳 [{key,label,items}]（只留有項目的段落）。
+
+        段落名稱是唯一真相來源（self.inspection.type.stage.name），
+        前台不再有任何硬編的階段中文字。
+        """
         groups = []
-        for key, label in self.INSP_STAGE_LABELS:
-            items = rec.default_item_ids.filtered(lambda i, k=key: i.stage == k)
+        for stage in rec.stage_ids:        # _order = 'sequence, id'
+            items = rec.default_item_ids.filtered(lambda i, s=stage: i.stage_id == s)
             if items:
-                groups.append({'key': key, 'label': label, 'items': items})
+                groups.append({'key': stage.id, 'label': stage.name, 'items': items})
+        orphans = rec.default_item_ids.filtered(lambda i: not i.stage_id)
+        if orphans:
+            groups.append({'key': 0, 'label': '未分段', 'items': orphans})
+        return groups
+
+    def _inspection_stage_groups(self, lines):
+        """把逐項檢查列依段落分群，回傳 {stage_id or 0: {'label':…, 'items':[…]}}。
+
+        lines 已由 _order='stage_sequence, sequence, id' 排好，
+        dict 保序即得段落順序。
+        """
+        groups = {}
+        for item in lines:
+            key = item.stage_id.id or 0
+            groups.setdefault(key, {
+                'label': item.stage_id.name or '未分段',
+                'items': [],
+            })['items'].append(item)
         return groups
 
 
@@ -1059,9 +1075,13 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
         表單欄位慣例（idx 連續）：
           item_id_<idx>（既有列 id，空=新列）、item_name_<idx>、
-          item_stage_<idx>、item_standard_<idx>、item_seq_<idx>
+          item_stage_<idx>（段落 id）、item_standard_<idx>、item_seq_<idx>
         """
         Item = request.env['self.inspection.type.item'].sudo()
+        # 段落改成 m2o 後，POST 進來的是可被竄改的整數 id：
+        # 未經白名單就寫入，等於允許把別的工程/類型的段落塞進本類型的項目。
+        valid_stage_ids = rec.stage_ids.ids
+        fallback_stage_id = valid_stage_ids[0] if valid_stage_ids else False
         submitted_ids = set()
         idx = 0
         while True:
@@ -1077,9 +1097,12 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
                 continue
             name = (post.get('item_name_%d' % idx) or '').strip()
             item_id = post.get('item_id_%d' % idx)
+            raw_stage = (post.get('item_stage_%d' % idx) or '').strip()
+            stage_id = int(raw_stage) if raw_stage.isdigit() else 0
             ivals = {
                 'name': name,
-                'stage': post.get('item_stage_%d' % idx) or 'stage1',
+                'stage_id': (stage_id if stage_id in valid_stage_ids
+                             else fallback_stage_id),
                 'check_standard': post.get('item_standard_%d' % idx) or '',
                 'sequence': int(post.get('item_seq_%d' % idx) or ((idx + 1) * 10)),
                 'type_id': rec.id,
@@ -1131,15 +1154,19 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
     # ── 缺失改善：依工程類型選擇模型 ──
     def _defect_model(self, project):
-        """一般式 → supervision.defect（157 筆真資料、NCR 語意）；預約式 → reservation.defect.improvement。
+        """一般式 → general.defect.improvement；預約式 → reservation.defect.improvement。
 
-        C2：一般式缺失原本誤讀 general.defect.improvement（僅 07-14 批次測試資料），
-        真資料在 supervision.defect（匯入路由本就寫這裡）。已透過 supervision.defect 的前台
-        相容層（construction_portal/models/supervision_defect.py）讓共用模板/路由零改名相容。
+        supervision.defect（NCR）已整個移除：它是停用的第二套缺失模型（後台選單
+        active="0"、全庫僅 1 筆測試資料），欄位/狀態機/編號規則與這兩個模型完全不共用。
+        general 才承載監造實務所需欄位（每日編號、監造/營造 record_type、施工/安衛
+        check_type、severity、罰款、複查、前中後三階段照片）。
+
+        三條前台缺失匯入路由（defects/import、enrich、import-docx）現在也走本函式，
+        不再各自硬寫模型，故匯入的缺失一定會出現在缺失列表。
         """
         if project and getattr(project, 'project_type', False) == 'reservation':
             return 'reservation.defect.improvement'
-        return 'supervision.defect'
+        return 'general.defect.improvement'
 
     def _browse_defect(self, defect_id, access_token=None):
         """以 id 取缺失（先一般式、後預約式）並做存取檢查。
@@ -1149,7 +1176,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         本呼叫會落到 Odoo 原生版，帶 token 又缺欄位會 AttributeError）。access_token 參數
         保留簽章相容但不使用。
         """
-        for model in ('supervision.defect', 'general.defect.improvement',
+        for model in ('general.defect.improvement',
                       'reservation.defect.improvement'):
             if request.env[model].sudo().browse(defect_id).exists():
                 return self._document_check_access(model, defect_id)

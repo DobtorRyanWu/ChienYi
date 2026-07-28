@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 預約式工程專用模組',
-    'version': '18.0.1.1.0',
+    # 1.1.1: 修正通報單狀態值域不一致 —— 程式碼引用了 approved/completed，
+    #        但 reservation.notification.slip.state 只有 draft/not_started/in_progress/closed
+    'version': '18.0.1.1.1',
     'category': 'Construction/Reservation',
     'summary': '預約式工程通報單整合自主檢查與缺失改善',
     'description': """

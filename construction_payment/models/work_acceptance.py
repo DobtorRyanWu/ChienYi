@@ -93,9 +93,6 @@ class WorkAcceptance(models.Model):
         compute='_compute_has_defect',
         store=True
     )
-    # defect_ids 需要 supervision.defect 模型存在，暫時註解
-    # defect_ids = fields.One2many('supervision.defect', 'acceptance_id', '驗收缺失')
-
     # === 金額彙總 ===
     currency_id = fields.Many2one(
         'res.currency',

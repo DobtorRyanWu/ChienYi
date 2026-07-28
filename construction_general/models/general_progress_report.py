@@ -295,25 +295,26 @@ class GeneralProgressReport(models.Model):
         if not self.project_id or not self.period_start or not self.period_end:
             return
 
+        Defect = self.env['general.defect.improvement']
+
         # 本期發現的缺失
-        defects = self.env['supervision.defect'].search([
+        defect_count = Defect.search_count([
             ('project_id', '=', self.project_id.id),
             ('found_date', '>=', self.period_start),
             ('found_date', '<=', self.period_end),
         ])
 
-        # 本期改善完成的缺失（improvement_date 在期間內）
-        improved = self.env['supervision.defect'].search([
+        # 本期改善完成的缺失。improvement_date 是 Date（不是 Datetime），
+        # 可直接用 domain 比對，不必 filtered + .date()。
+        improved_count = Defect.search_count([
             ('project_id', '=', self.project_id.id),
-            ('improvement_date', '!=', False),
-        ]).filtered(
-            lambda d: d.improvement_date
-            and self.period_start <= d.improvement_date.date() <= self.period_end
-        )
+            ('improvement_date', '>=', self.period_start),
+            ('improvement_date', '<=', self.period_end),
+        ])
 
         self.write({
-            'defect_count': len(defects),
-            'defect_improved_count': len(improved),
+            'defect_count': defect_count,
+            'defect_improved_count': improved_count,
         })
 
     # === 工項載入方法 ===

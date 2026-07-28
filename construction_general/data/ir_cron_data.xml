@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            一般式缺失改善的逾期排程。
+
+            原本這兩支 cron 定義在 construction_quality/data/ir_cron_data.xml，
+            掛在 supervision.defect（NCR）上；NCR 移除後改掛 general.defect.improvement。
+            必須放在 construction_general —— construction_quality 不依賴
+            construction_general（相依方向相反），無法 ref 到它的模型。
+
+            這兩支是全系統唯一的缺失逾期排程：is_overdue 是 store=True 的計算欄位，
+            depends 只有 deadline/state/closure_date，不含「今天」，因此不會自己過期，
+            必須靠排程每日刷新；逾期通知也只有這裡會發。
+        -->
+
+        <!-- 缺失逾期通知排程任務（每日執行）-->
+        <record id="cron_general_defect_overdue_notification" model="ir.cron">
+            <field name="name">一般式缺失逾期通知（每日）</field>
+            <field name="model_id" ref="model_general_defect_improvement"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_send_overdue_notification()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+            <field name="priority">10</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
+        <!-- 缺失逾期狀態更新排程任務（每小時執行）-->
+        <record id="cron_general_defect_check_overdue" model="ir.cron">
+            <field name="name">一般式缺失逾期狀態更新（每小時）</field>
+            <field name="model_id" ref="model_general_defect_improvement"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_check_overdue()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">hours</field>
+            <field name="active" eval="True"/>
+            <field name="priority">10</field>
+            <field name="user_id" ref="base.user_admin"/>
+        </record>
+
+    </data>
+</odoo>

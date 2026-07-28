@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 通報單管理',
-    'version': '18.0.1.1.0',
+    # 1.1.1: 修正驗收動作寫入不存在的狀態值 'completed'（會 ValueError）與
+    #        slip_id domain 的 'approved'；狀態值域為 draft/not_started/in_progress/closed
+    'version': '18.0.1.1.1',
     'category': 'Construction/Supervision',
     'summary': '預約式工程通報單管理模組',
     'description': """

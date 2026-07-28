@@ -263,8 +263,21 @@
                                style="font-size:.85rem;width:100%;"/>
                     </div>
 
-                    <!-- 檢查項目編輯 -->
+                    <!-- 檢查項目編輯：新增樣板時類型還沒建檔、沒有段落可選，
+                         故先只收基本欄位，儲存後導向編輯頁再設定項目 -->
+                    <t t-if="not rec">
+                        <div class="cy-card" style="padding:14px;margin-bottom:14px;">
+                            <div style="font-size:.85rem;color:var(--wb-t2);line-height:1.6;">
+                                💡 儲存後會自動建立「施工前／施工中／施工後」三個查驗段落，
+                                並轉到編輯頁讓你設定檢查項目與調整段落。
+                            </div>
+                        </div>
+                    </t>
+                    <t t-if="rec">
                     <div class="cy-section-title">檢查項目</div>
+                    <div style="font-size:.78rem;color:var(--wb-t3);margin:-6px 0 8px;">
+                        段落清單由後台「自主檢查類型 &gt; 查驗段落」維護
+                    </div>
                     <div class="cy-card" style="padding:12px;margin-bottom:14px;">
                         <div id="itemRows">
                             <t t-foreach="rec.default_item_ids if rec else []" t-as="item">
@@ -272,9 +285,9 @@
                                      style="display:flex;gap:6px;align-items:flex-start;margin-bottom:8px;">
                                     <input type="hidden" t-attf-name="item_id_#{item_index}" t-att-value="item.id"/>
                                     <input type="hidden" t-attf-name="item_seq_#{item_index}" t-att-value="item.sequence"/>
-                                    <select t-attf-name="item_stage_#{item_index}" class="cyf-input" style="width:84px;margin:0;flex-shrink:0;">
-                                        <t t-foreach="stage_labels" t-as="st">
-                                            <option t-att-value="st[0]" t-att-selected="'selected' if item.stage==st[0] else None"><t t-esc="st[1]"/></option>
+                                    <select t-attf-name="item_stage_#{item_index}" class="cyf-input" style="width:110px;margin:0;flex-shrink:0;">
+                                        <t t-foreach="stages" t-as="st">
+                                            <option t-att-value="st.id" t-att-selected="'selected' if item.stage_id.id==st.id else None"><t t-esc="st.name"/></option>
                                         </t>
                                     </select>
                                     <div style="flex:1;min-width:0;">
@@ -298,10 +311,11 @@
                              style="display:flex;gap:6px;align-items:flex-start;margin-bottom:8px;">
                             <input type="hidden" name="item_id___IDX__" value=""/>
                             <input type="hidden" name="item_seq___IDX__" value=""/>
-                            <select name="item_stage___IDX__" class="cyf-input" style="width:84px;margin:0;flex-shrink:0;">
-                                <option value="stage1">施工前</option>
-                                <option value="stage2">施工中</option>
-                                <option value="stage3">施工後</option>
+                            <!-- 選項由 server 端 QWeb 渲染；JS clone 出來就已經是正確的段落清單 -->
+                            <select name="item_stage___IDX__" class="cyf-input" style="width:110px;margin:0;flex-shrink:0;">
+                                <t t-foreach="stages" t-as="st">
+                                    <option t-att-value="st.id"><t t-esc="st.name"/></option>
+                                </t>
                             </select>
                             <div style="flex:1;min-width:0;">
                                 <input type="text" name="item_name___IDX__" class="cyf-input" style="margin:0 0 4px;" placeholder="檢查項目"/>
@@ -311,6 +325,7 @@
                                     style="background:rgba(232,54,79,.06);color:var(--wb-red);border:none;border-radius:8px;width:36px;min-height:42px;font-size:1rem;flex-shrink:0;">✕</button>
                         </div>
                     </template>
+                    </t>
 
                     <button type="submit"
                             style="width:100%;background:var(--wb-brand);color:#fff;border:none;border-radius:14px;padding:15px;font-size:1rem;font-weight:800;min-height:52px;margin-bottom:24px;">

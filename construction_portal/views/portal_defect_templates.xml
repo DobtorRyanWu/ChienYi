@@ -502,6 +502,44 @@
     </template>
 
     <!-- ============================================
+         匯入頁共用組件
+         ============================================ -->
+
+    <!-- 未設定缺失編號前綴時的整批擋下提示 -->
+    <template id="portal_defect_import_no_prefix_alert" name="Defect Import: prefix not set">
+        <t t-if="error == 'no_prefix'">
+            <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.45); border-radius: 8px; font-size: 0.95rem; line-height: 1.7;">
+                <div style="font-weight: 800; color: var(--wb-red); margin-bottom: 4px;">
+                    <i class="fa fa-exclamation-triangle"/> 本工程尚未設定缺失編號前綴，無法匯入
+                </div>
+                <div style="color: var(--wb-t2);">
+                    缺失編號需要工程層級的前綴設定才能產生。請至後台
+                    <b>品質管理 › 缺失改善 › 編號前綴設定</b>
+                    為本工程設定「監造編號前綴」與「營造編號前綴」（例如
+                    <code>0722B標QA</code> / <code>0722B標QR</code>），完成後再回來匯入。
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- 監造／營造兜底下拉：僅在無法從資料判定時採用 -->
+    <template id="portal_defect_import_record_type_field" name="Defect Import: record type fallback">
+        <div style="margin-bottom: 14px;">
+            <label class="form-label" style="font-weight: 600;">監造／營造（判不出時才採用）</label>
+            <select name="record_type" class="form-select">
+                <option value="supervision">監造缺失單（QA）</option>
+                <option value="contractor">營造缺失單（QR）</option>
+            </select>
+            <small style="color: var(--wb-t3); display: block; margin-top: 6px; line-height: 1.6;">
+                <b>僅在無法從資料判定時使用。</b>系統會依序嘗試：
+                ① 登錄編號的 QA／QR 前綴 → ② 工作表名 QA／QR →
+                ③ 缺失類別（施工/品質→監造、職安/環境→營造），
+                全部判不出才採用這裡選的值。
+            </small>
+        </div>
+    </template>
+
+    <!-- ============================================
          缺失批次匯入 /construction/<pid>/defects/import
          ============================================ -->
     <template id="portal_construction_defect_import" name="Defect Batch Import">
@@ -524,6 +562,8 @@
                             上傳「不合格品改善追蹤一覽表」XLSX 彙總檔
                         </div>
                     </div>
+
+                    <t t-call="construction_portal.portal_defect_import_no_prefix_alert"/>
 
                     <t t-if="imported or skipped or failed">
                         <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(59,141,224,0.10); border-radius: 8px; font-size: 0.95rem; line-height: 1.7;">
@@ -579,15 +619,21 @@
                                 </small>
                             </div>
 
+                            <t t-call="construction_portal.portal_defect_import_record_type_field"/>
+
                             <div style="font-size: 0.85rem; color: var(--wb-t2); line-height: 1.6; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.12); border-radius: 6px;">
                                 <div style="font-weight: 700; margin-bottom: 4px;">解析規則</div>
                                 <ul style="margin: 0; padding-left: 20px;">
-                                    <li>找名稱含「不合格品」或「缺失」的 sheet</li>
-                                    <li>從 R3 起抽取：編號 / 登錄編號 / 改正單位 / 改正事項 / 通知改正日期 / 限定完成改善日期 / 確認完成改善日期</li>
-                                    <li>ROC 日期格式（<code>112.10.07</code>）自動轉換</li>
-                                    <li>改正單位對應 defect_type：職安→safety、施工→quality、環境→environmental</li>
+                                    <li><b>掃描檔案裡的每一張工作表</b>，自動尋找缺失表頭；認不出表頭的工作表（統計圖、封面等）會列在下方處理明細中略過</li>
+                                    <li><b>依表頭名稱讀欄，不依欄位順序</b>。認得的欄名：
+                                        登錄編號／文件編號／編號、改正事項／缺失事項／工程缺失事項／不符情形、
+                                        改正單位、通知改正（改善）日期、限定完成改善日期、確認完成改善日期、備註</li>
+                                    <li>日期支援民國（<code>112.10.07</code>、<code>110/08/03</code>）與西元格式</li>
+                                    <li>工作表名為 <code>QA</code>／<code>QR</code> 時，該表全部歸監造／營造</li>
+                                    <li>改正單位對應缺失類別：職安/勞安→安全衛生、施工/品質→施工品質、環境→環境清潔；檢查類型（施/安）由類別反推。<b>沒有「改正單位」欄時改由工作表名推論，並在備註留下註記</b></li>
+                                    <li>登錄編號存入「來源登錄編號」，供之後「補充改善明細」比對回配</li>
                                     <li>同登錄編號或同日期+描述已有紀錄則 skip</li>
-                                    <li>有「確認完成改善日期」→ state=closed；否則 state=open</li>
+                                    <li>有「確認完成改善日期」→ 結案；否則 已通知</li>
                                 </ul>
                             </div>
                         </div>
@@ -693,10 +739,14 @@
                                 <div style="font-weight: 700; margin-bottom: 4px;">解析規則</div>
                                 <ul style="margin: 0; padding-left: 20px;">
                                     <li>zip 內非 .docx 項目會跳過（__MACOSX 也排除）</li>
-                                    <li>檔名格式：legacy <code>1121025-xxx.docx</code> / standardized <code>QA-11312201-xxx.docx</code></li>
-                                    <li>從檔名推導 <code>Q01-YYYMMDD</code> 對應 DB 的 <code>source_description</code></li>
-                                    <li>抽取 缺失事項 / 改善中 / 改善後，覆寫 <code>improvement_description</code> 和 <code>close_comment</code></li>
-                                    <li>對應不到的 register_no 會列入 unmatched</li>
+                                    <li>從檔名抽登錄編號，四種寫法都認得：
+                                        <code>(QA-001)</code>、<code>-QR-001</code>、<code>QA-11309191-</code>、<code>(QR)</code></li>
+                                    <li>抽不到編號時退回檔名裡的民國日期（含同日序號，如 <code>1130925-1</code>）</li>
+                                    <li>比對由精確到寬鬆分四層：登錄編號 → 編號日期+序號 → 編號日期 → 發現日期</li>
+                                    <li>同一天多筆而檔名沒帶序號時，改用缺失說明的文字相似度判別；判不出寧可不配也不亂配</li>
+                                    <li>抽取 缺失事項／不符情形 · 改善中／改善追蹤 · 改善後 · 改善位置，
+                                        覆寫「改善結果說明」「結案說明」「缺失位置」</li>
+                                    <li>對應不到的會列入 unmatched 並說明原因</li>
                                 </ul>
                             </div>
                         </div>
@@ -799,14 +849,19 @@
                                 </small>
                             </div>
 
+                            <t t-call="construction_portal.portal_defect_import_record_type_field"/>
+
                             <div style="font-size: 0.85rem; color: var(--wb-t2); line-height: 1.6; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.12); border-radius: 6px;">
                                 <div style="font-weight: 700; margin-bottom: 4px;">解析規則</div>
                                 <ul style="margin: 0; padding-left: 20px;">
-                                    <li>從檔名推導 <code>found_date</code>（ROC 民國年 <code>YYYMMDD</code>）</li>
-                                    <li>從檔名 QA/QR 前綴或括號類別（品質/職安/環境）推導 <code>defect_type</code></li>
-                                    <li>從 docx 抽取 缺失事項 / 改善中 / 改善後 內容</li>
-                                    <li>有 close_comment → state=closed；有 improvement → action_taken；否則 open</li>
-                                    <li>同專案 (found_date + description) 或 (register_no + description) 已存在則 skip</li>
+                                    <li>從檔名推導發現日期（民國 <code>YYYMMDD</code>，不限定在開頭）。
+                                        <b>像 <code>1-0803-…(QA-001).docx</code> 只有月日沒有年份的，推不出日期就無法直接建立</b>
+                                        —— 這種請先用「批次匯入總表單」建缺失，再用「補充改善明細」補內容</li>
+                                    <li>從檔名 QA/QR 或括號類別（品質/職安/環境）推導缺失類別與監造／營造</li>
+                                    <li>檢查類型優先取 docx 內文的「☑施工抽查／□安衛、環境清潔」勾選，抓不到才由類別反推</li>
+                                    <li>從 docx 抽取 缺失事項／不符情形 · 改善中／改善追蹤 · 改善後 · 改善位置</li>
+                                    <li>有「改善後」→ 結案；有「改善中」→ 已改善；否則 已通知</li>
+                                    <li>同專案 (發現日期 + 缺失說明) 或 (登錄編號 + 缺失說明) 已存在則 skip</li>
                                 </ul>
                             </div>
                         </div>

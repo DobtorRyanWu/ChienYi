@@ -181,8 +181,9 @@ class ReservationNotificationSlipReservation(models.Model):
     def action_create_self_inspection(self):
         """建立自主檢查"""
         self.ensure_one()
-        if self.state not in ('approved', 'in_progress'):
-            raise UserError('只有已核准或執行中的通報單可以建立自主檢查')
+        # 狀態流程為 draft → not_started → in_progress → closed，無 approved
+        if self.state not in ('not_started', 'in_progress'):
+            raise UserError('只有未開始或施工中的通報單可以建立自主檢查')
 
         return {
             'type': 'ir.actions.act_window',
@@ -199,8 +200,9 @@ class ReservationNotificationSlipReservation(models.Model):
     def action_create_defect_improvement(self):
         """建立缺失改善記錄"""
         self.ensure_one()
-        if self.state not in ('approved', 'in_progress'):
-            raise UserError('只有已核准或執行中的通報單可以建立缺失改善')
+        # 狀態流程為 draft → not_started → in_progress → closed，無 approved
+        if self.state not in ('not_started', 'in_progress'):
+            raise UserError('只有未開始或施工中的通報單可以建立缺失改善')
 
         return {
             'type': 'ir.actions.act_window',

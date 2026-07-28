@@ -83,15 +83,6 @@
                            statusbar_visible="draft,notified,improving,improved,verified,closed"/>
                 </header>
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="%(construction_quality.action_supervision_defect)d"
-                                type="action"
-                                class="oe_stat_button"
-                                icon="fa-exclamation-triangle"
-                                invisible="not ncr_id">
-                            <field name="ncr_id" widget="statinfo" string="NCR"/>
-                        </button>
-                    </div>
                     <widget name="web_ribbon" title="已逾期" bg_color="text-bg-danger"
                             invisible="not is_overdue"/>
                     <div class="oe_title">
@@ -373,10 +364,6 @@
                                     <field name="source_inspection_no" string="檢查編號"/>
                                     <field name="self_inspection_item_id" string="來源檢查項目"
                                            readonly="1" options="{'no_open': True}"/>
-                                </group>
-                                <!-- 關聯 NCR：NCR 系統已停用，僅在實際有關聯時才顯示 -->
-                                <group string="其他關聯" invisible="not ncr_id">
-                                    <field name="ncr_id" readonly="1"/>
                                 </group>
                             </group>
                             <group string="備註">

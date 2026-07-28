@@ -90,11 +90,19 @@
                     </group>
                     <notebook>
                         <page string="檢查項目" name="checklist">
-                            <field name="checklist_ids">
+                            <field name="first_stage_id" invisible="1"/>
+                            <field name="checklist_ids"
+                                   context="{'default_stage_id': first_stage_id}">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
-                                    <field name="stage" optional="show"/>
-                                    <field name="type_item_id" optional="show"/>
+                                    <!-- stage_id / type_item_id 的 domain 靠它求值，不可移除 -->
+                                    <field name="inspection_type_id" column_invisible="1"/>
+                                    <field name="stage_id" optional="show"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="type_item_id" string="從樣板選取" optional="show"/>
+                                    <!-- check_item 是 required 且無 default，
+                                         不放進清單的話「加入資料行」會因 not-null 而無法儲存 -->
+                                    <field name="check_item" string="檢查項目"/>
                                     <field name="design_standard" optional="show"/>
                                     <field name="actual_result" optional="show"/>
                                     <field name="check_result"

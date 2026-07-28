@@ -96,7 +96,10 @@
                     <group>
                         <group string="檢查項目資訊">
                             <field name="sequence"/>
-                            <field name="stage"/>
+                            <!-- 這是獨立 form（沒有 parent），stage_id 的 domain 靠此欄求值 -->
+                            <field name="inspection_type_id" invisible="1"/>
+                            <field name="stage_id"
+                                   options="{'no_create': True, 'no_open': True}"/>
                             <field name="check_item"/>
                             <field name="design_standard"/>
                         </group>
