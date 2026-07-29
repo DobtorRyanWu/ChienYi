@@ -321,8 +321,8 @@ export class ProgressChartWidget extends Component {
                                 weight: "bold",
                             },
                         },
-                        min: 0,
-                        max: 100,
+                        // 不設固定 min/max：實際進度可為負（施工日誌負修正）或超界，
+                        // 交給 Chart.js 依資料自動縮放，避免負值被截在 0。
                         ticks: {
                             callback: function (value) {
                                 return value + "%";

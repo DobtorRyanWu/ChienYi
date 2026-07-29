@@ -643,7 +643,7 @@
                             </span>
                         </div>
                         <div class="cy-progress-bar" style="height: 12px;">
-                            <div class="cy-progress-fill" t-attf-style="width: #{min(progress_pct, 100)}%; background: var(--wb-green);"/>
+                            <div class="cy-progress-fill" t-attf-style="width: #{max(min(progress_pct, 100), 0)}%; background: var(--wb-green);"/>
                         </div>
                         <div style="font-size: 0.8rem; color: var(--wb-t3); margin-top: 6px;">
                             來源：進度表累計實際進度

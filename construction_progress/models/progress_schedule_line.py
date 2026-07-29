@@ -249,8 +249,10 @@ class ProgressScheduleLine(models.Model):
         # planned_progress 的下限由 Python 約束處理（允許計畫倒退校正使用負值）
         ('planned_progress_max', 'CHECK(planned_progress <= 100)',
          '預定進度不可超過 100%'),
-        ('actual_progress_range', 'CHECK(actual_progress >= 0 AND actual_progress <= 100)',
-         '實際進度必須在 0 到 100 之間'),
+        # actual_progress 刻意不設 DB 界限：它是施工日誌 daily_actual_progress 的忠實加總，
+        # 來源本身無上下限（負修正、跨區間回填、custom 模式單日皆可讓加總落在 0~100 之外），
+        # 綁硬界會讓合法的「從施工日誌同步」崩潰。防呆改由「只能經同步寫入」保證
+        # （見 create() 與 write() 的 allow_sync_progress 閘門），非法手填走不進來。
     ]
 
     # =========================================================================
@@ -370,7 +372,13 @@ class ProgressScheduleLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         """建立時自動計算序號"""
+        allow_sync = self.env.context.get('allow_sync_progress')
         for vals in vals_list:
+            # 實際進度是施工日誌的衍生加總，只能經同步寫入。擋掉非同步管道
+            # （獨立表單、CSV 匯入、程式化 create）帶入的非零實際進度，避免 -50/250
+            # 這類非法值繞過 write() 閘門靜默落庫。0.0（如複製版本時的初始化）放行。
+            if not allow_sync and vals.get('actual_progress'):
+                raise UserError('實際進度只能透過「從日誌同步進度」功能更新，不可手動修改。')
             if 'sequence' not in vals or vals.get('sequence', 0) <= 0:
                 schedule_id = vals.get('schedule_id')
                 if schedule_id:

@@ -360,7 +360,7 @@
                         <group string="進度資料">
                             <field name="planned_progress"/>
                             <field name="cumulative_planned" readonly="1"/>
-                            <field name="actual_progress"/>
+                            <field name="actual_progress" readonly="1"/>
                             <field name="cumulative_actual" readonly="1"/>
                             <field name="variance" readonly="1"/>
                             <field name="variance_status" readonly="1" widget="badge"
@@ -400,7 +400,7 @@
                 <field name="period_days" string="天數"/>
                 <field name="planned_progress" sum="預定進度合計"/>
                 <field name="cumulative_planned"/>
-                <field name="actual_progress" sum="實際進度合計"/>
+                <field name="actual_progress" sum="實際進度合計" readonly="1"/>
                 <field name="cumulative_actual"/>
                 <field name="variance"/>
                 <field name="variance_status" widget="badge"
