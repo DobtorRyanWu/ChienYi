@@ -52,6 +52,29 @@ class ReservationNotificationSlip(models.Model):
     location_detail = fields.Text(
         string='詳細位置說明')
 
+    # 通報單的施工地點座標。用途有二：
+    # (1) 本通報單的照片若沒有 GPS EXIF，會沿用這組座標（見
+    #     construction_portal/controllers/portal_photo.py 的通報單照片上傳），
+    #     現場人員因此不必為每張照片手填座標；
+    # (2) 通報單本身即代表工區內的一個特定地點，比工程案件的中心點精確。
+    # 未填時是 0.0（等同未填），constrains 會放行 —— 與 supervision.photo /
+    # project.project 的處理一致。
+    latitude = fields.Float(string='緯度', digits=(10, 7))
+    longitude = fields.Float(string='經度', digits=(10, 7))
+
+    @api.constrains('latitude', 'longitude')
+    def _check_slip_coordinates(self):
+        """座標範圍檢查（0 視為未填直接放行）。
+
+        沒有這道關卡的話，填錯的座標（例如經緯度顛倒，緯度填成 121.5）會被
+        照片繼承機制原樣複製到每一張通報單照片上，地圖整批跑到錯誤位置。
+        """
+        for rec in self:
+            if rec.latitude and not -90 <= rec.latitude <= 90:
+                raise ValidationError('緯度必須在 -90 到 90 之間！')
+            if rec.longitude and not -180 <= rec.longitude <= 180:
+                raise ValidationError('經度必須在 -180 到 180 之間！')
+
     # === 日期與工期 ===
     survey_date = fields.Date(
         string='工程會勘日期',
@@ -368,27 +391,20 @@ class ReservationNotificationSlip(models.Model):
         return self._search(domain, limit=limit, order=order)
 
     # === 關聯照片（反向 from supervision.photo.source_id） ===
-    related_photo_ids = fields.Many2many(
+    # 照片資料表收斂前這裡是 computed Many2many（靠 source_model/source_id 字串
+    # 反查），唯讀 → 後台有頁籤卻**沒有任何上傳入口**（與檢試驗同樣的問題）。
+    # 改成真 One2many 之後後台可直接掛上傳。
+    related_photo_ids = fields.One2many(
         'supervision.photo',
-        compute='_compute_related_photo_ids',
+        'slip_id',
         string='關聯照片',
-        help='來源為此通報單的照片（透過 supervision.photo.source_id 反查）')
+        help='此通報單的照片')
 
     related_photo_count = fields.Integer(
         string='照片數',
-        compute='_compute_related_photo_ids')
+        compute='_compute_related_photo_count')
 
-    @api.depends()
-    def _compute_related_photo_ids(self):
-        Photo = self.env['supervision.photo']
+    @api.depends('related_photo_ids')
+    def _compute_related_photo_count(self):
         for rec in self:
-            if not rec.id:
-                rec.related_photo_ids = False
-                rec.related_photo_count = 0
-                continue
-            photos = Photo.search([
-                ('source_model', '=', 'notification'),
-                ('source_id', '=', rec.id),
-            ])
-            rec.related_photo_ids = photos
-            rec.related_photo_count = len(photos)
+            rec.related_photo_count = len(rec.related_photo_ids)

@@ -1,6 +1,137 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- ==========================================================
+         嵌入式檢視（給各業務記錄的「照片」頁籤用）
+
+         所有後台照片頁籤（工程告示牌／施工日誌／自主檢查／缺失改善三階段／
+         檢試驗／通報單）**一律引用這兩個檢視**，寫法統一為：
+
+             <field name="photo_ids" nolabel="1" mode="kanban" create="false"
+                    context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                              'form_view_ref':   'construction_photo.supervision_photo_view_form_embedded'}"/>
+
+         一份定義、十幾處引用 —— 收斂前每個頁籤各自內嵌一份 <list>，
+         同樣的欄位抄了十遍，改一個欄位要改十個檔案，而且早就已經長歪
+         （檢試驗與通報單是 kanban、其餘是 list，兩種樣子並存）。
+
+         卡片版面（使用者指定）：照片在上，下方五個欄位
+             說明／材料分類／拍攝地點說明／緯度／經度
+         點卡片會用下面那個精簡表單開對話框，五個欄位都能改。
+         ========================================================== -->
+    <record id="supervision_photo_view_kanban_embedded" model="ir.ui.view">
+        <field name="name">supervision.photo.kanban.embedded</field>
+        <field name="model">supervision.photo</field>
+        <!-- ⚠️ priority 一定要調高，不可留預設的 16。
+             ir.ui.view 的 _order 是 **priority, name, id**（不是 priority, id）。
+             本檢視叫 supervision.photo.**kanban**.embedded，字母序排在原本的
+             supervision.photo.**view**.kanban 前面（k < v），priority 又相同
+             → 它會被當成 supervision.photo 的**預設看板**，
+             把「照片管理」選單的圖庫看板整個換掉（實際發生過）。
+             調高之後只有明確用 kanban_view_ref 指名時才會用到它。 -->
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <!-- create="false"：關掉看板的「加入」按鈕。
+                 照片一定要有檔案（attachment_id 是 required），但「加入」只會開
+                 一張空白表單，裡面的 image 是 attachment_id.datas 的 related
+                 唯讀欄位、根本傳不了檔 —— 使用者只能填一堆文字然後存不起來。
+                 上傳一律走頁籤上方的「批次上傳照片」精靈。
+                 ⚠️ 這個屬性必須寫在 <kanban> 上，寫在引用端的 <field> 上無效
+                 （子檢視是透過 context 的 kanban_view_ref 取來的，
+                 欄位層的 create 不會傳進去）。 -->
+            <kanban class="o_kanban_dashboard" sample="1" create="false">
+                <field name="image"/>
+                <field name="description"/>
+                <field name="category_id"/>
+                <field name="location_description"/>
+                <field name="latitude"/>
+                <field name="longitude"/>
+                <field name="gps_source"/>
+                <templates>
+                    <t t-name="card">
+                        <!-- 照片：整張卡片寬度、固定高度置中裁切，
+                             不同長寬比的照片排在一起才不會參差不齊 -->
+                        <div class="text-center mb-2"
+                             style="background: #f8f9fa; border-radius: 4px; padding: 4px;">
+                            <field name="image" widget="image"
+                                   options="{'preview_image': 'image', 'size': [260, 180]}"
+                                   style="max-height: 180px; object-fit: contain;"/>
+                        </div>
+                        <!-- 下方五個欄位，一列一個、左邊標籤右邊值 -->
+                        <div class="o_kanban_record_body">
+                            <div class="row g-0">
+                                <div class="col-4 text-muted small">說明</div>
+                                <div class="col-8 small fw-bold">
+                                    <field name="description" placeholder="（未填）"/>
+                                </div>
+                            </div>
+                            <div class="row g-0">
+                                <div class="col-4 text-muted small">材料分類</div>
+                                <div class="col-8 small">
+                                    <field name="category_id" placeholder="（未分類）"/>
+                                </div>
+                            </div>
+                            <div class="row g-0">
+                                <div class="col-4 text-muted small">拍攝地點</div>
+                                <div class="col-8 small">
+                                    <field name="location_description" placeholder="（未填）"/>
+                                </div>
+                            </div>
+                            <div class="row g-0">
+                                <div class="col-4 text-muted small">緯度</div>
+                                <div class="col-8 small"><field name="latitude"/></div>
+                            </div>
+                            <div class="row g-0">
+                                <div class="col-4 text-muted small">經度</div>
+                                <div class="col-8 small"><field name="longitude"/></div>
+                            </div>
+                            <!-- 座標來源不算在使用者指定的五個欄位裡，但它是判斷
+                                 「這組座標是實拍還是推定」的唯一依據，做成小標籤
+                                 不佔行、看得到就好 -->
+                            <div class="mt-1" t-if="record.gps_source.raw_value">
+                                <span class="badge text-bg-light">
+                                    <i class="fa fa-map-marker me-1"/><field name="gps_source"/>
+                                </span>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="supervision_photo_view_form_embedded" model="ir.ui.view">
+        <field name="name">supervision.photo.form.embedded</field>
+        <field name="model">supervision.photo</field>
+        <!-- 同上：不調高的話會蓋掉「照片管理」的完整表單（含 4 個頁籤） -->
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <!-- 點卡片開的對話框：照片 + 使用者要的五個欄位。
+                 不是完整的照片表單（那個在照片管理裡），這裡只放逐張要改的東西。 -->
+            <form string="照片">
+                <sheet>
+                    <div class="text-center mb-3">
+                        <field name="image" widget="image"
+                               options="{'preview_image': 'image'}" nolabel="1"
+                               style="max-height: 320px;"/>
+                    </div>
+                    <group>
+                        <field name="description" placeholder="這張照片的說明"/>
+                        <field name="category_id" options="{'no_create_edit': True}"/>
+                        <field name="location_description" placeholder="例：工地東側入口"/>
+                        <field name="latitude"/>
+                        <field name="longitude"/>
+                        <field name="gps_source" readonly="1"/>
+                    </group>
+                    <group string="檔案資訊" col="4">
+                        <field name="image_filename" readonly="1"/>
+                        <field name="shot_at"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
     <!-- ============================================== -->
     <!-- 工程照片 Tree View                              -->
     <!-- ============================================== -->
@@ -8,16 +139,31 @@
         <field name="name">supervision.photo.view.tree</field>
         <field name="model">supervision.photo</field>
         <field name="arch" type="xml">
-            <list string="工程照片" default_order="shot_at desc">
-                <field name="name"/>
+            <!-- 欄位一律可在清單上直接編輯：照片的三個描述欄位（說明／分類／
+                 拍攝地點說明）需要能逐張快速修改，這是上傳時只填一組共用預設值
+                 的前提。 -->
+            <list string="工程照片" default_order="shot_at desc" editable="bottom"
+                  multi_edit="1">
+                <field name="name" readonly="1"/>
                 <field name="project_id"/>
                 <field name="shot_at"/>
-                <field name="source_model" optional="show"/>
-                <field name="source_ref" optional="show"/>
+                <!-- 三個描述欄位：使用者要求每張照片都要有，且可事後逐張修改 -->
+                <field name="description" optional="show"/>
+                <field name="category_id" optional="show"
+                       options="{'no_create_edit': True}"/>
+                <field name="location_description" optional="show"/>
+                <field name="source_model" optional="show" readonly="1"/>
+                <field name="source_ref" optional="hide" readonly="1"/>
+                <!-- 座標與其來源：沒有露出來的話，只能查 SQL 才知道照片是
+                     實拍座標(exif)、使用者輸入(input)還是推定值(inherit) -->
+                <field name="latitude" optional="show"/>
+                <field name="longitude" optional="show"/>
+                <field name="gps_source" optional="show" readonly="1"/>
                 <field name="gps_location" optional="hide"/>
-                <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
-                <field name="creator_id" optional="hide"/>
-                <field name="extension" optional="hide"/>
+                <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"
+                       optional="hide"/>
+                <field name="creator_id" optional="hide" readonly="1"/>
+                <field name="extension" optional="hide" readonly="1"/>
                 <field name="company_id" optional="hide" groups="base.group_multi_company"/>
             </list>
         </field>
@@ -54,9 +200,22 @@
                     
                     <!-- 照片說明獨立區塊，作為最重要的欄位 -->
                     <group string="照片說明">
-                        <field name="description" 
+                        <field name="description"
                                placeholder="請詳細說明此照片的內容、拍攝目的、相關資訊等..."
                                nolabel="1"/>
+                    </group>
+
+                    <!-- 材料分類原本沒有出現在任何視圖裡（整個 views/ 對
+                         category_id 零命中），等於後台看不到也改不了。
+                         它與「照片說明」「拍攝地點說明」同屬每張照片必填的
+                         三個描述欄位，放在一起才好對照。 -->
+                    <group>
+                        <group string="分類與地點">
+                            <field name="category_id"
+                                   options="{'no_create_edit': True}"/>
+                            <field name="location_description"
+                                   placeholder="例如：工地東側入口"/>
+                        </group>
                     </group>
 
                     <notebook>
@@ -85,6 +244,9 @@
                                     <field name="gps_location" placeholder="25.0330,121.5654"/>
                                     <field name="latitude"/>
                                     <field name="longitude"/>
+                                    <!-- 座標是實拍(exif)、使用者輸入(input)還是
+                                         推定值(inherit)，只有這個欄位分得出來 -->
+                                    <field name="gps_source" readonly="1"/>
                                 </group>
                                 <group>
                                     <field name="location_description" placeholder="例如：工地東側入口"/>
@@ -220,7 +382,17 @@
                 <field name="tag_ids"/>
                 <field name="gps_location"/>
                 <field name="location_description"/>
+                <field name="category_id"/>
                 <field name="creator_id"/>
+                <separator/>
+                <!-- 三個描述欄位的完整性檢查：使用者要求每張照片都要有，
+                     這幾個篩選可以一眼看出哪些照片還沒填 -->
+                <filter string="未填說明" name="no_description"
+                        domain="['|', ('description', '=', False), ('description', '=', '')]"/>
+                <filter string="未填分類" name="no_category"
+                        domain="[('category_id', '=', False)]"/>
+                <filter string="未填拍攝地點" name="no_location_desc"
+                        domain="['|', ('location_description', '=', False), ('location_description', '=', '')]"/>
                 <separator/>
                 <filter string="今日上傳" name="today"
                         domain="[('upload_date', '>=', datetime.datetime.combine(context_today(), datetime.time(0,0,0))), ('upload_date', '&lt;', datetime.datetime.combine(context_today() + relativedelta(days=1), datetime.time(0,0,0)))]"/>
@@ -231,6 +403,15 @@
                 <separator/>
                 <filter string="有 GPS" name="has_gps" domain="[('gps_location', '!=', False)]"/>
                 <filter string="無 GPS" name="no_gps" domain="[('gps_location', '=', False)]"/>
+                <separator/>
+                <!-- 依座標來源篩選：實拍座標與推定座標在稽核上的份量不同，
+                     要能分得開 -->
+                <filter string="座標來自照片 EXIF" name="geo_exif"
+                        domain="[('gps_source', '=', 'exif')]"/>
+                <filter string="座標為人工輸入" name="geo_input"
+                        domain="[('gps_source', '=', 'input')]"/>
+                <filter string="座標為推定值" name="geo_inherit"
+                        domain="[('gps_source', '=', 'inherit')]"/>
                 <separator/>
                 <filter string="施工日誌" name="source_daily_log" domain="[('source_model', '=', 'daily_log')]"/>
                 <filter string="自主檢查" name="source_inspection" domain="[('source_model', '=', 'inspection')]"/>
@@ -245,6 +426,8 @@
                     <filter string="拍攝日期" name="group_by_shot_date" context="{'group_by': 'shot_date:day'}"/>
                     <filter string="拍攝月份" name="group_by_shot_month" context="{'group_by': 'shot_date:month'}"/>
                     <filter string="來源分類" name="group_by_source" context="{'group_by': 'source_model'}"/>
+                    <filter string="材料分類" name="group_by_category" context="{'group_by': 'category_id'}"/>
+                    <filter string="座標來源" name="group_by_gps_source" context="{'group_by': 'gps_source'}"/>
                     <filter string="上傳者" name="group_by_creator" context="{'group_by': 'creator_id'}"/>
                     <filter string="標籤" name="group_by_tag" context="{'group_by': 'tag_ids'}"/>
                 </group>

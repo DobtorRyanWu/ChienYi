@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ===================================================================
+         批次上傳照片 Wizard
+
+         由各業務模型的照片頁籤按鈕開啟（工程告示牌／施工日誌／自主檢查／
+         缺失改善三階段／檢試驗／通報單）。來源記錄由 active_model +
+         active_id 帶入，缺失的三個階段另外用 default_photo_stage 指定。
+         =================================================================== -->
+
+    <record id="supervision_photo_upload_wizard_form" model="ir.ui.view">
+        <field name="name">supervision.photo.upload.wizard.form</field>
+        <field name="model">supervision.photo.upload.wizard</field>
+        <field name="arch" type="xml">
+            <form string="批次上傳照片">
+                <field name="source_model" invisible="1"/>
+                <div class="alert alert-info" role="alert"
+                     invisible="not source_name">
+                    照片將上傳到：<field name="source_name" readonly="1" nolabel="1"
+                                        class="oe_inline fw-bold"/>
+                </div>
+
+                <group>
+                    <field name="attachment_ids" widget="many2many_binary"
+                           string="照片檔案" nolabel="1" colspan="2"/>
+                </group>
+
+                <group string="這批照片的共用資訊（之後可在照片管理逐張修改）">
+                    <group>
+                        <field name="description"
+                               placeholder="留空則自動使用檔案名稱"/>
+                        <field name="category_id" options="{'no_create': True}"/>
+                        <field name="location_description"
+                               placeholder="例：工地東側入口"/>
+                    </group>
+                    <group>
+                        <field name="photo_stage"
+                               invisible="not photo_stage" readonly="1"/>
+                        <field name="latitude"/>
+                        <field name="longitude"/>
+                    </group>
+                </group>
+                <div class="text-muted" style="margin-left: 8px;">
+                    座標留空也沒關係：照片本身含 GPS 資訊時系統會自動讀出拍攝地點；
+                    工程告示牌與通報單的照片在讀不到 GPS 時會沿用來源座標。
+                </div>
+
+                <footer>
+                    <button string="上傳" type="object" name="action_upload"
+                            class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_photo_upload_wizard" model="ir.actions.act_window">
+        <field name="name">批次上傳照片</field>
+        <field name="res_model">supervision.photo.upload.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

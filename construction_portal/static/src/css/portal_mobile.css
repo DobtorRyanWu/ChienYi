@@ -2020,6 +2020,31 @@
   display: block;
 }
 
+/* 縮圖右上角的刪除鈕（缺失改善照片）。
+   .cy-thumb 本身是 overflow:hidden，故按鈕貼在右上角內側。 */
+.cy-thumb { position: relative; }
+.cy-thumb-del-form {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+  line-height: 0;
+}
+.cy-thumb-del {
+  border: none;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  border-bottom-left-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  cursor: pointer;
+}
+.cy-thumb-del:active { background: var(--wb-red); }
+
 /* === Lightbox（全螢幕看圖 + 左右滑動）=== */
 .cy-lightbox {
   position: fixed;

@@ -123,9 +123,13 @@
                             </group>
                         </page>
                         <page string="照片與附件" name="attachments">
+                            <button name="%(construction_photo.action_photo_upload_wizard)d"
+                                    type="action" string="批次上傳照片"
+                                    class="btn-primary" icon="fa-camera"/>
                             <group>
-                                <field name="photo_ids" widget="many2many_binary"
-                                       string="檢查照片"/>
+                                <field name="photo_ids" nolabel="1" string="檢查照片" mode="kanban" create="false"
+                                       context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                                 'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
                             </group>
                         </page>
                         <page string="備註" name="notes">

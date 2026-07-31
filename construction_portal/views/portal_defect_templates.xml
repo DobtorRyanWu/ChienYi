@@ -279,14 +279,57 @@
                         </div>
                     </t>
 
+                    <!-- 照片／改善被狀態鎖擋下時的提示（後端 portal_defect.py 導回時帶參數）-->
+                    <t t-if="request.params.get('error') == 'photo_locked'">
+                        <div class="cy-event-card" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-lock"/></span>
+                            <div class="cy-event-body"><div class="cy-event-desc">此缺失已驗證／結案，照片為稽核證據不可刪除</div></div>
+                        </div>
+                    </t>
+                    <t t-if="request.params.get('error') == 'improve_locked'">
+                        <div class="cy-event-card" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-lock"/></span>
+                            <div class="cy-event-body"><div class="cy-event-desc">此缺失已驗證／結案，改善內容不可再修改</div></div>
+                        </div>
+                    </t>
+                    <t t-if="request.params.get('error') == 'need_corrective_action'">
+                        <div class="cy-event-card" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-amber);"><i class="fa fa-exclamation-triangle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-desc">
+                                    請先填寫「矯正措施」再送出。
+                                    <br/>這次送出的內容（含照片）都沒有存檔，補填後請重新選擇照片再送一次。
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- 已驗證／結案後不顯示刪除鈕（後端 portal_defect.py 亦會擋，
+                         此處同步隱藏，避免「看得到按鈕、按了失敗」）。
+                         用 portal_workflow_state 與下方提交改善表單的 gating 一致。-->
+                    <t t-set="photo_deletable"
+                       t-value="defect.portal_workflow_state not in ('verified', 'closed')"/>
+
                     <!-- 改善前照片（縮圖列，點擊開 lightbox）-->
                     <t t-if="defect.before_photo_ids">
                         <div class="cy-section-title">改善前照片</div>
                         <div class="cy-thumb-row" data-lightbox-group="before" style="margin-bottom: 14px;">
                             <t t-foreach="defect.before_photo_ids" t-as="photo">
-                                <t t-set="att_id" t-value="photo.id if photo._name == 'ir.attachment' else (photo.attachment_id.id if photo.attachment_id else False)"/>
+                                <!-- 照片收斂後 photo 一律是 supervision.photo，直接取 attachment_id -->
+                                <t t-set="att_id" t-value="photo.attachment_id.id if photo.attachment_id else False"/>
                                 <div class="cy-thumb" t-if="att_id" t-attf-data-full="/construction/img/#{att_id}">
                                     <img t-attf-src="/construction/img/#{att_id}/160x160" alt="改善前"/>
+                                    <!-- 刪除鈕：photo 是照片行時才有 line id 可刪 -->
+                                    <t t-if="photo_deletable">
+                                        <form method="post" class="cy-thumb-del-form"
+                                              t-attf-action="/construction/defect/#{defect.id}/photo/#{photo.id}/delete"
+                                              onsubmit="return confirm('確定刪除這張照片？照片管理中的同一張也會一併刪除。');">
+                                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                            <button type="submit" class="cy-thumb-del" title="刪除照片" aria-label="刪除照片">
+                                                <i class="fa fa-times"/>
+                                            </button>
+                                        </form>
+                                    </t>
                                 </div>
                             </t>
                         </div>
@@ -297,9 +340,20 @@
                         <div class="cy-section-title">改善後照片</div>
                         <div class="cy-thumb-row" data-lightbox-group="after" style="margin-bottom: 14px;">
                             <t t-foreach="defect.after_photo_ids" t-as="photo">
-                                <t t-set="att_id" t-value="photo.id if photo._name == 'ir.attachment' else (photo.attachment_id.id if photo.attachment_id else False)"/>
+                                <!-- 照片收斂後 photo 一律是 supervision.photo，直接取 attachment_id -->
+                                <t t-set="att_id" t-value="photo.attachment_id.id if photo.attachment_id else False"/>
                                 <div class="cy-thumb" t-if="att_id" t-attf-data-full="/construction/img/#{att_id}">
                                     <img t-attf-src="/construction/img/#{att_id}/160x160" alt="改善後"/>
+                                    <t t-if="photo_deletable">
+                                        <form method="post" class="cy-thumb-del-form"
+                                              t-attf-action="/construction/defect/#{defect.id}/photo/#{photo.id}/delete"
+                                              onsubmit="return confirm('確定刪除這張照片？照片管理中的同一張也會一併刪除。');">
+                                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                            <button type="submit" class="cy-thumb-del" title="刪除照片" aria-label="刪除照片">
+                                                <i class="fa fa-times"/>
+                                            </button>
+                                        </form>
+                                    </t>
                                 </div>
                             </t>
                         </div>
@@ -318,6 +372,8 @@
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                         <input type="file" name="photos" accept="image/*" capture="environment"
                                multiple="multiple" class="form-control" style="margin-bottom: 8px;"/>
+                        <t t-call="construction_portal.cy_photo_meta_fields"/>
+                        <t t-call="construction_portal.cy_photo_geo_fields"/>
                         <button type="submit" class="cy-btn cy-btn-outline" style="width: 100%;">
                             <i class="fa fa-camera"/> 上傳照片
                         </button>
@@ -373,6 +429,8 @@
                                     <input type="file" name="after_photo" accept="image/*" capture="environment"
                                            class="form-control" multiple="multiple"/>
                                 </div>
+                                <t t-call="construction_portal.cy_photo_meta_fields"/>
+                                <t t-call="construction_portal.cy_photo_geo_fields"/>
                             </div>
 
                             <button type="submit" class="cy-btn cy-btn-amber cy-btn-block"
@@ -486,6 +544,13 @@
                                     <img id="defect_photo_preview_img" style="max-width: 100%; border-radius: var(--wb-radius-sm); border: 1px solid var(--wb-bdr);" alt="預覽"/>
                                 </div>
                             </div>
+                            <!-- 必須加前綴：本表單上方的「缺失說明」textarea 也叫
+                                 name="description"，不加前綴會兩個同名欄位打架，
+                                 照片說明會被缺失的敘述文字蓋掉。 -->
+                            <t t-call="construction_portal.cy_photo_meta_fields">
+                                <t t-set="meta_prefix" t-value="'photo_'"/>
+                            </t>
+                            <t t-call="construction_portal.cy_photo_geo_fields"/>
                         </div>
 
                         <!-- 提交 -->

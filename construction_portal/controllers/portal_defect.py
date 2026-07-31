@@ -16,7 +16,8 @@ from werkzeug.exceptions import NotFound
 
 from .portal_utils import (
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
-    _photo_category_options, _photo_category_to_id, _portal_save_photos,
+    _photo_category_options, _photo_category_to_id, _post_photo_meta,
+    _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
     _haversine_km, resolve_record_type,
 )
@@ -24,6 +25,12 @@ from .portal_utils import (
 # M4-a 抽檔時漏了 _logger（只定義在 portal.py），導致三條匯入路由 POST 一進入
 # 就 NameError。函式的 globals 綁在定義它的模組，必須在本檔自行定義。
 _logger = logging.getLogger(__name__)
+
+# 已驗證／結案的缺失，其內容與照片是稽核證據，前台不可再變動。
+# 值取自 construction_quality/models/daily_defect_mixin.py 的 state Selection，
+# general 與 reservation 共用同一份定義（portal_workflow_state 亦等同 state），
+# 且 _browse_defect 只會回傳這兩個模型，故直接比對 state 不會有值集不合的問題。
+DEFECT_LOCKED_STATES = ('verified', 'closed')
 
 
 class DefectRoutesMixin:
@@ -45,6 +52,29 @@ class DefectRoutesMixin:
         """匯入頁下拉帶來的 record_type，只在資料判不出時當兜底用。"""
         rt = (post.get('record_type') or '').strip()
         return rt if rt in ('supervision', 'contractor') else 'supervision'
+
+    @staticmethod
+    def _defect_photo_meta(post):
+        """把表單的照片欄位整成 _defect_save_photos 的 meta（座標 + 三個描述欄位）。
+
+        三個上傳缺失照片的路由共用同一組座標欄位名（photo_latitude /
+        photo_longitude），與施工日誌、自主檢查一致，前端 window.cyGetGeo
+        靠 class 找欄位、不需改 JS。
+
+        說明／材料分類／拍攝地點說明走 _post_photo_meta()（兩套欄位名都收）。
+        ⚠️ 這三個欄位原本漏在這裡：三個缺失表單早就在渲染共用片段
+        cy_photo_meta_fields，但本方法只回傳座標，使用者填的值**送出後被丟掉**
+        —— 不噴錯、什麼都不會發生，只是資料庫裡永遠是空的。
+
+        缺失照片刻意**沒有** fallback：使用者明確指定只有工程告示牌與通報單
+        會在抓不到 EXIF 時沿用來源座標，缺失抓不到就留空。
+        """
+        meta = _post_photo_meta(post)
+        meta.update({
+            'latitude': post.get('photo_latitude') or 0,
+            'longitude': post.get('photo_longitude') or 0,
+        })
+        return meta
 
     @http.route(['/construction/<int:project_id>/defects/import'],
                 type='http', auth='user', website=True, methods=['GET'])
@@ -257,6 +287,11 @@ class DefectRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+
+        # H1：本路由以 .sudo() 直接 write 既有缺失的改善結果／結案說明，
+        # 原本完全沒有角色檢查 → 閱覽角色可繞過 ir.rule 改資料。
+        # 與同檔其餘寫入路由（建立缺失／提交改善／上傳照片／刪除照片）同一把尺。
+        self._require_write(_('權限不足：閱覽角色不可補充缺失改善明細'))
 
         from ..utils.defect_docx_parser import (
             parse_defect_zip, build_defect_index, match_defect, docx_hint_text)
@@ -641,7 +676,8 @@ class DefectRoutesMixin:
         # before_photo_ids 是 One2many 到照片行模型，不可用 attachment id link）
         _defect_save_photos(
             request.env, defect,
-            request.httprequest.files.getlist('photo'), 'before')
+            request.httprequest.files.getlist('photo'), 'before',
+            self._defect_photo_meta(post))
 
         return request.redirect(f'/construction/defect/{defect.id}?message=created')
 
@@ -692,17 +728,43 @@ class DefectRoutesMixin:
         # H1：提交缺失改善限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可提交缺失改善'))
 
+        # 已驗證／結案的缺失不可再改寫改善內容（原本任何狀態都會走到下方的
+        # write，closed 缺失的 improvement_result 可被整段覆寫）。結案後若真要
+        # 補充，改由後台處理。
+        if defect.state in DEFECT_LOCKED_STATES:
+            return request.redirect(
+                f'/construction/defect/{defect_id}?error=improve_locked')
+
         # 收齊文字欄位
         improvement_text = post.get('improvement_description', '').strip()
         corrective_action = post.get('corrective_action', '').strip()
         preventive_action = post.get('preventive_action', '').strip()
 
-        # 收改善後照片（建立照片行 stage=after；after_photo_ids 為 One2many
-        # 到照片行模型，不可用 attachment id link，否則 MissingError）
+        # ── 前置檢查：把最後一關提前 ────────────────────────────────────
+        # action_complete_improvement()（daily_defect_mixin.py:397）要求
+        # improvement_action 有值，否則 raise「請先填寫矯正措施」。那一關原本
+        # 排在整串動作的**最後**，等它擋下來時，前面的照片存檔與
+        # notified→improving 的狀態推進**都已經生效且不會回滾**（例外被下面的
+        # except 接住轉成 redirect，不是往上拋）。
+        #
+        # 症狀：使用者漏填矯正措施 → 看到錯誤訊息以為什麼都沒發生 → 補填重送
+        # → 照片變成兩張一模一樣的，狀態也早就被推走了。
+        #
+        # 這裡在動任何資料之前先驗一次，不合格就直接退回。
+        # 只有「這次送出會觸發狀態推進」時才需要這個欄位，所以綁在 state 上。
+        if defect.state in ('notified', 'improving') and not (
+                corrective_action or defect.improvement_action):
+            return request.redirect(
+                f'/construction/defect/{defect_id}?error=need_corrective_action')
+
+        # 收改善後照片（走共用 helper，stage=after）
         _defect_save_photos(
             request.env, defect,
-            request.httprequest.files.getlist('after_photo'), 'after')
+            request.httprequest.files.getlist('after_photo'), 'after',
+            self._defect_photo_meta(post))
 
+        # 註：全庫沒有任何模型定義 portal_submit_improvement，這個分支恆不成立，
+        # 實際一律走下面的 else。保留是為了不改動既有結構。
         if hasattr(defect, 'portal_submit_improvement'):
             defect.portal_submit_improvement(
                 improvement_text, partner,
@@ -760,8 +822,46 @@ class DefectRoutesMixin:
                 stage = 'before'
         _defect_save_photos(
             request.env, defect,
-            request.httprequest.files.getlist('photos'), stage)
+            request.httprequest.files.getlist('photos'), stage,
+            self._defect_photo_meta(post))
         return request.redirect(f'/construction/defect/{defect_id}?message=photo_added')
+
+    @http.route(['/construction/defect/<int:defect_id>/photo/<int:line_id>/delete'],
+                type='http', auth='user', website=True, methods=['POST'], csrf=True)
+    def portal_construction_defect_photo_delete(self, defect_id, line_id, **post):
+        """刪除缺失改善照片（前台）。
+
+        照片資料表收斂後，URL 的 `line_id` 就是 supervision.photo 的 id
+        （收斂前是照片行子模型的 id，那個模型已不存在）。參數名保留是為了
+        不動既有模板與網址格式。
+
+        supervision.photo.unlink() 會順手回收沒人再引用的 ir.attachment。
+        """
+        try:
+            defect = self._browse_defect(defect_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        # 與上傳路由同一把尺：閱覽角色不可刪除照片
+        self._require_write(_('權限不足：閱覽角色不可刪除照片'))
+
+        # 已驗證／結案後照片為稽核證據，前台不可移除。上傳仍不擋 —— 與施工日誌
+        # 「鎖定後可補不可刪」同一原則（portal_photo.py:63-67 vs :97-100）：
+        # 增加證據無害，移除證據破壞稽核軌跡。
+        if defect.state in DEFECT_LOCKED_STATES:
+            return request.redirect(
+                f'/construction/defect/{defect_id}?error=photo_locked')
+
+        photo = request.env['supervision.photo'].sudo().with_context(
+            active_test=False).browse(line_id)
+        # 越權防護：照片必須確實屬於這張缺失，否則可用任意 id 刪別人的照片。
+        # 兩種缺失各有自己的來源欄位，用 photo_ids 反查最不會寫錯。
+        if not photo.exists() or photo.id not in defect.photo_ids.ids:
+            return request.redirect(
+                f'/construction/defect/{defect_id}?error=photo_not_found')
+
+        photo.unlink()
+        return request.redirect(
+            f'/construction/defect/{defect_id}?message=photo_deleted')
 
     @http.route(['/construction/defect/<int:defect_id>/verify'],
                 type='http', auth='user', website=True, methods=['POST'])

@@ -143,6 +143,63 @@
                             <span class="cy-info-label">會勘日期</span>
                             <span class="cy-info-value"><t t-esc="slip.survey_date"/></span>
                         </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">地點座標</span>
+                            <span class="cy-info-value">
+                                <t t-if="slip.latitude or slip.longitude">
+                                    <t t-esc="'%.6f, %.6f' % (slip.latitude, slip.longitude)"/>
+                                </t>
+                                <t t-else="">未設定</t>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 地點座標設定：這組座標會被本通報單的照片沿用（照片本身沒有
+                         GPS EXIF 時），現場人員因此不必為每張照片填座標。 -->
+                    <t t-if="request.params.get('message') == 'geo_saved'">
+                        <div class="cy-event-card" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-green);"><i class="fa fa-check-circle"/></span>
+                            <div class="cy-event-body"><div class="cy-event-desc">地點座標已儲存</div></div>
+                        </div>
+                    </t>
+                    <t t-if="request.params.get('error') == 'geo_invalid'">
+                        <div class="cy-event-card" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-exclamation-triangle"/></span>
+                            <div class="cy-event-body"><div class="cy-event-desc">座標格式或範圍不正確（緯度 -90~90、經度 -180~180）</div></div>
+                        </div>
+                    </t>
+                    <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_slip_geo">
+                        <span>設定地點座標</span>
+                        <i class="fa fa-chevron-down" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+                    </div>
+                    <div id="sec_slip_geo" style="display: none;">
+                        <form t-attf-action="/construction/#{project.id}/slip/#{slip.id}/set-geo"
+                              method="post" style="margin-bottom: 14px;">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                                <div style="flex: 1;">
+                                    <label class="form-label" style="font-size: 0.85rem;">緯度</label>
+                                    <input type="text" name="latitude" class="form-control cy-photos-lat"
+                                           t-att-value="slip.latitude or ''" placeholder="例：25.116342"/>
+                                </div>
+                                <div style="flex: 1;">
+                                    <label class="form-label" style="font-size: 0.85rem;">經度</label>
+                                    <input type="text" name="longitude" class="form-control cy-photos-lng"
+                                           t-att-value="slip.longitude or ''" placeholder="例：121.513817"/>
+                                </div>
+                            </div>
+                            <button type="button" class="cy-btn cy-btn-outline"
+                                    style="font-size: 0.8rem; padding: 6px 14px; min-height: 36px; margin-bottom: 8px;"
+                                    onclick="cyGetGeo(this);">
+                                <i class="fa fa-crosshairs"/> 抓取目前位置
+                            </button>
+                            <button type="submit" class="cy-btn cy-btn-primary" style="width: 100%;">
+                                儲存座標
+                            </button>
+                            <div style="font-size: 0.75rem; color: var(--wb-t3); margin-top: 6px;">
+                                設定後，本通報單的照片若沒有 GPS 資訊，會自動使用這組座標。
+                            </div>
+                        </form>
                     </div>
 
                     <!-- 工期 -->
@@ -337,6 +394,10 @@
                         <input type="file" name="photos" accept="image/*" multiple="multiple"
                                capture="environment"
                                style="display: block; width: 100%; margin-bottom: 8px; font-size: 0.85rem;"/>
+                        <t t-call="construction_portal.cy_photo_meta_fields"/>
+                        <t t-call="construction_portal.cy_photo_geo_fields">
+                            <t t-set="geo_hint" t-value="'留空也沒關係：照片沒有 GPS 時會自動使用本通報單的地點座標。'"/>
+                        </t>
                         <button type="submit" class="cy-btn cy-btn-outline" style="width: 100%;">
                             <i class="fa fa-camera"/> 上傳照片
                         </button>

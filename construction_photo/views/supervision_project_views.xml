@@ -12,27 +12,23 @@
             <!-- 在 notebook 最後插入「工程告示牌」頁籤 -->
             <xpath expr="//notebook" position="inside">
                 <page string="工程告示牌" name="signboard">
-                    <group>
-                        <field name="signboard_photo_ids" widget="many2many_binary"
-                               options="{'accepted_file_extensions': 'image/*'}"
-                               nolabel="1"/>
-                    </group>
+                    <button name="%(construction_photo.action_photo_upload_wizard)d"
+                            type="action" string="批次上傳照片"
+                            class="btn-primary" icon="fa-camera"/>
+                    <field name="signboard_photo_ids" nolabel="1" mode="kanban" create="false"
+                           context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                     'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
                     <div class="alert alert-info mt-3" role="alert">
                         <i class="fa fa-info-circle"/>
-                        上傳的工程告示牌照片將自動同步至「照片管理」模組，便於統一管理與查詢。
+                        工程告示牌照片就是「照片管理」裡的同一筆記錄（照片資料表已收斂成一張），
+                        點卡片可以逐張修改說明／分類／拍攝地點說明，照片管理那邊立刻同步。
+                        照片本身若沒有 GPS 資訊，會自動沿用本工程的座標。
                     </div>
                 </page>
                 <page string="工程照片" name="project_photos">
-                    <field name="photo_ids" nolabel="1">
-                        <list>
-                            <field name="shot_date"/>
-                            <field name="description"/>
-                            <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
-                            <field name="latitude" optional="hide"/>
-                            <field name="longitude" optional="hide"/>
-                            <field name="creator_id" optional="hide"/>
-                        </list>
-                    </field>
+                    <field name="photo_ids" nolabel="1" mode="kanban" create="false"
+                           context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                     'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
                     <div class="alert alert-info mt-3" role="alert">
                         <i class="fa fa-info-circle"/>
                         此頁顯示所有關聯到本工程案件的照片（透過 supervision.photo.project_id）。

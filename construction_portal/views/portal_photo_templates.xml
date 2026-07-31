@@ -60,7 +60,7 @@
                         <t t-if="project.signboard_photo_ids">
                             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
                                 <t t-foreach="project.signboard_photo_ids" t-as="sbatt">
-                                    <img t-attf-src="/construction/img/#{sbatt.id}"
+                                    <img t-attf-src="/construction/img/#{sbatt.attachment_id.id}"
                                          style="width: 78px; height: 78px; object-fit: cover; border-radius: 6px;"/>
                                 </t>
                             </div>

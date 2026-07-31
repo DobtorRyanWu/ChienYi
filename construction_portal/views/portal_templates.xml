@@ -1,5 +1,96 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- ============================================================
+         共用片段：照片座標欄位（定位鈕 + 手填）
+
+         哪裡用：施工日誌（一般上傳／鎖定後追加）、自主檢查、檢試驗、
+                 缺失改善（新增／追加／改善後）。
+         哪裡不用：工程告示牌與通報單照片 —— 那兩種在抓不到照片 EXIF 時
+                 會自動沿用工程案件／通報單的座標，現場人員不必填。
+
+         欄位名固定 photo_latitude / photo_longitude，class 固定
+         cy-photos-lat / cy-photos-lng：window.cyGetGeo(btn) 是靠
+         btn.closest('form') 再找 class 定位欄位（portal_v10.js），
+         所以同一支 JS 可重複用在任意表單，不必為每個頁面改 JS。
+
+         t-set 參數（皆選填）：
+           geo_hint  ── 覆寫預設的說明文字
+         ============================================================ -->
+    <!-- ============================================================
+         共用片段：照片的三個描述欄位（說明／材料分類／拍攝地點說明）
+
+         使用者要求「每一張照片都要有」這三個欄位。採整批共用預設值：
+         這裡填一組，套用到本次上傳的所有照片，之後可在後台照片管理的
+         清單上逐張修改（該清單已設 editable="bottom"）。
+
+         分類選項直接在模板裡查，不必每個 controller 都往 values 塞一份
+         category_options —— 六個上傳表單分屬四支 controller。
+
+         t-set 參數（皆選填）：
+           meta_desc_hint  ── 覆寫說明欄的 placeholder
+           meta_prefix     ── 欄位名前綴。**宿主表單自己已經有 name="description"
+                              之類的欄位時必須設成 'photo_'**，否則同一張 form
+                              兩個同名欄位，瀏覽器兩個都送、post.get() 只拿得到
+                              排在前面的那個，後面那個靜默消失。
+                              新增缺失表單就是這種情況（缺失說明也叫 description）。
+                              controller 端的 _post_photo_meta() 兩套名字都收，
+                              且以帶前綴的為優先。
+         ============================================================ -->
+    <template id="cy_photo_meta_fields" name="照片描述欄位（說明／分類／地點）">
+        <t t-set="cy_photo_categories"
+           t-value="request.env['supervision.photo.category'].sudo().search([])"/>
+        <t t-set="cy_meta_prefix" t-value="meta_prefix or ''"/>
+        <div class="cy-photo-meta" style="margin-bottom: 10px;">
+            <div style="margin-bottom: 8px;">
+                <label class="form-label" style="font-size: 0.85rem;">照片說明</label>
+                <input type="text" t-att-name="cy_meta_prefix + 'description'"
+                       class="form-control"
+                       t-att-placeholder="meta_desc_hint or '這批照片的說明（之後可逐張修改）'"/>
+            </div>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <div style="flex: 1;">
+                    <label class="form-label" style="font-size: 0.85rem;">材料分類</label>
+                    <select t-att-name="cy_meta_prefix + 'category'" class="form-select">
+                        <option value="">-- 未分類 --</option>
+                        <t t-foreach="cy_photo_categories" t-as="cat">
+                            <option t-att-value="cat.id"><t t-esc="cat.name"/></option>
+                        </t>
+                    </select>
+                </div>
+                <div style="flex: 1;">
+                    <label class="form-label" style="font-size: 0.85rem;">拍攝地點說明</label>
+                    <input type="text" t-att-name="cy_meta_prefix + 'location_description'"
+                           class="form-control" placeholder="例：工地東側入口"/>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="cy_photo_geo_fields" name="照片座標欄位（定位鈕＋手填）">
+        <div class="cy-photo-geo" style="margin-bottom: 10px;">
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <div style="flex: 1;">
+                    <label class="form-label" style="font-size: 0.85rem;">緯度</label>
+                    <input type="text" name="photo_latitude"
+                           class="form-control cy-photos-lat" placeholder="例：25.116342"/>
+                </div>
+                <div style="flex: 1;">
+                    <label class="form-label" style="font-size: 0.85rem;">經度</label>
+                    <input type="text" name="photo_longitude"
+                           class="form-control cy-photos-lng" placeholder="例：121.513817"/>
+                </div>
+            </div>
+            <button type="button" class="cy-btn cy-btn-outline"
+                    style="font-size: 0.8rem; padding: 6px 14px; min-height: 36px;"
+                    onclick="cyGetGeo(this);">
+                <i class="fa fa-crosshairs"/> 抓取目前位置
+            </button>
+            <div style="font-size: 0.75rem; color: var(--wb-t3); margin-top: 6px;">
+                <t t-esc="geo_hint or '留空也沒關係：若照片本身含 GPS 資訊，系統會自動讀出拍攝地點。'"/>
+            </div>
+        </div>
+    </template>
+
     <!-- Portal 首頁工程案件選單 -->
     <template id="portal_my_home_construction" name="Portal My Home: Construction"
               customize_show="True" inherit_id="portal.portal_my_home" priority="45">

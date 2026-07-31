@@ -405,42 +405,11 @@
                                 <input type="file" name="photos" accept="image/*" multiple="multiple"
                                        class="form-control" style="padding: 10px;"/>
                             </div>
-                            <div style="margin-bottom: 10px;">
-                                <label class="form-label" style="font-size: 0.85rem;">說明(共用)</label>
-                                <input type="text" name="photo_description" class="form-control"
-                                       placeholder="這批照片的說明"/>
-                            </div>
-                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                                <div style="flex: 1;">
-                                    <label class="form-label" style="font-size: 0.85rem;">分類</label>
-                                    <select name="photo_category" class="form-select">
-                                        <option value="">--</option>
-                                        <t t-foreach="photo_categories or []" t-as="opt">
-                                            <option t-att-value="opt[0]"><t t-esc="opt[1]"/></option>
-                                        </t>
-                                    </select>
-                                </div>
-                                <div style="flex: 1;">
-                                    <label class="form-label" style="font-size: 0.85rem;">拍攝地點</label>
-                                    <input type="text" name="photo_location_description" class="form-control"
-                                           placeholder="位置說明"/>
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                                <div style="flex: 1;">
-                                    <label class="form-label" style="font-size: 0.85rem;">緯度</label>
-                                    <input type="text" name="photo_latitude" class="form-control cy-photos-lat"/>
-                                </div>
-                                <div style="flex: 1;">
-                                    <label class="form-label" style="font-size: 0.85rem;">經度</label>
-                                    <input type="text" name="photo_longitude" class="form-control cy-photos-lng"/>
-                                </div>
-                            </div>
-                            <button type="button" class="cy-btn cy-btn-outline"
-                                    style="font-size: 0.8rem; padding: 6px 14px; min-height: 36px;"
-                                    onclick="cyGetGeo(this);">
-                                <i class="fa fa-crosshairs"/> 抓取目前位置
-                            </button>
+                            <!-- 三個描述欄位與座標欄位改用共用片段，與其他上傳表單同一份定義。
+                                 原本是同樣內容的內嵌 HTML，欄位名帶 photo_ 前綴；
+                                 controller 的 _post_photo_meta() 兩套名稱都收，所以換過來不會失效。 -->
+                            <t t-call="construction_portal.cy_photo_meta_fields"/>
+                            <t t-call="construction_portal.cy_photo_geo_fields"/>
                         </div>
 
                         <!-- 提交 -->
@@ -628,40 +597,9 @@
                                 <input type="file" name="photos" accept="image/*" multiple="multiple"
                                        class="form-control" style="padding: 10px;"/>
                             </div>
-                            <div style="margin-bottom: 10px;">
-                                <label class="form-label" style="font-size: 0.85rem;">說明(共用)</label>
-                                <input type="text" name="photo_description" class="form-control"/>
-                            </div>
-                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                                <div style="flex: 1;">
-                                    <label class="form-label" style="font-size: 0.85rem;">分類</label>
-                                    <select name="photo_category" class="form-select">
-                                        <option value="">--</option>
-                                        <t t-foreach="photo_categories or []" t-as="opt">
-                                            <option t-att-value="opt[0]"><t t-esc="opt[1]"/></option>
-                                        </t>
-                                    </select>
-                                </div>
-                                <div style="flex: 1;">
-                                    <label class="form-label" style="font-size: 0.85rem;">拍攝地點</label>
-                                    <input type="text" name="photo_location_description" class="form-control"/>
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                                <div style="flex: 1;">
-                                    <label class="form-label" style="font-size: 0.85rem;">緯度</label>
-                                    <input type="text" name="photo_latitude" class="form-control cy-photos-lat"/>
-                                </div>
-                                <div style="flex: 1;">
-                                    <label class="form-label" style="font-size: 0.85rem;">經度</label>
-                                    <input type="text" name="photo_longitude" class="form-control cy-photos-lng"/>
-                                </div>
-                            </div>
-                            <button type="button" class="cy-btn cy-btn-outline"
-                                    style="font-size: 0.8rem; padding: 6px 14px; min-height: 36px;"
-                                    onclick="cyGetGeo(this);">
-                                <i class="fa fa-crosshairs"/> 抓取目前位置
-                            </button>
+                            <!-- 同一般式：改用共用片段（見上方說明） -->
+                            <t t-call="construction_portal.cy_photo_meta_fields"/>
+                            <t t-call="construction_portal.cy_photo_geo_fields"/>
                         </div>
 
                         <div style="margin-top: 20px; margin-bottom: 20px;">

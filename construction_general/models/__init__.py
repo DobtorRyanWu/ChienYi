@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from . import supervision_photo   # 照片收斂：掛「一般式缺失改善」來源欄位
 from . import general_defect_improvement
 from . import general_progress_report
 from . import general_realtime_profit

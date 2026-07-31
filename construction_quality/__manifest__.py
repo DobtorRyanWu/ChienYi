@@ -8,7 +8,17 @@
     # 2.2.2: 逾期排程上收 mixin（一般式/預約式行為一致），補上預約式缺失的 ir.cron
     # 2.2.1: post-migration 清 NCR 的 DB 殘留（DROP 4 張表 + ir_model_data 孤兒）
     # 2.2.0: daily_defect_mixin 新增 source_description（來源登錄編號）；移除 NCR(supervision.defect)
-    'version': '18.0.3.0.1',
+    # 3.1.0: 預約式缺失照片刪不掉修正（與 construction_general 同構的 5 處）
+    # 3.2.0: 預約式缺失 unlink() 補「只有草稿可刪」狀態保護（一般式早有，預約式缺 →
+    #        可整張刪掉已結案缺失，繞過前台「已驗證/結案不可刪單張照片」的限制）
+    # 4.0.0: 照片收斂 —— 移除 reservation.defect.improvement.photo 照片行模型、
+    #        兩個 legacy M2M 與兩個自主檢查的照片 M2M；全部改指 supervision.photo
+    # 4.1.0: 自主檢查與預約式缺失的後台照片頁籤加上批次上傳精靈按鈕
+    # 4.2.0: 預約式自主檢查／預約式缺失的照片，座標兜底改借所屬通報單的
+    #        施工地點（比工程案件中心點精確）
+    # 4.3.0: 照片頁籤改用共用看板；預約式缺失三階段改垂直排列（原本 group 預設兩欄造成「一左一右」）
+    # 4.4.0: 照片頁籤關掉無效的「加入」按鈕（只能建空白記錄、傳不了檔）
+    'version': '18.0.4.4.0',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """

@@ -1,7 +1,15 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 一般式工程管理',
-    'version': '18.0.2.0.0',
+    # 2.1.0: 缺失照片刪不掉修正（attachment_id ondelete restrict→set null、
+    #        照片行 write/unlink 拆鎖、註冊進 supervision.photo 反向級聯、
+    #        缺失本體 unlink 先 ORM 刪照片行避免 PG cascade 留孤兒）
+    # 3.0.0: 照片收斂 —— 移除 general.defect.improvement.photo 照片行模型與
+    #        兩個 legacy M2M；照片改用 One2many 直接指向 supervision.photo
+    # 3.1.0: 一般式缺失後台照片頁籤加上批次上傳精靈按鈕（矯正前／中／後各一顆）
+    # 3.2.0: 一般式缺失三階段照片改垂直排列 + 共用看板
+    # 3.3.0: 同上，關掉照片頁籤的「加入」按鈕
+    'version': '18.0.3.3.0',
     'category': 'Construction/General',
     'summary': '一般式工程專用管理模組',
     'description': """

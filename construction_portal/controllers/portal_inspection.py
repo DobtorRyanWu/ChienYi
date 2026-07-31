@@ -15,7 +15,8 @@ from werkzeug.exceptions import NotFound
 
 from .portal_utils import (
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
-    _photo_category_options, _photo_category_to_id, _portal_save_photos,
+    _photo_category_options, _photo_category_to_id, _post_photo_meta,
+    _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
     _haversine_km,
 )
@@ -478,14 +479,14 @@ class InspectionRoutesMixin:
         inspection = Inspection.create_from_portal(vals, partner)
 
         # 處理上傳照片
-        meta = {
-            'description': post.get('photo_description') or '',
-            'category': post.get('photo_category') or False,
+        # 三個描述欄位走 _post_photo_meta()：本表單已改用共用片段
+        # cy_photo_meta_fields（不帶前綴），helper 同時相容舊的 photo_ 前綴。
+        meta = _post_photo_meta(post)
+        meta.update({
             'source_model': 'inspection',
             'latitude': post.get('photo_latitude') or 0,
             'longitude': post.get('photo_longitude') or 0,
-            'location_description': post.get('photo_location_description') or '',
-        }
+        })
         _portal_save_photos(
             request.env, inspection, project,
             request.httprequest.files.getlist('photos'),
@@ -588,8 +589,12 @@ class InspectionRoutesMixin:
             'day_count': self._get_project_day_count(inspection.project_id),
             'nav_badges': self._get_nav_badges(inspection.project_id),
             # 照片區塊
-            'photos': inspection.photo_ids,
-            'photo_to_supervision': _portal_photo_to_supervision(request.env, inspection.photo_ids),
+            # ⚠️ 送 ir.attachment 不是 supervision.photo（見 portal_daily_log.py
+            # 同一處的說明）：共用區塊用 att.id 組圖片與刪除網址，
+            # 送錯型別會縮圖 404、刪除靜默失效。
+            'photos': inspection.photo_ids.attachment_id,
+            'photo_to_supervision': _portal_photo_to_supervision(
+                request.env, inspection.photo_ids.attachment_id),
             'photo_categories': photo_categories,
             'upload_url': f'/construction/inspection/{inspection.id}/photo/upload',
             'delete_url_tpl': f'/construction/inspection/{inspection.id}/photo/%s/delete',
@@ -749,15 +754,13 @@ class InspectionRoutesMixin:
                         'actual_result': actual_result,
                     })
 
-        # 處理上傳照片
-        meta = {
-            'description': post.get('photo_description') or '',
-            'category': post.get('photo_category') or False,
+        # 處理上傳照片（同一般式，見上方說明）
+        meta = _post_photo_meta(post)
+        meta.update({
             'source_model': 'inspection',
             'latitude': post.get('photo_latitude') or 0,
             'longitude': post.get('photo_longitude') or 0,
-            'location_description': post.get('photo_location_description') or '',
-        }
+        })
         _portal_save_photos(
             request.env, inspection, project,
             request.httprequest.files.getlist('photos'),
@@ -801,8 +804,12 @@ class InspectionRoutesMixin:
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
             # 照片區塊
-            'photos': inspection.photo_ids,
-            'photo_to_supervision': _portal_photo_to_supervision(request.env, inspection.photo_ids),
+            # ⚠️ 送 ir.attachment 不是 supervision.photo（見 portal_daily_log.py
+            # 同一處的說明）：共用區塊用 att.id 組圖片與刪除網址，
+            # 送錯型別會縮圖 404、刪除靜默失效。
+            'photos': inspection.photo_ids.attachment_id,
+            'photo_to_supervision': _portal_photo_to_supervision(
+                request.env, inspection.photo_ids.attachment_id),
             'photo_categories': photo_categories,
             'upload_url': f'/construction/reservation-inspection/{inspection.id}/photo/upload',
             'delete_url_tpl': f'/construction/reservation-inspection/{inspection.id}/photo/%s/delete',

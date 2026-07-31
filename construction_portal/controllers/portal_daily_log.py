@@ -15,7 +15,8 @@ from werkzeug.exceptions import NotFound
 
 from .portal_utils import (
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
-    _photo_category_options, _photo_category_to_id, _portal_save_photos,
+    _photo_category_options, _photo_category_to_id, _post_photo_meta,
+    _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
     _haversine_km,
 )
@@ -187,8 +188,16 @@ class DailyLogRoutesMixin:
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
             # 照片區塊變數
-            'photos': log.photo_ids,
-            'photo_to_supervision': _portal_photo_to_supervision(request.env, log.photo_ids),
+            # ⚠️ 這裡要送 ir.attachment 不是 supervision.photo。
+            # 照片收斂（2B）後 photo_ids 從 M2M→ir.attachment 變成
+            # One2many→supervision.photo，但共用區塊 portal_construction_photos_block
+            # 與 _portal_photo_to_supervision() 的契約仍是 ir.attachment：
+            # 區塊用 att.id 組 /construction/img/<att_id> 與刪除網址。
+            # 直接送照片記錄的話 att.id 會是「照片 id」被當成「附件 id」用 —— 症狀是
+            # 縮圖 404 破圖、詳情連結指向 /construction/photo/0、刪除鈕靜默失效。
+            'photos': log.photo_ids.attachment_id,
+            'photo_to_supervision': _portal_photo_to_supervision(
+                request.env, log.photo_ids.attachment_id),
             'photo_categories': photo_categories,
             'upload_url': f'/construction/daily-log/{log.id}/photo/upload',
             'delete_url_tpl': f'/construction/daily-log/{log.id}/photo/%s/delete',
@@ -501,14 +510,14 @@ class DailyLogRoutesMixin:
             line_index += 1
 
         # 處理上傳照片(統一走 helper,直建 supervision.photo)
-        meta = {
-            'description': post.get('photo_description') or '',
-            'category': post.get('photo_category') or False,
+        # 三個描述欄位走 _post_photo_meta()：本表單送 photo_ 前綴的欄位名，
+        # 共用片段 cy_photo_meta_fields 送不帶前綴的，該 helper 兩套都收。
+        meta = _post_photo_meta(post)
+        meta.update({
             'source_model': 'daily_log',
             'latitude': post.get('photo_latitude') or 0,
             'longitude': post.get('photo_longitude') or 0,
-            'location_description': post.get('photo_location_description') or '',
-        }
+        })
         _portal_save_photos(
             request.env,
             log,
@@ -637,14 +646,12 @@ class DailyLogRoutesMixin:
         })
 
         # 編輯時若有上傳新照片
-        meta = {
-            'description': post.get('photo_description') or '',
-            'category': post.get('photo_category') or False,
+        meta = _post_photo_meta(post)
+        meta.update({
             'source_model': 'daily_log',
             'latitude': post.get('photo_latitude') or 0,
             'longitude': post.get('photo_longitude') or 0,
-            'location_description': post.get('photo_location_description') or '',
-        }
+        })
         _portal_save_photos(
             request.env, log, project,
             request.httprequest.files.getlist('photos'),

@@ -8,22 +8,21 @@ class SupervisionProject(models.Model):
     擴展工程案件主檔 - 工程告示牌照片
 
     設計說明：
-    - 從 construction_photo 模組擴展 supervision.project
-    - 加入 photo.sync.mixin 繼承，提供照片自動同步功能
-    - 加入工程告示牌照片欄位
-    - 照片自動同步至照片管理模組
+    - 照片資料表收斂後，告示牌照片直接就是 supervision.photo，
+      靠 signboard_project_id 掛在工程案件上，不再經過 M2M 中間表，
+      也不再需要 photo.sync.mixin 把附件「同步」成照片。
     """
-    # list 形式 _inherit 混入 mixin 時，必須顯式指定 _name，否則 Odoo 會用類別名當新 model
-    _name = 'project.project'
-    _inherit = ['project.project', 'photo.sync.mixin']
+    _inherit = 'project.project'
 
     # === 工程告示牌 ===
-    signboard_photo_ids = fields.Many2many(
-        'ir.attachment',
-        'supervision_project_signboard_photo_rel',
-        'project_id', 'attachment_id',
+    # 收斂前：Many2many('ir.attachment', 'supervision_project_signboard_photo_rel')
+    # 收斂後：One2many('supervision.photo')。好處是告示牌照片天生就有
+    # 說明／分類／拍攝地點說明／座標，而 ir.attachment 放不下這些欄位。
+    signboard_photo_ids = fields.One2many(
+        'supervision.photo',
+        'signboard_project_id',
         string='工程告示牌照片',
-        help='上傳工程告示牌照片，將自動同步至照片管理模組')
+        help='工程告示牌照片。照片本身沒有 GPS 時會自動沿用本工程的座標。')
 
     # === 工程照片（所有關聯到此專案的 supervision.photo） ===
     photo_ids = fields.One2many(
@@ -54,17 +53,3 @@ class SupervisionProject(models.Model):
             'domain': [('project_id', '=', self.id)],
             'context': {'default_project_id': self.id},
         }
-
-    # === 照片自動同步配置 ===
-    def _get_photo_sync_config(self):
-        """配置工程告示牌照片同步規則"""
-        config = super()._get_photo_sync_config() if hasattr(super(), '_get_photo_sync_config') else {}
-        config.update({
-            'signboard_photo_ids': {
-                'source_model': 'other',
-                'name_prefix': '工程告示牌',
-                'description_template': '工程名稱：{record.name}\n工程地點：{record.location}',
-                'location_field': 'location',
-            },
-        })
-        return config

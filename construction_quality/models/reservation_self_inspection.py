@@ -15,7 +15,8 @@ class ReservationSelfInspection(models.Model):
     """
     _name = 'reservation.self.inspection'
     _description = '預約式自主檢查 (通報單內)'
-    _inherit = ['mail.thread', 'photo.sync.mixin']
+    # photo.sync.mixin 已隨照片資料表收斂退場
+    _inherit = ['mail.thread']
     _order = 'inspection_date desc, id desc'
     _rec_name = 'sub_project_name'   # 以分項工程名稱顯示，較易辨識是哪張檢查單
 
@@ -133,10 +134,10 @@ class ReservationSelfInspection(models.Model):
             record.has_defect = record.defect_count > 0
 
     # === 附件 ===
-    photo_ids = fields.Many2many(
-        'ir.attachment',
-        'reservation_inspection_photo_rel',
-        'inspection_id', 'attachment_id',
+    # 照片資料表收斂：見 models/supervision_photo.py
+    photo_ids = fields.One2many(
+        'supervision.photo',
+        'reservation_inspection_id',
         string='檢查照片')
 
     # === 備註 ===
@@ -235,18 +236,7 @@ class ReservationSelfInspection(models.Model):
                     vals['responsible_user_id'] = user.id
         return super().create(vals_list)
     
-    # === 照片自動同步配置 ===
-    def _get_photo_sync_config(self):
-        """配置照片同步規則"""
-        return {
-            'photo_ids': {
-                'source_model': 'inspection',
-                'name_prefix': '檢查照片',
-                'description_template': '通報單：{record.slip_id.name}\n檢查類型：{record.inspection_type_id.name}',
-                'location_field': 'inspection_location',
-                'auto_tag': '自主檢查',
-            },
-        }
+    # 照片收斂後不再需要 _get_photo_sync_config()
 
 
 class ReservationSelfInspectionItem(models.Model):

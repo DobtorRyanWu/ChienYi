@@ -15,7 +15,8 @@ from werkzeug.exceptions import NotFound
 
 from .portal_utils import (
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
-    _photo_category_options, _photo_category_to_id, _portal_save_photos,
+    _photo_category_options, _photo_category_to_id, _post_photo_meta,
+    _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
     _haversine_km,
 )
@@ -354,6 +355,38 @@ class MiscRoutesMixin:
         return self._run_review_action(
             slip, 'action_close',
             f'/construction/{project_id}/slip/{slip_id}', f'/construction/{project_id}/slip/{slip_id}')
+
+    @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/set-geo'],
+                type='http', auth='user', website=True, methods=['POST'], csrf=True)
+    def portal_slip_set_geo(self, project_id, slip_id, **post):
+        """通報單：設定施工地點座標。
+
+        這組座標的用途是讓**本通報單的照片**在沒有 GPS EXIF 時自動沿用
+        （見 portal_photo.py 的通報單照片上傳），現場人員因此不必逐張填座標。
+        通報單代表工區內一個特定地點，比工程案件的中心點精確。
+        """
+        try:
+            project = self._document_check_access('project.project', project_id)
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+        self._require_write(_('權限不足：閱覽角色不可修改通報單'))
+        slip = request.env['reservation.notification.slip'].sudo().search(
+            [('id', '=', slip_id), ('project_id', '=', project.id)], limit=1)
+        back = f'/construction/{project_id}/slip/{slip_id}'
+        if not slip:
+            return request.redirect(f'/construction/{project_id}/slips')
+        try:
+            lat = float(post.get('latitude') or 0)
+            lng = float(post.get('longitude') or 0)
+        except (TypeError, ValueError):
+            return request.redirect(f'{back}?error=geo_invalid')
+        try:
+            # 範圍由模型的 _check_slip_coordinates 把關，這裡只負責把錯誤
+            # 轉成前台看得懂的訊息，而不是丟一頁 500。
+            slip.write({'latitude': lat, 'longitude': lng})
+        except ValidationError:
+            return request.redirect(f'{back}?error=geo_invalid')
+        return request.redirect(f'{back}?message=geo_saved')
 
     @http.route(['/construction/<int:project_id>/schedule/extend'],
                 type='http', auth='user', website=True)

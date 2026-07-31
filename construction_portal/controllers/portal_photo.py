@@ -15,10 +15,23 @@ from werkzeug.exceptions import NotFound
 
 from .portal_utils import (
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
-    _photo_category_options, _photo_category_to_id, _portal_save_photos,
+    _photo_category_options, _photo_category_to_id, _post_photo_meta,
+    _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
     _haversine_km,
 )
+
+
+def _post_geo(post):
+    """從表單取照片座標，回 (lat, lng)。
+
+    欄位名在本 codebase 有兩套並存：共用模板 cy_photo_geo_fields 與施工日誌
+    主上傳表單送的是 photo_latitude / photo_longitude，較早的幾條路由讀的是
+    latitude / longitude。兩者都收，避免哪一邊改了另一邊靜默失效
+    ——這種錯不會噴例外，只會讓座標恆為 0、照片默默不出現在地圖上。
+    """
+    return (post.get('photo_latitude') or post.get('latitude') or 0,
+            post.get('photo_longitude') or post.get('longitude') or 0)
 
 
 class PhotoRoutesMixin:
@@ -65,14 +78,12 @@ class PhotoRoutesMixin:
         # A（2026-07-14）：照片為附加證據、不改動已定稿的日誌欄位內容，
         # 故鎖定（超過 14 天）的日誌仍允許「補上照片」（歷史建檔需求）。
         # 日誌內容編輯仍受 is_locked 保護（在編輯路由把關），此處只加照片。
-        meta = {
-            'description': post.get('description') or '',
-            'category': post.get('category') or False,
+        meta = _post_photo_meta(post)
+        meta.update({
             'source_model': 'daily_log',
-            'latitude': post.get('latitude') or 0,
-            'longitude': post.get('longitude') or 0,
-            'location_description': post.get('location_description') or '',
-        }
+            'latitude': _post_geo(post)[0],
+            'longitude': _post_geo(post)[1],
+        })
         _portal_save_photos(
             request.env, log, project,
             request.httprequest.files.getlist('photos'),
@@ -99,7 +110,10 @@ class PhotoRoutesMixin:
                 f'/construction/{project.id}/daily-log/{log.id}?error=locked'
             )
 
-        if att_id in log.photo_ids.ids:
+        # 比對附件 id 而非照片 id：收斂後 photo_ids.ids 是 supervision.photo 的 id，
+        # 但本路由的 att_id 來自模板組出的 /photo/<att_id>/delete（附件 id），
+        # 兩者對不上會讓守衛永遠不成立、刪除靜默失效。
+        if att_id in log.photo_ids.attachment_id.ids:
             _portal_delete_photo(request.env, log, att_id)
 
         return request.redirect(
@@ -117,14 +131,12 @@ class PhotoRoutesMixin:
             return request.redirect('/my')
         # H1：追加照片限現場人員以上，閱覽角色不可上傳
         self._require_write(_('權限不足：閱覽角色不可上傳照片'))
-        meta = {
-            'description': post.get('description') or '',
-            'category': post.get('category') or False,
+        meta = _post_photo_meta(post)
+        meta.update({
             'source_model': 'inspection',
-            'latitude': post.get('latitude') or 0,
-            'longitude': post.get('longitude') or 0,
-            'location_description': post.get('location_description') or '',
-        }
+            'latitude': _post_geo(post)[0],
+            'longitude': _post_geo(post)[1],
+        })
         _portal_save_photos(
             request.env, inspection, inspection.project_id,
             request.httprequest.files.getlist('photos'),
@@ -143,7 +155,8 @@ class PhotoRoutesMixin:
                 'general.self.inspection', inspection_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
-        if att_id in inspection.photo_ids.ids:
+        # 同施工日誌：比對附件 id 而非照片 id
+        if att_id in inspection.photo_ids.attachment_id.ids:
             _portal_delete_photo(request.env, inspection, att_id)
         return request.redirect(
             f'/construction/inspection/{inspection.id}?message=photo_deleted'
@@ -163,14 +176,12 @@ class PhotoRoutesMixin:
             return request.redirect('/my')
         # H1：追加照片限現場人員以上，閱覽角色不可上傳
         self._require_write(_('權限不足：閱覽角色不可上傳照片'))
-        meta = {
-            'description': post.get('description') or '',
-            'category': post.get('category') or False,
+        meta = _post_photo_meta(post)
+        meta.update({
             'source_model': 'inspection',
-            'latitude': post.get('latitude') or 0,
-            'longitude': post.get('longitude') or 0,
-            'location_description': post.get('location_description') or '',
-        }
+            'latitude': _post_geo(post)[0],
+            'longitude': _post_geo(post)[1],
+        })
         _portal_save_photos(
             request.env, inspection, project,
             request.httprequest.files.getlist('photos'),
@@ -192,7 +203,8 @@ class PhotoRoutesMixin:
                 'project.project', inspection.project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
-        if att_id in inspection.photo_ids.ids:
+        # 同施工日誌：比對附件 id 而非照片 id
+        if att_id in inspection.photo_ids.attachment_id.ids:
             _portal_delete_photo(request.env, inspection, att_id)
         return request.redirect(
             f'/construction/reservation-inspection/{inspection.id}?message=photo_deleted'
@@ -303,33 +315,32 @@ class PhotoRoutesMixin:
     @http.route(['/construction/<int:project_id>/signboard/photo/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_signboard_photo_upload(self, project_id, **post):
-        """C（2026-07-14）：工程告示牌照片上傳（專案層級 signboard_photo_ids）。"""
+        """工程告示牌照片上傳（專案層級 signboard_photo_ids）。
+
+        照片資料表收斂後改走共用的 _portal_save_photos：原本這裡自己建
+        ir.attachment 再寫 M2M，是「格式不統一」的來源之一（說明欄位是系統
+        套版產生、不是使用者填的）。現在與其他入口完全同一條路徑。
+
+        signboard_project_id 這個來源欄位由 _photo_source_field() 依 record
+        型別自動選出，所以 record 直接傳 project 即可。
+        """
         try:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
         # H1：告示牌照片上傳限現場人員以上，閱覽角色不可上傳
         self._require_write(_('權限不足：閱覽角色不可上傳照片'))
-        att_ids = []
-        for f in request.httprequest.files.getlist('photos'):
-            if not f or not f.filename:
-                continue
-            data = f.read()
-            if not data:
-                continue
-            att = request.env['ir.attachment'].sudo().create({
-                'name': f.filename,
-                'datas': base64.b64encode(data),
-                'res_model': 'project.project',
-                'res_id': project.id,
-                'mimetype': f.mimetype or 'image/jpeg',
-                # M0.6：告示牌照片不再 public，前台走 /construction/img/<att_id>
-                'public': False,
-            })
-            att_ids.append(att.id)
-        if att_ids:
-            project.sudo().write(
-                {'signboard_photo_ids': [(4, aid) for aid in att_ids]})
+        _portal_save_photos(
+            request.env, project, project,
+            request.httprequest.files.getlist('photos'),
+            dict(_post_photo_meta(post),
+                 source_model='other',
+                 latitude=_post_geo(post)[0],
+                 longitude=_post_geo(post)[1],
+                 # 告示牌是使用者指定「可繼承座標」的兩個來源之一：
+                 # 告示牌實體就立在工地，照片沒 GPS 時用工程座標誤差可接受。
+                 fallback_latitude=project.latitude,
+                 fallback_longitude=project.longitude))
         return request.redirect(
             f'/construction/{project.id}/photos?message=signboard_added')
 
@@ -489,9 +500,14 @@ class PhotoRoutesMixin:
         files = request.httprequest.files.getlist('photos')
         _portal_save_photos(
             request.env, test, project, files,
-            {'source_model': 'test',
-             'description': post.get('description') or '',
-             'location_description': post.get('location_description') or ''})
+            # 原本這裡漏了 category（表單有下拉、送出後被丟掉），改走
+            # _post_photo_meta() 一次補齊說明／分類／拍攝地點說明三欄。
+            dict(_post_photo_meta(post),
+                 source_model='test',
+                 # 檢試驗照片不繼承任何座標（只有告示牌與通報單繼承）：
+                 # 抓不到 EXIF 又沒按定位鈕就留空。
+                 latitude=_post_geo(post)[0],
+                 longitude=_post_geo(post)[1]))
         return request.redirect(f'/construction/{project_id}/test/{test_id}?message=photo_added')
 
     @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/photo/upload'],
@@ -515,9 +531,17 @@ class PhotoRoutesMixin:
         files = request.httprequest.files.getlist('photos')
         _portal_save_photos(
             request.env, slip, project, files,
-            {'source_model': 'notification',
-             'description': post.get('description') or '',
-             'location_description': post.get('location_description') or ''})
+            # 原本這裡漏了 category（同檢試驗）。
+            dict(_post_photo_meta(post),
+                 source_model='notification',
+                 # 使用者可手填／按定位鈕；沒填時退回通報單本身的座標。
+                 latitude=_post_geo(post)[0],
+                 longitude=_post_geo(post)[1],
+                 # 通報單是少數允許「照片沒 GPS 就繼承來源座標」的入口之一
+                 # （另一個是工程告示牌）。通報單代表工區內一個特定地點，
+                 # 比工程案件中心點精確，且現場人員因此不必逐張填座標。
+                 fallback_latitude=slip.latitude,
+                 fallback_longitude=slip.longitude))
         return request.redirect(f'/construction/{project_id}/slip/{slip_id}?message=photo_added')
 
     @http.route(['/construction/<int:project_id>/photos',

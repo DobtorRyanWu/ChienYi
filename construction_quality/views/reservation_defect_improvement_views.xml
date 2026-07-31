@@ -188,143 +188,55 @@
 
                         <!-- 照片附件 -->
                         <page string="照片附件" name="photos">
-                            <group invisible="id">
-                                <group string="缺失照片">
-                                    <field name="before_photo_ids" nolabel="1" context="{'default_photo_stage': 'before'}">
-                                        <kanban>
-                                            <field name="image"/>
-                                            <field name="image_filename"/>
-                                            <field name="upload_time"/>
-                                            <field name="description"/>
-                                            <templates>
-                                                <t t-name="card">
-                                                    <div class="oe_kanban_global_click">
-                                                        <div class="o_kanban_image">
-                                                            <field name="image" widget="image" options="{'size': [150, 150]}"/>
-                                                        </div>
-                                                        <div class="oe_kanban_details">
-                                                            <strong><field name="image_filename"/></strong>
-                                                            <div><field name="upload_time"/></div>
-                                                            <div><field name="description"/></div>
-                                                        </div>
-                                                    </div>
-                                                </t>
-                                            </templates>
-                                        </kanban>
-                                        <form>
-                                            <group>
-                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
-                                                <field name="image_filename"/>
-                                                <field name="upload_time"/>
-                                                <field name="description"/>
-                                                <field name="photo_stage" invisible="1"/>
-                                            </group>
-                                        </form>
-                                    </field>
-                                </group>
-                            </group>
+                            <!-- 批次上傳：三階段各一顆。只在編輯模式出現 ——
+                                 記錄尚未存檔時沒有 active_id，精靈無從得知要掛哪筆缺失。 -->
+                            <div class="mb-2" invisible="not id">
+                                <button name="%(construction_photo.action_photo_upload_wizard)d"
+                                        type="action" string="上傳 矯正前照片"
+                                        class="btn-primary" icon="fa-camera"
+                                        context="{'default_photo_stage': 'before'}"/>
+                                <button name="%(construction_photo.action_photo_upload_wizard)d"
+                                        type="action" string="上傳 矯正中照片"
+                                        class="btn-secondary" icon="fa-camera"
+                                        context="{'default_photo_stage': 'during'}"/>
+                                <button name="%(construction_photo.action_photo_upload_wizard)d"
+                                        type="action" string="上傳 矯正後照片"
+                                        class="btn-secondary" icon="fa-camera"
+                                        context="{'default_photo_stage': 'after'}"/>
+                            </div>
 
-                            <group invisible="not id">
-                                <group string="矯正及預防前">
-                                    <field name="before_photo_ids" nolabel="1" context="{'default_photo_stage': 'before'}">
-                                        <kanban>
-                                            <field name="image"/>
-                                            <field name="image_filename"/>
-                                            <field name="upload_time"/>
-                                            <field name="description"/>
-                                            <templates>
-                                                <t t-name="card">
-                                                    <div class="oe_kanban_global_click">
-                                                        <div class="o_kanban_image">
-                                                            <field name="image" widget="image" options="{'size': [150, 150]}"/>
-                                                        </div>
-                                                        <div class="oe_kanban_details">
-                                                            <strong><field name="image_filename"/></strong>
-                                                            <div><field name="upload_time"/></div>
-                                                            <div><field name="description"/></div>
-                                                        </div>
-                                                    </div>
-                                                </t>
-                                            </templates>
-                                        </kanban>
-                                        <form>
-                                            <group>
-                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
-                                                <field name="image_filename"/>
-                                                <field name="upload_time"/>
-                                                <field name="description"/>
-                                                <field name="photo_stage" invisible="1"/>
-                                            </group>
-                                        </form>
-                                    </field>
-                                </group>
-                                <group string="矯正及預防中">
-                                    <field name="during_photo_ids" nolabel="1" context="{'default_photo_stage': 'during'}">
-                                        <kanban>
-                                            <field name="image"/>
-                                            <field name="image_filename"/>
-                                            <field name="upload_time"/>
-                                            <field name="description"/>
-                                            <templates>
-                                                <t t-name="card">
-                                                    <div class="oe_kanban_global_click">
-                                                        <div class="o_kanban_image">
-                                                            <field name="image" widget="image" options="{'size': [150, 150]}"/>
-                                                        </div>
-                                                        <div class="oe_kanban_details">
-                                                            <strong><field name="image_filename"/></strong>
-                                                            <div><field name="upload_time"/></div>
-                                                            <div><field name="description"/></div>
-                                                        </div>
-                                                    </div>
-                                                </t>
-                                            </templates>
-                                        </kanban>
-                                        <form>
-                                            <group>
-                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
-                                                <field name="image_filename"/>
-                                                <field name="upload_time"/>
-                                                <field name="description"/>
-                                                <field name="photo_stage" invisible="1"/>
-                                            </group>
-                                        </form>
-                                    </field>
-                                </group>
-                                <group string="矯正及預防後">
-                                    <field name="after_photo_ids" nolabel="1" context="{'default_photo_stage': 'after'}">
-                                        <kanban>
-                                            <field name="image"/>
-                                            <field name="image_filename"/>
-                                            <field name="upload_time"/>
-                                            <field name="description"/>
-                                            <templates>
-                                                <t t-name="card">
-                                                    <div class="oe_kanban_global_click">
-                                                        <div class="o_kanban_image">
-                                                            <field name="image" widget="image" options="{'size': [150, 150]}"/>
-                                                        </div>
-                                                        <div class="oe_kanban_details">
-                                                            <strong><field name="image_filename"/></strong>
-                                                            <div><field name="upload_time"/></div>
-                                                            <div><field name="description"/></div>
-                                                        </div>
-                                                    </div>
-                                                </t>
-                                            </templates>
-                                        </kanban>
-                                        <form>
-                                            <group>
-                                                <field name="image" widget="image" options="{'size': [0, 400]}"/>
-                                                <field name="image_filename"/>
-                                                <field name="upload_time"/>
-                                                <field name="description"/>
-                                                <field name="photo_stage" invisible="1"/>
-                                            </group>
-                                        </form>
-                                    </field>
-                                </group>
-                            </group>
+                            <!-- 三個階段**垂直排列**（與一般式缺失同步）。
+                                 原本外層 <group> 包三個內層 <group>，Odoo 的 group
+                                 預設兩欄 → 前／中 並排、後 掉到第二列，看起來像
+                                 「一左一右」。改用 <separator> 直接堆在 page 底下。 -->
+
+                            <div invisible="id">
+                                <separator string="缺失照片"/>
+                                <field name="before_photo_ids" nolabel="1" mode="kanban" create="false"
+                                       context="{'default_photo_stage': 'before',
+                                                 'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                                 'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
+                            </div>
+
+                            <div invisible="not id">
+                                <separator string="矯正及預防前"/>
+                                <field name="before_photo_ids" nolabel="1" mode="kanban" create="false"
+                                       context="{'default_photo_stage': 'before',
+                                                 'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                                 'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
+
+                                <separator string="矯正及預防中"/>
+                                <field name="during_photo_ids" nolabel="1" mode="kanban" create="false"
+                                       context="{'default_photo_stage': 'during',
+                                                 'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                                 'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
+
+                                <separator string="矯正及預防後"/>
+                                <field name="after_photo_ids" nolabel="1" mode="kanban" create="false"
+                                       context="{'default_photo_stage': 'after',
+                                                 'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                                 'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
+                            </div>
 
                             <group string="相關文件附件">
                                 <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>

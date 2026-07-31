@@ -4,7 +4,11 @@
 
 {
     "name": "工程監造系統 - 施工日誌",
-    "version": "18.0.1.0.0",
+    # 2.0.0: 照片收斂 —— photo_ids 從 M2M(ir.attachment) 改成 One2many(supervision.photo)
+    # 2.1.0: 後台照片頁籤加上批次上傳精靈按鈕（鎖定且未解鎖時隱藏）
+    # 2.2.0: 照片頁籤改用共用看板
+    # 2.3.0: 同上，關掉照片頁籤的「加入」按鈕
+    "version": "18.0.2.3.0",
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """

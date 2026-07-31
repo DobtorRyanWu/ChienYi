@@ -172,17 +172,35 @@ class SupervisionProject(models.Model):
         string='總核定工期(日)',
         compute='_compute_total_approved_duration',
         store=True,
-        help='原契約工期 + 核准展延工期',
+        help='原始核定工期 + 核准展延工期',
     )
 
-    @api.depends('contract_duration', 'extension_duration')
+    @api.depends('original_duration', 'contract_duration', 'extension_duration')
     def _compute_total_approved_duration(self):
-        """計算總核定工期"""
+        """總核定工期 = 原始核定工期 + 累計核准展延。
+
+        ⚠️ 基數必須用 original_duration（開工時凍結），**不能用 contract_duration**。
+
+        contract_duration 是 contract_end_date − contract_start_date + 1
+        （見 _compute_contract_duration），而 contract_end_date 會被進度表啟用
+        （progress.schedule 的 _do_activate）推到展延後的日期 —— 也就是說
+        **contract_duration 本身已經含了展延**。再加 extension_duration 就是加兩次。
+
+        實例（P11001，2026-08-01 實測）：
+            原始工期 150（開工 2021-07-17 → 原始完工 2021-12-13）
+            進度表 v3 +16、v4 −2 → 累計展延 14
+            正確：150 + 14 = 164（與進度表 v4 的 total_duration 一致）
+            舊算法：contract_duration(164，已含展延) + 14 = 178  ✗
+        178 這個數字曾被記錄在匯入手冊裡當成「資料填法錯誤」的案例，
+        但實測資料填法正確時仍然算出 178 —— 根因一直是這裡。
+
+        `or contract_duration` 是給「尚未開工」的專案用的：original_duration
+        由 action_construct 在開工時才凍結，之前是 0，此時退回用當前工期
+        （那時也還沒有展延，兩者相等）。
+        """
         for project in self:
-            project.total_approved_duration = (
-                (project.contract_duration or 0) + 
-                (project.extension_duration or 0)
-            )
+            base = project.original_duration or project.contract_duration or 0
+            project.total_approved_duration = base + (project.extension_duration or 0)
 
     @api.depends('task_ids.planned_amount', 'task_ids.active', 'task_ids.parent_id')
     def _compute_contract_amount(self):
@@ -280,6 +298,27 @@ class SupervisionProject(models.Model):
     location_detail = fields.Text(string='詳細位置說明')
     latitude = fields.Float(string='緯度', digits=(10, 7))
     longitude = fields.Float(string='經度', digits=(10, 7))
+
+    @api.constrains('latitude', 'longitude')
+    def _check_project_coordinates(self):
+        """工程案件座標範圍檢查。
+
+        原本完全沒有這道關卡（supervision.photo 有、專案沒有），使用者實際填過
+        經緯度顛倒的值（緯度 121.51，超過 90 根本不是合法緯度）而系統照收。
+
+        影響不只是後台地圖以專案為中心時會飛到錯的位置：工程告示牌照片會
+        **繼承**這組座標（construction_photo/models/supervision_project.py 的
+        _get_photo_fallback_geo），一筆錯值會擴散到每一張告示牌照片。
+
+        0.0 視為未填直接放行 —— 這兩個欄位是純 Float 無預設值，系統裡大量
+        專案本來就是 0，把 0 當非法會擋掉正常操作。寫法與
+        construction_photo/models/supervision_photo.py 的 _check_gps_coordinates 一致。
+        """
+        for project in self:
+            if project.latitude and not -90 <= project.latitude <= 90:
+                raise ValidationError('緯度必須在 -90 到 90 之間！')
+            if project.longitude and not -180 <= project.longitude <= 180:
+                raise ValidationError('經度必須在 -180 到 180 之間！')
 
     # === 狀態管理 ===
     state = fields.Selection([

@@ -212,6 +212,11 @@
                         <input type="file" name="photos" accept="image/*" multiple="multiple"
                                capture="environment"
                                style="display: block; width: 100%; margin-bottom: 8px; font-size: 0.85rem;"/>
+                        <!-- 說明欄由 cy_photo_meta_fields 提供；此處原本另有一個
+                             同名 name="description" 的 input，同一張 form 兩個同名
+                             欄位取值不確定，已移除。 -->
+                        <t t-call="construction_portal.cy_photo_meta_fields"/>
+                        <t t-call="construction_portal.cy_photo_geo_fields"/>
                         <button type="submit" class="cy-btn cy-btn-outline" style="width: 100%;">
                             <i class="fa fa-camera"/> 上傳照片
                         </button>

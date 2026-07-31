@@ -30,7 +30,8 @@ class DailyLogSheet(models.Model):
     """
     _name = 'daily.log.sheet'
     _description = 'Construction Daily Log Sheet'
-    _inherit = ['mail.thread', 'mail.activity.mixin', 'photo.sync.mixin']
+    # photo.sync.mixin 已隨照片資料表收斂退場（照片就是 supervision.photo 本身）
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'state_sequence asc, log_date asc, id asc'
     _rec_name = 'complete_name'
 
@@ -381,12 +382,15 @@ class DailyLogSheet(models.Model):
     )
 
     # === 施工照片 ===
-    photo_ids = fields.Many2many(
-        'ir.attachment',
-        'daily_log_sheet_photo_rel',
-        'sheet_id', 'attachment_id',
+    # 照片資料表收斂：原本是 Many2many('ir.attachment', 'daily_log_sheet_photo_rel')
+    # 再靠 photo.sync.mixin 同步出一份 supervision.photo。收斂後照片就是
+    # supervision.photo 本身，沒有中間表也沒有同步，且每張照片天生帶有
+    # 說明／材料分類／拍攝地點說明／座標（ir.attachment 放不下這些欄位）。
+    photo_ids = fields.One2many(
+        'supervision.photo',
+        'daily_log_id',
         string='施工照片',
-        help='上傳本日施工現場照片，將自動同步至照片管理模組')
+        help='本日施工現場照片')
 
     # === Notes ===
     work_summary = fields.Text(
@@ -900,18 +904,7 @@ class DailyLogSheet(models.Model):
             },
         }
 
-    # -------------------------------------------------------------------------
-    # 照片自動同步配置
-    # -------------------------------------------------------------------------
-
-    def _get_photo_sync_config(self):
-        """配置施工日誌照片同步規則"""
-        return {
-            'photo_ids': {
-                'source_model': 'daily_log',
-                'name_prefix': '施工日誌照片',
-                'description_template': '工程：{record.supervision_project_id.name}\n日期：{record.log_date}',
-            },
-        }
+    # 照片資料表收斂後不再需要 _get_photo_sync_config()：照片就是
+    # supervision.photo 本身（photo_ids 是 One2many），沒有「同步」這件事。
 
 

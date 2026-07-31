@@ -15,7 +15,8 @@ class GeneralSelfInspection(models.Model):
     """
     _name = 'general.self.inspection'
     _description = '一般式自主檢查'
-    _inherit = ['mail.thread', 'mail.activity.mixin', 'photo.sync.mixin']
+    # photo.sync.mixin 已隨照片資料表收斂退場
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'inspection_date desc, id desc'
     _rec_name = 'sub_project_name'   # 以分項工程名稱顯示，較易辨識是哪張檢查單
 
@@ -158,10 +159,11 @@ class GeneralSelfInspection(models.Model):
                 record.overall_result = 'conditional_pass'
 
     # === 附件 ===
-    photo_ids = fields.Many2many(
-        'ir.attachment',
-        'general_inspection_photo_rel',
-        'inspection_id', 'attachment_id',
+    # 照片資料表收斂：原為 M2M→ir.attachment + photo.sync.mixin 同步，
+    # 現在照片就是 supervision.photo 本身（見 models/supervision_photo.py）。
+    photo_ids = fields.One2many(
+        'supervision.photo',
+        'general_inspection_id',
         string='檢查照片')
 
     attachment_ids = fields.Many2many(
@@ -277,44 +279,16 @@ class GeneralSelfInspection(models.Model):
                     vals['responsible_user_id'] = user.id
         return super().create(vals_list)
     
-    # === 照片自動同步配置 ===
-    def _get_photo_sync_config(self):
-        """配置照片同步規則"""
-        return {
-            'photo_ids': {
-                'source_model': 'inspection',
-                'name_prefix': '檢查照片',
-                'description_template': '檢查類型：{record.inspection_type_id.name}\n檢查地點：{record.inspection_location}',
-                'location_field': 'inspection_location',
-                'auto_tag': '自主檢查',
-            },
-        }
-
-    # === 關聯照片（反向 from supervision.photo.source_id） ===
-    related_photo_ids = fields.Many2many(
-        'supervision.photo',
-        compute='_compute_related_photo_ids',
-        string='關聯照片',
-        help='來源為此自主檢查的照片（透過 supervision.photo.source_id 反查）')
-
+    # 照片收斂後不再需要 _get_photo_sync_config()（沒有「同步」這件事），
+    # 也不再需要 related_photo_ids 反查 —— photo_ids 本身就是 supervision.photo。
     related_photo_count = fields.Integer(
         string='照片數',
-        compute='_compute_related_photo_ids')
+        compute='_compute_related_photo_count')
 
-    @api.depends()
-    def _compute_related_photo_ids(self):
-        Photo = self.env['supervision.photo']
+    @api.depends('photo_ids')
+    def _compute_related_photo_count(self):
         for rec in self:
-            if not rec.id:
-                rec.related_photo_ids = False
-                rec.related_photo_count = 0
-                continue
-            photos = Photo.search([
-                ('source_model', '=', 'inspection'),
-                ('source_id', '=', rec.id),
-            ])
-            rec.related_photo_ids = photos
-            rec.related_photo_count = len(photos)
+            rec.related_photo_count = len(rec.photo_ids)
 
 
 class GeneralSelfInspectionItem(models.Model):

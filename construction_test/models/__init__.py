@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from . import supervision_photo   # 照片收斂：掛「檢試驗記錄」來源欄位
 from . import test_standard
 from . import test_record
 from . import test_frequency_condition

@@ -41,6 +41,14 @@
                             <field name="slip_number" readonly="1"/>
                             <field name="slip_no" readonly="state != 'draft'"/>
                             <field name="location" readonly="state == 'closed'"/>
+                            <!-- 通報單照片若沒有 GPS EXIF，會沿用這組座標 -->
+                            <label for="latitude" string="施工地點座標"/>
+                            <div class="o_row">
+                                <field name="latitude" readonly="state == 'closed'"
+                                       placeholder="緯度"/>
+                                <field name="longitude" readonly="state == 'closed'"
+                                       placeholder="經度"/>
+                            </div>
                         </group>
                         <group>
                             <field name="survey_date"/>
@@ -108,26 +116,15 @@
                             </group>
                         </page>
                         <page string="關聯照片" name="related_photos">
+                            <!-- 同檢試驗：本頁籤原本沒有任何上傳入口。 -->
+                            <button name="%(construction_photo.action_photo_upload_wizard)d"
+                                    type="action" string="批次上傳照片"
+                                    class="btn-primary" icon="fa-camera"
+                                    invisible="not id"/>
                             <field name="related_photo_count" invisible="1"/>
-                            <field name="related_photo_ids" nolabel="1" readonly="1"
-                                   options="{'no_create': True, 'no_open': False}">
-                                <kanban>
-                                    <templates>
-                                        <t t-name="card" class="row g-0">
-                                            <aside class="col-3">
-                                                <field name="attachment_id" widget="image"
-                                                       options="{'preview_image': 'datas'}"/>
-                                            </aside>
-                                            <main class="col-9 ps-3">
-                                                <field name="name" class="fw-bold"/>
-                                                <field name="shot_at" widget="datetime"/>
-                                                <field name="category_id"/>
-                                                <field name="description"/>
-                                            </main>
-                                        </t>
-                                    </templates>
-                                </kanban>
-                            </field>
+                            <field name="related_photo_ids" nolabel="1" mode="kanban" create="false"
+                                   context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                             'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
                         </page>
                     </notebook>
                 </sheet>

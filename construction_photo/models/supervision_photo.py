@@ -1,7 +1,40 @@
 # -*- coding: utf-8 -*-
 
+import logging
+from io import BytesIO
+
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
+
+# Pillow 是官方 odoo:18.0 image 內建（實測 10.2.0），不需額外安裝。
+# 仍做保護性 import：缺了只是讀不到 EXIF，不該讓整個模組載不起來。
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover
+    Image = None
+    _logger.warning('Pillow 不可用，照片 EXIF GPS 解析功能停用')
+
+# EXIF 的 GPS IFD 指標 tag（TIFF 標準 34853）。GPS IFD 內：
+# 1=GPSLatitudeRef('N'/'S')、2=GPSLatitude(度,分,秒)、
+# 3=GPSLongitudeRef('E'/'W')、4=GPSLongitude(度,分,秒)
+EXIF_GPS_IFD_TAG = 0x8825
+EXIF_GPS_LAT_REF, EXIF_GPS_LAT = 1, 2
+EXIF_GPS_LNG_REF, EXIF_GPS_LNG = 3, 4
+
+# 呼叫端「明確指定要繼承座標」時放進 context 的兩個鍵。
+# 只有工程告示牌（同步端）與通報單照片（前台 controller）會帶；
+# 其餘照片入口一律不帶 —— 見 _fallback_coordinates() 的說明。
+CTX_FALLBACK_LAT = 'photo_fallback_latitude'
+CTX_FALLBACK_LNG = 'photo_fallback_longitude'
+
+# 反向級聯的遞迴防護旗標（**已無實際作用，僅保留避免外部 import 失敗**）。
+#
+# 照片資料表收斂前，supervision.photo 與兩張缺失照片行表互相持有 RESTRICT FK，
+# 刪除時兩邊會互相呼叫對方的 unlink()，需要這個 context 旗標防止無限遞迴。
+# 收斂後照片行表已不存在，沒有第二方可以互相呼叫，這個機制整個不需要了。
+PHOTO_CASCADE_CTX = 'photo_cascade_in_progress'
 
 
 class SupervisionPhoto(models.Model):
@@ -184,6 +217,40 @@ class SupervisionPhoto(models.Model):
         store=True,
         help='GPS 經度座標')
 
+    # === 來源掛載（照片資料表收斂）===
+    # 過去照片散在 12 張表：2 張缺失照片行子模型 + 9 張 M2M 中間表 + 本表。
+    # 現在收斂成本表一張，各業務模組在這裡加自己的 Many2one（加「欄」不是加
+    # 「表」），業務模型端改用 One2many 指回來，因此不再需要「同步」這個概念。
+    #
+    # 注意：source_model / source_id 是舊的字串+整數假關聯，保留供既有查詢與
+    # 前台篩選相容；新的來源判斷一律以各模組的 Many2one 為準。
+    photo_stage = fields.Selection([
+        ('before', '矯正及預防前'),
+        ('during', '矯正及預防中'),
+        ('after', '矯正及預防後'),
+    ], string='照片階段', index=True,
+       help='缺失改善專用：區分矯正前／中／後三階段。其他來源的照片留空。')
+
+    signboard_project_id = fields.Many2one(
+        'project.project',
+        string='工程告示牌所屬工程',
+        ondelete='cascade',
+        index=True,
+        help='這張照片是該工程的「工程告示牌」照片。\n'
+             '與 project_id（所屬工程，每張照片都有）不同：後者是歸屬，'
+             '本欄位是「身分」——只有告示牌照片會填。')
+
+    gps_source = fields.Selection([
+        ('input', '前台輸入'),
+        ('exif', '照片 EXIF'),
+        ('inherit', '沿用工程／通報單'),
+    ], string='座標來源', readonly=True, index=True,
+       help='座標是怎麼來的。\n'
+            '前台輸入：定位鈕、手動填寫，或批次上傳頁的前端 EXIF 解析。\n'
+            '照片 EXIF：伺服器端從照片檔案讀出的真實拍攝地點。\n'
+            '沿用工程／通報單：照片本身沒有 GPS，改用工程案件或通報單的座標'
+            '（僅工程告示牌與通報單照片會這樣做）——屬推定位置，不是實拍位置。')
+
     @api.depends('gps_location')
     def _compute_gps_coordinates(self):
         """從 GPS 位置字串解析緯度和經度"""
@@ -332,28 +399,320 @@ class SupervisionPhoto(models.Model):
             if 'upload_date' not in vals:
                 vals['upload_date'] = fields.Datetime.now()
         records = super().create(vals_list)
+        # 來源欄位正規化：掛在來源上（例如告示牌）卻沒指定所屬工程時自動補上，
+        # 否則照片不會出現在該工程的照片清單，也拿不到工程座標當 fallback。
+        records._normalize_source_fields()
+        # 座標補完：EXIF → 呼叫端明確指定的繼承來源。放在 super() 之後才讀得到
+        # attachment_id 的二進位，也才看得到 compute 算完的 latitude/longitude。
+        records._resolve_missing_coordinates()
         # 自動打標籤（只對有 description 的）
         to_tag = records.filtered(lambda r: r.description)
         if to_tag:
             to_tag.action_auto_tag_from_description()
         return records
 
+    # === 來源正規化 ===
+    @api.model
+    def _photo_source_field_map(self):
+        """{來源模型名: 本模型上對應的 Many2one 欄位名}
+
+        照片收斂後，上傳端要知道「這張照片該掛在哪個欄位」。各模組 _inherit
+        本模型後 `super()` 再加自己的一條 —— 上游不必知道下游有哪些模型，
+        模型改名時也會立刻在自己的模組裡爆掉，而不是靜默失效。
+
+        `project.project` → `signboard_project_id`：把工程案件當「來源記錄」
+        傳進上傳流程的，只有工程告示牌那一條路由。要注意這**不是**
+        `project_id`（所屬工程，每張照片都有）—— 兩者語意不同，
+        所以不能靠「comodel 是 project.project」自動推導，必須明寫。
+        """
+        return {'project.project': 'signboard_project_id'}
+
+    def _photo_source_project(self):
+        """從來源欄位推出這張照片該歸屬哪個工程案件，推不出來回空 recordset。
+
+        各模組覆寫時務必先 `res = super()._photo_source_project()`、有值就回傳，
+        否則後掛載的模組會蓋掉前面的判斷。
+        """
+        self.ensure_one()
+        return self.signboard_project_id
+
+    def _photo_source_model_code(self):
+        """從來源欄位推出 source_model 的值（相容既有篩選與前台查詢）。"""
+        self.ensure_one()
+        return 'other' if self.signboard_project_id else False
+
+    def _normalize_source_fields(self):
+        """掛了來源卻沒填所屬工程 / 來源分類時，自動補齊。
+
+        不覆蓋已有的值 —— 呼叫端明確指定的優先。
+        """
+        for photo in self:
+            vals = {}
+            if not photo.project_id:
+                project = photo._photo_source_project()
+                if project:
+                    vals['project_id'] = project.id
+            if not photo.source_model:
+                code = photo._photo_source_model_code()
+                if code:
+                    vals['source_model'] = code
+            if vals:
+                photo.write(vals)
+
+    # === 座標補完 ===
+    def _resolve_missing_coordinates(self):
+        """照片沒有座標時，依序嘗試補上；每一層都先驗範圍才寫。
+
+        順位：
+          1. 建立時就帶了座標（定位鈕／手填／前端 EXIF）→ 保留，只補記來源
+          2. 伺服器端讀照片檔案的 EXIF GPS → 真實拍攝地點，對所有照片都適用
+          3. 呼叫端以 context 明確指定的繼承座標 → 只有告示牌與通報單會帶
+          4. 都沒有 → 留空（不猜）
+
+        全程不 raise：EXIF 壞掉、檔案讀不到都只記 warning，
+        絕不能讓照片因此建不出來。
+        """
+        for photo in self:
+            try:
+                if photo.latitude or photo.longitude:
+                    if not photo.gps_source:
+                        photo.gps_source = 'input'
+                    continue
+
+                coords, source = photo._exif_coordinates(), 'exif'
+                if not coords:
+                    coords, source = photo._fallback_coordinates(), 'inherit'
+                if not coords:
+                    continue
+
+                lat, lng = coords
+                # 寫 gps_location（源頭欄位）而非 latitude/longitude：後兩者是
+                # compute+store，其 compute 在 gps_location 為空時會把值強制歸零。
+                photo.write({
+                    'gps_location': f'{lat},{lng}',
+                    'gps_source': source,
+                })
+                _logger.info(
+                    '照片座標補完 - Photo ID: %s, 來源: %s, 座標: %s,%s',
+                    photo.id, source, lat, lng)
+            except Exception as e:
+                _logger.warning(
+                    '照片座標補完失敗（略過，不影響照片建立）- Photo ID: %s, Error: %s',
+                    photo.id, e)
+
+    @api.model
+    def _backfill_missing_coordinates(self, limit=None):
+        """把「座標還是空的」既有照片補上兜底座標。
+
+        座標兜底全面化（2026-07-31）之前上傳的照片，當時的規則是只有工程
+        告示牌與通報單會繼承，其餘一律留空 —— 那些照片現在仍是 0,0，
+        且因為前台地圖與後台 photo_map 的 domain 都是 `latitude != 0`，
+        它們**永遠不會出現在地圖上**。
+
+        這裡對它們重跑一次 `_resolve_missing_coordinates()`：
+        EXIF 仍優先（舊照片當初可能因為別的原因沒讀到），讀不到才用兜底。
+        已經有座標的照片完全不碰。
+
+        回傳實際補上座標的張數。可重複執行。
+        """
+        photos = self.with_context(active_test=False).search(
+            [('latitude', '=', 0), ('longitude', '=', 0)], limit=limit)
+        before = len(photos)
+        photos._resolve_missing_coordinates()
+        filled = len(photos.filtered(lambda p: p.latitude or p.longitude))
+        _logger.info('照片座標回填：掃描 %s 張、補上 %s 張', before, filled)
+        return filled
+
+    def _exif_coordinates(self):
+        """從附件的 JPEG EXIF 讀 GPS，回 (lat, lng) 或 None。"""
+        self.ensure_one()
+        att = self.attachment_id
+        if Image is None or not att:
+            return None
+        # 只處理 JPEG：PNG 規格沒有 GPS 欄位，開檔純屬浪費
+        if 'jpeg' not in (att.mimetype or '').lower():
+            return None
+        raw = att.raw
+        if not raw:
+            return None
+        with Image.open(BytesIO(raw)) as img:
+            gps = img.getexif().get_ifd(EXIF_GPS_IFD_TAG)
+        if not gps:
+            return None
+        lat = self._dms_to_degrees(gps.get(EXIF_GPS_LAT), gps.get(EXIF_GPS_LAT_REF))
+        lng = self._dms_to_degrees(gps.get(EXIF_GPS_LNG), gps.get(EXIF_GPS_LNG_REF))
+        return self._validated_coordinates(lat, lng)
+
+    def _fallback_coordinates(self):
+        """照片沒有 GPS 時的座標兜底，由精確往粗略退。
+
+        **2026-07-31 範圍變更**：使用者原本指定只有工程告示牌與通報單會繼承，
+        現在改為 **每一張照片最後都要有座標** —— 依序試通報單、工程告示牌，
+        最後一律退到所屬工程案件的經緯度。
+
+        原本限縮範圍的理由是「把工程中心點寫進 latitude 會讓實拍位置與推定
+        位置在地圖上無法分辨」。那個顧慮由 `gps_source` 欄位解掉了：
+        繼承來的一律標成 `inherit`（顯示「沿用工程／通報單」），
+        地圖與清單都分得出來，所以全面兜底是安全的。
+
+        順位：
+          1. `_geo_fallback_source()` 給的精確來源（通報單 > 告示牌工程）
+          2. 呼叫端以 context 指定（收斂前的舊途徑，保留相容）
+          3. **所屬工程案件**（最後兜底，每張照片都有 project_id）
+
+        任何一層的座標都要先過 `_validated_coordinates`：來源本身可能填錯
+        （實際發生過緯度填成 121.51），也可能根本沒填（0,0 視為未填）。
+        全部落空就留空 —— 不會憑空捏造座標。
+        """
+        self.ensure_one()
+        # 1) 精確來源（各模組註冊，通報單優先於告示牌所屬工程）
+        source = self._geo_fallback_source()
+        if source:
+            coords = self._validated_coordinates(
+                source.latitude or 0.0, source.longitude or 0.0)
+            if coords:
+                return coords
+        # 2) 呼叫端以 context 指定（收斂前的舊途徑，保留相容）
+        ctx = self.env.context
+        lat, lng = ctx.get(CTX_FALLBACK_LAT), ctx.get(CTX_FALLBACK_LNG)
+        if lat is not None and lng is not None:
+            try:
+                coords = self._validated_coordinates(float(lat), float(lng))
+            except (TypeError, ValueError):
+                coords = None
+            if coords:
+                return coords
+        # 3) 最後兜底：所屬工程案件
+        # 放在最後而不是併進 _geo_fallback_source()，是因為那個方法是各模組
+        # 覆寫的接力鏈（每一棒都 super() 先問前一棒、有值就回傳）。把「一定
+        # 有值」的 project_id 放進基底會讓第一棒就命中，後面的通報單／告示牌
+        # 判斷永遠跑不到 —— 精確來源反而被最粗略的蓋掉。
+        project = self.project_id
+        if project:
+            return self._validated_coordinates(
+                project.latitude or 0.0, project.longitude or 0.0)
+        return None
+
+    def _geo_fallback_source(self):
+        """回傳「可以把座標借給這張照片」的**精確**來源，沒有就回空 recordset。
+
+        這裡只放比工程案件中心點更精確的來源（通報單的施工地點、告示牌所屬
+        工程）。工程案件本身**不要**放進來 —— 它是 `_fallback_coordinates()`
+        最後那一層的兜底，放進來會讓這條接力鏈第一棒就命中，後面的模組再也
+        沒機會提供更精確的座標。
+
+        各模組覆寫時務必先 `res = super()._geo_fallback_source()`、有值就直接
+        回傳，否則後掛載的模組會把前面的判斷整個蓋掉。
+
+        本方法只負責「挑出來源」，範圍檢查交給 _validated_coordinates —— 來源
+        的座標可能是錯的（使用者實際填過緯度 121.51），不能無條件相信。
+        """
+        self.ensure_one()
+        return self.signboard_project_id
+
+    @staticmethod
+    def _dms_to_degrees(dms, ref):
+        """EXIF 的 (度, 分, 秒) + 方位字元 → 十進位度。無法解析回 None。"""
+        if not dms:
+            return None
+        try:
+            parts = [float(x) for x in dms]
+        except (TypeError, ValueError):
+            return None
+        if len(parts) < 3:
+            return None
+        degrees = parts[0] + parts[1] / 60.0 + parts[2] / 3600.0
+        if isinstance(ref, bytes):
+            ref = ref.decode('ascii', 'ignore')
+        if (ref or '').strip().upper() in ('S', 'W'):
+            degrees = -degrees
+        return degrees
+
+    @staticmethod
+    def _validated_coordinates(lat, lng):
+        """把關座標合理性，不合理回 None（換下一個來源，而不是 raise）。
+
+        沒有這一關的話，非法值會在寫入時撞 _check_gps_coordinates 的
+        ValidationError，讓整張照片建不出來 —— 補座標是加值功能，
+        不該有能力讓上傳失敗。
+        """
+        if lat is None or lng is None:
+            return None
+        if not -90 <= lat <= 90 or not -180 <= lng <= 180:
+            return None
+        # (0, 0) 是「未填」的慣用表示，與 _check_gps_coordinates 的判斷一致
+        if not lat and not lng:
+            return None
+        return (lat, lng)
+
+    # 座標欄位：任何一個被改動，就代表這組座標是人改的
+    _GEO_VALUE_FIELDS = ('latitude', 'longitude', 'gps_location')
+
     def write(self, vals):
-        """寫入照片；若 description 改動，重新跑 auto-tag。"""
-        res = super().write(vals)
+        """寫入照片。
+
+        兩件附帶處理：
+        1. description 改動 → 重新跑 auto-tag
+        2. **座標被人工改動 → gps_source 跟著改成「前台輸入」**
+
+        第 2 點原本沒做：`_resolve_missing_coordinates()` 只在 `create()` 跑，
+        所以之後在後台把一張 `gps_source='inherit'`（沿用工程座標）的照片
+        手動改成正確的實際座標，來源欄位仍然顯示「沿用工程／通報單」——
+        看起來像推定值，實際上是人工確認過的精確座標，稽核時會誤判。
+        """
+        # 呼叫端自己指定了 gps_source 就尊重它（_resolve_missing_coordinates()
+        # 寫 exif／inherit 時會連 gps_source 一起帶，不能被這裡蓋掉）
+        if 'gps_source' not in vals and any(f in vals for f in self._GEO_VALUE_FIELDS):
+            # 逐筆比對舊值：Odoo 常把整份表單的欄位都送進 write，
+            # 值沒變也會出現在 vals 裡 —— 那不算「人工改動」。
+            changed = self.filtered(
+                lambda p: any(
+                    f in vals and p[f] != vals[f] for f in self._GEO_VALUE_FIELDS))
+            res = super().write(vals)
+            for photo in changed:
+                # 改成空座標 = 把座標清掉，來源也該一起清掉
+                photo.gps_source = 'input' if (photo.latitude or photo.longitude) else False
+        else:
+            res = super().write(vals)
+
         if 'description' in vals:
             # 注意：不清空已有 tag，只 append 命中的新 tag
             self.filtered(lambda r: r.description).action_auto_tag_from_description()
         return res
 
     def unlink(self):
-        """刪除照片記錄"""
-        # 刪除關聯的附件
+        """刪除照片；連帶回收沒人再引用的附件。
+
+        照片資料表收斂後，這裡大幅簡化了。收斂前全庫有 3 個指向 ir_attachment
+        的 RESTRICT FK（本表 + 兩張缺失照片行表），三者互相鎖死，才需要一整套
+        「S→L→A 順序 + PHOTO_CASCADE_CTX 遞迴防護 + 反向級聯刪照片行」的機制。
+        兩張照片行表已隨收斂移除，現在只剩本表一個 RESTRICT，順序問題消失。
+
+        仍保留的是「附件回收」：attachment_id 是 required + ondelete=restrict，
+        照片刪掉後那張 ir.attachment 不會自己消失，不回收就變成孤兒檔案。
+        但同一張附件可能被多筆照片共用（去重邏輯允許），所以要先確認沒人再
+        引用才刪。
+        """
+        # 必須在 super() 之前抓：之後 self 已死，mapped() 會拿到空 recordset
         attachments = self.mapped('attachment_id')
         result = super().unlink()
-        # 刪除沒有其他關聯的附件
-        attachments.unlink()
+        self._unlink_free_attachments(attachments)
         return result
+
+    def _unlink_free_attachments(self, attachments):
+        """只刪掉「已經沒有任何 supervision.photo 引用」的附件。"""
+        attachments = attachments.exists()
+        if not attachments:
+            return
+        # 前面的 unlink 必須先落到 DB，下面的 search 才看得到正確狀態
+        self.env.flush_all()
+        # active_test=False：已封存的照片同樣持有 FK，漏掉會誤判成「無人引用」
+        # 而撞 IntegrityError
+        still_used = self.sudo().with_context(active_test=False).search(
+            [('attachment_id', 'in', attachments.ids)]).mapped('attachment_id')
+        free = attachments - still_used
+        if free:
+            free.sudo().unlink()
 
     # === 自動打標籤規則 ===
     # 每條規則：(canonical_tag_name, [keywords_that_hit_it], color_key)

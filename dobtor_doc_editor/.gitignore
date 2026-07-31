@@ -3,6 +3,13 @@
 # =========================
 node_modules/
 dist/
+# 例外：這支 CLI 產物必須進版控。
+# 平台是從 GitHub clone 模組原始碼到伺服器，不進 git 就永遠不會出現在那裡；
+# 症狀是一切正常直到有人點「文件樣板 → 用編輯器開啟 .docx」，
+# 跳出與真正原因完全無關的「DOCX 解析失敗」。
+# 「編譯產物不進 git」是通則，此處例外划算：單一檔案、不常變。
+!tools/dist/
+!tools/dist/parse_docx_cli.cjs
 *.tsbuildinfo
 npm-debug.log*
 yarn-error.log*

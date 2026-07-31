@@ -14,7 +14,8 @@ from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
 from .portal_utils import (  # M4-a：共用工具抽出
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
-    _photo_category_options, _photo_category_to_id, _portal_save_photos,
+    _photo_category_options, _photo_category_to_id, _post_photo_meta,
+    _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
     _haversine_km,
 )
@@ -101,23 +102,18 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             [('attachment_id', '=', att.id)], limit=1)
         if photo and photo.project_id:
             return photo.project_id
-        # 2) 缺失改善照片行的 image 欄位附件（<defect_model>.improvement.photo）
-        rm, rid = att.res_model, att.res_id
-        if rm and rid and rm.endswith('.improvement.photo') and rm in env:
-            rec = env[rm].sudo().browse(rid).exists()
-            if rec and 'defect_improvement_id' in rec._fields:
-                defect = rec.defect_improvement_id
-                if defect and 'project_id' in defect._fields and defect.project_id:
-                    return defect.project_id
-        # 3) 被前台照片 m2m 直接引用：signboard、缺失前/後照片、驗收缺失前/後照片
+        # 2)（已移除）缺失改善照片行的 image 欄位附件。
+        #    照片資料表收斂後，缺失照片就是 supervision.photo，第 1 步已涵蓋；
+        #    兩個照片行模型與其欄位附件都不存在了。
+        # 3) 被前台照片 m2m 直接引用：驗收缺失前/後照片
+        #    （signboard 已收斂成 supervision.photo，同樣由第 1 步涵蓋）
         for model_name, field in (
-                ('project.project', 'signboard_photo_ids'),
                 ('acceptance.defect', 'before_photo_ids'),
                 ('acceptance.defect', 'after_photo_ids')):
             if model_name in env and field in env[model_name]._fields:
                 rec = env[model_name].sudo().search([(field, 'in', att.id)], limit=1)
                 if rec:
-                    return rec if model_name == 'project.project' else rec.project_id
+                    return rec.project_id
         return None
 
     def _user_can_see_project(self, project):

@@ -6,9 +6,12 @@
 """
 
 import base64
+import logging
 import math
 
 from odoo import fields
+
+_logger = logging.getLogger(__name__)
 
 # 前台角色群組 XML id
 # 註：v18.0.4.3.0 已將 boss/manager/field/observer 往下合併進
@@ -110,31 +113,97 @@ def _photo_category_to_id(value):
         return False
 
 
+def _post_photo_meta(post):
+    """從表單取照片的三個描述欄位（說明／材料分類／拍攝地點說明）。
+
+    回傳可直接併進 _portal_save_photos 的 meta 的 dict。
+
+    **欄位名在本 codebase 有兩套並存**：
+      - 不帶前綴 `description` / `category` / `location_description`
+        ── 共用片段 cy_photo_meta_fields（portal_templates.xml）、
+           共用照片區塊 portal_construction_photos_block、照片中心批次上傳
+      - 帶前綴 `photo_description` / `photo_category` / `photo_location_description`
+        ── 施工日誌主上傳表單、自主檢查新增表單
+
+    兩套都收。這與座標欄位的 _post_geo()（portal_photo.py）同一個問題與同一種
+    解法：只認一套的話，另一邊改了會**靜默失效** —— 不噴例外，只是欄位恆為空，
+    使用者以為填了、資料庫裡卻沒有。
+
+    **優先序：帶前綴的先取。** 不帶前綴的 `description` 這種通用名字會跟宿主
+    表單自己的欄位撞名 —— 新增缺失表單的「缺失說明」就是 name="description"，
+    共用片段再放一個同名的，瀏覽器兩個都送、post.get() 只拿得到排在前面的那個，
+    結果照片說明被塞進缺失的敘述文字、使用者填的照片說明整個消失。
+    帶前綴的名字不可能是別的東西，拿它當第一順位才不會被宿主表單汙染。
+    """
+    return {
+        'description': post.get('photo_description') or post.get('description') or '',
+        'category': post.get('photo_category') or post.get('category') or False,
+        'location_description': (post.get('photo_location_description')
+                                 or post.get('location_description') or ''),
+    }
+
+
+def _photo_source_field(env, record):
+    """找出 supervision.photo 上對應這個來源模型的 Many2one 欄位名。
+
+    對照表由各模組在 supervision.photo._photo_source_field_map() 自行註冊
+    （見 construction_daily_log / construction_quality / ... 的
+    models/supervision_photo.py），上游不必知道下游有哪些模型。
+    找不到就回 None —— 照片仍會建出來、仍看得到，只是不掛在來源上。
+    """
+    return env['supervision.photo'].sudo()._photo_source_field_map().get(record._name)
+
+
 def _portal_save_photos(env, record, supervision_project, files, meta):
-    """把 multipart 上傳檔案存成 ir.attachment + supervision.photo,並 link 到 record.photo_ids
+    """把 multipart 上傳檔案存成 ir.attachment + supervision.photo，並掛回來源。
 
-    繞過 photo.sync.mixin(對 daily.log.sheet 因 project_id 型別錯誤而失效),
-    直接寫入正確的 supervision.project.id。
+    照片資料表收斂（2026-07-31）後，這是**唯一**的前台照片存檔路徑：
+    缺失改善原本走的照片行子模型已經不存在，_defect_save_photos 現在只是
+    帶 photo_stage 的薄包裝。
 
-    files: list of werkzeug FileStorage(來自 request.httprequest.files.getlist('photos'))
-    meta: dict 含 description / category / source_model / latitude / longitude / location_description
+    掛回來源不再是寫 M2M（record.photo_ids = [(4, att_id)]），而是直接把
+    supervision.photo 的來源 Many2one 設好 —— 那個欄位就是來源的 One2many
+    反向端，所以存完照片自然出現在來源表單上，不需要任何「同步」。
+
+    files: list of werkzeug FileStorage（來自 request.httprequest.files.getlist）
+    meta 可帶：
+        description / category / location_description   ← 使用者填的三個欄位
+        latitude / longitude                            ← 定位鈕或手填
+        fallback_latitude / fallback_longitude          ← 座標繼承（僅告示牌與通報單）
+        source_model                                    ← 相容用，留空會自動推導
+        photo_stage                                     ← 缺失專用（before/during/after）
     回傳: 新增的 attachment id list
     """
     Attachment = env['ir.attachment'].sudo()
     Photo = env['supervision.photo'].sudo()
     new_atts = []
-    try:
-        lat = float(meta.get('latitude') or 0)
-    except (TypeError, ValueError):
-        lat = 0.0
-    try:
-        lng = float(meta.get('longitude') or 0)
-    except (TypeError, ValueError):
-        lng = 0.0
+
+    def _f(key):
+        try:
+            return float(meta.get(key) or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    lat, lng = _f('latitude'), _f('longitude')
     description = meta.get('description') or ''
     category = meta.get('category') or False
-    source_model = meta.get('source_model') or 'other'
     location_description = meta.get('location_description') or ''
+    photo_stage = meta.get('photo_stage') or False
+
+    # 座標繼承（opt-in）：只有工程告示牌與通報單會帶。supervision.photo.create()
+    # 會在「使用者沒填、照片也沒有 EXIF」時才採用。
+    PhotoTarget = Photo
+    fb_lat, fb_lng = meta.get('fallback_latitude'), meta.get('fallback_longitude')
+    if fb_lat is not None and fb_lng is not None:
+        PhotoTarget = Photo.with_context(
+            photo_fallback_latitude=fb_lat,
+            photo_fallback_longitude=fb_lng)
+
+    source_field = _photo_source_field(env, record)
+    if not source_field:
+        _logger.warning(
+            '照片上傳：supervision.photo 沒有對應 %s 的來源欄位，'
+            '照片會建立但不會掛在來源記錄上', record._name)
 
     for f in files:
         if not f or not f.filename:
@@ -145,77 +214,76 @@ def _portal_save_photos(env, record, supervision_project, files, meta):
         att = Attachment.create({
             'name': f.filename,
             'datas': base64.b64encode(data),
-            'res_model': record._name,
-            'res_id': record.id,
+            'res_model': 'supervision.photo',
             'mimetype': f.mimetype or 'image/jpeg',
             # M0.6：不再 public（避免 /web/content 枚舉洩漏）；
             # 前台顯圖改走帶權限檢查的 /construction/img/<att_id>。
             'public': False,
         })
-        # 直接建 supervision.photo,不依賴 mixin
-        if not Photo.search([('attachment_id', '=', att.id)], limit=1):
-            Photo.create({
+        if not Photo.with_context(active_test=False).search(
+                [('attachment_id', '=', att.id)], limit=1):
+            vals = {
                 'project_id': supervision_project.id,
                 'attachment_id': att.id,
+                # 使用者有填就用使用者的，沒填才退回檔名。
+                # （收斂前走同步那條路的會被系統套版字串蓋掉，格式因此不一致）
                 'description': description or f.filename,
                 'category_id': _photo_category_to_id(category),
-                'source_model': source_model,
-                'source_id': record.id,
+                'location_description': location_description,
                 'shot_at': fields.Datetime.now(),
                 'latitude': lat,
                 'longitude': lng,
-                'location_description': location_description,
-            })
+            }
+            if photo_stage:
+                vals['photo_stage'] = photo_stage
+            if source_field:
+                vals[source_field] = record.id
+            # source_model 留空時由 _normalize_source_fields() 依來源欄位自動推導
+            if meta.get('source_model'):
+                vals['source_model'] = meta['source_model']
+            PhotoTarget.create(vals)
         new_atts.append(att.id)
 
-    # C（2026-07-14）：僅在 record 真有 photo_ids 欄位時才寫入。
-    # 通報單(reservation.notification.slip)沒有 photo_ids，靠 computed
-    # related_photo_ids 反查 supervision.photo(source_model='notification')，
-    # 上面已建好 supervision.photo，故此處跳過即可正確顯示。
-    if new_atts and 'photo_ids' in record._fields:
-        record.sudo().write({'photo_ids': [(4, aid) for aid in new_atts]})
     return new_atts
 
 
-def _defect_save_photos(env, defect, files, stage):
-    """建立缺失改善照片行(general/reservation.defect.improvement.photo)。
+def _defect_save_photos(env, defect, files, stage, meta=None):
+    """建立缺失改善照片（before / during / after）。
 
-    缺失的 before_photo_ids / during_photo_ids / after_photo_ids 是 One2many
-    到專用照片行模型(<defect_model>.photo),而非 ir.attachment 的 M2M。
-    因此照片要用 create 照片行(image 為 binary,模型 create() 會自動建 attachment),
-    不能用 (4, attachment_id) 去 link——那會被當成照片行 id 造成 MissingError。
+    照片收斂後這只是 _portal_save_photos 的薄包裝：缺失照片與其他照片走
+    完全同一條路，差別只在多帶一個 photo_stage。
 
-    files: list of werkzeug FileStorage
-    stage: 'before' / 'during' / 'after'
-    回傳: 新增照片行數
+    收斂前這裡要自己建照片行子模型、再手動呼叫 _auto_sync_photos() 補同步、
+    最後還要另外把座標補寫回 supervision.photo（因為座標欄位只在那邊）——
+    整整三段，現在一段都不需要了。
     """
-    Photo = env[defect._name + '.photo'].sudo()
-    count = 0
-    for f in files:
-        if not f or not f.filename:
-            continue
-        raw = f.read()
-        if not raw:
-            continue
-        line = Photo.create({
-            'defect_improvement_id': defect.id,
-            'image': base64.b64encode(raw),
-            'image_filename': f.filename,
-            'photo_stage': stage,
-        })
-        # M0.6：不再把附件設 public。缺失照片行的 image 欄位附件預設非 public，
-        # 前台改走帶權限檢查的 /construction/img/<att_id>（依 defect→專案成員判定）。
-        count += 1
-    return count
+    meta = dict(meta or {})
+    meta['photo_stage'] = stage
+    project = defect.project_id
+    return len(_portal_save_photos(env, defect, project, files, meta))
+
 
 
 def _portal_delete_photo(env, record, attachment_id):
-    """從 record.photo_ids 移除一張 + 同步刪 supervision.photo + ir.attachment"""
-    record.sudo().write({'photo_ids': [(3, attachment_id)]})
-    env['supervision.photo'].sudo().search([
-        ('attachment_id', '=', attachment_id),
-    ]).unlink()
-    env['ir.attachment'].sudo().browse(attachment_id).unlink()
+    """刪除一張前台照片（以 attachment id 指定）。
+
+    照片資料表收斂後大幅簡化：photo_ids 是 One2many 到 supervision.photo，
+    刪掉照片本身就等於從來源移除，不需要再先解 M2M 關聯。
+    supervision.photo.unlink() 會順手回收沒人再引用的 ir.attachment。
+
+    `record` 參數保留是為了呼叫端相容（三條路由都還在傳），本身已不需要用到。
+    """
+    photos = env['supervision.photo'].sudo().with_context(
+        active_test=False).search([('attachment_id', '=', attachment_id)])
+    if photos:
+        photos.unlink()
+        return
+    # 沒有對應 supervision.photo 的孤兒附件（理論上不該出現），直接清掉。
+    # exists() 不可省：對已刪除的 record 再 unlink 會拋 MissingError，
+    # Odoo 會把整個 request transaction rollback → 症狀是「跳錯誤而且沒刪掉」。
+    attachment = env['ir.attachment'].sudo().browse(attachment_id).exists()
+    if attachment:
+        attachment.unlink()
 
 
 def _portal_photo_to_supervision(env, attachments):

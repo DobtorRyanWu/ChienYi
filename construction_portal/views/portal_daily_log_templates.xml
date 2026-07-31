@@ -204,21 +204,11 @@
                                 </button>
                             </form>
                         </t>
-                        <!-- A（2026-07-14）：日誌鎖定後仍可「補照片」（歷史建檔）；不開放編輯內容 -->
-                        <div class="cy-section-title" style="margin-bottom: 8px;">
-                            <span><i class="fa fa-camera" style="margin-right: 6px;"/>追加照片（已鎖定，仍可補上照片）</span>
-                        </div>
-                        <form t-attf-action="/construction/daily-log/#{log.id}/photo/upload"
-                              method="post" enctype="multipart/form-data" style="margin-bottom: 16px;">
-                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-                            <input type="file" name="photos" accept="image/*" multiple="multiple"
-                                   capture="environment" class="form-control" style="margin-bottom: 8px; padding: 10px;"/>
-                            <input type="text" name="description" placeholder="照片說明（選填）"
-                                   class="form-control" style="margin-bottom: 8px;"/>
-                            <button type="submit" class="cy-btn cy-btn-primary" style="width: 100%;">
-                                <i class="fa fa-camera"/> 上傳照片
-                            </button>
-                        </form>
+                        <!-- 註：「追加照片」表單**不放在這裡**。
+                             它原本跟著鎖定提示一起放在頁面最上方，結果會出現在
+                             天氣／工期／施工項目之前 —— 使用者要先捲過整份日誌
+                             才看得到自己剛補的照片在哪。已移到下方「施工照片」
+                             區塊之後（見同檔 portal_construction_photos_block 之後）。 -->
                     </t>
 
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
@@ -415,6 +405,28 @@
                     </t>
 
                     <t t-call="construction_portal.portal_construction_photos_block"/>
+
+                    <!-- 鎖定後的追加照片表單接在「施工照片」正下方。
+                         共用區塊 portal_construction_photos_block 在 is_locked 時
+                         會把自己的上傳區藏起來（鎖定的日誌不給改內容），
+                         但照片是附加證據、歷史建檔仍需補得上去，所以另外開這個表單。
+                         A（2026-07-14）：可補不可刪，與缺失結案後的行為一致。 -->
+                    <t t-if="log.is_locked">
+                        <div class="cy-section-title" style="margin-top: 12px; margin-bottom: 8px;">
+                            <span><i class="fa fa-camera" style="margin-right: 6px;"/>追加照片（已鎖定，仍可補上照片）</span>
+                        </div>
+                        <form t-attf-action="/construction/daily-log/#{log.id}/photo/upload"
+                              method="post" enctype="multipart/form-data" style="margin-bottom: 16px;">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <input type="file" name="photos" accept="image/*" multiple="multiple"
+                                   capture="environment" class="form-control" style="margin-bottom: 8px; padding: 10px;"/>
+                            <t t-call="construction_portal.cy_photo_meta_fields"/>
+                            <t t-call="construction_portal.cy_photo_geo_fields"/>
+                            <button type="submit" class="cy-btn cy-btn-primary" style="width: 100%;">
+                                <i class="fa fa-camera"/> 上傳照片
+                            </button>
+                        </form>
+                    </t>
 
                     <!-- 訊息紀錄 -->
                     <div class="cy-section-title" style="margin-top: 24px;">訊息</div>

@@ -4,105 +4,12 @@ from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 
 
-class GeneralDefectImprovementPhoto(models.Model):
-    """
-    缺失改善照片中間表
-
-    功能：
-    - 為每張照片記錄元數據（上傳時間、說明、階段）
-    - 支援矯正前中後三階段照片管理
-    - 支援直接上傳圖片檔案
-    """
-    _name = 'general.defect.improvement.photo'
-    _description = '缺失改善照片'
-    _order = 'upload_time desc, id desc'
-
-    # === 關聯 ===
-    defect_improvement_id = fields.Many2one(
-        'general.defect.improvement',
-        string='缺失改善記錄',
-        required=True,
-        ondelete='cascade',
-        index=True)
-
-    # === 照片上傳欄位 (主要使用) ===
-    image = fields.Binary(
-        string='照片',
-        attachment=True,
-        help='直接上傳照片檔案')
-
-    image_filename = fields.Char(
-        string='檔案名稱',
-        help='照片檔案名稱')
-
-    # === 內部附件關聯 (自動建立) ===
-    attachment_id = fields.Many2one(
-        'ir.attachment',
-        string='照片檔案記錄',
-        ondelete='restrict',
-        help='系統自動建立的附件記錄')
-
-    # === 照片元數據 ===
-    photo_stage = fields.Selection([
-        ('before', '矯正及預防前'),
-        ('during', '矯正及預防中'),
-        ('after', '矯正及預防後'),
-    ], string='照片階段', required=True, default='before')
-
-    upload_time = fields.Datetime(
-        string='上傳時間',
-        default=fields.Datetime.now,
-        required=True,
-        help='照片上傳時間，可手動修改')
-
-    description = fields.Text(
-        string='照片說明',
-        help='此照片的詳細說明')
-
-    # === 預覽欄位 ===
-    image_preview = fields.Binary(
-        string='預覽',
-        related='image',
-        readonly=True)
-
-    # === 建立時自動處理附件 ===
-    @api.model_create_multi
-    def create(self, vals_list):
-        records = super().create(vals_list)
-        for record in records:
-            # 當上傳圖片時，自動建立 attachment 記錄
-            if record.image and not record.attachment_id:
-                # 從 ir.attachment 中找到剛建立的附件
-                # (當 attachment=True 時，Odoo 會自動建立附件)
-                attachment = self.env['ir.attachment'].search([
-                    ('res_model', '=', self._name),
-                    ('res_id', '=', record.id),
-                    ('res_field', '=', 'image'),
-                ], limit=1, order='id desc')
-                if attachment:
-                    record.attachment_id = attachment.id
-        return records
-
-    def write(self, vals):
-        result = super().write(vals)
-        # 當更新圖片時，更新 attachment 關聯
-        for record in self:
-            if 'image' in vals and record.image and not record.attachment_id:
-                attachment = self.env['ir.attachment'].search([
-                    ('res_model', '=', self._name),
-                    ('res_id', '=', record.id),
-                    ('res_field', '=', 'image'),
-                ], limit=1, order='id desc')
-                if attachment:
-                    record.attachment_id = attachment.id
-        return result
-
-    # === 約束 ===
-    _sql_constraints = [
-        ('unique_attachment_per_defect',
-         'UNIQUE(defect_improvement_id, attachment_id)',
-         '同一缺失記錄中不能重複添加相同照片！'),
-    ]
+# 照片資料表收斂（2026-07-31）：原本這裡有兩個類別 ——
+#   GeneralDefectImprovementPhoto（照片行中間表，image=Binary(attachment=True)）
+#   SupervisionPhotoGeneralDefectCascade（把照片行註冊進反向級聯名單）
+# 連同整套「解鎖欄位附件 / 反向刪 supervision.photo / 遞迴防護」機制一併移除：
+# 照片現在就是 supervision.photo 本身，靠 general_defect_id 掛在缺失上
+# （見 models/supervision_photo.py），沒有中間表、沒有同步。
 
 
 class GeneralDefectImprovement(models.Model):
@@ -120,7 +27,8 @@ class GeneralDefectImprovement(models.Model):
     """
     _name = 'general.defect.improvement'
     _description = '一般式缺失改善'
-    _inherit = ['construction.daily.defect.mixin', 'mail.thread', 'mail.activity.mixin', 'photo.sync.mixin']
+    # photo.sync.mixin 已隨照片資料表收斂退場
+    _inherit = ['construction.daily.defect.mixin', 'mail.thread', 'mail.activity.mixin']
     _order = 'notification_date desc, id desc'
 
     # === 基本資料 ===
@@ -188,26 +96,27 @@ class GeneralDefectImprovement(models.Model):
         help='負責改善的施工廠商')
 
     # === 照片 (新結構) ===
+    # 照片收斂：直接就是 supervision.photo，photo_stage 搬到那邊，三個 domain 語意不變
     photo_ids = fields.One2many(
-        'general.defect.improvement.photo',
-        'defect_improvement_id',
+        'supervision.photo',
+        'general_defect_id',
         string='所有照片')
 
     before_photo_ids = fields.One2many(
-        'general.defect.improvement.photo',
-        'defect_improvement_id',
+        'supervision.photo',
+        'general_defect_id',
         string='矯正及預防前照片',
         domain=[('photo_stage', '=', 'before')])
 
     during_photo_ids = fields.One2many(
-        'general.defect.improvement.photo',
-        'defect_improvement_id',
+        'supervision.photo',
+        'general_defect_id',
         string='矯正及預防中照片',
         domain=[('photo_stage', '=', 'during')])
 
     after_photo_ids = fields.One2many(
-        'general.defect.improvement.photo',
-        'defect_improvement_id',
+        'supervision.photo',
+        'general_defect_id',
         string='矯正及預防後照片',
         domain=[('photo_stage', '=', 'after')])
 
@@ -220,19 +129,8 @@ class GeneralDefectImprovement(models.Model):
         help='非照片類型的其他附件文件')
 
     # === 向後兼容欄位 (保留舊欄位名，用於數據遷移) ===
-    defect_photo_ids_legacy = fields.Many2many(
-        'ir.attachment',
-        'general_defect_photo_rel',
-        'defect_id', 'attachment_id',
-        string='缺失照片(舊)',
-        help='數據遷移用，不要直接使用')
-
-    improvement_photo_ids_legacy = fields.Many2many(
-        'ir.attachment',
-        'general_improvement_photo_rel',
-        'defect_id', 'attachment_id',
-        string='改善照片(舊)',
-        help='數據遷移用，不要直接使用')
+    # 兩個 legacy M2M 欄位（general_defect_photo_rel / general_improvement_photo_rel）
+    # 已隨照片收斂移除 —— 兩張中間表實測皆為 0 筆，註解本來就寫「不要直接使用」。
 
     # === 狀態機差異行為（覆寫 Mixin hook）===
     # 一般式重新開啟時，額外清除結案人與驗證結果
@@ -340,6 +238,12 @@ class GeneralDefectImprovement(models.Model):
         for record in self:
             if record.state not in ('draft',):
                 raise UserError('只有草稿狀態的缺失可以刪除')
+        # 照片行的 defect_improvement_id 是 ondelete='cascade'，PostgreSQL 會直接
+        # 砍掉照片行、**不會**呼叫照片行的 Python unlink()，導致上面那套
+        # 「順便刪 supervision.photo + 欄位附件」整條不會跑，留下照片管理裡看得到、
+        # 點下去卻 404 的孤兒照片與孤兒 filestore 檔案。
+        # 這裡明確先走一次 ORM unlink，讓那條邏輯生效。
+        self.photo_ids.unlink()
         return super().unlink()
 
     # === 約束 ===
@@ -357,119 +261,5 @@ class GeneralDefectImprovement(models.Model):
                 if record.notification_date < record.found_date:
                     raise ValidationError('通知改善日期不得早於發現日期')
 
-    # === 照片自動同步配置 ===
-    def _get_photo_sync_config(self):
-        """
-        配置照片同步規則 - 適配新結構
-
-        說明：
-        - photo.sync.mixin 會自動將照片同步到 supervision.photo 集中管理
-        - 新結構使用 One2many 中間模型，需要透過 attachment_id 存取
-        - 保留此功能以維持照片集中管理的完整性
-        """
-        return {
-            'before_photo_ids': {
-                'source_model': 'defect',
-                'name_prefix': '缺失照片(矯正前)',
-                'description_field': 'defect_description',
-                'location_field': 'defect_location',
-                'auto_tag': '缺失改善',
-            },
-            'during_photo_ids': {
-                'source_model': 'defect',
-                'name_prefix': '改善照片(矯正中)',
-                'description_field': 'improvement_action',
-                'location_field': 'defect_location',
-                'auto_tag': '缺失改善',
-            },
-            'after_photo_ids': {
-                'source_model': 'defect',
-                'name_prefix': '改善照片(矯正後)',
-                'description_field': 'improvement_result',
-                'location_field': 'defect_location',
-                'auto_tag': '缺失改善',
-            },
-        }
-
-    # 覆寫 _auto_sync_photos 方法以適配中間模型並正確映射欄位
-    def _auto_sync_photos(self, field_name, config):
-        """
-        覆寫父類方法以支援 One2many 中間模型結構
-
-        關鍵映射：
-        - general.defect.improvement.photo.upload_time → supervision.photo.shot_at
-        - general.defect.improvement.photo.description → supervision.photo.notes
-        - general.defect.improvement.photo.attachment_id → supervision.photo.attachment_id
-        """
-        SupervisionPhoto = self.env['supervision.photo']
-
-        for record in self:
-            if not hasattr(record, 'project_id') or not record.project_id:
-                continue
-
-            # 取得中間模型記錄 (One2many)
-            photo_records = getattr(record, field_name, False)
-            if not photo_records:
-                continue
-
-            for photo_record in photo_records:
-                # 從中間模型取得實際的附件
-                if not hasattr(photo_record, 'attachment_id') or not photo_record.attachment_id:
-                    continue
-
-                attachment = photo_record.attachment_id
-
-                # 檢查是否已同步
-                existing = SupervisionPhoto.search([
-                    ('attachment_id', '=', attachment.id)
-                ], limit=1)
-
-                if existing:
-                    # 已存在，更新時間和說明（如果中間模型有提供）
-                    update_vals = {}
-                    if hasattr(photo_record, 'upload_time') and photo_record.upload_time:
-                        update_vals['shot_at'] = photo_record.upload_time
-                    if hasattr(photo_record, 'description') and photo_record.description:
-                        update_vals['notes'] = photo_record.description
-                    if update_vals:
-                        existing.write(update_vals)
-                    continue
-
-                # 準備新照片資料
-                name_prefix = config.get('name_prefix', '照片')
-                record_name = getattr(record, 'name', '') or f'ID:{record.id}'
-                description_text = f'{name_prefix} - {record_name}'
-
-                # 組合說明文字
-                notes_parts = []
-                if config.get('description_field'):
-                    field_value = getattr(record, config['description_field'], None)
-                    if field_value:
-                        notes_parts.append(str(field_value))
-
-                # 加入中間模型的說明
-                if hasattr(photo_record, 'description') and photo_record.description:
-                    notes_parts.append(f"照片說明: {photo_record.description}")
-
-                photo_vals = {
-                    'description': description_text,
-                    'project_id': record.project_id.id,
-                    'attachment_id': attachment.id,
-                    'source_model': config.get('source_model', 'other'),
-                    'source_id': record.id,
-                    # 使用中間模型的上傳時間，如果沒有則使用當前時間
-                    'shot_at': photo_record.upload_time if hasattr(photo_record, 'upload_time') else fields.Datetime.now(),
-                }
-
-                # 設定備註（組合的說明文字）
-                if notes_parts:
-                    photo_vals['notes'] = '\n\n'.join(notes_parts)
-
-                # 位置資訊
-                if config.get('location_field'):
-                    location_value = getattr(record, config['location_field'], None)
-                    if location_value:
-                        photo_vals['location_description'] = str(location_value)
-
-                # 建立新照片記錄
-                SupervisionPhoto.create(photo_vals)
+    # 照片資料表收斂後，_get_photo_sync_config() 與 _auto_sync_photos() 覆寫
+    # 都已移除（原本約 110 行）：照片本來就是 supervision.photo。

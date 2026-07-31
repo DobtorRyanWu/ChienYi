@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 核心基礎模組',
-    'version': '18.0.4.4.0',  # 4.4.0: 新增 res.users.portal_role 自訂欄位管理前台角色(取代原生下拉,對Portal使用者可見可改;設定角色自動轉乾淨Portal,admin除外);角色群組移除 category_id；4.3.0: 前台四角色往下合併（boss/manager/field/observer 併入 subscriber/leader/user/viewer 並改名為 老闆/主管/現場人員/定期閱覽者、刪除新群組、到期邏輯解耦）post-migrate；4.1.1: 業主欄位 authority_id→authority_name 純文字化資料回填 post-migrate；4.1.0: project_task 必填欄位 NULL 回填 pre-migrate
+    # 4.6.0: 修 total_approved_duration 重複計算展延 —— 基數改用 original_duration
+    #        （開工時凍結）而非 contract_duration（會隨 contract_end_date 移動、
+    #        本身已含展延）。P11001 實測 178 → 164
+    # 4.7.0: 併入 GitHub 上游修正 8f0bf84 —— _resolve_uom_id 自動建 uom.category/uom.uom
+    #        改用 sudo（uom 是全域參照資料；原本要求 Administration/Settings 群組，
+    #        非管理員如代操帳號建含新單位工項／套用引進新單位的契約變更時 AccessError）
+    'version': '18.0.4.7.0',  # 4.5.0: 工程案件新增經緯度範圍 constrains（原本完全沒有，實際存過非法緯度 121.51；且告示牌照片會繼承這組座標，錯值會擴散）；4.4.0: 新增 res.users.portal_role 自訂欄位管理前台角色(取代原生下拉,對Portal使用者可見可改;設定角色自動轉乾淨Portal,admin除外);角色群組移除 category_id；4.3.0: 前台四角色往下合併（boss/manager/field/observer 併入 subscriber/leader/user/viewer 並改名為 老闆/主管/現場人員/定期閱覽者、刪除新群組、到期邏輯解耦）post-migrate；4.1.1: 業主欄位 authority_id→authority_name 純文字化資料回填 post-migrate；4.1.0: project_task 必填欄位 NULL 回填 pre-migrate
     'category': 'Construction/Supervision',
     'summary': '工程監造與施工協作管理系統核心模組',
     'description': """
