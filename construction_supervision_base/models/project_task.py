@@ -339,8 +339,10 @@ class ProjectTask(models.Model):
             if norm_key(u.name) == nk:
                 return u.id
         # 4. 自動建立（政府採購特殊中文單位彼此不可換算，各自獨立類別）
-        category = self.env['uom.category'].create({'name': display_unit})
-        new_uom = Uom.create({
+        # sudo：uom 為全域參照資料。原本無 sudo 會要求「Administration/Settings」群組，
+        # 導致非管理員（如代操帳號）建含新單位的工項或套用引進新單位的契約變更時 AccessError。
+        category = self.env['uom.category'].sudo().create({'name': display_unit})
+        new_uom = Uom.sudo().create({
             'name': display_unit,
             'category_id': category.id,
             'uom_type': 'reference',
