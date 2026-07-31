@@ -540,7 +540,9 @@ class PaymentEstimateLine(models.Model):
             prev_lines = self.search([
                 ('task_id', '=', line.task_id.id),
                 ('estimate_id.project_id', '=', est.project_id.id),
-                ('estimate_id.state', '=', 'approved'),
+                # archived 是「已核定後歸檔」，其數量仍為有效核定量，須一併計入前期累計，
+                # 否則前期估驗一歸檔，後期累計就會漏掉該期數量。
+                ('estimate_id.state', 'in', ('approved', 'archived')),
                 ('estimate_id.estimate_date', '<', est.estimate_date),
             ])
             line.previous_approved_qty = sum(prev_lines.mapped('estimate_qty'))
