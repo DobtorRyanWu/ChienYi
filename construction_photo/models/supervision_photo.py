@@ -500,8 +500,11 @@ class SupervisionPhoto(models.Model):
                     '照片座標補完失敗（略過，不影響照片建立）- Photo ID: %s, Error: %s',
                     photo.id, e)
 
+    # 每批處理幾張。400 張 × 平均 450KB ≈ 180MB，加上 ORM 物件開銷仍在安全範圍。
+    _BACKFILL_BATCH_SIZE = 400
+
     @api.model
-    def _backfill_missing_coordinates(self, limit=None):
+    def _backfill_missing_coordinates(self, limit=None, batch_size=None):
         """把「座標還是空的」既有照片補上兜底座標。
 
         座標兜底全面化（2026-07-31）之前上傳的照片，當時的規則是只有工程
@@ -513,14 +516,27 @@ class SupervisionPhoto(models.Model):
         EXIF 仍優先（舊照片當初可能因為別的原因沒讀到），讀不到才用兜底。
         已經有座標的照片完全不碰。
 
+        ⚠️ **必須分批**：`_exif_coordinates()` 會用 `attachment.raw` 把整張照片的
+        二進位讀進 ORM cache，而 cache 在同一個 transaction 內不會自己釋放。
+        實測 8428 張待處理照片（其中 4074 張 JPEG 共 1786MB）會直接 MemoryError，
+        讓整個升級中斷。每批做完就 `invalidate_all()` 清掉 cache（它預設會先 flush，
+        所以已寫入的座標不會掉）。
+
         回傳實際補上座標的張數。可重複執行。
         """
         photos = self.with_context(active_test=False).search(
             [('latitude', '=', 0), ('longitude', '=', 0)], limit=limit)
-        before = len(photos)
-        photos._resolve_missing_coordinates()
-        filled = len(photos.filtered(lambda p: p.latitude or p.longitude))
-        _logger.info('照片座標回填：掃描 %s 張、補上 %s 張', before, filled)
+        scanned = len(photos)
+        size = batch_size or self._BACKFILL_BATCH_SIZE
+        filled = 0
+        for index in range(0, scanned, size):
+            batch = photos[index:index + size]
+            batch._resolve_missing_coordinates()
+            # 先算數量再清 cache，否則 filtered 會重新查一次資料庫
+            filled += len(batch.filtered(lambda p: p.latitude or p.longitude))
+            self.env.invalidate_all()
+        _logger.info('照片座標回填：掃描 %s 張、補上 %s 張（每批 %s 張）',
+                     scanned, filled, size)
         return filled
 
     def _exif_coordinates(self):
