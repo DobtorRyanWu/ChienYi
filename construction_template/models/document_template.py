@@ -8,6 +8,31 @@ from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
+# 上傳時依副檔名決定 mimetype。這裡的值必須與 _check_attachment_type()
+# 的 allowed_mimetypes 一致，否則合法檔案會被自己的約束擋下來。
+TEMPLATE_MIMETYPES = {
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'xls': 'application/vnd.ms-excel',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'doc': 'application/msword',
+    'pdf': 'application/pdf',
+}
+# 允許的樣板格式。以 TEMPLATE_MIMETYPES 為單一來源，避免兩份清單漂移。
+ALLOWED_MIMETYPES = set(TEMPLATE_MIMETYPES.values())
+# 副檔名不在上表時給的值——刻意不在 ALLOWED_MIMETYPES 裡，讓格式檢查擋下來。
+FALLBACK_MIMETYPE = 'application/octet-stream'
+DEFAULT_TEMPLATE_FILENAME = '樣板檔案'
+UNSUPPORTED_FORMAT_MSG = (
+    '樣板檔案格式不支援！請上傳 Excel (.xls/.xlsx)、'
+    'Word (.doc/.docx) 或 PDF 格式的檔案。'
+)
+
+
+def _mimetype_from_filename(filename):
+    """由檔名副檔名推斷 mimetype"""
+    ext = (filename or '').rsplit('.', 1)[-1].lower() if '.' in (filename or '') else ''
+    return TEMPLATE_MIMETYPES.get(ext, FALLBACK_MIMETYPE)
+
 
 class DocumentTemplate(models.Model):
     """
@@ -62,20 +87,29 @@ class DocumentTemplate(models.Model):
        help='選擇此樣板適用的報表類型')
 
     # === 樣板檔案 ===
+    # 實際儲存位置。使用者不直接操作它，改由 file_data 的上傳元件間接維護，
+    # 但仍需保留（action_open_in_editor / action_download_template 都讀它，
+    # 且 view 的 invisible="not attachment_id" 修飾語需要它）。
     attachment_id = fields.Many2one(
         'ir.attachment',
-        string='樣板檔案',
-        help='上傳的樣板檔案 (支援 Excel/Word 格式)')
+        string='樣板附件（內部）',
+        help='樣板檔案實際存放的附件記錄，由上方「樣板檔案」欄位自動維護')
 
     file_name = fields.Char(
         string='檔案名稱',
-        related='attachment_id.name',
-        readonly=True)
+        compute='_compute_file_name',
+        store=True,
+        readonly=False,
+        help='上傳檔案時自動帶入，可自行修改')
 
+    # 上傳入口。附件仍以 attachment_id 為單一儲存位置，這裡只是把
+    # 標準 binary 上傳元件接上去（原本 view 用的 many2one_binary widget
+    # 在 Odoo 18 不存在，會靜默降級成 ir.attachment 下拉選單）。
     file_data = fields.Binary(
-        string='檔案內容',
-        related='attachment_id.datas',
-        readonly=True)
+        string='樣板檔案',
+        compute='_compute_file_data',
+        inverse='_inverse_file_data',
+        help='上傳樣板檔案（支援 .xlsx / .xls / .docx / .doc / .pdf）')
 
     file_size = fields.Integer(
         string='檔案大小',
@@ -176,6 +210,59 @@ class DocumentTemplate(models.Model):
     ]
 
     # === 計算欄位 ===
+    @api.depends('attachment_id.name')
+    def _compute_file_name(self):
+        """檔名跟著附件走。store + readonly=False 是為了兩件事：
+        ①模組升級時自動從既有附件回填，不必手寫 migration
+        ②上傳元件的 filename= 仍可直接寫入
+        """
+        for record in self:
+            # stored compute 必須對每一筆賦值，不能有沒走到的分支
+            record.file_name = record.attachment_id.name or False
+
+    @api.depends('attachment_id.datas')
+    def _compute_file_data(self):
+        for record in self:
+            record.file_data = record.attachment_id.datas if record.attachment_id else False
+
+    def _inverse_file_data(self):
+        """把上傳的內容寫進 ir.attachment（沒有就建一個）。
+
+        附件是唯一儲存位置，attachment_id 之外的欄位（file_size / mimetype）
+        都是 related，會自動跟上。
+        """
+        for record in self:
+            if not record.file_data:
+                # 清空 = 移除附件
+                if record.attachment_id:
+                    record.attachment_id.unlink()
+                    record.attachment_id = False
+                continue
+
+            # 上傳時 Odoo 會連同 filename= 指定的 file_name 一起寫入，
+            # 但不保證先後順序，取不到就退回附件原名、再退回預設名。
+            fname = record.file_name or (record.attachment_id.name if record.attachment_id else False) \
+                or DEFAULT_TEMPLATE_FILENAME
+            mimetype = _mimetype_from_filename(fname)
+            # 這裡必須自己擋格式：_check_attachment_type() 只 constrains
+            # attachment_id，換檔案時 attachment_id 沒變、約束不會觸發，
+            # 於是覆蓋上傳可以塞進任何格式。
+            if mimetype not in ALLOWED_MIMETYPES:
+                raise ValidationError(UNSUPPORTED_FORMAT_MSG)
+            vals = {
+                'name': fname,
+                'datas': record.file_data,
+                'mimetype': mimetype,
+            }
+            if record.attachment_id:
+                record.attachment_id.write(vals)
+            else:
+                record.attachment_id = self.env['ir.attachment'].create(dict(
+                    vals,
+                    res_model=record._name,
+                    res_id=record.id,
+                ))
+
     @api.depends('is_default', 'project_id')
     def _compute_scope_type(self):
         """根據設定自動判斷適用範圍"""
@@ -225,20 +312,15 @@ class DocumentTemplate(models.Model):
 
     @api.constrains('attachment_id')
     def _check_attachment_type(self):
-        """驗證附件檔案類型"""
-        allowed_mimetypes = [
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/pdf',
-        ]
+        """驗證附件檔案類型。
+
+        注意：這條只在 attachment_id 本身變動時觸發，覆蓋既有附件的內容
+        不會走到這裡——那條路徑由 _inverse_file_data() 自己擋。
+        """
         for record in self:
             if record.attachment_id and record.mimetype:
-                if record.mimetype not in allowed_mimetypes:
-                    raise ValidationError(
-                        '樣板檔案格式不支援！請上傳 Excel (.xls/.xlsx)、'
-                        'Word (.doc/.docx) 或 PDF 格式的檔案。')
+                if record.mimetype not in ALLOWED_MIMETYPES:
+                    raise ValidationError(UNSUPPORTED_FORMAT_MSG)
 
     # === Onchange ===
     @api.onchange('is_default')
@@ -276,32 +358,26 @@ class DocumentTemplate(models.Model):
         }
 
     def action_download_default_template(self):
-        """下載系統內建預設樣板"""
+        """下載系統內建預設樣板。
+
+        改指向資料庫裡同類型的 is_default 記錄，不再組 static/ 路徑——
+        原本的寫法指向 construction_template/static/templates/，那個目錄
+        並不存在（實測回 404），而且把 13 種類型全寫死成 .xlsx，
+        但實際有 3 個是 .docx。改讀 DB 後副檔名自動正確，
+        範本更新時也不會有兩份檔案不同步的問題。
+        """
         self.ensure_one()
-        # 系統內建樣板路徑對照
-        default_templates = {
-            'daily_log_1': 'construction_template/static/templates/daily_log_1.xlsx',
-            'daily_log_2': 'construction_template/static/templates/daily_log_2.xlsx',
-            'self_inspection': 'construction_template/static/templates/self_inspection.xlsx',
-            'defect_improvement': 'construction_template/static/templates/defect_improvement.xlsx',
-            'defect_control': 'construction_template/static/templates/defect_control.xlsx',
-            'review_control': 'construction_template/static/templates/review_control.xlsx',
-            'test_control': 'construction_template/static/templates/test_control.xlsx',
-            'progress_report': 'construction_template/static/templates/progress_report.xlsx',
-            'progress_schedule': 'construction_template/static/templates/progress_schedule.xlsx',
-            'estimate_report': 'construction_template/static/templates/estimate_report.xlsx',
-            'acceptance_report': 'construction_template/static/templates/acceptance_report.xlsx',
-            'notification_slip': 'construction_template/static/templates/notification_slip.xlsx',
-            'material_test': 'construction_template/static/templates/material_test.xlsx',
+        default = self.sudo().search([
+            ('template_type', '=', self.template_type),
+            ('is_default', '=', True),
+        ], limit=1)
+        if not default or not default.attachment_id:
+            raise UserError('此類型尚無系統內建預設樣板！')
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{default.attachment_id.id}?download=true',
+            'target': 'self',
         }
-        template_path = default_templates.get(self.template_type)
-        if template_path:
-            return {
-                'type': 'ir.actions.act_url',
-                'url': f'/{template_path}',
-                'target': 'self',
-            }
-        raise UserError('此類型尚無系統內建預設樣板！')
 
     def action_open_in_editor(self):
         """用系統內建編輯器開啟本範本。

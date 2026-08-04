@@ -36,15 +36,16 @@
                     <button name="action_open_in_editor" string="用編輯器開啟" type="object" class="btn-primary" invisible="not attachment_id"/>
                     <button name="action_download_template" string="下載樣板" type="object" class="btn-secondary" invisible="not attachment_id"/>
                     <button name="action_download_default_template" string="下載預設樣板" type="object" class="btn-secondary"/>
-                    <button name="action_test_template" string="測試樣板" type="object" invisible="not attachment_id"/>
                     <button name="action_duplicate" string="複製樣板" type="object"/>
+                    <!-- 「測試樣板」按鈕已移除：action_test_template 目前一律
+                         raise UserError('樣板測試功能開發中')，點了只會吃到錯誤訊息。
+                         功能實作後再放回來。 -->
                 </header>
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button name="action_view_usage_log" type="object" class="oe_stat_button" icon="fa-history">
-                            <field name="usage_count" widget="statinfo" string="使用次數"/>
-                        </button>
-                    </div>
+                    <!-- 使用次數 stat button 已移除：record_usage() 全 addons 無人呼叫，
+                         usage_count 永遠是 0，且 action_view_usage_log 一律
+                         raise UserError('使用紀錄功能開發中')。 -->
+                    <div class="oe_button_box" name="button_box"/>
                     <widget name="web_ribbon" title="系統預設" bg_color="text-bg-info" invisible="not is_default"/>
                     <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger" invisible="active"/>
                     <div class="oe_title">
@@ -71,7 +72,10 @@
                         <page string="樣板檔案" name="template_file">
                             <group>
                                 <group string="檔案資訊">
-                                    <field name="attachment_id" widget="many2one_binary" filename="file_name"/>
+                                    <!-- attachment_id 必須留在 view 裡（即使隱藏）：
+                                         header 三顆按鈕的 invisible="not attachment_id" 需要它才能求值 -->
+                                    <field name="attachment_id" invisible="1"/>
+                                    <field name="file_data" filename="file_name"/>
                                     <field name="file_name" readonly="1"/>
                                     <field name="file_size" readonly="1" widget="integer"/>
                                     <field name="mimetype" readonly="1"/>

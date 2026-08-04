@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 樣板設定',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """
@@ -39,6 +39,8 @@
         'views/menu.xml',
     ],
     'demo': [],
+    # 安裝時把 data/templates_blank/ 的 13 個空白範本灌成系統預設樣板
+    'post_init_hook': 'post_init_hook',
     'installable': True,
     'application': False,
     'auto_install': False,
