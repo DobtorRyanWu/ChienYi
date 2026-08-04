@@ -10,7 +10,10 @@
         and the dropdown for the user where can logout
         we had to disable the lef sidebar to keep our web_resposive toggle button working
         and to keep the user dropdown in its original place -->
-        <xpath expr="//t[@t-if='env.isSmall']" position="attributes">
+        <!-- Odoo 18 原生已把判斷式由 env.isSmall 改為 this.ui.isSmall，
+             xpath 若仍用舊屬性值會定位失敗 → template 編譯 throw → 整個後台白畫面。
+             OCA 上游更新後需重新確認此處。 -->
+        <xpath expr="//t[@t-if='this.ui.isSmall']" position="attributes">
             <attribute name="t-if">false</attribute>
         </xpath>
         <!-- The kanban dropdown is replaced with the odoo default one
