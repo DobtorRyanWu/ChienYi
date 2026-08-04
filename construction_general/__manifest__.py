@@ -9,7 +9,8 @@
     # 3.1.0: 一般式缺失後台照片頁籤加上批次上傳精靈按鈕（矯正前／中／後各一顆）
     # 3.2.0: 一般式缺失三階段照片改垂直排列 + 共用看板
     # 3.3.0: 同上，關掉照片頁籤的「加入」按鈕
-    'version': '18.0.3.3.0',
+    # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
+    'version': '18.0.3.4.0',
     'category': 'Construction/General',
     'summary': '一般式工程專用管理模組',
     'description': """

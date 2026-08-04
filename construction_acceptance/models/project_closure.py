@@ -18,7 +18,8 @@ class ProjectClosure(models.Model):
     """
     _name = 'project.closure'
     _description = '結案處理'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'closure_date desc, id desc'
 
     # === 基本資料 ===
@@ -303,6 +304,12 @@ class ProjectClosure(models.Model):
         'project_closure_attachment_rel',
         'closure_id', 'attachment_id',
         string='結案附件')
+
+    def _attachment_default_category(self):
+        """結案附件 → 17-結案驗收 / 工程結案資料"""
+        return self.env.ref(
+            'construction_supervision_base.cat_17_03',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     # === 審核資訊 ===
     reviewer_id = fields.Many2one(

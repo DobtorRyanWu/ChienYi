@@ -16,7 +16,8 @@ class GeneralSelfInspection(models.Model):
     _name = 'general.self.inspection'
     _description = '一般式自主檢查'
     # photo.sync.mixin 已隨照片資料表收斂退場
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'inspection_date desc, id desc'
     _rec_name = 'sub_project_name'   # 以分項工程名稱顯示，較易辨識是哪張檢查單
 
@@ -171,6 +172,12 @@ class GeneralSelfInspection(models.Model):
         'general_inspection_attachment_rel',
         'inspection_id', 'attachment_id',
         string='相關附件')
+
+    def _attachment_default_category(self):
+        """自主檢查附件 → 12-文書資料 / 07-施工抽查"""
+        return self.env.ref(
+            'construction_supervision_base.cat_12_07',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     # === 備註 ===
     note = fields.Text(string='備註說明')

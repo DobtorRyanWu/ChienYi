@@ -28,7 +28,8 @@ class GeneralDefectImprovement(models.Model):
     _name = 'general.defect.improvement'
     _description = '一般式缺失改善'
     # photo.sync.mixin 已隨照片資料表收斂退場
-    _inherit = ['construction.daily.defect.mixin', 'mail.thread', 'mail.activity.mixin']
+    _inherit = ['construction.daily.defect.mixin', 'mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'notification_date desc, id desc'
 
     # === 基本資料 ===
@@ -127,6 +128,12 @@ class GeneralDefectImprovement(models.Model):
         'defect_id', 'attachment_id',
         string='相關文件附件',
         help='非照片類型的其他附件文件')
+
+    def _attachment_default_category(self):
+        """缺失改善附件 → 12-文書資料 / 06-缺失改善"""
+        return self.env.ref(
+            'construction_supervision_base.cat_12_06',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     # === 向後兼容欄位 (保留舊欄位名，用於數據遷移) ===
     # 兩個 legacy M2M 欄位（general_defect_photo_rel / general_improvement_photo_rel）

@@ -4,7 +4,8 @@
     # 1.1.0: 併入 GitHub 上游修正 b9677e4 —— previous_approved_qty 納入 archived 估驗
     #        （archived 是「已核定後歸檔」，數量仍有效；原本只認 approved，
     #        前期估驗一歸檔，後期「前期已核定累計」就漏掉該期數量）
-    'version': '18.0.1.1.0',
+    # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
+    'version': '18.0.1.2.0',
     'category': 'Construction',
     'summary': '估驗計價、工項驗收、請款管理',
     'description': """

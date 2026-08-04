@@ -16,7 +16,8 @@ class SupervisionReviewApplication(models.Model):
     """
     _name = 'supervision.review.application'
     _description = '送審管制'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'expected_review_date asc, id desc'
     _rec_name = 'display_name'
 
@@ -220,6 +221,12 @@ class SupervisionReviewApplication(models.Model):
         'review_id',
         'attachment_id',
         string='送審文件')
+
+    def _attachment_default_category(self):
+        """送審文件 → 12-文書資料 / 08-送審管制"""
+        return self.env.ref(
+            'construction_supervision_base.cat_12_08',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     attachment_count = fields.Integer(
         string='附件數',

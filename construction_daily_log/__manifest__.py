@@ -8,7 +8,10 @@
     # 2.1.0: 後台照片頁籤加上批次上傳精靈按鈕（鎖定且未解鎖時隱藏）
     # 2.2.0: 照片頁籤改用共用看板
     # 2.3.0: 同上，關掉照片頁籤的「加入」按鈕
-    "version": "18.0.2.3.0",
+    # 2.4.0: 契約工項 actual_qty 改由施工日誌自動計算（只計已確認日誌）
+    # 2.6.0: 同上，補 post-migration 重算既有工項的 actual_qty 與下游金額/完成率
+    #        （欄位早就存在，Odoo 不會自動排程重算）
+    "version": "18.0.2.6.0",
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """

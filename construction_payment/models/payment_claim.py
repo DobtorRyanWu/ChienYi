@@ -15,7 +15,8 @@ class PaymentClaim(models.Model):
     """
     _name = 'payment.claim'
     _description = '請款單'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'create_date desc'
 
     # === 基本資訊 ===
@@ -148,6 +149,13 @@ class PaymentClaim(models.Model):
         'attachment_id',
         string='請款文件'
     )
+
+    def _attachment_default_category(self):
+        """請款文件 → 11-工程資料 / 05-估驗資料"""
+        return self.env.ref(
+            'construction_supervision_base.cat_11_05',
+            raise_if_not_found=False) or super()._attachment_default_category()
+
     note = fields.Text('備註')
 
     # === 簽核流程 ===

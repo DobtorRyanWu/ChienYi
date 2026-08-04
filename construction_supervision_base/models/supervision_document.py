@@ -289,13 +289,16 @@ class SupervisionDocument(models.Model):
                     new_attachment_ids.append(command[1])
             
             if new_attachment_ids:
-                # 更新附件的 res_model 和 res_id
+                # 更新附件的 res_model 和 res_id，並同步工程與分類，
+                # 讓正式列管文件的附件也出現在「全部工程附件」清單
                 attachments = self.env['ir.attachment'].browse(new_attachment_ids)
                 for attachment in attachments:
                     attachment.write({
                         'res_model': self._name,
                         'res_id': self.id,
                         'is_current_version': True,
+                        'supervision_project_id': self.project_id.id,
+                        'document_category_id': self.document_category_id.id,
                     })
             
             # 移除 upload_attachment_ids ，避免寫入資料庫
@@ -316,12 +319,13 @@ class SupervisionDocument(models.Model):
                 raise UserError('已上傳的文件無法刪除，請先封存')
         return super().unlink()
 
-    def name_get(self):
-        result = []
+    # Odoo 17 起 name_get() 已移除，改用 _compute_display_name()。
+    # 原本這裡寫的是 name_get，等於從未被呼叫、文件編號一直沒顯示出來。
+    @api.depends('document_no', 'name')
+    def _compute_display_name(self):
         for doc in self:
-            name = f'[{doc.document_no}] {doc.name}'
-            result.append((doc.id, name))
-        return result
+            doc.display_name = (
+                f'[{doc.document_no}] {doc.name}' if doc.document_no else doc.name)
 
     @api.model
     def _name_search(self, name, domain=None, operator='ilike', limit=None, order=None):
@@ -333,9 +337,28 @@ class SupervisionDocument(models.Model):
 
 class IrAttachment(models.Model):
     """
-    擴展附件模型，支援版本標記
+    擴展附件模型，支援版本標記與工程歸類
     """
     _inherit = 'ir.attachment'
+
+    # === 工程歸類（附件總覽用）===
+    # 系統各處（施工日誌、缺失、送審、估驗、檢試驗…）上傳的附件，過去只存在
+    # 各自單據的 Many2many 裡，彼此無關聯，「工程文件」也看不到。
+    # 這兩欄由 supervision.attachment.mixin 在來源單據儲存時自動補上，
+    # 讓所有附件都能在「檔案管理 > 文件管理 > 全部工程附件」集中查找與歸類。
+    # 沿用 ir.attachment 本身（res_model/res_id 已記錄來源），不另建資料表。
+    supervision_project_id = fields.Many2one(
+        'project.project',
+        string='所屬工程',
+        index=True,
+        ondelete='cascade',
+        help='此附件所屬的工程案件，由來源單據自動帶入')
+
+    document_category_id = fields.Many2one(
+        'supervision.document.category',
+        string='文件分類',
+        index=True,
+        help='此附件的文件分類，由來源單據自動帶入預設值，可手動調整')
 
     is_current_version = fields.Boolean(
         string='當前版本',
@@ -353,6 +376,22 @@ class IrAttachment(models.Model):
     version_note = fields.Char(
         string='版本備註',
         help='此版本的說明或變更記錄')
+
+    def action_open_attachment_source(self):
+        """開啟這個附件的來源單據（供「全部工程附件」清單跳轉用）"""
+        self.ensure_one()
+        if not self.res_model or not self.res_id:
+            raise UserError('此附件沒有記錄來源單據。')
+        if self.res_model not in self.env:
+            raise UserError('來源模型「%s」不存在，可能所屬模組已移除。' % self.res_model)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.res_name or self.name,
+            'res_model': self.res_model,
+            'res_id': self.res_id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
     def action_restore_as_current(self):
         """將歷史附件恢復為當前版本"""

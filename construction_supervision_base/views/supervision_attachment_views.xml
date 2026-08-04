@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ==================================================================
+         全部工程附件
+
+         把系統各處（施工日誌、缺失、送審、估驗、檢試驗、驗收…）上傳的附件
+         集中在一個清單，依「所屬工程 / 文件分類 / 來源類型」查找。
+         底層直接用 ir.attachment，不複製資料、不另建模型。
+
+         priority 設 99：不搶原生 ir.attachment 視圖的預設，下面的 action
+         以 view_id / search_view_id 明確指定才會用到這幾個。
+         ================================================================== -->
+
+    <record id="view_supervision_attachment_tree" model="ir.ui.view">
+        <field name="name">ir.attachment.supervision.list</field>
+        <field name="model">ir.attachment</field>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <list string="工程附件" create="false" editable="bottom">
+                <field name="name" string="檔案名稱" readonly="1"/>
+                <field name="supervision_project_id" string="所屬工程" readonly="1"
+                       optional="show"/>
+                <field name="document_category_id" string="文件分類"
+                       options="{'no_create': True}"/>
+                <field name="res_model" string="來源類型" readonly="1" optional="show"/>
+                <field name="res_name" string="來源記錄" readonly="1" optional="show"/>
+                <field name="create_uid" string="上傳者" readonly="1" optional="show"/>
+                <field name="create_date" string="上傳時間" readonly="1" optional="show"/>
+                <field name="file_size" string="大小" readonly="1" optional="hide"/>
+                <field name="mimetype" string="檔案類型" readonly="1" optional="hide"/>
+                <button name="action_open_attachment_source" type="object"
+                        icon="fa-external-link" title="開啟來源單據"
+                        invisible="not res_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_supervision_attachment_form" model="ir.ui.view">
+        <field name="name">ir.attachment.supervision.form</field>
+        <field name="model">ir.attachment</field>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <form string="工程附件">
+                <sheet>
+                    <group>
+                        <group string="檔案">
+                            <field name="name" readonly="1"/>
+                            <field name="mimetype" readonly="1"/>
+                            <field name="file_size" readonly="1"/>
+                        </group>
+                        <group string="歸類">
+                            <field name="supervision_project_id" readonly="1"/>
+                            <field name="document_category_id"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="來源">
+                            <field name="res_model" readonly="1"/>
+                            <field name="res_name" readonly="1"/>
+                            <field name="res_id" readonly="1"/>
+                        </group>
+                        <group string="上傳">
+                            <field name="create_uid" readonly="1"/>
+                            <field name="create_date" readonly="1"/>
+                        </group>
+                    </group>
+                    <div>
+                        <button name="action_open_attachment_source" type="object"
+                                string="開啟來源單據" class="btn-secondary"
+                                invisible="not res_id"/>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_supervision_attachment_search" model="ir.ui.view">
+        <field name="name">ir.attachment.supervision.search</field>
+        <field name="model">ir.attachment</field>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <search string="工程附件">
+                <field name="name" string="檔案名稱"/>
+                <field name="supervision_project_id" string="所屬工程"/>
+                <field name="document_category_id" string="文件分類"/>
+                <!-- res_name 是非儲存的 computed 欄位，不能拿來搜尋，只在清單顯示 -->
+                <field name="res_model" string="來源類型"/>
+                <field name="create_uid" string="上傳者"/>
+
+                <separator/>
+                <filter string="尚未分類" name="uncategorized"
+                        domain="[('document_category_id', '=', False)]"/>
+
+                <separator/>
+                <filter string="最近 30 天" name="last_30_days"
+                        domain="[('create_date', '&gt;=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+
+                <group expand="0" string="群組">
+                    <filter string="所屬工程" name="group_project"
+                            context="{'group_by': 'supervision_project_id'}"/>
+                    <filter string="文件分類" name="group_category"
+                            context="{'group_by': 'document_category_id'}"/>
+                    <filter string="來源類型" name="group_res_model"
+                            context="{'group_by': 'res_model'}"/>
+                    <filter string="上傳者" name="group_creator"
+                            context="{'group_by': 'create_uid'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_supervision_attachment_all" model="ir.actions.act_window">
+        <field name="name">全部工程附件</field>
+        <field name="res_model">ir.attachment</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('supervision_project_id', '!=', False)]</field>
+        <field name="search_view_id" ref="view_supervision_attachment_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無工程附件
+            </p>
+            <p>
+                這裡集中列出系統各處上傳的所有附件——施工日誌、缺失改善、送審管制、<br/>
+                檢試驗、估驗計價、驗收等單據上傳的檔案都會自動出現在此並完成歸類。<br/>
+                分類可直接在清單上調整。
+            </p>
+        </field>
+    </record>
+
+    <!-- 指定本 action 使用上面那組 priority=99 的視圖，不受原生 ir.attachment 視圖影響 -->
+    <record id="action_supervision_attachment_all_list" model="ir.actions.act_window.view">
+        <field name="sequence" eval="10"/>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_supervision_attachment_tree"/>
+        <field name="act_window_id" ref="action_supervision_attachment_all"/>
+    </record>
+
+    <record id="action_supervision_attachment_all_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="20"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_supervision_attachment_form"/>
+        <field name="act_window_id" ref="action_supervision_attachment_all"/>
+    </record>
+
+    <menuitem id="menu_supervision_attachment_all"
+              name="全部工程附件"
+              parent="menu_document_management"
+              action="action_supervision_attachment_all"
+              sequence="15"/>
+
+</odoo>

@@ -72,17 +72,38 @@
                             <div class="alert alert-info" role="alert">
                                 段落＝抽查紀錄表的分段（例：一 廠商自主檢查／二 施工中／三 銑刨作業）。
                                 新類型預設帶「施工前／施工中／施工後」，可自行增刪與拖曳排序。
-                                <b>新類型請先儲存，再到下一頁籤設定各項目的段落。</b>
+                                點右側展開鈕即可直接編輯該段落底下的檢查項目，<b>新類型不必先儲存</b>。
                             </div>
                             <field name="stage_ids">
-                                <list editable="bottom">
+                                <list editable="bottom" open_form_view="1">
                                     <field name="sequence" widget="handle"/>
                                     <field name="name"/>
+                                    <field name="item_count" string="項目數" readonly="1"/>
                                     <field name="legacy_code" column_invisible="1"/>
                                 </list>
+                                <form string="查驗段落">
+                                    <group>
+                                        <field name="name"/>
+                                        <field name="sequence"/>
+                                    </group>
+                                    <separator string="本段落的檢查項目"/>
+                                    <field name="item_ids">
+                                        <list editable="bottom">
+                                            <field name="sequence" widget="handle"/>
+                                            <field name="name"/>
+                                            <field name="check_standard"/>
+                                            <field name="note"/>
+                                        </list>
+                                    </field>
+                                </form>
                             </field>
                         </page>
                         <page string="預設檢查項目" name="default_items">
+                            <div class="alert alert-secondary" role="alert">
+                                此頁把所有段落的項目攤平，方便批次檢視與調整。
+                                <b>新類型尚未儲存時，這裡的「查驗段落」下拉會是空的</b>
+                                （段落還沒進資料庫）——請改到上一頁籤，從段落底下新增項目。
+                            </div>
                             <field name="default_item_ids">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>

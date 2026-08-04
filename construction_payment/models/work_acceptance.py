@@ -15,7 +15,8 @@ class WorkAcceptance(models.Model):
     """
     _name = 'work.acceptance'
     _description = '工項驗收單'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'create_date desc'
 
     # === 基本資訊 ===
@@ -117,6 +118,13 @@ class WorkAcceptance(models.Model):
         'attachment_id',
         string='驗收資料'
     )
+
+    def _attachment_default_category(self):
+        """工作驗收資料 → 11-工程資料 / 05-估驗資料"""
+        return self.env.ref(
+            'construction_supervision_base.cat_11_05',
+            raise_if_not_found=False) or super()._attachment_default_category()
+
     note = fields.Text('備註')
 
     # === 狀態 ===

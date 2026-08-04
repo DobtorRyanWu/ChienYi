@@ -29,7 +29,8 @@ class ReservationDefectImprovement(models.Model):
     _name = 'reservation.defect.improvement'
     _description = '預約式缺失改善 (通報單內)'
     # photo.sync.mixin 已隨照片資料表收斂退場
-    _inherit = ['construction.daily.defect.mixin', 'mail.thread', 'mail.activity.mixin']
+    _inherit = ['construction.daily.defect.mixin', 'mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'notification_date desc, id desc'
 
     # === 通報單關聯 ===
@@ -112,6 +113,12 @@ class ReservationDefectImprovement(models.Model):
         'defect_id', 'attachment_id',
         string='相關文件附件',
         help='非照片類型的其他附件文件')
+
+    def _attachment_default_category(self):
+        """缺失改善附件 → 12-文書資料 / 06-缺失改善"""
+        return self.env.ref(
+            'construction_supervision_base.cat_12_06',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     # 兩個 legacy M2M 欄位（reservation_defect_photo_rel /
     # reservation_improvement_photo_rel）已隨照片收斂移除 —— 兩張中間表實測

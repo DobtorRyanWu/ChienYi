@@ -401,19 +401,39 @@ class ProjectTask(models.Model):
                 task.planned_amount = task.xml_amount
 
     # === 實際執行欄位 ===
+    # actual_qty 的實際計算掛在 construction_daily_log（本模組不認識 daily.log.line），
+    # 該模組會把本欄位改寫成 compute+store。未安裝日誌模組時本欄位恆為 0。
     actual_qty = fields.Float(
         string='實際完成數量', digits=(16, 4), readonly=True,
-        help='已核定的估驗數量彙總，由施工日誌自動計算')
+        help='由施工日誌自動計算：本工項所有已確認日誌的「本日完成數量」加總')
 
     actual_amount = fields.Float(
         string='實際請款金額',
-        compute='_compute_actual_amount', store=True,
-        help='actual_qty x unit_price')
+        compute='_compute_actual_amount', store=True, recursive=True,
+        help='計算規則（與契約金額同一套三分支，才能逐層比對完成率）：\n'
+             '・彙總項（有子工項）：子工項實際金額總和\n'
+             '・稅什費（有比例、無子項）：比例 × 同層前置工項實際金額總和\n'
+             '・一般葉節點：實際完成數量 × 單價')
 
-    @api.depends('actual_qty', 'unit_price')
+    @api.depends('actual_qty', 'unit_price',
+                 'child_ids', 'child_ids.actual_amount',
+                 'tax_misc_rate', 'sequence',
+                 'parent_id', 'parent_id.child_ids.actual_amount')
     def _compute_actual_amount(self):
         for task in self:
-            task.actual_amount = task.actual_qty * task.unit_price
+            if task.child_ids:
+                # 彙總項：累加子工項（Odoo 鏈式觸發，多層級自動向上滾動）
+                task.actual_amount = sum(
+                    child.actual_amount for child in task.child_ids)
+            elif task.tax_misc_rate and task.parent_id:
+                # 稅什費：與 _compute_planned_amount 同規則，只取 sequence 在其之前者
+                preceding = task.parent_id.child_ids.filtered(
+                    lambda s: s.id != task.id and s.sequence < task.sequence)
+                task.actual_amount = round(
+                    sum(preceding.mapped('actual_amount'))
+                    * task.tax_misc_rate / 100.0, 2)
+            else:
+                task.actual_amount = task.actual_qty * task.unit_price
 
     # === 對比分析 ===
     completion_rate = fields.Float(

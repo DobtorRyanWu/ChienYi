@@ -17,7 +17,8 @@ class AcceptancePreliminary(models.Model):
     """
     _name = 'acceptance.preliminary'
     _description = '初驗紀錄'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'acceptance_date desc, id desc'
 
     # === 基本資料 ===
@@ -190,6 +191,12 @@ class AcceptancePreliminary(models.Model):
         'acceptance_id', 'attachment_id',
         string='驗收附件',
         help='驗收紀錄、會議記錄等')
+
+    def _attachment_default_category(self):
+        """初驗附件 → 17-結案驗收 / 驗收資料"""
+        return self.env.ref(
+            'construction_supervision_base.cat_17_02',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     minutes = fields.Html(
         string='驗收會議紀錄',

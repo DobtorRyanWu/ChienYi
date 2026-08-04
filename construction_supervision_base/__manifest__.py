@@ -7,7 +7,21 @@
     # 4.7.0: 併入 GitHub 上游修正 8f0bf84 —— _resolve_uom_id 自動建 uom.category/uom.uom
     #        改用 sudo（uom 是全域參照資料；原本要求 Administration/Settings 群組，
     #        非管理員如代操帳號建含新單位工項／套用引進新單位的契約變更時 AccessError）
-    'version': '18.0.4.7.0',  # 4.5.0: 工程案件新增經緯度範圍 constrains（原本完全沒有，實際存過非法緯度 121.51；且告示牌照片會繼承這組座標，錯值會擴散）；4.4.0: 新增 res.users.portal_role 自訂欄位管理前台角色(取代原生下拉,對Portal使用者可見可改;設定角色自動轉乾淨Portal,admin除外);角色群組移除 category_id；4.3.0: 前台四角色往下合併（boss/manager/field/observer 併入 subscriber/leader/user/viewer 並改名為 老闆/主管/現場人員/定期閱覽者、刪除新群組、到期邏輯解耦）post-migrate；4.1.1: 業主欄位 authority_id→authority_name 純文字化資料回填 post-migrate；4.1.0: project_task 必填欄位 NULL 回填 pre-migrate
+    # 4.8.0: 四件事——(a) 契約工項 actual_amount 改為與 planned_amount 同一套三分支
+    #        並向上滾動（實際完成數量本身由 construction_daily_log 計算）；
+    #        (b) ir.attachment 加 supervision_project_id / document_category_id 兩欄
+    #        並新增 supervision.attachment.mixin，各業務單據的附件自動歸類，
+    #        新增「檔案管理 > 文件管理 > 全部工程附件」清單；
+    #        (c) 文件分類改以實際案件歸檔資料夾為準（11-工程資料、12-文書資料、
+    #        14-變更設計～18-府查核；照片另有「照片管理」專責故不設分類），
+    #        舊 24 筆系統分類停用不刪；
+    #        (d) supervision.document / category 的 name_get 改 _compute_display_name
+    #        （Odoo 17 起 name_get 已移除，原本那兩段從未被呼叫過）
+    # 4.8.1: 舊 24 筆文件分類補 post-migration 才真的停用得了
+    #        （當初以 noupdate="1" 建立，旗標存在 ir_model_data 上，改 XML 無效）
+    # 4.8.2: 拿掉「13-照片」文件分類（含 4 子分類）—— 照片由「照片管理」專責，
+    #        不再給它第二套分類體系；supervision.photo 也不掛附件歸類 mixin
+    'version': '18.0.4.8.2',  # 4.5.0: 工程案件新增經緯度範圍 constrains（原本完全沒有，實際存過非法緯度 121.51；且告示牌照片會繼承這組座標，錯值會擴散）；4.4.0: 新增 res.users.portal_role 自訂欄位管理前台角色(取代原生下拉,對Portal使用者可見可改;設定角色自動轉乾淨Portal,admin除外);角色群組移除 category_id；4.3.0: 前台四角色往下合併（boss/manager/field/observer 併入 subscriber/leader/user/viewer 並改名為 老闆/主管/現場人員/定期閱覽者、刪除新群組、到期邏輯解耦）post-migrate；4.1.1: 業主欄位 authority_id→authority_name 純文字化資料回填 post-migrate；4.1.0: project_task 必填欄位 NULL 回填 pre-migrate
     'category': 'Construction/Supervision',
     'summary': '工程監造與施工協作管理系統核心模組',
     'description': """
@@ -68,6 +82,7 @@
         'views/product_views.xml',
         'views/menu.xml',
         'views/supervision_document_category_views.xml',
+        'views/supervision_attachment_views.xml',  # 需 menu.xml 的 menu_document_management
         'views/hide_official_menus.xml',
     ],
     'assets': {

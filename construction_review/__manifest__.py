@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 送審管制模組',
-    'version': '18.0.1.0.0',
+    # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
+    'version': '18.0.1.1.0',
     'category': 'Construction/Review',
     'summary': '工程監造材料送審管制與追蹤',
     'description': """

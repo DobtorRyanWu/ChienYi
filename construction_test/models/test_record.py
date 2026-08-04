@@ -20,7 +20,8 @@ class TestRecord(models.Model):
     """
     _name = 'supervision.test.record'
     _description = '檢(試)驗管制記錄'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'in_site_date desc, id desc'
 
     # === 基本資料 ===
@@ -209,6 +210,12 @@ class TestRecord(models.Model):
         'attachment_id',
         string='檢驗報告',
         help='上傳檢驗報告文件')
+
+    def _attachment_default_category(self):
+        """檢驗報告 → 12-文書資料 / 09-檢試驗管制"""
+        return self.env.ref(
+            'construction_supervision_base.cat_12_09',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     attachment_count = fields.Integer(
         string='附件數',

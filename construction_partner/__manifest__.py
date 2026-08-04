@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 工程相關單位管理',
-    'version': '18.0.1.0.0',
+    # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
+    'version': '18.0.1.1.0',
     'category': 'Construction/Supervision',
     'summary': '工程相關單位分類標籤、證照資料與技術聯絡人管理',
     'description': """

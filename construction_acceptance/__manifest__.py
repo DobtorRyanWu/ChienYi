@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程驗收與結案管理',
-    'version': '18.0.1.0.0',
+    # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
+    'version': '18.0.1.1.0',
     'category': 'Construction',
     'summary': '初驗、正驗、驗收缺失追蹤、結案處理',
     'description': """

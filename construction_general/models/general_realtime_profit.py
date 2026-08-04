@@ -16,7 +16,8 @@ class GeneralRealtimeProfit(models.Model):
     """
     _name = 'general.realtime.profit'
     _description = '一般式即時損益'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'report_date desc, id desc'
 
     # === 基本資料 ===
@@ -344,6 +345,12 @@ class GeneralRealtimeProfit(models.Model):
         'general_profit_attachment_rel',
         'profit_id', 'attachment_id',
         string='相關附件')
+
+    def _attachment_default_category(self):
+        """即時損益附件 → 12-文書資料 / 11-其他資料"""
+        return self.env.ref(
+            'construction_supervision_base.cat_12_11',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     # === 狀態 ===
     state = fields.Selection([

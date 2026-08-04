@@ -6,7 +6,10 @@
     # 2.1.0: 後台「關聯照片」頁籤補上批次上傳入口（原本只有唯讀反查，完全無法上傳）
     # 2.2.0: 關聯照片改用共用看板（原本是自訂的圖左文右卡片）
     # 2.3.0: 同上，關掉照片頁籤的「加入」按鈕
-    'version': '18.0.2.3.0',
+    # 2.4.0: 修「統計分析」smart button —— action_view_statistics 原本 env.ref 三個
+    #        不存在的 xmlid（view_test_statistics_*），改指向真的存在的
+    #        supervision.test.task.statistics 三視圖
+    'version': '18.0.2.4.0',
     'category': 'Construction/Test',
     'summary': '工程監造檢試驗項目管理與管制記錄',
     'description': """

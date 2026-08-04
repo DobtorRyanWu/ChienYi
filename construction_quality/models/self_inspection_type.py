@@ -228,6 +228,27 @@ class SelfInspectionTypeStage(models.Model):
         index=True,
         help='資料遷移用：stage1/stage2/stage3。手動新增的段落請留空')
 
+    # === 本段落底下的檢查項目 ===
+    # 這是 self.inspection.type.item.stage_id 的反向關聯（不新增資料表、不新增欄位）。
+    # 存在的理由是「新建的檢查類型尚未儲存時也要能設定項目」：
+    # 項目的 stage_id 是 Many2one，下拉走伺服器 name_search，未儲存的段落只是
+    # 虛擬 NewId、DB 查不到，所以永遠選不到。改成從段落底下直接新增項目，
+    # 走的是純巢狀 One2many（父→子的包含關係），Odoo 前端本來就支援未儲存狀態。
+    item_ids = fields.One2many(
+        'self.inspection.type.item', 'stage_id',
+        string='檢查項目',
+        copy=False,  # 複製檢查類型時，項目由 SelfInspectionType.copy() 統一重建
+        help='屬於本段落的預設檢查項目')
+
+    item_count = fields.Integer(
+        string='項目數',
+        compute='_compute_item_count')
+
+    @api.depends('item_ids')
+    def _compute_item_count(self):
+        for stage in self:
+            stage.item_count = len(stage.item_ids)
+
     # === SQL 約束 ===
     _sql_constraints = [
         ('name_type_uniq', 'UNIQUE(type_id, name)',
@@ -307,6 +328,24 @@ class SelfInspectionTypeItem(models.Model):
 
     # === 備註 ===
     note = fields.Text(string='備註')
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """從段落底下新增項目時，自動補上 type_id。
+
+        走 stage.item_ids 建立時，ORM 只會帶 stage_id（那是 One2many 的反向欄位），
+        不會帶 type_id，而 type_id 是 required —— 沒補就會直接建不起來。
+        巢狀儲存的順序是「先建類型 → 再建段落 → 最後建項目」，所以走到這裡時
+        stage_id 已經是真實 id，browse 得到。
+
+        呼叫端明確給的 type_id 優先（例如 type.default_item_ids 那條路徑，
+        以及 SelfInspectionType.copy() 重建項目時）。
+        """
+        Stage = self.env['self.inspection.type.stage']
+        for vals in vals_list:
+            if not vals.get('type_id') and vals.get('stage_id'):
+                vals['type_id'] = Stage.browse(vals['stage_id']).type_id.id
+        return super().create(vals_list)
 
     @api.constrains('stage_id', 'type_id')
     def _check_stage_belongs_to_type(self):

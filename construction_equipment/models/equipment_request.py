@@ -19,7 +19,8 @@ class SupervisionEquipmentRequest(models.Model):
     """
     _name = 'supervision.equipment.request'
     _description = '設備維護請求'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'priority desc, schedule_date asc, id desc'
 
     # === 基本資料 ===
@@ -185,6 +186,12 @@ class SupervisionEquipmentRequest(models.Model):
         'equipment_request_attachment_rel',
         'request_id', 'attachment_id',
         string='相關附件')
+
+    def _attachment_default_category(self):
+        """機具申請附件 → 11-工程資料 / 06-廠商資料"""
+        return self.env.ref(
+            'construction_supervision_base.cat_11_06',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     # === 逾期計算 ===
     is_overdue = fields.Boolean(

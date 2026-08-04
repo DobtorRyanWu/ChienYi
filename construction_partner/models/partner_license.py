@@ -22,7 +22,8 @@ class PartnerLicense(models.Model):
     """
     _name = 'partner.license'
     _description = '廠商證照資料'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _inherit = ['mail.thread', 'mail.activity.mixin',
+                'supervision.attachment.mixin']
     _order = 'expiry_date, name'
     _rec_name = 'display_name'
 
@@ -120,6 +121,17 @@ class PartnerLicense(models.Model):
         'license_id', 'attachment_id',
         string='證照影本',
         help='上傳證照掃描檔或照片')
+
+    def _attachment_default_category(self):
+        """證照影本 → 11-工程資料 / 06-廠商資料
+
+        廠商證照是跨工程共用的主檔，沒有 project_id，
+        所以 mixin 的 _attachment_project() 會回空 —— 附件只帶分類、不帶工程，
+        因此不會出現在以工程為主的「全部工程附件」清單，這是預期行為。
+        """
+        return self.env.ref(
+            'construction_supervision_base.cat_11_06',
+            raise_if_not_found=False) or super()._attachment_default_category()
 
     attachment_count = fields.Integer(
         string='附件數',

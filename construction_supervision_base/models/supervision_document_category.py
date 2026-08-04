@@ -80,16 +80,16 @@ class SupervisionDocumentCategory(models.Model):
             ])
     
     # === 顯示名稱 ===
-    def name_get(self):
-        """顯示完整路徑（如果有上層分類）"""
-        result = []
+    # Odoo 17 起 name_get() 已移除，改用 _compute_display_name()。
+    # 原本這裡寫的是 name_get，等於整段從未被呼叫過 —— 下拉選單只顯示
+    # 「01-圖說」而看不到上層，分類樹一多就分不清。
+    @api.depends('name', 'parent_id.name')
+    def _compute_display_name(self):
         for category in self:
             if category.parent_id:
-                name = f'{category.parent_id.name} / {category.name}'
+                category.display_name = f'{category.parent_id.name} / {category.name}'
             else:
-                name = category.name
-            result.append((category.id, name))
-        return result
+                category.display_name = category.name
     
     # === 約束檢查 ===
     @api.constrains('parent_id')

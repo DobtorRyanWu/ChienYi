@@ -454,21 +454,27 @@ class TestStandard(models.Model):
         return [s for s in all_stats if not s['is_qualified']]
 
     def action_view_statistics(self):
-        """查看檢試驗統計分析"""
+        """查看檢試驗統計分析
+
+        指向 supervision.test.task.statistics（SQL View，以「工項 × 檢試驗項目」
+        為維度），而非 supervision.test.record 的原始檢驗記錄。
+        """
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': f'{self.name} - 統計分析',
-            'res_model': 'supervision.test.record',
+            'res_model': 'supervision.test.task.statistics',
             'view_mode': 'list,pivot,graph',
             'views': [
-                (self.env.ref('construction_test.view_test_statistics_tree').id, 'list'),
-                (self.env.ref('construction_test.view_test_statistics_pivot').id, 'pivot'),
-                (self.env.ref('construction_test.view_test_statistics_graph').id, 'graph'),
+                (self.env.ref(
+                    'construction_test.view_test_task_statistics_tree').id, 'list'),
+                (self.env.ref(
+                    'construction_test.view_test_task_statistics_pivot').id, 'pivot'),
+                (self.env.ref(
+                    'construction_test.view_test_task_statistics_graph').id, 'graph'),
             ],
+            'search_view_id': self.env.ref(
+                'construction_test.view_test_task_statistics_search').id,
             'domain': [('standard_id', '=', self.id)],
-            'context': {
-                'create': False,
-                'search_default_group_task': 1,
-            },
+            'context': {'create': False},
         }

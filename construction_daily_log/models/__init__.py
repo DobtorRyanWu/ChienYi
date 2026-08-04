@@ -2,6 +2,7 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
 
 from . import supervision_photo   # 照片收斂：掛「施工日誌」來源欄位
+from . import project_task        # 契約工項：實際完成數量接施工日誌
 from . import daily_log_sheet
 from . import daily_log_line
 from . import daily_log_weather
