@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 估驗計價表單加「匯出計價單」：填進工程估驗計價單樣板。
+         明細區印的是彙總列（大類），依實際筆數動態展開。 -->
+    <record id="view_payment_estimate_form_export" model="ir.ui.view">
+        <field name="name">payment.estimate.form.export.template</field>
+        <field name="model">payment.estimate</field>
+        <field name="inherit_id" ref="construction_payment.view_payment_estimate_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_estimate_template"
+                        string="匯出計價單"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        help="把本張估驗的資料自動帶入「工程估驗計價單」樣板並下載"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
