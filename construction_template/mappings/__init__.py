@@ -14,8 +14,9 @@
         self_inspection（自主檢查總表，佔位符，**專案層級彙總**）
         defect_improvement / defect_control / review_control / test_control
         （皆 docx，專案層級彙總）
+        notification_slip（預約式施工回報單，佔位符——2026-08-05 重做樣板，雙工作表）
 待建立：progress_report、progress_schedule、estimate_report、
-        acceptance_report、notification_slip、material_test
+        acceptance_report、material_test
 """
 
 from . import daily_log_1
@@ -27,3 +28,4 @@ from . import defect_improvement
 from . import defect_control
 from . import review_control
 from . import test_control
+from . import notification_slip

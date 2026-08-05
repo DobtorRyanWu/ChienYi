@@ -102,34 +102,37 @@ def build_values(record, mapping):
     return values
 
 
-def _sheet_and_shared(zf):
-    """回傳 (worksheet entry 名稱, 共用字串陣列)"""
-    names = zf.namelist()
-    sheet = sorted(n for n in names if n.startswith('xl/worksheets/sheet'))[0]
-    shared = []
-    if 'xl/sharedStrings.xml' in names:
-        shared = xlsx_placeholder.parse_shared_strings(
-            zf.read('xl/sharedStrings.xml').decode('utf-8'))
-    return sheet, shared
-
-
 def _render_placeholder(src, dst, mapping, record):
-    """佔位符樣板（${token} / ${table:coll.field}）——舊 EAGLE 系統帶來的格式"""
+    """佔位符樣板（${token} / ${table:coll.field}）——舊 EAGLE 系統帶來的格式。
+
+    多工作表要全部處理：通報單的表頭在 sheet1、工項明細在 sheet2，
+    只填第一張的話明細表會整張留著佔位符。
+    """
     with zipfile.ZipFile(src) as zf:
-        sheet_name, shared = _sheet_and_shared(zf)
-        sheet_xml = zf.read(sheet_name).decode('utf-8')
+        names = zf.namelist()
+        shared = []
+        if 'xl/sharedStrings.xml' in names:
+            shared = xlsx_placeholder.parse_shared_strings(
+                zf.read('xl/sharedStrings.xml').decode('utf-8'))
+        sheets = {n: zf.read(n).decode('utf-8')
+                  for n in sorted(names) if n.startswith('xl/worksheets/sheet')}
 
     context = mapping.build_context(record)
-    context['__shared__'] = shared
-    new_xml = xlsx_placeholder.expand_and_fill(sheet_xml, context)
+    updates, leftover = {}, set()
+    for name, sheet_xml in sheets.items():
+        if not xlsx_placeholder.has_placeholders(sheet_xml, shared):
+            continue
+        ctx = dict(context, __shared__=shared)
+        new_xml = xlsx_placeholder.expand_and_fill(sheet_xml, ctx)
+        updates[name] = new_xml.encode('utf-8')
+        leftover |= set(xlsx_placeholder.TOKEN_RE.findall(new_xml))
 
-    leftover = sorted(set(xlsx_placeholder.TOKEN_RE.findall(new_xml)))
     if leftover:
         # 沒填到的佔位符會原樣印在報表上，必須讓人知道
         _logger.warning('樣板 %s 有 %s 個佔位符沒有對應資料：%s',
-                        mapping.__name__, len(leftover), '、'.join(leftover[:12]))
+                        mapping.__name__, len(leftover), '、'.join(sorted(leftover)[:12]))
 
-    zip_patch.patch(src, dst, {sheet_name: new_xml.encode('utf-8')})
+    zip_patch.patch(src, dst, updates)
     with open(dst, 'rb') as fp:
         return fp.read()
 

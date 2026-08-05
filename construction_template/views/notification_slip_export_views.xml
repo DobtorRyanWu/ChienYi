@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 通報單表單加「施工回報單」匯出：把本張通報單的表頭與工項明細
+         填進預約式工程施工回報單樣板（兩張工作表都會填）。 -->
+    <record id="view_reservation_notification_slip_form_export" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.form.export.template</field>
+        <field name="model">reservation.notification.slip</field>
+        <field name="inherit_id"
+               ref="construction_notification_slip.view_reservation_notification_slip_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_slip_template"
+                        string="匯出回報單"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        help="把本張通報單的資料自動帶入「預約式工程施工回報單」樣板並下載"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

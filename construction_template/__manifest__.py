@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 樣板設定',
-    'version': '18.0.1.6.0',
+    'version': '18.0.1.7.0',
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """
@@ -32,6 +32,7 @@
         # 樣板套印需要在施工日誌表單加匯出按鈕。
         # 反向不成立（daily_log 不依賴 template），無循環依賴。
         'construction_daily_log',
+        'construction_notification_slip',
         # docx 樣板的 +++INS+++ → docxtpl Jinja2 轉換器在這個模組裡。
         # dobtor_doc_editor 只依賴 base/web/mail/html_editor/bus/portal，不會循環。
         'dobtor_doc_editor',
@@ -44,6 +45,7 @@
         'views/document_template_views.xml',
         'views/daily_log_export_views.xml',
         'views/project_export_views.xml',
+        'views/notification_slip_export_views.xml',
         'views/menu.xml',
     ],
     'demo': [],
