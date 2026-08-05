@@ -13,6 +13,13 @@ from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
+# 可批次下載的狀態。值必須存在於各自模型的 state Selection 裡——
+# 這裡曾經寫了 'done' 與 'paid' 兩個不存在的值，導致查詢永遠 0 筆。
+# daily.log.sheet: draft / filled / auto_locked / locked
+DAILY_LOG_DOWNLOADABLE_STATES = ('filled', 'auto_locked', 'locked')
+# payment.estimate: draft / pending_approval / approved / archived
+ESTIMATE_DOWNLOADABLE_STATES = ('approved', 'archived')
+
 
 class BatchDownloadWizard(models.TransientModel):
     """
@@ -189,13 +196,18 @@ class BatchDownloadWizard(models.TransientModel):
             domain.append(('project_id', '=', self.project_id.id))
 
         # 日期篩選
+        # daily.log.sheet 的日期欄位是 log_date（單一日期），沒有 date_start / date_end。
+        # 原本寫成那兩個不存在的欄位，使用者一填日期就會觸發 _compute_record_count，
+        # 在 search_count 拋 ValueError: Invalid field daily.log.sheet.date_start。
         if self.date_from:
-            domain.append(('date_start', '>=', self.date_from))
+            domain.append(('log_date', '>=', self.date_from))
         if self.date_to:
-            domain.append(('date_end', '<=', self.date_to))
+            domain.append(('log_date', '<=', self.date_to))
 
-        # 只下載已核准的日誌
-        domain.append(('state', '=', 'done'))
+        # 只下載已填寫（含鎖定）的日誌，排除編輯中的草稿。
+        # 原本寫 state='done'，但 Selection 是 draft/filled/auto_locked/locked，
+        # 沒有 done —— 所以即使不填日期也永遠查到 0 筆。
+        domain.append(('state', 'in', DAILY_LOG_DOWNLOADABLE_STATES))
 
         return domain
 
@@ -204,22 +216,26 @@ class BatchDownloadWizard(models.TransientModel):
         self.ensure_one()
         domain = []
 
-        # 公司篩選
-        if self.company_id:
-            domain.append(('company_id', '=', self.company_id.id))
+        # ⚠️ 不加公司篩選：payment.estimate 沒有 company_id 欄位。
+        # 原本無條件 append（且 company_id 有 default=env.company），
+        # 所以估驗下載連日期都不用選就必定拋
+        # ValueError: Invalid field payment.estimate.company_id。
 
         # 專案篩選
         if self.project_id:
             domain.append(('project_id', '=', self.project_id.id))
 
         # 日期篩選
+        # 該模型的日期欄位是 estimate_date，沒有 period_start / period_end。
         if self.date_from:
-            domain.append(('period_start', '>=', self.date_from))
+            domain.append(('estimate_date', '>=', self.date_from))
         if self.date_to:
-            domain.append(('period_end', '<=', self.date_to))
+            domain.append(('estimate_date', '<=', self.date_to))
 
-        # 只下載已核定的估驗
-        domain.append(('state', 'in', ['approved', 'paid']))
+        # 只下載已核定（含之後歸檔）的估驗。
+        # 原本寫 ['approved', 'paid']，但 Selection 沒有 paid；
+        # archived 只能由 action_archive_estimate 從核定後歸檔，屬於「已核定之後」。
+        domain.append(('state', 'in', ESTIMATE_DOWNLOADABLE_STATES))
 
         return domain
 
@@ -388,6 +404,23 @@ class BatchDownloadWizard(models.TransientModel):
         )
 
     # -------------------------------------------------------------------------
+    # Helper Methods
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _count_man_machine(log, record_type):
+        """統計日誌的人數／機具數。
+
+        daily.log.sheet 沒有 total_worker_count / total_equipment_count 欄位
+        （原本的程式直接讀，會 AttributeError），改由人機明細依 record_type 加總。
+        """
+        return sum(
+            d.quantity or 0
+            for d in log.man_machine_detail_ids
+            if d.record_type == record_type
+        )
+
+    # -------------------------------------------------------------------------
     # File Generation Methods
     # -------------------------------------------------------------------------
 
@@ -429,9 +462,11 @@ class BatchDownloadWizard(models.TransientModel):
         worksheet = workbook.add_worksheet('施工日誌')
 
         # 標題列
+        # 原本有「起始日期／截止日期」兩欄，但 daily.log.sheet 是單日一張，
+        # 只有 log_date，date_start / date_end 這兩個欄位根本不存在。
         headers = [
-            '序號', '日誌名稱', '工程案件', '起始日期', '截止日期',
-            '總工時', '總人數', '總機具數', '狀態', '提交人', '備註'
+            '序號', '日誌名稱', '工程案件', '日誌日期',
+            '總人機工時', '總人數', '總機具數', '狀態', '提交人', '備註'
         ]
         for col, header in enumerate(headers):
             worksheet.write(0, col, header, header_format)
@@ -441,24 +476,23 @@ class BatchDownloadWizard(models.TransientModel):
             worksheet.write(row, 0, row, cell_format)
             worksheet.write(row, 1, log.complete_name or '', cell_format)
             worksheet.write(row, 2, log.project_id.name or '', cell_format)
-            worksheet.write(row, 3, log.date_start, date_format)
-            worksheet.write(row, 4, log.date_end, date_format)
-            worksheet.write(row, 5, log.total_work_hours or 0, cell_format)
-            worksheet.write(row, 6, log.total_worker_count or 0, cell_format)
-            worksheet.write(row, 7, log.total_equipment_count or 0, cell_format)
-            worksheet.write(row, 8, dict(log._fields['state'].selection).get(log.state, ''), cell_format)
-            worksheet.write(row, 9, log.employee_id.name or '', cell_format)
-            worksheet.write(row, 10, log.notes or '', cell_format)
+            worksheet.write(row, 3, log.log_date, date_format)
+            worksheet.write(row, 4, log.total_man_machine_hours or 0, cell_format)
+            worksheet.write(row, 5, self._count_man_machine(log, 'personnel'), cell_format)
+            worksheet.write(row, 6, self._count_man_machine(log, 'equipment'), cell_format)
+            worksheet.write(row, 7, dict(log._fields['state'].selection).get(log.state, ''), cell_format)
+            worksheet.write(row, 8, log.employee_id.name or '', cell_format)
+            worksheet.write(row, 9, log.notes or '', cell_format)
 
         # 調整欄寬
         worksheet.set_column(0, 0, 6)   # 序號
         worksheet.set_column(1, 1, 30)  # 日誌名稱
         worksheet.set_column(2, 2, 25)  # 工程案件
-        worksheet.set_column(3, 4, 12)  # 日期
-        worksheet.set_column(5, 7, 10)  # 統計數字
-        worksheet.set_column(8, 8, 10)  # 狀態
-        worksheet.set_column(9, 9, 15)  # 提交人
-        worksheet.set_column(10, 10, 30)  # 備註
+        worksheet.set_column(3, 3, 12)  # 日期
+        worksheet.set_column(4, 6, 10)  # 統計數字
+        worksheet.set_column(7, 7, 10)  # 狀態
+        worksheet.set_column(8, 8, 15)  # 提交人
+        worksheet.set_column(9, 9, 30)  # 備註
 
         workbook.close()
         output.seek(0)
@@ -535,65 +569,78 @@ class BatchDownloadWizard(models.TransientModel):
         # 建立摘要工作表
         ws_summary = workbook.add_worksheet('估驗摘要')
 
+        # payment.estimate 只有 estimate_date / subtotal / contract_amount，
+        # 原本的 period_start / period_end / cumulative_amount / contract_total /
+        # completion_rate 全都不存在（讀了會 AttributeError）。
+        # 完成率改由 subtotal ÷ contract_amount 現算，沒有契約金額就留白。
         headers = [
-            '序號', '估驗期次', '工程案件', '期間起', '期間迄',
-            '本期金額', '累計金額', '契約總價', '完成率', '狀態'
+            '序號', '估驗期次', '工程案件', '估驗日期',
+            '本期金額', '契約金額', '本期佔契約比', '狀態'
         ]
         for col, header in enumerate(headers):
             ws_summary.write(0, col, header, header_format)
 
         for row, est in enumerate(estimates, start=1):
+            contract_amount = est.contract_amount or 0
+            ratio = (est.subtotal or 0) / contract_amount if contract_amount else 0
             ws_summary.write(row, 0, row, cell_format)
             ws_summary.write(row, 1, est.name or '', cell_format)
             ws_summary.write(row, 2, est.project_id.name or '', cell_format)
-            ws_summary.write(row, 3, str(est.period_start or ''), cell_format)
-            ws_summary.write(row, 4, str(est.period_end or ''), cell_format)
-            ws_summary.write(row, 5, est.subtotal or 0, money_format)
-            ws_summary.write(row, 6, est.cumulative_amount or 0, money_format)
-            ws_summary.write(row, 7, est.contract_total or 0, money_format)
-            ws_summary.write(row, 8, (est.completion_rate or 0) / 100, percent_format)
-            ws_summary.write(row, 9, dict(est._fields['state'].selection).get(est.state, ''), cell_format)
+            ws_summary.write(row, 3, str(est.estimate_date or ''), cell_format)
+            ws_summary.write(row, 4, est.subtotal or 0, money_format)
+            ws_summary.write(row, 5, contract_amount, money_format)
+            ws_summary.write(row, 6, ratio, percent_format)
+            ws_summary.write(row, 7, dict(est._fields['state'].selection).get(est.state, ''), cell_format)
 
         # 調整欄寬
         ws_summary.set_column(0, 0, 6)
         ws_summary.set_column(1, 1, 15)
         ws_summary.set_column(2, 2, 25)
-        ws_summary.set_column(3, 4, 12)
-        ws_summary.set_column(5, 7, 15)
-        ws_summary.set_column(8, 8, 10)
-        ws_summary.set_column(9, 9, 10)
+        ws_summary.set_column(3, 3, 12)
+        ws_summary.set_column(4, 5, 15)
+        ws_summary.set_column(6, 6, 12)
+        ws_summary.set_column(7, 7, 10)
 
         # 為每個估驗建立明細工作表
         for idx, est in enumerate(estimates, start=1):
-            sheet_name = f'第{est.estimate_no}期明細'[:31]  # Excel 工作表名稱最長 31 字元
+            # Excel 工作表名稱最長 31 字元且不可重複（大小寫不敏感）。
+            # estimate_no 會重號（已知問題：同一專案可能有多筆相同期次），
+            # 只用期次當名稱會拋 DuplicateWorksheetName，故前綴序號保證唯一。
+            sheet_name = f'{idx}_第{est.estimate_no}期明細'[:31]
             ws_detail = workbook.add_worksheet(sheet_name)
 
+            # payment.estimate.line 實際欄位：contract_qty / estimate_qty /
+            # estimate_amount / approved_qty / unit_price。
+            # 原本寫的 planned_qty / planned_amount / previous_qty / current_qty /
+            # cumulative_qty / current_amount / cumulative_amount / completion_rate
+            # 全都不存在。契約金額與完成率沒有對應欄位，改為現算。
             detail_headers = [
                 '項次', '項目說明', '單位', '契約數量', '契約單價', '契約金額',
-                '前期累計', '本期完成', '累計完成', '本期金額', '累計金額', '完成率'
+                '本期估驗數量', '本期估驗金額', '核定數量', '估驗比例'
             ]
             for col, header in enumerate(detail_headers):
                 ws_detail.write(0, col, header, header_format)
 
             for row, line in enumerate(est.line_ids, start=1):
+                contract_qty = line.contract_qty or 0
+                contract_amount = contract_qty * (line.unit_price or 0)
+                ratio = (line.estimate_qty or 0) / contract_qty if contract_qty else 0
                 ws_detail.write(row, 0, line.item_no or '', cell_format)
                 ws_detail.write(row, 1, line.description or '', cell_format)
                 ws_detail.write(row, 2, line.unit or '', cell_format)
-                ws_detail.write(row, 3, line.planned_qty or 0, cell_format)
+                ws_detail.write(row, 3, contract_qty, cell_format)
                 ws_detail.write(row, 4, line.unit_price or 0, money_format)
-                ws_detail.write(row, 5, line.planned_amount or 0, money_format)
-                ws_detail.write(row, 6, line.previous_qty or 0, cell_format)
-                ws_detail.write(row, 7, line.current_qty or 0, cell_format)
-                ws_detail.write(row, 8, line.cumulative_qty or 0, cell_format)
-                ws_detail.write(row, 9, line.current_amount or 0, money_format)
-                ws_detail.write(row, 10, line.cumulative_amount or 0, money_format)
-                ws_detail.write(row, 11, (line.completion_rate or 0) / 100, percent_format)
+                ws_detail.write(row, 5, contract_amount, money_format)
+                ws_detail.write(row, 6, line.estimate_qty or 0, cell_format)
+                ws_detail.write(row, 7, line.estimate_amount or 0, money_format)
+                ws_detail.write(row, 8, line.approved_qty or 0, cell_format)
+                ws_detail.write(row, 9, ratio, percent_format)
 
             # 調整欄寬
             ws_detail.set_column(0, 0, 8)
             ws_detail.set_column(1, 1, 30)
             ws_detail.set_column(2, 2, 8)
-            ws_detail.set_column(3, 11, 12)
+            ws_detail.set_column(3, 9, 12)
 
         workbook.close()
         output.seek(0)
@@ -637,17 +684,16 @@ class BatchDownloadWizard(models.TransientModel):
             '=' * 60,
             '',
             f'工程案件: {log.project_id.name or ""}',
-            f'起始日期: {log.date_start}',
-            f'截止日期: {log.date_end}',
+            f'日誌日期: {log.log_date or ""}',
             f'提交人員: {log.employee_id.name or ""}',
             f'狀態: {dict(log._fields["state"].selection).get(log.state, "")}',
             '',
             '-' * 40,
             '統計資訊',
             '-' * 40,
-            f'總工時: {log.total_work_hours or 0} 小時',
-            f'總人數: {log.total_worker_count or 0} 人',
-            f'總機具數: {log.total_equipment_count or 0} 台',
+            f'總人機工時: {log.total_man_machine_hours or 0} 小時',
+            f'總人數: {self._count_man_machine(log, "personnel")} 人',
+            f'總機具數: {self._count_man_machine(log, "equipment")} 台',
             '',
         ]
 
@@ -691,6 +737,11 @@ class BatchDownloadWizard(models.TransientModel):
 
     def _format_estimate_text(self, est):
         """格式化估驗計價為文字"""
+        # 只列出 payment.estimate / payment.estimate.line 真實存在的欄位。
+        # 原本還列了累計估驗金額、契約總價、估驗進度、保留款、應付金額、提送公司，
+        # 那些欄位在模型上都不存在，讀取時會 AttributeError。
+        contract_amount = est.contract_amount or 0
+        ratio = (est.subtotal or 0) / contract_amount * 100 if contract_amount else 0
         lines = [
             '=' * 60,
             f'估驗計價表: {est.name}',
@@ -698,19 +749,15 @@ class BatchDownloadWizard(models.TransientModel):
             '',
             f'工程案件: {est.project_id.name or ""}',
             f'估驗期次: 第 {est.estimate_no} 期',
-            f'期間: {est.period_start} ~ {est.period_end}',
-            f'提送公司: {est.company_id.name or ""}',
+            f'估驗日期: {est.estimate_date or ""}',
             f'狀態: {dict(est._fields["state"].selection).get(est.state, "")}',
             '',
             '-' * 40,
             '金額摘要',
             '-' * 40,
-            f'本期估驗金額: {est.subtotal:,.0f}',
-            f'累計估驗金額: {est.cumulative_amount:,.0f}',
-            f'契約總價: {est.contract_total:,.0f}',
-            f'估驗進度: {est.completion_rate:.2f}%',
-            f'保留款: {est.retention:,.0f} ({est.retention_rate}%)',
-            f'應付金額: {est.payable_amount:,.0f}',
+            f'本期估驗金額: {est.subtotal or 0:,.0f}',
+            f'契約金額: {contract_amount:,.0f}',
+            f'本期佔契約比: {ratio:.2f}%',
             '',
             '-' * 40,
             '計價明細',
@@ -719,11 +766,15 @@ class BatchDownloadWizard(models.TransientModel):
 
         # 明細
         for line in est.line_ids:
+            line_contract_qty = line.contract_qty or 0
+            line_contract_amount = line_contract_qty * (line.unit_price or 0)
             lines.extend([
                 f'  {line.item_no or ""} {line.description or ""}',
-                f'    契約: {line.planned_qty} {line.unit or ""} x {line.unit_price:,.0f} = {line.planned_amount:,.0f}',
-                f'    本期: {line.current_qty} {line.unit or ""} = {line.current_amount:,.0f}',
-                f'    累計: {line.cumulative_qty} {line.unit or ""} = {line.cumulative_amount:,.0f} ({line.completion_rate:.2f}%)',
+                f'    契約: {line_contract_qty} {line.unit or ""} '
+                f'x {line.unit_price or 0:,.0f} = {line_contract_amount:,.0f}',
+                f'    本期估驗: {line.estimate_qty or 0} {line.unit or ""} '
+                f'= {line.estimate_amount or 0:,.0f}',
+                f'    核定數量: {line.approved_qty or 0} {line.unit or ""}',
                 '',
             ])
 
@@ -743,7 +794,7 @@ class BatchDownloadWizard(models.TransientModel):
         ]
 
         for idx, log in enumerate(logs, start=1):
-            lines.append(f'{idx:3d}. {log.complete_name} ({log.date_start} ~ {log.date_end})')
+            lines.append(f'{idx:3d}. {log.complete_name} ({log.log_date})')
 
         return '\n'.join(lines)
 
