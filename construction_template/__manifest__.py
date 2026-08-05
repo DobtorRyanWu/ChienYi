@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 樣板設定',
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """
@@ -29,6 +29,9 @@
     'license': 'LGPL-3',
     'depends': [
         'construction_supervision_base',
+        # 樣板套印需要在施工日誌表單加匯出按鈕。
+        # 反向不成立（daily_log 不依賴 template），無循環依賴。
+        'construction_daily_log',
     ],
     'data': [
         # Security
@@ -36,6 +39,7 @@
         'security/ir.model.access.csv',
         # Views
         'views/document_template_views.xml',
+        'views/daily_log_export_views.xml',
         'views/menu.xml',
     ],
     'demo': [],

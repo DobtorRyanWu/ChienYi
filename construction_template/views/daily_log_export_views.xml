@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 在施工日誌表單的 header 加「匯出日報表」按鈕。
+         按下去會把本張日誌的資料填進監造日報表第一聯樣板並直接下載 xlsx。 -->
+    <record id="daily_log_sheet_view_form_export" model="ir.ui.view">
+        <field name="name">daily.log.sheet.form.export.template</field>
+        <field name="model">daily.log.sheet</field>
+        <field name="inherit_id" ref="construction_daily_log.daily_log_sheet_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_daily_log_template"
+                        string="匯出日報表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        help="把本張日誌的資料自動帶入「公共工程監造日報表第一聯」樣板並下載"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

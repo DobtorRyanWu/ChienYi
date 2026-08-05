@@ -1,0 +1,70 @@
+# -*- coding: utf-8 -*-
+"""對照表用的值格式器。13 張樣板共用，加新格式器請寫在這裡不要散在各對照表。
+
+對照表寫 `('log_date', 'roc_date')` 時，'roc_date' 就是這裡的鍵。
+"""
+
+ROC_YEAR_OFFSET = 1911  # 民國 = 西元 - 1911
+
+
+def roc_date(value, record=None, field=None):
+    """西元日期 → 民國格式，例：2024-09-23 → 113.09.23"""
+    if not value:
+        return ''
+    return '%s.%02d.%02d' % (value.year - ROC_YEAR_OFFSET, value.month, value.day)
+
+
+def roc_date_slash(value, record=None, field=None):
+    """民國格式（斜線），例：113/09/23"""
+    if not value:
+        return ''
+    return '%s/%02d/%02d' % (value.year - ROC_YEAR_OFFSET, value.month, value.day)
+
+
+def ad_date(value, record=None, field=None):
+    """西元日期字串 2024-09-23"""
+    return value.strftime('%Y-%m-%d') if value else ''
+
+
+def selection_label(value, record=None, field=None):
+    """Selection 的 value → 顯示標籤（天氣、狀態這類欄位用）"""
+    if not value or record is None or not field:
+        return value or ''
+    selection = record._fields[field].selection
+    if callable(selection):
+        selection = selection(record)
+    return dict(selection).get(value, value)
+
+
+def percent(value, record=None, field=None):
+    """數值 → 兩位小數字串（不加 %，因為樣板格子通常已經印了）"""
+    return '' if value is None else '%.2f' % value
+
+
+def money(value, record=None, field=None):
+    """金額 → 千分位整數"""
+    return '' if value is None else '{:,.0f}'.format(value)
+
+
+def yes_no(value, record=None, field=None):
+    """Boolean 或 yes/no Selection → 「有 / 無」"""
+    if isinstance(value, bool):
+        return '有' if value else '無'
+    return {'yes': '有', 'no': '無'}.get(value, value or '')
+
+
+def count(value, record=None, field=None):
+    """One2many / Many2many → 筆數（契約變更次數這類欄位用）"""
+    return len(value) if value else 0
+
+
+FORMATTERS = {
+    'count': count,
+    'roc_date': roc_date,
+    'roc_date_slash': roc_date_slash,
+    'ad_date': ad_date,
+    'selection_label': selection_label,
+    'percent': percent,
+    'money': money,
+    'yes_no': yes_no,
+}
