@@ -83,6 +83,11 @@ class DocumentTemplate(models.Model):
         ('acceptance_report', '驗收報告'),
         ('notification_slip', '通報單'),
         ('material_test', '材料試驗報告'),
+        # 營造版（施工廠商填寫的「公共工程施工日誌」）。
+        # 上面的 daily_log_1/2 是監造版「公共工程監造日報表」，兩者並存：
+        # 同一張日誌可依需要匯出監造版或營造版。
+        ('daily_log_c1', '施工日誌-第一聯（營造版）'),
+        ('daily_log_c2', '施工日誌-第二聯（營造版）'),
     ], string='樣板類型', required=True, index=True, tracking=True,
        help='選擇此樣板適用的報表類型')
 

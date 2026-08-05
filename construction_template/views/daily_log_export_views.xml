@@ -10,11 +10,26 @@
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <button name="action_export_daily_log_template"
-                        string="匯出日報表"
+                        string="監造日報表"
                         type="object"
                         class="btn-secondary"
                         icon="fa-file-excel-o"
-                        help="把本張日誌的資料自動帶入「公共工程監造日報表第一聯」樣板並下載"/>
+                        context="{'template_type': 'daily_log_1'}"
+                        help="公共工程監造日報表 第一聯（監造單位填寫）"/>
+                <button name="action_export_daily_log_template"
+                        string="施工日誌(一)"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        context="{'template_type': 'daily_log_c1'}"
+                        help="公共工程施工日誌 第一聯（施工廠商填寫）"/>
+                <button name="action_export_daily_log_template"
+                        string="施工日誌(二)"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        context="{'template_type': 'daily_log_c2'}"
+                        help="公共工程施工日誌 第二聯 完成工程詳細表"/>
             </xpath>
         </field>
     </record>

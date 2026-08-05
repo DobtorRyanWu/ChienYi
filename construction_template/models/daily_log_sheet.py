@@ -10,26 +10,33 @@ from ..utils import template_render
 
 _logger = logging.getLogger(__name__)
 
-DAILY_LOG_TEMPLATE_TYPE = 'daily_log_1'
+DEFAULT_TEMPLATE_TYPE = 'daily_log_1'
 
 
 class DailyLogSheet(models.Model):
     _inherit = 'daily.log.sheet'
 
     def action_export_daily_log_template(self):
-        """把本張日誌的資料填進監造日報表第一聯樣板並下載。
+        """把本張日誌的資料填進樣板並下載。
 
+        要匯出哪一種由 context 的 template_type 決定（按鈕上指定）：
+          daily_log_1   監造版 公共工程監造日報表 第一聯
+          daily_log_c1  營造版 公共工程施工日誌 第一聯
+          daily_log_c2  營造版 公共工程施工日誌 第二聯
         樣板來源走 document.template.get_template_for_report()，
         優先序：專案專屬 > 公司預設 > 系統預設。
         """
         self.ensure_one()
+        template_type = self.env.context.get('template_type', DEFAULT_TEMPLATE_TYPE)
 
         template = self.env['document.template'].get_template_for_report(
-            DAILY_LOG_TEMPLATE_TYPE, project_id=self.project_id.id)
+            template_type, project_id=self.project_id.id)
         if not template:
+            label = dict(self.env['document.template']._fields[
+                'template_type'].selection).get(template_type, template_type)
             raise UserError(_(
-                '找不到「施工日誌-第一聯」樣板。\n'
-                '請到「樣板設定」確認該類型有可用的樣板。'))
+                '找不到「%s」樣板。\n請到「樣板設定」確認該類型有可用的樣板。'
+            ) % label)
 
         content, filename = template_render.render(template[:1], self)
         template[:1].record_usage()

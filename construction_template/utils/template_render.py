@@ -16,9 +16,11 @@ import importlib
 import logging
 import os
 import tempfile
+import zipfile
 
 from odoo.exceptions import UserError
 
+from . import xlsx_placeholder
 from . import zip_patch
 from .formatters import FORMATTERS
 from .xlsx_fill import fill
@@ -99,6 +101,58 @@ def build_values(record, mapping):
     return values
 
 
+def _sheet_and_shared(zf):
+    """回傳 (worksheet entry 名稱, 共用字串陣列)"""
+    names = zf.namelist()
+    sheet = sorted(n for n in names if n.startswith('xl/worksheets/sheet'))[0]
+    shared = []
+    if 'xl/sharedStrings.xml' in names:
+        shared = xlsx_placeholder.parse_shared_strings(
+            zf.read('xl/sharedStrings.xml').decode('utf-8'))
+    return sheet, shared
+
+
+def _render_placeholder(src, dst, mapping, record):
+    """佔位符樣板（${token} / ${table:coll.field}）——舊 EAGLE 系統帶來的格式"""
+    with zipfile.ZipFile(src) as zf:
+        sheet_name, shared = _sheet_and_shared(zf)
+        sheet_xml = zf.read(sheet_name).decode('utf-8')
+
+    context = mapping.build_context(record)
+    context['__shared__'] = shared
+    new_xml = xlsx_placeholder.expand_and_fill(sheet_xml, context)
+
+    leftover = sorted(set(xlsx_placeholder.TOKEN_RE.findall(new_xml)))
+    if leftover:
+        # 沒填到的佔位符會原樣印在報表上，必須讓人知道
+        _logger.warning('樣板 %s 有 %s 個佔位符沒有對應資料：%s',
+                        mapping.__name__, len(leftover), '、'.join(leftover[:12]))
+
+    zip_patch.patch(src, dst, {sheet_name: new_xml.encode('utf-8')})
+    with open(dst, 'rb') as fp:
+        return fp.read()
+
+
+def _render_cells(src, dst, mapping, record, template):
+    """座標對照樣板（舊監造版日報表這種沒有佔位符的檔）"""
+    values = build_values(record, mapping)
+    with zipfile.ZipFile(src) as zf:
+        sheet_xml = zf.read(mapping.SHEET).decode('utf-8')
+
+    new_xml, missing = fill(sheet_xml, values)
+    if missing:
+        # 填不進去代表對照表的座標寫錯了，必須讓人知道而不是默默少資料
+        raise UserError(
+            '樣板「%s」有 %s 個儲存格填不進去（樣板裡找不到該列）：%s\n'
+            '請檢查 mappings/%s.py 的座標。'
+            % (template.display_name, len(missing), '、'.join(missing[:10]),
+               template.template_type))
+
+    zip_patch.patch(src, dst, {mapping.SHEET: new_xml.encode('utf-8')})
+    with open(dst, 'rb') as fp:
+        return fp.read()
+
+
 def render(template, record):
     """把 record 的資料填進 template 的空白樣板。
 
@@ -124,8 +178,8 @@ def render(template, record):
         raise UserError('樣板「%s」對應的是 %s，不能用 %s 的資料套印。'
                         % (template.display_name, mapping.MODEL, record._name))
 
-    values = build_values(record, mapping)
     raw = template.attachment_id.raw
+    mode = getattr(mapping, 'MODE', 'cells')
 
     with tempfile.TemporaryDirectory() as tmpdir:
         src = os.path.join(tmpdir, 'src.xlsx')
@@ -133,22 +187,10 @@ def render(template, record):
         with open(src, 'wb') as fp:
             fp.write(raw)
 
-        import zipfile
-        with zipfile.ZipFile(src) as zf:
-            sheet_xml = zf.read(mapping.SHEET).decode('utf-8')
-
-        new_xml, missing = fill(sheet_xml, values)
-        if missing:
-            # 填不進去代表對照表的座標寫錯了，必須讓人知道而不是默默少資料
-            raise UserError(
-                '樣板「%s」有 %s 個儲存格填不進去（樣板裡找不到該列）：%s\n'
-                '請檢查 mappings/%s.py 的座標。'
-                % (template.display_name, len(missing), '、'.join(missing[:10]),
-                   template.template_type))
-
-        zip_patch.patch(src, dst, {mapping.SHEET: new_xml.encode('utf-8')})
-        with open(dst, 'rb') as fp:
-            filled = fp.read()
+        if mode == 'placeholder':
+            filled = _render_placeholder(src, dst, mapping, record)
+        else:
+            filled = _render_cells(src, dst, mapping, record, template)
 
     base = getattr(mapping, 'FILENAME', None)
     filename = base(record) if callable(base) else '%s_%s.xlsx' % (

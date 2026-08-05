@@ -37,6 +37,10 @@ TYPES = [
     ('acceptance_report',  '驗收報告',       'docx', '110年 P11001/勞務驗收紀錄'),
     ('notification_slip',  '通報單',         'xlsx', '111年 P11102 西區/預約式工程施工通知回報單'),
     ('material_test',      '材料試驗報告',   'docx', '111年 P11102 西區/試驗報告'),
+    # 營造版（施工廠商填的「公共工程施工日誌」）。2026-08-05 由使用者提供，
+    # 檔內已內建 ${...} 佔位符，套印走 mappings/daily_log_c1.py 的 placeholder 模式。
+    ('daily_log_c1', '施工日誌-第一聯（營造版）', 'xlsx', '任泰第二期 EAGLE 樣板匯出'),
+    ('daily_log_c2', '施工日誌-第二聯（營造版）', 'xlsx', '任泰第二期 EAGLE 樣板匯出'),
 ]
 
 
