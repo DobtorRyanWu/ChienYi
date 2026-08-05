@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 驗收紀錄 → 驗收紀錄樣板 -->
+    <record id="view_acceptance_final_form_export" model="ir.ui.view">
+        <field name="name">acceptance.final.form.export.template</field>
+        <field name="model">acceptance.final</field>
+        <field name="inherit_id" ref="construction_acceptance.view_acceptance_final_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_acceptance_template"
+                        string="匯出驗收紀錄"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        help="把本筆驗收的資料自動帶入「驗收紀錄」樣板並下載"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 檢試驗記錄 → 材料試驗報告送審函 -->
+    <record id="view_test_record_form_export" model="ir.ui.view">
+        <field name="name">supervision.test.record.form.export.template</field>
+        <field name="model">supervision.test.record</field>
+        <field name="inherit_id" ref="construction_test.view_test_record_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_test_template"
+                        string="匯出送審函"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        help="把本筆檢試驗的資料自動帶入「材料試驗報告」送審函並下載"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -46,6 +46,13 @@
                         icon="fa-file-word-o"
                         context="{'template_type': 'test_control'}"
                         help="材料設備檢（試）驗管制總表"/>
+                <button name="action_export_project_template"
+                        string="預定進度表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        context="{'template_type': 'progress_schedule'}"
+                        help="只帶入工程名稱與預定工期；工作項目與甘特圖無資料來源，需人工填寫"/>
             </xpath>
         </field>
     </record>

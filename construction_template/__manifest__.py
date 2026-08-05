@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 樣板設定',
-    'version': '18.0.1.8.0',
+    'version': '18.0.1.9.0',
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """
@@ -34,6 +34,8 @@
         'construction_daily_log',
         'construction_notification_slip',
         'construction_payment',
+        'construction_acceptance',
+        'construction_test',
         # docx 樣板的 +++INS+++ → docxtpl Jinja2 轉換器在這個模組裡。
         # dobtor_doc_editor 只依賴 base/web/mail/html_editor/bus/portal，不會循環。
         'dobtor_doc_editor',
@@ -48,6 +50,7 @@
         'views/project_export_views.xml',
         'views/notification_slip_export_views.xml',
         'views/payment_estimate_export_views.xml',
+        'views/acceptance_test_export_views.xml',
         'views/menu.xml',
     ],
     'demo': [],
