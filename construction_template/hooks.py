@@ -26,11 +26,12 @@ MIME = {
 TYPES = [
     ('daily_log_1',        '施工日誌-第一聯', 'xlsx', '111年 P11102 西區/監工日報表第一聯'),
     ('daily_log_2',        '施工日誌-第二聯', 'xlsx', '111年 P11102 西區/監工日報表第二聯'),
-    ('self_inspection',    '自主檢查表',     'xlsx', '111年 P11102 通河東街/施工抽查紀錄表(自主檢查表)'),
-    ('defect_improvement', '缺失改善',       'xlsx', '111年 P11102 西區/品質缺失矯正紀錄表'),
-    ('defect_control',     '缺失改善管制表', 'xlsx', '110年 P11001/工程缺失改善追蹤一覽表'),
-    ('review_control',     '送審管制表',     'xlsx', '111年 P11102/材料送審管制表'),
-    ('test_control',       '檢(試)驗管制表', 'xlsx', '110年 P11001/材料檢驗統計表.送審管制表'),
+    # 2026-08-05 換成使用者提供的 EAGLE 版「自主檢查總表」（內建 ${} 佔位符，專案層級彙總）
+    ('self_inspection',    '自主檢查總表',   'xlsx', '任泰第二期 EAGLE 樣板匯出'),
+    ('defect_improvement', '矯正與預防處理紀錄', 'docx', '任泰第二期 EAGLE 樣板匯出'),
+    ('defect_control', '矯正與預防紀錄管制表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
+    ('review_control', '材料設備送審管制總表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
+    ('test_control', '材料設備檢（試）驗管制總表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
     ('progress_report',    '進度報告',       'docx', '111年 P11102 西區/檢陳週報表'),
     ('progress_schedule',  '工程預定進度表', 'xlsx', '110年 P11006/施工預定進度表'),
     ('estimate_report',    '估驗計價表',     'xlsx', '111年 P11102 西區/估驗計價單'),

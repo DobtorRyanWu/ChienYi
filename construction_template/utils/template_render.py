@@ -20,6 +20,7 @@ import zipfile
 
 from odoo.exceptions import UserError
 
+from . import docx_render
 from . import xlsx_placeholder
 from . import zip_patch
 from .formatters import FORMATTERS
@@ -187,7 +188,9 @@ def render(template, record):
         with open(src, 'wb') as fp:
             fp.write(raw)
 
-        if mode == 'placeholder':
+        if mode == 'docx':
+            filled = docx_render.render(raw, mapping.build_context(record))
+        elif mode == 'placeholder':
             filled = _render_placeholder(src, dst, mapping, record)
         else:
             filled = _render_cells(src, dst, mapping, record, template)

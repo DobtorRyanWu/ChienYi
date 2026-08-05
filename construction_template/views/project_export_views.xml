@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 工程案件表單加專案層級的彙總樣板匯出。
+         這類表是「整個專案的彙總」（一張表列出全部檢查／缺失／送審記錄），
+         所以入口在工程案件而不是個別記錄。 -->
+    <record id="view_supervision_project_form_export" model="ir.ui.view">
+        <field name="name">project.project.form.export.template</field>
+        <field name="model">project.project</field>
+        <field name="inherit_id"
+               ref="construction_supervision_base.view_supervision_project_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_project_template"
+                        string="自主檢查總表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        context="{'template_type': 'self_inspection'}"
+                        help="列出本案全部自主檢查記錄的彙總表"/>
+                <button name="action_export_project_template"
+                        string="缺失處理紀錄"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        context="{'template_type': 'defect_improvement'}"
+                        help="矯正與預防處理紀錄——每筆缺失一頁"/>
+                <button name="action_export_project_template"
+                        string="缺失管制表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        context="{'template_type': 'defect_control'}"
+                        help="矯正與預防紀錄管制表——全案缺失彙總"/>
+                <button name="action_export_project_template"
+                        string="送審管制表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        context="{'template_type': 'review_control'}"
+                        help="材料設備送審管制總表"/>
+                <button name="action_export_project_template"
+                        string="檢試驗管制表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        context="{'template_type': 'test_control'}"
+                        help="材料設備檢（試）驗管制總表"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

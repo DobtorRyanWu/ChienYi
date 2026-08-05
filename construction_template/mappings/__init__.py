@@ -8,13 +8,20 @@
   'cells'（預設）  座標對照，給沒有佔位符的舊樣板用（如監造版日報表）
   'placeholder'    ${token} / ${table:coll.field}，給 EAGLE 帶來的樣板用
 
-已完成：daily_log_1（監造日報表第一聯，座標）
-        daily_log_c1 / daily_log_c2（施工日誌一二聯 營造版，佔位符）
-待建立：daily_log_2、self_inspection、defect_improvement、defect_control、
-        review_control、test_control、progress_report、progress_schedule、
-        estimate_report、acceptance_report、notification_slip、material_test
+已完成：daily_log_1（監造日報表第一聯，座標，單筆）
+        daily_log_c1 / daily_log_c2（施工日誌一二聯 營造版，佔位符，單筆）
+        self_inspection（自主檢查總表，佔位符，**專案層級彙總**）
+        defect_improvement / defect_control / review_control / test_control
+        （皆 docx，專案層級彙總）
+待建立：daily_log_2、progress_report、progress_schedule、estimate_report、
+        acceptance_report、notification_slip、material_test
 """
 
 from . import daily_log_1
 from . import daily_log_c1
 from . import daily_log_c2
+from . import self_inspection
+from . import defect_improvement
+from . import defect_control
+from . import review_control
+from . import test_control
