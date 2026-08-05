@@ -9,15 +9,17 @@
   'placeholder'    ${token} / ${table:coll.field}，給 EAGLE 帶來的樣板用
 
 已完成：daily_log_1（監造日報表第一聯，座標，單筆）
+        daily_log_2（監造日報表第二聯，佔位符，單筆——2026-08-05 重做樣板）
         daily_log_c1 / daily_log_c2（施工日誌一二聯 營造版，佔位符，單筆）
         self_inspection（自主檢查總表，佔位符，**專案層級彙總**）
         defect_improvement / defect_control / review_control / test_control
         （皆 docx，專案層級彙總）
-待建立：daily_log_2、progress_report、progress_schedule、estimate_report、
+待建立：progress_report、progress_schedule、estimate_report、
         acceptance_report、notification_slip、material_test
 """
 
 from . import daily_log_1
+from . import daily_log_2
 from . import daily_log_c1
 from . import daily_log_c2
 from . import self_inspection

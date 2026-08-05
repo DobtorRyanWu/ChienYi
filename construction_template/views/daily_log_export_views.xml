@@ -10,12 +10,19 @@
         <field name="arch" type="xml">
             <xpath expr="//header" position="inside">
                 <button name="action_export_daily_log_template"
-                        string="監造日報表"
+                        string="監造日報表(一)"
                         type="object"
                         class="btn-secondary"
                         icon="fa-file-excel-o"
                         context="{'template_type': 'daily_log_1'}"
                         help="公共工程監造日報表 第一聯（監造單位填寫）"/>
+                <button name="action_export_daily_log_template"
+                        string="監造日報表(二)"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        context="{'template_type': 'daily_log_2'}"
+                        help="公共工程監造日報表 第二聯 完成工程詳細表"/>
                 <button name="action_export_daily_log_template"
                         string="施工日誌(一)"
                         type="object"
