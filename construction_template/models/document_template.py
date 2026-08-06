@@ -80,6 +80,10 @@ class DocumentTemplate(models.Model):
         ('progress_report', '進度報告'),
         ('progress_schedule', '工程預定進度表'),
         ('estimate_report', '估驗計價表'),
+        # EAGLE 的全域估驗樣板：原系統把兩份打包成 zip 一起下載，
+        # 這裡拆成兩個獨立類型，各自一個按鈕。
+        ('invoice_detail', '估驗詳細表'),
+        ('invoice_photo', '估驗照片'),
         ('acceptance_report', '驗收報告'),
         ('notification_slip', '通報單'),
         ('material_test', '材料試驗報告'),

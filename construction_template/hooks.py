@@ -32,7 +32,9 @@ TYPES = [
     ('defect_control', '矯正與預防紀錄管制表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
     ('review_control', '材料設備送審管制總表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
     ('test_control', '材料設備檢（試）驗管制總表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
-    ('progress_report',    '進度報告',       'docx', '111年 P11102 西區/檢陳週報表'),
+    # 2026-08-06 換成 EAGLE 的 progressReportTemplate（xlsx，內建 ${} 佔位符）。
+    # 舊的 .docx（來源「111年 P11102 西區/檢陳週報表」）沒有對照表也不是同一份表，已移除。
+    ('progress_report',    '進度報告',       'xlsx', '任泰第二期 EAGLE 樣板匯出'),
     ('progress_schedule',  '工程預定進度表', 'xlsx', '110年 P11006/施工預定進度表'),
     ('estimate_report',    '估驗計價表',     'xlsx', '111年 P11102 西區/估驗計價單'),
     ('acceptance_report',  '驗收報告',       'docx', '110年 P11001/勞務驗收紀錄'),
@@ -42,6 +44,9 @@ TYPES = [
     # 檔內已內建 ${...} 佔位符，套印走 mappings/daily_log_c1.py 的 placeholder 模式。
     ('daily_log_c1', '施工日誌-第一聯（營造版）', 'xlsx', '任泰第二期 EAGLE 樣板匯出'),
     ('daily_log_c2', '施工日誌-第二聯（營造版）', 'xlsx', '任泰第二期 EAGLE 樣板匯出'),
+    # EAGLE 的全域估驗樣板（原系統打包成 zip；這裡拆成兩份各自下載）
+    ('invoice_detail', '估驗詳細表', 'xlsx', '任泰第二期 EAGLE 樣板匯出'),
+    ('invoice_photo', '估驗照片', 'docx', '任泰第二期 EAGLE 樣板匯出'),
 ]
 
 
