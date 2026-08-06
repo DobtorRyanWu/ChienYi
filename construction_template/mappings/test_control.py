@@ -32,11 +32,17 @@ def _item(rec):
     standard = rec.standard_id
     return {
         'no': rec.name or '',
-        # payItem 對應契約工項；IF 已被移除，欄位一律給字串不給 None
+        # payItem 對應契約工項；IF 已被移除，欄位一律給字串不給 None。
+        # ⚠️ 樣板實際用的是 ${item.payItem.description}（2026-08-06 逐一比對 token
+        # 清單發現），先前只給 fullItemNo，那一欄一直印空白。
         'payItem': {
+            'description': task.display_name or '',
             'fullItemNo': (task.code if 'code' in task._fields else '') or task.display_name or '',
             'quantity': _qty(getattr(task, 'planned_qty', False) or False),
         },
+        # 抽驗及會同人員——樣板的 ${item.member}，先前完全沒提供
+        'member': '、'.join(
+            (rec.contractor_member_ids | rec.supervision_member_ids).mapped('display_name')),
         'standard': {
             'norm': (standard.norm if standard and 'norm' in standard._fields else '') or '',
             'name': standard.display_name if standard else '',

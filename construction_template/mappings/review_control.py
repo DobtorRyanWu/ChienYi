@@ -33,6 +33,8 @@ def _mark(value):
 def _item(app):
     return {
         'no': app.no or app.name or '',
+        # 材料(設備)名稱——樣板的 ${item.name}，先前沒提供、該欄一直印空白
+        'name': app.name or '',
         'number': app.number or '',
         'amount': app.review_materials_summary or '',
         'isTest': _flag(app.is_test),
