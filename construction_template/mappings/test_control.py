@@ -17,7 +17,8 @@ from ..utils.formatters import roc_date, selection_label
 MODEL = 'project.project'
 MODE = 'docx'
 
-ROWS_PER_PAGE = 12
+# 每頁 10 筆——取自 EAGLE 原系統 models/testRecord.js（data.splice(0,10)）
+ROWS_PER_PAGE = 10
 
 
 def _qty(value):

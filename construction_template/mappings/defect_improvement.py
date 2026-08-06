@@ -14,6 +14,7 @@ EAGLE token → Odoo general.defect.improvement：
 
 import base64
 
+from ..utils import photo_stamp
 from ..utils.formatters import roc_date
 
 MODEL = 'project.project'
@@ -29,11 +30,12 @@ MARK = 'ˇ'          # 樣板既有的勾選符號慣例（見送審管制「是
 CLOSED_STATES = ('verified', 'closed')
 
 
-PHOTO_HEIGHT_MM = 60        # 樣板原本寫 {height:6}（公分），換算 60mm
-
-
 def _photo(photos):
     """取第一張照片給樣板的 IMAGE 佔位；沒有就留白。
+
+    照 EAGLE 原系統 imageGenerator 的行為（source map 還原）：
+      · 尺寸等比縮放，上限 14×10 cm（由 docx_render 依實際圖片比例算）
+      · 拍攝日期印在右下角紅字浮水印
 
     supervision.photo.image 是 Odoo Binary 欄位，讀出來是 base64 的 bytes，
     要解碼成原始位元組才能交給 docxtpl 的 InlineImage。
@@ -42,8 +44,10 @@ def _photo(photos):
     raw = None
     if photo and photo.image:
         raw = base64.b64decode(photo.image)
+        taken = photo.shot_date or (photo.shot_at.date() if photo.shot_at else None)
+        raw = photo_stamp.stamp_date(raw, taken)
     return {
-        'image': {'__image__': raw, 'height_mm': PHOTO_HEIGHT_MM},
+        'image': {'__image__': raw},
         'description': (photo.description or photo.name or '') if photo else '',
         'isEmpty': not raw,
     }
@@ -79,6 +83,8 @@ def build_context(project):
         [('project_id', '=', project.id)], order='found_date, id')
     contractors = project.contractor_partner_ids.mapped('name')
     return {
+        # 原系統的 title 是填報單位（依 unitType 給營造或監造），不是表名
+        'title': '、'.join(contractors) or (project.management_company_name or ''),
         'projectContractor': '、'.join(contractors),
         'projectName': project.name or '',
         'errorRecords': [_record(d) for d in defects],

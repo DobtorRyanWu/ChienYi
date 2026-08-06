@@ -101,18 +101,28 @@ def _swap_images(value, tpl):
     """把 context 裡的圖片佔位標記換成 docxtpl 的 InlineImage。
 
     對照表無法自己建 InlineImage（那需要 tpl 物件），所以改成放
-    {'__image__': <bytes>, 'height_mm': 60} 這種標記，由這裡遞迴換掉。
+    `{'__image__': <bytes>, 'max_width_cm': 14, 'max_height_cm': 10}` 這種標記。
+
+    尺寸照 EAGLE 原系統 imageGenerator 的算法**等比縮放**（上限 14×10 cm），
+    先前寫死高度 60mm 會把直式照片壓扁。
     """
-    from docx.shared import Mm
+    from docx.shared import Cm
     from docxtpl import InlineImage
+
+    from . import photo_stamp
 
     if isinstance(value, dict):
         if IMAGE_KEY in value:
             raw = value.get(IMAGE_KEY)
             if not raw:
                 return ''
+            width_px, height_px = photo_stamp.image_size_px(raw)
+            width_cm, height_cm = photo_stamp.fit_size_cm(
+                width_px, height_px,
+                value.get('max_width_cm', photo_stamp.DEFAULT_MAX_WIDTH_CM),
+                value.get('max_height_cm', photo_stamp.DEFAULT_MAX_HEIGHT_CM))
             return InlineImage(tpl, io.BytesIO(raw),
-                               height=Mm(value.get('height_mm', 60)))
+                               width=Cm(width_cm), height=Cm(height_cm))
         return {k: _swap_images(v, tpl) for k, v in value.items()}
     if isinstance(value, list):
         return [_swap_images(v, tpl) for v in value]

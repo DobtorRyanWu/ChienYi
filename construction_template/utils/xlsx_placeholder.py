@@ -72,6 +72,30 @@ def substitute(text, getter):
     return TOKEN_RE.sub(lambda m: str(getter(m.group(1))), text)
 
 
+def resolve_collection(context, name):
+    """取出集合。支援兩種寫法：
+
+        context['inspections.left']              扁平鍵（直接命中）
+        context['inspections'] = [{'left': …}]   巢狀（`${table:inspections.left.x}`）
+
+    後者是 EAGLE 原系統的資料形狀——自主檢查總表一列同時放左右兩筆，
+    原系統送的是 `inspections: [{left, right}, …]`。
+    """
+    if name in context:
+        return context[name] or []
+    if '.' not in name:
+        return []
+    base, sub = name.split('.', 1)
+    rows = context.get(base) or []
+    out = []
+    for row in rows:
+        value = row
+        for key in sub.split('.'):
+            value = (value or {}).get(key) if isinstance(value, dict) else None
+        out.append(value or {})
+    return out
+
+
 def _collections_of(row_body, shared):
     """該列用到的所有集合名稱（依出現順序去重）。
 
@@ -130,7 +154,7 @@ def expand_and_fill(sheet_xml, context):
         colls = _collections_of(body, shared) if body else []
 
         if colls:
-            data = {c: (context.get(c) or []) for c in colls}
+            data = {c: resolve_collection(context, c) for c in colls}
             # 多集合同列時取最長的那個；沒資料也留一列空白，維持表格外觀
             count = max([len(v) for v in data.values()] + [1])
             for i in range(count):

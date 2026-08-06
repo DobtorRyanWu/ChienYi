@@ -11,12 +11,13 @@ token → supervision.review.application（欄位名幾乎是 camelCase→snake_
 """
 
 from ..utils import docx_render
-from ..utils.formatters import roc_date, selection_label
+from ..utils.formatters import roc_date
 
 MODEL = 'project.project'
 MODE = 'docx'
 
-ROWS_PER_PAGE = 12
+# 每頁 10 筆——取自 EAGLE 原系統 models/reviewApplication.js（data.splice(0,10)）
+ROWS_PER_PAGE = 10
 YES, NO = 'ˇ', 'X'      # 樣板自己印的慣例：「（是ˇ、否X）」
 
 
@@ -47,7 +48,8 @@ def _item(app):
         'finalReviewDate': roc_date(app.final_review_date),
         'factoryInspectionDate': roc_date(app.factory_inspection_date),
         'doneDate': roc_date(app.done_date),
-        'finalReviewResult': selection_label(app.final_review_result, app, 'final_review_result'),
+        # 原系統這欄是打勾不是文字：finalReviewResult ? 'ˇ' : 'X'
+        'finalReviewResult': _flag(app.final_review_result == 'pass'),
         'archiveNumber': app.archive_number or '',
         'note': app.archive_note or '',
     }

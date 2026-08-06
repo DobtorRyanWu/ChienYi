@@ -42,8 +42,13 @@ EOCD_SIG = 0x06054b50
 FLAG_DATA_DESCRIPTOR = 0x08
 
 
-def patch(src, dst, updates):
-    """updates: {entry 名稱: 新的未壓縮 bytes}；未列出的 entry 原封複製。"""
+def patch(src, dst, updates, additions=None):
+    """updates: {entry 名稱: 新的未壓縮 bytes}；未列出的 entry 原封複製。
+
+    additions: {entry 名稱: 未壓縮 bytes} —— 原檔沒有的新 entry（例如分頁時
+    複製出來的 xl/worksheets/sheet2.xml）。附加在既有 entry 之後，
+    不影響前面任何一個 entry 的位元組。
+    """
     with open(src, 'rb') as fh:
         blob = fh.read()
     with zipfile.ZipFile(src) as zin:
@@ -110,6 +115,24 @@ def patch(src, dst, updates):
                                e_csize, e_usize, c_fnlen, c_extralen,
                                c_cmtlen, c_disk, c_iattr, c_eattr,
                                new_offset) + tail
+        count += 1
+
+    # 新增的 entry 一律附加在最後，前面既有 entry 的位元組完全不受影響
+    for name, raw in (additions or {}).items():
+        compressor = zlib.compressobj(9, zlib.DEFLATED, -15)
+        body = compressor.compress(raw) + compressor.flush()
+        crc = zlib.crc32(raw) & 0xFFFFFFFF
+        name_bytes = name.encode('utf-8')
+        new_offset = len(out)
+        # 一律用 UTF-8 旗標（bit 11），避免中文 entry 名稱在 Excel 裡變亂碼
+        flag = 0x800
+        out += struct.pack('<IHHHHHIIIHH', LOCAL_SIG, 20, flag,
+                           zipfile.ZIP_DEFLATED, 0, 0, crc, len(body), len(raw),
+                           len(name_bytes), 0) + name_bytes + body
+        central += struct.pack('<IHHHHHHIIIHHHHHII', CENTRAL_SIG, 20, 20, flag,
+                               zipfile.ZIP_DEFLATED, 0, 0, crc, len(body),
+                               len(raw), len(name_bytes), 0, 0, 0, 0, 0,
+                               new_offset) + name_bytes
         count += 1
 
     cd_offset = len(out)

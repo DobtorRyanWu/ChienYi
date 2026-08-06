@@ -22,6 +22,7 @@ from odoo.exceptions import UserError
 
 from . import docx_render
 from . import xlsx_placeholder
+from . import xlsx_sheets
 from . import zip_patch
 from .formatters import FORMATTERS
 from .xlsx_fill import fill
@@ -102,11 +103,26 @@ def build_values(record, mapping):
     return values
 
 
+def _paginate(records, page_size, pad):
+    """切頁並補足最後一頁——EAGLE 原系統的作法（每頁固定列數、不足補空白）"""
+    if not records:
+        return [list(pad and [dict(pad)] * page_size or [])]
+    pages = [records[i:i + page_size] for i in range(0, len(records), page_size)]
+    if pad:
+        last = pages[-1]
+        while len(last) < page_size:
+            last.append(dict(pad))
+    return pages
+
+
 def _render_placeholder(src, dst, mapping, record):
     """佔位符樣板（${token} / ${table:coll.field}）——舊 EAGLE 系統帶來的格式。
 
     多工作表要全部處理：通報單的表頭在 sheet1、工項明細在 sheet2，
     只填第一張的話明細表會整張留著佔位符。
+
+    對照表若宣告 PAGINATE，就照原系統的方式分頁：每頁固定列數、
+    不足補空白列、用複製工作表產生「第N頁」。
     """
     with zipfile.ZipFile(src) as zf:
         names = zf.namelist()
@@ -116,10 +132,42 @@ def _render_placeholder(src, dst, mapping, record):
                 zf.read('xl/sharedStrings.xml').decode('utf-8'))
         sheets = {n: zf.read(n).decode('utf-8')
                   for n in sorted(names) if n.startswith('xl/worksheets/sheet')}
+        base_parts = {n: zf.read(n).decode('utf-8') for n in
+                      ('xl/workbook.xml', 'xl/_rels/workbook.xml.rels',
+                       '[Content_Types].xml') if n in names}
+        for n in names:
+            if n.startswith('xl/worksheets/_rels/'):
+                base_parts[n] = zf.read(n).decode('utf-8')
 
     context = mapping.build_context(record)
-    updates, leftover = {}, set()
-    for name, sheet_xml in sheets.items():
+    paginate = getattr(mapping, 'PAGINATE', None)
+    updates, additions, leftover = {}, {}, set()
+
+    if paginate:
+        source = paginate['source']
+        pages = _paginate(list(context.get(source) or []),
+                          paginate['page_size'], paginate.get('pad'))
+        total = len(pages)
+        target = paginate.get('sheet') or sorted(sheets)[0]
+        page_xmls = []
+        for index, rows in enumerate(pages, start=1):
+            ctx = dict(context, __shared__=shared)
+            ctx[source] = rows
+            # 原系統：頁碼是字串「第N頁」，且百分比只在最後一頁給值
+            ctx['currentPageNo'] = '第%s頁' % index
+            ctx['totalPageNo'] = '第%s頁' % total
+            for key in paginate.get('last_page_only', ()):
+                if index != total:
+                    ctx[key] = ''
+            new_xml = xlsx_placeholder.expand_and_fill(sheets[target], ctx)
+            page_xmls.append(new_xml)
+            leftover |= set(xlsx_placeholder.TOKEN_RE.findall(new_xml))
+        updates, additions = xlsx_sheets.build_pages(base_parts, page_xmls)
+        others = {n: x for n, x in sheets.items() if n != target}
+    else:
+        others = sheets
+
+    for name, sheet_xml in others.items():
         if not xlsx_placeholder.has_placeholders(sheet_xml, shared):
             continue
         ctx = dict(context, __shared__=shared)
@@ -132,7 +180,7 @@ def _render_placeholder(src, dst, mapping, record):
         _logger.warning('樣板 %s 有 %s 個佔位符沒有對應資料：%s',
                         mapping.__name__, len(leftover), '、'.join(sorted(leftover)[:12]))
 
-    zip_patch.patch(src, dst, updates)
+    zip_patch.patch(src, dst, updates, additions)
     with open(dst, 'rb') as fp:
         return fp.read()
 

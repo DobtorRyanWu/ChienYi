@@ -21,6 +21,18 @@ def roc_date_slash(value, record=None, field=None):
     return '%s/%02d/%02d' % (value.year - ROC_YEAR_OFFSET, value.month, value.day)
 
 
+def roc_date_cn(value, record=None, field=None):
+    """民國「年月日」格式，例：2024-09-23 → 113年9月23日（不補零）。
+
+    EAGLE 原系統的 docx 管制表用這個格式
+    （models/errorRecord.js：`${y-1911}年${m+1}月${d}日`），
+    與 xlsx 用的點格式 113.09.23 不同，不要混用。
+    """
+    if not value:
+        return ''
+    return '%s年%s月%s日' % (value.year - ROC_YEAR_OFFSET, value.month, value.day)
+
+
 def ad_date(value, record=None, field=None):
     """西元日期字串 2024-09-23"""
     return value.strftime('%Y-%m-%d') if value else ''
@@ -62,6 +74,7 @@ FORMATTERS = {
     'count': count,
     'roc_date': roc_date,
     'roc_date_slash': roc_date_slash,
+    'roc_date_cn': roc_date_cn,
     'ad_date': ad_date,
     'selection_label': selection_label,
     'percent': percent,

@@ -1,15 +1,32 @@
 # -*- coding: utf-8 -*-
-"""自主檢查總表 —— 佔位符對照表（專案層級）。
+"""自主檢查總表 —— 佔位符對照表（專案層級、左右雙欄、分頁）。
 
-與施工日誌不同，這是**整個專案的彙總表**：一列排兩筆檢查（左右兩欄），
-所以資料來源是 project.project 而不是單筆自主檢查。
+規格取自 EAGLE 原系統 `models/inspection.js / generateListFile()`
+（2026-08-06 由 TKU source map 還原）：
 
-版面：
-    R2-R4  工程名稱／契約編號／監造單位／開工日期／竣工日期／施工廠商
-    R7     ${table:inspections.left.*}  ｜  ${table:inspections.right.*}
-           一列兩筆，左欄排前半、右欄排後半（報紙分欄式）
+    const maxRow = 8
+    while (inspections[currentIndex]) {
+      for (rowIndex = 0..7) {
+        left  = inspections[currentIndex + rowIndex]        // 本頁 1~8
+        right = inspections[currentIndex + rowIndex + 8]    // 本頁 9~16
+        left.seq  = rowIndex + 1 + (page-1)*8
+        right.seq = rowIndex + 1 + 8 + (page-1)*8
+        data.push({ left, right })
+      }
+      currentIndex += maxRow
+      if (還有) copySheet(`第${page}頁`, `第${page+1}頁`)
+      substitute(page, { project, inspections: data })
+    }
+    isQualified   = !hasMistake ? 'V' : ''
+    isUnqualified =  hasMistake ? 'V' : ''
 
-一般式專案用 general.self.inspection，預約式用 reservation.self.inspection。
+**先前做錯的兩處（已修正）**：
+  ① 左右欄用「全域前半／後半」對切 → 應為**同一頁內** i 與 i+8，
+     否則多頁時整個順序都錯
+  ② 勾記號用 '✓' → 原系統是 'V'
+
+合格判定維持 Odoo 的 `overall_result`（合格／條件合格／不合格三態），
+比原系統的 hasMistake 語意完整；條件合格歸「合格」欄並於處理情形註記。
 """
 
 from ..utils.formatters import roc_date
@@ -17,10 +34,15 @@ from ..utils.formatters import roc_date
 MODEL = 'project.project'
 MODE = 'placeholder'
 
-QUALIFIED_MARK = '✓'
-# overall_result: pass 合格 / conditional_pass 條件合格 / fail 不合格
-# 條件合格歸在「合格」欄並於處理情形註記，符合表單只有兩欄的實況
+# 每頁左右兩欄各 8 列，一頁 16 筆
+ROWS_PER_PAGE = 8
+QUALIFIED_MARK = 'V'          # 原系統用 V 不是 ✓
 PASSING_RESULTS = ('pass', 'conditional_pass')
+
+PAGINATE = {
+    'source': 'inspections',
+    'page_size': ROWS_PER_PAGE,      # 一頁 8 列（每列含左右兩筆）
+}
 
 
 def _inspection_model(project):
@@ -29,9 +51,11 @@ def _inspection_model(project):
             else 'general.self.inspection')
 
 
-def _row(inspection, seq):
-    result = inspection.overall_result if 'overall_result' in inspection._fields else False
-    passing = result in PASSING_RESULTS
+def _cell(inspection, seq):
+    if not inspection:
+        return {}
+    result = (inspection.overall_result
+              if 'overall_result' in inspection._fields else False)
     note = inspection.note or ''
     if result == 'conditional_pass':
         note = ('條件合格。%s' % note).strip('。 ')
@@ -39,7 +63,7 @@ def _row(inspection, seq):
         'seq': seq,
         'name': inspection.inspection_type_id.display_name or inspection.display_name or '',
         'inspectedAt': roc_date(inspection.inspection_date),
-        'isQualified': QUALIFIED_MARK if passing and result else '',
+        'isQualified': QUALIFIED_MARK if result in PASSING_RESULTS else '',
         'isUnqualified': QUALIFIED_MARK if result == 'fail' else '',
         'result': note,
     }
@@ -48,11 +72,21 @@ def _row(inspection, seq):
 def build_context(project):
     Inspection = project.env[_inspection_model(project)]
     records = Inspection.search([('project_id', '=', project.id)],
-                                order='inspection_date, id')
-    rows = [_row(insp, i + 1) for i, insp in enumerate(records)]
-    # 報紙分欄：前半排左欄、後半排右欄，兩欄列數相同
-    half = (len(rows) + 1) // 2
-    left, right = rows[:half], rows[half:]
+                               order='inspection_date, id')
+
+    # 依原系統：一頁 16 筆，左欄放本頁 1~8、右欄放本頁 9~16
+    rows = []
+    per_page = ROWS_PER_PAGE * 2
+    for page_start in range(0, max(len(records), 1), per_page):
+        page = records[page_start:page_start + per_page]
+        for offset in range(ROWS_PER_PAGE):
+            left = page[offset] if offset < len(page) else None
+            right_idx = offset + ROWS_PER_PAGE
+            right = page[right_idx] if right_idx < len(page) else None
+            rows.append({
+                'left': _cell(left, page_start + offset + 1),
+                'right': _cell(right, page_start + right_idx + 1),
+            })
 
     contractors = project.contractor_partner_ids.mapped('name')
     return {
@@ -62,8 +96,7 @@ def build_context(project):
         'project.extendFinishAt': roc_date(project.contract_end_date),
         'project.supervision': project.management_company_name or '',
         'project.contractor': '、'.join(contractors),
-        'inspections.left': left,
-        'inspections.right': right,
+        'inspections': rows,
     }
 
 
