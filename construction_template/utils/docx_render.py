@@ -140,7 +140,16 @@ def render(raw_bytes, context):
     converted = _convert_ins_to_jinja(stripped)
 
     tpl = DocxTemplate(io.BytesIO(converted))
-    tpl.render(_swap_images(context, tpl))
+    # ⚠️ autoescape 必須開：docxtpl 預設 autoescape=False，資料裡的 & < >
+    # 會直接寫進 XML 變成非法標記；而 docxtpl 的 fix_tables() 是用
+    # etree.XMLParser(recover=True) 解析的——lxml 會**無聲**丟掉壞掉的那段，
+    # 整筆記錄就從報表上消失，不拋例外、log 也乾淨。
+    # 實例（2026-08-06 實測 odoo18_dev）：送審管制表 project 43 有 80 筆，
+    # 名稱「工地密度(第6層&第7層)」那筆整列不見，只印出 79 筆；
+    # 另有「盤式支承 固定型，標稱載重 < 50tf」同樣會中。
+    # InlineImage 有定義 __html__()，autoescape 下 markupsafe 會呼叫它取原始
+    # XML 而不是跳脫，所以照片不受影響。
+    tpl.render(_swap_images(context, tpl), autoescape=True)
     out = io.BytesIO()
     tpl.save(out)
     return out.getvalue()
