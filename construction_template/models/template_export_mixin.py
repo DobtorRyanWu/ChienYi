@@ -53,10 +53,39 @@ class TemplateExportMixin(models.AbstractModel):
         template[:1].record_usage()
 
         attachment = self._create_export_attachment(filename, content)
-        return {
+        download = {
             'type': 'ir.actions.act_url',
             'url': '/web/content/%s?download=true' % attachment.id,
             'target': 'self',
+        }
+        return self._wrap_with_warnings(template_type, download)
+
+    def _wrap_with_warnings(self, template_type, download):
+        """對照表若回報資料問題，先跳提示再下載。
+
+        有些報表在資料不完整時會印出「看起來合理但其實是錯的」數字——例如
+        累計估驗數量在前期估驗還停在草稿時，會等於本期數量。檔案本身沒有
+        任何異狀，使用者不可能發現。這裡讓對照表用 WARNINGS(record) 回報，
+        包成 display_notification 的 next 動作：提示看得到，下載照樣進行。
+        """
+        self.ensure_one()
+        mapping = template_render.get_mapping(template_type)
+        warn = getattr(mapping, 'WARNINGS', None)
+        messages = warn(self) if callable(warn) else []
+        if not messages:
+            return download
+        _logger.warning('匯出 %s（%s#%s）時偵測到資料問題：%s',
+                        template_type, self._name, self.id, '；'.join(messages))
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('匯出完成，但資料有需要注意的地方'),
+                'message': '\n'.join(messages),
+                'type': 'warning',
+                'sticky': True,          # 使用者要自己關掉，避免一閃而過沒看到
+                'next': download,
+            },
         }
 
     def _create_export_attachment(self, filename, content):

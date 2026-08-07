@@ -21,8 +21,14 @@ Odoo 這邊拆成兩個按鈕，各自下載。
 
 from ..utils.formatters import roc_date_cn
 
+from .progress_report import estimate_warnings
+
 MODEL = 'payment.estimate'
 MODE = 'placeholder'
+
+# 「本次止累計估驗數量／金額」兩欄跟進度報告的累計是同一個計算來源，
+# 前期估驗沒核定就會低估——共用同一組警示。
+WARNINGS = estimate_warnings
 
 
 def _num(value):

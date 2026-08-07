@@ -42,6 +42,51 @@ PAGINATE = {
 }
 
 
+# 只有這兩個狀態的估驗單會被 `_compute_previous_approved_qty` 計入前期累計
+APPROVED_STATES = ('approved', 'archived')
+
+
+def estimate_warnings(estimate):
+    """回報會讓「累計」數字失真的資料狀況（由匯出 mixin 顯示給使用者）。
+
+    `payment.estimate.line._compute_previous_approved_qty` 有兩個前提，
+    任一不成立就直接回 0，累計數量會等於本期數量——報表本身看不出異狀：
+
+        if (line.is_summary_item or not line.task_id
+                or not est.project_id or not est.estimate_date):
+            line.previous_approved_qty = 0.0
+        …
+        ('estimate_id.state', 'in', ('approved', 'archived'))
+
+    實例（odoo18_dev 2026-08-07）：專案 43 的 30 張估驗全停在草稿，
+    第 18 次的累計原本等於本期；14 張核定後前期累計才正確帶出。
+    另有 46 張 draft 估驗沒有估驗日期，核定也救不回來。
+    """
+    messages = []
+    if not estimate.estimate_date:
+        messages.append(
+            '本張估驗單沒有填「估驗日期」，系統無法判斷期別先後，'
+            '「累計」欄位會等於「本期」。請先補上估驗日期。')
+        return messages
+
+    pending = estimate.search([
+        ('project_id', '=', estimate.project_id.id),
+        ('estimate_date', '<', estimate.estimate_date),
+        ('state', 'not in', APPROVED_STATES),
+        ('line_ids', '!=', False),
+    ])
+    if pending:
+        messages.append(
+            '本專案在 %s 之前還有 %s 張未核定的估驗單（最早 %s）。'
+            '「累計」只計入已核定的期別，數字會低估。'
+            % (estimate.estimate_date, len(pending),
+               min(pending.mapped('estimate_date'))))
+    return messages
+
+
+WARNINGS = estimate_warnings
+
+
 def _contract_qty(line):
     """契約數量。
 
