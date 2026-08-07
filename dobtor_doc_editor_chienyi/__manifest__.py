@@ -2,7 +2,7 @@
 {
     'name': 'ChienYi × dobtor_doc_editor 整合橋接',
     # 1.1.0: 缺失改善橋接從 supervision.defect(NCR) 改指 general.defect.improvement
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',
     'category': 'Construction/Integration',
     'summary': '把 doc.linked.mixin 真實植入 ChienYi 模型（Sprint 21）',
     'description': """

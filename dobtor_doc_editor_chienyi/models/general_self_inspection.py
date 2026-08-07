@@ -12,7 +12,7 @@ docs/chienyi_integration_examples.md §3 的範例覆寫 hook methods。
 
 from odoo import models, _
 
-from .self_inspection_doc_helper import inject_checklist
+from .self_inspection_doc_helper import inject_checklist, sorted_by_stage as _sorted_by_stage
 
 
 class GeneralSelfInspection(models.Model):
@@ -35,7 +35,7 @@ class GeneralSelfInspection(models.Model):
         """建立文件後，把檢查清單換成此檢查類型的預設項目（self.inspection.type.item）。"""
         doc = super()._create_linked_doc()
         if doc and self.inspection_type_id:
-            items = self.inspection_type_id.default_item_ids.sorted('sequence')
+            items = _sorted_by_stage(self.inspection_type_id.default_item_ids)
             new_html = inject_checklist(doc.content_html, items)
             if new_html != doc.content_html:
                 doc.content_html = new_html
