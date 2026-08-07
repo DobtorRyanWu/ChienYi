@@ -18,6 +18,23 @@ class PaymentEstimate(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'estimate_no asc, id desc'
 
+    # ⚠️ 必須是 DEFERRABLE INITIALLY DEFERRED，不能用普通 UNIQUE。
+    #
+    # `_resequence_estimate_no()` 是逐筆 write，排序變動時中間狀態必然撞號——
+    # 例如 1,2,3 要重排成 3,1,2，寫第一筆就跟現有的 1 相撞。
+    # 2026-08-07 實測（交易內加約束、觸發排列置換、再 rollback）：
+    #     普通 UNIQUE(project_id, estimate_no)  → UniqueViolation
+    #     同樣操作 + DEFERRABLE INITIALLY DEFERRED → 通過
+    # 延遲到 COMMIT 才檢查，中間過程允許暫時重複，最終狀態仍保證唯一。
+    #
+    # 這個約束長期記為 BLOCKED，因為舊資料有重複；2026-08-07 清掉 9 張
+    # 無工程無明細的孤兒估驗（ids 113-116、137-141）後，重複組數歸零才得以建立。
+    _sql_constraints = [
+        ('unique_project_estimate_no',
+         'UNIQUE (project_id, estimate_no) DEFERRABLE INITIALLY DEFERRED',
+         '同一工程的估驗次數不能重複。'),
+    ]
+
     # === 基本資訊 ===
     name = fields.Char(
         '估驗名稱',
