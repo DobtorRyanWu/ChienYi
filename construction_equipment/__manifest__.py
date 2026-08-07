@@ -5,7 +5,7 @@
 {
     "name": "工程監造系統 - 人機管理",
     # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
-    "version": "18.0.1.1.0",
+    "version": "18.0.1.2.0",
     "category": "Construction/Equipment",
     "summary": "機具設備管理、維護請求與 MTBF/MTTR 效能指標",
     "description": """

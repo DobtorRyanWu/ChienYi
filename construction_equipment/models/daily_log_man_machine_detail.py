@@ -80,6 +80,15 @@ class DailyLogManMachineDetail(models.Model):
         string='具體設備',
         help='如需記錄具體設備可填寫')
 
+    equipment_id = fields.Many2one(
+        'supervision.equipment',
+        string='機具設備',
+        ondelete='set null',
+        index=True,
+        domain="[('project_id', '=', project_id)]",
+        help='關聯到機具設備主檔。填了才會計入該設備的累計使用時數；'
+             '留空仍可用上方「具體設備」記自由文字。')
+
     note = fields.Text('備註')
 
     # -------------------------------------------------------------------------

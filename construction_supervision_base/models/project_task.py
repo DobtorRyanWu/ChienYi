@@ -18,6 +18,12 @@ class ProjectTask(models.Model):
     - 實際執行追蹤 (actual_qty, actual_amount, completion_rate)
     """
     _inherit = 'project.task'
+    # 本系統的 project.task 就是「契約工項」，正確順序是項次階層，不是 Odoo 原生的
+    # priority/deadline。item_no 是 Char，直接排會得到 1, 10, 100, …, 11（代操 2026-08-06
+    # 回報「契約項目順序有誤」）；改用補零後的 item_no_sort。
+    # 這同時修好日誌「選擇施工項目」下拉的順序——那是 many2one 的 name_search，
+    # 只吃模型的 _order，view 上無法個別指定。
+    _order = 'item_no_sort, sequence, id'
 
     # === 排序欄位 ===
     # 注意: active 欄位由 Odoo 標準 project.task 提供，無需定義
@@ -96,6 +102,42 @@ class ProjectTask(models.Model):
                 task.item_no_path = f"{task.parent_id.item_no_path}.{task.item_no}"
             else:
                 task.item_no_path = task.item_no or ''
+
+    # 每一段補零的寬度。6 位足以容納實務上的項次（現有最大為 3 位數），
+    # 且不會讓排序鍵長到影響索引效率。
+    _ITEM_NO_SORT_WIDTH = 6
+
+    item_no_sort = fields.Char(
+        string='項次排序鍵',
+        compute='_compute_item_no_sort',
+        store=True,
+        index=True,
+        help='把項次路徑的每一段數字補零對齊後的排序鍵。'
+             'item_no 是 Char，直接排會得到 1, 10, 100, …, 11 這種字串序。')
+
+    @api.depends('item_no_path')
+    def _compute_item_no_sort(self):
+        for task in self:
+            task.item_no_sort = self._build_item_no_sort(task.item_no_path)
+
+    def _build_item_no_sort(self, item_no_path):
+        """把「壹.一.1.10」轉成「000001.000001.000001.000010」。
+
+        三種編號風格都要吃得下：大寫中文（壹貳參）、小寫中文（一二三）、
+        阿拉伯數字；且實務上會包在括號裡（如「(一)」），先去掉非文數字再解析。
+        解析不出數字的段落補 0，至少不會讓排序爆掉。
+        """
+        if not item_no_path:
+            return ''
+        segments = []
+        for seg in item_no_path.split('.'):
+            cleaned = re.sub(r'[^0-9一-鿿]', '', seg or '')
+            number = self._chinese_to_number(cleaned)
+            if not number:
+                digits = re.search(r'\d+', cleaned)
+                number = int(digits.group()) if digits else 0
+            segments.append(str(number).zfill(self._ITEM_NO_SORT_WIDTH))
+        return '.'.join(segments)
 
     full_item_path = fields.Char(
         string='完整項次路徑',
@@ -242,12 +284,15 @@ class ProjectTask(models.Model):
 
     # === 預算欄位 (契約價量) ===
     planned_qty = fields.Float(
-        string='契約數量', digits=(16, 4), required=True,
+        string='契約數量', digits=(16, 4), required=True, default=0.0,
         help='契約預估數量 (預算)')
 
     unit = fields.Char(
-        string='單位', required=True,
+        string='單位', required=True, default='式',
         help='計量單位，如：M, M2, M3, 式')
+    # default='式' 是為了讓「非本系統建立」的 task 也能過 NOT NULL——例如 Odoo core
+    # 建 res.company 時自動產生的內部專案 task。工程實務上「式」是最常見的計量單位，
+    # 匯入管線與表單一律會明確帶單位，不受此預設影響。
 
     product_id = fields.Many2one(
         'product.product', string='標準工項',
@@ -351,8 +396,11 @@ class ProjectTask(models.Model):
         return new_uom.id
 
     unit_price = fields.Float(
-        string='契約單價', digits=(16, 2), required=True,
+        string='契約單價', digits=(16, 2), required=True, default=0.0,
         help='契約預估單價')
+    # planned_qty / unit_price 與 unit 同理：required=True 但無 default，
+    # 由 Odoo core 建立的 task（如 res.company 的內部專案）會直接撞 NOT NULL。
+    # 給 0.0 不影響既有資料，匯入與表單一律會帶實際值。
 
     xml_amount = fields.Float(
         string='XML 原始複價',
@@ -675,26 +723,11 @@ class ProjectTask(models.Model):
             },
         }
 
-    @api.model_create_multi
-    def create(self, vals_list):
-        """覆寫建立方法以自動產生工項編號"""
-        for vals in vals_list:
-            # 如果沒有提供 item_no，自動產生
-            if not vals.get('item_no'):
-                vals['item_no'] = self._generate_item_no(
-                    vals.get('parent_id'),
-                    vals.get('project_id')
-                )
-            
-            # 如果沒有提供 sequence，自動計算
-            if not vals.get('sequence'):
-                vals['sequence'] = self._calculate_sequence(
-                    vals.get('parent_id'),
-                    vals.get('project_id')
-                )
-        
-        return super().create(vals_list)
-    
+    # ⚠ 這裡原本還有一個 create()，負責自動產生 item_no 與 sequence。
+    #   但本 class 稍後又定義了第二個 create()（建立 project.task.version 的那個），
+    #   Python 後定義的會取代前者 —— 所以這段從來沒有被執行過。
+    #   已合併進下方唯一的 create()，見該處註解。
+
     def _generate_item_no(self, parent_id, project_id):
         """自動產生工項編號（資料驅動：依該專案現有同層工項的編號格式骨架產生，
         不寫死層級格式）。"""
@@ -901,6 +934,25 @@ class ProjectTask(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        """本 class 唯一的 create()。
+
+        原本這裡與上方各有一個 create()，Python 後定義的取代前者，導致上方那個
+        「自動產生 item_no / sequence」的版本是死碼、從未執行。而 item_no 是
+        required=True（DB NOT NULL），於是任何沒有明確帶 item_no 的建立都會炸。
+
+        平時沒被發現，是因為匯入管線與表單都會明確帶 item_no。真正踩到的是
+        Odoo core：建立 res.company 時 hr_timesheet 會自動建「內部專案」與其 task
+        （`_create_internal_project_task()`），core 不可能知道要填 item_no
+        → NotNullViolation → **新公司建不起來**，多租戶佈建整條路斷掉。
+        """
+        for vals in vals_list:
+            if not vals.get('item_no'):
+                vals['item_no'] = self._generate_item_no(
+                    vals.get('parent_id'), vals.get('project_id'))
+            if not vals.get('sequence'):
+                vals['sequence'] = self._calculate_sequence(
+                    vals.get('parent_id'), vals.get('project_id'))
+
         tasks = super().create(vals_list)
         version_vals = []
         for task, vals in zip(tasks, vals_list):

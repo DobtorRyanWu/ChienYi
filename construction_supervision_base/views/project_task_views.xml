@@ -99,7 +99,7 @@
                     <!-- 第2頁：子工項（僅彙總項顯示，列出下一層級工項） -->
                     <page string="子工項" name="child_items" invisible="not is_summary_item">
                         <field name="child_ids" nolabel="1" readonly="1">
-                            <list string="子工項" default_order="sequence,item_no">
+                            <list string="子工項" default_order="item_no_sort">
                                 <field name="display_item_no" string="項次" width="80"/>
                                 <field name="name" string="項目及說明"/>
                                 <field name="unit" string="單位" width="70"/>
@@ -251,7 +251,7 @@
         <field name="priority">25</field>
         <field name="arch" type="xml">
             <list string="契約工項"
-                  default_order="sequence,item_no"
+                  default_order="item_no_sort"
                   decoration-warning="schedule_status == 'delayed'"
                   decoration-success="assignment_state == 'accepted'"
                   decoration-info="item_level == 1"
@@ -320,7 +320,7 @@
         <field name="priority">20</field>
         <field name="arch" type="xml">
             <list string="契約工項" 
-                  default_order="sequence,item_no"
+                  default_order="item_no_sort"
                   decoration-muted="assignment_state == 'accepted'"
                   decoration-info="assignment_state == 'assigned'"
                   decoration-warning="assignment_state == 'in_progress'"

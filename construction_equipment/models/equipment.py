@@ -70,9 +70,13 @@ class SupervisionEquipment(models.Model):
     project_id = fields.Many2one(
         'project.project',
         string='所屬工程',
+        required=True,
         tracking=True,
         index=True,
         help='目前使用此設備的工程')
+    # required=True：設備列表預設依「所屬工程」分組，留空會讓整批落在「無」，
+    # 代操因此誤以為建立失敗（2026-08-06 回報）。
+    # 改必填前實查 supervision_equipment 筆數為 0，不影響任何既有資料。
 
     company_id = fields.Many2one(
         'res.company',
@@ -276,14 +280,30 @@ class SupervisionEquipment(models.Model):
             )
 
     def _compute_usage_stats(self):
-        """從施工日誌計算使用統計"""
-        ManMachine = self.env['daily.log.man.machine']
-        for equipment in self:
-            records = ManMachine.search([
-                ('equipment_id', '=', equipment.id),
-                ('record_type', '=', 'equipment'),
-            ])
-            equipment.total_usage_hours = sum(records.mapped('equipment_hours'))
+        """從施工日誌的人機明細加總使用時數。
+
+        ⚠ 這裡原本查 `daily.log.man.machine` 的 `equipment_id` 與 `equipment_hours`，
+        但那兩個欄位在人機彙整（daily.log.man.machine）與明細
+        （daily.log.man.machine.detail）**都不存在**——設備主檔與施工日誌從來沒有
+        真正關聯過，日誌那端只有自由文字 `specific_equipment_name`。
+        結果是設備一存檔、compute 一跑就 `Invalid field ... equipment_id`，
+        代操因此完全建不了機具設備（2026-08-06 回報）。
+
+        2026-08-07 改為查明細的 `equipment_id`（新增的外鍵）與 `hours`。
+        用 _read_group 一次算完，避免逐筆 search。
+        """
+        self.total_usage_hours = 0.0
+        saved = self.filtered(lambda e: isinstance(e.id, int))
+        if not saved:
+            return
+        groups = self.env['daily.log.man.machine.detail']._read_group(
+            [('equipment_id', 'in', saved.ids)],
+            groupby=['equipment_id'],
+            aggregates=['hours:sum'],
+        )
+        totals = {equipment.id: hours for equipment, hours in groups}
+        for equipment in saved:
+            equipment.total_usage_hours = totals.get(equipment.id, 0.0)
 
     # -------------------------------------------------------------------------
     # Onchange Methods
