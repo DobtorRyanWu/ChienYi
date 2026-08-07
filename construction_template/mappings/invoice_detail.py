@@ -21,7 +21,7 @@ Odoo 這邊拆成兩個按鈕，各自下載。
 
 from ..utils.formatters import roc_date_cn
 
-from .progress_report import estimate_warnings
+from .progress_report import authority_name, estimate_warnings
 
 MODEL = 'payment.estimate'
 MODE = 'placeholder'
@@ -60,6 +60,9 @@ def _amount(line, qty_field, amount_field):
 def build_context(estimate):
     lines = estimate.line_ids.sorted(lambda ln: (ln.sequence, ln.id))
     return {
+        # 抬頭的業主機關：原樣板寫死「臺北市政府工務局水利工程處」，
+        # 2026-08-07 改成佔位符，接工程案件既有的 authority_name 欄位。
+        'authorityName': authority_name(estimate.project_id),
         'times': estimate.estimate_no or '',
         'projectName': estimate.project_id.name or '',
         # EAGLE：`${y-1911}年${m}月${d}日`

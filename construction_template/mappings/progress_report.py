@@ -45,6 +45,16 @@ PAGINATE = {
 # 只有這兩個狀態的估驗單會被 `_compute_previous_approved_qty` 計入前期累計
 APPROVED_STATES = ('approved', 'archived')
 
+# 報表抬頭的業主機關。工程案件本來就有 `authority_name`（業主/主辦機關，Char），
+# 但 2026-08-07 實查 196 個案件只有 1 個填了值——就是這個字串。
+# 樣板原本把它寫死在儲存格裡，現在改成佔位符；欄位空白時回退到這個預設值，
+# 讓既有輸出完全不變，同時由 WARNINGS 提醒使用者去補欄位。
+DEFAULT_AUTHORITY = '臺北市政府工務局水利工程處'
+
+
+def authority_name(project):
+    return (project.authority_name or '').strip() or DEFAULT_AUTHORITY
+
 
 def estimate_warnings(estimate):
     """回報會讓「累計」數字失真的資料狀況（由匯出 mixin 顯示給使用者）。
@@ -62,6 +72,11 @@ def estimate_warnings(estimate):
     第 18 次的累計原本等於本期；14 張核定後前期累計才正確帶出。
     另有 46 張 draft 估驗沒有估驗日期，核定也救不回來。
     """
+    # ⚠️ 這裡刻意**不**檢查 authority_name 是否為空。
+    # 2026-08-07 實測：196 個工程案件只有 1 個填了業主機關，加進來的結果是
+    # 每一次匯出都跳提示，而且排在累計警示前面——把「數字是錯的」這種真問題
+    # 稀釋成雜訊。抬頭沒填會回退到 DEFAULT_AUTHORITY，輸出與過去完全相同，
+    # 屬於資料待補而非數字錯誤，記在 docs/資料缺口清單.md 由人一次補齊。
     messages = []
     if not estimate.estimate_date:
         messages.append(

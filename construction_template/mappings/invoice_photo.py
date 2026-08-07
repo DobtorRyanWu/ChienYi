@@ -33,9 +33,13 @@ EAGLE 由前端把使用者挑好的 `data.images` 傳進來。Odoo 沒有這個
 import base64
 
 from ..utils import photo_stamp
+from .progress_report import authority_name, estimate_warnings
 
 MODEL = 'payment.estimate'
 MODE = 'docx'
+
+# 抬頭的業主機關與累計失真提醒，與估驗詳細表共用
+WARNINGS = estimate_warnings
 
 PHOTOS_PER_PAGE = 2
 
@@ -97,6 +101,9 @@ def build_context(estimate):
               for i in range(0, len(photos), PHOTOS_PER_PAGE)] or [[None, None]]
     total = len(chunks)
     return {
+        # 抬頭的業主機關：原樣板寫死「臺北市政府工務局水利工程處」，
+        # 2026-08-07 改成佔位符，接工程案件既有的 authority_name 欄位。
+        'authorityName': authority_name(estimate.project_id),
         'projectName': estimate.project_id.name or '',
         'pages': [{
             'currentPage': index + 1,
