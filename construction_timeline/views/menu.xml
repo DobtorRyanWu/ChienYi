@@ -5,12 +5,11 @@
          時程控制選單 (歸屬於 工程管理 > 進度管理)
          =================================================================== -->
 
-    <!-- 工項時程 -->
-    <menuitem id="menu_task_timeline"
-              name="工項時程"
-              parent="construction_supervision_base.menu_schedule_management"
-              action="action_task_timeline"
-              sequence="10"/>
+    <!-- 工項時程：2026-08-07 移除選單入口。該畫面依 assigned_company_id（承包廠商）
+         分組，但工項向來不填此欄位（生產站 39,617 筆全空），使用者從這裡進去只會看到
+         全部工項擠在「無」分組下，誤以為是 bug。要看工項請走「工程總覽/契約工項」，
+         它帶 search_default_group_by_project 會依專案分組。
+         model 與 action_task_timeline 保留，日後要用再掛回選單。 -->
 
     <!-- 時程分析 -->
     <menuitem id="menu_schedule_analysis"

@@ -35,12 +35,9 @@
               action="action_construction_owners"
               sequence="40"/>
 
-    <!-- 技術聯絡人 -->
-    <menuitem id="menu_technical_contacts"
-              name="技術聯絡人"
-              parent="construction_supervision_base.menu_resource_management"
-              action="action_partner_technical_contact"
-              sequence="20"/>
+    <!-- 技術聯絡人：2026-08-07 移除選單入口。實務上沒有使用情境
+         （生產站 partner.technical.contact 實際資料 0 筆），
+         model 與 action_partner_technical_contact 保留，日後要用再掛回選單。 -->
 
     <!-- 廠商證照 -->
     <menuitem id="menu_partner_licenses"
