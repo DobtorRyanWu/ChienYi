@@ -5,11 +5,21 @@
          時程控制選單 (歸屬於 工程管理 > 進度管理)
          =================================================================== -->
 
-    <!-- 工項時程：2026-08-07 移除選單入口。該畫面依 assigned_company_id（承包廠商）
-         分組，但工項向來不填此欄位（生產站 39,617 筆全空），使用者從這裡進去只會看到
-         全部工項擠在「無」分組下，誤以為是 bug。要看工項請走「工程總覽/契約工項」，
-         它帶 search_default_group_by_project 會依專案分組。
-         model 與 action_task_timeline 保留，日後要用再掛回選單。 -->
+    <!-- 工項時程：預設停用。該畫面依 assigned_company_id（承包廠商）分組，但工項
+         向來不填此欄位（生產站 39,617 筆全空、舊系統 payItem 也無對應欄位），
+         從這裡進去只會看到全部工項擠在「無」分組下，容易被誤認成 bug。
+         要看工項請走「工程總覽/契約工項」，它帶 search_default_group_by_project。
+         定義保留著，哪天工項開始填承包廠商，到「設定 → 技術 → 選單項目」把 active 勾回來即可。
+         ⚠ 下方 record 每次模組升級都會把 active 重設回 False——這是刻意的；
+         要長期開啟請改這裡而非只改後台。 -->
+    <menuitem id="menu_task_timeline"
+              name="工項時程"
+              parent="construction_supervision_base.menu_schedule_management"
+              action="action_task_timeline"
+              sequence="10"/>
+    <record id="menu_task_timeline" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
 
     <!-- 時程分析 -->
     <menuitem id="menu_schedule_analysis"

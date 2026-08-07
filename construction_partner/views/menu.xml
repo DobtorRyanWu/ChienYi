@@ -35,9 +35,19 @@
               action="action_construction_owners"
               sequence="40"/>
 
-    <!-- 技術聯絡人：2026-08-07 移除選單入口。實務上沒有使用情境
-         （生產站 partner.technical.contact 實際資料 0 筆），
-         model 與 action_partner_technical_contact 保留，日後要用再掛回選單。 -->
+    <!-- 技術聯絡人：預設停用（實務上沒有使用情境，生產站實際資料 0 筆）。
+         定義保留著，哪天要用就到「設定 → 技術 → 使用者介面 → 選單項目」
+         把 active 勾回來即可。
+         ⚠ 下方 record 每次模組升級都會把 active 重設回 False——這是刻意的，
+         讓「預設關閉」成為每個站台的一致狀態；要長期開啟請改這裡而非只改後台。 -->
+    <menuitem id="menu_technical_contacts"
+              name="技術聯絡人"
+              parent="construction_supervision_base.menu_resource_management"
+              action="action_partner_technical_contact"
+              sequence="20"/>
+    <record id="menu_technical_contacts" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
 
     <!-- 廠商證照 -->
     <menuitem id="menu_partner_licenses"
