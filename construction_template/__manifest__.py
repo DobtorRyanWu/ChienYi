@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 樣板設定',
-    'version': '18.0.2.1.0',
+    'version': '18.0.2.1.1',
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """

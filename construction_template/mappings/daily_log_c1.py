@@ -46,6 +46,18 @@ def _contractor(project):
     return '、'.join(partners.mapped('name')) if partners else ''
 
 
+def _work_items(record):
+    """一、施工項目的列資料（一般式與預約式共用，見 build_context 的說明）"""
+    return [{
+        'description': line.item_name or line.custom_name or '',
+        'unit': line.unit or '',
+        'quantity': _qty(line.contract_qty),
+        'doneQuantity': _qty(line.daily_qty),
+        'totalQuantity': _qty(line.cumulative_qty),
+        'note': line.issue_description or '',
+    } for line in record.line_ids]
+
+
 def _weather(record):
     """本日天氣：上午/下午合併成一格"""
     am = selection_label(record.weather_am, record, 'weather_am')
@@ -85,14 +97,17 @@ def build_context(record):
         'important': record.important_matters or '',
 
         # 一、施工項目
-        'projectSheets': [{
-            'description': line.item_name or line.custom_name or '',
-            'unit': line.unit or '',
-            'quantity': _qty(line.contract_qty),
-            'doneQuantity': _qty(line.daily_qty),
-            'totalQuantity': _qty(line.cumulative_qty),
-            'note': line.issue_description or '',
-        } for line in record.line_ids],
+        #
+        # ⚠️ 集合名要給兩個。EAGLE 的第一聯有一般式與預約式兩份樣板，除了這一列
+        # 的集合名之外**完全相同**（2026-08-06 逐格比對：45 個 token 中只有這 6 個
+        # 不一樣，其餘 39 個含 specificConstructionItems / materialItems / manUsage /
+        # machineUsage 全都一致）：
+        #     一般式 default.xlsx             ${table:constructionItems.*}  取契約工項
+        #     預約式 default_appointment.xlsx ${table:projectSheets.*}      取通報單工項
+        # Odoo 這邊兩者都是 daily.log.sheet.line_ids，資料同源，所以兩個鍵指向同一份
+        # 列資料——系統預設樣板放一般式版，專案若自行上傳預約式版也照樣填得進去。
+        'constructionItems': _work_items(record),
+        'projectSheets': _work_items(record),
 
         # 營造業專業工程特定施工項目：Odoo 目前沒有對應資料來源，
         # 留空讓表格保持一列空白（不硬湊）
