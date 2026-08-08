@@ -4,3 +4,7 @@ __pycache__/
 *.pyc
 *.pyo
 node_modules/
+
+# rollup 建置產物（rollup.visual_regression.config.js:51 的輸出，2.7MB，可重建）
+dobtor_doc_editor/tools/dist/visual_regression_pipeline.iife.js
+dobtor_doc_editor/tools/dist/visual_regression_pipeline.iife.js.map
