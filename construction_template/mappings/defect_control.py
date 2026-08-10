@@ -11,11 +11,22 @@
 與送審／檢試驗那種 `FOR item IN $page`（page 本身是清單）不同。
 """
 
-from ..utils import docx_render
+from ..utils import docx_render, record_filter
 from ..utils.formatters import roc_date_cn
+from .defect_improvement import source_model
 
 MODEL = 'project.project'
 MODE = 'docx'
+
+# 批次下載中心可用 context 限定期間；這裡跟原系統一樣以「通知日期」為準
+DATE_FIELD = 'notification_date'
+DATE_LABEL = '通知日期'
+
+
+def WARNINGS(project):
+    """日期空白的缺失一律列入，但要讓人知道有哪幾筆"""
+    return record_filter.project_warning(
+        project, source_model(project), DATE_FIELD, DATE_LABEL)
 
 # 每頁列數。表頭（工程名稱／頁碼）是每頁重印的，所以要實際分頁而不是塞成一頁。
 # 每頁 13 筆——取自 EAGLE 原系統 models/errorRecord.js/generateListFile。
@@ -37,8 +48,11 @@ def _record(defect, contractor):
 
 
 def build_context(project):
-    defects = project.env['general.defect.improvement'].search(
-        [('project_id', '=', project.id)], order='notification_date, id')
+    Defect = project.env[source_model(project)]
+    defects = Defect.search(
+        [('project_id', '=', project.id)]
+        + record_filter.date_domain(project.env, DATE_FIELD),
+        order='notification_date, id')
     contractor = '、'.join(project.contractor_partner_ids.mapped('name'))
     rows = [_record(d, contractor) for d in defects]
     pages = docx_render.paginate_pages(rows, ROWS_PER_PAGE)

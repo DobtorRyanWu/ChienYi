@@ -27,7 +27,13 @@ from ..utils.formatters import roc_date
 
 from .daily_log_c1 import _contractor, _qty
 
-MODEL = 'payment.estimate'
+# 兩種資料來源共用同一份空白樣板：
+#   payment.estimate         以估驗單為期間錨點（原有，行為不變）
+#   general.progress.report  工程管理 > 進度管理 > 進度報告，本身就帶期間與
+#                            工項明細（planned/period/actual 三個數量），
+#                            比估驗單那條路更貼近「進度報告」的語意
+MODEL = ('payment.estimate', 'general.progress.report')
+REPORT_MODEL = 'general.progress.report'
 MODE = 'placeholder'
 
 ROWS_PER_PAGE = 30
@@ -99,7 +105,22 @@ def estimate_warnings(estimate):
     return messages
 
 
-WARNINGS = estimate_warnings
+def report_warnings(report):
+    """進度報告的數量是由「一鍵同步」從施工日誌／進度表帶進來的。
+
+    沒同步過的報告，工項明細會是空的或停在手動輸入的舊值——報表本身看不出
+    異狀，跟估驗單那邊的累計失真是同一類問題，所以一樣在下載前提示。
+    """
+    if not report.last_sync_date:
+        return ['本報告尚未執行「同步數據」，工項數量與進度百分率可能不是最新的。'
+                '請先回報告表單按「同步數據」再匯出。']
+    return []
+
+
+def WARNINGS(record):
+    if record._name == REPORT_MODEL:
+        return report_warnings(record)
+    return estimate_warnings(record)
 
 
 def _contract_qty(line):
@@ -141,7 +162,43 @@ def _percent(amount, contract_amount):
     return amount / contract_amount
 
 
-def build_context(estimate):
+def _build_from_report(report):
+    """資料來源是「工程管理 > 進度管理 > 進度報告」時的 context。
+
+    general.progress.report.line 的三個數量欄位與樣板的三欄一一對應：
+        planned_qty 契約數量 → quantity
+        period_qty  本次完成 → sumQuantity
+        actual_qty  累計完成 → totalQuantity
+
+    百分率只給累計那一格：報告有 actual_progress（實際累計進度 %）可用，
+    但沒有金額／單價，算不出「本期完成佔契約」的金額比。用數量硬湊出來的
+    數字是錯的，寧可留白（回 None，由 substitute() 轉成空白）。
+    """
+    project = report.project_id
+    lines = report.progress_line_ids.sorted(lambda ln: (ln.sequence, ln.id))
+    return {
+        'project.name': project.name or '',
+        'project.contractor': _contractor(project),
+        'fillInAt': roc_date(report.report_date),
+        'donePercent': None,
+        'totalPercent': (report.actual_progress / 100.0
+                         if report.actual_progress else None),
+        'payItems': [{
+            'fullItemNo': line.item_no or '',
+            'description': line.item_name or '',
+            'unit': line.unit or '',
+            'quantity': _qty(line.planned_qty),
+            'sumQuantity': _qty(line.period_qty),
+            'totalQuantity': _qty(line.actual_qty),
+            'note': line.note or '',
+        } for line in lines],
+    }
+
+
+def build_context(record):
+    if record._name == REPORT_MODEL:
+        return _build_from_report(record)
+    estimate = record
     project = estimate.project_id
     lines = estimate.line_ids.sorted(lambda ln: (ln.sequence, ln.id))
     contract_amount, current_amount, cumulative_amount = _amounts(lines)
@@ -164,6 +221,9 @@ def build_context(estimate):
     }
 
 
-def FILENAME(estimate):
+def FILENAME(record):
+    if record._name == REPORT_MODEL:
+        return '進度報告_%s_%s.xlsx' % (
+            record.project_id.name or '', record.name or record.id)
     return '進度報告_%s_第%s次.xlsx' % (
-        estimate.project_id.name or '', estimate.estimate_no or 0)
+        record.project_id.name or '', record.estimate_no or 0)

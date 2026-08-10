@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 樣板設定',
-    'version': '18.0.2.1.2',
+    'version': '18.0.2.2.0',
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """
@@ -23,6 +23,9 @@
 * 多層級樣板優先順序：專案專屬 > 公司預設 > 系統預設
 * 支援 Excel/Word 樣板格式
 * 完整的權限控制
+* 上傳樣板時檢查檔案格式與樣板類型是否相符（docx 類型不能傳 xlsx）
+* 專案層級彙總表可由呼叫端用 context 指定日期區間；日期空白的記錄一律列入
+  並回報，不會被靜默排除
     """,
     'author': 'Engineering Supervision System',
     'website': '',

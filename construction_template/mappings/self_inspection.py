@@ -29,10 +29,21 @@
 比原系統的 hasMistake 語意完整；條件合格歸「合格」欄並於處理情形註記。
 """
 
+from ..utils import record_filter
 from ..utils.formatters import roc_date
 
 MODEL = 'project.project'
 MODE = 'placeholder'
+
+# 批次下載中心可用 context 限定期間；本表以「檢查日期」為準（與既有 order 一致）
+DATE_FIELD = 'inspection_date'
+DATE_LABEL = '檢查日期'
+
+
+def WARNINGS(project):
+    """日期空白的檢查一律列入，但要讓人知道有哪幾筆"""
+    return record_filter.project_warning(
+        project, source_model(project), DATE_FIELD, DATE_LABEL)
 
 # 每頁左右兩欄各 8 列，一頁 16 筆
 ROWS_PER_PAGE = 8
@@ -45,7 +56,7 @@ PAGINATE = {
 }
 
 
-def _inspection_model(project):
+def source_model(project):
     """預約式專案用 reservation.self.inspection，其餘走一般式"""
     return ('reservation.self.inspection' if project.project_type == 'reservation'
             else 'general.self.inspection')
@@ -70,9 +81,11 @@ def _cell(inspection, seq):
 
 
 def build_context(project):
-    Inspection = project.env[_inspection_model(project)]
-    records = Inspection.search([('project_id', '=', project.id)],
-                               order='inspection_date, id')
+    Inspection = project.env[source_model(project)]
+    records = Inspection.search(
+        [('project_id', '=', project.id)]
+        + record_filter.date_domain(project.env, DATE_FIELD),
+        order='inspection_date, id')
 
     # 依原系統：一頁 16 筆，左欄放本頁 1~8、右欄放本頁 9~16
     rows = []

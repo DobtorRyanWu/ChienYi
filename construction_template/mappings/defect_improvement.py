@@ -14,11 +14,21 @@ EAGLE token → Odoo general.defect.improvement：
 
 import base64
 
-from ..utils import photo_stamp
+from ..utils import photo_stamp, record_filter
 from ..utils.formatters import roc_date
 
 MODEL = 'project.project'
 MODE = 'docx'
+
+# 批次下載中心可用 context 限定期間；本表以「發現日期」為準（與既有 order 一致）
+DATE_FIELD = 'found_date'
+DATE_LABEL = '發現日期'
+
+
+def WARNINGS(project):
+    """日期空白的缺失一律列入，但要讓人知道有哪幾筆"""
+    return record_filter.project_warning(
+        project, source_model(project), DATE_FIELD, DATE_LABEL)
 
 MARK = 'ˇ'          # 樣板既有的勾選符號慣例（見送審管制「是ˇ、否X」）
 # 以下值由 fields_get 實查（2026-08-05），不是照字面猜：
@@ -78,9 +88,23 @@ def _record(defect):
     }
 
 
+def source_model(project):
+    """預約式專案的缺失掛在通報單底下，是另一個模型。
+
+    兩者都繼承 construction.daily.defect.mixin，本檔用到的欄位名完全一致；
+    預約式的 project_id 是 store=True 的 related，domain 直接可用。
+    寫法比照 self_inspection.py 的 _inspection_model()。
+    """
+    return ('reservation.defect.improvement' if project.project_type == 'reservation'
+            else 'general.defect.improvement')
+
+
 def build_context(project):
-    defects = project.env['general.defect.improvement'].search(
-        [('project_id', '=', project.id)], order='found_date, id')
+    Defect = project.env[source_model(project)]
+    defects = Defect.search(
+        [('project_id', '=', project.id)]
+        + record_filter.date_domain(project.env, DATE_FIELD),
+        order='found_date, id')
     contractors = project.contractor_partner_ids.mapped('name')
     return {
         # 原系統的 title 是填報單位（依 unitType 給營造或監造），不是表名

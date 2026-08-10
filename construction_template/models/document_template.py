@@ -6,6 +6,8 @@ import logging
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 
+from ..utils import template_render
+
 _logger = logging.getLogger(__name__)
 
 # 上傳時依副檔名決定 mimetype。這裡的值必須與 _check_attachment_type()
@@ -32,6 +34,31 @@ def _mimetype_from_filename(filename):
     """由檔名副檔名推斷 mimetype"""
     ext = (filename or '').rsplit('.', 1)[-1].lower() if '.' in (filename or '') else ''
     return TEMPLATE_MIMETYPES.get(ext, FALLBACK_MIMETYPE)
+
+
+def _required_extension(template_type):
+    """這個樣板類型必須用什麼副檔名。
+
+    以對照表的 MODE 為唯一依據——docx 模式的樣板餵 xlsx（或反過來）套印一定
+    失敗，而且底層丟出的是「is not a Word file, content type is …」這種看不懂
+    的訊息。更麻煩的是專案專屬樣板優先序最高，掛錯一份就會蓋掉正確的系統預設
+    樣板，整個專案的該張報表都出不來。所以在上傳當下就擋。
+
+    沒有對照表的類型（還沒做自動套印）不限制，回 None。
+    """
+    mapping = template_render.get_mapping(template_type)
+    if mapping is None:
+        return None
+    return '.docx' if getattr(mapping, 'MODE', 'cells') == 'docx' else '.xlsx'
+
+
+def _format_mismatch_msg(type_label, filename, required):
+    return (
+        '「%s」這類樣板必須是 %s 檔，但你上傳的是「%s」。\n\n'
+        '每種報表的版面格式是固定的（Word 或 Excel），上傳錯格式會讓該報表'
+        '完全無法匯出。\n'
+        '請確認檔案是否拿錯，或到「所有樣板」下載該類型的空白範本作為基礎。'
+        % (type_label, required, filename or '（未命名）'))
 
 
 class DocumentTemplate(models.Model):
@@ -258,6 +285,13 @@ class DocumentTemplate(models.Model):
             # 於是覆蓋上傳可以塞進任何格式。
             if mimetype not in ALLOWED_MIMETYPES:
                 raise ValidationError(UNSUPPORTED_FORMAT_MSG)
+            # 格式合法還不夠，還要跟樣板類型相符（docx 類型不能傳 xlsx）
+            required = _required_extension(record.template_type)
+            if required and not fname.lower().endswith(required):
+                raise ValidationError(_format_mismatch_msg(
+                    dict(record._fields['template_type'].selection).get(
+                        record.template_type, record.template_type),
+                    fname, required))
             vals = {
                 'name': fname,
                 'datas': record.file_data,
@@ -330,6 +364,24 @@ class DocumentTemplate(models.Model):
             if record.attachment_id and record.mimetype:
                 if record.mimetype not in ALLOWED_MIMETYPES:
                     raise ValidationError(UNSUPPORTED_FORMAT_MSG)
+
+    @api.constrains('template_type', 'attachment_id')
+    def _check_template_type_format(self):
+        """樣板類型與檔案格式必須相符。
+
+        涵蓋 _inverse_file_data() 擋不到的路徑——先傳好 docx 再把類型改成
+        xlsx 類的、或用 ORM／匯入直接建記錄。
+        """
+        for record in self:
+            if not record.attachment_id:
+                continue
+            required = _required_extension(record.template_type)
+            filename = record.attachment_id.name or ''
+            if required and not filename.lower().endswith(required):
+                raise ValidationError(_format_mismatch_msg(
+                    dict(record._fields['template_type'].selection).get(
+                        record.template_type, record.template_type),
+                    filename, required))
 
     # === Onchange ===
     @api.onchange('is_default')

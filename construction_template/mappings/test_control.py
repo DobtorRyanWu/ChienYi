@@ -11,14 +11,29 @@ token → supervision.test.record：
     standard.norm / inSiteSumQuantity / result …
 """
 
-from ..utils import docx_render
+from ..utils import docx_render, record_filter
 from ..utils.formatters import roc_date, selection_label
 
 MODEL = 'project.project'
 MODE = 'docx'
 
+# 批次下載中心可用 context 限定期間；本表以「進場日期」為準（與既有 order 一致）
+DATE_FIELD = 'in_site_date'
+DATE_LABEL = '進場日期'
+
+
+def WARNINGS(project):
+    """日期空白的檢試驗記錄一律列入，但要讓人知道有哪幾筆"""
+    return record_filter.project_warning(
+        project, source_model(project), DATE_FIELD, DATE_LABEL)
+
 # 每頁 10 筆——取自 EAGLE 原系統 models/testRecord.js（data.splice(0,10)）
 ROWS_PER_PAGE = 10
+
+
+def source_model(project):
+    """資料來源模型——批次下載中心用它算「符合條件的記錄數」"""
+    return 'supervision.test.record'
 
 
 def _qty(value):
@@ -63,7 +78,9 @@ def _item(rec):
 
 def build_context(project):
     records = project.env['supervision.test.record'].search(
-        [('project_id', '=', project.id)], order='in_site_date, id')
+        [('project_id', '=', project.id)]
+        + record_filter.date_domain(project.env, DATE_FIELD),
+        order='in_site_date, id')
     pages = docx_render.paginate_plain([_item(r) for r in records], ROWS_PER_PAGE)
     return {
         'projectName': project.name or '',

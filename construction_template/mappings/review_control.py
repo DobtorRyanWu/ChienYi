@@ -10,15 +10,30 @@ token → supervision.review.application（欄位名幾乎是 camelCase→snake_
     reviewDate / finalReviewResult / archiveNumber
 """
 
-from ..utils import docx_render
+from ..utils import docx_render, record_filter
 from ..utils.formatters import roc_date
 
 MODEL = 'project.project'
 MODE = 'docx'
 
+# 批次下載中心可用 context 限定期間；本表以「送審預定日」為準（與既有 order 一致）
+DATE_FIELD = 'expected_review_date'
+DATE_LABEL = '送審預定日期'
+
+
+def WARNINGS(project):
+    """日期空白的送審記錄一律列入，但要讓人知道有哪幾筆"""
+    return record_filter.project_warning(
+        project, source_model(project), DATE_FIELD, DATE_LABEL)
+
 # 每頁 10 筆——取自 EAGLE 原系統 models/reviewApplication.js（data.splice(0,10)）
 ROWS_PER_PAGE = 10
 YES, NO = 'ˇ', 'X'      # 樣板自己印的慣例：「（是ˇ、否X）」
+
+
+def source_model(project):
+    """資料來源模型——批次下載中心用它算「符合條件的記錄數」"""
+    return 'supervision.review.application'
 
 
 def _flag(value):
@@ -59,7 +74,9 @@ def _item(app):
 
 def build_context(project):
     apps = project.env['supervision.review.application'].search(
-        [('project_id', '=', project.id)], order='expected_review_date, id')
+        [('project_id', '=', project.id)]
+        + record_filter.date_domain(project.env, DATE_FIELD),
+        order='expected_review_date, id')
     pages = docx_render.paginate_plain([_item(a) for a in apps], ROWS_PER_PAGE)
     return {
         'projectName': project.name or '',

@@ -68,8 +68,16 @@ def render_cell(col, row, style_attr, text):
 
 
 def substitute(text, getter):
-    """把文字裡的 ${...} 換成值；getter(token) 回傳字串"""
-    return TOKEN_RE.sub(lambda m: str(getter(m.group(1))), text)
+    """把文字裡的 ${...} 換成值；getter(token) 回傳字串。
+
+    None 一律當成留白。對照表用 None 表達「這個數字算不出來，不要印假的 0」
+    （見 progress_report.py 的 _percent()），直接 str() 會在報表上印出字面
+    「None」——比印 0 更糟。
+    """
+    def _replace(m):
+        value = getter(m.group(1))
+        return '' if value is None else str(value)
+    return TOKEN_RE.sub(_replace, text)
 
 
 def resolve_collection(context, name):

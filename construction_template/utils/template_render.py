@@ -226,12 +226,30 @@ def render(template, record):
             % dict(template._fields['template_type'].selection).get(
                 template.template_type, template.template_type))
 
-    if record._name != mapping.MODEL:
+    # MODEL 可以是 tuple——同一份空白樣板由不同模型供資料（見 progress_report）
+    allowed = mapping.MODEL if isinstance(mapping.MODEL, tuple) else (mapping.MODEL,)
+    if record._name not in allowed:
         raise UserError('樣板「%s」對應的是 %s，不能用 %s 的資料套印。'
-                        % (template.display_name, mapping.MODEL, record._name))
+                        % (template.display_name, '、'.join(allowed), record._name))
 
     raw = template.attachment_id.raw
     mode = getattr(mapping, 'MODE', 'cells')
+
+    # 樣板檔的種類要與對照表相符。掛錯檔（例如把 xlsx 上傳成 docx 類型的專案
+    # 專屬樣板）時，底層套件會拋「is not a Word file, content type is …」這種
+    # 看不懂的 ValueError，而且因為專案專屬樣板優先序最高，會直接蓋掉正確的
+    # 系統預設樣板——訊息必須講清楚是哪一份樣板、該換成什麼。
+    expected_ext = '.docx' if mode == 'docx' else '.xlsx'
+    filename = template.attachment_id.name or ''
+    if not filename.lower().endswith(expected_ext):
+        raise UserError(
+            '樣板「%s」的檔案是「%s」，但「%s」需要 %s 檔。\n'
+            '請到「系統設定 > 樣板設定」開啟這份樣板，重新上傳正確格式的空白樣板；'
+            '或把這份樣板停用，改用系統預設樣板。'
+            % (template.display_name, filename,
+               dict(template._fields['template_type'].selection).get(
+                   template.template_type, template.template_type),
+               expected_ext))
 
     with tempfile.TemporaryDirectory() as tmpdir:
         src = os.path.join(tmpdir, 'src.xlsx')
