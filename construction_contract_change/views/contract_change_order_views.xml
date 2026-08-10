@@ -597,7 +597,9 @@
         <field name="inherit_id" ref="construction_supervision_base.view_task_tree_supervision_full"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='construction_notes']" position="after">
-                <field name="change_history_display" string="變更紀錄" optional="show" readonly="1"/>
+                <!-- 2026-08-10 改預設隱藏，理由與 project_task_views.xml 相同
+                     （該檔與本檔的 record id 撞名，兩處都要改） -->
+                <field name="change_history_display" string="變更紀錄" optional="hide" readonly="1"/>
             </xpath>
         </field>
     </record>

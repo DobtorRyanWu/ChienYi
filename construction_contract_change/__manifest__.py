@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 契約變更管理',
-    'version': '18.0.1.0.0',
+    # 1.1.0: 契約工項清單注入的「變更紀錄」欄改為預設隱藏，配合
+    #        construction_supervision_base 18.0.5.1.0 把顯示欄位定為 7 欄
+    'version': '18.0.1.1.0',
     'category': 'Construction/Supervision',
     'summary': '工程契約變更單管理 (參考 OCA project_version 設計)',
     'description': """

@@ -325,17 +325,24 @@
                   decoration-info="assignment_state == 'assigned'"
                   decoration-warning="assignment_state == 'in_progress'"
                   decoration-danger="schedule_status == 'delayed'">
-                <!-- 排序控制 -->
-                <field name="sequence" widget="handle"/>
-                
+                <!-- 顯示欄位依代操回報「各大項未區隔，項目會混淆」調整
+                     （2026-08-10）：項次／父工項／項目及說明／單位／契約數量／
+                     契約單價／備註。本 view 由契約工項主畫面、時程分析，以及
+                     施工日誌、週報、通報單、契約變更等 6 個「選擇施工項目」
+                     對話框共用，一起改才會一致。 -->
+
                 <!-- 工程案件（已由 domain 過濾，預設隱藏） -->
                 <field name="project_id" string="工程案件" optional="hide"/>
-                
+
                 <!-- 工項編號（顯示：葉節點末段，非葉節點完整）-->
                 <field name="display_item_no" string="項次"/>
                 <!-- 完整項次：從階層計算（一致格式） -->
                 <field name="full_item_no" string="完整項次" optional="hide" readonly="1"/>
                 <field name="item_no" string="原始項次編號" optional="hide"/>
+
+                <!-- 父工項：選取對話框只列葉節點（domain 排除 is_summary_item），
+                     沒有這欄就分不出屬於哪個大項——這正是代操回報的問題 -->
+                <field name="parent_id" string="父工項"/>
 
                 <!-- 項目及說明 -->
                 <field name="name" string="項目及說明"/>
@@ -349,14 +356,15 @@
                 <!-- 契約單價 -->
                 <field name="unit_price" string="契約單價"/>
 
-                <!-- 契約複價 -->
-                <field name="planned_amount" string="契約複價" sum="契約複價合計"/>
+                <!-- 契約複價：不在指定的顯示欄位內，改為預設隱藏。
+                     仍可從欄位選單開啟，開啟時合計照算。 -->
+                <field name="planned_amount" string="契約複價" sum="契約複價合計"
+                       optional="hide"/>
 
                 <!-- 備註 -->
                 <field name="construction_notes" string="備註" optional="show"/>
 
                 <!-- 隱藏欄位 -->
-                <field name="parent_id" column_invisible="1"/>
                 <field name="item_level" column_invisible="1"/>
                 <field name="is_summary_item" column_invisible="1"/>
                 <field name="assignment_state" column_invisible="1"/>

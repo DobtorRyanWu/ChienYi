@@ -21,7 +21,12 @@
     #        （當初以 noupdate="1" 建立，旗標存在 ir_model_data 上，改 XML 無效）
     # 4.8.2: 拿掉「13-照片」文件分類（含 4 子分類）—— 照片由「照片管理」專責，
     #        不再給它第二套分類體系；supervision.photo 也不掛附件歸類 mixin
-    'version': '18.0.5.0.0',  # 5.0.0: 代操作員(group_operator)登入落地頁設為「工程案件」——
+    'version': '18.0.5.1.0',  # 5.1.0: 契約工項清單（view_task_tree_supervision_full）
+    #        顯示欄位改為 項次/父工項/項目及說明/單位/契約數量/契約單價/備註——代操回報
+    #        「各大項未區隔，項目會混淆」，選取對話框只列葉節點看不出屬於哪個大項。
+    #        契約複價改預設隱藏、移除 sequence 拖曳把手（default_order 是 item_no_sort，
+    #        拖曳本來就不會生效）。本 view 由 6 個「選擇施工項目」對話框共用，一起改。
+    #        5.0.0: 代操作員(group_operator)登入落地頁設為「工程案件」——
     #        Odoo 只有 per-user 的 action_id(偏好設定>首頁動作)、沒有 per-group 設定，
     #        故在 create/群組異動時代設，只填空的不覆蓋使用者自訂；post-migrate 回填既有帳號。
     #        4.5.0: 工程案件新增經緯度範圍 constrains（原本完全沒有，實際存過非法緯度 121.51；且告示牌照片會繼承這組座標，錯值會擴散）；4.4.0: 新增 res.users.portal_role 自訂欄位管理前台角色(取代原生下拉,對Portal使用者可見可改;設定角色自動轉乾淨Portal,admin除外);角色群組移除 category_id；4.3.0: 前台四角色往下合併（boss/manager/field/observer 併入 subscriber/leader/user/viewer 並改名為 老闆/主管/現場人員/定期閱覽者、刪除新群組、到期邏輯解耦）post-migrate；4.1.1: 業主欄位 authority_id→authority_name 純文字化資料回填 post-migrate；4.1.0: project_task 必填欄位 NULL 回填 pre-migrate

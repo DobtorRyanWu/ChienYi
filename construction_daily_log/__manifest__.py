@@ -11,7 +11,8 @@
     # 2.4.0: 契約工項 actual_qty 改由施工日誌自動計算（只計已確認日誌）
     # 2.6.0: 同上，補 post-migration 重算既有工項的 actual_qty 與下游金額/完成率
     #        （欄位早就存在，Odoo 不會自動排程重算）
-    "version": "18.0.2.7.0",
+    # 2.8.0: 新增施工項目精靈的「已選工項」清單加上父工項欄（與選取對話框一致）
+    "version": "18.0.2.8.0",
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """
