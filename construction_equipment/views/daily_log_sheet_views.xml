@@ -32,9 +32,13 @@
                             <field name="quantity"/>
                             <field name="hours" required="1"/>
                             <field name="employee_name" optional="show"/>
-                            <field name="equipment_id" optional="show"
+                            <!-- 機具設備填自由文字，不用關聯欄位。
+                                 2026-08-10 決議關閉「工程管理 > 人機管理 > 機具設備」選單
+                                 （見 construction_menu_profile），設備主檔沒有維護入口，
+                                 關聯的 equipment_id 會挑不到任何資料。
+                                 模型欄位 equipment_id 保留不刪，只是不顯示。 -->
+                            <field name="specific_equipment_name" optional="show"
                                    invisible="record_type != 'equipment'"/>
-                            <field name="specific_equipment_name" optional="hide"/>
                             <field name="note" optional="hide"/>
                         </list>
                     </field>

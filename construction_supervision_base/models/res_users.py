@@ -11,6 +11,10 @@ from odoo import models, fields, api
 # 且未填到期日時，自動帶今日 + 此天數
 DEFAULT_OBSERVER_VALIDITY_DAYS = 90
 
+# 代操作員的登入落地頁：工程管理 > 工程總覽 > 工程案件
+OPERATOR_GROUP_XMLID = 'construction_supervision_base.group_operator'
+OPERATOR_HOME_ACTION_XMLID = 'construction_supervision_base.action_supervision_project'
+
 
 class ResUsers(models.Model):
     """擴展 res.users 模型，新增組織身分欄位與臨時帳號到期欄位"""
@@ -168,6 +172,9 @@ class ResUsers(models.Model):
         # 內部（監造）帳號改站內通知（inbox），免依賴 email 也能收通知
         user._apply_internal_inbox_notification()
 
+        # 代操作員登入直接落在工程案件，免每次自己點進去
+        user._apply_operator_home_action()
+
         return user
 
     def write(self, vals):
@@ -195,6 +202,8 @@ class ResUsers(models.Model):
         # 群組異動時，若新加入定期閱覽者群組且未填到期日，帶入預設天數
         if 'groups_id' in vals:
             self._apply_observer_default_validity()
+            # 同時處理「這次才被加進代操作員群組」的帳號
+            self._apply_operator_home_action()
 
         return res
 
@@ -219,6 +228,23 @@ class ResUsers(models.Model):
                     and user_group not in user.groups_id
                     and not user.portal_valid_until):
                 user.portal_valid_until = default_date
+
+    def _apply_operator_home_action(self):
+        """代操作員登入後直接落在「工程管理 > 工程總覽 > 工程案件」。
+
+        Odoo 只有 per-user 的 `action_id`（偏好設定 > 首頁動作），沒有 per-group
+        的落地頁設定，所以在授予 group_operator 時代設。
+
+        只在 `action_id` 為空時寫入——使用者自己改過首頁動作之後，往後的群組異動
+        與模組升級都不會覆蓋掉他的選擇。要恢復預設把該欄清空再存檔即可。
+        """
+        operator_group = self.env.ref(OPERATOR_GROUP_XMLID, raise_if_not_found=False)
+        action = self.env.ref(OPERATOR_HOME_ACTION_XMLID, raise_if_not_found=False)
+        if not operator_group or not action:
+            return
+        for user in self:
+            if operator_group in user.groups_id and not user.action_id:
+                user.action_id = action.id
 
     def _apply_default_contractor_org(self):
         """前台(portal)帳號未設監造/營造身分時，預設為營造(承包商)。

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ==================================================================
+         套用選單設定檔。
+
+         ⚠️ 這裡刻意用 <function> 而不是 <record>：
+         <function> 在每次模組 install **與 upgrade** 都會執行，
+         所以「-u construction_menu_profile」等於重新套用整份設定檔。
+         用 <record> 的話只會建立/更新那筆 xml_id 對應的資料，
+         而且要為每個外部選單各寫一段、還得處理模組沒裝時 ref 失敗的問題。
+
+         實際清單在 models/ir_ui_menu.py 的 MENUS_OFF。
+         ================================================================== -->
+    <function model="ir.ui.menu" name="_apply_chienyi_menu_profile"/>
+
+</odoo>

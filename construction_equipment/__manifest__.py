@@ -5,7 +5,10 @@
 {
     "name": "工程監造系統 - 人機管理",
     # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
-    "version": "18.0.1.2.0",
+    # 1.3.0: 日誌人機明細的「機具設備」改回自由文字（specific_equipment_name）。
+    #        機具設備選單已由 construction_menu_profile 關閉，設備主檔沒有維護入口，
+    #        關聯的 equipment_id 挑不到資料。模型欄位保留不刪，只是不顯示。
+    "version": "18.0.1.3.0",
     "category": "Construction/Equipment",
     "summary": "機具設備管理、維護請求與 MTBF/MTTR 效能指標",
     "description": """
