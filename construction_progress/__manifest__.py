@@ -4,7 +4,7 @@
 
 {
     "name": "工程監造系統 - 進度表管理",
-    "version": "18.0.1.1.0",
+    "version": "18.0.1.2.0",
     "category": "Construction/Supervision",
     "summary": "工程進度表管理 - 支援每周/每兩周/自訂計算模式",
     "description": """

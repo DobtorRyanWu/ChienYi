@@ -332,17 +332,23 @@ class ProgressSchedule(models.Model):
 
     @api.depends('project_id', 'version')
     def _compute_is_latest_version(self):
-        """計算是否為最新版本"""
+        """計算是否為最新版本。
+
+        ⚠ @api.depends 只能列自己的 project_id/version——當同工程新增（或搬入、刪除）
+        另一張版本更高的進度表時，ORM 不會觸發「舊那張」重算，於是 is_latest_version=True
+        會 stale 地留在舊版上。所以 create/write/unlink 必須顯式呼叫
+        `_recompute_latest_for_projects` 重算兄弟記錄（見下）。
+        """
         for schedule in self:
             if not schedule.project_id:
                 schedule.is_latest_version = False
                 continue
-            
+
             # 找到同工程的最高版本號
             max_version_schedule = self.search([
                 ('project_id', '=', schedule.project_id.id)
             ], order='version desc', limit=1)
-            
+
             schedule.is_latest_version = (schedule.id == max_version_schedule.id)
 
     # === 狀態 ===
@@ -1146,6 +1152,20 @@ class ProgressSchedule(models.Model):
     # CRUD 覆寫
     # =========================================================================
 
+    def _recompute_latest_for_projects(self, project_ids):
+        """強制重算指定工程所有進度表的 is_latest_version。
+
+        修 stale stored compute（見 _compute_is_latest_version 的說明）：同工程新增或
+        刪除版本後，舊版的 is_latest_version 不會自動重算。這裡顯式標記同工程所有
+        兄弟記錄的 version 欄位為已變動，觸發 ORM 重算 stored compute。
+        """
+        project_ids = [p for p in set(project_ids) if p]
+        if not project_ids:
+            return
+        siblings = self.sudo().search([('project_id', 'in', project_ids)])
+        if siblings:
+            siblings.modified(['version'])
+
     @api.model_create_multi
     def create(self, vals_list):
         """建立進度表時自動計算版本號，並快照 base_extension_duration"""
@@ -1166,14 +1186,28 @@ class ProgressSchedule(models.Model):
                 # 快照此刻的 contract_end_date 作為「前一版完工日」基準
                 if 'original_end_date' not in vals:
                     vals['original_end_date'] = project.contract_end_date
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        # 新增版本後，同工程舊版的 is_latest_version 已 stale，重算兄弟記錄
+        records._recompute_latest_for_projects(records.mapped('project_id').ids)
+        return records
+
+    def write(self, vals):
+        res = super().write(vals)
+        # 改動 version 或 project_id 會影響同工程誰是最新版，重算兄弟記錄
+        if 'version' in vals or 'project_id' in vals:
+            self._recompute_latest_for_projects(self.mapped('project_id').ids)
+        return res
 
     def unlink(self):
         """只允許刪除草稿狀態的進度表"""
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('只有草稿狀態的進度表可以刪除')
-        return super().unlink()
+        # 記下受影響工程，刪除後重算剩餘兄弟（刪掉最高版時最新版會換人）
+        affected = self.mapped('project_id').ids
+        res = super().unlink()
+        self._recompute_latest_for_projects(affected)
+        return res
 
     def copy(self, default=None):
         """複製時重設狀態與展延欄位"""
