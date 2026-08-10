@@ -3,6 +3,13 @@
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import float_compare
+
+# 一式計價的單位。這類工項的契約量代表「整件」，累計做到超過就沒有物理意義
+# （代操 2026-08-06 回報：「1式項項目累計完成數量不得大於1」）。
+LUMP_SUM_UNIT = '式'
+# 與 daily_qty / planned_qty 的 digits=(16, 4) 對齊，避免浮點誤差誤判超量
+QTY_PRECISION_DIGITS = 4
 
 
 class DailyLogLine(models.Model):
@@ -383,6 +390,35 @@ class DailyLogLine(models.Model):
         for line in self:
             if line.daily_qty < 0:
                 raise ValidationError('本日完成數量不可為負數！')
+
+    @api.constrains('daily_qty', 'work_item_id', 'date')
+    def _check_lump_sum_not_over_contract(self):
+        """「式」工項的累計完成量不得超過契約量。
+
+        只擋「式」，不擋其他單位——實務上超挖／超做是常態，那是契約變更的來源，
+        硬擋會讓現場填不了日誌。而且實查 odoo18_dev 的 118 筆超做中有 113 筆是
+        非式，其中大量是「契約量沒匯進來被塞了佔位的 1」（株、叢、M2 契約=1 累計上千），
+        那是匯入問題不是填寫問題，擋它只會擋錯人。
+
+        以**實際契約量**為準而不是寫死 1——確實有契約量不是 1 的「式」工項存在。
+        """
+        for line in self:
+            item = line.work_item_id
+            if not item or item.unit != LUMP_SUM_UNIT or not item.planned_qty:
+                continue
+            siblings = self.sudo().search([('work_item_id', '=', item.id)])
+            cumulative = sum(siblings.mapped('daily_qty'))
+            if float_compare(cumulative, item.planned_qty,
+                             precision_digits=QTY_PRECISION_DIGITS) > 0:
+                raise ValidationError(
+                    f'工項「{item.name}」是「{LUMP_SUM_UNIT}」計價，'
+                    f'累計完成數量不可超過契約數量。\n\n'
+                    f'契約數量：{item.planned_qty}\n'
+                    f'目前累計：{cumulative}\n\n'
+                    f'一式計價的項目請填「本期完成的比例」，'
+                    f'例如分 5 期完成就每期填 {round(item.planned_qty / 5, 4)}，'
+                    f'不要每期都填 {item.planned_qty}。'
+                )
 
     @api.constrains('entry_type', 'work_item_id', 'custom_name')
     def _check_entry_type(self):
