@@ -806,6 +806,14 @@ export class DocEditor extends Component {
         // （Playwright spec 可用 window._docEditorCmp.state.docId 等驗證 state）
         window._docEditorCmp = this;
 
+        // 斜線指令：鍵入 `/` 顯示可插入元素的選單（標題／清單／表格／分隔線…）。
+        // 由 slash_command.js 定義，唯讀模式內部自會略過。
+        try {
+            window.DobtorSlashCommand?.init(this.editor, container);
+        } catch (e) {
+            console.warn("[DocEditor] 斜線指令初始化失敗：", e);
+        }
+
         // Phase 8 Del 鍵同步：追蹤目前文件上所有 control 的 conceptId 集合，
         // contentChange 觸發時 diff 出消失的 id，批次呼叫後端 delete_field 同步紀錄。
         this._lastControlIds = new Set();

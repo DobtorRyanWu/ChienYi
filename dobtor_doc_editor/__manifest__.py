@@ -76,6 +76,9 @@ Dobtor Doc Editor v2.1
             # 主編輯器 Component
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.xml',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',
+            # 斜線指令選單（依賴 canvas-editor 全域，須在其後；由 doc_editor.js 呼叫 init）
+            'dobtor_doc_editor/static/src/components/doc_editor/slash_command.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/slash_command.css',
             # 版本歷史面板（W7-8 P1-1）
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.xml',
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.js',
@@ -127,6 +130,9 @@ Dobtor Doc Editor v2.1
             # 主編輯器 Component
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.xml',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',
+            # 斜線指令選單（依賴 canvas-editor 全域，須在其後；由 doc_editor.js 呼叫 init）
+            'dobtor_doc_editor/static/src/components/doc_editor/slash_command.js',
+            'dobtor_doc_editor/static/src/components/doc_editor/slash_command.css',
             # 版本歷史面板（讓 portal 協作者也能查看歷次儲存）
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.xml',
             'dobtor_doc_editor/static/src/components/doc_version_panel/doc_version_panel.js',
