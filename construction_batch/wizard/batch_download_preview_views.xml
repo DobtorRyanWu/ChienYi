@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 預覽視窗。每個來源模型一個 Many2many 欄位，顯示的就是該模型原本的
+         list view；一次只顯示 source_model 對應的那一個。
+         footer 的「返回設定」把下載精靈原樣叫回來——Odoo 的 action 對話框不會
+         堆疊，預覽一開精靈就被銷毀了，沒有這顆按鈕就得整個重選
+         （見 batch_download_preview.py 的說明）。 -->
+    <record id="batch_download_preview_form_view" model="ir.ui.view">
+        <field name="name">batch.download.preview.form</field>
+        <field name="model">batch.download.preview</field>
+        <field name="arch" type="xml">
+            <form string="預覽記錄">
+                <div class="alert alert-info mb-2" role="status">
+                    <field name="summary" nolabel="1" readonly="1"/>
+                    <div class="small text-muted" invisible="not note">
+                        <field name="note" nolabel="1" readonly="1"/>
+                    </div>
+                </div>
+
+                <field name="daily_log_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'daily.log.sheet'"/>
+                <field name="estimate_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'payment.estimate'"/>
+                <field name="progress_report_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'general.progress.report'"/>
+                <field name="slip_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'reservation.notification.slip'"/>
+                <field name="review_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'supervision.review.application'"/>
+                <field name="plan_control_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'supervision.plan.control'"/>
+                <field name="test_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'supervision.test.record'"/>
+                <field name="general_inspection_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'general.self.inspection'"/>
+                <field name="reservation_inspection_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'reservation.self.inspection'"/>
+                <field name="general_defect_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'general.defect.improvement'"/>
+                <field name="reservation_defect_ids" nolabel="1" readonly="1"
+                       invisible="source_model != 'reservation.defect.improvement'"/>
+
+                <field name="source_model" invisible="1"/>
+                <field name="wizard_id" invisible="1"/>
+
+                <footer>
+                    <button name="action_back" string="返回設定" type="object"
+                            class="btn-primary"/>
+                    <button string="關閉" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

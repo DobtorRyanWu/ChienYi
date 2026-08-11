@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""安裝／升級時把 data/templates_blank/ 的 13 個空白範本灌成系統預設樣板。
+"""安裝／升級時把 data/templates_blank/ 的空白範本灌成系統預設樣板。
 
 原本這 13 筆是靠 tools/gen_doc_templates/import_templates.py 手動以 odoo shell
 灌進 odoo18_dev 的——模組本身既沒有 post_init_hook 也沒有 data XML，
@@ -31,6 +31,10 @@ TYPES = [
     ('defect_improvement', '矯正與預防處理紀錄', 'docx', '任泰第二期 EAGLE 樣板匯出'),
     ('defect_control', '矯正與預防紀錄管制表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
     ('review_control', '材料設備送審管制總表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
+    # 2026-08-11 新增：由既有案件的管制表 1.計畫 工作表去識別化而來，明細只留
+    # 一列 ${table:items.*} 樣板列，套印時依筆數展開。表名是 ${project.reportTitle}，
+    # 計畫書／分項計畫／施工圖三張表共用這一份。
+    ('plan_control', '計畫書送審管制總表', 'xlsx', '既有案件管制表 1.計畫 工作表'),
     ('test_control', '材料設備檢（試）驗管制總表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
     # 2026-08-06 換成 EAGLE 的 progressReportTemplate（xlsx，內建 ${} 佔位符）。
     # 舊的 .docx（來源「111年 P11102 西區/檢陳週報表」）沒有對照表也不是同一份表，已移除。
@@ -51,7 +55,7 @@ TYPES = [
 
 
 def seed_default_templates(env):
-    """冪等建立／更新 13 筆系統預設樣板。
+    """冪等建立／更新 TYPES 列的系統預設樣板。
 
     重跑只會 update 既有記錄，不會產生重複——unique_default_per_type 約束
     （template_type + company_id + is_default）本身也擋著。

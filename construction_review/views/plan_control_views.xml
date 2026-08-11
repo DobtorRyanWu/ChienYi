@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================== -->
+    <!-- 計畫書管制表 - 清單視圖                          -->
+    <!-- ============================================== -->
+    <!-- 欄位順序同參考檔；文號欄位用 optional="show"，欄位多時使用者可自行收合。
+         不做行內編輯，與送審管制表一致（一律開表單填）。 -->
+    <record id="view_plan_control_tree" model="ir.ui.view">
+        <field name="name">supervision.plan.control.tree</field>
+        <field name="model">supervision.plan.control</field>
+        <field name="arch" type="xml">
+            <list string="計畫書管制表"
+                  decoration-danger="is_overdue"
+                  decoration-success="progress_status == 'approved'">
+                <field name="item_no"/>
+                <field name="name"/>
+                <field name="required_timing"/>
+                <field name="deadline_date"/>
+                <field name="first_submit_date"/>
+                <field name="first_submit_doc_no" optional="show"/>
+                <field name="second_submit_date"/>
+                <field name="second_submit_doc_no" optional="show"/>
+                <field name="supervisor_review_date"/>
+                <field name="supervisor_review_doc_no" optional="show"/>
+                <field name="authority_approve_date"/>
+                <field name="authority_approve_doc_no" optional="show"/>
+                <field name="note" optional="show"/>
+                <field name="progress_status" widget="badge"
+                       decoration-success="progress_status == 'approved'"
+                       decoration-info="progress_status == 'reviewed'"
+                       decoration-warning="progress_status == 'submitted'"/>
+                <field name="delay_days" optional="hide"/>
+                <field name="project_id" optional="hide"/>
+                <!-- 三種類別共用一張清單，類別要看得見 -->
+                <field name="control_type" optional="show"/>
+                <field name="is_overdue" column_invisible="True"/>
+                <field name="company_id" column_invisible="True"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 計畫書管制表 - 表單視圖                          -->
+    <!-- ============================================== -->
+    <record id="view_plan_control_form" model="ir.ui.view">
+        <field name="name">supervision.plan.control.form</field>
+        <field name="model">supervision.plan.control</field>
+        <field name="arch" type="xml">
+            <form string="計畫書管制表">
+                <!-- 狀態列的呈現與送審管制表一致；差別在這裡的階段是由已填的日期
+                     自動推進（填了監造審查日期就跳「監造已審」），不需要手動按鈕 -->
+                <header>
+                    <field name="progress_status" widget="statusbar"
+                           statusbar_visible="not_submitted,submitted,reviewed,approved"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_attachments"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-paperclip"
+                                invisible="attachment_count == 0">
+                            <field name="attachment_count" widget="statinfo" string="附件"/>
+                        </button>
+                    </div>
+
+                    <widget name="web_ribbon" title="已逾期" bg_color="text-bg-danger"
+                            invisible="not is_overdue"/>
+
+                    <div class="oe_title">
+                        <label for="name" string="送審項目"/>
+                        <h1>
+                            <field name="name" placeholder="例：整體施工計畫"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="基本資訊">
+                            <field name="project_id"/>
+                            <field name="control_type"/>
+                            <field name="item_no" placeholder="1、2、3… 或 ☆"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="提送要求">
+                            <field name="required_timing"
+                                   placeholder="例：訂約後15日內"/>
+                            <field name="deadline_date"/>
+                            <field name="delay_days"/>
+                            <field name="is_overdue" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group string="第一次送審">
+                            <field name="first_submit_date"/>
+                            <field name="first_submit_doc_no"
+                                   placeholder="例：○○字第1130101001號"/>
+                        </group>
+                        <group string="第二次送審">
+                            <field name="second_submit_date"/>
+                            <field name="second_submit_doc_no"
+                                   placeholder="例：○○字第1130115002號"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group string="監造審查">
+                            <field name="supervisor_review_date"/>
+                            <field name="supervisor_review_doc_no"
+                                   placeholder="例：113○○顧字第0115010001號"/>
+                        </group>
+                        <group string="機關核定">
+                            <field name="authority_approve_date"/>
+                            <field name="authority_approve_doc_no"
+                                   placeholder="例：○○工水工字第1136010001號"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="送審文件" name="attachments">
+                            <field name="attachment_ids" widget="many2many_binary"
+                                   nolabel="1"/>
+                        </page>
+                        <page string="備註" name="note">
+                            <field name="note"
+                                   placeholder="例：依工程施工查核小組查核紀錄辦理"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter>
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </chatter>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 計畫書管制表 - 搜尋視圖                          -->
+    <!-- ============================================== -->
+    <record id="view_plan_control_search" model="ir.ui.view">
+        <field name="name">supervision.plan.control.search</field>
+        <field name="model">supervision.plan.control</field>
+        <field name="arch" type="xml">
+            <search string="搜尋計畫書管制表">
+                <field name="name" string="送審項目"/>
+                <field name="item_no" string="項次"/>
+                <field name="project_id"/>
+                <field name="first_submit_doc_no" string="第一次送審文號"/>
+                <field name="authority_approve_doc_no" string="機關核定文號"/>
+                <separator/>
+                <!-- 同一群組內的 filter 互為 OR，可一次挑多種類別 -->
+                <filter name="filter_type_plan" string="計畫書"
+                        domain="[('control_type', '=', 'plan')]"/>
+                <filter name="filter_type_sub_plan" string="分項計畫"
+                        domain="[('control_type', '=', 'sub_plan')]"/>
+                <filter name="filter_type_drawing" string="施工圖"
+                        domain="[('control_type', '=', 'drawing')]"/>
+                <separator/>
+                <filter name="filter_not_submitted" string="未送審"
+                        domain="[('progress_status', '=', 'not_submitted')]"/>
+                <filter name="filter_submitted" string="已送審"
+                        domain="[('progress_status', '=', 'submitted')]"/>
+                <filter name="filter_reviewed" string="監造已審"
+                        domain="[('progress_status', '=', 'reviewed')]"/>
+                <filter name="filter_approved" string="機關已核定"
+                        domain="[('progress_status', '=', 'approved')]"/>
+                <separator/>
+                <filter name="filter_overdue" string="已逾期"
+                        domain="[('is_overdue', '=', True)]"/>
+                <filter name="filter_delayed" string="延遲送審"
+                        domain="[('delay_days', '>', 0)]"/>
+                <separator/>
+                <group expand="0" string="群組">
+                    <filter name="group_by_project" string="所屬工程"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter name="group_by_status" string="處理狀態"
+                            context="{'group_by': 'progress_status'}"/>
+                    <filter name="group_by_control_type" string="管制表類別"
+                            context="{'group_by': 'control_type'}"/>
+                    <filter name="group_by_deadline" string="限定提送日期"
+                            context="{'group_by': 'deadline_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================== -->
+    <!-- 計畫書管制表 - 動作                              -->
+    <!-- ============================================== -->
+    <!-- 計畫書／分項計畫／施工圖三種共用這張表，也共用這一個入口：
+         **不要**在 action 上寫死 control_type 的 domain——寫死的話，使用者在表單裡
+         把類別改成施工圖，存檔後那筆就會被濾掉、在後台再也找不到。
+         類別改用清單欄位與「管制表類別」群組來區分，新增時預設帶計畫書。 -->
+    <record id="action_plan_control" model="ir.actions.act_window">
+        <field name="name">計畫書管制表</field>
+        <field name="res_model">supervision.plan.control</field>
+        <field name="view_mode">list,form</field>
+        <!-- 明確寫成空 domain：光是把 <field name="domain"> 從 XML 拿掉，
+             既有記錄上的舊值不會被清掉（Odoo 只更新 XML 有寫的欄位） -->
+        <field name="domain">[]</field>
+        <!-- 分組順序由 search_default_* 的數值決定：所屬工程優先，其次管制表類別 -->
+        <field name="context">{'default_control_type': 'plan',
+                               'search_default_group_by_project': 1,
+                               'search_default_group_by_control_type': 2}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立第一筆送審管制記錄
+            </p>
+            <p>
+                管理計畫書（監造計畫、職業安全衛生管理計畫、整體施工計畫、整體品質計畫、
+                營造綜合保險等）、分項計畫與施工圖的送審與核定進度。<br/>
+                建立時在「管制表類別」選擇是哪一種，匯出時依類別各自產出一張總表。
+            </p>
+        </field>
+    </record>
+
+</odoo>

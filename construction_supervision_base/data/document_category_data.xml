@@ -216,6 +216,24 @@
             <field name="parent_id" ref="cat_12"/>
             <field name="is_system" eval="True"/>
         </record>
+        <!-- 送審管制底下再分兩層，對齊實際歸檔資料夾
+             （12-文書資料/08-送審管制/1.計劃書、2.材料）：
+             計畫書管制表與材料設備送審管制的附件各自歸位，不會混在一起 -->
+        <record id="cat_12_08_01" model="supervision.document.category">
+            <field name="name">01-計畫書</field>
+            <field name="code">12_08_01</field>
+            <field name="sequence">1281</field>
+            <field name="parent_id" ref="cat_12_08"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_12_08_02" model="supervision.document.category">
+            <field name="name">02-材料</field>
+            <field name="code">12_08_02</field>
+            <field name="sequence">1282</field>
+            <field name="parent_id" ref="cat_12_08"/>
+            <field name="is_system" eval="True"/>
+        </record>
+
         <record id="cat_12_09" model="supervision.document.category">
             <field name="name">09-檢試驗管制</field>
             <field name="code">12_09</field>

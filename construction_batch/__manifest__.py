@@ -4,7 +4,7 @@
 
 {
     'name': '工程監造系統 - 批次操作',
-    'version': '18.0.2.3.0',
+    'version': '18.0.2.7.2',  # 2.7.2: 預覽摘要拿掉多餘的日期欄位備註
     'category': 'Construction/Supervision',
     'summary': '報表 / 下載中心：各式正式表單的統一下載入口',
     'description': """
@@ -15,10 +15,11 @@
 
 主要功能
 --------
-* 批次下載精靈 (batch.download.wizard)，支援 9 種下載類型：
+* 批次下載精靈 (batch.download.wizard)，支援 10 種下載類型：
     - 通報單（預約式工程施工回報單）
     - 施工日誌（監造日報表一/二、施工日誌一/二營造版）
     - 送審管制表
+    - 計畫書管制表（計畫書送審管制總表，含工程保險）
     - 自主檢查（自主檢查總表）
     - 缺失改善（缺失管制表、矯正與預防處理紀錄）
     - 檢(試)驗管制紀錄（全案彙總表）
@@ -59,6 +60,9 @@
         # Security
         'security/ir.model.access.csv',
         # Wizards
+        # 預覽的 view 要先載入：batch_download_wizard 的 action_preview() 用 env.ref
+        # 取它的 id，而精靈自己的 view 沒有這個相依關係
+        'wizard/batch_download_preview_views.xml',
         'wizard/batch_download_wizard_views.xml',
         # Views
         'views/menu.xml',

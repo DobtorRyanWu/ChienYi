@@ -49,23 +49,28 @@ def date_domain(env, field):
     return ['|', (field, '=', False)] + ['&'] * (len(ranged) - 1) + ranged
 
 
-def undated_records(env, model_name, field, project_id):
-    """日期區間生效時，該日期欄位空白的記錄（它們會被一併列入匯出）"""
+def undated_records(env, model_name, field, project_id, extra_domain=None):
+    """日期區間生效時，該日期欄位空白的記錄（它們會被一併列入匯出）
+
+    :param extra_domain: 來源記錄的額外條件。同一個模型服務多張報表時要帶
+                         （例如計畫書／分項計畫／施工圖共用 supervision.plan.control），
+                         否則會把別張表的記錄也算進提醒裡。
+    """
     if not has_range(env):
         return env[model_name].browse()
     domain = [(field, '=', False)]
     if project_id:
         domain.append(('project_id', '=', project_id))
-    return env[model_name].search(domain)
+    return env[model_name].search(domain + (extra_domain or []))
 
 
-def undated_warning(env, model_name, field, label, project_id=None):
+def undated_warning(env, model_name, field, label, project_id=None, extra_domain=None):
     """回報「有幾筆沒填日期、已一併列入」，格式與 mapping 的 WARNINGS 相同。
 
     :param label: 給人看的日期欄位名稱，例如「進場日期」
     :return: 訊息 list（沒有要提醒的事就是空 list）
     """
-    records = undated_records(env, model_name, field, project_id)
+    records = undated_records(env, model_name, field, project_id, extra_domain)
     if not records:
         return []
     names = records[:_PREVIEW_LIMIT].mapped('display_name')
@@ -75,6 +80,7 @@ def undated_warning(env, model_name, field, label, project_id=None):
             '%s%s' % (len(records), label, '、'.join(names), more)]
 
 
-def project_warning(project, model_name, field, label):
+def project_warning(project, model_name, field, label, extra_domain=None):
     """專案層級對照表用的 WARNINGS 捷徑"""
-    return undated_warning(project.env, model_name, field, label, project.id)
+    return undated_warning(project.env, model_name, field, label, project.id,
+                           extra_domain)

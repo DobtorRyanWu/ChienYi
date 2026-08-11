@@ -39,6 +39,32 @@
                         icon="fa-file-word-o"
                         context="{'template_type': 'review_control'}"
                         help="材料設備送審管制總表"/>
+                <!-- 三張表共用同一份空白樣板，差別只在表名與撈哪一類記錄，
+                     所以 template_type 相同、用 plan_control_type 區分 -->
+                <button name="action_export_project_template"
+                        string="計畫書管制表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        context="{'template_type': 'plan_control',
+                                  'plan_control_type': 'plan'}"
+                        help="計畫書送審管制總表(含工程保險)——全案計畫書彙總"/>
+                <button name="action_export_project_template"
+                        string="分項計畫管制表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        context="{'template_type': 'plan_control',
+                                  'plan_control_type': 'sub_plan'}"
+                        help="分項計畫送審管制總表——各分項工程施工計畫彙總"/>
+                <button name="action_export_project_template"
+                        string="施工圖管制表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-excel-o"
+                        context="{'template_type': 'plan_control',
+                                  'plan_control_type': 'drawing'}"
+                        help="施工圖送審管制總表——施工圖送審彙總"/>
                 <button name="action_export_project_template"
                         string="檢試驗管制表"
                         type="object"

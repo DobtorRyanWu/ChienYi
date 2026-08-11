@@ -14,6 +14,8 @@
         self_inspection（自主檢查總表，佔位符，**專案層級彙總**）
         defect_improvement / defect_control / review_control / test_control
         （皆 docx，專案層級彙總）
+        plan_control（計畫書送審管制總表，xlsx 佔位符，**專案層級彙總**——
+        計畫書／分項計畫／施工圖三張表共用，由 context 的 plan_control_type 決定）
         notification_slip（預約式施工回報單，佔位符——2026-08-05 重做樣板，雙工作表）
         estimate_report（工程估驗計價單，佔位符——2026-08-05 重做樣板）
         progress_schedule（預定進度表，僅表頭——工項與甘特無資料來源）
@@ -29,6 +31,7 @@ from . import self_inspection
 from . import defect_improvement
 from . import defect_control
 from . import review_control
+from . import plan_control
 from . import test_control
 from . import notification_slip
 from . import estimate_report

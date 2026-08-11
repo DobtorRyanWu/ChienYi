@@ -98,6 +98,18 @@ class SupervisionProject(models.Model):
     # === 契約資訊 ===
     contract_no = fields.Char(string='契約編號', tracking=True)
 
+    # 決標到訂約這兩個時點，管制表表頭要印（見 construction_review 的計畫書管制表）。
+    # 開工／預定完工不在這裡重複定義，用既有的 actual_start_date / contract_end_date。
+    award_date = fields.Date(string='得標日期', tracking=True)
+    contract_sign_date = fields.Date(string='訂約日期', tracking=True)
+
+    # 比照 management_company_name（管理公司自由輸入）：管制表表頭要的是一行字，
+    # 不見得每個營造廠都會在系統裡開公司記錄。
+    contractor_company_name = fields.Char(
+        string='營造廠商',
+        tracking=True,
+        help='純文字，管制表表頭列印用；系統內的承包廠商公司記錄請用 contractor_company_ids')
+
     tender_xml_data = fields.Binary(
         string='原始標單 XML',
         attachment=True,

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 樣板設定',
-    'version': '18.0.2.2.0',
+    'version': '18.0.2.4.0',  # 2.4.0: 計畫書/分項計畫/施工圖三張管制表共用一份樣板
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """

@@ -248,6 +248,10 @@
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
                             <field name="management_company_name"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <!-- 與管理公司成對，所以放在基本資訊而不是契約資訊。
+                                 不加 readonly：是管制表表頭要印的資料，常在施工中才補登 -->
+                            <field name="contractor_company_name"
+                                   placeholder="例：○○營造股份有限公司"/>
                             <field name="company_id" invisible="1"/>
                             <field name="supervision_engineer_id"
                                    domain="[('active', '=', True)]"/>
@@ -257,6 +261,10 @@
                         <group string="契約資訊" name="contract_info">
                             <field name="contract_no"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <!-- 得標／訂約日期刻意不加 readonly：是管制表表頭要印的資料，
+                                 多半在施工中才回頭補登，鎖住等於填不了 -->
+                            <field name="award_date"/>
+                            <field name="contract_sign_date"/>
                             <field name="contract_amount"
                                    readonly="state not in ('draft', 'correction')"
                                    placeholder="未匯入工項前可手動輸入"/>

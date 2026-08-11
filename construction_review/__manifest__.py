@@ -2,7 +2,7 @@
 {
     'name': '工程監造系統 - 送審管制模組',
     # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.3.0',  # 1.3.0: 計畫書管制表項次自動編號與唯一性檢查
     'category': 'Construction/Review',
     'summary': '工程監造材料送審管制與追蹤',
     'description': """
@@ -14,6 +14,9 @@
 主要功能
 --------
 * 送審管制 - supervision.review.application
+* 計畫書管制表 - supervision.plan.control
+  (監造計畫、職安衛計畫、整體施工/品質計畫、營造綜合保險等的送審與核定追蹤；
+  欄位結構同時可容納分項計畫與施工圖送審，目前只啟用計畫書)
 * 材料型錄、樣品、測試報告送審追蹤
 * 審查結果管理 (合格/條件式通過/不合格)
 * 廠驗與取樣試驗管理
@@ -42,6 +45,7 @@
         'data/ir_sequence_data.xml',
         # Views
         'views/review_application_views.xml',
+        'views/plan_control_views.xml',
         'views/menu.xml',
     ],
     'demo': [],

@@ -13,6 +13,8 @@ from odoo.exceptions import UserError, ValidationError
 
 from odoo.addons.construction_template.utils import record_filter, template_render
 
+from .batch_download_preview import SOURCE_FIELDS as PREVIEW_SOURCE_FIELDS
+
 _logger = logging.getLogger(__name__)
 
 # 可批次下載的狀態。值必須存在於各自模型的 state Selection 裡——
@@ -26,7 +28,7 @@ ESTIMATE_DOWNLOADABLE_STATES = ('approved', 'archived')
 # 所以工程案件必填，日期區間改由 context 傳進對照表去篩來源記錄。
 # progress_schedule 例外：它的樣板刻意只帶工程名稱與工期（工項留白供手填），
 # 沒有來源記錄也沒有日期概念——見 mappings/progress_schedule.py 的說明。
-PROJECT_LEVEL_TYPES = ('defect', 'self_inspection', 'test', 'review',
+PROJECT_LEVEL_TYPES = ('defect', 'self_inspection', 'test', 'review', 'plan',
                        'progress_schedule')
 NO_FILTER_TYPES = ('progress_schedule',)
 
@@ -66,21 +68,26 @@ FIXED_TEMPLATE_TYPES = {
     'self_inspection': 'self_inspection',
     'test': 'test_control',
     'review': 'review_control',
+    'plan': 'plan_control',
     'progress_report': 'progress_report',
     'progress_schedule': 'progress_schedule',
     'notification_slip': 'notification_slip',
 }
 
 # 兩個 compute 都跟著同一組篩選條件走
-FILTER_DEPENDS = ('download_type', 'defect_variant', 'project_id',
+FILTER_DEPENDS = ('download_type', 'defect_variant', 'plan_variant', 'project_id',
                   'date_from', 'date_to', 'daily_log_ids', 'estimate_ids',
                   'progress_report_ids', 'notification_slip_ids')
+
+# 預覽最多畫幾列（只是畫面上限，匯出仍是全部）
+PREVIEW_LIMIT = 200
 
 # 錯誤訊息與 zip 檔名用的名稱，順序同 download_type
 TYPE_LABELS = {
     'notification_slip': '通報單',
     'daily_log': '施工日誌',
     'review': '送審管制表',
+    'plan': '計畫書管制表',
     'self_inspection': '自主檢查',
     'defect': '缺失改善',
     'test': '檢(試)驗管制紀錄',
@@ -108,6 +115,7 @@ class BatchDownloadWizard(models.TransientModel):
         ('notification_slip', '通報單'),
         ('daily_log', '施工日誌'),
         ('review', '送審管制表'),
+        ('plan', '計畫書管制表'),
         ('self_inspection', '自主檢查'),
         ('defect', '缺失改善'),
         ('test', '檢(試)驗管制紀錄'),
@@ -142,6 +150,15 @@ class BatchDownloadWizard(models.TransientModel):
         ('defect_control', '缺失改善管制表（全案彙總）'),
         ('defect_improvement', '矯正與預防處理紀錄（每筆一頁含照片）'),
     ], string='缺失表單', default='defect_control')
+
+    # 這三張表欄位完全一樣、共用同一份空白樣板，差別只在表名與要撈哪一類記錄，
+    # 所以不是選 template_type（那是 defect/daily_log 那種真的有兩份樣板的做法），
+    # 而是把 supervision.plan.control 的 control_type 傳給對照表。
+    plan_variant = fields.Selection([
+        ('plan', '計畫書送審管制總表(含工程保險)'),
+        ('sub_plan', '分項計畫送審管制總表'),
+        ('drawing', '施工圖送審管制總表'),
+    ], string='計畫書表單', default='plan')
 
     # === 日期區間篩選 ===
     date_from = fields.Date(
@@ -218,6 +235,7 @@ class BatchDownloadWizard(models.TransientModel):
         compute='_compute_undated_note',
         help='列出日期欄位空白、因此不受日期區間限制的記錄')
 
+
     state = fields.Selection([
         ('draft', '設定'),
         ('done', '完成'),
@@ -242,11 +260,17 @@ class BatchDownloadWizard(models.TransientModel):
         return variant or FIXED_TEMPLATE_TYPES[self.download_type]
 
     def _export_context(self):
-        """傳給對照表的日期區間。對照表沒收到就列全部（＝表單 header 按鈕的行為）"""
+        """傳給對照表的日期區間與變體。
+
+        對照表沒收到日期就列全部（＝表單 header 按鈕的行為）。
+        plan_control_type 是計畫書管制表三張表共用一份樣板時用來指定要印哪一張，
+        對照表沒收到就印計畫書（見 mappings/plan_control.py）。
+        """
         self.ensure_one()
         return {
             record_filter.CTX_FROM: self.date_from,
             record_filter.CTX_TO: self.date_to,
+            'plan_control_type': self.plan_variant,
         }
 
     def _mapping(self):
@@ -278,6 +302,10 @@ class BatchDownloadWizard(models.TransientModel):
                 'date_field': mapping.DATE_FIELD,
                 'date_label': mapping.DATE_LABEL,
                 'domain': domain,
+                # 日期未填提醒要自己組 domain（它不看日期區間），所以額外把
+                # 對照表的來源條件帶出去——否則同一個來源模型服務多張報表時
+                # （計畫書／分項計畫／施工圖），提醒會把別張表的記錄也算進來
+                'extra_domain': self._mapping_source_domain(mapping),
             }
         spec = RECORD_SOURCES[self.download_type]
         return dict(spec, domain=self._get_record_domain())
@@ -334,7 +362,8 @@ class BatchDownloadWizard(models.TransientModel):
         messages = record_filter.undated_warning(
             self.with_context(**self._export_context()).env,
             source['model'], source['date_field'], source['date_label'],
-            project_id=self.project_id.id or None)
+            project_id=self.project_id.id or None,
+            extra_domain=source.get('extra_domain'))
         return '\n'.join(messages) if messages else False
 
     # -------------------------------------------------------------------------
@@ -404,10 +433,23 @@ class BatchDownloadWizard(models.TransientModel):
         """
         self.ensure_one()
         mapping = self._mapping()
-        domain = [('project_id', '=', self.project_id.id)]
-        domain += record_filter.date_domain(
-            self.with_context(**self._export_context()).env, mapping.DATE_FIELD)
+        env = self.with_context(**self._export_context()).env
+        domain = ([('project_id', '=', self.project_id.id)]
+                  + self._mapping_source_domain(mapping)
+                  + record_filter.date_domain(env, mapping.DATE_FIELD))
         return mapping.source_model(self.project_id), domain
+
+    def _mapping_source_domain(self, mapping):
+        """對照表對來源記錄的額外條件。
+
+        同一個來源模型服務多張報表時（計畫書／分項計畫／施工圖共用
+        supervision.plan.control），對照表用 SOURCE_DOMAIN 宣告要撈哪一類；
+        沒宣告的對照表就是沒有額外條件。
+        """
+        self.ensure_one()
+        if not hasattr(mapping, 'SOURCE_DOMAIN'):
+            return []
+        return mapping.SOURCE_DOMAIN(self.with_context(**self._export_context()).env)
 
     # -------------------------------------------------------------------------
     # Action Methods
@@ -456,8 +498,76 @@ class BatchDownloadWizard(models.TransientModel):
             },
         }
 
+    def _reopen(self):
+        """把精靈本身再開一次（同一筆記錄，設定全部留著）。
+
+        **按鈕方法不能回傳 None**：web/.../action_service.js 的 doActionButton 是
+            action = action && typeof action === "object"
+                ? action : { type: "ir.actions.act_window_close" };
+        回傳 None 會被當成 act_window_close，在對話框裡就是把精靈關掉——
+        這與按鈕放在 <footer> 或表單內無關，任何 type="object" 按鈕都一樣。
+        又因為 action 對話框不會堆疊（_updateUI 會先 _removeDialog()），
+        也不能另開一個對話框，所以「留在原地」只能靠重開自己。
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '批次下載',
+            'res_model': self._name,
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(self.env.ref(
+                'construction_batch.batch_download_wizard_form_view').id, 'form')],
+            'target': 'new',
+        }
+
     def action_preview(self):
-        """預覽符合條件的記錄"""
+        """另開預覽視窗，用來源模型自己的 list view 列出會被匯出的記錄。
+
+        為什麼要包一層 batch.download.preview 而不是直接對來源模型開 act_window：
+        對話框不會堆疊（見 _reopen 的說明），直接開來源模型的 list 等於把精靈丟掉，
+        而別人的 list view 上又沒地方掛「返回設定」按鈕。包一層之後，記錄本身仍是
+        用 Many2many 裝著，畫面上顯示的就是該模型原本的 list view。
+        """
+        self.ensure_one()
+        # 日期欄位名不用在這裡交代：清單是來源模型自己的 list view，欄位標題本來就有；
+        # 日期區間與「日期未填提醒」也都在精靈那一頁講過了。
+        records = self._preview_records()[0]
+        total = len(records)
+
+        field_name = PREVIEW_SOURCE_FIELDS.get(records._name)
+        if not field_name:
+            # 新增下載類型時忘了在 batch_download_preview 補欄位才會走到這裡
+            raise UserError(
+                '「%s」的來源模型 %s 還沒有加進預覽視窗，無法預覽。'
+                % (TYPE_LABELS[self.download_type], records._name))
+
+        note = ''
+        if total > PREVIEW_LIMIT:
+            note = '僅列出前 %s 筆，匯出時仍會全部列入。' % PREVIEW_LIMIT
+        preview = self.env['batch.download.preview'].create({
+            'wizard_id': self.id,
+            'source_model': records._name,
+            'summary': '共 %s 筆會列入本次匯出。' % total,
+            'note': note,
+            field_name: [Command.set(records[:PREVIEW_LIMIT].ids)],
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '%s：預覽記錄' % TYPE_LABELS[self.download_type],
+            'res_model': 'batch.download.preview',
+            'res_id': preview.id,
+            'view_mode': 'form',
+            'views': [(self.env.ref(
+                'construction_batch.batch_download_preview_form_view').id, 'form')],
+            'target': 'new',
+        }
+
+    def _preview_records(self):
+        """本次會列入報表的記錄，以及要一起顯示的日期欄位。
+
+        :return: (recordset, 日期欄位名, 日期欄位中文名)
+        """
         self.ensure_one()
         label = TYPE_LABELS[self.download_type]
 
@@ -467,30 +577,18 @@ class BatchDownloadWizard(models.TransientModel):
                 % label)
 
         if not self._is_project_level():
-            selected = self[RECORD_SOURCES[self.download_type]['field']]
+            spec = RECORD_SOURCES[self.download_type]
+            selected = self[spec['field']]
             if selected:
-                return {
-                    'type': 'ir.actions.act_window',
-                    'name': '%s預覽' % label,
-                    'res_model': RECORD_SOURCES[self.download_type]['model'],
-                    'view_mode': 'list,form',
-                    'domain': [('id', 'in', selected.ids)],
-                    'target': 'new',
-                    'context': {'create': False},
-                }
+                return selected, spec['date_field'], spec['date_label']
         elif not self.project_id:
             raise UserError('請先選擇工程案件。')
 
         source = self._date_source()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': '%s預覽' % label,
-            'res_model': source['model'],
-            'view_mode': 'list,form',
-            'domain': source['domain'],
-            'target': 'new',
-            'context': {'create': False},
-        }
+        if not source:
+            raise UserError('目前的條件沒有可預覽的來源記錄。')
+        records = self.env[source['model']].search(source['domain'])
+        return records, source['date_field'], source['date_label']
 
     def action_reset(self):
         """重設精靈"""

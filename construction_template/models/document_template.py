@@ -103,6 +103,7 @@ class DocumentTemplate(models.Model):
         ('defect_improvement', '缺失改善'),
         ('defect_control', '缺失改善管制表'),
         ('review_control', '送審管制表'),
+        ('plan_control', '計畫書送審管制表'),
         ('test_control', '檢(試)驗管制表'),
         ('progress_report', '進度報告'),
         ('progress_schedule', '工程預定進度表'),

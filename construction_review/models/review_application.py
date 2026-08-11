@@ -223,9 +223,14 @@ class SupervisionReviewApplication(models.Model):
         string='送審文件')
 
     def _attachment_default_category(self):
-        """送審文件 → 12-文書資料 / 08-送審管制"""
+        """送審文件 → 12-文書資料 / 08-送審管制 / 02-材料
+
+        2026-08-11 從父分類 08-送審管制 下移一層，與計畫書管制表
+        （supervision.plan.control → 01-計畫書）分開歸檔。既有附件的分類不受
+        影響（mixin 只在分類空白時才填），只有之後上傳的會歸到 02-材料。
+        """
         return self.env.ref(
-            'construction_supervision_base.cat_12_08',
+            'construction_supervision_base.cat_12_08_02',
             raise_if_not_found=False) or super()._attachment_default_category()
 
     attachment_count = fields.Integer(

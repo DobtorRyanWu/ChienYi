@@ -11,4 +11,10 @@
               action="action_review_application"
               sequence="30"/>
 
+    <menuitem id="menu_plan_control"
+              name="計畫書管制表"
+              parent="construction_supervision_base.menu_project_management_root"
+              action="action_plan_control"
+              sequence="31"/>
+
 </odoo>

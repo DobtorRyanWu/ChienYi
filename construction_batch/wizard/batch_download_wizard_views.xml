@@ -19,12 +19,15 @@
                         <field name="defect_variant"
                                invisible="download_type != 'defect'"
                                required="download_type == 'defect'"/>
+                        <field name="plan_variant" widget="radio"
+                               invisible="download_type != 'plan'"
+                               required="download_type == 'plan'"/>
                         <field name="output_format" widget="radio"
                                invisible="download_type not in ['daily_log', 'estimate']"/>
                     </group>
                     <group string="篩選條件">
                         <field name="project_id" options="{'no_create': True}"
-                               required="download_type in ['defect', 'self_inspection', 'test', 'review', 'progress_schedule']"/>
+                               required="download_type in ['defect', 'self_inspection', 'test', 'review', 'plan', 'progress_schedule']"/>
                         <field name="company_id" options="{'no_create': True}" groups="base.group_multi_company"/>
                         <field name="date_from"
                                invisible="download_type == 'progress_schedule'"/>
@@ -36,7 +39,7 @@
                 </group>
 
                 <div class="alert alert-info" role="status"
-                     invisible="state != 'draft' or download_type not in ['defect', 'self_inspection', 'test', 'review']">
+                     invisible="state != 'draft' or download_type not in ['defect', 'self_inspection', 'test', 'review', 'plan']">
                     這類報表是<strong>整個工程案件的彙總表</strong>，一個工程案件產出一份檔案，
                     內容與工程案件表單上的匯出按鈕相同。日期區間留空即列出全部記錄。
                 </div>
