@@ -42,8 +42,10 @@
                 
                 <field name="standard_frequency" string="規定抽樣頻率"/>
                 
-                <field name="in_site_date" string="進場日期"/>
-                
+                <field name="expected_in_site_date" string="預定進場日期"/>
+
+                <field name="in_site_date" string="實際進場日期"/>
+
                 <field name="sample_date" string="抽樣日期"/>
                 
                 <field name="in_site_sum_quantity" string="累計進場數量"/>
@@ -107,7 +109,11 @@
                         <group string="基本資訊">
                             <field name="project_id"/>
                             <field name="standard_id"/>
+                            <!-- 契約詳細表項次由材料名稱（task_id）自動帶出，
+                                 所以緊接在來源欄位之後，選完馬上看得到 -->
                             <field name="task_id"/>
+                            <field name="task_item_no" readonly="1"
+                                   invisible="not task_id"/>
                             <field name="company_id" invisible="1"/>
                         </group>
                         <group string="基本資訊（續）">
@@ -140,6 +146,7 @@
                     
                     <group>
                         <group string="進場記錄">
+                            <field name="expected_in_site_date"/>
                             <field name="in_site_date"/>
                             <field name="in_site_quantity"/>
                             <field name="in_site_sum_quantity"/>
@@ -203,7 +210,9 @@
                 <field name="task_id"/>
                 <field name="test_standard_name"/>
                 <field name="archive_number"/>
-                
+                <field name="expected_in_site_date"/>
+                <field name="in_site_date"/>
+
                 <!-- 需求7: 處理狀態篩選 -->
                 <separator/>
                 <filter string="尚未檢驗" name="not_started"
@@ -235,9 +244,9 @@
                 
                 <!-- 時間篩選 -->
                 <separator/>
-                <filter string="本月進場" name="this_month"
+                <filter string="本月實際進場" name="this_month"
                         domain="[('in_site_date', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
-                <filter string="本週進場" name="this_week"
+                <filter string="本週實際進場" name="this_week"
                         domain="[('in_site_date', '&gt;=', (context_today() - relativedelta(weeks=0, weekday=0)).strftime('%Y-%m-%d'))]"/>
                 
                 <separator/>
@@ -257,7 +266,9 @@
                             context="{'group_by': 'processing_status'}"/>
                     <filter string="檢驗結果" name="group_result"
                             context="{'group_by': 'result'}"/>
-                    <filter string="進場日期" name="group_in_site_date"
+                    <filter string="預定進場日期" name="group_expected_in_site_date"
+                            context="{'group_by': 'expected_in_site_date:month'}"/>
+                    <filter string="實際進場日期" name="group_in_site_date"
                             context="{'group_by': 'in_site_date:month'}"/>
                 </group>
             </search>
@@ -274,6 +285,7 @@
                 <field name="project_id"/>
                 <field name="standard_id"/>
                 <field name="test_standard_name"/>
+                <field name="expected_in_site_date"/>
                 <field name="in_site_date"/>
                 <field name="in_site_quantity"/>
                 <field name="sample_rate"/>
@@ -296,7 +308,8 @@
                             </div>
                             <div class="o_kanban_record_body">
                                 <div><strong>試驗工項:</strong> <field name="standard_id"/></div>
-                                <div><strong>進場日期:</strong> <field name="in_site_date"/></div>
+                                <div><strong>預定進場日期:</strong> <field name="expected_in_site_date"/></div>
+                                <div><strong>實際進場日期:</strong> <field name="in_site_date"/></div>
                                 <div><strong>進場數量:</strong> <field name="in_site_quantity"/></div>
                                 <div>
                                     <strong>抽樣率:</strong>

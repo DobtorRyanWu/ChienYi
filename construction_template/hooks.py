@@ -35,7 +35,9 @@ TYPES = [
     # 一列 ${table:items.*} 樣板列，套印時依筆數展開。表名是 ${project.reportTitle}，
     # 計畫書／分項計畫／施工圖三張表共用這一份。
     ('plan_control', '計畫書送審管制總表', 'xlsx', '既有案件管制表 1.計畫 工作表'),
-    ('test_control', '材料設備檢（試）驗管制總表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
+    # 2026-08-12 換成工程會新版格式（「材料設備檢（試）驗管制總表（修正版）」），
+    # 由 tools/gen_doc_templates/build_test_control.py 加工佔位符後產生。
+    ('test_control', '材料設備檢（試）驗管制總表', 'docx', '工程會新版空白表（修正版）'),
     # 2026-08-06 換成 EAGLE 的 progressReportTemplate（xlsx，內建 ${} 佔位符）。
     # 舊的 .docx（來源「111年 P11102 西區/檢陳週報表」）沒有對照表也不是同一份表，已移除。
     ('progress_report',    '進度報告',       'xlsx', '任泰第二期 EAGLE 樣板匯出'),

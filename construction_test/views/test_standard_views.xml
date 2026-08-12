@@ -178,6 +178,7 @@
                             <field name="test_record_ids" readonly="1">
                                 <list>
                                     <field name="name"/>
+                                    <field name="expected_in_site_date"/>
                                     <field name="in_site_date"/>
                                     <field name="in_site_quantity"/>
                                     <field name="in_site_sum_quantity"/>

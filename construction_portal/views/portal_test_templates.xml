@@ -142,8 +142,12 @@
                     <!-- 抽樣/進場 -->
                     <div class="cy-section-title">抽樣與進場</div>
                     <div class="cy-info-section">
+                        <div class="cy-info-row" t-if="test.expected_in_site_date">
+                            <span class="cy-info-label">預定進場日期</span>
+                            <span class="cy-info-value"><t t-esc="test.expected_in_site_date"/></span>
+                        </div>
                         <div class="cy-info-row" t-if="test.in_site_date">
-                            <span class="cy-info-label">進場日期</span>
+                            <span class="cy-info-label">實際進場日期</span>
                             <span class="cy-info-value"><t t-esc="test.in_site_date"/></span>
                         </div>
                         <div class="cy-info-row" t-if="test.in_site_quantity">

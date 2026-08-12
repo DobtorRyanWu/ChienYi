@@ -72,6 +72,12 @@ class TestRecord(models.Model):
     
     # === 需求3+5: 新增欄位用於 list view 和顯示檢試驗設定資料 ===
     # 不使用 store=True，避免佔用資料庫空間
+    task_item_no = fields.Char(
+        string='契約詳細表項次',
+        compute='_compute_task_item_no',
+        help='契約工項的項次路徑（如「壹.一.1.8」）。套印材料設備檢（試）驗管制總表時'
+             '印在「契約詳細表項次」欄——該欄的取值邏輯以本欄位為準。')
+
     contract_qty = fields.Float(
         string='契約數量',
         related='task_id.planned_qty',
@@ -110,11 +116,19 @@ class TestRecord(models.Model):
         help='檢驗數量的計量單位')
 
     # === 進場記錄 (舊系統欄位) ===
-    in_site_date = fields.Date(
-        string='進場日期',
+    # 2026-08-12：工程會新版管制表把「進場日期」拆成預定／實際兩欄。
+    # in_site_date 的技術名稱不動（_order、累計計算、匯入工具都吃它），只改標籤。
+    expected_in_site_date = fields.Date(
+        string='預定進場日期',
         tracking=True,
         index=True,
-        help='舊系統欄位: inSiteDate')
+        help='工程會新版管制表欄位；材料設備預定進場的日期。實際到場日填於「實際進場日期」')
+
+    in_site_date = fields.Date(
+        string='實際進場日期',
+        tracking=True,
+        index=True,
+        help='舊系統欄位: inSiteDate。材料設備實際進場的日期，累計進場與進度判定均以此為準')
 
     in_site_quantity = fields.Float(
         string='進場數量',
@@ -275,6 +289,24 @@ class TestRecord(models.Model):
         for rec in self:
             rec.related_photo_count = len(rec.related_photo_ids)
     
+    # 契約工項的項次在不同專案有三種存法，依序取第一個有值的：
+    #   item_no_path  '壹.一.1.8'  完整路徑，與紙本管制表的「壹、一、1.8」對得起來
+    #   full_item_no  '1.8'        排除最頂層、格式統一的完整項次
+    #   item_no       '1.8'        原始欄位（各專案 XML 存法不一）
+    _ITEM_NO_FIELDS = ('item_no_path', 'full_item_no', 'item_no')
+
+    @api.depends('task_id', 'task_id.item_no_path', 'task_id.full_item_no',
+                 'task_id.item_no')
+    def _compute_task_item_no(self):
+        for record in self:
+            task = record.task_id
+            value = ''
+            for fname in self._ITEM_NO_FIELDS:
+                if task and fname in task._fields and task[fname]:
+                    value = task[fname]
+                    break
+            record.task_item_no = value
+
     @api.depends('standard_id', 'standard_id.task_ids')
     def _compute_available_task_ids(self):
         """需求4: 計算可選擇的工項（來自試驗工項設定的關聯）"""

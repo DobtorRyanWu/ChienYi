@@ -9,7 +9,12 @@
     # 2.4.0: 修「統計分析」smart button —— action_view_statistics 原本 env.ref 三個
     #        不存在的 xmlid（view_test_statistics_*），改指向真的存在的
     #        supervision.test.task.statistics 三視圖
-    'version': '18.0.2.4.0',
+    # 2.5.0: 配合工程會新版「材料設備檢（試）驗管制總表」，新增「預定進場日期」
+    #        (expected_in_site_date)，原 in_site_date 標籤改為「實際進場日期」
+    #        （技術名稱不動：_order、累計計算、匯入工具都吃它）
+    # 2.6.0: 表單「基本資訊」區新增唯讀的「契約詳細表項次」(task_item_no)，
+    #        由材料名稱自動帶出；套印管制表的同一欄也改以此欄位為準
+    'version': '18.0.2.6.0',
     'category': 'Construction/Test',
     'summary': '工程監造檢試驗項目管理與管制記錄',
     'description': """

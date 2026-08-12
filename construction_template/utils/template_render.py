@@ -258,7 +258,14 @@ def render(template, record):
             fp.write(raw)
 
         if mode == 'docx':
-            filled = docx_render.render(raw, mapping.build_context(record))
+            context = mapping.build_context(record)
+            filled = docx_render.render(raw, context)
+            # 對照表可選的收尾處理：docxtpl 的 {%tr%} 只會「複製列」，
+            # 做不出「同一組資料跨列合併儲存格」這種事（見 test_control 的
+            # 規定抽樣頻率欄），所以留一個 hook 讓對照表自己動產出的 XML。
+            post = getattr(mapping, 'POSTPROCESS', None)
+            if callable(post):
+                filled = post(filled, context)
         elif mode == 'placeholder':
             filled = _render_placeholder(src, dst, mapping, record)
         else:

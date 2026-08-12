@@ -922,6 +922,7 @@ class DocEditorController(http.Controller):
             'header_html': doc.header_html or '',
             'footer_html': doc.footer_html or '',
             'page_format': doc.page_format,
+            'page_orientation': doc.page_orientation or 'portrait',
             'margin_top': doc.margin_top,
             'margin_bottom': doc.margin_bottom,
             'margin_left': doc.margin_left,
@@ -1187,7 +1188,8 @@ class DocEditorController(http.Controller):
         """儲存頁面格式與邊距設定。"""
         doc = request.env['doc.document'].browse(doc_id)
         doc.check_access_rule('write')
-        allowed = ('page_format', 'margin_top', 'margin_bottom',
+        allowed = ('page_format', 'page_orientation',
+                   'margin_top', 'margin_bottom',
                    'margin_left', 'margin_right',
                    'default_column_count', 'default_column_gap', 'column_rule_style')
         vals = {k: v for k, v in kw.items() if k in allowed}

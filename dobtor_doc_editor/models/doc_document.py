@@ -331,6 +331,12 @@ class DocDocument(models.Model):
         ('letter', 'Letter'),
         ('legal', 'Legal'),
     ], string='頁面格式', default='A4')
+    # 紙張方向。canvas-editor 本來就支援（文件設定 → 方向），但方向沒有存下來，
+    # 所以匯入的橫向 .docx 一律以直向開啟、右半邊被切掉。
+    page_orientation = fields.Selection([
+        ('portrait', '直向'),
+        ('landscape', '橫向'),
+    ], string='頁面方向', default='portrait')
     margin_top = fields.Integer(string='上邊距 (px)', default=96)
     margin_bottom = fields.Integer(string='下邊距 (px)', default=96)
     margin_left = fields.Integer(string='左邊距 (px)', default=96)
@@ -794,6 +800,18 @@ class DocDocument(models.Model):
 
     # ─── 後端匯出邏輯 ─────────────────────────────────────────────────
 
+    def _oriented_page_size(self, sizes, default):
+        """依 page_format 取紙張長寬，橫向時把長寬對調。
+
+        四處匯出邏輯（列印 HTML／LibreOffice 中介 HTML／表格寬度修正／
+        python-docx fallback）都要用它，否則橫向文件會以直向匯出。
+        """
+        self.ensure_one()
+        w, h = sizes.get(self.page_format, default)
+        if self.page_orientation == 'landscape':
+            w, h = h, w
+        return w, h
+
     def _build_full_html(self, rendered_body=None):
         """組合完整的 HTML 文件（頁首＋內文＋頁尾），含 CSS 設定。"""
         self.ensure_one()
@@ -808,7 +826,7 @@ class DocDocument(models.Model):
             'letter': ('215.9mm', '279.4mm'),
             'legal': ('215.9mm', '355.6mm'),
         }
-        w, h = page_sizes.get(self.page_format, ('210mm', '297mm'))
+        w, h = self._oriented_page_size(page_sizes, ('210mm', '297mm'))
 
         return f"""<!DOCTYPE html>
 <html>
@@ -892,7 +910,7 @@ td, th {{ border: 1px solid #ccc; padding: 6px; }}
             'legal':  (21.59,  35.56),
             'Legal':  (21.59,  35.56),
         }
-        w_cm, h_cm = page_sizes_cm.get(self.page_format, (21.0, 29.7))
+        w_cm, h_cm = self._oriented_page_size(page_sizes_cm, (21.0, 29.7))
         mt = round(self.margin_top    * px_to_cm, 2)
         mr = round(self.margin_right  * px_to_cm, 2)
         mb = round(self.margin_bottom * px_to_cm, 2)
@@ -977,12 +995,12 @@ img {{ max-width: 100%; height: auto; }}
 
         # 後處理：修正 LO 以內建預設邊距計算的表格寬度（200mm → 實際版心寬度）
         px_to_mm = 25.4 / 96
-        page_w_map = {
-            'A4': 210, 'A3': 297, 'A5': 148,
-            'letter': 215.9, 'Letter': 215.9,
-            'legal': 215.9, 'Legal': 215.9,
+        page_wh_map = {
+            'A4': (210, 297), 'A3': (297, 420), 'A5': (148, 210),
+            'letter': (215.9, 279.4), 'Letter': (215.9, 279.4),
+            'legal': (215.9, 355.6), 'Legal': (215.9, 355.6),
         }
-        w_mm = page_w_map.get(self.page_format, 210)
+        w_mm, _h_mm = self._oriented_page_size(page_wh_map, (210, 297))
         usable_mm = w_mm - (self.margin_left * px_to_mm) - (self.margin_right * px_to_mm)
         return _fix_docx_table_widths(raw_bytes, usable_mm)
 
@@ -1013,7 +1031,7 @@ img {{ max-width: 100%; height: auto; }}
             'letter': (216, 279),
             'legal':  (216, 356),
         }
-        w_mm, h_mm = page_sizes_mm.get(self.page_format, (210, 297))
+        w_mm, h_mm = self._oriented_page_size(page_sizes_mm, (210, 297))
         px_to_mm = 0.264583  # 96dpi：1px = 0.264583mm
 
         section = doc.sections[0]

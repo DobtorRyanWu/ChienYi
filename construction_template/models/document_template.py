@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import base64
+import io
 import json
 import logging
 from odoo import models, fields, api, Command
@@ -9,6 +10,49 @@ from odoo.exceptions import UserError, ValidationError
 from ..utils import template_render
 
 _logger = logging.getLogger(__name__)
+
+# 常見紙張的短邊×長邊（twips，1cm = 567）。用來由 docx 的 sectPr 反推紙張格式。
+PAGE_TWIPS = {
+    'A4': (11906, 16838),
+    'A3': (16838, 23811),
+    'A5': (8391, 11906),
+    'letter': (12240, 15840),
+    'legal': (12240, 20160),
+}
+PAGE_TOLERANCE = 400          # twips（約 0.7cm）；不同工具產生的尺寸會有零頭
+
+
+def _docx_page_setup(file_bytes):
+    """由 docx 的 sectPr 判斷 (紙張格式, 方向)；判不出來回 (None, None)。
+
+    檢試驗管制表是橫向 A4，但編輯器一律以直向 A4 開啟、右半邊被切掉——
+    因為以前沒有任何地方把 docx 的版面帶進 doc.document。
+    """
+    try:
+        from docx import Document
+        from docx.oxml.ns import qn
+    except ImportError:
+        return None, None
+    try:
+        sect = Document(io.BytesIO(file_bytes)).element.body.find(qn('w:sectPr'))
+        if sect is None:
+            return None, None
+        pg = sect.find(qn('w:pgSz'))
+        if pg is None:
+            return None, None
+        w = int(pg.get(qn('w:w')))
+        h = int(pg.get(qn('w:h')))
+    except Exception:
+        return None, None
+
+    landscape = (pg.get(qn('w:orient')) == 'landscape') or w > h
+    short, long_ = min(w, h), max(w, h)
+    fmt = None
+    for name, (s, l) in PAGE_TWIPS.items():
+        if abs(short - s) <= PAGE_TOLERANCE and abs(long_ - l) <= PAGE_TOLERANCE:
+            fmt = name
+            break
+    return fmt, ('landscape' if landscape else 'portrait')
 
 # 上傳時依副檔名決定 mimetype。這裡的值必須與 _check_attachment_type()
 # 的 allowed_mimetypes 一致，否則合法檔案會被自己的約束擋下來。
@@ -478,15 +522,20 @@ class DocumentTemplate(models.Model):
             raise UserError('DOCX 解析失敗，無法轉為可編輯內容（請確認檔案格式）。')
         content_json = json.dumps({'main': elements}, ensure_ascii=False)
 
+        # 把 docx 的版面（紙張格式／方向）一起帶進編輯器，否則橫向樣板會被切掉
+        vals = {'content_json': content_json}
+        fmt, orientation = _docx_page_setup(file_bytes)
+        if fmt:
+            vals['page_format'] = fmt
+        if orientation:
+            vals['page_orientation'] = orientation
+
         Doc = self.env['doc.document'].sudo()
         doc = Doc.browse(self.editor_doc_id) if self.editor_doc_id else Doc
         if doc and doc.exists():
-            doc.write({'content_json': content_json})
+            doc.write(vals)
         else:
-            doc = Doc.create({
-                'name': self.name or (self.file_name or '範本'),
-                'content_json': content_json,
-            })
+            doc = Doc.create(dict(vals, name=self.name or (self.file_name or '範本')))
             self.editor_doc_id = doc.id
         return doc
 

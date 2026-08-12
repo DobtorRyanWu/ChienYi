@@ -890,13 +890,22 @@ class BatchDownloadWizard(models.TransientModel):
     # -------------------------------------------------------------------------
 
     def _get_download_action(self):
-        """取得下載動作"""
+        """取得下載動作。
+
+        ⚠️ `views` 一定要自己填。按鈕直接回傳的 action 會經過 web 的 clean_action()，
+        它會依 view_mode 幫忙補出 views；但本方法的回傳值還會被 _wrap_with_warnings()
+        塞進 display_notification 的 `params.next`，而 **next 不經過 clean_action**。
+        少了 views，前端 _preprocessAction() 的 `action.views.map(...)` 就會噴
+        「Cannot read properties of undefined (reading 'map')」——症狀是設了日期區間
+        且有記錄日期空白時，一按下載就跳 UncaughtPromiseError（2026-08-12 實測重現）。
+        """
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',
+            'views': [(self.env.ref(
+                'construction_batch.batch_download_wizard_result_view').id, 'form')],
             'target': 'new',
-            'context': {'form_view_ref': 'construction_batch.batch_download_wizard_result_view'},
         }

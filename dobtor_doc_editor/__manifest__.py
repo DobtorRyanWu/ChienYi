@@ -1,6 +1,9 @@
 {
     'name': 'Dobtor Doc Editor',
-    'version': '18.0.2.3.0',
+    # 2.4.0: 支援紙張方向 —— doc.document 新增 page_orientation；載入文件時真的把
+    #        紙張格式/方向套到 canvas（以前 page_format 讀了卻沒作用），匯出四處
+    #        （列印 HTML／LO 中介 HTML／表格寬度修正／python-docx fallback）一併吃方向
+    'version': '18.0.2.4.0',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1

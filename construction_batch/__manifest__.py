@@ -4,7 +4,10 @@
 
 {
     'name': '工程監造系統 - 批次操作',
-    'version': '18.0.2.7.2',  # 2.7.2: 預覽摘要拿掉多餘的日期欄位備註
+    # 2.7.3: 修「設了日期區間 + 有記錄日期空白時，按下載跳 UncaughtPromiseError」——
+    #        _get_download_action() 缺 views，被塞進 display_notification 的 next 後
+    #        不會經過 clean_action 補值，前端 action.views.map 直接掛掉
+    'version': '18.0.2.7.3',  # 2.7.2: 預覽摘要拿掉多餘的日期欄位備註
     'category': 'Construction/Supervision',
     'summary': '報表 / 下載中心：各式正式表單的統一下載入口',
     'description': """

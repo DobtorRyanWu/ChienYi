@@ -146,6 +146,7 @@ export class DocEditor extends Component {
             statusMsg: "就緒",
             statusType: "saved",
             pageFormat: "A4",
+            pageOrientation: "portrait",
             isOnline: true,
             // 模板引擎狀態
             isTemplateMode: false,
@@ -793,6 +794,11 @@ export class DocEditor extends Component {
         });
         this.editor.command.executeSetLocale("zhTW");
 
+        // 套用文件本身的紙張設定。canvas-editor 預設一律 A4 直向，而
+        // _loadDocument() 以前只把 page_format 寫進 state、從沒套到畫布上，
+        // 所以匯入的橫向 .docx（例如檢試驗管制表）右半邊會被切掉。
+        this._applyPaperFromState();
+
         // 載入 DOCX 匯入/匯出 plugin（window.docx 由 canvas-editor-plugin-docx.umd.js 注入）
         if (window.docx) {
             this.editor.use(window.docx);
@@ -1049,6 +1055,13 @@ export class DocEditor extends Component {
             // F5 恢復用
             sessionStorage.setItem("dobtor_doc_editor_last_id", data.id);
             this.state.pageFormat = data.page_format || "A4";
+            this.state.pageOrientation = data.page_orientation || "portrait";
+            // 文件設定 modal 的 form 也要跟著，否則打開時顯示的是預設值
+            this.state.docSettingsForm.format = this.state.pageFormat;
+            this.state.docSettingsForm.direction =
+                this.state.pageOrientation === 'landscape' ? 'horizontal' : 'vertical';
+            // editor 已經建好時（切換文件）直接套；初次載入由 _initCanvasEditor 收尾
+            this._applyPaperFromState();
 
             // 暫存 content_json，供 _initCanvasEditor 使用
             this._loadedContentJson = data.content_json || null;
@@ -1223,22 +1236,43 @@ export class DocEditor extends Component {
         }
     }
 
+    // 紙張尺寸（px @ 96 DPI，直向）。橫向時長寬對調。
+    static PAGE_SIZES_PX = {
+        A4:     [794,  1123],
+        A3:     [1123, 1587],
+        A5:     [559,  794],
+        letter: [816,  1056],
+        legal:  [816,  1344],
+    };
+
+    /** 把 state 的紙張格式/方向套到 canvas-editor（初始化與載入文件後都要叫）。
+     *
+     * ⚠️ executePaperSize 要傳**直向**尺寸。canvas-editor 內部的
+     * getOriginalWidth()/getOriginalHeight() 會在 paperDirection === 'horizontal'
+     * 時自己把 options.width/height 對調；這裡若先對調再送就會調兩次、又變回直向。
+     * 舊的 onApplyDocSettings() 就是這樣寫的，所以「文件設定 → 方向 → 橫向」
+     * 從來沒有生效過（2026-08-12 讀 canvas-editor.umd.min.js 原始碼確認）。
+     */
+    _applyPaperFromState() {
+        if (!this.editor) return;
+        const orientation = this.state.pageOrientation || 'portrait';
+        const [w, h] = DocEditor.PAGE_SIZES_PX[this.state.pageFormat]
+            || DocEditor.PAGE_SIZES_PX.A4;
+        try {
+            this.editor.command?.executePaperSize?.(w, h);
+            this.editor.command?.executePaperDirection?.(
+                orientation === 'landscape' ? 'horizontal' : 'vertical');
+        } catch (e) {
+            console.warn('[DocEditor] 套用紙張設定失敗：', e);
+        }
+    }
+
     onPageFormatChange(event) {
         if (!this.editor) return;
-        // A4 size in pixels @ 96 DPI
-        const PAGE_SIZES = {
-            A4:     [794,  1123],
-            A3:     [1123, 1587],
-            A5:     [559,  794],
-            letter: [816,  1056],
-            legal:  [816,  1344],
-        };
         const format = event.target.value;
-        const size = PAGE_SIZES[format];
-        if (size) {
-            this.editor.command.executePaperSize(size[0], size[1]);
-            this.state.pageFormat = format;
-        }
+        if (!DocEditor.PAGE_SIZES_PX[format]) return;
+        this.state.pageFormat = format;
+        this._applyPaperFromState();
     }
 
     // ─── 匯入 DOCX ───────────────────────────────────────────────────
@@ -4429,14 +4463,16 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
      * 反算現有 onPageFormatChange 的 PAGE_SIZES px → cm。
      */
     get _paperWidthCm() {
-        const PAPER_W_CM = {
-            A4: 21.0,
-            A3: 29.7,
-            A5: 14.8,
-            letter: 21.59,
-            legal: 21.59,
+        const PAPER_CM = {
+            A4: [21.0, 29.7],
+            A3: [29.7, 42.0],
+            A5: [14.8, 21.0],
+            letter: [21.59, 27.94],
+            legal: [21.59, 35.56],
         };
-        return PAPER_W_CM[this.state.pageFormat] || 21.0;
+        const [w, h] = PAPER_CM[this.state.pageFormat] || PAPER_CM.A4;
+        // 橫向時尺規要跟著變長，否則刻度對不上紙張
+        return this.state.pageOrientation === 'landscape' ? h : w;
     }
 
     /**
@@ -4710,26 +4746,28 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         }
     }
 
-    onApplyDocSettings() {
+    async onApplyDocSettings() {
         const f = this.state.docSettingsForm;
-        const PAGE_SIZES = {
-            A4: [794, 1123], A3: [1123, 1587], A5: [559, 794],
-            letter: [816, 1056], legal: [816, 1344],
-        };
         try {
-            const [w, h] = PAGE_SIZES[f.format] || PAGE_SIZES.A4;
-            // 方向 = horizontal 時長寬互換
-            const [pw, ph] = f.direction === 'horizontal' ? [h, w] : [w, h];
-            this.editor?.command?.executePaperSize?.(pw, ph);
-            this.editor?.command?.executePaperDirection?.(f.direction);
+            this.state.pageFormat = f.format;
+            this.state.pageOrientation =
+                f.direction === 'horizontal' ? 'landscape' : 'portrait';
+            this._applyPaperFromState();
             this.editor?.command?.executeSetPaperMargin?.([
                 this._mmToPx(f.marginTopMm),
                 this._mmToPx(f.marginRightMm),
                 this._mmToPx(f.marginBottomMm),
                 this._mmToPx(f.marginLeftMm),
             ]);
-            this.state.pageFormat = f.format;
             this.state.showDocSettings = false;
+            // 存回後端，否則重新開啟文件又會回到預設（方向以前根本沒有存的地方）
+            if (this.state.docId) {
+                await rpc('/dobtor_doc/save_settings', {
+                    doc_id: this.state.docId,
+                    page_format: this.state.pageFormat,
+                    page_orientation: this.state.pageOrientation,
+                });
+            }
             this.notification?.add?.('文件設定已套用', { type: 'success' });
         } catch (e) {
             console.error('[DocEditor.onApplyDocSettings]', e);
