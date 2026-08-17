@@ -12,7 +12,11 @@
     # 2.4.0: 補上三個「只印得出來、後台卻沒有輸入格」的欄位：
     #        location_detail（詳細位置說明）進基本資訊；item_no（項目編號，required 卻
     #        完全不在 UI 上）與 specification（規格說明，optional）進施工詳細表
-    'version': '18.0.2.4.0',
+    # 2.5.0: 施工地點座標改為在欄位前標出「緯度：」「經度：」（原本兩格並排、
+    #        只靠 placeholder 分辨，UI 上看不出前後哪個是哪個）；
+    #        valuation_count 改名「本工程已估驗次數」並改為工程層級
+    #        （估驗計價與通報單無關聯，見 construction_payment 1.3.0）
+    'version': '18.0.2.5.0',
     'category': 'Construction/Supervision',
     'summary': '預約式工程通報單管理模組',
     'description': """

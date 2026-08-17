@@ -15,7 +15,6 @@
                   decoration-success="state == 'approved'"
                   decoration-muted="state == 'archived'">
                 <field name="project_id"/>
-                <field name="slip_id" optional="show"/>
                 <field name="name" string="估驗名稱"/>
                 <field name="estimate_date"/>
                 <field name="subtotal" sum="Total"/>
@@ -81,9 +80,6 @@
                             <field name="contract_no" readonly="1"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="contract_amount" readonly="1"/>
-                        </group>
-                        <group string="通報單資訊" invisible="not slip_id">
-                            <field name="slip_id" readonly="1"/>
                         </group>
                         <group string="估驗資訊">
                             <field name="submitted_date" readonly="1"/>

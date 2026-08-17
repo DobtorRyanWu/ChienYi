@@ -156,9 +156,12 @@ class ReservationNotificationSlip(models.Model):
     ], string='施作狀態', default='draft', tracking=True, index=True,
        help='通報單生命週期: draft → not_started → in_progress → closed')
 
-    # === 估驗計價次數（佔位欄位，由 construction_payment 覆寫） ===
+    # === 估驗計價次數（佔位欄位，由 construction_payment 覆寫為 compute） ===
+    # 2026-08-18 改為工程層級：估驗計價以「工程 × 期別」為單位辦理，不歸屬於個別通報單。
     valuation_count = fields.Integer(
-        string='已估驗次數', default=0, readonly=True)
+        string='本工程已估驗次數', default=0, readonly=True,
+        help='本張通報單所屬工程已辦理的估驗計價期數。'
+             '本單自身的金額請看「結算金額」。')
 
     # === 明細關聯 ===
     detail_line_ids = fields.One2many(

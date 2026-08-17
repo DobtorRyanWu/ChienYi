@@ -58,13 +58,15 @@ class PaymentEstimate(models.Model):
         tracking=True,
         index=True
     )
-    slip_id = fields.Many2one(
-        'reservation.notification.slip',
-        '通報單',
-        readonly=True,
-        tracking=True,
-        help='預約式工程的關聯通報單'
-    )
+    # 2026-08-18 移除 slip_id：估驗計價與通報單在功能上無關。
+    #   估驗詳細表的結構是「契約詳細價目表 × 期別」（群組/項次/單價全繼承自契約），
+    #   通報單不出現在計價單上；模型的每一項計算（估驗次數重排、前期累計、可估數量、
+    #   唯一性約束）也都以 project + estimate_date + task 為軸，從不經過 slip。
+    #   兩者只是透過共同的 project.task 產生關聯，是兄弟而非父子——
+    #   原本的 slip_id 是「精靈的取數捷徑」被誤升格成資料模型。
+    #   實證：一期估驗橫跨多張通報單、一張通報單的量也會被切到多期
+    #   （P11001 第 15/16 次橫跨第 7、8 期；第 6 次 11-28 完工卻在第 8 期才估），
+    #   所以單值 M2O、M2M、由 task_id 反查三種形狀沒有一種表達得了。
     contract_no = fields.Char(
         '契約編號',
         related='project_id.contract_no',

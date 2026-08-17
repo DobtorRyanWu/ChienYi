@@ -44,12 +44,16 @@
                             <field name="location_detail" readonly="state == 'closed'"
                                    placeholder="可逐行填寫多個施工地點（會印在通報單上）"/>
                             <!-- 通報單照片若沒有 GPS EXIF，會沿用這組座標 -->
+                            <!-- 兩個欄位並排時只靠 placeholder 分辨不出前後是經度還緯度，
+                                 故改為在欄位前直接標出「緯度：」「經度：」 -->
                             <label for="latitude" string="施工地點座標"/>
                             <div class="o_row">
+                                <span class="o_form_label me-1">緯度：</span>
                                 <field name="latitude" readonly="state == 'closed'"
-                                       placeholder="緯度"/>
+                                       placeholder="25.123456"/>
+                                <span class="o_form_label ms-3 me-1">經度：</span>
                                 <field name="longitude" readonly="state == 'closed'"
-                                       placeholder="經度"/>
+                                       placeholder="121.123456"/>
                             </div>
                         </group>
                         <group>
@@ -167,7 +171,7 @@
                        decoration-warning="state == 'not_started'"
                        decoration-primary="state == 'in_progress'"
                        decoration-success="state == 'closed'"/>
-                <field name="valuation_count" string="已估驗次數"/>
+                <field name="valuation_count" string="本工程已估驗次數" optional="hide"/>
                 <field name="currency_id" column_invisible="1"/>
             </list>
         </field>

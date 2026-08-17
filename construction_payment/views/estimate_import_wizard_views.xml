@@ -21,11 +21,6 @@
                         <field name="estimate_date"/>
                         <field name="project_id"
                                options="{'no_create': True, 'no_open': True}"/>
-                        <field name="project_type" invisible="1"/>
-                        <field name="slip_id"
-                               invisible="project_type != 'reservation'"
-                               options="{'no_create': True}"
-                               required="project_type == 'reservation'"/>
                     </group>
                     <group>
                         <field name="contract_no" readonly="1"/>

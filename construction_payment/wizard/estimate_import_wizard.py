@@ -35,16 +35,6 @@ class EstimateImportWizard(models.TransientModel):
         '所屬工程',
         required=True
     )
-    project_type = fields.Selection(
-        related='project_id.project_type',
-        readonly=True
-    )
-    slip_id = fields.Many2one(
-        'reservation.notification.slip',
-        '通報單',
-        domain="[('project_id', '=', project_id), ('state', '!=', 'closed')]",
-        help='預約式工程：選擇通報單後載入工項'
-    )
     contract_no = fields.Char(
         '契約編號',
         related='project_id.contract_no',
@@ -98,80 +88,19 @@ class EstimateImportWizard(models.TransientModel):
 
     @api.onchange('project_id')
     def _onchange_project_id(self):
-        """選擇工程後自動載入工項（一般式）或等待選擇通報單（預約式）"""
+        """選擇工程後自動載入契約工項（一般式／預約式行為一致）
+
+        2026-08-18 移除預約式的「先選通報單再載工項」分支：估驗計價表是契約詳細價目表
+        的鏡像（一期一工項一列），與通報單無關，兩式都該直接載全案契約工項。
+        原本預約式在此直接 return、一列都不載，是本功能無法建立期別估驗的根因。
+        """
         self.line_ids = [(5, 0, 0)]  # 清空
-        self.slip_id = False
         if not self.project_id:
             return
-
-        # 預約式工程：等待選擇通報單
-        if self.project_id.project_type == 'reservation':
-            return
-
-        # 一般式工程：直接載入契約工項
         self._load_tasks_from_project()
 
-    @api.onchange('slip_id')
-    def _onchange_slip_id(self):
-        """選擇通報單後，從通報單明細載入工項"""
-        self.line_ids = [(5, 0, 0)]  # 清空
-        if not self.slip_id:
-            return
-
-        slip = self.slip_id
-        if not slip.detail_line_ids:
-            return {'warning': {
-                'title': '提示',
-                'message': '此通報單尚未建立詳細表項目',
-            }}
-
-        EstimateLine = self.env['payment.estimate.line']
-        new_lines = []
-        for seq, slip_line in enumerate(slip.detail_line_ids, start=1):
-            task = slip_line.task_id
-            if not task:
-                continue
-
-            # 彙總項：以「一式」呈現（數量固定 1）
-            if task.is_summary_item:
-                new_lines.append(Command.create({
-                    'sequence': seq,
-                    'task_id': task.id,
-                    'contract_qty': 1.0,
-                    'approved_qty': 1.0,
-                    'unit_price': 0.0,
-                    'available_qty': 1.0,
-                    'previous_estimate_qty': 0.0,
-                    'estimate_qty': 1.0,
-                }))
-                continue
-
-            contract_qty = task.original_planned_qty or task.planned_qty
-
-            # 取得前期累計估驗數量（已核定）
-            prev_lines = EstimateLine.search([
-                ('task_id', '=', task.id),
-                ('estimate_id.project_id', '=', self.project_id.id),
-                ('estimate_id.state', '=', 'approved'),
-                ('estimate_id.estimate_date', '<', self.estimate_date),
-            ])
-            previous_estimate_qty = sum(prev_lines.mapped('estimate_qty'))
-
-            new_lines.append(Command.create({
-                'sequence': seq,
-                'task_id': task.id,
-                'contract_qty': contract_qty,
-                'approved_qty': task.planned_qty,
-                'unit_price': task.unit_price,
-                'available_qty': slip_line.actual_qty,
-                'previous_estimate_qty': previous_estimate_qty,
-                'estimate_qty': 0.0,
-            }))
-
-        self.line_ids = new_lines
-
     def _load_tasks_from_project(self):
-        """從工程直接載入契約工項（一般式工程用）"""
+        """從工程直接載入契約工項（一般式與預約式共用）"""
         tasks = self.env['project.task'].search([
             ('project_id', '=', self.project_id.id),
             ('active', '=', True),
@@ -259,14 +188,11 @@ class EstimateImportWizard(models.TransientModel):
             line_vals.append(Command.create(vals))
 
         # 次數與名稱由 payment.estimate 依 estimate_date 自動重排（write 帶 estimate_date 觸發）
-        write_vals = {
+        estimate.write({
             'project_id': self.project_id.id,
             'estimate_date': self.estimate_date,
             'line_ids': line_vals,
-        }
-        if self.slip_id:
-            write_vals['slip_id'] = self.slip_id.id
-        estimate.write(write_vals)
+        })
 
         return {
             'type': 'ir.actions.act_window',

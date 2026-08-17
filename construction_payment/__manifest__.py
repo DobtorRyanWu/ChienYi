@@ -5,7 +5,14 @@
     #        （archived 是「已核定後歸檔」，數量仍有效；原本只認 approved，
     #        前期估驗一歸檔，後期「前期已核定累計」就漏掉該期數量）
     # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
-    'version': '18.0.1.2.1',
+    # 1.3.0: 移除 payment.estimate.slip_id —— 估驗計價與通報單在功能上無關
+    #        （計價表是契約詳細價目表 × 期別的鏡像，通報單不出現在計價單上；
+    #          一期橫跨多張通報單、一張通報單的量也會被切到多期，任何單值/多值
+    #          關聯都表達不了）。匯入精靈的預約式分支一併移除，兩式行為一致。
+    #        通報單的 valuation_count 改為「本工程已估驗次數」（工程層級）。
+    #        ⚠ DB 的 payment_estimate.slip_id 欄位不會被 Odoo 自動刪除，
+    #          升級後會留成孤兒欄位（全 NULL，無外鍵行為影響），可日後手動清理。
+    'version': '18.0.1.3.0',
     'category': 'Construction',
     'summary': '估驗計價、工項驗收、請款管理',
     'description': """
