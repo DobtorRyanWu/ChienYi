@@ -81,6 +81,33 @@ class ReservationNotificationSlipReservation(models.Model):
         digits=(5, 2),
         help='(已矯正+符合要求) / 總缺失數 x 100')
 
+    # === 日期基準 ===
+    def _get_earliest_start_date(self):
+        """回傳這張通報單的「最早合法起算日」與它取自哪個欄位。
+
+        基準＝survey_date（工程會勘日期）、actual_start_date（實際開工日期）、
+        planned_start_date（預定開工日期）三者中「有值者的最早日期」；
+        三者皆空時回傳 (False, '')，由呼叫端跳過檢核。
+
+        為什麼不能只看 planned_start_date：工地實務上有兩種常態會被誤殺——
+        (1) 實際開工早於預定開工（P11001 第 14 次通報單：預定 2021-10-16、
+            實際 2021-10-03，回報單的實際工期與逾期天數彼此自洽）；
+        (2) 先現場會勘、後補預定開工日（P11001 第 1 次通報單：會勘 2021-04-01、
+            預定開工 2021-06-20，但 110 年 5 月確實已在施工）。
+        會勘日之前不可能有這張通報單的施工行為，因此改以它當下限，
+        仍擋得住「把 A 通報單的單據掛到 B 通報單」這類明顯錯置。
+        """
+        self.ensure_one()
+        candidates = [
+            (self.survey_date, '工程會勘日期'),
+            (self.actual_start_date, '實際開工日期'),
+            (self.planned_start_date, '預定開工日期'),
+        ]
+        valid = [c for c in candidates if c[0]]
+        if not valid:
+            return False, ''
+        return min(valid, key=lambda c: c[0])
+
     # === 計算方法 ===
     @api.depends('self_inspection_ids', 'self_inspection_ids.state',
                  'self_inspection_ids.has_defect', 'self_inspection_ids.defect_count')

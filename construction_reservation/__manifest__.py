@@ -3,7 +3,10 @@
     'name': '工程監造系統 - 預約式工程專用模組',
     # 1.1.1: 修正通報單狀態值域不一致 —— 程式碼引用了 approved/completed，
     #        但 reservation.notification.slip.state 只有 draft/not_started/in_progress/closed
-    'version': '18.0.1.1.1',
+    # 1.2.0: 放寬自主檢查／缺失改善的日期下限 —— 基準由單一 planned_start_date
+    #        改為 survey_date / actual_start_date / planned_start_date 三者中
+    #        有值者的最早日期（新增 slip._get_earliest_start_date）
+    'version': '18.0.1.2.0',
     'category': 'Construction/Reservation',
     'summary': '預約式工程通報單整合自主檢查與缺失改善',
     'description': """
