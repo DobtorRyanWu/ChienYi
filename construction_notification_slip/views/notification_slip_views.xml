@@ -41,6 +41,8 @@
                             <field name="slip_number" readonly="1"/>
                             <field name="slip_no" readonly="state != 'draft'"/>
                             <field name="location" readonly="state == 'closed'"/>
+                            <field name="location_detail" readonly="state == 'closed'"
+                                   placeholder="可逐行填寫多個施工地點（會印在通報單上）"/>
                             <!-- 通報單照片若沒有 GPS EXIF，會沿用這組座標 -->
                             <label for="latitude" string="施工地點座標"/>
                             <div class="o_row">
@@ -98,12 +100,17 @@
                                     <field name="description" string="項目及說明" readonly="1"/>
                                     <field name="parent_item_name" string="父工項" readonly="1" optional="show"/>
                                     <field name="display_item_no" string="項次" readonly="1"/>
+                                    <!-- item_no 是本明細自己的必填欄（列印報表印的是它，不是上面的
+                                         display_item_no）。加入工項時由 wizard 從契約工項帶入，
+                                         但同單不可重複，帶入值不合用時要能在這裡改。 -->
+                                    <field name="item_no" string="項目編號"/>
                                     <field name="unit" string="單位" readonly="1"/>
                                     <field name="unit_price" string="單價" readonly="1"/>
                                     <field name="planned_qty" string="預估數量"/>
                                     <field name="planned_amount" string="預估金額" sum="預估總金額"/>
                                     <field name="actual_qty" string="實際完成數量"/>
                                     <field name="actual_amount" string="實際金額" sum="實際總金額"/>
+                                    <field name="specification" string="規格說明" optional="hide"/>
                                     <field name="note" string="備註" optional="hide"/>
                                     <field name="currency_id" column_invisible="1"/>
                                     <field name="task_id" column_invisible="1"/>

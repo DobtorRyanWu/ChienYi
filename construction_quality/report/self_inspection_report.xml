@@ -86,9 +86,7 @@
                         </tr>
                         <tr>
                             <td style="background-color: #f5f5f5; font-weight: bold;">承攬廠商</td>
-                            <td><t t-esc="inspection.contractor_name or inspection.contractor_company_id.name or '-'"/></td>
-                            <td style="background-color: #f5f5f5; font-weight: bold;">協力廠商</td>
-                            <td><t t-esc="inspection.subcontractor_name or '-'"/></td>
+                            <td colspan="3"><t t-esc="inspection.contractor_name or '-'"/></td>
                         </tr>
                     </tbody>
                 </table>
@@ -314,9 +312,7 @@
                         </tr>
                         <tr>
                             <td style="background-color: #f5f5f5; font-weight: bold;">承攬廠商</td>
-                            <td><t t-esc="inspection.contractor_name or '-'"/></td>
-                            <td style="background-color: #f5f5f5; font-weight: bold;">協力廠商</td>
-                            <td><t t-esc="inspection.subcontractor_name or '-'"/></td>
+                            <td colspan="3"><t t-esc="inspection.contractor_name or '-'"/></td>
                         </tr>
                     </tbody>
                 </table>

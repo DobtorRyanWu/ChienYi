@@ -21,7 +21,20 @@
     # 4.5.0: 自主檢查類型未儲存時選不到查驗段落 —— 段落加 item_ids 反向關聯，
     #        改從段落底下直接編輯檢查項目（純巢狀 o2m，不經伺服器 name_search）；
     #        item.create() 自動由 stage_id 補 type_id
-    'version': '18.0.4.5.0',
+    # 4.6.0: 兩式自主檢查移除 contractor_company_id（Many2one res.company）——
+    #        一庫一公司下那個下拉永遠只有一個選項，反而誘導填表的人把協力廠商填進去。
+    #        contractor_name 改為 compute + store + readonly=False，預設帶入工程案件的
+    #        contractor_company_name、允許逐筆覆寫（depends 只掛 project_id，工程改名
+    #        不回頭蓋掉已填值）。同時預約式缺失 source_type 補回 supervision（監造抽查），
+    #        補齊後兩式只差預約式獨有的 slip
+    # 4.7.0: 移除兩式自主檢查的 subcontractor_name（協力廠商）—— 無效欄位，
+    #        兩式 DB 各 0 筆填值。不需資料 migration（沒有值要保留），欄位由
+    #        Odoo 的 _process_end 自行 drop。列印報表的承攬廠商改為 colspan="3"
+    # 4.8.0: 預約式自主檢查補上 overall_result（整體結果，與一般式同構）——
+    #        原本只有一般式有，導致預約式專案的「自主檢查總表」試驗結果
+    #        合格/不合格整欄空白（mappings/self_inspection.py 讀不到該欄）。
+    #        list / form / search 一併對稱
+    'version': '18.0.4.8.0',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """

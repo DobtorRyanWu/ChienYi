@@ -10,7 +10,9 @@
     # 3.2.0: 一般式缺失三階段照片改垂直排列 + 共用看板
     # 3.3.0: 同上，關掉照片頁籤的「加入」按鈕
     # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
-    'version': '18.0.3.4.0',
+    # 3.5.0: 自主檢查轉缺失單不再自動帶 responsible_company_id
+    #        （自主檢查的承攬廠商已改為純文字，見 construction_quality 4.6.0）
+    'version': '18.0.3.5.0',
     'category': 'Construction/General',
     'summary': '一般式工程專用管理模組',
     'description': """

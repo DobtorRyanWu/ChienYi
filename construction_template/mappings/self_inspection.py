@@ -30,7 +30,7 @@
 """
 
 from ..utils import record_filter
-from ..utils.formatters import roc_date
+from ..utils.formatters import contractor_name, roc_date
 
 MODEL = 'project.project'
 MODE = 'placeholder'
@@ -101,14 +101,13 @@ def build_context(project):
                 'right': _cell(right, page_start + right_idx + 1),
             })
 
-    contractors = project.contractor_partner_ids.mapped('name')
     return {
         'project.name': project.name or '',
         'project.constructionNo': project.contract_no or '',
         'project.beginAt': roc_date(project.contract_start_date),
         'project.extendFinishAt': roc_date(project.contract_end_date),
         'project.supervision': project.management_company_name or '',
-        'project.contractor': '、'.join(contractors),
+        'project.contractor': contractor_name(project),
         'inspections': rows,
     }
 

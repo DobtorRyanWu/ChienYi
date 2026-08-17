@@ -6,7 +6,14 @@
     #        並修正項次、規定抽樣頻率、會同人員三處欄位對應
     # 2.6.0: 檢試驗管制表項次改階層編號、規定抽樣頻率同項目跨列合併（POSTPROCESS
     #        hook）、切頁改依內容高度估算；用編輯器開啟 .docx 時帶入紙張格式與方向
-    'version': '18.0.2.6.0',
+    # 2.7.0: 所有管制表的「施工廠商／承攬廠商」統一改由 formatters.contractor_name()
+    #        取值：先 project.contractor_company_name（純文字），沒填才退回承包廠商
+    #        公司的聯絡人。一庫一公司下 contractor_company_ids 多半沒設，原本 7 支
+    #        對照表只讀 contractor_partner_ids → 廠商欄整格空白（自主檢查總表實測）。
+    #        受影響：self_inspection / daily_log_c1(+c2,progress_report) /
+    #        defect_control / defect_improvement / estimate_report / review_control /
+    #        test_control；plan_control 原本就對，一併收斂到同一支函式
+    'version': '18.0.2.7.0',
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """

@@ -15,7 +15,7 @@ EAGLE token → Odoo general.defect.improvement：
 import base64
 
 from ..utils import photo_stamp, record_filter
-from ..utils.formatters import roc_date
+from ..utils.formatters import contractor_name, roc_date
 
 MODEL = 'project.project'
 MODE = 'docx'
@@ -105,11 +105,11 @@ def build_context(project):
         [('project_id', '=', project.id)]
         + record_filter.date_domain(project.env, DATE_FIELD),
         order='found_date, id')
-    contractors = project.contractor_partner_ids.mapped('name')
+    contractor = contractor_name(project)
     return {
         # 原系統的 title 是填報單位（依 unitType 給營造或監造），不是表名
-        'title': '、'.join(contractors) or (project.management_company_name or ''),
-        'projectContractor': '、'.join(contractors),
+        'title': contractor or (project.management_company_name or ''),
+        'projectContractor': contractor,
         'projectName': project.name or '',
         'errorRecords': [_record(d) for d in defects],
     }

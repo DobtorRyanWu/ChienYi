@@ -70,6 +70,24 @@ def count(value, record=None, field=None):
     return len(value) if value else 0
 
 
+def contractor_name(project):
+    """工程案件的「施工廠商 / 承攬廠商」名稱，給各張管制表的表頭用。
+
+    取值序：contractor_company_name（純文字）→ contractor_company_ids 的聯絡人名。
+
+    ⚠️ 不可以只讀 contractor_partner_ids：那是 contractor_company_ids（承包廠商
+    **公司記錄**）的 partner，而本系統是一庫一公司架構，多數專案根本沒設那個 M2M，
+    只讀它會讓所有管制表的廠商欄整格空白（2026-08-17 實測：自主檢查總表就是這樣，
+    工程案件明明填了「測試用02」，印出來卻是空的）。
+
+    這不是格式器（不吃 value/record/field），所以不進 FORMATTERS 字典，
+    由各對照表的 build_context() 直接呼叫。
+    """
+    if project.contractor_company_name:
+        return project.contractor_company_name
+    return '、'.join(project.contractor_partner_ids.mapped('name'))
+
+
 FORMATTERS = {
     'count': count,
     'roc_date': roc_date,

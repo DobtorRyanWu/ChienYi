@@ -11,7 +11,7 @@ token → supervision.review.application（欄位名幾乎是 camelCase→snake_
 """
 
 from ..utils import docx_render, record_filter
-from ..utils.formatters import roc_date
+from ..utils.formatters import contractor_name, roc_date
 
 MODEL = 'project.project'
 MODE = 'docx'
@@ -82,7 +82,7 @@ def build_context(project):
         'projectName': project.name or '',
         'projectConstructionNo': project.contract_no or '',
         'supervision': project.management_company_name or '',
-        'contractor': '、'.join(project.contractor_partner_ids.mapped('name')),
+        'contractor': contractor_name(project),
         'totalPage': len(pages),
         'pages': pages,
     }

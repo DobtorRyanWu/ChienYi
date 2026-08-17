@@ -729,10 +729,14 @@ class InspectionRoutesMixin:
             'inspection_date': post.get('inspection_date') or date.today().isoformat(),
             'inspection_location': post.get('inspection_location', ''),
             'inspection_timing': post.get('inspection_timing') or 'during',
-            'contractor_name': post.get('contractor_name', ''),
-            'subcontractor_name': post.get('subcontractor_name', ''),
             'note': post.get('note', ''),
         }
+        # 承攬廠商留空＝自動帶入工程的營造廠商。務必「有值才放進 vals」：
+        # Odoo 判斷 computed 欄位有沒有被明給看的是 key 在不在、不是值真假，
+        # 傳空字串一樣算明給，會把 compute 的自動帶入整個擋掉。
+        contractor_name = (post.get('contractor_name') or '').strip()
+        if contractor_name:
+            vals['contractor_name'] = contractor_name
         Inspection = request.env['reservation.self.inspection'].sudo()
         inspection = Inspection.create(vals)
 

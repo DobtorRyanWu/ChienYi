@@ -72,23 +72,20 @@ class GeneralSelfInspection(models.Model):
         help='具體施工位置')
 
     # === 廠商資訊 ===
-    contractor_company_id = fields.Many2one(
-        'res.company',
-        string='承攬廠商',
-        domain="[('company_type', '=', 'contractor')]")
-
+    # 承攬廠商＝工程案件的營造廠商（純文字）。建檔時帶入、允許就該筆覆寫。
+    # 原本是 Many2one('res.company')，但本系統一庫一公司，那個下拉永遠只有一個選項。
+    # depends 只掛 project_id、不掛 contractor_company_name 本身 ——
+    # 否則工程案件日後改名，會回頭蓋掉已經逐筆填好／覆寫過的值。
     contractor_name = fields.Char(
-        string='承攬廠商名稱',
+        string='承攬廠商',
         compute='_compute_contractor_name',
-        store=True)
+        store=True, readonly=False,
+        help='留空自動帶入工程案件的營造廠商；本次確實由其他廠商承攬時才填，填了即覆蓋')
 
-    subcontractor_name = fields.Char(
-        string='協力廠商')
-
-    @api.depends('contractor_company_id')
+    @api.depends('project_id')
     def _compute_contractor_name(self):
         for record in self:
-            record.contractor_name = record.contractor_company_id.name if record.contractor_company_id else ''
+            record.contractor_name = record.project_id.contractor_company_name or ''
 
     # === 檢查時機 ===
     inspection_timing = fields.Selection([

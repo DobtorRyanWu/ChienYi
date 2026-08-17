@@ -6,7 +6,7 @@ docs/chienyi_integration_examples.md §3 的範例覆寫 hook methods。
 
 整合邏輯：
     template = dobtor_doc_editor.template_self_inspection（已存在於 data/doc_template_data.xml）
-    協作者   = inspector_id + supervisor_id + contractor_company_id 的 user_ids
+    協作者   = inspector_id + supervisor_id
     Jinja ctx = 工程名 / 檢查日期 / 類型 / 時機 / 檢查人 / 承包商
 """
 
@@ -49,10 +49,10 @@ class GeneralSelfInspection(models.Model):
         return self.name or _('自主檢查')
 
     def _doc_collaborators(self):
-        """檢查人 + 監造員 + 承包商所屬 user 全部加為協作者。
+        """檢查人 + 監造員加為協作者。
 
         - inspector_id / supervisor_id 為 res.users
-        - contractor_company_id 是 res.company；其關聯 user 走 user_ids
+        - 承攬廠商已改為純文字（contractor_name），無法反推 res.users，故不再納入
         """
         self.ensure_one()
         users = self.env['res.users']
@@ -60,8 +60,6 @@ class GeneralSelfInspection(models.Model):
             users |= self.inspector_id
         if self.supervisor_id:
             users |= self.supervisor_id
-        if self.contractor_company_id and 'user_ids' in self.contractor_company_id._fields:
-            users |= self.contractor_company_id.user_ids
         # 至少包含當前 user（避免 collaborators 為空）
         users |= self.env.user
         return users
@@ -89,6 +87,5 @@ class GeneralSelfInspection(models.Model):
             'timing': timing_label,
             'inspector': self.inspector_id.name if self.inspector_id else '',
             'supervisor': self.supervisor_id.name if self.supervisor_id else '',
-            'contractor': self.contractor_company_id.name
-                if self.contractor_company_id else '',
+            'contractor': self.contractor_name or '',
         }

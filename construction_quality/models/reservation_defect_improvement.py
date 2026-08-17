@@ -64,10 +64,13 @@ class ReservationDefectImprovement(models.Model):
         readonly=True)
 
     # === 來源關聯 ===
+    # 值域與順序比照一般式（construction_general/models/general_defect_improvement.py），
+    # 差別只有預約式獨有的 slip（缺失來自通報單）。
     source_type = fields.Selection([
         ('slip', '通報單'),
         ('self_inspection', '自主檢查'),
         ('daily_check', '日常巡查'),
+        ('supervision', '監造抽查'),
         ('authority_audit', '機關查核'),
         ('other', '其他'),
     ], string='缺失來源', default='slip', tracking=True)

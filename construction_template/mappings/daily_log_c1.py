@@ -24,7 +24,7 @@ BSON dump 實測比對，16 個 token 有 14 個直接命中欄位名）。
                                                  （record_type personnel/equipment）
 """
 
-from ..utils.formatters import roc_date, selection_label
+from ..utils.formatters import contractor_name, roc_date, selection_label
 
 MODEL = 'daily.log.sheet'
 MODE = 'placeholder'
@@ -41,9 +41,12 @@ def _qty(value, unit=None):
 
 
 def _contractor(project):
-    """承攬廠商名稱——取專案的承攬廠商，多家以頓號相連"""
-    partners = project.contractor_partner_ids
-    return '、'.join(partners.mapped('name')) if partners else ''
+    """承攬廠商名稱（daily_log_c2 / progress_report 也 import 這支）。
+
+    取值序見 utils.formatters.contractor_name：先純文字的 contractor_company_name，
+    沒有才退回承包廠商公司的聯絡人。
+    """
+    return contractor_name(project)
 
 
 def _work_items(record):

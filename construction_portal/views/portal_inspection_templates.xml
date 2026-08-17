@@ -571,15 +571,10 @@
                                    placeholder="具體施工位置"/>
                         </div>
 
-                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-                            <div style="flex: 1;">
-                                <label class="form-label" style="font-size: 0.85rem;">承攬廠商</label>
-                                <input type="text" name="contractor_name" class="form-control"/>
-                            </div>
-                            <div style="flex: 1;">
-                                <label class="form-label" style="font-size: 0.85rem;">協力廠商</label>
-                                <input type="text" name="subcontractor_name" class="form-control"/>
-                            </div>
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.85rem;">承攬廠商</label>
+                            <input type="text" name="contractor_name" class="form-control"
+                                   placeholder="留空自動帶入工程的營造廠商"/>
                         </div>
 
                         <div class="cy-section-title">備註</div>
@@ -686,10 +681,6 @@
                         <div class="cy-info-row" t-if="inspection.contractor_name">
                             <span class="cy-info-label">承攬廠商</span>
                             <span class="cy-info-value"><t t-esc="inspection.contractor_name"/></span>
-                        </div>
-                        <div class="cy-info-row" t-if="inspection.subcontractor_name">
-                            <span class="cy-info-label">協力廠商</span>
-                            <span class="cy-info-value"><t t-esc="inspection.subcontractor_name"/></span>
                         </div>
                         <div class="cy-info-row">
                             <span class="cy-info-label">填表人</span>

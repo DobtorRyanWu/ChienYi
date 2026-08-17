@@ -17,6 +17,10 @@
                 <field name="inspector_id"/>
                 <field name="has_defect"/>
                 <field name="defect_count"/>
+                <field name="overall_result"
+                       decoration-success="overall_result == 'pass'"
+                       decoration-warning="overall_result == 'conditional_pass'"
+                       decoration-danger="overall_result == 'fail'"/>
                 <field name="state"
                        decoration-info="state == 'draft'"
                        decoration-warning="state == 'inspected'"
@@ -80,8 +84,8 @@
                     </group>
                     <group>
                         <group string="廠商資訊">
-                            <field name="contractor_company_id"/>
-                            <field name="subcontractor_name"/>
+                            <field name="contractor_name"
+                                   placeholder="留空自動帶入工程的營造廠商"/>
                         </group>
                         <group string="人員資訊">
                             <field name="responsible_user_id"/>
@@ -119,6 +123,10 @@
                                 <group>
                                     <field name="has_defect"/>
                                     <field name="defect_count"/>
+                                    <field name="overall_result"
+                                           decoration-success="overall_result == 'pass'"
+                                           decoration-warning="overall_result == 'conditional_pass'"
+                                           decoration-danger="overall_result == 'fail'"/>
                                 </group>
                             </group>
                         </page>
@@ -162,6 +170,10 @@
                 <separator/>
                 <filter string="有缺失" name="has_defect"
                         domain="[('has_defect', '=', True)]"/>
+                <filter string="合格" name="qualified"
+                        domain="[('overall_result', '=', 'pass')]"/>
+                <filter string="不合格" name="unqualified"
+                        domain="[('overall_result', '=', 'fail')]"/>
                 <separator/>
                 <group expand="0" string="群組" name="groupby">
                     <filter string="通報單" name="group_slip"

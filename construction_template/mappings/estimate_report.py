@@ -15,7 +15,7 @@
 ——payment.estimate 沒有這些欄位，硬湊會產生假數字。
 """
 
-from ..utils.formatters import money, roc_date
+from ..utils.formatters import contractor_name, money, roc_date
 
 MODEL = 'payment.estimate'
 MODE = 'placeholder'
@@ -86,7 +86,7 @@ def build_context(estimate):
         'budgetAmount': money(project.budget_amount),
         'contractAmount': money(contract_amount),
         'changeNet': money(project.total_change_amount),
-        'contractorName': '、'.join(project.contractor_partner_ids.mapped('name')),
+        'contractorName': contractor_name(project),
 
         # 合計列
         'totalContractAmount': money(contract_amount),

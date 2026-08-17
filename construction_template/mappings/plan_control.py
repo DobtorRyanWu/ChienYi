@@ -14,7 +14,7 @@ data/templates_blank/plan_control.xlsx。表頭六個值走 `${project.xxx}`，
 """
 
 from ..utils import record_filter
-from ..utils.formatters import roc_date_cn
+from ..utils.formatters import contractor_name, roc_date_cn
 
 MODEL = 'project.project'
 MODE = 'placeholder'
@@ -94,14 +94,10 @@ def build_context(project):
         # 排在項次 1 之前——與原表把監造自提的兩列放最上面一致）
         order='item_sequence, sequence, id')
 
-    # 營造廠商優先取自由輸入的那欄；沒填才退回系統裡的承包廠商公司
-    contractor = project.contractor_company_name or '、'.join(
-        project.contractor_partner_ids.mapped('name'))
-
     return {
         'project.name': project.name or '',
         'project.reportTitle': REPORT_TITLES[_control_type(project.env)],
-        'project.contractor': contractor,
+        'project.contractor': contractor_name(project),
         'project.supervision': project.management_company_name or '',
         'project.awardDate': roc_date_cn(project.award_date),
         'project.signDate': roc_date_cn(project.contract_sign_date),

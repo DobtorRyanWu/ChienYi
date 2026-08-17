@@ -74,7 +74,8 @@ class CreateDefectImprovementWizard(models.TransientModel):
                 'defect_description': f"[{item.check_item}] {item.actual_result or ''}",
                 'discovery_user_id': inspection.inspector_id.id if inspection.inspector_id else self.env.uid,
                 'found_date': inspection.inspection_date,
-                'responsible_company_id': inspection.contractor_company_id.id if inspection.contractor_company_id else False,
+                # responsible_company_id 不再自動帶：自主檢查的承攬廠商已改為純文字
+                # （一庫一公司下，原本的 res.company 永遠只能指向自己，沒有資訊量）
             })
             item.defect_improvement_id = improvement.id
             created_improvements |= improvement

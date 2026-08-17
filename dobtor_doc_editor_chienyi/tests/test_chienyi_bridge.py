@@ -139,12 +139,49 @@ class TestChienyiBridge(TransactionCase):
         self.assertEqual(ctx['inspector'], self.inspector.name)
 
     def test_render_context_handles_missing_optional_fields(self):
-        """部分欄位空白時不應 crash（如 contractor_company_id）。"""
+        """部分欄位空白時不應 crash（如承攬廠商、監造員）。"""
+        # contractor 取自 contractor_name，該欄會自工程的營造廠商自動帶入；
+        # 這裡明確確保工程沒填，才是真正在測「空值 fallback」而非碰巧為空。
+        self.assertFalse(self.project.contractor_company_name)
         rec = self._make_inspection()
-        # 不設 contractor_company_id / supervisor_id → 應 fallback 空字串
         ctx = rec._doc_render_context()
         self.assertEqual(ctx['contractor'], '')
         self.assertEqual(ctx['supervisor'], '')
+
+    def test_render_context_contractor_follows_project(self):
+        """承攬廠商未填時，自工程案件的營造廠商自動帶入。"""
+        project = self.env['project.project'].create({
+            'name': '承攬廠商帶入測試', 'code': 'S21-CONTRACTOR',
+            'project_type': 'general',
+            'contractor_company_name': '大禹營造股份有限公司',
+        })
+        insp_type = self.env['self.inspection.type'].create({
+            'name': '帶入測試檢查', 'project_id': project.id,
+        })
+        rec = self._make_inspection(
+            project_id=project.id, inspection_type_id=insp_type.id)
+        self.assertEqual(rec.contractor_name, '大禹營造股份有限公司')
+        self.assertEqual(
+            rec._doc_render_context()['contractor'], '大禹營造股份有限公司')
+
+    def test_contractor_name_override_survives_project_rename(self):
+        """逐筆覆寫後，工程案件改名不得回頭蓋掉已填的值。"""
+        project = self.env['project.project'].create({
+            'name': '覆寫測試', 'code': 'S21-OVERRIDE',
+            'project_type': 'general',
+            'contractor_company_name': '原本的營造廠',
+        })
+        insp_type = self.env['self.inspection.type'].create({
+            'name': '覆寫測試檢查', 'project_id': project.id,
+        })
+        rec = self._make_inspection(
+            project_id=project.id, inspection_type_id=insp_type.id,
+            contractor_name='本次特例承攬廠商')
+        # 明給的值不得被 compute 蓋掉（Odoo 於 create 期間 protect 明給的 computed 欄）
+        self.assertEqual(rec.contractor_name, '本次特例承攬廠商')
+        project.contractor_company_name = '改名後的營造廠'
+        self.env.flush_all()
+        self.assertEqual(rec.contractor_name, '本次特例承攬廠商')
 
     # ─── 6. 文件命名 ──────────────────────────────────────────────
 

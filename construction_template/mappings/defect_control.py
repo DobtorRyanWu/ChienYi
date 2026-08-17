@@ -12,7 +12,7 @@
 """
 
 from ..utils import docx_render, record_filter
-from ..utils.formatters import roc_date_cn
+from ..utils.formatters import contractor_name, roc_date_cn
 from .defect_improvement import source_model
 
 MODEL = 'project.project'
@@ -53,7 +53,7 @@ def build_context(project):
         [('project_id', '=', project.id)]
         + record_filter.date_domain(project.env, DATE_FIELD),
         order='notification_date, id')
-    contractor = '、'.join(project.contractor_partner_ids.mapped('name'))
+    contractor = contractor_name(project)
     rows = [_record(d, contractor) for d in defects]
     pages = docx_render.paginate_pages(rows, ROWS_PER_PAGE)
     return {

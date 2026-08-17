@@ -39,7 +39,7 @@ class ReservationSelfInspection(models.Model):
         return no
 
     def _doc_collaborators(self):
-        """檢查人 + 當前使用者；預約式無 supervisor/contractor。"""
+        """檢查人 + 當前使用者；預約式無 supervisor，承攬廠商是純文字無法反推 user。"""
         self.ensure_one()
         users = self.env['res.users']
         if self.inspector_id:
@@ -72,5 +72,4 @@ class ReservationSelfInspection(models.Model):
             'timing': timing_label,
             'inspector': self.inspector_id.name if self.inspector_id else '',
             'contractor': self.contractor_name or '',
-            'subcontractor': self.subcontractor_name or '',
         }

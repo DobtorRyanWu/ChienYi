@@ -69,23 +69,18 @@ class ReservationSelfInspection(models.Model):
         help='具體施工位置')
 
     # === 廠商資訊 ===
-    contractor_company_id = fields.Many2one(
-        'res.company',
-        string='承攬廠商',
-        domain="[('company_type', '=', 'contractor')]")
-
+    # 與一般式同構，見 general_self_inspection.py 的說明。
+    # project_id 是 related slip_id.project_id（store=True），所以 depends 掛 project_id 即可。
     contractor_name = fields.Char(
-        string='承攬廠商名稱',
+        string='承攬廠商',
         compute='_compute_contractor_name',
-        store=True)
+        store=True, readonly=False,
+        help='留空自動帶入工程案件的營造廠商；本次確實由其他廠商承攬時才填，填了即覆蓋')
 
-    subcontractor_name = fields.Char(
-        string='協力廠商')
-
-    @api.depends('contractor_company_id')
+    @api.depends('project_id')
     def _compute_contractor_name(self):
         for record in self:
-            record.contractor_name = record.contractor_company_id.name if record.contractor_company_id else ''
+            record.contractor_name = record.project_id.contractor_company_name or ''
 
     # === 檢查時機 ===
     inspection_timing = fields.Selection([
@@ -125,6 +120,14 @@ class ReservationSelfInspection(models.Model):
         compute='_compute_has_defect',
         store=True)
 
+    # 與一般式同構（general_self_inspection.py）。自主檢查總表的「試驗結果」
+    # 合格／不合格就是讀這欄；預約式原本缺這個欄位，導致該表整欄空白。
+    overall_result = fields.Selection([
+        ('pass', '合格'),
+        ('conditional_pass', '條件合格'),
+        ('fail', '不合格'),
+    ], string='整體結果', compute='_compute_overall_result', store=True)
+
     @api.depends('checklist_ids.check_result')
     def _compute_has_defect(self):
         for record in self:
@@ -132,6 +135,20 @@ class ReservationSelfInspection(models.Model):
                 lambda x: x.check_result == 'defect')
             record.defect_count = len(defect_items)
             record.has_defect = record.defect_count > 0
+
+    @api.depends('checklist_ids.check_result')
+    def _compute_overall_result(self):
+        for record in self:
+            if not record.checklist_ids:
+                # 沒有檢查項目＝尚未檢查，不判合格也不判不合格
+                record.overall_result = False
+            elif any(item.check_result == 'defect' for item in record.checklist_ids):
+                record.overall_result = 'fail'
+            elif all(item.check_result in ('pass', 'na') for item in record.checklist_ids):
+                # na（無此項目）＝本次不需檢查，視為合格
+                record.overall_result = 'pass'
+            else:
+                record.overall_result = 'conditional_pass'
 
     # === 附件 ===
     # 照片資料表收斂：見 models/supervision_photo.py

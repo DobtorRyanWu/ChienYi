@@ -2,7 +2,12 @@
 {
     'name': 'ChienYi × dobtor_doc_editor 整合橋接',
     # 1.1.0: 缺失改善橋接從 supervision.defect(NCR) 改指 general.defect.improvement
-    'version': '18.0.1.2.0',
+    # 1.3.0: 一般式自主檢查的承攬廠商改為純文字（construction_quality 4.6.0）——
+    #        協作者不再含承攬廠商的 user_ids，render context 改吃 contractor_name
+    #        （與預約式版本一致）
+    # 1.4.0: 預約式 render context 移除 subcontractor（協力廠商欄已從模型移除；
+    #        已確認 doc_template 內沒有該佔位符）
+    'version': '18.0.1.4.0',
     'category': 'Construction/Integration',
     'summary': '把 doc.linked.mixin 真實植入 ChienYi 模型（Sprint 21）',
     'description': """

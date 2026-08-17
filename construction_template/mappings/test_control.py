@@ -26,7 +26,7 @@ import io
 from datetime import date
 
 from ..utils import docx_render, record_filter
-from ..utils.formatters import roc_date, selection_label
+from ..utils.formatters import contractor_name, roc_date, selection_label
 
 MODEL = 'project.project'
 MODE = 'docx'
@@ -254,7 +254,7 @@ def build_context(project):
         'projectName': project.name or '',
         'projectConstructionNo': project.contract_no or '',
         'supervision': project.management_company_name or '',
-        'contractor': '、'.join(project.contractor_partner_ids.mapped('name')),
+        'contractor': contractor_name(project),
         'totalPage': len(pages),
         'pages': pages,
     }

@@ -88,9 +88,8 @@
                     </group>
                     <group>
                         <group string="廠商資訊">
-                            <field name="contractor_company_id"/>
-                            <field name="contractor_name" invisible="1"/>
-                            <field name="subcontractor_name"/>
+                            <field name="contractor_name"
+                                   placeholder="留空自動帶入工程的營造廠商"/>
                         </group>
                         <group string="人員資訊">
                             <field name="responsible_user_id"/>
