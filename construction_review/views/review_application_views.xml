@@ -111,6 +111,8 @@
                                 <group>
                                     <field name="review_date"/>
                                     <field name="final_review_result"/>
+                                    <field name="review_document_no"
+                                           placeholder="例：110任泰顧字第0601051501號"/>
                                 </group>
                             </group>
                             <group>

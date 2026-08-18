@@ -167,6 +167,14 @@ class SupervisionReviewApplication(models.Model):
         string='審查意見',
         help='審查人員的意見與備註')
 
+    # 來源管制表的「審查日期」格子常常是「日期＋監造審查發文字號」兩行，
+    # 舊版只接得住日期，文號只能塞進審查意見或丟掉。另立一欄存放，
+    # 與歸檔紀錄的 archive_number（機關核准文號）對稱。
+    review_document_no = fields.Char(
+        string='審查函號',
+        tracking=True,
+        help='監造單位審查完發文的公文字號（例：110任泰顧字第0601051501號）')
+
     # === 廠驗 (舊系統欄位) ===
     is_factory_inspection = fields.Boolean(
         string='是否廠驗',
