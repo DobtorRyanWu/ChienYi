@@ -34,7 +34,12 @@
     #        原本只有一般式有，導致預約式專案的「自主檢查總表」試驗結果
     #        合格/不合格整欄空白（mappings/self_inspection.py 讀不到該欄）。
     #        list / form / search 一併對稱
-    'version': '18.0.4.8.0',
+    # 4.9.0: 兩式自主檢查的 inspection_timing 補上 random（隨機抽查）——
+    #        紙本表單的「檢查時機」是「□檢驗停留點 □隨機抽查」一組，
+    #        舊值域只有停留點、沒有隨機，導致廠商自主檢查表搬進來時
+    #        勾「隨機抽查」的那幾張會被 ValueError 擋下（P11001 實例 6/27 張）。
+    #        兩式同步新增，不需 migration（只是值域變大）。
+    'version': '18.0.4.9.0',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """

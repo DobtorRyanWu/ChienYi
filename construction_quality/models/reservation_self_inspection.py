@@ -83,8 +83,14 @@ class ReservationSelfInspection(models.Model):
             record.contractor_name = record.project_id.contractor_company_name or ''
 
     # === 檢查時機 ===
+    # 紙本表單的「檢查時機」其實是兩個度：
+    #   ① 檢驗停留點 vs 隨機抽查（抽查方式）
+    #   ② 施工前 / 施工中 / 施工完成（時點）
+    # 模型合成一個 Selection。廠商自主檢查表只有①（只勾停留點或隨機），
+    # 舊值域沒有 random 時，這類表單從紙本搬進來會被 ValueError 擋下。
     inspection_timing = fields.Selection([
         ('hold_point', '查驗停留點'),
+        ('random', '隨機抽查'),
         ('before', '施工前檢查'),
         ('during', '施工中檢查'),
         ('after', '施工完成檢查'),
