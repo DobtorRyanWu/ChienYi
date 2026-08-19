@@ -116,6 +116,17 @@
                                 </list>
                             </field>
                         </page>
+                        <page string="照片" name="photos">
+                            <!-- 上傳走 construction_photo 的批次精靈：靠 context 的
+                                 active_model / active_id 判斷來源，不需要改精靈。 -->
+                            <button name="%(construction_photo.action_photo_upload_wizard)d"
+                                    type="action" string="批次上傳照片"
+                                    class="btn-primary" icon="fa-camera"
+                                    invisible="not id"/>
+                            <field name="photo_ids" nolabel="1" mode="kanban" create="false"
+                                   context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
+                                             'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
+                        </page>
                     </notebook>
                 </sheet>
                 <chatter/>

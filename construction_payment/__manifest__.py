@@ -12,7 +12,10 @@
     #        通報單的 valuation_count 改為「本工程已估驗次數」（工程層級）。
     #        ⚠ DB 的 payment_estimate.slip_id 欄位不會被 Odoo 自動刪除，
     #          升級後會留成孤兒欄位（全 NULL，無外鍵行為影響），可日後手動清理。
-    'version': '18.0.1.3.0',
+    # 1.4.0: 估驗計價支援照片 —— supervision.photo 新增 estimate_id 來源外鍵、
+    #        payment.estimate 加 photo_ids 與「照片」頁籤（批次上傳精靈沿用
+    #        construction_photo 的 action_photo_upload_wizard）。
+    'version': '18.0.1.4.0',
     'category': 'Construction',
     'summary': '估驗計價、工項驗收、請款管理',
     'description': """
@@ -53,6 +56,7 @@
         'construction_contract_change',
         'construction_notification_slip',
         'construction_progress',
+        'construction_photo',
         'mail',
     ],
     'data': [

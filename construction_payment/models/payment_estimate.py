@@ -125,6 +125,16 @@ class PaymentEstimate(models.Model):
         copy=True
     )
 
+    # === 照片 ===
+    # 實際專案的照片資料夾裡有明確屬於某一期估驗的照片
+    # （例如 `07_估驗計價/第4次/04.1.jpg`），照片收斂後統一掛在
+    # supervision.photo 的 estimate_id 上（見 models/supervision_photo.py）。
+    photo_ids = fields.One2many(
+        'supervision.photo',
+        'estimate_id',
+        string='照片',
+        help='此次估驗計價的照片')
+
     # === 狀態 ===
     state = fields.Selection([
         ('draft', '草稿'),
