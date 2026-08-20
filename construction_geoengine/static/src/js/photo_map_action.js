@@ -5,13 +5,18 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
 // 來源分類色彩
+// ⚠️ 這兩張表的 key 必須與 supervision.photo 的 source_model Selection 同步
+// （construction_photo/models/supervision_photo.py）。漏掉一個值，地圖上那些
+// 照片就會變成灰色、沒有名字的點（見下方 `|| SOURCE_COLORS.other` 的退路）。
+// 2026-08-20：+ estimate / signboard（原本都塞在 other），- acceptance（全庫 0 筆）。
 const SOURCE_COLORS = {
     daily_log: "#3b82f6",
     inspection: "#22c55e",
     defect: "#ef4444",
     test: "#f59e0b",
-    acceptance: "#8b5cf6",
+    estimate: "#8b5cf6",
     notification: "#06b6d4",
+    signboard: "#ec4899",
     other: "#6b7280",
 };
 
@@ -20,8 +25,9 @@ const SOURCE_LABELS = {
     inspection: "自主檢查",
     defect: "缺失改善",
     test: "檢試驗",
-    acceptance: "驗收",
+    estimate: "估驗計價",
     notification: "通報單",
+    signboard: "工程告示牌",
     other: "其他",
 };
 

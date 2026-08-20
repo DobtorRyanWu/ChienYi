@@ -32,15 +32,15 @@ class SupervisionPhoto(models.Model):
         return self.estimate_id.project_id
 
     def _photo_source_model_code(self):
-        # source_model 是「舊系統的字串假關聯」，只留給既有查詢與前台篩選用；
-        # 新的來源判斷一律看 estimate_id。這裡回 'other' 而不是新增
-        # selection_add('estimate')，理由有三：
-        #   1. 與同樣沒有舊系統對應值的 signboard_project_id 一致（也回 'other'）
-        #   2. construction_geoengine 的照片地圖把 source_model 的顏色／標籤
-        #      寫死在 JS 的 SOURCE_COLORS / SOURCE_LABELS（未知值→灰色、空標籤），
-        #      多一個值會在地圖上變成沒有名字的灰點
-        #   3. 舊系統本來就沒有「估驗照片」這個分類，硬塞進相容欄位沒有意義
+        # 2026-08-20 改為 'estimate'（使用者要求估驗計價要能單獨篩選）。
+        #
+        # 原本回 'other'，理由是「地圖的 SOURCE_COLORS / SOURCE_LABELS 寫死在
+        # JS，多一個值會變成沒有名字的灰點」。這次連同那兩張對照表一起補上了
+        # estimate 與 signboard，該理由不再成立 —— 值定義在
+        # construction_photo/models/supervision_photo.py 的 source_model，
+        # 對照表在 construction_geoengine 兩支 photo_map_*.js。
+        # 三處要一起維護，加新來源時別漏。
         res = super()._photo_source_model_code()
         if res:
             return res
-        return 'other' if self.estimate_id else False
+        return 'estimate' if self.estimate_id else False

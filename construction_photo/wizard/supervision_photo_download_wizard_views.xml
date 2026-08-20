@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ===================================================================
+         批次下載照片 Wizard
+
+         兩個入口：
+           1. 「工程照片」清單勾選後 → 清單頂端的「批次下載」按鈕
+              （active_ids 由 default_get 接下來，直接打包勾選的那些）
+           2. 選單「照片管理 > 批次下載照片」（從零設條件）
+         =================================================================== -->
+
+    <!-- 設定畫面 -->
+    <record id="supervision_photo_download_wizard_form" model="ir.ui.view">
+        <field name="name">supervision.photo.download.wizard.form</field>
+        <field name="model">supervision.photo.download.wizard</field>
+        <field name="arch" type="xml">
+            <form string="批次下載照片">
+                <field name="state" invisible="1"/>
+                <field name="selected_photo_ids" invisible="1"/>
+
+                <!-- 選取模式：從清單勾選進來的 -->
+                <div class="alert alert-info" role="status"
+                     invisible="not selected_photo_ids">
+                    已從清單勾選照片（張數見下方「這次會下載」），
+                    將直接打包這些，<strong>篩選條件不會生效</strong>。
+                    <button name="action_clear_selection" type="object"
+                            string="改用條件篩選" class="btn-link p-0 align-baseline"/>
+                </div>
+
+                <group invisible="selected_photo_ids">
+                    <group string="篩選條件">
+                        <field name="project_id" options="{'no_create': True}"
+                               required="not selected_photo_ids"/>
+                        <!-- 用「拍攝日期」而不是上傳時間：現場人員要的是
+                             「那段期間拍的照片」，跟什麼時候上傳系統無關 -->
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                    </group>
+                    <group string="分類條件（可留空）">
+                        <!-- 來源分類＝照片掛在哪一種單據上（施工日誌／缺失改善／
+                             自主檢查…）。這是使用者口中的「功能類型」，
+                             跟下面的標籤是兩回事 —— 標籤全是工項類的。 -->
+                        <field name="source_model"/>
+                        <!-- 照片階段只有缺失改善才有意義（模型 help 寫明「缺失改善
+                             專用」，實際資料也 100% 落在 defect）。
+                             隱藏時由 _onchange_source_model() 一併清空。 -->
+                        <field name="photo_stage"
+                               invisible="source_model != 'defect'"/>
+                        <field name="category_id" options="{'no_create': True}"/>
+                        <field name="tag_ids" widget="many2many_tags"
+                               options="{'no_create': True, 'color_field': 'color'}"
+                               placeholder="留空＝不限標籤"/>
+                    </group>
+                </group>
+
+                <group>
+                    <group string="輸出設定">
+                        <field name="folder_mode" widget="radio"/>
+                    </group>
+                    <group string="這次會下載">
+                        <field name="photo_count" readonly="1"/>
+                        <field name="total_size" readonly="1"/>
+                    </group>
+                </group>
+
+                <div class="text-muted" style="margin-left: 8px;">
+                    <div>
+                        檔名會帶上拍攝日期時間，格式為
+                        <code>20211105_1432_原檔名.jpg</code>；同名檔案自動加序號。
+                    </div>
+                    <!-- 範例隨上方「zip 內目錄結構」的選擇即時變化。
+                         內容由 _compute_path_example() 呼叫 _folder_for() 產生，
+                         也就是實際打包在用的同一個函式 -->
+                    <div class="mt-1">
+                        範例：<code><field name="path_example" readonly="1"
+                                           nolabel="1" class="oe_inline"/></code>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning" role="alert"
+                     invisible="not size_warning">
+                    <strong>容量超過上限</strong>
+                    <field name="size_warning" nolabel="1" readonly="1"/>
+                </div>
+
+                <footer>
+                    <button name="action_preview" string="預覽照片" type="object"
+                            class="btn-secondary"
+                            invisible="photo_count == 0"/>
+                    <button name="action_download" string="開始下載" type="object"
+                            class="btn-primary"
+                            invisible="photo_count == 0 or size_warning"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 下載結果畫面 -->
+    <record id="supervision_photo_download_wizard_result_form" model="ir.ui.view">
+        <field name="name">supervision.photo.download.wizard.result.form</field>
+        <field name="model">supervision.photo.download.wizard</field>
+        <field name="arch" type="xml">
+            <form string="下載完成">
+                <!-- role=status 而非 alert：alert 留給「必須立刻中斷手邊動作」
+                     的訊息，這只是完成通知（同 construction_batch 的作法） -->
+                <div class="alert alert-success" role="status">
+                    <!-- 標題不用 alert-heading：Odoo 的視圖檢查會把任何 alert-*
+                         class 當成 alert 元件，要求它自己也要有 role
+                         （construction_batch 的結果頁就一直帶著這個警告） -->
+                    <h4 class="mb-2">照片打包完成！</h4>
+                    <p>點擊下方檔案連結即可下載。</p>
+                </div>
+
+                <group>
+                    <field name="result_filename" readonly="1"/>
+                    <field name="result_file" filename="result_filename" readonly="1"/>
+                    <field name="photo_count" readonly="1"/>
+                    <field name="total_size" readonly="1"/>
+                </group>
+
+                <field name="state" invisible="1"/>
+
+                <footer>
+                    <button name="action_reset" string="重新設定條件" type="object"
+                            class="btn-secondary"/>
+                    <button string="關閉" class="btn-primary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- 預覽畫面：用照片自己的看板（有縮圖）列出這次會打包哪些 -->
+    <record id="supervision_photo_download_preview_form" model="ir.ui.view">
+        <field name="name">supervision.photo.download.preview.form</field>
+        <field name="model">supervision.photo.download.preview</field>
+        <field name="arch" type="xml">
+            <form string="預覽照片">
+                <div class="alert alert-info" role="status">
+                    <field name="summary" nolabel="1" readonly="1"
+                           class="oe_inline fw-bold"/>
+                    —— 確認無誤後按下方「開始下載」，或返回設定調整條件。
+                </div>
+
+                <!-- kanban_view_ref 指名內嵌看板（priority 99，不指名就不會用到），
+                     照片有縮圖才看得出來要下載的是什麼 -->
+                <field name="photo_ids" nolabel="1" readonly="1" mode="kanban"
+                       context="{'kanban_view_ref':
+                                 'construction_photo.supervision_photo_view_kanban_embedded'}"/>
+
+                <footer>
+                    <button name="action_download" string="開始下載" type="object"
+                            class="btn-primary"/>
+                    <button name="action_back" string="返回設定" type="object"
+                            class="btn-secondary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_photo_download_wizard" model="ir.actions.act_window">
+        <field name="name">批次下載照片</field>
+        <field name="res_model">supervision.photo.download.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="supervision_photo_download_wizard_form"/>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

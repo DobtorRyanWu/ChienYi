@@ -15,7 +15,11 @@
     # 1.4.0: 估驗計價支援照片 —— supervision.photo 新增 estimate_id 來源外鍵、
     #        payment.estimate 加 photo_ids 與「照片」頁籤（批次上傳精靈沿用
     #        construction_photo 的 action_photo_upload_wizard）。
-    'version': '18.0.1.4.0',
+    # 1.4.1: _photo_source_model_code() 由 'other' 改回 'estimate' —— 使用者要求
+    #        估驗計價照片要能單獨篩選。原本擋著不加的理由（地圖 JS 的
+    #        SOURCE_COLORS / SOURCE_LABELS 寫死、會變成無名灰點）已隨
+    #        construction_photo 18.0.3.6.0 一併補上對照表而解除。
+    'version': '18.0.1.4.1',
     'category': 'Construction',
     'summary': '估驗計價、工項驗收、請款管理',
     'description': """

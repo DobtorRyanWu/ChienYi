@@ -312,13 +312,24 @@ class SupervisionPhoto(models.Model):
         help='照片拍攝位置的編碼（如樁號、座標代碼）')
 
     # === 來源追蹤 (舊系統欄位) ===
+    # 2026-08-20 調整（使用者要求）：
+    #   + estimate（估驗計價）、signboard（工程告示牌）—— 原本兩者都被塞進
+    #     'other'，在照片地圖上是同一種灰點、在篩選上分不開
+    #   - acceptance（驗收）—— 全庫 0 筆，也沒有任何模組會產生驗收照片
+    #     （construction_acceptance 沒有掛照片來源欄位）
+    # ⚠️ 這個 Selection 的值有三個下游相依，改動要一起改：
+    #   1. 各模組的 _photo_source_model_code()（誰回傳哪個代碼）
+    #   2. construction_geoengine 兩支 JS 的 SOURCE_COLORS / SOURCE_LABELS
+    #      （寫死的對照表，漏了就變成沒有名字的灰點）
+    #   3. views/supervision_photo_views.xml 搜尋視圖的來源篩選
     source_model = fields.Selection([
         ('daily_log', '施工日誌'),
         ('inspection', '自主檢查'),
         ('defect', '缺失改善'),
         ('test', '檢試驗'),
-        ('acceptance', '驗收'),
+        ('estimate', '估驗計價'),
         ('notification', '通報單'),
+        ('signboard', '工程告示牌'),
         ('other', '其他'),
     ], string='來源分類',
        tracking=True,
@@ -439,7 +450,9 @@ class SupervisionPhoto(models.Model):
     def _photo_source_model_code(self):
         """從來源欄位推出 source_model 的值（相容既有篩選與前台查詢）。"""
         self.ensure_one()
-        return 'other' if self.signboard_project_id else False
+        # 2026-08-20：原本回 'other'，與估驗計價照片混在同一格。
+        # 現在有專屬的 signboard 值，地圖上也有自己的顏色與名稱。
+        return 'signboard' if self.signboard_project_id else False
 
     def _normalize_source_fields(self):
         """掛了來源卻沒填所屬工程 / 來源分類時，自動補齊。

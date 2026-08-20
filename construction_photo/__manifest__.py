@@ -21,7 +21,23 @@
     #        所以「實拍位置 vs 推定位置」在畫面上仍分得出來
     # 3.3.0: 後台照片頁籤統一改用共用嵌入式看板（照片在上、下方五個欄位），取代原本每個頁籤各自內嵌一份 <list>
     # 3.4.0: 手動改座標時 gps_source 跟著變成「前台輸入」（原本只在 create 判定，事後改座標仍顯示舊來源）；照片頁籤關掉無效的「加入」按鈕
-    'version': '18.0.3.4.0',
+    # 3.5.0: 新增後台批次下載精靈 supervision.photo.download.wizard ——
+    #        依工程／拍攝日期區間／來源分類／材料分類／標籤篩選，打包成 zip，
+    #        zip 內目錄結構三選一（月份／月份+分類／分類+拍攝日）。
+    #        先預覽（張數 + MB + 縮圖看板）再打包，超過 500 MB 擋下來。
+    #        同時把死碼 action_download() 接上入口（照片表單的「下載原檔」按鈕）
+    #        —— 它自 3.0.0 起就沒有任何視圖呼叫得到。
+    # 3.6.0: source_model（來源分類）Selection 調整 —— 新增 estimate（估驗計價）
+    #        與 signboard（工程告示牌），兩者原本都被塞進 'other' 而分不開；
+    #        移除 acceptance（驗收，全庫 0 筆且無模組產生）。
+    #        連動改動：construction_payment 的 _photo_source_model_code() 改回
+    #        'estimate'、construction_geoengine 兩支 photo_map_*.js 的
+    #        SOURCE_COLORS / SOURCE_LABELS 補上兩個新值，
+    #        migrations/18.0.3.6.0 重新歸類既有資料。
+    # 3.6.1: 批次下載精靈的「zip 內目錄結構」選項只留名稱，實際長相改由下方
+    #        「範例」那一行動態顯示（隨選擇變化）。範例的資料夾部分呼叫
+    #        _folder_for() —— 與實際打包同一個函式，不會兩邊寫兩份而漂移。
+    'version': '18.0.3.6.1',
     'category': 'Construction/Supervision',
     'summary': '工程照片管理與 GPS 追蹤',
     'description': """
@@ -60,6 +76,9 @@
         # 視圖用 %(action_photo_upload_wizard)d 引用這裡的 action，
         # 排在後面會噴 "External ID not found in the system"。
         'wizard/supervision_photo_upload_wizard_views.xml',
+        # 同上：supervision_photo_views.xml 的清單頂端用
+        # %(action_photo_download_wizard)d 引用這裡的 action
+        'wizard/supervision_photo_download_wizard_views.xml',
         # Views (photo_views first for action reference)
         'views/supervision_photo_views.xml',
         'views/supervision_photo_tag_views.xml',

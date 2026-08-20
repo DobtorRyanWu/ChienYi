@@ -8,7 +8,11 @@
     #        **static/src 下的 js / xml / css 三個檔案刻意保留**，日後要重啟這個
     #        功能時只要把 data 與 assets 兩處加回來即可。
     # 1.1.0: （已被 1.2.0 取消）曾補上 photo_map_action 的 JS/XML 資產。
-    'version': '18.0.1.2.0',
+    # 1.2.1: 照片地圖的來源對照表（SOURCE_COLORS / SOURCE_LABELS）補上
+    #        estimate（估驗計價）與 signboard（工程告示牌）、移除 acceptance，
+    #        與 construction_photo 18.0.3.6.0 的 source_model Selection 同步。
+    #        兩支 photo_map_*.js 都改（photo_map_action 雖停用仍保持一致）。
+    'version': '18.0.1.2.1',
     'category': 'Construction/Supervision',
     'summary': '將工程照片整合至 GeoEngine 地圖視圖',
     'license': 'LGPL-3',

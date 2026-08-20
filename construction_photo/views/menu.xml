@@ -12,6 +12,13 @@
               parent="construction_supervision_base.menu_photo_management"
               sequence="10"/>
 
+    <!-- 批次下載照片 -->
+    <menuitem id="menu_photo_batch_download"
+              name="批次下載照片"
+              action="action_photo_download_wizard"
+              parent="construction_supervision_base.menu_photo_management"
+              sequence="15"/>
+
     <!-- 照片標籤 -->
     <menuitem id="menu_photo_tag"
               name="照片標籤"

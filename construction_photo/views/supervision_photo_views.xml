@@ -144,6 +144,12 @@
                  的前提。 -->
             <list string="工程照片" default_order="shot_at desc" editable="bottom"
                   multi_edit="1">
+                <!-- 勾選任意幾張後才會出現。type="action" 會自動把勾選的
+                     active_ids 帶進精靈的 context，由 default_get() 接手 -->
+                <header>
+                    <button name="%(action_photo_download_wizard)d" type="action"
+                            string="批次下載" class="btn-secondary"/>
+                </header>
                 <field name="name" readonly="1"/>
                 <field name="project_id"/>
                 <field name="shot_at"/>
@@ -177,6 +183,15 @@
         <field name="model">supervision.photo</field>
         <field name="arch" type="xml">
             <form string="工程照片">
+                <!-- action_download() 從 3.0.0 起就存在，但整個 views/ 沒有任何
+                     地方呼叫得到它（死碼）。單張下載本來就該有，接在這裡。
+                     多張一次下載走「批次下載」精靈。 -->
+                <header>
+                    <button name="action_download" type="object"
+                            string="下載原檔" class="btn-secondary"
+                            icon="fa-download"
+                            invisible="not attachment_id"/>
+                </header>
                 <sheet>
                     <widget name="web_ribbon" title="已歸檔" bg_color="text-bg-danger" invisible="active"/>
                     
@@ -417,7 +432,13 @@
                 <filter string="自主檢查" name="source_inspection" domain="[('source_model', '=', 'inspection')]"/>
                 <filter string="缺失改善" name="source_defect" domain="[('source_model', '=', 'defect')]"/>
                 <filter string="檢試驗" name="source_test" domain="[('source_model', '=', 'test')]"/>
-                <filter string="驗收" name="source_acceptance" domain="[('source_model', '=', 'acceptance')]"/>
+                <filter string="通報單" name="source_notification" domain="[('source_model', '=', 'notification')]"/>
+                <!-- 2026-08-20：估驗計價與工程告示牌原本都併在 'other' 裡分不開；
+                     「驗收」則是全庫 0 筆、也沒有模組會產生驗收照片，已移除 -->
+                <filter string="估驗計價" name="source_estimate" domain="[('source_model', '=', 'estimate')]"/>
+                <filter string="工程告示牌" name="source_signboard" domain="[('source_model', '=', 'signboard')]"/>
+                <filter string="其他" name="source_other" domain="[('source_model', '=', 'other')]"/>
+                <filter string="未指定來源" name="source_none" domain="[('source_model', '=', False)]"/>
                 <separator/>
                 <filter string="已歸檔" name="inactive" domain="[('active', '=', False)]"/>
                 <separator/>
