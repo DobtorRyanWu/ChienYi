@@ -16,7 +16,7 @@ class ReservationSelfInspection(models.Model):
     _name = 'reservation.self.inspection'
     _description = '預約式自主檢查 (通報單內)'
     # photo.sync.mixin 已隨照片資料表收斂退場
-    _inherit = ['mail.thread']
+    _inherit = ['mail.thread', 'supervision.attachment.mixin']
     _order = 'inspection_date desc, id desc'
     _rec_name = 'sub_project_name'   # 以分項工程名稱顯示，較易辨識是哪張檢查單
 
@@ -162,6 +162,37 @@ class ReservationSelfInspection(models.Model):
         'supervision.photo',
         'reservation_inspection_id',
         string='檢查照片')
+
+    # 2026-08-20 補：本模型原本完全沒有附件欄位，表單卻有「照片與附件」頁籤，
+    # 等於只有照片、附件無處可放（一般式自主檢查一直都有）。比照一般式補上。
+    attachment_ids = fields.Many2many(
+        'ir.attachment',
+        'reservation_inspection_attachment_rel',
+        'inspection_id', 'attachment_id',
+        string='相關附件')
+
+    def _attachment_default_category(self):
+        """自主檢查附件 → 12-文書資料 / 07-施工抽查"""
+        return self.env.ref(
+            'construction_supervision_base.cat_12_07',
+            raise_if_not_found=False) or super()._attachment_default_category()
+
+    def _attachment_folder_label(self):
+        """資料夾**依自主檢查類型**分，與一般式一致。
+
+        現場是把同一種檢查表（inspection_type_id）的歷次檢查放在一起。
+        """
+        self.ensure_one()
+        return ((self.inspection_type_id.name or '').strip()
+                or (self.sub_project_name or '').strip()
+                or f'檢查單 {self.id}')
+
+    def _attachment_default_folder(self):
+        """自主檢查附件 → 12-文書資料 / 07-施工抽查 / <自主檢查類型>
+
+        末層是同類型歷次檢查共用的資料夾，所以 bind_source 要關掉。
+        """
+        return self._attachment_category_folder(bind_source=False)
 
     # === 備註 ===
     note = fields.Text(string='備註說明')

@@ -11,10 +11,12 @@
             <form string="文件分類">
                 <sheet>
                     <div class="oe_button_box" name="button_box">
+                        <!-- 2026-08-20 起隨「應交文件管制表」主選單一起隱藏 -->
                         <button name="action_view_documents" type="object"
                                 class="oe_stat_button" icon="fa-file-text-o"
-                                invisible="document_count == 0">
-                            <field name="document_count" string="文件" widget="statinfo"/>
+                                invisible="document_count == 0"
+                                groups="base.group_no_one">
+                            <field name="document_count" string="應交文件" widget="statinfo"/>
                         </button>
                     </div>
                     <widget name="web_ribbon" title="系統預設" bg_color="text-bg-info"
@@ -29,6 +31,18 @@
                         <group string="狀態">
                             <field name="active" widget="boolean_toggle"/>
                             <field name="is_system" readonly="1"/>
+                        </group>
+                    </group>
+                    <!-- 開案時「建立標準資料夾」會依這棵分類樹產生資料夾，
+                         這兩個欄位就是範本的設定（規格 §6 方案丙） -->
+                    <group string="標準資料夾">
+                        <group>
+                            <field name="create_folder" widget="boolean_toggle"/>
+                        </group>
+                        <group>
+                            <field name="extra_folder_names"
+                                   placeholder="例如：通報單掃描,回報單掃描"
+                                   invisible="not create_folder"/>
                         </group>
                     </group>
                     <group string="說明">
@@ -52,6 +66,8 @@
                 <field name="code" optional="hide"/>
                 <field name="parent_id" optional="show"/>
                 <field name="document_count" sum="Total"/>
+                <field name="create_folder" widget="boolean" optional="show"/>
+                <field name="extra_folder_names" optional="hide"/>
                 <field name="is_system" widget="boolean" optional="show"/>
                 <field name="active" widget="boolean_toggle" optional="show"/>
             </list>
@@ -94,7 +110,7 @@
                 新增文件分類
             </p>
             <p>
-                文件分類用於組織管理工程文件。<br/>
+                文件分類用於組織管理工程檔案與應交文件。<br/>
                 您可以建立符合自己需求的分類方式，<br/>
                 例如：契約文件、設計圖說、施工記錄等。
             </p>
@@ -102,10 +118,11 @@
     </record>
 
     <!-- 選單：放在 工程管理 > 文件管理 下 -->
+    <!-- 收進「設定」：全公司共用的分類清單，一般使用者不用碰 -->
     <menuitem id="menu_document_category"
               name="文件分類"
-              parent="menu_document_management"
+              parent="menu_document_settings"
               action="action_document_category"
-              sequence="5"/>
+              sequence="20"/>
 
 </odoo>

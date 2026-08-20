@@ -27,8 +27,10 @@ class MiscRoutesMixin:
     def portal_construction_document_serve(self, att_id, **kw):
         """帶專案權限檢查的文件下載端點（M0.6，取代 public=True 的裸 /web/content）。
 
-        允許清單：只服務屬於某 supervision.document.upload_attachment_ids 的附件，
-        依登入者對該文件所屬專案的可見範圍把關；不可見一律 404（不洩漏存在性）。
+        允許清單：只服務**帶有 supervision_project_id 的附件**（見
+        `_resolve_document_project`），依登入者對該工程的可見範圍把關；
+        不可見一律 404（不洩漏存在性）。系統裡沒有這個欄位值的附件
+        （頭像、logo、郵件附件、報表暫存…）一律反解不出工程 → 404。
         文件非影像，一律以下載串流回應。
         """
         att = request.env['ir.attachment'].sudo().browse(att_id).exists()
@@ -240,44 +242,59 @@ class MiscRoutesMixin:
     @http.route(['/construction/<int:project_id>/documents', '/construction/<int:project_id>/documents/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_documents(self, project_id, page=1, **kw):
-        """檔案管理列表"""
+        """檔案管理列表
+
+        2026-08-21：資料源從 `supervision.document` 改成 `ir.attachment`
+        ——與後台「檔案總覽」同一份資料。前台上傳的檔案後台看得到，
+        後台上傳的契約圖說前台也查得到，不再是兩套各自為政的檔案櫃。
+
+        篩選改用**資料夾**而非文件分類：分類已經有 44 個，攤成 pills 在手機上會爆版；
+        而且資料夾才是使用者腦中「檔案放在哪」的模型。
+        """
         try:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        Doc = request.env['supervision.document'].sudo()
-        domain = [('project_id', '=', project.id)]
+        Attachment = request.env['ir.attachment'].sudo()
+        domain = [
+            ('supervision_project_id', '=', project.id),
+            # 照片走「照片管理」專責，不在檔案管理裡重複出現
+            ('res_model', '!=', 'supervision.photo'),
+        ]
 
-        # 分類篩選
-        cat_filter = kw.get('category')
-        if cat_filter:
-            domain.append(('document_category_id', '=', int(cat_filter)))
+        # 資料夾篩選（含所有下層）
+        folder_filter = kw.get('folder')
+        folder_id = int(folder_filter) if folder_filter and folder_filter.isdigit() else 0
+        if folder_id:
+            domain.append(('folder_id', 'child_of', folder_id))
 
-        doc_count = Doc.search_count(domain)
+        att_count = Attachment.search_count(domain)
         pager = portal_pager(
             url=f'/construction/{project_id}/documents',
-            total=doc_count,
+            total=att_count,
             page=page,
             step=self._items_per_page,
-            url_args={'category': cat_filter} if cat_filter else {},
+            url_args={'folder': folder_id} if folder_id else {},
         )
 
-        documents = Doc.search(
+        attachments = Attachment.search(
             domain,
-            order='document_category_id, name',
+            order='create_date desc',
             limit=self._items_per_page,
             offset=pager['offset']
         )
 
-        # 分類列表
-        categories = request.env['supervision.document.category'].sudo().search([], order='sequence, name')
+        # 本案的資料夾清單（供篩選與上傳選擇）。
+        # 前台**不提供建立資料夾**——結構由後台維護，現場人員只挑既有的丟。
+        folders = request.env['supervision.folder'].sudo().search(
+            [('project_id', '=', project.id)], order='complete_name')
 
         values = {
             'project': project,
-            'documents': documents,
-            'categories': categories,
-            'cat_filter': int(cat_filter) if cat_filter else 0,
+            'attachments': attachments,
+            'folders': folders,
+            'folder_filter': folder_id,
             'page_name': 'construction_documents',
             'pager': pager,
             'default_url': f'/construction/{project_id}/documents',
@@ -290,43 +307,53 @@ class MiscRoutesMixin:
     @http.route(['/construction/<int:project_id>/document/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_document_upload(self, project_id, **post):
-        """文件上傳"""
+        """檔案上傳（前台）
+
+        2026-08-21：不再建立 `supervision.document`，只建 `ir.attachment`
+        並把四個歸位欄位一次補齊——與後台上傳精靈、附件 mixin 完全同一套規則。
+        少補任何一個，檔案在「檔案總覽」裡就會變成孤兒。
+
+        資料夾**只能挑既有的**，前台不提供建立資料夾（依使用者要求：會太混亂）。
+        沒挑或挑到別案的資料夾時不擋人——檔案照樣掛到本工程，只是資料夾留空，
+        事後在後台補即可。現場人員在工地被系統擋住，比事後補歸檔麻煩得多。
+        """
         try:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 
         uploaded_file = post.get('file')
-        if uploaded_file:
-            import base64
-            file_data = base64.b64encode(uploaded_file.read())
+        if not uploaded_file:
+            return request.redirect(f'/construction/{project_id}/documents?error=no_file')
 
-            # M0.6：文件附件不再 public（避免 /web/content 枚舉）；
-            # 前台下載改走帶權限檢查的 /construction/doc/<att_id>。
-            attachment = request.env['ir.attachment'].sudo().create({
-                'name': uploaded_file.filename,
-                'datas': file_data,
-                'res_model': 'supervision.document',
-                'type': 'binary',
-                'public': False,
-            })
+        folder = request.env['supervision.folder'].sudo().browse(
+            int(post.get('folder_id') or 0)).exists()
+        # 防跨案：挑到別案的資料夾一律視為沒挑
+        if folder and folder.project_id != project:
+            folder = request.env['supervision.folder'].sudo().browse()
 
-            cat_id = int(post.get('document_category_id', 0)) or False
-            doc_vals = {
-                'name': post.get('name') or uploaded_file.filename,
-                'project_id': project.id,
-                'document_category_id': cat_id,
-                'upload_attachment_ids': [(4, attachment.id)],
-                'state': 'uploaded',
-            }
+        # 分類沿用資料夾的（沿樹往上找），與後台上傳精靈同一套邏輯
+        category = folder._inherited_category() if folder \
+            else request.env['supervision.document.category'].sudo().browse()
 
-            request.env['supervision.document'].sudo().create(doc_vals)
+        # M0.6：附件不再 public（避免 /web/content 枚舉）；
+        # 前台下載走帶權限檢查的 /construction/doc/<att_id>。
+        request.env['ir.attachment'].sudo().create({
+            'name': post.get('name') or uploaded_file.filename,
+            'datas': base64.b64encode(uploaded_file.read()),
+            'type': 'binary',
+            'public': False,
+            # 四個歸位欄位
+            'res_model': 'supervision.folder' if folder else False,
+            'res_id': folder.id if folder else 0,
+            'folder_id': folder.id if folder else False,
+            'document_category_id': category.id if category else False,
+            'supervision_project_id': project.id,
+        })
 
-            return request.redirect(
-                f'/construction/{project_id}/documents?message=uploaded'
-            )
-
-        return request.redirect(f'/construction/{project_id}/documents?error=no_file')
+        return request.redirect(
+            f'/construction/{project_id}/documents?message=uploaded'
+        )
 
     @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/confirm'],
                 type='http', auth='user', website=True, methods=['POST'])

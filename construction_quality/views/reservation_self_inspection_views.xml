@@ -139,6 +139,10 @@
                                        context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
                                                  'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
                             </group>
+                            <group>
+                                <field name="attachment_ids" widget="many2many_binary"
+                                       string="相關附件"/>
+                            </group>
                         </page>
                         <page string="備註" name="notes">
                             <field name="note" placeholder="輸入備註說明..."/>
@@ -195,7 +199,9 @@
         <field name="res_model">reservation.self.inspection</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_reservation_self_inspection_search"/>
-        <field name="context">{'search_default_group_slip': 1}</field>
+        <!-- 先依工程、再依通報單分組（數字是分組層級的順序）。
+             原本只有 group_slip，所有專案的通報單會平鋪在一起。 -->
+        <field name="context">{'search_default_group_project': 1, 'search_default_group_slip': 2}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一筆預約式自主檢查記錄

@@ -568,6 +568,18 @@ class SupervisionProject(models.Model):
         for project in self:
             project.document_count = len(project.document_ids)
 
+    # === 工程檔案資料夾 ===
+    folder_ids = fields.One2many(
+        'supervision.folder', 'project_id', string='工程資料夾')
+
+    folder_count = fields.Integer(
+        string='資料夾數', compute='_compute_folder_count')
+
+    @api.depends('folder_ids')
+    def _compute_folder_count(self):
+        for project in self:
+            project.folder_count = len(project.folder_ids)
+
     # === 工項統計 ===
     task_count = fields.Integer(
         string='工項數', compute='_compute_task_statistics')
@@ -686,12 +698,119 @@ class SupervisionProject(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': '工程文件',
+            'name': '應交文件管制表',
             'res_model': 'supervision.document',
             'view_mode': 'list,form',
             'domain': [('project_id', '=', self.id)],
             'context': {'default_project_id': self.id},
         }
+
+    def action_view_folders(self):
+        """查看本工程的檔案資料夾"""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '工程資料夾',
+            'res_model': 'supervision.folder',
+            'view_mode': 'list,form',
+            'domain': [('project_id', '=', self.id)],
+            'context': {'default_project_id': self.id},
+        }
+
+    def action_create_standard_folders(self):
+        """「建立標準資料夾」按鈕：補建缺的，並回報結果。
+
+        開案時已經自動建過一次（見 create()），這顆按鈕留給兩種補救情境：
+        - 自動建立之前就存在的舊案件
+        - 文件分類樹之後新增了節點，回頭把缺的補上
+        可重複按，已存在的略過。
+        """
+        self.ensure_one()
+        created = self._create_standard_folders()
+        if created:
+            message = '已建立 %s 個資料夾，本工程目前共 %s 個。' % (
+                created,
+                self.env['supervision.folder'].search_count([('project_id', '=', self.id)]))
+        else:
+            message = '標準資料夾都已存在，沒有需要新增的。'
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '完成',
+                'message': message,
+                'type': 'success',
+                'sticky': False,
+                # 重新載入，讓「資料夾」smart button 的數字立刻更新。
+                # next 不經 clean_action，所以只能放不需要 views 的動作；
+                # client action reload 沒有這個問題（act_window 就必須自帶 views）。
+                'next': {'type': 'ir.actions.client', 'tag': 'reload'},
+            },
+        }
+
+    def _create_standard_folders(self):
+        """依文件分類樹產生標準資料夾（已存在的略過），回傳新建幾個。
+
+        標準資料夾範本不另存一份清單，直接拿 supervision.document.category
+        整棵樹來生成：維護分類樹＝維護範本，只有一個維護點。
+
+        兩種節點：
+        - 分類節點：資料夾填 source_category_id 指回來源分類，
+          丟進去的檔案自動帶上該分類
+        - extra_folder_names 產生的附加子資料夾：不是文件種類（例如通報單
+          底下的「通報單掃描」），**不填** source_category_id，
+          由 _inherited_category() 沿樹往上繼承上層分類
+
+        可重複執行：已存在的同名資料夾略過，只補缺的。
+        """
+        self.ensure_one()
+        Category = self.env['supervision.document.category']
+        Folder = self.env['supervision.folder']
+        created = 0
+
+        def walk(categories, parent_folder):
+            nonlocal created
+            for category in categories.sorted(lambda c: (c.sequence, c.name)):
+                if not category.create_folder or not category.active:
+                    continue
+                folder = Folder.search([
+                    ('project_id', '=', self.id),
+                    ('parent_id', '=', parent_folder.id or False),
+                    ('name', '=', category.name),
+                ], limit=1)
+                if not folder:
+                    folder = Folder.create({
+                        'name': category.name,
+                        'project_id': self.id,
+                        'parent_id': parent_folder.id or False,
+                        'source_category_id': category.id,
+                        'sequence': category.sequence,
+                    })
+                    created += 1
+                elif not folder.source_category_id:
+                    # 使用者先手建了同名資料夾：補上分類對應，不重複建一個
+                    folder.source_category_id = category.id
+
+                for raw_name in (category.extra_folder_names or '').split(','):
+                    extra_name = raw_name.strip()
+                    if not extra_name:
+                        continue
+                    if not Folder.search([
+                        ('project_id', '=', self.id),
+                        ('parent_id', '=', folder.id),
+                        ('name', '=', extra_name),
+                    ], limit=1):
+                        Folder.create({
+                            'name': extra_name,
+                            'project_id': self.id,
+                            'parent_id': folder.id,
+                        })
+                        created += 1
+
+                walk(category.child_ids, folder)
+
+        walk(Category.search([('parent_id', '=', False)]), Folder.browse())
+        return created
 
     def action_view_tasks(self):
         """查看工項（含匯入的工項）"""
@@ -750,7 +869,18 @@ class SupervisionProject(models.Model):
         for vals in vals_list:
             if vals.get('code', '/') == '/':
                 vals['code'] = self.env['ir.sequence'].next_by_code('supervision.project') or '/'
-        return super().create(vals_list)
+        projects = super().create(vals_list)
+
+        # 開案就把標準資料夾建好：不能指望有人記得去按按鈕。
+        # 沒有資料夾的話，前台上傳（不提供建立資料夾）會沒有目標可選，
+        # 各業務單據的附件也只能一路長出零散的資料夾。
+        # 實測建 46 個約 420 ms，屬於一次性成本。
+        # 大量匯入／測試要跳過時傳 context skip_standard_folders=True。
+        if not self.env.context.get('skip_standard_folders'):
+            for project in projects:
+                project._create_standard_folders()
+
+        return projects
 
     def unlink(self):
         for project in self:

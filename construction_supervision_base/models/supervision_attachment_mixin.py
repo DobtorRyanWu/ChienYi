@@ -68,6 +68,75 @@ class SupervisionAttachmentMixin(models.AbstractModel):
         """
         return self.env['supervision.document.category']
 
+    def _attachment_default_folder(self):
+        """這張單據上傳的附件預設放到哪個資料夾，沒有就回空 recordset。
+
+        與 `_attachment_default_category()` 完全平行：分類回答「這是什麼文件」，
+        資料夾回答「這個檔案放在哪」。
+
+        預設回空（不建資料夾）。要啟用的模組覆寫成一行即可：
+
+            def _attachment_default_folder(self):
+                return self._attachment_category_folder()
+
+        需要多一層或自訂末層名稱時傳 subpath：
+
+            return self._attachment_category_folder(['機具申請', self.name])
+        """
+        return self.env['supervision.folder']
+
+    def _attachment_folder_label(self):
+        """自動資料夾最末層的名稱（預設用本單據的 name）。
+
+        取不到就退回 display_name，再不行才用「<模型描述> <id>」保底 ——
+        supervision.folder.name 是 required，回空字串會直接拋錯。
+        """
+        self.ensure_one()
+        field = self._fields.get('name')
+        if field is not None and field.type in ('char', 'text'):
+            label = (self.name or '').strip()
+            if label:
+                return label
+        return self.display_name or f'{self._description} {self.id}'
+
+    # -------------------------------------------------------------------------
+    # 資料夾（自動建立）
+    # -------------------------------------------------------------------------
+    def _attachment_category_folder(self, subpath=None, bind_source=True):
+        """依「本單據的文件分類」在本專案的資料夾樹裡取得對應資料夾。
+
+        實際建樹邏輯在 supervision.folder._get_or_create_for_category()——
+        放那裡是為了讓沒掛本 mixin 的 supervision.document 也能共用同一份。
+
+        :param subpath: 分類資料夾底下還要再建的層，預設一層、以單據命名。
+                        傳 [] 代表附件直接放分類資料夾裡，不另開子資料夾。
+        :param bind_source: 是否把最末層綁到本單據（供 is_auto 與「開啟來源單據」）。
+                        末層名稱是**固定字串**（多張單據共用同一個資料夾）時要傳
+                        False —— 否則會綁到剛好第一個建它的那張單據，
+                        「開啟來源單據」就會跳到一張不相干的記錄。
+        """
+        self.ensure_one()
+        if subpath is None:
+            subpath = [self._attachment_folder_label()]
+        return self.env['supervision.folder'].sudo()._get_or_create_for_category(
+            self._attachment_project(),
+            self._attachment_default_category(),
+            subpath,
+            source=self if bind_source else None)
+
+    def _get_or_create_folder(self, path_names, parent=None, bind_source=False):
+        """依名稱路徑取得（不存在就建立）本專案底下的資料夾，回傳最末層。
+
+        :param path_names: 由外而內的資料夾名稱串，例如
+            ['12-文書資料', '07-施工抽查', 'GSI-0001 鋼筋綁紮']
+        :param parent: 起始的上層資料夾，留空代表從該專案的第一層開始
+        :param bind_source: 是否把最末層綁定到本單據（供 is_auto 與跳轉用）
+        """
+        self.ensure_one()
+        return self.env['supervision.folder'].sudo()._get_or_create_path(
+            self._attachment_project(), path_names, parent=parent,
+            source=self if bind_source else None)
+
     # -------------------------------------------------------------------------
     # 自動歸類
     # -------------------------------------------------------------------------
@@ -92,10 +161,17 @@ class SupervisionAttachmentMixin(models.AbstractModel):
             if not attachments:
                 continue
 
+            attachments = attachments.sudo()
             project = record._attachment_project()
             category = record._attachment_default_category()
+            # _attachment_default_folder() 會實際「建」資料夾，所以只有在真的
+            # 有附件還沒歸位時才呼叫——否則每次存檔都會把使用者刪掉的空資料夾
+            # 又生回來。
+            folder = (record._attachment_default_folder()
+                      if any(not a.folder_id for a in attachments)
+                      else self.env['supervision.folder'])
 
-            for attachment in attachments.sudo():
+            for attachment in attachments:
                 vals = {}
                 if attachment.res_model != record._name or not attachment.res_id:
                     vals['res_model'] = record._name
@@ -104,6 +180,8 @@ class SupervisionAttachmentMixin(models.AbstractModel):
                     vals['supervision_project_id'] = project.id
                 if category and not attachment.document_category_id:
                     vals['document_category_id'] = category.id
+                if folder and not attachment.folder_id:
+                    vals['folder_id'] = folder.id
                 if vals:
                     attachment.write(vals)
 

@@ -231,6 +231,25 @@ class TestRecord(models.Model):
             'construction_supervision_base.cat_12_09',
             raise_if_not_found=False) or super()._attachment_default_category()
 
+    def _attachment_folder_label(self):
+        """資料夾依**試驗工項**分，不是依這張紀錄的單號。
+
+        2026-08-20 依實際歸檔習慣修正：現場是把同一個試驗工項
+        （standard_id，欄位標籤就叫「試驗工項」）的所有檢驗報告放在一起，
+        例如「混凝土抗壓試驗」底下擺歷次報告；一張紀錄一個資料夾會把樹打碎，
+        也跟紙本習慣對不上。
+        """
+        self.ensure_one()
+        return (self.standard_id.name or '').strip() or f'檢試驗 {self.id}'
+
+    def _attachment_default_folder(self):
+        """檢驗報告 → 12-文書資料 / 09-檢試驗管制 / <試驗工項>
+
+        路徑由分類的祖先鏈推出，不寫死中文字串（分類改名會自動跟著改）。
+        末層是多張紀錄共用的工項資料夾，所以 bind_source 要關掉。
+        """
+        return self._attachment_category_folder(bind_source=False)
+
     attachment_count = fields.Integer(
         string='附件數',
         compute='_compute_attachment_count')

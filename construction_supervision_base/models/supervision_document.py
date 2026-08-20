@@ -1,12 +1,24 @@
 # -*- coding: utf-8 -*-
 
+import operator as py_operator
+
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
+
+# 供 attachment_count 的 search 方法把 domain 運算子翻成 Python 比較
+ATTACHMENT_COUNT_OPERATORS = {
+    '=': py_operator.eq,
+    '!=': py_operator.ne,
+    '<': py_operator.lt,
+    '<=': py_operator.le,
+    '>': py_operator.gt,
+    '>=': py_operator.ge,
+}
 
 
 class SupervisionDocument(models.Model):
     """
-    工程文件管理（輕量版）
+    應交文件管制表（原「工程文件」，2026-08-20 依定位改名）
 
     設計特點：
     - 簡潔的文件分類體系
@@ -14,7 +26,7 @@ class SupervisionDocument(models.Model):
     - 簡化的狀態流程（草稿/已上傳/已封存）
     """
     _name = 'supervision.document'
-    _description = '工程文件'
+    _description = '應交文件管制表'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'create_date desc'
 
@@ -76,11 +88,45 @@ class SupervisionDocument(models.Model):
         string='歷史附件',
         help='已被替換的舊版本附件')
 
+    # 2026-08-20：這兩欄原本宣告 store=True，但 _compute_attachments 是靠
+    # search(res_model/res_id) 找附件，**沒有任何 ORM 追得到的相依**，
+    # 所以既沒有 @api.depends 也不可能有——結果是存了一個永遠不會自動更新的值
+    # （實測 doc 2/3/12 的 attachment_count 是 NULL，從未算過）。
+    # 而且同一個 compute 同時餵儲存與非儲存欄位，Odoo 18 會發出
+    # 「inconsistent 'store' for computed fields」警告。
+    # 改為非儲存：每次讀取都重算，永遠正確，也不再需要 _trigger_document_recompute
+    # 那套手動補算的機制。
+    # 代價：非儲存欄位不能排序、也不能直接放進 domain，所以 attachment_count
+    # 另外提供 search 方法給「有附件」篩選用。
     attachment_count = fields.Integer(
-        string='當前附件數', compute='_compute_attachments', store=True)
+        string='當前附件數', compute='_compute_attachments',
+        search='_search_attachment_count')
 
     history_count = fields.Integer(
-        string='歷史附件數', compute='_compute_attachments', store=True)
+        string='歷史附件數', compute='_compute_attachments')
+
+    def _search_attachment_count(self, operator, value):
+        """讓「有附件」這類篩選在非儲存欄位上仍可用。
+
+        不能直接 self.search()——那會再次命中本欄位造成無窮遞迴，
+        所以改成先 group by 附件的 res_id 算出每份文件的當前附件數，
+        再把比較結果翻譯成 id in / not in。
+        """
+        compare = ATTACHMENT_COUNT_OPERATORS.get(operator)
+        if compare is None or not isinstance(value, (int, float)):
+            raise UserError('「當前附件數」只支援數值比較。')
+
+        grouped = self.env['ir.attachment']._read_group(
+            [('res_model', '=', self._name),
+             ('res_id', '!=', 0),
+             ('is_current_version', '=', True)],
+            ['res_id'], ['__count'])
+        counts = {res_id: count for res_id, count in grouped}
+        matched = [doc_id for doc_id, count in counts.items() if compare(count, value)]
+        if compare(0, value):
+            # 一個附件都沒有的文件也符合條件——它們不在 counts 裡
+            return ['|', ('id', 'in', matched), ('id', 'not in', list(counts))]
+        return [('id', 'in', matched)]
 
     def _compute_attachments(self):
         """計算附件相關欄位"""
@@ -258,6 +304,70 @@ class SupervisionDocument(models.Model):
             },
         }
 
+    # === 附件歸位 ===
+    def _document_folder(self):
+        """本文件的附件放進哪個資料夾：依文件分類在該工程的資料夾樹上定位。
+
+        supervision.document **刻意不掛** supervision.attachment.mixin
+        （該模型的定位還沒定案，掛上去會連帶改掉 create/write 行為），
+        所以直接呼叫 supervision.folder 上的共用建樹方法，邏輯仍只有一份。
+
+        subpath 傳 []：附件直接放在分類資料夾裡，不替每份文件各開一個子資料夾
+        —— 一份文件一個資料夾只會把樹打碎。
+        """
+        self.ensure_one()
+        if not self.project_id or not self.document_category_id:
+            return self.env['supervision.folder']
+        return self.env['supervision.folder'].sudo()._get_or_create_for_category(
+            self.project_id, self.document_category_id, subpath=[])
+
+    def _sync_upload_attachments(self):
+        """把 upload_attachment_ids 裡的附件補上來源與歸類資訊。
+
+        為什麼需要：`many2many_binary` widget 在記錄尚未儲存時上傳，送出的是
+        `res_id: 0`。走 write 的路徑原本有補正，**走 create 的完全沒有**——
+        於是「新增文件→上傳附件→存檔」產生的附件 res_id 永遠是 0，
+        `_compute_attachments()` 用 res_model/res_id 找不到它們，
+        按「標記為已上傳」就會說「請先上傳至少一個附件檔案」。
+
+        歸類欄位沿用全系統一致的「已有值不動」原則：使用者手動把檔案搬去
+        別的資料夾或改過分類之後，再存一次文件不會被蓋回去。
+        """
+        for doc in self:
+            attachments = doc.upload_attachment_ids
+            if not attachments:
+                continue
+            folder = (doc._document_folder()
+                      if any(not a.folder_id for a in attachments)
+                      else self.env['supervision.folder'])
+            for attachment in attachments.sudo():
+                vals = {}
+                if attachment.res_model != doc._name or attachment.res_id != doc.id:
+                    vals['res_model'] = doc._name
+                    vals['res_id'] = doc.id
+                    # 只有「剛掛上這份文件」時才設為當前版本，
+                    # 免得把已被替換的歷史版本又復活
+                    vals['is_current_version'] = True
+                if doc.project_id and not attachment.supervision_project_id:
+                    vals['supervision_project_id'] = doc.project_id.id
+                if doc.document_category_id and not attachment.document_category_id:
+                    vals['document_category_id'] = doc.document_category_id.id
+                if folder and not attachment.folder_id:
+                    vals['folder_id'] = folder.id
+                if vals:
+                    attachment.write(vals)
+
+        # 附件相關的計算欄位是靠 search(res_model/res_id) 算的，**沒有任何
+        # ORM 追得到的相依**，所以剛剛改了附件並不會讓它們失效。
+        # 不手動清快取的話：create() 期間先算過一次得到 0，接著這裡才把 res_id
+        # 補上，前端存檔後在同一個 request 裡重讀，拿到的仍是那個 0——
+        # 使用者馬上按「標記為已上傳」就會被擋，跟修之前一模一樣。
+        self.invalidate_recordset([
+            'attachment_ids', 'current_attachment_ids', 'history_attachment_ids',
+            'attachment_count', 'history_count',
+            'last_update_date', 'last_update_user_id',
+        ])
+
     # === CRUD 覆寫 ===
     @api.model_create_multi
     def create(self, vals_list):
@@ -266,51 +376,42 @@ class SupervisionDocument(models.Model):
             if not vals.get('document_no'):
                 vals['document_no'] = self.env['ir.sequence'].next_by_code(
                     'supervision.document') or '/'
-            
+
             # 設定上傳者和上傳時間
             if not vals.get('uploader_id'):
                 vals['uploader_id'] = self.env.uid
             if not vals.get('upload_date'):
                 vals['upload_date'] = fields.Datetime.now()
-        
-        return super().create(vals_list)
 
-    def write(self, vals):
-        # 處理附件上傳
-        if 'upload_attachment_ids' in vals and vals['upload_attachment_ids']:
-            # 解析 Many2many 命令
-            upload_commands = vals['upload_attachment_ids']
-            new_attachment_ids = []
-            
-            for command in upload_commands:
-                if command[0] == 6:  # (6, 0, [ids])
-                    new_attachment_ids.extend(command[2])
-                elif command[0] == 4:  # (4, id)
-                    new_attachment_ids.append(command[1])
-            
-            if new_attachment_ids:
-                # 更新附件的 res_model 和 res_id，並同步工程與分類，
-                # 讓正式列管文件的附件也出現在「全部工程附件」清單
-                attachments = self.env['ir.attachment'].browse(new_attachment_ids)
-                for attachment in attachments:
-                    attachment.write({
-                        'res_model': self._name,
-                        'res_id': self.id,
-                        'is_current_version': True,
-                        'supervision_project_id': self.project_id.id,
-                        'document_category_id': self.document_category_id.id,
-                    })
-            
-            # 移除 upload_attachment_ids ，避免寫入資料庫
-            vals.pop('upload_attachment_ids')
-        
-        result = super().write(vals)
-        
-        # 當附件被上傳且狀態是草稿時，自動改為已上傳
+        documents = super().create(vals_list)
+        # 必須在 super() 之後：此時才有 doc.id 可以寫進附件的 res_id
+        documents._sync_upload_attachments()
+        documents._auto_mark_uploaded()
+        return documents
+
+    def _auto_mark_uploaded(self):
+        """草稿一旦有了當前附件就視為「已上傳」。
+
+        2026-08-20：原本只有 write 會這樣做，create 不會（因為 create 根本沒在
+        處理附件）。修好 create 之後這個不一致就浮出來——同樣是「上傳附件並存檔」，
+        新增時停在草稿、編輯時卻自動轉。使用者拍板統一成「兩邊都自動轉」，
+        「標記為已上傳」按鈕退居備用。
+        """
         for doc in self:
             if doc.state == 'draft' and doc.current_attachment_ids:
                 doc.state = 'uploaded'
-        
+
+    def write(self, vals):
+        # 2026-08-20：原本這裡會 vals.pop('upload_attachment_ids')「避免寫入資料庫」，
+        # 結果是存檔後「上傳附件」欄位變空白，而且 construction_portal 前台
+        # （只認 upload_attachment_ids，見 portal.py:130）跟著看不到檔案。
+        # 現在讓 M2M 照常寫入，補正 res_id 的工作改由 _sync_upload_attachments 做。
+        result = super().write(vals)
+
+        if 'upload_attachment_ids' in vals:
+            self._sync_upload_attachments()
+
+        self._auto_mark_uploaded()
         return result
 
     def unlink(self):
@@ -343,7 +444,7 @@ class IrAttachment(models.Model):
 
     # === 工程歸類（附件總覽用）===
     # 系統各處（施工日誌、缺失、送審、估驗、檢試驗…）上傳的附件，過去只存在
-    # 各自單據的 Many2many 裡，彼此無關聯，「工程文件」也看不到。
+    # 各自單據的 Many2many 裡，彼此無關聯，「應交文件管制表」也看不到。
     # 這兩欄由 supervision.attachment.mixin 在來源單據儲存時自動補上，
     # 讓所有附件都能在「檔案管理 > 文件管理 > 全部工程附件」集中查找與歸類。
     # 沿用 ir.attachment 本身（res_model/res_id 已記錄來源），不另建資料表。
@@ -359,6 +460,33 @@ class IrAttachment(models.Model):
         string='文件分類',
         index=True,
         help='此附件的文件分類，由來源單據自動帶入預設值，可手動調整')
+
+    # === 檔案位置（與 document_category_id 正交）===
+    # document_category_id 回答「這是什麼文件」（全公司通用語意，供跨案檢索）
+    # folder_id           回答「這個檔案放在哪」（per-project 實際存放結構）
+    # 真實資料裡同一個資料夾常含多種分類的文件，兩者不可互相取代。
+    folder_id = fields.Many2one(
+        'supervision.folder',
+        string='資料夾',
+        index=True,
+        ondelete='set null',
+        help='此檔案在工程資料夾樹中的位置')
+
+    folder_path = fields.Char(
+        string='資料夾路徑',
+        related='folder_id.complete_name',
+        store=False,
+        readonly=True,
+        help='供清單顯示')
+
+    @api.constrains('folder_id', 'supervision_project_id')
+    def _check_folder_project_match(self):
+        """資料夾是 per-project 的，不可把 A 案的檔案掛到 B 案的資料夾"""
+        for attachment in self:
+            if attachment.folder_id and attachment.supervision_project_id \
+                    and attachment.folder_id.project_id != attachment.supervision_project_id:
+                raise ValidationError(
+                    '檔案「%s」的資料夾屬於不同的工程案件。' % attachment.name)
 
     is_current_version = fields.Boolean(
         string='當前版本',
@@ -418,45 +546,12 @@ class IrAttachment(models.Model):
                 'replaced_by_id': False,
             })
     
-    @api.model_create_multi
-    def create(self, vals_list):
-        """創建附件後觸發 supervision.document 的計數更新"""
-        attachments = super().create(vals_list)
-        self._trigger_document_recompute(attachments)
-        return attachments
-    
-    def write(self, vals):
-        """更新附件後觸發 supervision.document 的計數更新"""
-        result = super().write(vals)
-        # 如果更新了 is_current_version 欄位，觸發重新計算
-        if 'is_current_version' in vals:
-            self._trigger_document_recompute(self)
-        return result
-    
-    def unlink(self):
-        """刪除附件前記錄關聯的文件，以便觸發重新計算"""
-        # 記錄關聯的 supervision.document
-        doc_ids = set()
-        for attachment in self:
-            if attachment.res_model == 'supervision.document' and attachment.res_id:
-                doc_ids.add(attachment.res_id)
-        
-        result = super().unlink()
-        
-        # 觸發重新計算
-        if doc_ids:
-            docs = self.env['supervision.document'].browse(list(doc_ids))
-            docs._compute_attachments()
-        
-        return result
-    
-    def _trigger_document_recompute(self, attachments):
-        """觸發 supervision.document 的附件計數重新計算"""
-        doc_ids = set()
-        for attachment in attachments:
-            if attachment.res_model == 'supervision.document' and attachment.res_id:
-                doc_ids.add(attachment.res_id)
-        
-        if doc_ids:
-            docs = self.env['supervision.document'].browse(list(doc_ids))
-            docs._compute_attachments()
+    # 2026-08-20：這裡原本覆寫 create / write / unlink，只為了手動補算
+    # supervision.document 的 attachment_count / history_count（那兩欄當時是
+    # store=True 卻沒有任何 @api.depends）。那兩欄已改為非儲存、讀取時即時計算，
+    # 這三個覆寫連同 _trigger_document_recompute 就成了純粹的死重量——
+    # 而且它掛在**全系統每一次 ir.attachment 寫入**上。一併移除。
+    #
+    # 順帶修掉原本 _trigger_document_recompute 的判斷式 `and attachment.res_id`：
+    # 走 create 上傳的附件 res_id 是 0，falsy，永遠被跳過，補算機制對
+    # 最需要它的那批附件完全沒作用。

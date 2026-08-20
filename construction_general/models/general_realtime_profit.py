@@ -352,6 +352,17 @@ class GeneralRealtimeProfit(models.Model):
             'construction_supervision_base.cat_12_11',
             raise_if_not_found=False) or super()._attachment_default_category()
 
+    def _attachment_default_folder(self):
+        """即時損益附件 → 12-文書資料 / 11-其他資料 / 即時損益
+
+        末層用固定名稱而非報告編號：損益報告是同一個案子持續更新的東西，
+        每份報告各開一個資料夾只會讓樹變得很碎。
+
+        因為是多份報告共用的資料夾，bind_source 要關掉 —— 綁了會變成
+        「開啟來源單據」永遠跳到剛好第一個建它的那份報告。
+        """
+        return self._attachment_category_folder(['即時損益'], bind_source=False)
+
     # === 狀態 ===
     state = fields.Selection([
         ('draft', '草稿'),

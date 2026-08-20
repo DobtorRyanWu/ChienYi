@@ -127,7 +127,10 @@ class PartnerLicense(models.Model):
 
         廠商證照是跨工程共用的主檔，沒有 project_id，
         所以 mixin 的 _attachment_project() 會回空 —— 附件只帶分類、不帶工程，
-        因此不會出現在以工程為主的「全部工程附件」清單，這是預期行為。
+        因此不會出現在以工程為主的「工程檔案」清單，這是預期行為。
+
+        同理**刻意不覆寫 _attachment_default_folder()**：資料夾是 per-project 的，
+        跨案共用的證照無案可掛。不要「順手補上」，補了也只會回空 recordset。
         """
         return self.env.ref(
             'construction_supervision_base.cat_11_06',

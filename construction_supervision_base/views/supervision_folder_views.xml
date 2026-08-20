@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ==================================================================
+         工程檔案資料夾
+
+         這個畫面負責「整理東西」——建資料夾、改名、調整分類、批次下載。
+         「找東西」請用「檔案總覽」（ir.attachment 清單，左側有資料夾樹）。
+         因為只有管理員需要維護資料夾結構，本畫面收在「設定 > 資料夾管理」。
+         ================================================================== -->
+
+    <record id="view_supervision_folder_tree" model="ir.ui.view">
+        <field name="name">supervision.folder.list</field>
+        <field name="model">supervision.folder</field>
+        <field name="arch" type="xml">
+            <!-- 預設以 complete_name 排序（深度優先），主欄用縮排名稱 tree_name，
+                 讀起來就是一棵樹。要看完整路徑再開「完整路徑」欄位。
+                 ⚠️ 若使用者點其他欄位排序，縮排的視覺層級會失去意義（資料仍正確）。 -->
+            <list string="工程資料夾" default_order="complete_name">
+                <field name="tree_name" string="資料夾"/>
+                <field name="complete_name" string="完整路徑" optional="hide"/>
+                <field name="project_id" string="所屬工程" optional="show"/>
+                <field name="source_category_id" string="文件分類" optional="show"/>
+                <field name="attachment_count" string="檔案"/>
+                <field name="total_count" string="含子層"/>
+                <field name="is_auto" string="系統自動建立" optional="hide"/>
+                <field name="source_res_model" column_invisible="1"/>
+                <button name="action_open_source" type="object"
+                        icon="fa-external-link" title="開啟來源單據"
+                        invisible="not source_res_model"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_supervision_folder_form" model="ir.ui.view">
+        <field name="name">supervision.folder.form</field>
+        <field name="model">supervision.folder</field>
+        <field name="arch" type="xml">
+            <form string="工程資料夾">
+                <header>
+                    <button name="%(action_supervision_folder_upload)d"
+                            string="上傳檔案" type="action"
+                            class="oe_highlight" icon="fa-upload"
+                            context="{'default_folder_id': id}"
+                            invisible="not id"/>
+                    <button name="%(action_supervision_attachment_download)d"
+                            string="批次下載" type="action" icon="fa-download"
+                            context="{'default_folder_id': id}"
+                            invisible="total_count == 0"/>
+                    <button name="action_view_all_files"
+                            string="檢視所有檔案（含子層）"
+                            type="object" invisible="total_count == 0"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="系統自動建立"
+                            bg_color="text-bg-info" invisible="not is_auto"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="資料夾名稱"/></h1>
+                        <field name="complete_name" readonly="1" class="text-muted"/>
+                    </div>
+                    <group>
+                        <group string="位置">
+                            <!-- project_id 不設 readonly：Odoo 17 起唯讀欄位不會送回
+                                 伺服器，一設 readonly 就會存不進去而報「必填欄位未設置」。
+                                 選了上層時由 _onchange_parent_id 自動帶入，
+                                 填錯案由 _check_parent_same_project 擋下。 -->
+                            <field name="project_id" options="{'no_create': True}"/>
+                            <!-- 必須先選工程才能選上層：domain 一定要用 project_id 過濾，
+                                 否則不同工程的同名資料夾會全部列出來，使用者分不出哪個是哪個。
+                                 工程沒選時鎖住此欄（此時它本來就沒有合法選項）。
+                                 選了工程之後 readonly 就是 False，值會正常送回伺服器。 -->
+                            <field name="parent_id"
+                                   domain="[('project_id','=',project_id),('id','!=',id)]"
+                                   options="{'no_create_edit': True}"
+                                   readonly="not project_id"
+                                   placeholder="請先選擇所屬工程"/>
+                            <field name="source_category_id" options="{'no_create': True}"
+                                   help="選了上層資料夾會自動沿用上層的分類，可自行改"/>
+                            <field name="sequence"/>
+                            <field name="is_auto" invisible="1"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group string="統計">
+                            <field name="attachment_count"/>
+                            <field name="total_count"/>
+                            <field name="child_count"/>
+                        </group>
+                    </group>
+                    <group string="匯入資訊" invisible="not import_source_path">
+                        <field name="import_source_path" readonly="1"/>
+                    </group>
+                    <group string="來源單據" invisible="not source_res_model">
+                        <field name="source_res_model" readonly="1"/>
+                        <field name="source_res_id" readonly="1"/>
+                        <button name="action_open_source" string="開啟來源單據"
+                                type="object" class="btn-link"/>
+                    </group>
+                    <notebook>
+                        <page string="檔案" name="files">
+                            <field name="attachment_ids" nolabel="1">
+                                <list editable="bottom" create="false">
+                                    <field name="name" string="檔案名稱" readonly="1"/>
+                                    <field name="document_category_id" string="文件分類"
+                                           options="{'no_create': True}"/>
+                                    <field name="file_size" string="大小" readonly="1"/>
+                                    <field name="create_uid" string="上傳者" readonly="1"/>
+                                    <field name="create_date" string="上傳時間" readonly="1"/>
+                                    <field name="res_model" string="來源" readonly="1"
+                                           optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <!-- 把整棵子樹的檔案攤平成清單：Odoo 的 list view 一次只能
+                             顯示一個 model，資料夾與檔案無法真的巢狀在同一棵樹上，
+                             改以「資料夾路徑」欄呈現層級。 -->
+                        <page string="所有檔案（含子層）" name="all_files"
+                              invisible="total_count == 0">
+                            <field name="all_attachment_ids" nolabel="1" readonly="1">
+                                <list create="false" delete="false">
+                                    <field name="folder_path" string="資料夾"/>
+                                    <field name="name" string="檔案名稱"/>
+                                    <field name="document_category_id" string="文件分類"/>
+                                    <field name="file_size" string="大小"/>
+                                    <field name="create_uid" string="上傳者" optional="show"/>
+                                    <field name="create_date" string="上傳時間" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="子資料夾" name="children">
+                            <field name="child_ids" nolabel="1" context="{
+                                    'default_project_id': project_id,
+                                    'default_parent_id': id}">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="attachment_count"/>
+                                    <field name="total_count"/>
+                                    <field name="is_auto"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="備註" name="notes">
+                            <field name="notes" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <!-- 刻意不放 <chatter/>：supervision.folder 沒有繼承 mail.thread。
+                     資料夾是結構容器不是討論對象，匯入一個專案會長出 700+ 個資料夾，
+                     每個都掛 mail.thread 是不必要的負擔。
+                     建立者／修改者已有 create_uid / write_uid 可查。 -->
+            </form>
+        </field>
+    </record>
+
+    <record id="view_supervision_folder_search" model="ir.ui.view">
+        <field name="name">supervision.folder.search</field>
+        <field name="model">supervision.folder</field>
+        <field name="arch" type="xml">
+            <search string="搜尋資料夾">
+                <field name="complete_name" string="資料夾"/>
+                <field name="project_id"/>
+                <field name="source_category_id"/>
+                <separator/>
+                <filter string="手動建立" name="manual" domain="[('is_auto','=',False)]"/>
+                <filter string="系統自動建立" name="auto" domain="[('is_auto','=',True)]"/>
+                <separator/>
+                <filter string="已停用" name="inactive" domain="[('active','=',False)]"/>
+                <group expand="0" string="群組">
+                    <filter string="所屬工程" name="group_project"
+                            context="{'group_by':'project_id'}"/>
+                    <filter string="上層資料夾" name="group_parent"
+                            context="{'group_by':'parent_id'}"/>
+                    <filter string="文件分類" name="group_category"
+                            context="{'group_by':'source_category_id'}"/>
+                </group>
+                <searchpanel>
+                    <field name="project_id" icon="fa-folder-open"
+                           enable_counters="1" expand="1"/>
+                </searchpanel>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_supervision_folder" model="ir.actions.act_window">
+        <field name="name">資料夾</field>
+        <field name="res_model">supervision.folder</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_supervision_folder_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                尚無資料夾
+            </p>
+            <p>
+                資料夾記錄「檔案放在哪」，每個工程案件各有一棵樹。<br/>
+                新開的案件可在工程案件表單按「建立標準資料夾」一次產生；<br/>
+                各業務單據（估驗、自主檢查、缺失…）上傳附件時也會自動長出對應資料夾。
+            </p>
+        </field>
+    </record>
+
+    <!-- 收進「設定」：維護資料夾結構是管理員的事，
+         日常使用者只需要「檔案總覽 / 上傳檔案 / 批次下載」 -->
+    <menuitem id="menu_supervision_folder" name="資料夾管理"
+              parent="menu_document_settings"
+              action="action_supervision_folder" sequence="10"/>
+
+</odoo>

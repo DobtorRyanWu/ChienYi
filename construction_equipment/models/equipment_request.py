@@ -193,6 +193,14 @@ class SupervisionEquipmentRequest(models.Model):
             'construction_supervision_base.cat_11_06',
             raise_if_not_found=False) or super()._attachment_default_category()
 
+    def _attachment_default_folder(self):
+        """機具申請附件 → 11-工程資料 / 06-廠商資料 / 機具申請 / <這張申請單>
+
+        多墊一層「機具申請」：06-廠商資料 底下還有證照、保險等其他廠商文件，
+        不先分一層的話，一堆申請單會跟其他文件混在同一層。
+        """
+        return self._attachment_category_folder(['機具申請', self._attachment_folder_label()])
+
     # === 逾期計算 ===
     is_overdue = fields.Boolean(
         string='已逾期',

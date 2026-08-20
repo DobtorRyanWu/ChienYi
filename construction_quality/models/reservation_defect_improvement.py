@@ -123,6 +123,14 @@ class ReservationDefectImprovement(models.Model):
             'construction_supervision_base.cat_12_06',
             raise_if_not_found=False) or super()._attachment_default_category()
 
+    def _attachment_default_folder(self):
+        """缺失改善附件 → 12-文書資料 / 06-缺失改善（**不另開子資料夾**）
+
+        與一般式一致：缺失改善沒有固定的分資料夾習慣，多數就是全部丟在
+        「缺失改善」資料夾裡，一張單一個資料夾只會讓樹很碎。
+        """
+        return self._attachment_category_folder([])
+
     # 兩個 legacy M2M 欄位（reservation_defect_photo_rel /
     # reservation_improvement_photo_rel）已隨照片收斂移除 —— 兩張中間表實測
     # 皆為 0 筆，且註解本來就寫「數據遷移用，不要直接使用」。

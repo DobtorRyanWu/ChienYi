@@ -182,6 +182,26 @@ class GeneralSelfInspection(models.Model):
             'construction_supervision_base.cat_12_07',
             raise_if_not_found=False) or super()._attachment_default_category()
 
+    def _attachment_folder_label(self):
+        """資料夾**依自主檢查類型**分，不是依這張檢查單的單號。
+
+        2026-08-20 依實際歸檔習慣修正：現場是把同一種檢查表
+        （inspection_type_id，例如「鋼筋組立自主檢查表」）的歷次檢查放在一起。
+        一張單一個資料夾會把樹打碎，也跟紙本習慣對不上。
+        """
+        self.ensure_one()
+        return ((self.inspection_type_id.name or '').strip()
+                or (self.sub_project_name or '').strip()
+                or f'檢查單 {self.id}')
+
+    def _attachment_default_folder(self):
+        """自主檢查附件 → 12-文書資料 / 07-施工抽查 / <自主檢查類型>
+
+        路徑由分類的祖先鏈推出，不寫死中文字串（分類改名會自動跟著改）。
+        末層是同類型歷次檢查共用的資料夾，所以 bind_source 要關掉。
+        """
+        return self._attachment_category_folder(bind_source=False)
+
     # === 備註 ===
     note = fields.Text(string='備註說明')
 

@@ -21,7 +21,26 @@
     #        （當初以 noupdate="1" 建立，旗標存在 ir_model_data 上，改 XML 無效）
     # 4.8.2: 拿掉「13-照片」文件分類（含 4 子分類）—— 照片由「照片管理」專責，
     #        不再給它第二套分類體系；supervision.photo 也不掛附件歸類 mixin
-    'version': '18.0.5.4.0',  # 5.4.0: 營造廠商移到基本資訊區
+    # 5.5.0: 文件分類樹 31→44（新增 15、改名 4、停用 2），category 加
+    #        create_folder / extra_folder_names，_compute_display_name 改遞迴顯示完整路徑；
+    #        pre-migrate 清掉 cat_* 的 noupdate 旗標，此後標準分類以 XML 為準
+    # 5.6.0: 新增 supervision.folder（工程檔案資料夾，per-project 樹狀）
+    #        + ir.attachment.folder_id + 上傳精靈；「全部工程附件」改名「工程檔案」
+    #        並加上左側資料夾樹 searchpanel
+    # 5.7.0: 工程案件加「建立標準資料夾」按鈕（依文件分類樹產生 44+2 個資料夾）
+    #        與「資料夾」smart button；清單主欄改縮排名稱 tree_name、
+    #        searchpanel 側欄改用 hierarchical_naming 只顯示短名
+    # 5.8.0: supervision.attachment.mixin 加 _attachment_default_folder /
+    #        _attachment_category_folder / _get_or_create_folder，各業務單據的附件
+    #        自動歸位到資料夾樹；路徑由分類的祖先鏈推導（不寫死中文字串，
+    #        分類改名會自動跟著改）
+    # 5.9.0: 工程檔案批次下載 wizard（zip 內結構＝資料夾樹、500 MB 上限、排除照片）
+    # 5.10.0: 修 supervision.document 走 create 上傳附件的 bug（res_id 卡 0）、
+    #         計數欄改非儲存並移除 ir.attachment 的三個補算覆寫、post-migrate 修 20 筆孤兒附件
+    # 5.11.0: 「工程文件」改名「應交文件管制表」並隱藏所有入口（模型與資料保留）
+    'version': '18.0.5.12.0',  # 5.12.0: 開案自動建標準資料夾、選單重整、上傳/下載獨立入口
+    # 5.4.0: 營造廠商移到基本資訊區
+    # 5.3.0: 契約工項選取對話框
     #        顯示欄位改為 項次/父工項/項目及說明/單位/契約數量/契約單價/備註——代操回報
     #        「各大項未區隔，項目會混淆」，選取對話框只列葉節點看不出屬於哪個大項。
     #        契約複價改預設隱藏、移除 sequence 拖曳把手（default_order 是 item_no_sort，
@@ -81,6 +100,8 @@
         # Wizard
         'wizard/tender_import_wizard_views.xml',
         'wizard/document_replace_attachment_wizard_views.xml',
+        'wizard/supervision_folder_upload_wizard_views.xml',  # 需在 folder views 之前（form 引用其 action）
+        'wizard/supervision_attachment_download_wizard_views.xml',  # 同上
         # Views
         'views/res_company_views.xml',
         'views/res_users_views.xml',  # 新架構：組織身分欄位
@@ -90,6 +111,7 @@
         'views/product_views.xml',
         'views/menu.xml',
         'views/supervision_document_category_views.xml',
+        'views/supervision_folder_views.xml',  # 需 menu.xml 的 menu_document_management
         'views/supervision_attachment_views.xml',  # 需 menu.xml 的 menu_document_management
         'views/hide_official_menus.xml',
     ],

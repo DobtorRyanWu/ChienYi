@@ -229,6 +229,13 @@ class AcceptanceFinal(models.Model):
             'construction_supervision_base.cat_17_02',
             raise_if_not_found=False) or super()._attachment_default_category()
 
+    def _attachment_default_folder(self):
+        """正驗附件 → 17-結案驗收 / 02-驗收資料 / <這張正驗單>
+
+        路徑由分類的祖先鏈推出，不寫死中文字串（分類改名會自動跟著改）。
+        """
+        return self._attachment_category_folder()
+
     minutes = fields.Html(
         string='驗收會議紀錄')
 

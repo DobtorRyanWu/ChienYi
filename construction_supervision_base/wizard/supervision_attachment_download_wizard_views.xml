@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_supervision_attachment_download_wizard_form" model="ir.ui.view">
+        <field name="name">supervision.attachment.download.wizard.form</field>
+        <field name="model">supervision.attachment.download.wizard</field>
+        <field name="arch" type="xml">
+            <form string="批次下載工程檔案">
+                <field name="state" invisible="1"/>
+                <field name="oversize" invisible="1"/>
+
+                <!-- 設定階段 -->
+                <group invisible="state == 'done'">
+                    <group string="範圍">
+                        <field name="project_id" options="{'no_create': True}"/>
+                        <field name="folder_id" options="{'no_create': True}"
+                               readonly="not project_id"
+                               placeholder="留空＝整個專案"/>
+                        <field name="document_category_id"
+                               options="{'no_create': True}"
+                               placeholder="留空＝不限分類"/>
+                    </group>
+                    <group string="條件">
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                        <field name="include_source_docs"/>
+                    </group>
+                </group>
+                <group string="試算結果" invisible="state == 'done' or not record_count">
+                    <field name="record_count"/>
+                    <field name="total_size"/>
+                </group>
+                <div class="alert alert-warning" role="alert"
+                     invisible="state == 'done' or not oversize">
+                    範圍太大，超過單次打包上限（500 MB）。請選一個子資料夾、
+                    指定文件分類，或限定上傳日期區間後再試。
+                </div>
+
+                <!-- 完成階段 -->
+                <group invisible="state != 'done'">
+                    <div class="alert alert-success" role="alert" colspan="2">
+                        已打包 <field name="record_count" readonly="1" class="oe_inline"/> 個檔案。
+                        點下方檔名下載，解開後的目錄結構就是資料夾樹。
+                    </div>
+                    <field name="result_file" filename="result_filename"
+                           readonly="1" nolabel="1" colspan="2"/>
+                    <field name="result_filename" invisible="1"/>
+                </group>
+
+                <footer>
+                    <button name="action_preview" string="試算" type="object"
+                            class="btn-secondary" invisible="state == 'done'"/>
+                    <button name="action_download" string="打包下載" type="object"
+                            class="btn-primary"
+                            invisible="state == 'done' or oversize"/>
+                    <button string="關閉" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_supervision_attachment_download" model="ir.actions.act_window">
+        <field name="name">批次下載</field>
+        <field name="res_model">supervision.attachment.download.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="view_id" ref="view_supervision_attachment_download_wizard_form"/>
+    </record>
+
+</odoo>

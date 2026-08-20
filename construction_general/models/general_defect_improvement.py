@@ -135,6 +135,18 @@ class GeneralDefectImprovement(models.Model):
             'construction_supervision_base.cat_12_06',
             raise_if_not_found=False) or super()._attachment_default_category()
 
+    def _attachment_default_folder(self):
+        """缺失改善附件 → 12-文書資料 / 06-缺失改善（**不另開子資料夾**）
+
+        2026-08-20 依實際歸檔習慣修正：缺失改善沒有固定的分資料夾習慣，
+        多數就是全部丟在「缺失改善」資料夾裡。一張單一個資料夾只會讓樹很碎，
+        所以 subpath 傳 []，附件直接放分類資料夾。
+
+        末層是全案共用的分類資料夾，因此不可 bind_source
+        （_attachment_category_folder 對空 subpath 本來就不綁）。
+        """
+        return self._attachment_category_folder([])
+
     # === 向後兼容欄位 (保留舊欄位名，用於數據遷移) ===
     # 兩個 legacy M2M 欄位（general_defect_photo_rel / general_improvement_photo_rel）
     # 已隨照片收斂移除 —— 兩張中間表實測皆為 0 筆，註解本來就寫「不要直接使用」。

@@ -8,6 +8,7 @@ from . import supervision_project_member
 from . import project_task
 from . import project_task_version
 from . import supervision_document_category
+from . import supervision_folder  # 工程檔案資料夾（必須排在 supervision_document 之前）
 from . import supervision_document
 from . import supervision_attachment_mixin  # 附件自動歸類（各業務模組 _inherit 掛載）
 from . import product_product

@@ -97,7 +97,17 @@
     <!-- 14/15/18 底下的子資料夾是案件專屬命名（如「第1次變更設計原則簽」），-->
     <!-- 不設成系統分類。                                                    -->
     <!-- ================================================================== -->
-    <data noupdate="1">
+    <!-- ================================================================== -->
+    <!-- 標準分類樹（11-工程資料 ～ 18-府查核）                              -->
+    <!--                                                                    -->
+    <!-- 2026-08-20 起本區塊「不加」noupdate：這批 is_system 標準分類的名稱   -->
+    <!-- 與階層以本檔為唯一真相，之後要改名／停用／調整都直接改這裡即可。     -->
+    <!-- 原本的 noupdate 旗標由 migrations/18.0.5.5.0/pre-migrate.py 清除。   -->
+    <!--                                                                    -->
+    <!-- 副作用（已知並接受）：使用者若在後台手動改這些分類的名稱，           -->
+    <!-- 下次模組升級會被還原成這裡的值。                                     -->
+    <!-- ================================================================== -->
+    <data>
 
         <!-- === 11-工程資料 === -->
         <record id="cat_11" model="supervision.document.category">
@@ -108,8 +118,9 @@
             <field name="description">圖說、開工、廠商計畫、通報單、估驗與廠商資料</field>
         </record>
 
+        <!-- 改名（原「01-圖說」）：實際資料夾同時放契約書與圖說兩類 -->
         <record id="cat_11_01" model="supervision.document.category">
-            <field name="name">01-圖說</field>
+            <field name="name">01-契約及圖說</field>
             <field name="code">11_01</field>
             <field name="sequence">111</field>
             <field name="parent_id" ref="cat_11"/>
@@ -135,12 +146,29 @@
             <field name="sequence">114</field>
             <field name="parent_id" ref="cat_11"/>
             <field name="is_system" eval="True"/>
+            <!-- 「通報單掃描」「回報單掃描」不是文件種類，是歸檔習慣，
+                 所以不進分類樹，只在開案時當附加子資料夾建出來 -->
+            <field name="extra_folder_names">通報單掃描,回報單掃描</field>
         </record>
         <record id="cat_11_05" model="supervision.document.category">
             <field name="name">05-估驗資料</field>
             <field name="code">11_05</field>
             <field name="sequence">115</field>
             <field name="parent_id" ref="cat_11"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_11_05_01" model="supervision.document.category">
+            <field name="name">01-估驗計價</field>
+            <field name="code">11_05_01</field>
+            <field name="sequence">1151</field>
+            <field name="parent_id" ref="cat_11_05"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_11_05_02" model="supervision.document.category">
+            <field name="name">02-物價指數調整</field>
+            <field name="code">11_05_02</field>
+            <field name="sequence">1152</field>
+            <field name="parent_id" ref="cat_11_05"/>
             <field name="is_system" eval="True"/>
         </record>
         <record id="cat_11_06" model="supervision.document.category">
@@ -165,6 +193,43 @@
             <field name="code">12_01</field>
             <field name="sequence">121</field>
             <field name="parent_id" ref="cat_12"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_12_01_01" model="supervision.document.category">
+            <field name="name">01-會議＆會勘紀錄</field>
+            <field name="code">12_01_01</field>
+            <field name="sequence">1211</field>
+            <field name="parent_id" ref="cat_12_01"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_12_01_01_01" model="supervision.document.category">
+            <field name="name">01-監造會議</field>
+            <field name="code">12_01_01_01</field>
+            <field name="sequence">12111</field>
+            <field name="parent_id" ref="cat_12_01_01"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <!-- 施工日誌與監造日報是兩份不同文件（承包商寫的 vs 監造單位寫的），
+             所以各給一個分類，不合併 -->
+        <record id="cat_12_01_02" model="supervision.document.category">
+            <field name="name">02-施工日誌＆監造日報</field>
+            <field name="code">12_01_02</field>
+            <field name="sequence">1212</field>
+            <field name="parent_id" ref="cat_12_01"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_12_01_02_01" model="supervision.document.category">
+            <field name="name">01-施工日誌</field>
+            <field name="code">12_01_02_01</field>
+            <field name="sequence">12121</field>
+            <field name="parent_id" ref="cat_12_01_02"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_12_01_02_02" model="supervision.document.category">
+            <field name="name">02-監造日報</field>
+            <field name="code">12_01_02_02</field>
+            <field name="sequence">12122</field>
+            <field name="parent_id" ref="cat_12_01_02"/>
             <field name="is_system" eval="True"/>
         </record>
         <record id="cat_12_02" model="supervision.document.category">
@@ -209,6 +274,20 @@
             <field name="parent_id" ref="cat_12"/>
             <field name="is_system" eval="True"/>
         </record>
+        <record id="cat_12_07_01" model="supervision.document.category">
+            <field name="name">01-自主檢查表＆抽查紀錄表</field>
+            <field name="code">12_07_01</field>
+            <field name="sequence">1271</field>
+            <field name="parent_id" ref="cat_12_07"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_12_07_02" model="supervision.document.category">
+            <field name="name">02-工地安衛＆環境清潔檢查</field>
+            <field name="code">12_07_02</field>
+            <field name="sequence">1272</field>
+            <field name="parent_id" ref="cat_12_07"/>
+            <field name="is_system" eval="True"/>
+        </record>
         <record id="cat_12_08" model="supervision.document.category">
             <field name="name">08-送審管制</field>
             <field name="code">12_08</field>
@@ -241,6 +320,13 @@
             <field name="parent_id" ref="cat_12"/>
             <field name="is_system" eval="True"/>
         </record>
+        <record id="cat_12_09_01" model="supervision.document.category">
+            <field name="name">01-材料檢試驗(一、二級)</field>
+            <field name="code">12_09_01</field>
+            <field name="sequence">1291</field>
+            <field name="parent_id" ref="cat_12_09"/>
+            <field name="is_system" eval="True"/>
+        </record>
         <record id="cat_12_10" model="supervision.document.category">
             <field name="name">10-明日之星</field>
             <field name="code">12_10</field>
@@ -255,10 +341,19 @@
             <field name="parent_id" ref="cat_12"/>
             <field name="is_system" eval="True"/>
         </record>
+        <record id="cat_12_11_01" model="supervision.document.category">
+            <field name="name">01-相關行政表單＆範本</field>
+            <field name="code">12_11_01</field>
+            <field name="sequence">1311</field>
+            <field name="parent_id" ref="cat_12_11"/>
+            <field name="is_system" eval="True"/>
+        </record>
 
         <!-- 實際資料夾的「13-照片」刻意不建成文件分類：照片由「照片管理」
              （supervision.photo，含 GPS／EXIF／材料分類／標籤／地圖）專責管理，
-             不走文件分類這條路，否則同一批照片會有兩套分類體系。 -->
+             不走文件分類這條路，否則同一批照片會有兩套分類體系。
+             但「13」這個編號要空著保留給照片，不可讓給其他分類，
+             否則以後分類編號會跟實際資料夾樹對不上。 -->
 
         <!-- === 14-變更設計 === -->
         <record id="cat_14" model="supervision.document.category">
@@ -267,6 +362,30 @@
             <field name="sequence">150</field>
             <field name="is_system" eval="True"/>
             <field name="description">各次變更設計原則簽、議價與工期檢討（子資料夾依案件自行建立）</field>
+        </record>
+
+        <!-- 實際資料夾是「09_變更設計＆工期檢討」一層，但變更設計與工期檢討
+             是兩件事（前者改契約範圍、後者只改工期），底下再拆兩個分類 -->
+        <record id="cat_14_01" model="supervision.document.category">
+            <field name="name">01-變更設計＆工期檢討</field>
+            <field name="code">14_01</field>
+            <field name="sequence">1501</field>
+            <field name="parent_id" ref="cat_14"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_14_01_01" model="supervision.document.category">
+            <field name="name">01-變更設計</field>
+            <field name="code">14_01_01</field>
+            <field name="sequence">15011</field>
+            <field name="parent_id" ref="cat_14_01"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_14_01_02" model="supervision.document.category">
+            <field name="name">02-工期檢討</field>
+            <field name="code">14_01_02</field>
+            <field name="sequence">15012</field>
+            <field name="parent_id" ref="cat_14_01"/>
+            <field name="is_system" eval="True"/>
         </record>
 
         <!-- === 15-竣工資料 === -->
@@ -285,12 +404,17 @@
             <field name="is_system" eval="True"/>
         </record>
 
+        <!-- 這兩筆停用：實測 32 個專案的資料夾樹裡幾乎沒有對應（0~2/23），
+             且無任何程式引用其 code。抽查紀錄改掛 12_07_01，
+             成果報告書附件改掛 16-監造報告 本身。
+             只停用不刪除：既有文件可能仍指著它們。 -->
         <record id="cat_16_01" model="supervision.document.category">
             <field name="name">抽查表</field>
             <field name="code">16_01</field>
             <field name="sequence">171</field>
             <field name="parent_id" ref="cat_16"/>
             <field name="is_system" eval="True"/>
+            <field name="active" eval="False"/>
         </record>
         <record id="cat_16_02" model="supervision.document.category">
             <field name="name">成果報告書歸檔附件</field>
@@ -298,6 +422,7 @@
             <field name="sequence">172</field>
             <field name="parent_id" ref="cat_16"/>
             <field name="is_system" eval="True"/>
+            <field name="active" eval="False"/>
         </record>
 
         <!-- === 17-結案驗收 === -->
@@ -308,24 +433,33 @@
             <field name="is_system" eval="True"/>
         </record>
 
+        <!-- 以下三筆改名：只是補上編號前綴，與同層其他分類的命名一致
+             （code 不動，程式引用不受影響） -->
         <record id="cat_17_01" model="supervision.document.category">
-            <field name="name">竣工圖</field>
+            <field name="name">01-竣工圖</field>
             <field name="code">17_01</field>
             <field name="sequence">181</field>
             <field name="parent_id" ref="cat_17"/>
             <field name="is_system" eval="True"/>
         </record>
         <record id="cat_17_02" model="supervision.document.category">
-            <field name="name">驗收資料</field>
+            <field name="name">02-驗收資料</field>
             <field name="code">17_02</field>
             <field name="sequence">182</field>
             <field name="parent_id" ref="cat_17"/>
             <field name="is_system" eval="True"/>
         </record>
         <record id="cat_17_03" model="supervision.document.category">
-            <field name="name">工程結案資料</field>
+            <field name="name">03-工程結案資料</field>
             <field name="code">17_03</field>
             <field name="sequence">183</field>
+            <field name="parent_id" ref="cat_17"/>
+            <field name="is_system" eval="True"/>
+        </record>
+        <record id="cat_17_04" model="supervision.document.category">
+            <field name="name">04-竣工-結案本(全)</field>
+            <field name="code">17_04</field>
+            <field name="sequence">184</field>
             <field name="parent_id" ref="cat_17"/>
             <field name="is_system" eval="True"/>
         </record>

@@ -214,6 +214,28 @@ class SupervisionPlanControl(models.Model):
             'construction_supervision_base.cat_12_08_01',
             raise_if_not_found=False) or super()._attachment_default_category()
 
+    def _attachment_folder_label(self):
+        """資料夾名稱＝「送審日期 送審項目」，例如「20260815 施工計畫書」。
+
+        2026-08-20 依實際歸檔習慣：一筆一個自己的資料夾，名稱是日期＋送審項目。
+        日期取第一次送審日期；沒有就只用送審項目
+        （之後補了日期也不會自動改名，避免下次上傳又生一個新資料夾）。
+
+        ⚠️ 這是依「看到的一種做法」訂的，公司內部尚無統一習慣。
+        要改只需改這個方法。
+        """
+        self.ensure_one()
+        date = self.first_submit_date
+        parts = [date.strftime('%Y%m%d') if date else '', (self.name or '').strip()]
+        return ' '.join(p for p in parts if p) or f'計畫書 {self.id}'
+
+    def _attachment_default_folder(self):
+        """送審文件 → 12-文書資料 / 08-送審管制 / 01-計畫書 / <日期 送審項目>
+
+        路徑由分類的祖先鏈推出，不寫死中文字串（分類改名會自動跟著改）。
+        """
+        return self._attachment_category_folder()
+
     attachment_count = fields.Integer(
         string='附件數',
         compute='_compute_attachment_count')

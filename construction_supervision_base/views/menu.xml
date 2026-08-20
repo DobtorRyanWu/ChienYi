@@ -61,17 +61,52 @@
               parent="menu_project_management_root"
               sequence="45"/>
 
-    <!-- 1.5 文件管理（已移至「檔案管理」App） -->
+    <!-- 1.5 文件管理（已移至「檔案管理」App）
+         底下的順序照「使用者要做什麼」排，不是照資料模型排：
+           檔案總覽(10) 找 → 上傳檔案(20) 放 → 批次下載(30) 拿走 → 設定(90)
+         「資料夾管理」「文件分類」對日常使用者是看不懂的名詞，收進「設定」。
+         注意：依使用者要求**不加群組限制**——看得到「文件管理」就看得到全部五項。 -->
     <menuitem id="menu_document_management"
               name="文件管理"
               parent="menu_file_management_root"
               sequence="10"/>
 
+    <!-- 設定：管理員才會動的東西（資料夾結構、分類清單） -->
+    <menuitem id="menu_document_settings"
+              name="設定"
+              parent="menu_document_management"
+              sequence="90"/>
+
+    <menuitem id="menu_supervision_folder_upload"
+              name="上傳檔案"
+              parent="menu_document_management"
+              action="action_supervision_folder_upload"
+              sequence="20"/>
+
+    <menuitem id="menu_supervision_attachment_download"
+              name="批次下載"
+              parent="menu_document_management"
+              action="action_supervision_attachment_download"
+              sequence="30"/>
+
+    <!-- 文件管理底下的排序：
+         工程檔案(10，主畫面) → 資料夾(12，上傳入口) → 文件分類(20) → 工程文件(30)
+         前兩者定義在 supervision_folder_views.xml / supervision_attachment_views.xml -->
     <menuitem id="menu_supervision_document"
-              name="工程文件"
+              name="應交文件管制表"
               parent="menu_document_management"
               action="action_supervision_document"
-              sequence="10"/>
+              sequence="40"/>
+
+    <!-- 2026-08-20：暫時隱藏「應交文件管制表」入口（使用者決定）。
+         這個模型的定位是「這個案子該交哪些文件、交了沒、逾期沒」的管制表，
+         但「開案批次產生應交清單」機制還沒做，現在打開只會看到一張空表，
+         反而會被誤當成上傳入口——檔案上傳請走「資料夾」。
+         模型、資料、既有記錄全部保留，未來要重新啟用只要把下面這段刪掉。
+         ⚠️ 前台 /construction/<id>/documents 仍然是活的，另行決定。 -->
+    <record id="menu_supervision_document" model="ir.ui.menu">
+        <field name="active" eval="False"/>
+    </record>
 
 
     <!-- ============================================== -->

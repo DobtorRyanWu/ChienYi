@@ -112,6 +112,13 @@
                             string="↩ 回上一步"
                             invisible="state != 'draft' or init_current_step in ('equipment', 'done', False)"
                             confirm="確定要回到上一步？該步驟將需要重新確認。"/>
+                    <!-- 依文件分類樹產生標準資料夾。可重複按，已存在的略過只補缺的，
+                         所以不限制狀態——舊案補建、分類樹新增節點後回頭補都用同一顆。 -->
+                    <button name="action_create_standard_folders" type="object"
+                            string="建立標準資料夾"
+                            class="btn-secondary" icon="fa-folder-open-o"
+                            invisible="not id"
+                            confirm="將依文件分類樹為本工程建立標準資料夾（已存在的會略過）。要繼續嗎？"/>
                 </header>
                 <sheet>
                     <!-- 狀態標籤（右上角） -->
@@ -206,10 +213,22 @@
                                 <span class="o_stat_text">樣板</span>
                             </div>
                         </button>
-                        <!-- 文件（移到進度表之後、照片之前；由 progress/photo 以 anchor 插入）-->
+                        <!-- 應交文件管制表（移到進度表之後、照片之前；由 progress/photo 以 anchor 插入）
+                             2026-08-20 起隨主選單一起隱藏（groups="base.group_no_one"）。
+                             ⚠️ **不可以刪掉這顆按鈕**：construction_photo 用
+                             //button[@name='action_view_documents'] 當 xpath 錨點把
+                             照片按鈕插在它後面，刪了照片模組會載入失敗。
+                             用 groups 隱藏則安全——view 繼承是在 arch 合併階段做的，
+                             groups 過濾發生在之後的 postprocess，錨點仍然找得到。 -->
                         <button name="action_view_documents" type="object"
-                                class="oe_stat_button" icon="fa-file-text-o">
-                            <field name="document_count" string="文件" widget="statinfo"/>
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                groups="base.group_no_one">
+                            <field name="document_count" string="應交文件" widget="statinfo"/>
+                        </button>
+                        <!-- 工程資料夾（檔案實際存放位置；分類是「是什麼」、資料夾是「放在哪」）-->
+                        <button name="action_view_folders" type="object"
+                                class="oe_stat_button" icon="fa-folder-open-o">
+                            <field name="folder_count" string="資料夾" widget="statinfo"/>
                         </button>
                         <!-- 契約工項（最末顆；邏輯 task_count / action_view_tasks 同在 base）
                              照片由 construction_photo 以 anchor 插在「文件」之後 -->

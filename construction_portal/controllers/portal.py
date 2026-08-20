@@ -127,16 +127,21 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
 
     def _resolve_document_project(self, att):
-        """反解一個文件附件所屬工程案件（只認 supervision.document.upload_attachment_ids）。
+        """反解一個附件所屬的工程案件；反解不出來一律 None（→404）。
 
-        與照片端點同樣採允許清單：不做泛用反解，非文件庫附件一律 None（→404），
-        避免本端點淪為任意附件下載器。
+        2026-08-21：判斷依據從「掛在某筆 supervision.document 上」改成
+        「附件本身的 supervision_project_id 有值」——前台檔案管理已改成直接讀
+        ir.attachment（＝後台「檔案總覽」同一份資料），不再經過 supervision.document。
+
+        **這仍然是允許清單，不是泛用反解。** 系統裡絕大多數附件
+        （使用者頭像、公司 logo、郵件附件、報表暫存、樣板檔…）沒有這個欄位值，
+        一律回 None → 404，端點不會淪為任意附件下載器。
+
+        真正的權限把關在呼叫端的 `_user_can_see_project()`：
+        看不到那個工程就 404（不洩漏存在性）。
         """
-        env = request.env
-        doc = env['supervision.document'].sudo().search(
-            [('upload_attachment_ids', 'in', att.id)], limit=1)
-        if doc and 'project_id' in doc._fields and doc.project_id:
-            return doc.project_id
+        if att.supervision_project_id:
+            return att.supervision_project_id
         return None
 
 

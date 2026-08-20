@@ -2,13 +2,13 @@
 <odoo>
 
     <!-- ============================================== -->
-    <!-- 工程文件 - 表單視圖（輕量版）                     -->
+    <!-- 應交文件管制表 - 表單視圖（輕量版）               -->
     <!-- ============================================== -->
     <record id="view_supervision_document_form" model="ir.ui.view">
         <field name="name">supervision.document.form</field>
         <field name="model">supervision.document</field>
         <field name="arch" type="xml">
-            <form string="工程文件">
+            <form string="應交文件管制表">
                 <header>
                     <!-- 狀態按鈕 -->
                     <button name="action_upload" string="標記為已上傳"
@@ -94,13 +94,13 @@
     </record>
 
     <!-- ============================================== -->
-    <!-- 工程文件 - 列表視圖                              -->
+    <!-- 應交文件管制表 - 列表視圖                        -->
     <!-- ============================================== -->
     <record id="view_supervision_document_tree" model="ir.ui.view">
         <field name="name">supervision.document.tree</field>
         <field name="model">supervision.document</field>
         <field name="arch" type="xml">
-            <list string="工程文件" default_order="create_date desc"
+            <list string="應交文件管制表" default_order="create_date desc"
                   decoration-muted="state == 'archived'"
                   decoration-success="state == 'uploaded'"
                   decoration-danger="is_overdue">
@@ -120,7 +120,7 @@
     </record>
 
     <!-- ============================================== -->
-    <!-- 工程文件 - 看板視圖                              -->
+    <!-- 應交文件管制表 - 看板視圖                        -->
     <!-- ============================================== -->
     <record id="view_supervision_document_kanban" model="ir.ui.view">
         <field name="name">supervision.document.kanban</field>
@@ -180,13 +180,13 @@
     </record>
 
     <!-- ============================================== -->
-    <!-- 工程文件 - 搜尋視圖                              -->
+    <!-- 應交文件管制表 - 搜尋視圖                        -->
     <!-- ============================================== -->
     <record id="view_supervision_document_search" model="ir.ui.view">
         <field name="name">supervision.document.search</field>
         <field name="model">supervision.document</field>
         <field name="arch" type="xml">
-            <search string="搜尋工程文件">
+            <search string="搜尋應交文件">
                 <field name="document_no"/>
                 <field name="name"/>
                 <field name="project_id"/>
@@ -214,20 +214,20 @@
     </record>
 
     <!-- ============================================== -->
-    <!-- 工程文件 - 動作                                  -->
+    <!-- 應交文件管制表 - 動作                            -->
     <!-- ============================================== -->
     <record id="action_supervision_document" model="ir.actions.act_window">
-        <field name="name">工程文件</field>
+        <field name="name">應交文件管制表</field>
         <field name="res_model">supervision.document</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="search_view_id" ref="view_supervision_document_search"/>
         <field name="context">{'group_by': 'document_category_id'}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                上傳第一份工程文件
+                建立第一筆應交文件管制項目
             </p>
             <p>
-                工程文件用於管理專案相關的各類文件。<br/>
+                應交文件管制表用於管理「這個案子該交哪些文件、交了沒、逾期沒」。<br/>
                 系統會自動保留每個文件的所有歷史版本。
             </p>
         </field>
