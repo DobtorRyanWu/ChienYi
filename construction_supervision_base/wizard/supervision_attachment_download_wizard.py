@@ -27,6 +27,12 @@ class SupervisionAttachmentDownloadWizard(models.TransientModel):
     project_id = fields.Many2one(
         'project.project', string='工程案件', required=True)
 
+    # 從「檔案總覽」勾選幾筆再打包時用：有值就直接打包這些，
+    # 底下那些工程／資料夾／日期的篩選條件全部不參與。
+    attachment_ids = fields.Many2many(
+        'ir.attachment', 'attachment_download_wizard_rel',
+        'wizard_id', 'attachment_id', string='指定檔案')
+
     folder_id = fields.Many2one(
         'supervision.folder', string='資料夾',
         domain="[('project_id','=',project_id)]",
@@ -77,6 +83,13 @@ class SupervisionAttachmentDownloadWizard(models.TransientModel):
             self.project_id = self.folder_id.project_id
 
     # -------------------------------------------------------------------
+    def _attachments(self):
+        """這次要打包哪些檔案：勾選優先，沒勾選才用條件篩"""
+        self.ensure_one()
+        if self.attachment_ids:
+            return self.attachment_ids
+        return self.env['ir.attachment'].search(self._build_domain())
+
     def _build_domain(self):
         self.ensure_one()
         domain = [
@@ -116,7 +129,7 @@ class SupervisionAttachmentDownloadWizard(models.TransientModel):
     def action_preview(self):
         """先算數量與大小，避免使用者不小心按下去打包 2 GB"""
         self.ensure_one()
-        attachments = self.env['ir.attachment'].search(self._build_domain())
+        attachments = self._attachments()
         size = sum(attachments.mapped('file_size') or [0])
         size_mb = size / 1024 / 1024
         self.write({
@@ -128,7 +141,7 @@ class SupervisionAttachmentDownloadWizard(models.TransientModel):
 
     def action_download(self):
         self.ensure_one()
-        attachments = self.env['ir.attachment'].search(self._build_domain())
+        attachments = self._attachments()
         if not attachments:
             raise UserError('找不到符合條件的檔案。')
 
@@ -167,7 +180,8 @@ class SupervisionAttachmentDownloadWizard(models.TransientModel):
         if not packed:
             raise UserError('符合條件的檔案都沒有實際內容，無法打包。')
 
-        scope = self.folder_id.complete_name or self.project_id.name or '工程檔案'
+        scope = (self.folder_id.complete_name or self.project_id.name
+                 or '工程檔案')
         self.write({
             'state': 'done',
             'record_count': packed,

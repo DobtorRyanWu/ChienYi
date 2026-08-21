@@ -19,6 +19,13 @@
         <field name="priority">99</field>
         <field name="arch" type="xml">
             <list string="工程附件" create="false" editable="bottom">
+                <!-- 勾選幾筆之後出現：打包成 zip。
+                     Odoo 原生的「匯出」是把**欄位資料**匯成 csv/xlsx，
+                     不是下載檔案本體，兩者常被搞混。 -->
+                <header>
+                    <button name="action_download_selected" type="object"
+                            string="打包下載選取的檔案" icon="fa-file-archive-o"/>
+                </header>
                 <field name="name" string="檔案名稱" readonly="1"/>
                 <field name="supervision_project_id" string="所屬工程" readonly="1"
                        optional="show"/>
@@ -36,6 +43,9 @@
                 <field name="create_date" string="上傳時間" readonly="1" optional="show"/>
                 <field name="file_size" string="大小" readonly="1" optional="hide"/>
                 <field name="mimetype" string="檔案類型" readonly="1" optional="hide"/>
+                <!-- 單檔下載：檔案總覽是用來找檔案的，找到卻載不下來沒有意義 -->
+                <button name="action_download_file" type="object"
+                        icon="fa-download" title="下載此檔案"/>
                 <button name="action_open_attachment_source" type="object"
                         icon="fa-external-link" title="開啟來源單據"
                         invisible="not res_id"/>
@@ -75,6 +85,9 @@
                         </group>
                     </group>
                     <div>
+                        <button name="action_download_file" type="object"
+                                string="下載檔案" class="btn-primary"
+                                icon="fa-download"/>
                         <button name="action_open_attachment_source" type="object"
                                 string="開啟來源單據" class="btn-secondary"
                                 invisible="not res_id"/>

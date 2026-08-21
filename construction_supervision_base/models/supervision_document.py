@@ -505,6 +505,48 @@ class IrAttachment(models.Model):
         string='版本備註',
         help='此版本的說明或變更記錄')
 
+    def action_download_file(self):
+        """下載這一個檔案本身。
+
+        Odoo 原生清單只提供「匯出」——那是把**欄位資料**匯成 csv/xlsx，
+        不是下載檔案本體。檔案總覽是拿來找檔案的，找到卻載不下來沒有意義，
+        所以清單列與表單各給一個下載入口。
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_url',
+            # download=true 會讓伺服器回 Content-Disposition: attachment，
+            # 瀏覽器直接存檔、不會離開目前畫面
+            'url': '/web/content/%s?download=true' % self.id,
+            'target': 'self',
+        }
+
+    def action_download_selected(self):
+        """把清單上勾選的檔案打包成 zip。
+
+        沿用「批次下載」那支精靈（zip 內目錄結構＝資料夾樹），
+        只是改成餵明確的檔案清單，而不是用工程／資料夾／日期去篩。
+        """
+        if not self:
+            raise UserError('請先勾選要下載的檔案。')
+        projects = self.mapped('supervision_project_id')
+        size_mb = sum(self.mapped('file_size') or [0]) / 1024 / 1024
+        wizard = self.env['supervision.attachment.download.wizard'].create({
+            'project_id': projects[0].id if projects else False,
+            'attachment_ids': [(6, 0, self.ids)],
+            # 先填好，否則精靈一開啟會顯示「將打包 0 個檔案」
+            'record_count': len(self),
+            'total_size': '%.1f MB' % size_mb,
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '打包下載',
+            'res_model': 'supervision.attachment.download.wizard',
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
     def action_open_attachment_source(self):
         """開啟這個附件的來源單據（供「全部工程附件」清單跳轉用）"""
         self.ensure_one()

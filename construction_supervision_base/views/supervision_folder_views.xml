@@ -108,6 +108,8 @@
                                     <field name="create_date" string="上傳時間" readonly="1"/>
                                     <field name="res_model" string="來源" readonly="1"
                                            optional="hide"/>
+                                    <button name="action_download_file" type="object"
+                                            icon="fa-download" title="下載此檔案"/>
                                 </list>
                             </field>
                         </page>
@@ -124,6 +126,8 @@
                                     <field name="file_size" string="大小"/>
                                     <field name="create_uid" string="上傳者" optional="show"/>
                                     <field name="create_date" string="上傳時間" optional="show"/>
+                                    <button name="action_download_file" type="object"
+                                            icon="fa-download" title="下載此檔案"/>
                                 </list>
                             </field>
                         </page>

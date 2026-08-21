@@ -8,9 +8,19 @@
             <form string="批次下載工程檔案">
                 <field name="state" invisible="1"/>
                 <field name="oversize" invisible="1"/>
+                <field name="attachment_ids" invisible="1"/>
+
+                <!-- 從「檔案總覽」勾選檔案進來時，底下那些篩選條件不參與，
+                     顯示出來只會讓人以為還要再設定一次 -->
+                <div class="alert alert-info" role="alert"
+                     invisible="not attachment_ids">
+                    將打包您勾選的
+                    <field name="record_count" readonly="1" class="oe_inline"/>
+                    個檔案。
+                </div>
 
                 <!-- 設定階段 -->
-                <group invisible="state == 'done'">
+                <group invisible="state == 'done' or attachment_ids">
                     <group string="範圍">
                         <field name="project_id" options="{'no_create': True}"/>
                         <field name="folder_id" options="{'no_create': True}"
