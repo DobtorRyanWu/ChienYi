@@ -13,7 +13,10 @@
     #        受影響：self_inspection / daily_log_c1(+c2,progress_report) /
     #        defect_control / defect_improvement / estimate_report / review_control /
     #        test_control；plan_control 原本就對，一併收斂到同一支函式
-    'version': '18.0.2.7.0',
+    # 2.8.0: 施工日誌第一聯（營造版）的 ${table:specificConstructionItems.*}
+    #        接上新的「營造業特定項目」頁籤（daily.log.specific.item）；
+    #        原本硬寫 [] 導致該區永遠只印一列空白
+    'version': '18.0.2.8.0',
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """

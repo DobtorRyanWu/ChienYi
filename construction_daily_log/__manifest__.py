@@ -12,7 +12,11 @@
     # 2.6.0: 同上，補 post-migration 重算既有工項的 actual_qty 與下游金額/完成率
     #        （欄位早就存在，Odoo 不會自動排程重算）
     # 2.8.0: 新增施工項目精靈的「已選工項」清單加上父工項欄（與選取對話框一致）
-    "version": "18.0.2.8.0",
+    # 2.9.0: 新增「營造業特定項目」頁籤（daily.log.specific.item），
+    #        欄位與工地材料管理相同：項目/單位/契約數量/本日完成數量/累計完成數量/備註
+    # 2.9.1: 「營造業特定項目」頁籤改排到施工日誌明細之後、工地材料管理之前
+    #        （page 的 sequence 屬性在 Odoo 18 不參與排序，只能靠 XML 文件順序）
+    "version": "18.0.2.9.1",
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """

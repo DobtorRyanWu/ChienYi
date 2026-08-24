@@ -187,6 +187,13 @@ class DailyLogSheet(models.Model):
         string='工地材料管理',
     )
 
+    # === 營造業特定項目 ===
+    specific_item_ids = fields.One2many(
+        'daily.log.specific.item',
+        'daily_log_id',
+        string='營造業特定項目',
+    )
+
     # === Weather Records (需求五：改為直接欄位) ===
     weather_am = fields.Selection([
         ('sunny', '晴天'),

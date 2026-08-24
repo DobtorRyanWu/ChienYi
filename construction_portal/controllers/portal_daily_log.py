@@ -178,11 +178,23 @@ class DailyLogRoutesMixin:
                 cumulative_qty=mat.cumulative_qty or 0.0,
                 note=mat.note or '',
             ))
+        log_specific_items = []
+        for spec in log_su.specific_item_ids:
+            log_specific_items.append(SimpleNamespace(
+                id=spec.id,
+                name=spec.name or '',
+                unit=spec.unit or '',
+                contract_qty=spec.contract_qty or 0.0,
+                daily_qty=spec.daily_qty or 0.0,
+                cumulative_qty=spec.cumulative_qty or 0.0,
+                note=spec.note or '',
+            ))
         values = {
             'project': project,
             'log': log,
             'log_lines': log_lines,
             'log_materials': log_materials,
+            'log_specific_items': log_specific_items,
             'weather_selection': weather_selection,
             'page_name': 'construction_daily_log_detail',
             'day_count': self._get_project_day_count(project),

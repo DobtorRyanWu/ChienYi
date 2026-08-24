@@ -16,7 +16,9 @@
     #        只靠 placeholder 分辨，UI 上看不出前後哪個是哪個）；
     #        valuation_count 改名「本工程已估驗次數」並改為工程層級
     #        （估驗計價與通報單無關聯，見 construction_payment 1.3.0）
-    'version': '18.0.2.5.0',
+    # 2.6.0: 修正清單依工程分組時，「通報單次數」欄位被當成金額加總
+    #        （82 次通報單顯示成 3,367 次）。slip_no 是序號不是量，改 aggregator=False
+    'version': '18.0.2.6.0',
     'category': 'Construction/Supervision',
     'summary': '預約式工程通報單管理模組',
     'description': """

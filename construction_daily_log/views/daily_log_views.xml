@@ -187,6 +187,27 @@
                             </field>
                         </page>
                         
+                        <!-- 營造業特定項目（要排在施工日誌明細之後、工地材料管理之前）
+                             ⚠️ page 的 sequence 屬性在 Odoo 18 不參與排序，實際順序＝
+                             繼承套用後的 XML 文件順序，所以這一段必須實體放在
+                             material_management 之前。 -->
+                        <page string="營造業特定項目" name="specific_items" sequence="22">
+                            <div class="text-muted mb-2">
+                                營造業專業工程特定施工項目使用狀況及數量等
+                            </div>
+                            <field name="specific_item_ids" readonly="is_locked and not is_unlocked">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name" placeholder="營造業專業工程特定施工項目"/>
+                                    <field name="unit"/>
+                                    <field name="contract_qty"/>
+                                    <field name="daily_qty"/>
+                                    <field name="cumulative_qty"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+
                         <!-- 工地材料管理 -->
                         <page string="工地材料管理" name="material_management" sequence="25">
                             <div class="text-muted mb-2">

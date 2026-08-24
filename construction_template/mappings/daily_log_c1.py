@@ -112,9 +112,22 @@ def build_context(record):
         'constructionItems': _work_items(record),
         'projectSheets': _work_items(record),
 
-        # 營造業專業工程特定施工項目：Odoo 目前沒有對應資料來源，
-        # 留空讓表格保持一列空白（不硬湊）
-        'specificConstructionItems': [],
+        # 營造業專業工程特定施工項目（樣板 R13，比一般施工項目多一個 A 欄「項次」）
+        #
+        # 2026-08-25：施工日誌新增同名頁籤（daily.log.specific.item）後才有資料來源。
+        # 在那之前這裡是硬寫 []，套印永遠只印一列空白 —— 樣板上的 7 個
+        # ${table:specificConstructionItems.*} 全部取不到值。
+        # 欄位對映與工地材料管理相同，只多一個樣板獨有的 no（項次，A13 單欄，
+        # 模型沒有這個欄位，用列序號 1,2,3… 產生）。
+        'specificConstructionItems': [{
+            'no': idx,
+            'description': item.name or '',
+            'unit': item.unit or '',
+            'quantity': _qty(item.contract_qty),
+            'doneQuantity': _qty(item.daily_qty),
+            'totalQuantity': _qty(item.cumulative_qty),
+            'note': item.note or '',
+        } for idx, item in enumerate(record.specific_item_ids, start=1)],
 
         # 二、工地材料管理
         'materialItems': [{

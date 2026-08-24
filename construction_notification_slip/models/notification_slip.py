@@ -31,8 +31,12 @@ class ReservationNotificationSlip(models.Model):
         tracking=True,
         help='僅可選擇預約式工程')
 
+    # aggregator=False：這是「第幾次」的序號，不是可加總的量。
+    # 沒有這行的話，Odoo 對 Integer 預設 aggregator='sum'，清單依工程分組時
+    # 群組列會把 1+2+...+82 加起來顯示成 3,367 次（實際只開立 82 次）。
     slip_no = fields.Integer(
         string='通報單次', required=True, default=1,
+        aggregator=False,
         help='本工程的第幾次通報單')
 
     # === 編製資訊 ===
