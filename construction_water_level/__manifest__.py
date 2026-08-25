@@ -9,7 +9,9 @@
     # 2.1.0: 社區場域加前台成員制（member_user_ids）與四條社區 record rule，
     #        供 construction_portal 的社區水情頁使用
     # 2.2.0: 後台地圖（場域／蓄水池／監測站三個 leaflet_map view，標記依狀態上色）
-    'version': '18.0.2.2.0',
+    # 2.3.0: 改走 pull —— 新增可換來源的適配層（http_json／postgres／file_json）、
+    #        欄位對應表、時間模式缺號偵測；push 端點保留，兩種並存
+    'version': '18.0.2.3.0',
     'category': 'Construction/Supervision',
     'summary': '水位監測站主檔、時序水位紀錄與設備上報端點',
     'description': """
@@ -54,6 +56,7 @@
         'views/water_level_tank_views.xml',
         'views/water_level_views.xml',
         'views/water_level_map_views.xml',
+        'views/water_level_source_views.xml',
         'views/water_level_event_views.xml',
         'views/water_level_gap_views.xml',
         'views/water_level_integrity_views.xml',

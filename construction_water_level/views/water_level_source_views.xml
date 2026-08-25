@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_water_level_source_list" model="ir.ui.view">
+        <field name="name">water.level.source.list</field>
+        <field name="model">water.level.source</field>
+        <field name="arch" type="xml">
+            <list string="資料來源" decoration-danger="sync_state == 'error'"
+                  decoration-muted="sync_state == 'never'">
+                <field name="name"/>
+                <field name="source_type"/>
+                <field name="device_count" string="設備數"/>
+                <field name="last_sync_ts"/>
+                <field name="last_pull_at"/>
+                <field name="sync_state" widget="badge"
+                       decoration-danger="sync_state == 'error'"
+                       decoration-success="sync_state == 'ok'"/>
+                <field name="last_error" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_source_form" model="ir.ui.view">
+        <field name="name">water.level.source.form</field>
+        <field name="model">water.level.source</field>
+        <field name="arch" type="xml">
+            <form string="資料來源">
+                <header>
+                    <button name="action_pull_now" type="object" string="立刻撈一次"
+                            class="btn-primary"/>
+                    <field name="sync_state" widget="statusbar"
+                           statusbar_visible="never,ok,error"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="例如：黃老師水位資料庫"/></h1>
+                    </div>
+                    <group>
+                        <group string="來源型態">
+                            <field name="source_type" widget="radio"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                        <group string="同步狀態">
+                            <field name="last_sync_ts"/>
+                            <field name="last_pull_at"/>
+                            <field name="last_error"/>
+                        </group>
+                    </group>
+
+                    <group string="連線" invisible="source_type == 'postgres'">
+                        <field name="endpoint" placeholder="https://... 或 /mnt/data/readings.json"/>
+                        <field name="auth_type" invisible="source_type != 'http_json'"/>
+                        <field name="auth_token"
+                               invisible="source_type != 'http_json' or auth_type != 'bearer'"
+                               password="True"/>
+                        <field name="auth_user"
+                               invisible="source_type != 'http_json' or auth_type != 'basic'"/>
+                        <field name="auth_password"
+                               invisible="source_type != 'http_json' or auth_type != 'basic'"
+                               password="True"/>
+                    </group>
+
+                    <group string="連線" invisible="source_type != 'postgres'">
+                        <field name="db_host"/>
+                        <field name="db_port"/>
+                        <field name="db_name"/>
+                        <field name="db_user"/>
+                        <field name="db_password" password="True"/>
+                        <field name="db_table"/>
+                    </group>
+
+                    <group string="查詢參數" invisible="source_type != 'http_json'">
+                        <field name="param_device"/>
+                        <field name="param_since"/>
+                        <field name="param_until"/>
+                        <field name="param_time_format"/>
+                        <field name="extra_params" placeholder="a=1&amp;b=2"/>
+                    </group>
+
+                    <group>
+                        <group string="欄位對應（對方的欄位叫什麼就填什麼）">
+                            <field name="records_path" placeholder="data.readings（留空＝最外層就是陣列）"
+                                   invisible="source_type == 'postgres'"/>
+                            <field name="key_timestamp"/>
+                            <field name="key_value"/>
+                            <field name="key_device"/>
+                            <field name="key_seq" placeholder="留空＝來源沒有流水號"/>
+                            <field name="key_hash" placeholder="留空＝來源不簽章"/>
+                        </group>
+                        <group string="數值與時間的解讀">
+                            <field name="value_unit"/>
+                            <field name="ts_timezone" placeholder="UTC 或 Asia/Taipei"/>
+                            <field name="overlap_minutes"/>
+                            <field name="max_rows_per_pull"/>
+                        </group>
+                    </group>
+
+                    <div class="alert alert-info" role="status">
+                        <strong>兩個容易出事的設定：</strong>
+                        <ul class="mb-0">
+                            <li><b>來源時區</b>——來源時間戳沒帶時區標記時用它解讀。
+                                填錯會讓整批資料位移，而且寫入完全不報錯，
+                                要等事後對帳才看得出來。</li>
+                            <li><b>關鍵字：流水號</b>——留空的話，缺號偵測只能退回
+                                「哪幾分鐘沒資料」，分不出「對方本來就沒量」與「資料掉了」。</li>
+                        </ul>
+                    </div>
+
+                    <notebook>
+                        <page string="供應的監測站" name="devices">
+                            <field name="device_ids" nolabel="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="remote_key"/>
+                                    <field name="site_id"/>
+                                    <field name="expected_interval_min"/>
+                                    <field name="last_seen"/>
+                                    <field name="level_state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_water_level_source" model="ir.actions.act_window">
+        <field name="name">資料來源</field>
+        <field name="res_model">water.level.source</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一個資料來源</p>
+            <p>設備自己把資料打進來的話不需要建這個。
+               需要我們主動去對方系統撈資料時（例如合作方的資料庫），才在這裡設定。</p>
+        </field>
+    </record>
+
+</odoo>

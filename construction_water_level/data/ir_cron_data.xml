@@ -62,5 +62,15 @@
             <field name="active" eval="True"/>
         </record>
 
+        <record id="cron_water_level_source_pull" model="ir.cron">
+            <field name="name">水位監測：從資料來源撈取</field>
+            <field name="model_id" ref="model_water_level_source"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_pull()</field>
+            <field name="interval_number">5</field>
+            <field name="interval_type">minutes</field>
+            <field name="active" eval="False"/>
+        </record>
+
     </data>
 </odoo>

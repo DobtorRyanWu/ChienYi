@@ -37,6 +37,12 @@
               action="action_water_level_event"
               sequence="25"/>
 
+    <menuitem id="menu_water_level_source"
+              name="資料來源"
+              parent="menu_water_level_root"
+              action="action_water_level_source"
+              sequence="28"/>
+
     <menuitem id="menu_water_level_gap"
               name="序號缺口"
               parent="menu_water_level_root"

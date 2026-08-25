@@ -11,6 +11,7 @@ DM 基本等級承諾「連續序號核對，缺號自動索取補送」。缺�
 """
 
 import logging
+from datetime import timedelta
 
 from odoo import _, api, fields, models
 
@@ -31,8 +32,15 @@ class WaterLevelGap(models.Model):
     site_id = fields.Many2one(
         related='device_id.site_id', string='監測場域', store=True, index=True)
 
-    seq_from = fields.Integer(string='起始序號', required=True)
-    seq_to = fields.Integer(string='結束序號', required=True)
+    # 來源有流水號就走 seq 模式（精準）；沒有就退回 time 模式（用「哪幾分鐘沒資料」推測）。
+    # 兩種共用同一張表與同一個狀態機，後台看缺口只有一個地方。
+    gap_type = fields.Selection(
+        [('seq', '序號缺口'), ('time', '時間缺口')],
+        string='缺口類型', default='seq', required=True, index=True)
+    seq_from = fields.Integer(string='起始序號')
+    seq_to = fields.Integer(string='結束序號')
+    ts_from = fields.Datetime(string='缺口起')
+    ts_to = fields.Datetime(string='缺口迄')
     missing_count = fields.Integer(
         string='缺少筆數', compute='_compute_missing_count', store=True)
     filled_count = fields.Integer(string='已補回筆數', default=0)
@@ -52,21 +60,43 @@ class WaterLevelGap(models.Model):
     filled_at = fields.Datetime(string='補齊時間', readonly=True)
     note = fields.Char(string='備註')
 
-    _sql_constraints = [
-        ('device_range_uniq', 'unique(device_id, seq_from, seq_to)',
-         '同一監測站的同一個缺口區間已存在。'),
-    ]
+    # 唯一性改用兩個部分索引（見 init）：時間模式的 seq_from/seq_to 都是 0，
+    # 沿用原本的 unique(device_id, seq_from, seq_to) 會讓第二個時間缺口就撞車。
 
-    @api.depends('seq_from', 'seq_to')
+    def init(self):
+        self.env.cr.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS water_level_gap_seq_uniq
+            ON water_level_gap (device_id, seq_from, seq_to)
+            WHERE gap_type = 'seq'
+        """)
+        self.env.cr.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS water_level_gap_time_uniq
+            ON water_level_gap (device_id, ts_from, ts_to)
+            WHERE gap_type = 'time'
+        """)
+
+    @api.depends('gap_type', 'seq_from', 'seq_to', 'ts_from', 'ts_to', 'device_id')
     def _compute_missing_count(self):
         for gap in self:
-            gap.missing_count = max(0, gap.seq_to - gap.seq_from + 1)
+            if gap.gap_type == 'time':
+                # 時間模式沒有序號可數，用「這段期間應該要有幾筆」估
+                if gap.ts_from and gap.ts_to:
+                    minutes = (gap.ts_to - gap.ts_from).total_seconds() / 60.0
+                    gap.missing_count = max(0, int(minutes))
+                else:
+                    gap.missing_count = 0
+            else:
+                gap.missing_count = max(0, gap.seq_to - gap.seq_from + 1)
 
-    @api.depends('device_id.name', 'seq_from', 'seq_to')
+    @api.depends('device_id.name', 'gap_type', 'seq_from', 'seq_to', 'ts_from', 'ts_to')
     def _compute_display_name(self):
         for gap in self:
-            gap.display_name = '%s #%s-%s' % (
-                gap.device_id.name or '', gap.seq_from, gap.seq_to)
+            if gap.gap_type == 'time':
+                gap.display_name = '%s %s ~ %s' % (
+                    gap.device_id.name or '', gap.ts_from or '', gap.ts_to or '')
+            else:
+                gap.display_name = '%s #%s-%s' % (
+                    gap.device_id.name or '', gap.seq_from, gap.seq_to)
 
     # ==================== 供 ingest 呼叫 ====================
 
@@ -119,6 +149,71 @@ class WaterLevelGap(models.Model):
     # ==================== 定期稽核 ====================
 
     @api.model
+    def _open_time_gap(self, device, ts_from, ts_to):
+        """開一個時間缺口（來源沒有流水號時用）。同一區間已存在就不重複開。"""
+        existing = self.search([
+            ('device_id', '=', device.id),
+            ('gap_type', '=', 'time'),
+            ('ts_from', '=', ts_from),
+            ('ts_to', '=', ts_to),
+        ], limit=1)
+        if existing:
+            return existing
+        return self.create({
+            'device_id': device.id,
+            'gap_type': 'time',
+            'ts_from': ts_from,
+            'ts_to': ts_to,
+        })
+
+    @api.model
+    def _scan_time_gaps(self, device, since=None):
+        """用「沉默多久」找缺口。來源沒有流水號時唯一能做的偵測。
+
+        誠實條款：這把尺量不出「對方本來就沒量」與「資料在路上掉了」的差別——
+        序號才分得出來。所以規格清單第 7 題要跟資料提供方要流水號。
+        """
+        interval = max(1, device.expected_interval_min or 1)
+        # 沉默超過三個取樣週期才算缺口，單筆抖動不開單
+        threshold = interval * 3
+        since = since or (fields.Datetime.now() - timedelta(days=2))
+        self.env.cr.execute("""
+            SELECT prev_ts, ts FROM (
+                SELECT ts, lag(ts) OVER (ORDER BY ts) AS prev_ts
+                  FROM water_level_reading
+                 WHERE device_id = %s AND ts >= %s
+            ) t
+            WHERE prev_ts IS NOT NULL
+              AND ts - prev_ts > (%s * interval '1 minute')
+            ORDER BY prev_ts
+        """, (device.id, since, threshold))
+        opened = self.browse()
+        for prev_ts, ts in self.env.cr.fetchall():
+            opened |= self._open_time_gap(device, prev_ts, ts)
+        return opened
+
+    @api.model
+    def _close_filled_time_gaps(self, device):
+        """時間缺口補回來了沒：區間內現在有沒有資料。"""
+        gaps = self.search([
+            ('device_id', '=', device.id),
+            ('gap_type', '=', 'time'),
+            ('state', 'in', ['open', 'requested', 'partial']),
+        ])
+        for gap in gaps:
+            self.env.cr.execute("""
+                SELECT count(*) FROM water_level_reading
+                 WHERE device_id = %s AND ts > %s AND ts < %s
+            """, (device.id, gap.ts_from, gap.ts_to))
+            have = self.env.cr.fetchone()[0]
+            if have:
+                gap.write({
+                    'filled_count': have,
+                    'state': 'filled',
+                    'filled_at': fields.Datetime.now(),
+                })
+
+    @api.model
     def _cron_gap_scan(self):
         """把序號連續性從頭掃一次，不只依賴上報當下的偵測。
 
@@ -129,6 +224,11 @@ class WaterLevelGap(models.Model):
         devices = self.env['water.level.device'].search([('active', '=', True)])
         opened = closed = 0
         for device in devices:
+            # 來源沒有流水號（或根本沒接來源）的設備，走時間模式
+            if not device.source_id or not device.source_id.key_seq:
+                self._close_filled_time_gaps(device)
+                opened += len(self._scan_time_gaps(device))
+
             self.env.cr.execute("""
                 SELECT seq_no + 1 AS gap_from, next_seq - 1 AS gap_to
                   FROM (SELECT seq_no,

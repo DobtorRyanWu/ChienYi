@@ -69,6 +69,17 @@ class WaterLevelDevice(models.Model):
         help='數字小的在上游。前台站台列依此排序，看得出水從哪邊來。')
     active = fields.Boolean(string='啟用', default=True)
 
+    # === 資料來源（pull 模式）===
+    # 設備自己打進來（push）時這兩欄留空；由我們去對方資料庫撈時才需要。
+    # 兩種模式並存：同一台設備不會同時用兩種，但整個系統要能同時服務兩種客戶。
+    source_id = fields.Many2one(
+        'water.level.source', string='資料來源',
+        ondelete='restrict', index=True,
+        help='留空代表這台設備自己把資料打進來（push）。')
+    remote_key = fields.Char(
+        string='來源端識別值',
+        help='這台設備在對方系統裡的識別值，對應來源設定的「關鍵字：設備」。')
+
     device_uid = fields.Char(
         string='設備碼', required=True, index=True, copy=False, tracking=True,
         help='機器上報時放在 X-Device-Uid 標頭的識別碼，全庫唯一。')
@@ -97,6 +108,11 @@ class WaterLevelDevice(models.Model):
     low_level_3 = fields.Float(string='低水位注意(m)', digits=(10, 3))
     low_level_2 = fields.Float(string='低水位警戒(m)', digits=(10, 3))
     low_level_1 = fields.Float(string='嚴重缺水水位(m)', digits=(10, 3))
+
+    expected_interval_min = fields.Integer(
+        string='期望取樣間隔(分鐘)', default=1,
+        help='這台設備多久應該有一筆。來源沒有流水號時，缺號偵測靠這把尺——'
+             '沉默超過這個間隔的數倍就視為缺口。DM 對社區客戶的規格是每分鐘一筆。')
 
     offline_after_min = fields.Integer(
         string='斷線判定(分鐘)', default=DEFAULT_OFFLINE_MINUTES,
