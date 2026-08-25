@@ -605,6 +605,8 @@
             <!-- 在契約工期欄位後增加變更資訊 -->
             <xpath expr="//field[@name='contract_duration']" position="after">
                 <field name="change_order_count" invisible="1"/>
+                <!-- group 的 invisible 會用到它，比照 change_order_count 宣告在外層 -->
+                <field name="change_limit_exempt" invisible="1"/>
             </xpath>
             <xpath expr="//notebook" position="before">
                 <group string="契約變更資訊" invisible="change_order_count == 0">
@@ -622,7 +624,6 @@
                     <!-- 50% 管制豁免：唯讀，資料落點在啟用它的那一張變更單 -->
                     <group string="採購法 50% 管制" colspan="2"
                            invisible="not change_limit_exempt">
-                        <field name="change_limit_exempt" invisible="1"/>
                         <field name="change_limit_exempt_order_id" readonly="1"/>
                         <field name="change_limit_exempt_note" readonly="1"/>
                     </group>
