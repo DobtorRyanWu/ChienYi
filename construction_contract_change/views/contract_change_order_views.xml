@@ -131,13 +131,29 @@
                             <field name="cumulative_change_rate" widget="percentage"
                                    invisible="not has_change_limit_base"/>
                             <div class="alert alert-danger mb-0" role="alert" colspan="2"
-                                 invisible="not is_over_change_limit">
+                                 invisible="not is_over_change_limit or limit_exempt_active">
                                 ⚠ 累計變更金額（逐次取絕對值相加）已超過原契約金額 50%，
                                 提送、核定、套用都會被擋下。
+                                若本次改依其他法源辦理，請於下方勾選豁免並敘明緣由。
                             </div>
                             <div class="alert alert-warning mb-0" role="alert" colspan="2"
                                  invisible="has_change_limit_base">
                                 未設定「原始契約金額」，無法執行採購法 50% 管制。
+                            </div>
+                            <!-- 豁免：機關改依其他法源核准變更時使用。
+                                 一經核定，本工程之後的變更一律沿用（唯讀顯示來源）。 -->
+                            <field name="limit_exempt_active" invisible="1"/>
+                            <field name="limit_exempt_source_id" invisible="1"/>
+                            <field name="is_limit_exempt"
+                                   readonly="state != 'draft'"/>
+                            <field name="exempt_reason"
+                                   readonly="state != 'draft'"
+                                   required="is_limit_exempt"
+                                   invisible="not is_limit_exempt"
+                                   placeholder="例如：依採購法第22條第1項第3款「不可預見之緊急事故」辦理，颱風災後復原，累計 808 萬"/>
+                            <div class="alert alert-info mb-0" role="alert" colspan="2"
+                                 invisible="not limit_exempt_active">
+                                <field name="limit_exempt_note" readonly="1" nolabel="1"/>
                             </div>
                         </group>
                     </group>
@@ -602,6 +618,13 @@
                     </group>
                     <group string="現行契約">
                         <field name="current_contract_amount"/>
+                    </group>
+                    <!-- 50% 管制豁免：唯讀，資料落點在啟用它的那一張變更單 -->
+                    <group string="採購法 50% 管制" colspan="2"
+                           invisible="not change_limit_exempt">
+                        <field name="change_limit_exempt" invisible="1"/>
+                        <field name="change_limit_exempt_order_id" readonly="1"/>
+                        <field name="change_limit_exempt_note" readonly="1"/>
                     </group>
                 </group>
             </xpath>

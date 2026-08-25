@@ -154,6 +154,22 @@ class ContractChangeOrder(models.Model):
         tracking=True,
         help='發包工程費調整的原因，例如「業主追加預算」「上限金額提高」')
 
+    # === 採購法 50% 管制的豁免 ===
+    # 實務上機關可能改依其他法源核准變更（實例：111年度北區預約維護第3次變更，
+    # 依「不可預見之緊急事故」辦理颱風災後復原、不再引用 50%，並載明累計 808 萬）。
+    # 這種情況下 50% 已經不是判準，系統必須讓得出去，但要留下是誰、為什麼放行。
+    is_limit_exempt = fields.Boolean(
+        string='啟用 50% 管制豁免',
+        tracking=True,
+        help='本次變更改依其他法源辦理，不受採購法第 22 條 50% 累計變更管制。\n'
+             '核定後，本工程之後的契約變更一律沿用此豁免，不必逐張勾選。')
+
+    exempt_reason = fields.Text(
+        string='啟用豁免之緣由',
+        tracking=True,
+        help='勾選豁免時必填。例如：依採購法第22條第1項第3款「不可預見之緊急事故」'
+             '辦理，軒蘭諾／梅花／尼莎颱風災後復原，累計 808 萬。')
+
     # === 變更明細 ===
     line_ids = fields.One2many(
         'contract.change.order.line',
@@ -361,6 +377,116 @@ class ContractChangeOrder(models.Model):
                 order.cumulative_change_rate = 0.0
                 order.is_over_change_limit = False
 
+    # === 豁免狀態（本單自己勾的，或沿用先前已核定的）===
+    limit_exempt_active = fields.Boolean(
+        string='不受 50% 管制',
+        compute='_compute_limit_exempt')
+
+    limit_exempt_source_id = fields.Many2one(
+        'contract.change.order',
+        string='豁免來源變更單',
+        compute='_compute_limit_exempt',
+        help='讓本單免受 50% 管制的那一張變更單')
+
+    limit_exempt_note = fields.Char(
+        string='豁免說明',
+        compute='_compute_limit_exempt')
+
+    @api.depends('is_limit_exempt', 'project_id',
+                 'project_id.change_order_ids.is_limit_exempt',
+                 'project_id.change_order_ids.state',
+                 'project_id.change_order_ids.change_no')
+    def _compute_limit_exempt(self):
+        for order in self:
+            source = order._resolve_exempt_source()
+            order.limit_exempt_source_id = source
+            order.limit_exempt_active = bool(source)
+            if not source:
+                order.limit_exempt_note = False
+            elif source == order:
+                order.limit_exempt_note = (
+                    '本次變更啟用豁免，不適用採購法 50% 累計變更管制')
+            else:
+                order.limit_exempt_note = (
+                    '已依第 %s 次變更（%s）啟用之豁免辦理，'
+                    '不適用採購法 50%% 累計變更管制'
+                    % (source.change_no or '?', source.name))
+
+    def _resolve_exempt_source(self):
+        """回傳讓本單免受 50% 管制的那一張變更單（沒有就回空 recordset）。
+
+        ・本單自己勾了 → 就是自己。
+          （必須如此，否則「啟用豁免的那一張」會卡在自己的提送關——它還沒核定，
+            按定義就享受不到豁免，永遠核定不了。）
+        ・否則 → 本工程最早一張「已核定／已套用且勾了豁免」的變更單。
+          只認已核定的，與 50% 累計的計入範圍一致；一張還沒人審過的草稿
+          不應該就把全工程的管制拆掉。
+        """
+        self.ensure_one()
+        if self.is_limit_exempt:
+            return self
+        if not self.project_id:
+            return self.browse()
+        approved = self.project_id.change_order_ids.filtered(
+            lambda o: o.is_limit_exempt and o.state in ('approved', 'applied'))
+        if not approved:
+            return self.browse()
+        return approved.sorted(key=lambda o: (o.change_no or 9999, o.id))[0]
+
+    def _exempt_dependents(self, keep_self=False):
+        """哪些已核定／已套用的變更單，會因為本單的豁免消失而變成超標。
+
+        兩種情境的累計基數不一樣，不能共用同一個算式：
+
+        ・keep_self=False（退回草稿／刪除）
+          本單會離開累計 → 只算「其他」已核定／已套用的變更單。
+        ・keep_self=True（取消豁免勾選）
+          本單仍是已核定、金額照樣計入累計 → 要把自己也算進去，
+          而且自己也會變成超標的那一張。
+
+        回傳空 recordset 代表沒有人在依賴，可以放行。
+        """
+        self.ensure_one()
+        if not self.is_limit_exempt or not self.project_id:
+            return self.browse()
+        base = self.project_id.original_contract_amount or 0.0
+        if not base:
+            return self.browse()
+
+        others = self.project_id.change_order_ids.filtered(
+            lambda o: o.id != self.id and o.state in ('approved', 'applied'))
+        total = sum(abs(o.change_amount or 0.0) for o in others)
+        self_counts = keep_self and self.state in ('approved', 'applied')
+        if self_counts:
+            total += abs(self.change_amount or 0.0)
+
+        if total <= base * self.CHANGE_LIMIT_RATE:
+            return self.browse()
+
+        affected = others.filtered(lambda o: not o.is_limit_exempt)
+        if self_counts:
+            affected |= self
+        return affected
+
+    def _raise_if_exempt_depended_on(self, action_label, keep_self=False):
+        """本單的豁免若一撤掉就會讓已核定的變更單違規，就不許動它。"""
+        self.ensure_one()
+        deps = self._exempt_dependents(keep_self=keep_self)
+        if not deps:
+            return
+        listed = '\n'.join(
+            '・第 %s 次變更\u3000%s（%s）'
+            % (o.change_no or '?', o.name,
+               format(o.change_amount or 0.0, '+,.0f'))
+            for o in deps[:8])
+        more = ('\n・…共 %d 張' % len(deps)) if len(deps) > 8 else ''
+        raise UserError(
+            '本變更單啟用的 50%% 管制豁免一旦%s，下列已核定的變更單'
+            '將超過採購法 50%% 累計變更管制：\n\n%s%s\n\n'
+            '請先處理這些變更單，或改由其中一張自行啟用豁免。'
+            % (action_label, listed, more))
+
+
     def _cumulative_change_amount(self):
         """Σ|每次變更金額|：已核定/已套用的其他變更單 + 本單。
 
@@ -377,8 +503,15 @@ class ContractChangeOrder(models.Model):
                 + abs(self.change_amount or 0.0))
 
     def _check_cumulative_change_limit(self):
-        """超過採購法 50% 上限一律擋下（提送、核定、套用三處各檢一次）。"""
+        """超過採購法 50% 上限一律擋下（提送、核定、套用三處各檢一次）。
+
+        例外：本工程已啟用豁免（本單自己勾了，或先前已核定的變更單勾了）時放行。
+        金額與比率照算照顯示 —— 變更設計詳細表仍要載明累計金額，
+        只是不再拿 50% 來擋關。
+        """
         self.ensure_one()
+        if self.limit_exempt_active:
+            return
         base = self.project_id.original_contract_amount or 0.0
         if not base:
             # 沒有基數無從管制；不擋，但表單上有警示文字
@@ -419,6 +552,16 @@ class ContractChangeOrder(models.Model):
                 raise ValidationError(
                     '契約變更單必須至少包含一筆變更明細，'
                     '或填寫「發包工程費調整金額」！')
+
+    @api.constrains('is_limit_exempt', 'exempt_reason')
+    def _check_exempt_reason(self):
+        """勾了豁免就必須說明理由 —— 這是拆掉一道法規管制，不能沒有紀錄。"""
+        for order in self:
+            if order.is_limit_exempt and not (order.exempt_reason or '').strip():
+                raise ValidationError(
+                    '勾選「啟用 50%% 管制豁免」時，必須填寫「啟用豁免之緣由」！\n'
+                    '（例如：依採購法第22條第1項第3款「不可預見之緊急事故」辦理，'
+                    '颱風災後復原）')
 
     # === 狀態動作 ===
     def action_submit(self):
@@ -533,6 +676,7 @@ class ContractChangeOrder(models.Model):
         self.ensure_one()
         if self.state not in ('submitted', 'rejected'):
             raise UserError('只有已提送或已駁回狀態可以重設為草稿！')
+        self._raise_if_exempt_depended_on('退回草稿')
 
         vals = {
             'state': 'draft',
@@ -743,6 +887,12 @@ class ContractChangeOrder(models.Model):
     def write(self, vals):
         # 抬頭的「發包工程費調整金額」改了，頂層彙總明細要跟著動同樣的量，
         # 否則明細與抬頭會對不起來（樣板抓明細就會少掉這筆調整）。
+        # 取消豁免前先擋：已核定的後續變更可能正靠它才過得了 50% 管制
+        if 'is_limit_exempt' in vals and not vals.get('is_limit_exempt'):
+            for order in self:
+                if order.is_limit_exempt:
+                    order._raise_if_exempt_depended_on('取消豁免', keep_self=True)
+
         deltas = {}
         if 'lump_adjust_amount' in vals:
             new_lump = vals.get('lump_adjust_amount') or 0.0
@@ -764,6 +914,7 @@ class ContractChangeOrder(models.Model):
         for order in self:
             if order.state not in ('draft', 'rejected'):
                 raise UserError('只有草稿或已駁回的變更單可以刪除！')
+            order._raise_if_exempt_depended_on('刪除')
         return super().unlink()
 
     def copy(self, default=None):
@@ -771,6 +922,9 @@ class ContractChangeOrder(models.Model):
         default.update({
             'name': '/',
             'state': 'draft',
+            # 豁免是「那一次由機關以其他法源核准」的事實，不隨複製繼承
+            'is_limit_exempt': False,
+            'exempt_reason': False,
             'submitted_by_id': False,
             'submitted_date': False,
             'reviewed_by_id': False,

@@ -56,6 +56,45 @@ class SupervisionProject(models.Model):
         store=True,
         help='原始契約金額 + 累計變更金額')
 
+    # === 採購法 50% 管制豁免（唯讀彙總；資料落點在變更單）===
+    change_limit_exempt = fields.Boolean(
+        string='已啟用 50% 管制豁免',
+        compute='_compute_change_limit_exempt',
+        help='本工程已有一張已核定的契約變更單啟用豁免，'
+             '之後的變更一律沿用，不再受採購法 50% 累計變更管制。')
+
+    change_limit_exempt_order_id = fields.Many2one(
+        'contract.change.order',
+        string='豁免來源變更單',
+        compute='_compute_change_limit_exempt')
+
+    change_limit_exempt_note = fields.Char(
+        string='豁免緣由',
+        compute='_compute_change_limit_exempt')
+
+    @api.depends('change_order_ids.is_limit_exempt',
+                 'change_order_ids.exempt_reason',
+                 'change_order_ids.state',
+                 'change_order_ids.change_no')
+    def _compute_change_limit_exempt(self):
+        """豁免以「最早一張已核定/已套用且勾了豁免的變更單」為準。
+
+        只認已核定的：一張還沒人審過的草稿不應該就把全工程的管制拆掉，
+        這與 50% 累計金額的計入範圍一致。
+        """
+        for project in self:
+            source = project.change_order_ids.filtered(
+                lambda o: o.is_limit_exempt and o.state in ('approved', 'applied')
+            ).sorted(key=lambda o: (o.change_no or 9999, o.id))[:1]
+            project.change_limit_exempt_order_id = source
+            project.change_limit_exempt = bool(source)
+            if source:
+                reason = (source.exempt_reason or '').strip().replace('\n', ' ')
+                project.change_limit_exempt_note = (
+                    '第 %s 次變更啟用：%s' % (source.change_no or '?', reason))[:200]
+            else:
+                project.change_limit_exempt_note = False
+
     # === 計算方法 ===
     @api.depends('change_order_ids', 'change_order_ids.state')
     def _compute_change_order_count(self):
