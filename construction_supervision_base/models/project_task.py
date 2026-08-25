@@ -407,6 +407,16 @@ class ProjectTask(models.Model):
         digits=(16, 2),
         help='匯入標單 XML 時保留的 Amount 原始值（供無單價項目及彙總項使用）')
 
+    # 預備單價項目：預約式議價時新增的單價項目，數量通常為 1、單價另行議價，
+    # 但契約金額是「上限金額」不隨單價表增減 —— 這類工項必須排除在金額加總之外。
+    # 排除只影響「金額加總」，不影響工項本身：通報單、估驗計價照樣選得到、也照樣計價。
+    exclude_from_contract_amount = fields.Boolean(
+        string='不計入契約金額',
+        default=False,
+        help='預備單價項目：屬正式契約工項，通報單與估驗計價皆可選用，\n'
+             '但不計入父彙總項加總、也不計入工程的契約金額。\n'
+             '用於預約式議價新增的單價項目（數量 1、單價議價，不推高契約總額）。')
+
     tax_misc_rate = fields.Float(
         string='稅什費比例',
         digits=(12, 8),
@@ -424,20 +434,27 @@ class ProjectTask(models.Model):
 
     @api.depends('planned_qty', 'unit_price',
                  'child_ids', 'child_ids.planned_amount',
+                 'child_ids.exclude_from_contract_amount',
                  'xml_amount', 'tax_misc_rate', 'sequence',
-                 'parent_id', 'parent_id.child_ids.planned_amount')
+                 'parent_id', 'parent_id.child_ids.planned_amount',
+                 'parent_id.child_ids.exclude_from_contract_amount')
     def _compute_planned_amount(self):
         for task in self:
             if task.child_ids:
                 # 彙總項：累加子工項（Odoo 鏈式觸發，多層級自動向上滾動）
+                # 預備單價項目（exclude_from_contract_amount）不計入
                 task.planned_amount = sum(
-                    child.planned_amount for child in task.child_ids)
+                    child.planned_amount for child in task.child_ids
+                    if not child.exclude_from_contract_amount)
             elif task.tax_misc_rate and task.parent_id:
                 # 稅什費（無子項、設有比例）：比例 × 同層「前置」兄弟項契約金額加總
                 # 與 contract_change_wizard._compute_amounts 一致；只取 sequence 在其之前
                 # 者（不含自身），故工程量變動時稅什費連動重算，且不形成數值循環。
+                # 預備單價項目同樣排除在分母之外，否則不計入契約金額的項目會經由
+                # 稅什費間接把契約金額墊高。
                 preceding = task.parent_id.child_ids.filtered(
-                    lambda s: s.id != task.id and s.sequence < task.sequence)
+                    lambda s: s.id != task.id and s.sequence < task.sequence
+                    and not s.exclude_from_contract_amount)
                 task.planned_amount = round(
                     sum(preceding.mapped('planned_amount'))
                     * task.tax_misc_rate / 100.0, 2)
@@ -465,18 +482,23 @@ class ProjectTask(models.Model):
 
     @api.depends('actual_qty', 'unit_price',
                  'child_ids', 'child_ids.actual_amount',
+                 'child_ids.exclude_from_contract_amount',
                  'tax_misc_rate', 'sequence',
-                 'parent_id', 'parent_id.child_ids.actual_amount')
+                 'parent_id', 'parent_id.child_ids.actual_amount',
+                 'parent_id.child_ids.exclude_from_contract_amount')
     def _compute_actual_amount(self):
         for task in self:
             if task.child_ids:
                 # 彙總項：累加子工項（Odoo 鏈式觸發，多層級自動向上滾動）
+                # 排除規則與 _compute_planned_amount 一致，兩者才能逐層比對完成率
                 task.actual_amount = sum(
-                    child.actual_amount for child in task.child_ids)
+                    child.actual_amount for child in task.child_ids
+                    if not child.exclude_from_contract_amount)
             elif task.tax_misc_rate and task.parent_id:
                 # 稅什費：與 _compute_planned_amount 同規則，只取 sequence 在其之前者
                 preceding = task.parent_id.child_ids.filtered(
-                    lambda s: s.id != task.id and s.sequence < task.sequence)
+                    lambda s: s.id != task.id and s.sequence < task.sequence
+                    and not s.exclude_from_contract_amount)
                 task.actual_amount = round(
                     sum(preceding.mapped('actual_amount'))
                     * task.tax_misc_rate / 100.0, 2)

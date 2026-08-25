@@ -12,9 +12,17 @@
                     <field name="project_id" readonly="1"/>
                 </group>
 
+                <div class="alert alert-info" role="alert">
+                    彙總項（如「三 雜項工程費」）也可以選——回報單詳細表本來就會出現
+                    「只寫一個總數」的彙總項，這種列的金額直接手填。<br/>
+                    選葉節點時，系統會自動把它的祖先彙總項（壹 發包工程費、一 工程費…）
+                    一併加入，不必自己勾。
+                </div>
+
                 <!-- 原生 M2M 工項選取，篩選搜尋由 Odoo 標準介面處理 -->
+                <!-- 2026-08-25 移除 ('is_summary_item', '=', False)：彙總項要選得到 -->
                 <field name="selected_task_ids" nolabel="1"
-                       domain="[('supervision_project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True)]"
+                       domain="[('supervision_project_id', '=', project_id), ('active', '=', True)]"
                        options="{'no_create': True, 'no_open': True}"
                        context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}">
                     <list>

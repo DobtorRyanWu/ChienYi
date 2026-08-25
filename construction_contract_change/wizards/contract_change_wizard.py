@@ -45,6 +45,13 @@ class ContractChangeWizardLine(models.TransientModel):
         help='勾選表示本列是「新增的彙總群組（容器）」，本身無數量單價，'
              '供其他新增子項以此為父。')
 
+    # 預備單價項目：預約式議價新增的單價項目（數量 1、單價議價），
+    # 進得了契約工項表、通報單與估驗都選得到，但不推高契約金額。
+    exclude_from_contract_amount = fields.Boolean(
+        string='預備單價項目（不計入契約金額）',
+        help='勾選後本工項不計入父彙總項加總，也不計入工程的契約金額；\n'
+             '但仍是正式契約工項，通報單與估驗計價皆可選用。')
+
     parent_line_id = fields.Many2one(
         'contract.change.wizard.line',
         string='父工項(本次新增)',
@@ -215,7 +222,9 @@ class ContractChangeWizardLine(models.TransientModel):
                  'wizard_id.wizard_line_ids.change_type',
                  'wizard_id.wizard_line_ids.task_id',
                  'wizard_id.wizard_line_ids.parent_task_id',
-                 'wizard_id.wizard_line_ids.parent_line_id')
+                 'wizard_id.wizard_line_ids.parent_line_id',
+                 'wizard_id.wizard_line_ids.exclude_from_contract_amount',
+                 'task_id.exclude_from_contract_amount')
     def _compute_amounts(self):
         """計算金額
         原金額：有 task_id 者一律取 task.planned_amount
@@ -244,14 +253,21 @@ class ContractChangeWizardLine(models.TransientModel):
             return wizard_cache[wid]
 
         def compute_add_line_amount(add_wl, albp_line):
-            """新增列金額：若為群組（有子新增列）→遞迴加總子項；否則 qty×price。"""
+            """新增列金額：若為群組（有子新增列）→遞迴加總子項；否則 qty×price。
+            預備單價項目（exclude_from_contract_amount）不計入父項，回 0。"""
+            if add_wl.exclude_from_contract_amount:
+                return 0.0
             children = albp_line.get(add_wl.id, [])
             if children:
                 return sum(compute_add_line_amount(c, albp_line) for c in children)
             return (add_wl.new_qty or 0.0) * (add_wl.new_unit_price or 0.0)
 
         def compute_task_amount(task, lines_by_task_id, albp, albp_line):
-            """遞迴計算 task 的變更後金額（直接子節點加總，避免越層彙總）"""
+            """遞迴計算 task 的變更後金額（直接子節點加總，避免越層彙總）。
+            排除規則與 project_task._compute_planned_amount 一致：
+            預備單價項目不計入父彙總項，也不計入稅什費的分母。"""
+            if task.exclude_from_contract_amount:
+                return 0.0
             if task.child_ids:
                 # 分類項：加總直接子節點
                 total = sum(
@@ -573,6 +589,18 @@ class ContractChangeWizard(models.TransientModel):
              '計算公式：稅什費金額 = 同層前置分類複價新合計 × 比例%\n'
              '此值由匯入 XLSX 時自動帶入。')
 
+    # === 發包工程費調整（案例一：工項完全不動、只調整契約總額）===
+    lump_adjust_amount = fields.Monetary(
+        string='發包工程費調整金額',
+        currency_field='currency_id',
+        help='工項不動、只調整契約總額時填此欄（正數追加、負數追減）。\n'
+             '對應變更設計詳細表「壹 發包工程費」那一列的追加/追減。\n'
+             '只填此欄、完全不動工項也可以按「確認並儲存變更明細」。')
+
+    lump_adjust_reason = fields.Char(
+        string='調整說明',
+        help='例如「業主追加預算」「上限金額由 12,580,000 提高為 16,580,000」')
+
     # === 統計欄位 ===
     modify_count = fields.Integer(
         string='修改項數',
@@ -656,6 +684,7 @@ class ContractChangeWizard(models.TransientModel):
                 # original_qty / original_unit_price 由 _compute_original_values 自動帶入
                 'new_qty': task.planned_qty or 0.0,
                 'new_unit_price': task.unit_price or 0.0,
+                'exclude_from_contract_amount': task.exclude_from_contract_amount,
             }))
             seq += 10
         self.wizard_line_ids = lines
@@ -666,6 +695,11 @@ class ContractChangeWizard(models.TransientModel):
         # 帶入稅什費比例（從工項的 tax_misc_rate 欄位讀取）
         tax_task = tasks.filtered(lambda t: '稅什費' in (t.name or ''))
         self.tax_misc_rate = tax_task[0].tax_misc_rate if tax_task else 0.0
+
+        # 帶入變更單上已填的發包工程費調整（重開精靈時不遺失）
+        if self.change_order_id:
+            self.lump_adjust_amount = self.change_order_id.lump_adjust_amount
+            self.lump_adjust_reason = self.change_order_id.lump_adjust_reason
 
     # === 套用比例調整 ===
     def action_apply_rate(self):
@@ -752,11 +786,19 @@ class ContractChangeWizard(models.TransientModel):
             and (abs(l.change_amount) > 0.01 or l.task_id.item_level == 0)
         )
         lines_to_save = explicit_lines | auto_lines
-        if not lines_to_save:
-            raise UserError('沒有需要儲存的變更項目！')
+        # 「純案例一」：工項完全不動、只調整發包工程費 → 沒有任何明細也要放行
+        if not lines_to_save and not self.lump_adjust_amount:
+            raise UserError(
+                '沒有需要儲存的變更項目！\n'
+                '若本次變更不動工項、只調整契約總額，'
+                '請填寫上方的「發包工程費調整金額」。')
 
         # 1. 寫入 project_id 與契約資訊到變更單
-        vals = {'project_id': self.project_id.id}
+        vals = {
+            'project_id': self.project_id.id,
+            'lump_adjust_amount': self.lump_adjust_amount,
+            'lump_adjust_reason': self.lump_adjust_reason or False,
+        }
 
         if not self.change_order_id.original_contract_amount:
             vals['original_contract_amount'] = (
@@ -795,7 +837,11 @@ class ContractChangeWizard(models.TransientModel):
                     '變更明細新增項找不到父群組（缺父或循環）：%s'
                     % '、'.join(l.item_name or '?' for l in pending))
 
-        # 4. 跳轉回變更單表單
+        # 4. 把發包工程費調整金額疊到頂層彙總明細（發包工程費那一列）
+        #    明細是剛剛重建的、還不含調整，所以這裡加一次正好。
+        self.change_order_id._apply_lump_to_top_line(self.lump_adjust_amount)
+
+        # 5. 跳轉回變更單表單
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'contract.change.order',
@@ -856,6 +902,8 @@ class ContractChangeWizard(models.TransientModel):
                 'original_qty': 0.0,
                 'original_unit_price': 0.0,
                 'is_new_group': wizard_line.is_new_group,
+                'exclude_from_contract_amount':
+                    wizard_line.exclude_from_contract_amount,
             })
             # 父為「本次新增群組」：指向已建立的父 order.line（parent_line_id）
             if parent_order_line is not None:

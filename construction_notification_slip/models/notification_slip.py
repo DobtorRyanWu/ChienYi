@@ -128,7 +128,25 @@ class ReservationNotificationSlip(models.Model):
         string='結算金額 (實際)',
         currency_field='currency_id',
         compute='_compute_settlement_amount', store=True,
-        help='本通報單的實際結算金額，由明細彙總')
+        help='本通報單的實際結算金額，由明細的「根列」彙總'
+             '（詳細表是契約工項樹的子樹，小計列不重複計入）')
+
+    planned_total_amount = fields.Monetary(
+        string='明細預估合計',
+        currency_field='currency_id',
+        compute='_compute_settlement_amount', store=True,
+        help='詳細表根列的預估金額加總，與「結算金額」對稱。'
+             '拿來跟手填的「預估金額 (預算)」對照，明細沒填完就看得出來。')
+
+    estimated_variance = fields.Monetary(
+        string='預估落差',
+        currency_field='currency_id',
+        compute='_compute_settlement_amount', store=True,
+        help='明細預估合計 − 預估金額(預算)')
+
+    has_estimated_mismatch = fields.Boolean(
+        string='預估金額與明細不符',
+        compute='_compute_settlement_amount', store=True)
 
     budget_variance = fields.Monetary(
         string='預算差異',
@@ -230,10 +248,28 @@ class ReservationNotificationSlip(models.Model):
             else:
                 rec.overdue_display = '未逾期'
 
-    @api.depends('detail_line_ids.actual_amount')
+    @api.depends('detail_line_ids.actual_amount',
+                 'detail_line_ids.planned_amount',
+                 'detail_line_ids.parent_line_id',
+                 'estimated_amount')
     def _compute_settlement_amount(self):
+        """結算/預估合計只加總「根列」（本單內沒有父列的列）。
+
+        詳細表是契約工項樹的一個完整子樹，「壹 發包工程費」「一 工程費」這種
+        小計列的金額本來就等於底下各列的和；全部加起來會重複計算。
+        以第1次通報單為例：21 列全加是 719,990，正確答案是根列「壹」的 274,673。
+        """
         for slip in self:
-            slip.settlement_amount = sum(slip.detail_line_ids.mapped('actual_amount'))
+            roots = slip.detail_line_ids.filtered(lambda l: not l.parent_line_id)
+            slip.settlement_amount = sum(roots.mapped('actual_amount'))
+            slip.planned_total_amount = sum(roots.mapped('planned_amount'))
+
+            slip.estimated_variance = (
+                slip.planned_total_amount - slip.estimated_amount)
+            # 1 元以內視為相符（金額多為兩位小數的加總）
+            slip.has_estimated_mismatch = bool(
+                slip.estimated_amount and abs(slip.estimated_variance) > 1)
+
             slip.budget_variance = slip.settlement_amount - slip.estimated_amount
             if slip.estimated_amount:
                 slip.budget_variance_rate = ((slip.settlement_amount / slip.estimated_amount) - 1) * 100
@@ -333,6 +369,81 @@ class ReservationNotificationSlip(models.Model):
             if rec.state not in ('not_started', 'in_progress'):
                 raise UserError('只有未開始或施工中狀態可以退回草稿')
             rec.write({'state': 'draft'})
+
+    @api.onchange('detail_line_ids')
+    def _onchange_detail_line_ids(self):
+        """新增／刪除明細列時，讓上層小計在畫面上「立刻」反應，不必先存檔。
+
+        parent_line_id / planned_amount / actual_amount 都是 compute + store，
+        依賴鏈跨越同一個 one2many 裡「別的列」——網頁端不會自己重算。
+        使用者刪掉「6 側溝清疏」之後，父列「一」還停在舊金額，
+        很容易被誤以為沒反應而重複刪除、重新加入。這裡在 onchange 內用記憶體
+        資料重算一次，讓畫面與存檔後的結果一致。
+
+        ⚠️ 手填列（無子列的彙總項／稅什費類）**不可以**在這裡無條件歸零 ——
+        使用者在別列打字也會觸發本 onchange，那樣會把手填金額一直清掉。
+        只有「原本在資料庫裡有子列、現在記憶體裡沒有了」才歸零，
+        對應 unlink() 存檔後的實際行為。
+        """
+        lines = self.detail_line_ids
+        if not lines:
+            return
+
+        # 1) 用記憶體中的列重建父子關係（task 階層 → 本單內的列）
+        by_task = {}
+        for line in lines:
+            if line.task_id and line.task_id.id not in by_task:
+                by_task[line.task_id.id] = line
+        children = {}
+        for line in lines:
+            parent_task = line.task_id.parent_id
+            parent = by_task.get(parent_task.id) if parent_task else False
+            line.parent_line_id = parent or False
+            if parent:
+                children.setdefault(parent, self.env[line._name])
+                children[parent] |= line
+
+        # 2) 由深往淺重算（子列先算完，父列才加得到）
+        for line in sorted(lines, key=lambda l: l.task_id.item_level or 0, reverse=True):
+            kids = children.get(line, False)
+            # is_manual_amount 控制畫面上金額欄能不能打字。它是非儲存 compute，
+            # 在 onchange 的記憶體情境下不保證即時重算，這裡一併明確指定，
+            # 讓「可不可以填」與上面算出來的金額永遠一致。
+            # （即使這裡判斷錯，存檔時 write() 仍會以真實資料為準把值導回 compute，
+            #   資料不會壞，只是欄位一時可編輯而已。）
+            line.is_manual_amount = bool(
+                not kids and (line.is_summary_line or line.task_id.tax_misc_rate
+                              or not line.unit_price))
+            if kids:
+                line.planned_amount = sum(kids.mapped('planned_amount'))
+                line.actual_amount = sum(kids.mapped('actual_amount'))
+            elif (line.is_summary_line or line.task_id.tax_misc_rate
+                    or not line.unit_price):
+                # 手填列：只有「剛剛失去所有子列」才歸零，其餘一律不動
+                origin = line._origin
+                if origin and origin.child_line_ids:
+                    line.planned_amount = 0.0
+                    line.actual_amount = 0.0
+            else:
+                line.planned_amount = line.planned_qty * line.unit_price
+                line.actual_amount = line.actual_qty * line.unit_price
+
+    # === 詳細表樹補齊（供匯入 RPC 呼叫）===
+    def _complete_ancestor_lines(self):
+        """補齊詳細表缺少的祖先彙總項列，回傳新增的列數。
+
+        詳細表必須是契約工項樹的一個完整子樹，結算金額才能「只加總根列」而不
+        重複計入小計。後台「加入工項」精靈在建立當下就補好了；匯入是用
+        detail_line_ids 一次塞進來的，需要事後補一次。
+        兩邊共用 slip.line._create_lines_for_tasks，不另寫一份補樹邏輯。
+        """
+        Line = self.env['reservation.notification.slip.line']
+        added = 0
+        for slip in self:
+            tasks = slip.detail_line_ids.mapped('task_id')
+            if tasks:
+                added += len(Line._create_lines_for_tasks(slip, tasks))
+        return added
 
     # === Wizard 動作 ===
     def action_open_add_lines_wizard(self):

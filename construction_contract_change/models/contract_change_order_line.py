@@ -94,6 +94,13 @@ class ContractChangeOrderLine(models.Model):
         string='新增彙總群組',
         help='本列為「新增的彙總群組（容器）」，本身無量價，供其他新增子項以此為父。')
 
+    # 預備單價項目：套用後會寫進 project.task.exclude_from_contract_amount
+    exclude_from_contract_amount = fields.Boolean(
+        string='預備單價項目（不計入契約金額）',
+        help='勾選後本工項不計入父彙總項加總，也不計入工程的契約金額；\n'
+             '但仍是正式契約工項，通報單與估驗計價皆可選用。\n'
+             '用於預約式議價新增的單價項目（數量 1、單價議價，不推高契約總額）。')
+
     parent_line_id = fields.Many2one(
         'contract.change.order.line',
         string='父工項(本次新增)',

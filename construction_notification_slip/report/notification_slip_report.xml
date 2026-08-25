@@ -156,7 +156,8 @@
                         <tr>
                             <td style="width: 25%; background-color: #f5f5f5; font-weight: bold;">預估金額</td>
                             <td style="width: 25%; text-align: right;">
-                                NT$ <t t-esc="'{:,.0f}'.format(slip.estimated_amount or 0)"/>
+                                <!-- 與樣板取同一套規則：手填優先，沒填才用明細預估合計 -->
+                                NT$ <t t-esc="'{:,.0f}'.format(slip.estimated_amount or slip.planned_total_amount or 0)"/>
                             </td>
                             <td style="width: 25%; background-color: #f5f5f5; font-weight: bold;">結算金額</td>
                             <td style="width: 25%; text-align: right;">
@@ -221,9 +222,13 @@
                         </tr>
                     </thead>
                     <tbody>
+                        <!-- 彙總（小計）列與手填總價列沒有單價與數量，留白不印 0，
+                             與來源回報單「詳細表」的排版一致 -->
                         <t t-foreach="slip.detail_line_ids" t-as="line">
-                            <tr>
-                                <td style="text-align: center;"><t t-esc="line.item_no"/></td>
+                            <tr t-attf-style="#{line.is_summary_line and 'font-weight: bold;' or ''}">
+                                <!-- 與樣板（construction_template 的 items.itemNo）取同一欄，
+                                     否則 PDF 與 xlsx 兩份輸出的項次會不一致 -->
+                                <td style="text-align: center;"><t t-esc="line.display_item_no or line.item_no"/></td>
                                 <td>
                                     <t t-esc="line.description"/>
                                     <t t-if="line.specification">
@@ -231,10 +236,16 @@
                                     </t>
                                 </td>
                                 <td style="text-align: center;"><t t-esc="line.unit"/></td>
-                                <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.unit_price or 0)"/></td>
-                                <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.planned_qty or 0)"/></td>
+                                <td style="text-align: right;">
+                                    <t t-if="not line.is_manual_amount"><t t-esc="'{:,.0f}'.format(line.unit_price or 0)"/></t>
+                                </td>
+                                <td style="text-align: right;">
+                                    <t t-if="not line.is_manual_amount"><t t-esc="'{:,.2f}'.format(line.planned_qty or 0)"/></t>
+                                </td>
                                 <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.planned_amount or 0)"/></td>
-                                <td style="text-align: right;"><t t-esc="'{:,.2f}'.format(line.actual_qty or 0)"/></td>
+                                <td style="text-align: right;">
+                                    <t t-if="not line.is_manual_amount"><t t-esc="'{:,.2f}'.format(line.actual_qty or 0)"/></t>
+                                </td>
                                 <td style="text-align: right;"><t t-esc="'{:,.0f}'.format(line.actual_amount or 0)"/></td>
                                 <td style="text-align: center;">
                                     <t t-set="completion" t-value="line.completion_rate or 0"/>
@@ -248,14 +259,14 @@
                         <tr style="background-color: #e9ecef; font-weight: bold;">
                             <td colspan="5" style="text-align: right;">合計</td>
                             <td style="text-align: right;">
-                                NT$ <t t-esc="'{:,.0f}'.format(slip.estimated_amount or 0)"/>
+                                NT$ <t t-esc="'{:,.0f}'.format(slip.planned_total_amount or 0)"/>
                             </td>
                             <td style="text-align: right;"></td>
                             <td style="text-align: right;">
                                 NT$ <t t-esc="'{:,.0f}'.format(slip.settlement_amount or 0)"/>
                             </td>
                             <td style="text-align: center;">
-                                <t t-set="overall_rate" t-value="(slip.settlement_amount / slip.estimated_amount * 100) if slip.estimated_amount else 0"/>
+                                <t t-set="overall_rate" t-value="(slip.settlement_amount / slip.planned_total_amount * 100) if slip.planned_total_amount else 0"/>
                                 <t t-esc="'{:.1f}'.format(overall_rate)"/> %
                             </td>
                         </tr>

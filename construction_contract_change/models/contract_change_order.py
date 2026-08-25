@@ -138,6 +138,22 @@ class ContractChangeOrder(models.Model):
         store=True,
         help='變更後的契約總金額（= 各頂層彙總項變更後金額加總）')
 
+    # === 發包工程費調整（不經工項的契約金額增減）===
+    # 對應變更設計詳細表上「壹 發包工程費」那一列的追加/追減欄。
+    # 使用時機：工項完全不動（項數與數量都不變），只調整契約總額。
+    # 預約式的契約金額是「上限金額」，工項只是議價單價表，這種變更是常態。
+    lump_adjust_amount = fields.Monetary(
+        string='發包工程費調整金額',
+        currency_field='currency_id',
+        tracking=True,
+        help='工項不動、只調整契約總額時使用（正數追加、負數追減）。\n'
+             '套用後累加至工程的「契約金額調整」，並反映在契約金額、估驗計價等下游。')
+
+    lump_adjust_reason = fields.Char(
+        string='調整說明',
+        tracking=True,
+        help='發包工程費調整的原因，例如「業主追加預算」「上限金額提高」')
+
     # === 變更明細 ===
     line_ids = fields.One2many(
         'contract.change.order.line',
@@ -232,21 +248,47 @@ class ContractChangeOrder(models.Model):
             order.line_count = len(order.line_ids)
 
     @api.depends('line_ids.original_amount', 'line_ids.new_amount',
-                 'line_ids.item_level')
+                 'line_ids.item_level', 'lump_adjust_amount', 'state',
+                 'line_ids.exclude_from_contract_amount',
+                 'project_id.contract_amount',
+                 'project_id.contract_amount_adjustment')
     def _compute_amount_totals(self):
         """契約金額一律以「頂層彙總項（item_level == 0）加總」為單一真實來源。
 
         概念（薪資統計類比）：各頂層「部門」彙總項各自由下而上算出（明細端
         wizard 已含稅什費 tax_misc_rate 比率），再加總所有頂層彙總項。
-          變更前 = Σ 頂層 original_amount
-          變更後 = Σ 頂層 new_amount
+          變更前 = Σ 頂層 original_amount + 歷次契約金額調整
+          變更後 = Σ 頂層 new_amount     + 歷次契約金額調整 + 本次發包工程費調整
           本次變更 = 變更後 - 變更前
         不再使用「快照 original + Σ change」的鏈式累積（會逐次累積誤差）。
+
+        「純案例一」（工項完全不動、只填 lump_adjust_amount）時沒有任何明細列，
+        Σ 頂層會是 0 —— 此時基數退回工程當前的工項合計
+        （contract_amount − contract_amount_adjustment），否則變更前會顯示成 0。
         """
         for order in self:
-            top = order.line_ids.filtered(lambda l: l.item_level == 0)
-            order.original_contract_amount = sum(top.mapped('original_amount'))
-            order.new_contract_amount = sum(top.mapped('new_amount'))
+            top = order.line_ids.filtered(
+                lambda l: l.item_level == 0 and not l.exclude_from_contract_amount)
+            adjustment = order.project_id.contract_amount_adjustment or 0.0
+            lump = order.lump_adjust_amount or 0.0
+            # 套用後 lump 已經進了 project.contract_amount_adjustment，
+            # 這裡要退回「本單套用前」的累計值，否則變更後金額會把 lump 算兩次。
+            adj_before = adjustment - (lump if order.state == 'applied' else 0.0)
+
+            if top:
+                # 頂層彙總明細（發包工程費）的新金額已含本次 lump
+                # ——由 _apply_lump_to_top_line 寫進去，樣板才抓得到。
+                order.original_contract_amount = (
+                    sum(top.mapped('original_amount')) + adj_before)
+                order.new_contract_amount = (
+                    sum(top.mapped('new_amount')) + adj_before)
+            else:
+                # 完全沒有明細（未經精靈、直接在變更單上填調整金額）：
+                # 以工程當前的工項合計為基數（扣掉累計調整才是純工項部分）
+                task_base = (order.project_id.contract_amount or 0.0) - adjustment
+                order.original_contract_amount = task_base + adj_before
+                order.new_contract_amount = task_base + adj_before + lump
+
             order.change_amount = (
                 order.new_contract_amount - order.original_contract_amount)
             if order.original_contract_amount:
@@ -255,17 +297,128 @@ class ContractChangeOrder(models.Model):
             else:
                 order.change_amount_rate = 0.0
 
+    def _apply_lump_to_top_line(self, delta):
+        """把「發包工程費調整金額」的變化量疊到頂層彙總項那一列變更明細上。
+
+        變更設計詳細表就是把追加/追減寫在「壹 發包工程費」那一列
+        （原訂合價 → 變更後合價 → 追加），樣板日後也一律以變更明細為準，
+        所以金額不能只存在抬頭欄位，必須落到明細裡。
+
+        頂層彙總明細以 qty=1 / price=總額 儲存，故直接加在 new_unit_price 上。
+        傳入的是「變化量」而非絕對值：如此不必額外記住「不含調整的變更後金額」，
+        精靈重建明細與使用者事後改抬頭金額都能各自加一次、不重複。
+        """
+        self.ensure_one()
+        if not delta:
+            return
+        top = self.line_ids.filtered(
+            lambda l: l.is_summary_line and l.item_level == 0
+            and not l.exclude_from_contract_amount).sorted('sequence')
+        if not top:
+            return
+        line = top[0]
+        line.new_unit_price = (line.new_unit_price or 0.0) + delta
+
+    # === 採購法第 22 條：累計變更金額管制 ===
+    CHANGE_LIMIT_RATE = 0.5   # 累計變更金額絕對值不得超過原契約金額的 50%
+
+    cumulative_change_amount = fields.Monetary(
+        string='累計變更金額(絕對值)',
+        currency_field='currency_id',
+        compute='_compute_change_limit',
+        help='本工程歷次已核定/已套用變更單的變更金額**逐次取絕對值相加**，'
+             '再加上本單。追加與追減不互相抵銷（採購法第 22 條）。')
+
+    cumulative_change_rate = fields.Float(
+        string='累計變更比率 (%)',
+        digits=(16, 4),
+        compute='_compute_change_limit',
+        help='累計變更金額(絕對值) ÷ 原契約金額（小數，如 0.5 = 50%）')
+
+    is_over_change_limit = fields.Boolean(
+        string='超過 50% 管制',
+        compute='_compute_change_limit')
+
+    has_change_limit_base = fields.Boolean(
+        string='已設定原契約金額',
+        compute='_compute_change_limit',
+        help='未設定原始契約金額時無法執行 50% 管制')
+
+    @api.depends('change_amount', 'project_id',
+                 'project_id.original_contract_amount',
+                 'project_id.change_order_ids.state',
+                 'project_id.change_order_ids.change_amount')
+    def _compute_change_limit(self):
+        for order in self:
+            base = order.project_id.original_contract_amount or 0.0
+            order.has_change_limit_base = bool(base)
+            order.cumulative_change_amount = order._cumulative_change_amount()
+            if base:
+                order.cumulative_change_rate = order.cumulative_change_amount / base
+                order.is_over_change_limit = (
+                    order.cumulative_change_rate > order.CHANGE_LIMIT_RATE)
+            else:
+                order.cumulative_change_rate = 0.0
+                order.is_over_change_limit = False
+
+    def _cumulative_change_amount(self):
+        """Σ|每次變更金額|：已核定/已套用的其他變更單 + 本單。
+
+        逐次取絕對值再相加（不是先相加再取絕對值）—— 採購法第 22 條的算法是
+        「第一次變更絕對值 40，第二次就只剩 10 可用」，追加與追減不互相抵銷。
+        草稿與已駁回不計入。
+        """
+        self.ensure_one()
+        if not self.project_id:
+            return abs(self.change_amount or 0.0)
+        others = self.project_id.change_order_ids.filtered(
+            lambda o: o.id != self.id and o.state in ('approved', 'applied'))
+        return (sum(abs(o.change_amount or 0.0) for o in others)
+                + abs(self.change_amount or 0.0))
+
+    def _check_cumulative_change_limit(self):
+        """超過採購法 50% 上限一律擋下（提送、核定、套用三處各檢一次）。"""
+        self.ensure_one()
+        base = self.project_id.original_contract_amount or 0.0
+        if not base:
+            # 沒有基數無從管制；不擋，但表單上有警示文字
+            return
+        others = self.project_id.change_order_ids.filtered(
+            lambda o: o.id != self.id and o.state in ('approved', 'applied'))
+        prior = sum(abs(o.change_amount or 0.0) for o in others)
+        current = abs(self.change_amount or 0.0)
+        total = prior + current
+        limit = base * self.CHANGE_LIMIT_RATE
+        if total > limit:
+            raise UserError(
+                '超過採購法第 22 條的累計變更金額上限，無法繼續。\n\n'
+                f'原契約金額：{base:,.0f}\n'
+                f'可用上限（50%）：{limit:,.0f}\n'
+                f'歷次已核定變更累計（絕對值）：{prior:,.0f}\n'
+                f'本次變更金額（絕對值）：{current:,.0f}\n'
+                f'合計：{total:,.0f}\n'
+                f'超出：{total - limit:,.0f}\n\n'
+                '請調整本次變更金額，或依規定另循程序辦理。')
+
     # === Onchange ===
     # 註：original_contract_amount 已改為由明細（頂層彙總項）計算，
     #     不再於選擇工程時快照 current_contract_amount（避免鏈式累積誤差）。
 
     # === 約束 ===
-    @api.constrains('line_ids')
+    @api.constrains('line_ids', 'lump_adjust_amount')
     def _check_line_ids(self):
-        """檢查變更明細"""
+        """檢查變更明細
+
+        例外：只調整發包工程費（工項完全不動）的變更單本來就沒有明細，
+        此時以 lump_adjust_amount 非 0 代替「至少一筆明細」的要求。
+        """
         for order in self:
-            if order.state != 'draft' and not order.line_ids:
-                raise ValidationError('契約變更單必須至少包含一筆變更明細！')
+            if (order.state != 'draft'
+                    and not order.line_ids
+                    and not order.lump_adjust_amount):
+                raise ValidationError(
+                    '契約變更單必須至少包含一筆變更明細，'
+                    '或填寫「發包工程費調整金額」！')
 
     # === 狀態動作 ===
     def action_submit(self):
@@ -275,10 +428,14 @@ class ContractChangeOrder(models.Model):
             raise UserError('只有草稿狀態可以提送！')
         if not self.project_id:
             raise UserError('請先透過「匯入工程案件」設定所屬工程！')
-        if not self.line_ids:
-            raise UserError('請先新增變更明細！')
+        if not self.line_ids and not self.lump_adjust_amount:
+            raise UserError(
+                '請先新增變更明細，或填寫「發包工程費調整金額」'
+                '（工項不動、只調整契約總額時使用）！')
 
         # 註：original_contract_amount 由 _compute_amount_totals 自明細計算，無需快照。
+        # 採購法第 22 條：累計變更金額絕對值超過原契約金額 50% 一律擋下
+        self._check_cumulative_change_limit()
 
         self.write({
             'state': 'submitted',
@@ -305,6 +462,7 @@ class ContractChangeOrder(models.Model):
             raise UserError('只有審查中狀態可以核定！')
         if not self.is_change_leader:
             raise UserError('只有專案負責人或系統管理者才能核定！')
+        self._check_cumulative_change_limit()
 
         self.write({
             'state': 'approved',
@@ -348,6 +506,7 @@ class ContractChangeOrder(models.Model):
             raise UserError('只有已核定狀態可以套用變更！')
         if not self.is_change_leader:
             raise UserError('只有專案負責人或系統管理者才能套用變更！')
+        self._check_cumulative_change_limit()
 
         # 套用變更至工項
         self._apply_changes_to_tasks()
@@ -505,6 +664,7 @@ class ContractChangeOrder(models.Model):
             'change_order_id': self.id,
             'specification': line.specification or '',
             'ref_item_code': line.ref_item_code or '',
+            'exclude_from_contract_amount': line.exclude_from_contract_amount,
         }
         if line.ref_item_code:
             product = self.env['product.product'].search(
@@ -537,8 +697,25 @@ class ContractChangeOrder(models.Model):
         """契約變更套用時不修改 contract_end_date（預定契約完工日）。
         該欄位由進度表啟用（_do_activate）時寫回 adjusted_end_date，確保單一更新來源。
         contract_amount 由 ORM 依賴追蹤（task_ids.planned_amount）自動重算。
+
+        唯一要主動寫回的是「發包工程費調整金額」：它不經工項，
+        累加到工程的 contract_amount_adjustment，contract_amount 再由 compute 帶上。
+        欄位在 base 宣告為 readonly，故以 sudo() 寫入。
         """
-        pass
+        self.ensure_one()
+        if not self.lump_adjust_amount or not self.project_id:
+            return
+        project = self.project_id.sudo()
+        project.write({
+            'contract_amount_adjustment': (
+                (project.contract_amount_adjustment or 0.0)
+                + self.lump_adjust_amount),
+        })
+        project.message_post(body=(
+            f'契約變更單 <b>{self.name}</b> 套用發包工程費調整：'
+            f'{self.lump_adjust_amount:+,.0f}'
+            + (f'（{self.lump_adjust_reason}）' if self.lump_adjust_reason else '')
+        ))
 
     # === CRUD 覆寫 ===
     def _generate_change_order_name(self):
@@ -564,7 +741,18 @@ class ContractChangeOrder(models.Model):
         return records
 
     def write(self, vals):
+        # 抬頭的「發包工程費調整金額」改了，頂層彙總明細要跟著動同樣的量，
+        # 否則明細與抬頭會對不起來（樣板抓明細就會少掉這筆調整）。
+        deltas = {}
+        if 'lump_adjust_amount' in vals:
+            new_lump = vals.get('lump_adjust_amount') or 0.0
+            deltas = {r.id: new_lump - (r.lump_adjust_amount or 0.0) for r in self}
+
         result = super().write(vals)
+
+        for record in self:
+            if deltas.get(record.id):
+                record._apply_lump_to_top_line(deltas[record.id])
         # 當 project_id 首次設定時，自動產生變更編號
         if vals.get('project_id'):
             for record in self:

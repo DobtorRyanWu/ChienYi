@@ -5,7 +5,17 @@ from odoo.exceptions import UserError
 
 
 class AddSlipLineWizard(models.TransientModel):
-    """加入通報單詳細表項目 Wizard（Odoo 原生 M2M 選取）"""
+    """加入通報單詳細表項目 Wizard（Odoo 原生 M2M 選取）
+
+    2026-08-25 起可選彙總項：原本 domain 有 ('is_summary_item', '=', False)，
+    像「三 雜項工程費」這種底下有子工項的項目根本加不進詳細表，
+    但回報單的詳細表本來就會出現「只寫一個總數的彙總項」。
+
+    選取葉節點時會自動補齊其所有祖先彙總項（壹 發包工程費、一 工程費…），
+    讓詳細表永遠是契約工項樹的一個完整子樹——結算金額才有辦法只算根列而不重複。
+    實作在 reservation.notification.slip.line._create_lines_for_tasks，
+    與匯入共用同一份邏輯。
+    """
     _name = 'add.slip.line.wizard'
     _description = '加入通報單詳細表項目'
 
@@ -26,26 +36,12 @@ class AddSlipLineWizard(models.TransientModel):
     )
 
     def action_add_lines(self):
-        """將選取的工項建立為通報單明細（跳過已存在的）"""
+        """將選取的工項（含自動補齊的祖先彙總項）建立為通報單明細"""
         self.ensure_one()
         if not self.selected_task_ids:
             raise UserError('請至少選取一個工項！')
 
-        slip = self.slip_id
-        existing_task_ids = slip.detail_line_ids.filtered(
-            'task_id').mapped('task_id').ids
-        new_tasks = self.selected_task_ids.filtered(
-            lambda t: t.id not in existing_task_ids)
-
-        SlipLine = self.env['reservation.notification.slip.line']
-        for task in new_tasks:
-            SlipLine.create({
-                'slip_id': slip.id,
-                'task_id': task.id,
-                'item_no': task.item_no or '',
-                'description': task.name or '',
-                'unit': task.unit or '',
-                'unit_price': task.unit_price or 0.0,
-            })
+        self.env['reservation.notification.slip.line']._create_lines_for_tasks(
+            self.slip_id, self.selected_task_ids)
 
         return {'type': 'ir.actions.act_window_close'}

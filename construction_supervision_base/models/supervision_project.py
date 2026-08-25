@@ -138,6 +138,20 @@ class SupervisionProject(models.Model):
         tracking=True,
         help='初始契約金額 (不含變更)')
 
+    # 契約金額調整：不經工項的契約金額增減累計。
+    # 由契約變更單套用時（contract.change.order.action_apply）累加 lump_adjust_amount。
+    # 存在理由：預約式工程的契約金額是「上限金額」，工項只是一張議價單價表，
+    # 兩者本來就不相等（實例：P11001 工項合計 5,720,000 / 契約上限 8,500,000）。
+    # 變更設計詳細表上「壹 發包工程費」那一列的追加/追減就落在這個欄位。
+    # 定義於 base（消費者所在地：_compute_contract_amount 會讀），contract_change 僅寫入。
+    contract_amount_adjustment = fields.Monetary(
+        string='契約金額調整',
+        currency_field='currency_id',
+        readonly=True,
+        tracking=True,
+        help='不經工項的契約金額增減累計（發包工程費調整）。\n'
+             '由契約變更單套用時自動累加，請勿手動修改。')
+
     contract_start_date = fields.Date(string='契約開工日', tracking=True)
     contract_end_date = fields.Date(
         string='預定契約完工日',
@@ -214,19 +228,36 @@ class SupervisionProject(models.Model):
             base = project.original_duration or project.contract_duration or 0
             project.total_approved_duration = base + (project.extension_duration or 0)
 
-    @api.depends('task_ids.planned_amount', 'task_ids.active', 'task_ids.parent_id')
+    @api.depends('task_ids.planned_amount', 'task_ids.active', 'task_ids.parent_id',
+                 'task_ids.exclude_from_contract_amount',
+                 'contract_amount_adjustment')
     def _compute_contract_amount(self):
-        """從工項計算契約金額
+        """從工項計算契約金額 + 不經工項的契約金額調整。
+
         只加總頂層工項（parent_id=False）；頂層工項的 planned_amount 已遞迴包含所有子孫，
-        若加總所有層級的 task 則會重複計算彙總項。"""
+        若加總所有層級的 task 則會重複計算彙總項。
+
+        兩個排除/加項：
+        ・exclude_from_contract_amount（預備單價項目）：數量單價照留、可被通報單與估驗
+          選用，但不計入契約金額（預約式議價新增的單價項目不該推高契約總額）。
+        ・contract_amount_adjustment：契約變更單「發包工程費調整金額」的累計，
+          用於「工項完全不動、只追加契約金額」的變更（見變更設計詳細表的追加/追減欄）。
+        """
         for project in self:
-            top_tasks = project.task_ids.filtered(lambda t: t.active and not t.parent_id)
+            top_tasks = project.task_ids.filtered(
+                lambda t: t.active and not t.parent_id
+                and not t.exclude_from_contract_amount)
+            adjustment = project.contract_amount_adjustment or 0.0
             if top_tasks:
-                project.contract_amount = sum(t.planned_amount for t in top_tasks)
+                project.contract_amount = (
+                    sum(t.planned_amount for t in top_tasks) + adjustment)
                 # 首次計算時，如果沒有原始金額則設定
                 if not project.original_contract_amount:
                     project.original_contract_amount = project.contract_amount
-            # 無工項：保留手動輸入的值（不做任何事）
+            elif adjustment:
+                # 無工項但有調整額：契約金額即為調整額（純上限金額維護的專案）
+                project.contract_amount = adjustment
+            # 無工項也無調整：保留手動輸入的值（不做任何事）
 
     def _inverse_contract_amount(self):
         """只允許在特定條件下手動設定"""
@@ -235,7 +266,9 @@ class SupervisionProject(models.Model):
             if project.task_count > 0:
                 raise UserError(
                     '已匯入工項，契約金額自動從工項計算，無法手動修改！\n'
-                    f'當前工項總額：{project.contract_amount:,.0f}'
+                    f'當前工項總額：{project.contract_amount:,.0f}\n'
+                    '若要在不變動工項的情況下追加/追減契約金額，'
+                    '請開立契約變更單並填寫「發包工程費調整金額」。'
                 )
             if project.state != 'draft':
                 raise UserError(

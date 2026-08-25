@@ -73,6 +73,9 @@
                                 <field name="planned_qty" required="1" readonly="is_project_approved"/>
                                 <field name="unit_price" required="1" readonly="is_project_approved"/>
                                 <field name="planned_amount" class="oe_inline" readonly="1"/>
+                                <!-- 預備單價項目：不計入契約金額（預約式議價新增項目用） -->
+                                <field name="exclude_from_contract_amount"
+                                       readonly="is_project_approved"/>
                                 <field name="product_id" string="標準工項"
                                        domain="[('is_standard_work_item', '=', True)]"
                                        context="{'tree_view_ref': 'construction_supervision_base.view_product_standard_work_item_list', 'search_view_ref': 'construction_supervision_base.view_product_standard_work_item_search'}"
@@ -288,6 +291,10 @@
                 
                 <!-- 契約複價 -->
                 <field name="planned_amount" string="契約複價" sum="契約複價合計" readonly="1"/>
+
+                <!-- 預備單價項目（不計入契約金額）：預設隱藏，勾選時整列以 muted 標示 -->
+                <field name="exclude_from_contract_amount" string="不計入契約金額"
+                       optional="hide" readonly="is_project_approved"/>
                 
                 <!-- 備註 -->
                 <field name="construction_notes" string="備註" optional="show" readonly="is_project_approved"/>
@@ -363,6 +370,10 @@
 
                 <!-- 備註 -->
                 <field name="construction_notes" string="備註" optional="show"/>
+
+                <!-- 預備單價項目（不計入契約金額） -->
+                <field name="exclude_from_contract_amount" string="不計入契約金額"
+                       optional="hide"/>
 
                 <!-- 隱藏欄位 -->
                 <field name="item_level" column_invisible="1"/>

@@ -287,6 +287,10 @@
                             <field name="contract_amount"
                                    readonly="state not in ('draft', 'correction')"
                                    placeholder="未匯入工項前可手動輸入"/>
+                            <!-- 契約金額調整：由契約變更單的「發包工程費調整金額」累加。
+                                 沒有調整過的專案（絕大多數一般式）看不到這一欄。 -->
+                            <field name="contract_amount_adjustment" readonly="1"
+                                   invisible="not contract_amount_adjustment"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="contract_start_date"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>

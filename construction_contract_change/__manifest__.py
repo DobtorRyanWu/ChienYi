@@ -3,7 +3,7 @@
     'name': '工程監造系統 - 契約變更管理',
     # 1.1.0: 契約工項清單注入的「變更紀錄」欄改為預設隱藏，配合
     #        construction_supervision_base 18.0.5.1.0 把顯示欄位定為 7 欄
-    'version': '18.0.1.1.0',
+    'version': '18.0.1.2.0',  # 1.2.0: 發包工程費調整金額（工項不動的契約金額追加/追減，會落到頂層彙總明細）、採購法第 22 條 50% 累計變更管制、預備單價項目不計入契約金額。
     'category': 'Construction/Supervision',
     'summary': '工程契約變更單管理 (參考 OCA project_version 設計)',
     'description': """

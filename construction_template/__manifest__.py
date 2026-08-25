@@ -16,7 +16,7 @@
     # 2.8.0: 施工日誌第一聯（營造版）的 ${table:specificConstructionItems.*}
     #        接上新的「營造業特定項目」頁籤（daily.log.specific.item）；
     #        原本硬寫 [] 導致該區永遠只印一列空白
-    'version': '18.0.2.8.0',
+    'version': '18.0.2.9.0',  # 2.9.0: 預約式回報單樣板——彙總列不印單價數量，預估金額改「手填優先、沒填才用明細預估合計」。
     'category': 'Construction/Supervision',
     'summary': '文件樣板管理與設定',
     'description': """

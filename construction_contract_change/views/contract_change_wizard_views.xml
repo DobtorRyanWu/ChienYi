@@ -52,6 +52,16 @@
                                 由匯入檔案時自動帶入，僅供參考
                             </div>
                         </group>
+                        <!-- 案例一：工項完全不動、只調整契約總額 -->
+                        <group string="發包工程費調整（工項不動時使用）">
+                            <field name="lump_adjust_amount"/>
+                            <field name="lump_adjust_reason"
+                                   placeholder="例如：業主追加預算、上限金額提高"/>
+                            <div class="text-muted small">
+                                只調整契約總額、不動任何工項時填此欄（正數追加、負數追減）。
+                                只填此欄也可以直接按「確認並儲存變更明細」。
+                            </div>
+                        </group>
                     </group>
 
                     <!-- 變更統計 -->
@@ -119,6 +129,9 @@
                             <field name="parent_task_id" column_invisible="1"/>
                             <field name="parent_line_id" column_invisible="1"/>
                             <field name="is_new_group" optional="hide"/>
+                            <!-- 預備單價項目（不計入契約金額） -->
+                            <field name="exclude_from_contract_amount"
+                                   string="不計入契約金額" optional="hide"/>
                             <!-- 4. 工項編號 -->
                             <field name="item_no"/>
                             <!-- 5. 單位 -->
@@ -181,6 +194,7 @@
                         <field name="item_name"
                                placeholder="請輸入工項名稱"/>
                         <field name="unit"/>
+                        <field name="exclude_from_contract_amount"/>
                     </group>
                     <group string="數量單價">
                         <field name="new_qty"/>

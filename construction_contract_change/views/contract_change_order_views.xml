@@ -109,6 +109,37 @@
                         <group string="變更後契約">
                             <field name="new_contract_amount"/>
                         </group>
+                        <!-- 案例一：工項完全不動、只調整契約總額。
+                             對應變更設計詳細表「壹 發包工程費」那一列的追加/追減。 -->
+                        <group string="發包工程費調整（工項不動時使用）">
+                            <field name="lump_adjust_amount"
+                                   readonly="state != 'draft'"/>
+                            <field name="lump_adjust_reason"
+                                   readonly="state != 'draft'"
+                                   placeholder="例如：業主追加預算、上限金額提高"/>
+                            <div class="text-muted small" colspan="2">
+                                只調整契約總額、不新增或修改任何工項時填此欄。
+                                套用後累加至工程的「契約金額調整」。
+                            </div>
+                        </group>
+                        <!-- 採購法第 22 條：累計變更金額絕對值不得超過原契約金額 50% -->
+                        <group string="採購法 50% 管制">
+                            <field name="has_change_limit_base" invisible="1"/>
+                            <field name="is_over_change_limit" invisible="1"/>
+                            <field name="cumulative_change_amount"
+                                   invisible="not has_change_limit_base"/>
+                            <field name="cumulative_change_rate" widget="percentage"
+                                   invisible="not has_change_limit_base"/>
+                            <div class="alert alert-danger mb-0" role="alert" colspan="2"
+                                 invisible="not is_over_change_limit">
+                                ⚠ 累計變更金額（逐次取絕對值相加）已超過原契約金額 50%，
+                                提送、核定、套用都會被擋下。
+                            </div>
+                            <div class="alert alert-warning mb-0" role="alert" colspan="2"
+                                 invisible="has_change_limit_base">
+                                未設定「原始契約金額」，無法執行採購法 50% 管制。
+                            </div>
+                        </group>
                     </group>
                     <notebook>
                         <page string="變更明細" name="lines">
@@ -133,6 +164,10 @@
                                     <field name="parent_task_id" column_invisible="1"/>
                                     <field name="parent_line_id" column_invisible="1"/>
                                     <field name="is_new_group" optional="hide"/>
+                                    <!-- 預備單價項目（不計入契約金額） -->
+                                    <field name="exclude_from_contract_amount"
+                                           string="不計入契約金額" optional="hide"
+                                           readonly="change_type != 'add'"/>
                                     <!-- 4. 工項編號 -->
                                     <field name="display_item_no"
                                            string="工項編號"

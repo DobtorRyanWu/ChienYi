@@ -272,10 +272,17 @@
                                         </t>
                                         <t t-esc="line.description"/>
                                     </div>
+                                    <!-- 彙總（小計）列與手填總價列沒有數量單價，只顯示金額 -->
                                     <div style="display: flex; gap: 12px; font-size: 0.85rem; flex-wrap: wrap;">
-                                        <span>預估：<strong><t t-esc="line.planned_qty"/> <t t-esc="line.unit"/></strong></span>
-                                        <span>實際：<strong><t t-esc="line.actual_qty"/></strong></span>
-                                        <span>單價：<strong>NT$ <t t-esc="'{:,.0f}'.format(line.unit_price)"/></strong></span>
+                                        <t t-if="line.is_manual_amount">
+                                            <span>預估金額：<strong>NT$ <t t-esc="'{:,.0f}'.format(line.planned_amount)"/></strong></span>
+                                            <span>實際金額：<strong>NT$ <t t-esc="'{:,.0f}'.format(line.actual_amount)"/></strong></span>
+                                        </t>
+                                        <t t-else="">
+                                            <span>預估：<strong><t t-esc="line.planned_qty"/> <t t-esc="line.unit"/></strong></span>
+                                            <span>實際：<strong><t t-esc="line.actual_qty"/></strong></span>
+                                            <span>單價：<strong>NT$ <t t-esc="'{:,.0f}'.format(line.unit_price)"/></strong></span>
+                                        </t>
                                     </div>
                                     <!-- 進度條 -->
                                     <t t-if="line.completion_rate">
