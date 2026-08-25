@@ -956,6 +956,12 @@
                         <span class="cy-drawer-item-label">自主檢查樣板庫</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
+                    <a class="cy-drawer-item" t-if="project"
+                       t-attf-href="/construction/#{project.id}/water-level">
+                        <span class="cy-drawer-item-icon">〰</span>
+                        <span class="cy-drawer-item-label">水位監測</span>
+                        <span class="cy-drawer-item-arrow">›</span>
+                    </a>
                     <a class="cy-drawer-item" t-if="project and 'supervision.test.record' in request.env" t-attf-href="/construction/#{project.id}/tests">
                         <span class="cy-drawer-item-icon">🧪</span>
                         <span class="cy-drawer-item-label">檢試驗管制</span>

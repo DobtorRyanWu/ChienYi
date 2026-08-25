@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        水位監測 /construction/<pid>/water-level（v11）
+        - 沿用 v11 外殼：web.frontend_layout + cy-v10-app + portal_v10_header + wb-* 變數
+        - 版面三塊：水尺大字 → 時序圖（三條警戒線）→ Leaflet 站點圖 + 上下游站台列
+        - 斷線的站保留在清單與地圖上（灰色破折號），不隱藏：設備死掉比水位超標更常發生
+        - 資料走 /water-level/data（type=json），前端 vanilla JS 30 秒輪詢
+    -->
+    <template id="portal_construction_water_level" name="Construction Water Level">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <span class="cy-breadcrumb-item active">水位監測</span>
+                </div>
+
+                <div class="cy-content">
+                    <t t-if="not devices">
+                        <div class="wl-empty">
+                            <div class="wl-empty-icon">〰</div>
+                            <div class="wl-empty-title">這個工程還沒有水位監測站</div>
+                            <div class="wl-empty-hint">
+                                請在後台「品質安全 → 水位監測 → 監測站」建立，
+                                建好後按「產生上報金鑰」把設備接進來。
+                            </div>
+                        </div>
+                    </t>
+
+                    <t t-else="">
+                        <div id="wlApp"
+                             t-att-data-project-id="project.id"
+                             t-att-data-default-hours="default_hours">
+
+                            <!-- ===== 目前水位：水尺 + 大字 ===== -->
+                            <section class="wl-hero">
+                                <div class="wl-hero-station" id="wlStationName">
+                                    <t t-esc="devices[0].name"/>
+                                </div>
+                                <div class="wl-hero-body">
+                                    <!-- 水尺：刻度與水面由 JS 依警戒值算出來 -->
+                                    <div class="wl-gauge" id="wlGauge" aria-hidden="true">
+                                        <div class="wl-gauge-water" id="wlGaugeWater"></div>
+                                        <div class="wl-gauge-surface" id="wlGaugeSurface"></div>
+                                        <div class="wl-gauge-ticks" id="wlGaugeTicks"></div>
+                                    </div>
+                                    <!-- 警戒線：橫穿水尺後往右延伸成虛線，右端標等級與數值 -->
+                                    <div class="wl-hero-lines" id="wlHeroLines" aria-hidden="true"></div>
+                                    <div class="wl-readout">
+                                        <div class="wl-value-row">
+                                            <span class="wl-value" id="wlValue">--</span>
+                                            <span class="wl-unit">m</span>
+                                        </div>
+                                        <div class="wl-status" id="wlStatus">讀取中</div>
+                                        <div class="wl-seen" id="wlSeen"></div>
+                                        <div class="wl-levels" id="wlLevels"></div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- ===== 時間範圍 ===== -->
+                            <section class="wl-ranges" id="wlRanges">
+                                <button type="button" class="wl-range is-active" data-hours="24">24 小時</button>
+                                <button type="button" class="wl-range" data-hours="168">7 天</button>
+                                <button type="button" class="wl-range" data-hours="720">30 天</button>
+                            </section>
+
+                            <!-- ===== 歷程圖 ===== -->
+                            <section class="wl-card">
+                                <div class="wl-card-title">
+                                    水位歷程
+                                    <span class="wl-card-note" id="wlChartNote"></span>
+                                </div>
+                                <div class="wl-chart-wrap">
+                                    <canvas id="wlChart"></canvas>
+                                    <div class="wl-chart-empty" id="wlChartEmpty">這段期間沒有資料</div>
+                                </div>
+                            </section>
+
+                            <!-- ===== 站點位置 ===== -->
+                            <section class="wl-card">
+                                <div class="wl-card-title">站點位置</div>
+                                <div class="wl-map" id="wlMap"></div>
+                                <div class="wl-map-hint" id="wlMapHint">點地圖上的站點可切換</div>
+                            </section>
+
+                            <!-- ===== 上下游站台列（server render 首屏，之後由 JS 更新） ===== -->
+                            <section class="wl-card">
+                                <div class="wl-card-title">
+                                    上下游站台
+                                    <span class="wl-card-note">由上游至下游</span>
+                                </div>
+                                <div class="wl-stations" id="wlStations">
+                                    <t t-foreach="devices" t-as="device">
+                                        <t t-set="info" t-value="device_states[device.id]"/>
+                                        <button type="button"
+                                                t-attf-class="wl-station #{device_index == 0 and 'is-active' or ''} #{info['state'] == 'offline' and 'is-offline' or ''}"
+                                                t-att-data-device-id="device.id">
+                                            <span class="wl-station-flow">
+                                                <span class="wl-station-dot"></span>
+                                                <span class="wl-station-line" t-if="device_index &lt; len(devices) - 1"></span>
+                                            </span>
+                                            <span class="wl-station-body">
+                                                <span class="wl-station-name"><t t-esc="device.name"/></span>
+                                                <span class="wl-station-seen"><t t-esc="info['last_seen']"/></span>
+                                            </span>
+                                            <span class="wl-station-value">
+                                                <t t-if="info['value'] is not None">
+                                                    <t t-esc="'%.2f' % info['value']"/><small> m</small>
+                                                </t>
+                                                <t t-else="">—</t>
+                                            </span>
+                                            <span t-attf-class="wl-chip wl-chip-#{info['state']}">
+                                                <t t-if="info['state'] == 'offline'">斷線</t>
+                                                <t t-elif="info['state'] == 'lv1'">一級</t>
+                                                <t t-elif="info['state'] == 'lv2'">二級</t>
+                                                <t t-elif="info['state'] == 'lv3'">三級</t>
+                                                <t t-else="">正常</t>
+                                            </span>
+                                        </button>
+                                    </t>
+                                </div>
+                            </section>
+                        </div>
+                    </t>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

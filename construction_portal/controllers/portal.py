@@ -24,12 +24,15 @@ from .portal_inspection import InspectionRoutesMixin
 from .portal_photo import PhotoRoutesMixin
 from .portal_daily_log import DailyLogRoutesMixin
 from .portal_misc import MiscRoutesMixin
+from .portal_water_level import WaterLevelRoutesMixin
+from .portal_community_water import CommunityWaterRoutesMixin
 
 _logger = logging.getLogger(__name__)
 
 
 class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMixin,
-                         DailyLogRoutesMixin, MiscRoutesMixin, CustomerPortal):
+                         DailyLogRoutesMixin, MiscRoutesMixin, WaterLevelRoutesMixin,
+                         CommunityWaterRoutesMixin, CustomerPortal):
     """
     工程監造系統 Portal Controller（v10）
 

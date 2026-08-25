@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        社區蓄水池水情 /community/<site_id>/water
+        - 主角是「還剩幾 %」不是「水位幾公尺」——物管看到 2.26 公尺沒有感覺，看到剩 21% 才會叫水車
+        - 沒裝表的池照樣列出並標「尚未裝表」，不能讓人以為那個池不存在
+        - 不使用 portal_v10_header：它依賴 project / day_count，社區沒有工程案件。
+          比照 portal_inspection_type_hud 自寫一個輕量 HUD。
+    -->
+
+    <template id="portal_community_hud" name="社區水情 HUD">
+        <div class="cy-hud" style="padding-bottom: 0;">
+            <div class="cy-hud-top">
+                <div class="cy-hud-left">
+                    <a href="/my" class="cy-hud-back" title="返回">‹</a>
+                </div>
+                <div class="cy-hud-project"><t t-esc="hud_title or '水情總覽'"/></div>
+                <button type="button" class="cy-hud-avatar cy-hud-menu-avatar"
+                        data-bs-toggle="offcanvas" data-bs-target="#cyDrawer"
+                        aria-controls="cyDrawer" aria-label="開啟主選單">
+                    <span class="cy-hud-menu-avatar-initial"><t t-esc="request.env.user.name[:1]"/></span>
+                    <span class="cy-hud-menu-avatar-chevron" aria-hidden="true">▾</span>
+                </button>
+            </div>
+        </div>
+    </template>
+
+    <template id="portal_community_water" name="Community Water Level">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_community_hud">
+                    <t t-set="hud_title" t-value="site.name"/>
+                </t>
+
+                <div class="cy-content">
+                    <t t-if="not tanks">
+                        <div class="wl-empty">
+                            <div class="wl-empty-icon">〰</div>
+                            <div class="wl-empty-title">這個社區還沒有建立蓄水池</div>
+                            <div class="wl-empty-hint">請聯絡千溢科技協助設定。</div>
+                        </div>
+                    </t>
+
+                    <t t-else="">
+                        <div id="wlApp"
+                             data-mode="community"
+                             t-att-data-endpoint="'/community/%s/water/data' % site.id"
+                             t-att-data-default-hours="default_hours">
+
+                            <div class="wl-site-line">
+                                <span t-esc="site.name"/>
+                                <span class="wl-site-meta">
+                                    <t t-esc="len(tanks)"/> 個池 ·
+                                    <t t-esc="metered_count"/> 個已裝表
+                                </span>
+                            </div>
+
+                            <!-- ===== 水池儲水率（主體） ===== -->
+                            <section class="wl-tanks" id="wlTanks">
+                                <t t-foreach="tanks" t-as="tank">
+                                    <t t-set="info" t-value="tank_states[tank.id]"/>
+                                    <button type="button"
+                                            t-attf-class="wl-tank is-#{info['status']} #{tank_index == 0 and 'is-active' or ''}"
+                                            t-att-data-tank-id="tank.id">
+                                        <span class="wl-tank-head">
+                                            <span class="wl-tank-name"><t t-esc="tank.name"/></span>
+                                            <span class="wl-tank-usage"><t t-esc="info['usage']"/></span>
+                                        </span>
+                                        <t t-if="info['has_device']">
+                                            <span class="wl-tank-rate">
+                                                <t t-if="info['fill_rate'] is not None">
+                                                    <t t-esc="'%.1f' % info['fill_rate']"/><small>%</small>
+                                                </t>
+                                                <t t-else="">—</t>
+                                            </span>
+                                            <span class="wl-tank-bar">
+                                                <span class="wl-tank-bar-fill"
+                                                      t-attf-style="width: #{min(100, max(0, info['fill_rate'] or 0))}%"/>
+                                            </span>
+                                            <span class="wl-tank-sub">
+                                                <t t-if="info['volume'] is not None">
+                                                    <t t-esc="'%.1f' % info['volume']"/> /
+                                                    <t t-esc="'%.1f' % info['capacity']"/> m³
+                                                </t>
+                                                <t t-else="">目前無資料</t>
+                                                · <t t-esc="info['last_seen']"/>
+                                            </span>
+                                        </t>
+                                        <t t-else="">
+                                            <span class="wl-tank-none">尚未裝表</span>
+                                            <span class="wl-tank-sub">
+                                                有效容量 <t t-esc="'%.1f' % info['capacity']"/> m³
+                                            </span>
+                                        </t>
+                                    </button>
+                                </t>
+                            </section>
+
+                            <!-- ===== 時間範圍 ===== -->
+                            <section class="wl-ranges" id="wlRanges">
+                                <button type="button" class="wl-range is-active" data-hours="24">24 小時</button>
+                                <button type="button" class="wl-range" data-hours="168">7 天</button>
+                                <button type="button" class="wl-range" data-hours="720">30 天</button>
+                            </section>
+
+                            <!-- ===== 歷程圖 ===== -->
+                            <section class="wl-card">
+                                <div class="wl-card-title">
+                                    水位歷程
+                                    <span class="wl-card-note" id="wlChartNote"></span>
+                                </div>
+                                <div class="wl-chart-wrap">
+                                    <canvas id="wlChart"></canvas>
+                                    <div class="wl-chart-empty" id="wlChartEmpty">這段期間沒有資料</div>
+                                </div>
+                            </section>
+
+                            <!-- ===== 站點位置（有座標才顯示） ===== -->
+                            <section class="wl-card" id="wlMapCard">
+                                <div class="wl-card-title">水池位置</div>
+                                <div class="wl-map" id="wlMap"></div>
+                                <div class="wl-map-hint" id="wlMapHint">點地圖上的水池可切換</div>
+                            </section>
+                        </div>
+                    </t>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

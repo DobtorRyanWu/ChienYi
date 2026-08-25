@@ -39,6 +39,7 @@ v2.0.0 (Portal v10)
         'construction_photo',
         'construction_daily_log',
         'construction_notification_slip',
+        'construction_water_level',
         'web_leaflet_lib',
     ],
     # 外部 Python 套件（import 名稱，非 pip 名稱）：
@@ -66,6 +67,8 @@ v2.0.0 (Portal v10)
         'views/portal_settings_templates.xml',
         'views/portal_schedule_templates.xml',
         'views/portal_notification_templates.xml',
+        'views/portal_water_level_templates.xml',
+        'views/portal_community_water_templates.xml',
         # 登入頁品牌化（EAGLE 風格）
         'views/login_templates.xml',
         # 停用 Odoo Website 預設 /contactus 頁面（客服走另一系統）
@@ -87,6 +90,9 @@ v2.0.0 (Portal v10)
             # Portal 照片地圖
             'construction_portal/static/src/css/portal_photos_map.css',
             'construction_portal/static/src/js/portal_photos_map.js',
+            # Portal 水位監測（Chart.js 不進 bundle，由頁面 JS 動態載入）
+            'construction_portal/static/src/css/portal_water_level.css',
+            'construction_portal/static/src/js/portal_water_level.js',
         ],
     },
     'demo': [],

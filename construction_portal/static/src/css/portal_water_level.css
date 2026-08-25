@@ -1,0 +1,395 @@
+/**
+ * 水位監測前台樣式（v11）
+ * 色彩一律走 --wb-* 變數；本頁另補三個警戒語意色（--wb-wl-*），深色模式一起定義。
+ * 注意：v11 的 --wb-amber 已被改指向品牌鋼藍，不能拿它當警戒色。
+ */
+
+:root {
+  --wb-wl-water: #769FCD;      /* 水體：品牌鋼藍 */
+  --wb-wl-normal: #22b357;
+  --wb-wl-lv3: #d68b1a;        /* 三級：黃橘 */
+  --wb-wl-lv2: #e2660f;        /* 二級：橘 */
+  --wb-wl-lv1: #e8364f;        /* 一級：磚紅 */
+  --wb-wl-offline: #8b90a0;
+  /* 低水位（社區蓄水池缺水）：與高水位的橘紅系分開，用琥珀→棕紅表示「越來越沒水」 */
+  --wb-wl-low3: #c99a2e;
+  --wb-wl-low2: #c2701b;
+  --wb-wl-low1: #a63a2a;
+  --wb-wl-unknown: #6b7280;
+}
+
+[data-theme="dark"] {
+  --wb-wl-water: #5a82b3;
+  --wb-wl-normal: #35c46b;
+  --wb-wl-lv3: #e8a63f;
+  --wb-wl-lv2: #f5842f;
+  --wb-wl-lv1: #ff5f74;
+  --wb-wl-offline: #6e7588;
+  --wb-wl-low3: #e0b356;
+  --wb-wl-low2: #e08a44;
+  --wb-wl-low1: #d9614f;
+  --wb-wl-unknown: #9aa0ae;
+}
+
+/* ===== 空狀態 ===== */
+.wl-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--wb-t2);
+}
+.wl-empty-icon { font-size: 2.4rem; color: var(--wb-wl-water); }
+.wl-empty-title { font-size: 1rem; font-weight: 700; color: var(--wb-t1); margin-top: 8px; }
+.wl-empty-hint { font-size: 0.82rem; margin-top: 6px; line-height: 1.6; }
+
+/* ===== 目前水位 ===== */
+.wl-hero {
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius);
+  box-shadow: var(--wb-shadow);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.wl-hero-station {
+  font-size: 0.78rem;
+  color: var(--wb-t2);
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+.wl-hero-body { display: flex; align-items: stretch; gap: 18px; position: relative; }
+
+/* 警戒線橫跨整個 hero：水尺內是實線段、右側延伸成虛線 */
+.wl-hero-lines {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 220px;                 /* 與 .wl-gauge 同高，兩者共用同一套座標 */
+  pointer-events: none;
+  z-index: 0;
+}
+.wl-hero-line {
+  position: absolute; left: 0; right: 0;
+  border-top: 1px dashed currentColor;
+  opacity: 0.85;
+}
+.wl-hero-line-label {
+  position: absolute; right: 0;
+  transform: translateY(-100%);
+  background: var(--wb-bg2);
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 0 2px;
+}
+.wl-hero-line.is-lv3, .wl-hero-line-label.is-lv3 { color: var(--wb-wl-lv3); }
+.wl-hero-line.is-lv2, .wl-hero-line-label.is-lv2 { color: var(--wb-wl-lv2); }
+.wl-hero-line.is-lv1, .wl-hero-line-label.is-lv1 { color: var(--wb-wl-lv1); }
+
+/* 水尺：整頁的主角。刻度 10 公分一格、1 公尺一個數字，水面從底部灌上來 */
+.wl-gauge {
+  position: relative;
+  width: 62px;
+  height: 220px;
+  flex: none;
+  border: 1px solid var(--wb-bdr);
+  border-radius: 6px;
+  background: var(--wb-bg3);
+  overflow: hidden;
+}
+.wl-gauge-water {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 0;
+  background: linear-gradient(180deg,
+      color-mix(in srgb, var(--wb-wl-water) 75%, transparent),
+      var(--wb-wl-water));
+  transition: height 900ms cubic-bezier(.22,.61,.36,1);
+}
+.wl-gauge-ticks { position: absolute; inset: 0; }
+
+/* 水面那條白線：讓人一眼看到「現在到這裡」 */
+.wl-gauge-surface {
+  position: absolute; left: 0; right: 0;
+  height: 2px;
+  background: rgba(255,255,255,.9);
+  box-shadow: 0 0 4px rgba(0,0,0,.25);
+  transition: bottom 900ms cubic-bezier(.22,.61,.36,1);
+  display: none;
+}
+.wl-gauge-surface.is-shown { display: block; }
+.wl-gauge-tick {
+  position: absolute; left: 0;
+  height: 1px;
+  background: var(--wb-t3);
+  opacity: 0.5;
+}
+.wl-gauge-tick.is-major { opacity: 0.9; }
+.wl-gauge-tick-label {
+  position: absolute;
+  left: 22px;
+  transform: translateY(-50%);
+  font-size: 9px;
+  color: var(--wb-t2);
+  font-variant-numeric: tabular-nums;
+}
+/* 讀數疊在警戒線之上，並給底色讓數字「切斷」線條，不然虛線會穿過大字 */
+.wl-readout {
+  display: flex; flex-direction: column; justify-content: center;
+  min-width: 0; position: relative; z-index: 1;
+}
+.wl-value-row {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  align-self: flex-start;
+  background: var(--wb-bg2);
+  padding-right: 8px;
+}
+.wl-value {
+  font-size: 3rem;
+  font-weight: 300;          /* 數字本身就有重量，字重再壓上去會很俗 */
+  line-height: 1.05;
+  color: var(--wb-t1);
+  font-variant-numeric: tabular-nums;
+}
+.wl-unit { font-size: 1rem; color: var(--wb-t3); }
+.wl-status {
+  display: inline-block;
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--wb-wl-normal);
+}
+.wl-status.is-lv3 { background: var(--wb-wl-lv3); }
+.wl-status.is-lv2 { background: var(--wb-wl-lv2); }
+.wl-status.is-lv1 { background: var(--wb-wl-lv1); }
+.wl-status.is-low3 { background: var(--wb-wl-low3); }
+.wl-status.is-low2 { background: var(--wb-wl-low2); }
+.wl-status.is-low1 { background: var(--wb-wl-low1); }
+.wl-status.is-offline { background: var(--wb-wl-offline); }
+.wl-seen {
+  font-size: 0.72rem; color: var(--wb-t3); margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+  align-self: flex-start; background: var(--wb-bg2); padding-right: 8px;
+}
+.wl-levels {
+  font-size: 0.72rem; color: var(--wb-t2); margin-top: 8px; line-height: 1.7;
+  background: var(--wb-bg2); padding-right: 8px;
+}
+.wl-levels b { font-weight: 700; }
+
+/* ===== 社區：場域列與水池儲水率卡片 ===== */
+.wl-site-line {
+  font-size: 0.78rem;
+  color: var(--wb-t2);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.wl-site-meta { font-size: 0.7rem; color: var(--wb-t3); }
+
+.wl-tanks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.wl-tank {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius);
+  box-shadow: var(--wb-shadow);
+  cursor: pointer;
+  min-height: 44px;              /* 觸控目標 */
+}
+.wl-tank.is-active { border-color: var(--wb-brand); box-shadow: var(--wb-shadow-lg); }
+.wl-tank.is-none { cursor: default; opacity: 0.75; }
+
+.wl-tank-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.wl-tank-name {
+  font-size: 0.88rem; font-weight: 700; color: var(--wb-t1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wl-tank-usage { flex: none; font-size: 0.65rem; color: var(--wb-t3); }
+
+/* 儲水率是這頁的主角：大字、細字重、等寬數字 */
+.wl-tank-rate {
+  font-size: 2rem;
+  font-weight: 300;
+  line-height: 1.1;
+  color: var(--wb-t1);
+  font-variant-numeric: tabular-nums;
+}
+.wl-tank-rate small { font-size: 0.8rem; color: var(--wb-t3); margin-left: 2px; }
+
+.wl-tank-bar {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--wb-bg3);
+  overflow: hidden;
+}
+.wl-tank-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--wb-wl-water);
+  transition: width 600ms cubic-bezier(.22,.61,.36,1);
+}
+.wl-tank.is-low .wl-tank-bar-fill { background: var(--wb-wl-low1); }
+.wl-tank.is-low .wl-tank-rate { color: var(--wb-wl-low1); }
+.wl-tank.is-high .wl-tank-bar-fill { background: var(--wb-wl-lv3); }
+.wl-tank.is-offline .wl-tank-bar-fill { background: var(--wb-wl-offline); }
+.wl-tank.is-offline .wl-tank-rate { color: var(--wb-wl-offline); }
+
+.wl-tank-sub { font-size: 0.68rem; color: var(--wb-t3); font-variant-numeric: tabular-nums; }
+.wl-tank-none { font-size: 0.85rem; color: var(--wb-t3); padding: 6px 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wl-tank-bar-fill { transition: none; }
+}
+
+/* ===== 時間範圍 ===== */
+.wl-ranges { display: flex; gap: 8px; margin-bottom: 12px; }
+.wl-range {
+  flex: 1;
+  padding: 8px 0;
+  border: 1px solid var(--wb-bdr);
+  background: var(--wb-bg2);
+  color: var(--wb-t2);
+  border-radius: var(--wb-radius-sm);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.wl-range.is-active {
+  background: var(--wb-brand);
+  border-color: var(--wb-brand);
+  color: #fff;
+}
+
+/* ===== 卡片 ===== */
+.wl-card {
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius);
+  box-shadow: var(--wb-shadow);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.wl-card-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--wb-t1);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.wl-card-note { font-size: 0.7rem; font-weight: 400; color: var(--wb-t3); }
+
+.wl-chart-wrap { position: relative; height: 240px; }
+.wl-chart-empty {
+  display: none;
+  position: absolute; inset: 0;
+  align-items: center; justify-content: center;
+  color: var(--wb-t3);
+  font-size: 0.82rem;
+}
+.wl-chart-empty.is-shown { display: flex; }
+
+.wl-map { height: 260px; border-radius: var(--wb-radius-sm); overflow: hidden; }
+.wl-map-hint { font-size: 0.7rem; color: var(--wb-t3); margin-top: 6px; }
+
+/* Leaflet 站點標記 */
+.wl-marker {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 11px; font-weight: 700;
+}
+.wl-marker.is-normal { background: var(--wb-wl-normal); }
+.wl-marker.is-lv3 { background: var(--wb-wl-lv3); }
+.wl-marker.is-lv2 { background: var(--wb-wl-lv2); }
+.wl-marker.is-lv1 { background: var(--wb-wl-lv1); }
+.wl-marker.is-low3 { background: var(--wb-wl-low3); }
+.wl-marker.is-low2 { background: var(--wb-wl-low2); }
+.wl-marker.is-low1 { background: var(--wb-wl-low1); }
+.wl-marker.is-offline { background: var(--wb-wl-offline); }
+.wl-marker.is-active { outline: 3px solid var(--wb-brand); outline-offset: 1px; }
+
+/* ===== 上下游站台列 ===== */
+.wl-stations { display: flex; flex-direction: column; }
+.wl-station {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 6px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--wb-bdr-soft);
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;             /* 觸控目標 */
+}
+.wl-station:last-child { border-bottom: none; }
+.wl-station.is-active { background: var(--wb-brand-soft); border-radius: var(--wb-radius-sm); }
+.wl-station.is-offline .wl-station-name,
+.wl-station.is-offline .wl-station-value { color: var(--wb-wl-offline); }
+
+.wl-station-flow { position: relative; width: 12px; flex: none; align-self: stretch; }
+.wl-station-dot {
+  position: absolute; top: 50%; left: 3px;
+  width: 7px; height: 7px; margin-top: -3px;
+  border-radius: 50%;
+  background: var(--wb-wl-water);
+}
+.wl-station-line {
+  position: absolute; left: 6px; top: calc(50% + 5px); bottom: -10px;
+  width: 1px;
+  background: var(--wb-bdr);
+}
+.wl-station-body { flex: 1; min-width: 0; }
+.wl-station-name {
+  display: block;
+  font-size: 0.88rem; font-weight: 700; color: var(--wb-t1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.wl-station-seen { display: block; font-size: 0.7rem; color: var(--wb-t3); }
+.wl-station-value {
+  font-size: 1.05rem; font-weight: 300; color: var(--wb-t1);
+  font-variant-numeric: tabular-nums;
+}
+.wl-station-value small { font-size: 0.7rem; color: var(--wb-t3); }
+
+.wl-chip {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--wb-wl-normal);
+}
+.wl-chip-lv3 { background: var(--wb-wl-lv3); }
+.wl-chip-lv2 { background: var(--wb-wl-lv2); }
+.wl-chip-lv1 { background: var(--wb-wl-lv1); }
+.wl-chip-low3 { background: var(--wb-wl-low3); }
+.wl-chip-low2 { background: var(--wb-wl-low2); }
+.wl-chip-low1 { background: var(--wb-wl-low1); }
+.wl-chip-offline { background: var(--wb-wl-offline); }
+
+/* 尊重系統的減少動態設定 */
+@media (prefers-reduced-motion: reduce) {
+  .wl-gauge-water, .wl-gauge-surface { transition: none; }
+}
