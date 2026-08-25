@@ -44,7 +44,8 @@
                         <group string="資料保存與位置">
                             <field name="retention_days"/>
                             <field name="address"/>
-                            <field name="latitude"/>
+                            <field name="latitude" widget="latlng_map_picker"
+                                   options="{'longitude_field': 'longitude'}"/>
                             <field name="longitude"/>
                         </group>
                     </group>
@@ -125,7 +126,7 @@
     <record id="action_water_level_site" model="ir.actions.act_window">
         <field name="name">監測場域</field>
         <field name="res_model">water.level.site</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list,form,leaflet_map</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">建立第一個監測場域</p>
             <p>場域是設備的歸屬單位：工程案件底下的河川測站，或一個社區底下的蓄水池群。</p>

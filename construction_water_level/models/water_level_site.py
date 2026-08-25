@@ -70,6 +70,13 @@ class WaterLevelSite(models.Model):
         'water.level.tank', 'site_id', string='蓄水池')
     device_ids = fields.One2many(
         'water.level.device', 'site_id', string='監測設備')
+    marker_icon = fields.Binary(string='地圖標記', compute='_compute_marker_icon')
+    # ⚠️ leaflet_map（OCA web_view_leaflet_map）是為 res.partner 寫的，controller 會
+    #    **無條件** search_read 這個欄位名（res.partner 的 date_localization 來自
+    #    base_geolocalize）。模型沒有它就直接 ValueError、地圖一個標記都畫不出來。
+    #    這裡的用途只有一個：讓標記圖的 /web/image 快取失效。
+    date_localization = fields.Datetime(
+        string='圖資更新時間', compute='_compute_date_localization')
     device_count = fields.Integer(
         string='設備數', compute='_compute_device_count')
 
@@ -88,6 +95,37 @@ class WaterLevelSite(models.Model):
         counts = {site.id: count for site, count in groups}
         for site in saved:
             site.device_count = counts.get(site.id, 0)
+
+    def _compute_date_localization(self):
+        """場域的標記顏色取決於底下的設備，所以快取要跟著設備的更新時間走——
+        只看場域自己的 write_date，設備狀態變了標記顏色也不會換。"""
+        for site in self:
+            stamps = [site.write_date] + site.device_ids.mapped('write_date')
+            site.date_localization = max([s for s in stamps if s], default=False)
+
+    @api.depends('device_ids.level_state', 'device_ids.is_offline')
+    def _compute_marker_icon(self):
+        """場域的顏色取底下最嚴重的那一台——地圖上一個點代表整個社區/工程，
+        只要有一台在警戒，這個點就該是警戒色，不能被其他正常的設備稀釋掉。"""
+        from .water_level_marker import (
+            COLOR_NO_DATA, COLOR_OFFLINE, COLOR_WARN_1, COLOR_WARN_2,
+            COLOR_WARN_3, COLOR_NORMAL, marker_image,
+        )
+        severity = {
+            'lv1': 4, 'low1': 4, 'lv2': 3, 'low2': 3, 'lv3': 2, 'low3': 2, 'normal': 1,
+        }
+        color_by_rank = {4: COLOR_WARN_1, 3: COLOR_WARN_2, 2: COLOR_WARN_3, 1: COLOR_NORMAL}
+        for site in self:
+            devices = site.device_ids
+            if not devices:
+                site.marker_icon = marker_image(COLOR_NO_DATA)
+                continue
+            if all(device.is_offline for device in devices):
+                site.marker_icon = marker_image(COLOR_OFFLINE)
+                continue
+            live = devices.filtered(lambda d: not d.is_offline)
+            worst = max(severity.get(device.level_state, 1) for device in live)
+            site.marker_icon = marker_image(color_by_rank[worst])
 
     # ==================== Constrains ====================
 

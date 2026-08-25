@@ -83,6 +83,21 @@ class WaterLevelTank(models.Model):
         help='代表設備已斷線。儲水率是最後一次上報算出來的，不是現在的水位——'
              '顯示的地方一定要標出來，不然就是拿一個過期數字冒充現況。')
 
+    # 池子本身沒有 GPS，座標是「代表設備的位置」，沒有設備就退回場域座標。
+    # 用 stored compute 而不是 related：related 只能指一個來源，接不了 fallback；
+    # 而地圖 view 要能用它做查詢，非 stored 的算不了。
+    latitude = fields.Float(
+        string='緯度', digits=(10, 7), compute='_compute_coordinates', store=True)
+    longitude = fields.Float(
+        string='經度', digits=(10, 7), compute='_compute_coordinates', store=True)
+    marker_icon = fields.Binary(string='地圖標記', compute='_compute_marker_icon')
+    # ⚠️ leaflet_map（OCA web_view_leaflet_map）是為 res.partner 寫的，controller 會
+    #    **無條件** search_read 這個欄位名（res.partner 的 date_localization 來自
+    #    base_geolocalize）。模型沒有它就直接 ValueError、地圖一個標記都畫不出來。
+    #    這裡的用途只有一個：讓標記圖的 /web/image 快取失效。
+    date_localization = fields.Datetime(
+        string='圖資更新時間', compute='_compute_date_localization')
+
     low_fill_alert_pct = fields.Float(
         string='低儲水率警戒(%)', digits=(5, 1), default=30.0,
         help='物業管理看的是百分比，不是公尺。')
@@ -152,6 +167,47 @@ class WaterLevelTank(models.Model):
             tank.current_volume_m3 = volume
             tank.fill_rate = (volume / capacity * PERCENT_FULL) if capacity else 0.0
 
+    @api.depends('primary_device_id.latitude', 'primary_device_id.longitude',
+                 'device_ids.latitude', 'device_ids.longitude',
+                 'site_id.latitude', 'site_id.longitude')
+    def _compute_coordinates(self):
+        for tank in self:
+            device = tank.primary_device_id or tank.device_ids[:1]
+            if device and (device.latitude or device.longitude):
+                tank.latitude = device.latitude
+                tank.longitude = device.longitude
+            else:
+                tank.latitude = tank.site_id.latitude
+                tank.longitude = tank.site_id.longitude
+
+    def _compute_date_localization(self):
+        for tank in self:
+            tank.date_localization = tank.write_date
+
+    @api.depends('fill_rate', 'is_stale', 'low_fill_alert_pct', 'high_fill_alert_pct',
+                 'device_ids', 'primary_device_id')
+    def _compute_marker_icon(self):
+        """顏色語意與前台卡片一致：缺水紅、接近滿橘、斷線灰、沒裝表淺灰。"""
+        from .water_level_marker import (
+            COLOR_NO_DATA, COLOR_NORMAL, COLOR_OFFLINE,
+            COLOR_WARN_1, COLOR_WARN_3, marker_image,
+        )
+        for tank in self:
+            device = tank.primary_device_id or tank.device_ids[:1]
+            if not device:
+                color = COLOR_NO_DATA
+            elif tank.is_stale:
+                color = COLOR_OFFLINE
+            elif tank.low_fill_alert_pct and tank.fill_rate < tank.low_fill_alert_pct:
+                color = COLOR_WARN_1
+            elif tank.high_fill_alert_pct and tank.fill_rate > tank.high_fill_alert_pct:
+                color = COLOR_WARN_3
+            else:
+                color = COLOR_NORMAL
+            tank.marker_icon = marker_image(color)
+
+    @api.depends('primary_device_id.last_seen', 'primary_device_id.offline_after_min',
+                 'device_ids.last_seen', 'device_ids.offline_after_min')
     def _compute_is_stale(self):
         for tank in self:
             device = tank.primary_device_id or tank.device_ids[:1]

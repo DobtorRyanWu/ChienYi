@@ -168,7 +168,7 @@
     <record id="action_water_level_community_overview" model="ir.actions.act_window">
         <field name="name">社區水情總覽</field>
         <field name="res_model">water.level.tank</field>
-        <field name="view_mode">kanban,list,form</field>
+        <field name="view_mode">kanban,list,form,leaflet_map</field>
         <field name="domain">[('site_id.site_type', '=', 'community')]</field>
         <field name="context">{'search_default_group_site': 1}</field>
         <field name="help" type="html">
@@ -180,7 +180,7 @@
     <record id="action_water_level_tank" model="ir.actions.act_window">
         <field name="name">蓄水池</field>
         <field name="res_model">water.level.tank</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list,form,leaflet_map</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">建立第一個蓄水池</p>
             <p>一個社區可以有多個池，池可以先建好但還沒裝表——儲水率會等裝表後才有數字。</p>

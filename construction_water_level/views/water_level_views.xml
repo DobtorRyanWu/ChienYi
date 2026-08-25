@@ -173,7 +173,7 @@
     <record id="action_water_level_device" model="ir.actions.act_window">
         <field name="name">水位監測站</field>
         <field name="res_model">water.level.device</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list,form,leaflet_map</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">建立第一個水位監測站</p>
             <p>監測站掛在工程案件底下。建好之後按「產生上報金鑰」，把設備碼與金鑰交給機器端，

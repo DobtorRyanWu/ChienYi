@@ -8,7 +8,8 @@
     #        Portal 老闆 rule 收斂成只看工程場域（原本 [(1,'=',1)] 會看到所有社區資料）
     # 2.1.0: 社區場域加前台成員制（member_user_ids）與四條社區 record rule，
     #        供 construction_portal 的社區水情頁使用
-    'version': '18.0.2.1.0',
+    # 2.2.0: 後台地圖（場域／蓄水池／監測站三個 leaflet_map view，標記依狀態上色）
+    'version': '18.0.2.2.0',
     'category': 'Construction/Supervision',
     'summary': '水位監測站主檔、時序水位紀錄與設備上報端點',
     'description': """
@@ -39,6 +40,7 @@
         'project',
         'construction_supervision_base',
         'web_leaflet_lib',
+        'web_view_leaflet_map',
     ],
     'data': [
         # Security
@@ -51,6 +53,7 @@
         'views/water_level_site_views.xml',
         'views/water_level_tank_views.xml',
         'views/water_level_views.xml',
+        'views/water_level_map_views.xml',
         'views/water_level_event_views.xml',
         'views/water_level_gap_views.xml',
         'views/water_level_integrity_views.xml',

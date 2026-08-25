@@ -172,6 +172,17 @@ class WaterLevelDevice(models.Model):
         string='時鐘偏移(秒)', digits=(10, 1), readonly=True)
     last_health_ts = fields.Datetime(string='最後健康回報', readonly=True)
 
+    # 後台地圖用。leaflet_map view 只吃 Binary 影像當標記，不能用 CSS 上色，
+    # 所以顏色要在後端畫成圖（見 water_level_marker.py）。
+    marker_icon = fields.Binary(
+        string='地圖標記', compute='_compute_marker_icon')
+    # ⚠️ leaflet_map（OCA web_view_leaflet_map）是為 res.partner 寫的，controller 會
+    #    **無條件** search_read 這個欄位名（res.partner 的 date_localization 來自
+    #    base_geolocalize）。模型沒有它就直接 ValueError、地圖一個標記都畫不出來。
+    #    這裡的用途只有一個：讓標記圖的 /web/image 快取失效。
+    date_localization = fields.Datetime(
+        string='圖資更新時間', compute='_compute_date_localization')
+
     reading_ids = fields.One2many(
         'water.level.reading', 'device_id', string='水位紀錄')
     reading_count = fields.Integer(
@@ -224,6 +235,10 @@ class WaterLevelDevice(models.Model):
                     state = 'low3'
             device.level_state = state
 
+    # 這個 compute 依賴「現在幾點」，本來就不能 store。但 depends 還是要寫：
+    # 少了它，同一個交易裡改完 last_seen 之後讀 is_offline 會拿到快取的舊值
+    # （每個 HTTP request 是新的 env 所以前台看起來正常，但批次程式與測試會中招）。
+    @api.depends('last_seen', 'offline_after_min')
     def _compute_is_offline(self):
         now = fields.Datetime.now()
         for device in self:
@@ -233,6 +248,17 @@ class WaterLevelDevice(models.Model):
             limit_min = device.offline_after_min or DEFAULT_OFFLINE_MINUTES
             elapsed_min = (now - device.last_seen).total_seconds() / 60.0
             device.is_offline = elapsed_min > limit_min
+
+    def _compute_date_localization(self):
+        for device in self:
+            device.date_localization = device.write_date
+
+    @api.depends('level_state', 'is_offline')
+    def _compute_marker_icon(self):
+        from .water_level_marker import color_for_level_state, marker_image
+        for device in self:
+            device.marker_icon = marker_image(
+                color_for_level_state(device.level_state, device.is_offline))
 
     def _compute_reading_count(self):
         self.reading_count = 0

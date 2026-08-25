@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        後台地圖（web_view_leaflet_map 的 leaflet_map view type）
+
+        限制先講清楚，免得日後有人以為是壞掉：
+        * 唯讀。要在地圖上點一下改座標請用表單上的 latlng_map_picker widget。
+        * 標記顏色只能靠 Binary 影像欄位（marker_icon），不能用 CSS——
+          所以顏色是後端用 Pillow 畫出來的，見 models/water_level_marker.py。
+        * marker_icon_size 要與產圖的尺寸一致（64），不然 Leaflet 會把圖拉伸糊掉。
+        * 沒有座標的記錄不會出現在地圖上（renderer 直接 skip），這是預期行為——
+          清單頁才是「全部」，地圖頁只回答「在哪裡」。
+    -->
+
+    <record id="view_water_level_site_map" model="ir.ui.view">
+        <field name="name">water.level.site.leaflet.map</field>
+        <field name="model">water.level.site</field>
+        <field name="arch" type="xml">
+            <leaflet_map field_latitude="latitude" field_longitude="longitude"
+                         field_title="name" field_address="address"
+                         field_marker_icon_image="marker_icon"
+                         marker_icon_size_x="64" marker_icon_size_y="64"
+                         default_zoom="12">
+                <field name="latitude"/>
+                <field name="longitude"/>
+                <field name="name"/>
+                <field name="address"/>
+                <field name="site_type"/>
+                <field name="device_count"/>
+                <field name="marker_icon"/>
+            </leaflet_map>
+        </field>
+    </record>
+
+    <record id="view_water_level_tank_map" model="ir.ui.view">
+        <field name="name">water.level.tank.leaflet.map</field>
+        <field name="model">water.level.tank</field>
+        <field name="arch" type="xml">
+            <leaflet_map field_latitude="latitude" field_longitude="longitude"
+                         field_title="name"
+                         field_marker_icon_image="marker_icon"
+                         marker_icon_size_x="64" marker_icon_size_y="64"
+                         default_zoom="13">
+                <field name="latitude"/>
+                <field name="longitude"/>
+                <field name="name"/>
+                <field name="site_id"/>
+                <field name="usage"/>
+                <field name="fill_rate"/>
+                <field name="current_volume_m3"/>
+                <field name="effective_volume_m3"/>
+                <field name="is_stale"/>
+                <field name="marker_icon"/>
+            </leaflet_map>
+        </field>
+    </record>
+
+    <record id="view_water_level_device_map" model="ir.ui.view">
+        <field name="name">water.level.device.leaflet.map</field>
+        <field name="model">water.level.device</field>
+        <field name="arch" type="xml">
+            <leaflet_map field_latitude="latitude" field_longitude="longitude"
+                         field_title="name"
+                         field_marker_icon_image="marker_icon"
+                         marker_icon_size_x="64" marker_icon_size_y="64"
+                         default_zoom="13">
+                <field name="latitude"/>
+                <field name="longitude"/>
+                <field name="name"/>
+                <field name="site_id"/>
+                <field name="device_uid"/>
+                <field name="last_value"/>
+                <field name="last_seen"/>
+                <field name="level_state"/>
+                <field name="is_offline"/>
+                <field name="marker_icon"/>
+            </leaflet_map>
+        </field>
+    </record>
+
+</odoo>
