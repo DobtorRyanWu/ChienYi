@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_water_level_gap_list" model="ir.ui.view">
+        <field name="name">water.level.gap.list</field>
+        <field name="model">water.level.gap</field>
+        <field name="arch" type="xml">
+            <list string="序號缺口" create="0"
+                  decoration-danger="state == 'unrecoverable'"
+                  decoration-warning="state in ['open', 'requested', 'partial']"
+                  decoration-muted="state == 'filled'">
+                <field name="device_id"/>
+                <field name="site_id" optional="show"/>
+                <field name="seq_from"/>
+                <field name="seq_to"/>
+                <field name="missing_count" sum="缺少筆數"/>
+                <field name="filled_count"/>
+                <field name="request_count"/>
+                <field name="detected_at"/>
+                <field name="filled_at" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-danger="state == 'unrecoverable'"
+                       decoration-success="state == 'filled'"
+                       decoration-warning="state in ['open', 'requested', 'partial']"/>
+                <field name="note" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_gap_search" model="ir.ui.view">
+        <field name="name">water.level.gap.search</field>
+        <field name="model">water.level.gap</field>
+        <field name="arch" type="xml">
+            <search string="序號缺口">
+                <field name="device_id"/>
+                <field name="site_id"/>
+                <filter name="filter_pending" string="尚未補齊"
+                        domain="[('state', 'in', ['open', 'requested', 'partial'])]"/>
+                <filter name="filter_unrecoverable" string="無法補回"
+                        domain="[('state', '=', 'unrecoverable')]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_device" string="監測站"
+                            context="{'group_by': 'device_id'}"/>
+                    <filter name="group_state" string="狀態"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_water_level_gap" model="ir.actions.act_window">
+        <field name="name">序號缺口</field>
+        <field name="res_model">water.level.gap</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_filter_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">目前沒有缺口</p>
+            <p>設備序號跳號時會自動開單，並在之後每次上報的回應裡請設備補送。</p>
+        </field>
+    </record>
+
+</odoo>

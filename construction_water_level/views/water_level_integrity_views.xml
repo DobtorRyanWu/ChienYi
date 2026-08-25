@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_water_level_integrity_list" model="ir.ui.view">
+        <field name="name">water.level.integrity.check.list</field>
+        <field name="model">water.level.integrity.check</field>
+        <field name="arch" type="xml">
+            <list string="完整性稽核" create="0"
+                  decoration-danger="result == 'broken'"
+                  decoration-warning="result == 'gap'"
+                  decoration-success="result == 'ok'">
+                <field name="run_at"/>
+                <field name="check_type"/>
+                <field name="device_id"/>
+                <field name="site_id" optional="show"/>
+                <field name="range_from_seq" optional="hide"/>
+                <field name="range_to_seq" optional="hide"/>
+                <field name="checked_count"/>
+                <field name="result" widget="badge"
+                       decoration-danger="result == 'broken'"
+                       decoration-warning="result == 'gap'"
+                       decoration-success="result == 'ok'"/>
+                <field name="first_bad_id" optional="hide"/>
+                <field name="note"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_integrity_search" model="ir.ui.view">
+        <field name="name">water.level.integrity.check.search</field>
+        <field name="model">water.level.integrity.check</field>
+        <field name="arch" type="xml">
+            <search string="完整性稽核">
+                <field name="device_id"/>
+                <field name="site_id"/>
+                <filter name="filter_bad" string="未通過"
+                        domain="[('result', '!=', 'ok')]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_type" string="稽核類型"
+                            context="{'group_by': 'check_type'}"/>
+                    <filter name="group_device" string="監測站"
+                            context="{'group_by': 'device_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_water_level_integrity" model="ir.actions.act_window">
+        <field name="name">完整性稽核</field>
+        <field name="res_model">water.level.integrity.check</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有稽核紀錄</p>
+            <p>每日 cron 會驗雜湊鏈與保存期間。客戶要求舉證「資料沒被改過」時，調這張表。</p>
+        </field>
+    </record>
+
+</odoo>

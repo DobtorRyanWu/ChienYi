@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 掛在「品質安全」底下，與自主檢查、缺失管理同層 -->
+    <menuitem id="menu_water_level_root"
+              name="水位監測"
+              parent="construction_supervision_base.menu_quality_safety_root"
+              sequence="30"/>
+
+    <menuitem id="menu_water_level_community_overview"
+              name="社區水情總覽"
+              parent="menu_water_level_root"
+              action="action_water_level_community_overview"
+              sequence="1"/>
+
+    <menuitem id="menu_water_level_site"
+              name="監測場域"
+              parent="menu_water_level_root"
+              action="action_water_level_site"
+              sequence="5"/>
+
+    <menuitem id="menu_water_level_tank"
+              name="蓄水池"
+              parent="menu_water_level_root"
+              action="action_water_level_tank"
+              sequence="8"/>
+
+    <menuitem id="menu_water_level_device"
+              name="監測站"
+              parent="menu_water_level_root"
+              action="action_water_level_device"
+              sequence="10"/>
+
+    <menuitem id="menu_water_level_event"
+              name="水位事件"
+              parent="menu_water_level_root"
+              action="action_water_level_event"
+              sequence="25"/>
+
+    <menuitem id="menu_water_level_gap"
+              name="序號缺口"
+              parent="menu_water_level_root"
+              action="action_water_level_gap"
+              sequence="30"/>
+
+    <menuitem id="menu_water_level_integrity"
+              name="完整性稽核"
+              parent="menu_water_level_root"
+              action="action_water_level_integrity"
+              sequence="35"/>
+
+    <menuitem id="menu_water_level_reading"
+              name="水位歷程"
+              parent="menu_water_level_root"
+              action="action_water_level_reading"
+              sequence="20"/>
+
+</odoo>

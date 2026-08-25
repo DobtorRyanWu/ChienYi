@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_water_level_event_list" model="ir.ui.view">
+        <field name="name">water.level.event.list</field>
+        <field name="model">water.level.event</field>
+        <field name="arch" type="xml">
+            <list string="水位事件"
+                  decoration-danger="severity == 'critical'"
+                  decoration-warning="severity == 'warning'"
+                  decoration-muted="state == 'reviewed'">
+                <field name="name"/>
+                <field name="start_ts"/>
+                <field name="end_ts" optional="show"/>
+                <field name="device_id"/>
+                <field name="site_id" optional="show"/>
+                <field name="tank_id" optional="hide"/>
+                <field name="event_type"/>
+                <field name="peak_value"/>
+                <field name="frame_count" string="影像"/>
+                <field name="severity" widget="badge"
+                       decoration-danger="severity == 'critical'"
+                       decoration-warning="severity == 'warning'"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_event_form" model="ir.ui.view">
+        <field name="name">water.level.event.form</field>
+        <field name="model">water.level.event</field>
+        <field name="arch" type="xml">
+            <form string="水位事件">
+                <header>
+                    <button name="action_close" type="object" string="結束事件"
+                            class="btn-primary" invisible="state != 'open'"/>
+                    <button name="action_review" type="object" string="標記已複核"
+                            invisible="state != 'closed'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="事件">
+                            <field name="device_id" options="{'no_create': True}"/>
+                            <field name="site_id"/>
+                            <field name="tank_id"/>
+                            <field name="event_type"/>
+                            <field name="severity"/>
+                            <field name="event_uid"/>
+                        </group>
+                        <group string="時間與極值">
+                            <field name="start_ts"/>
+                            <field name="end_ts"/>
+                            <field name="peak_value"/>
+                            <field name="trigger_state"/>
+                            <label for="protected_from_ts" string="永久保留區間"/>
+                            <div>
+                                <field name="protected_from_ts" class="oe_inline"/> ~
+                                <field name="protected_to_ts" class="oe_inline"/>
+                                <p class="text-muted mb-0" style="font-size:11px;">
+                                    落在這個區間內的水位紀錄，清理與封存程序一律不得處理。
+                                </p>
+                            </div>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="影像關鍵幀" name="frames">
+                            <field name="frame_ids" nolabel="1">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="ts"/>
+                                    <field name="kind"/>
+                                    <field name="attachment_id" widget="many2one_binary"/>
+                                    <field name="byte_size"/>
+                                    <field name="frame_hash" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="說明" name="note">
+                            <field name="note" nolabel="1" placeholder="人工補充的處理經過…"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_water_level_event_search" model="ir.ui.view">
+        <field name="name">water.level.event.search</field>
+        <field name="model">water.level.event</field>
+        <field name="arch" type="xml">
+            <search string="水位事件">
+                <field name="name"/>
+                <field name="device_id"/>
+                <field name="site_id"/>
+                <filter name="filter_open" string="進行中" domain="[('state', '=', 'open')]"/>
+                <filter name="filter_critical" string="嚴重" domain="[('severity', '=', 'critical')]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_type" string="事件類型" context="{'group_by': 'event_type'}"/>
+                    <filter name="group_device" string="監測站" context="{'group_by': 'device_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_water_level_event" model="ir.actions.act_window">
+        <field name="name">水位事件</field>
+        <field name="res_model">water.level.event</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

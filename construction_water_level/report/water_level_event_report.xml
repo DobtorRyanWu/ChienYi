@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_water_level_event" model="ir.actions.report">
+        <field name="name">事件報表</field>
+        <field name="model">water.level.event</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">construction_water_level.report_water_level_event</field>
+        <field name="report_file">construction_water_level.report_water_level_event</field>
+        <field name="binding_model_id" ref="model_water_level_event"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_water_level_event">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2 style="margin-bottom:2mm;">水位事件報表</h2>
+                        <div style="font-size:11px;color:#666;margin-bottom:4mm;">
+                            本報表由系統依實際紀錄產生。水位紀錄為純追加式資料，
+                            事件區間內的紀錄已標記永久保留。
+                        </div>
+
+                        <table class="table table-sm" style="font-size:12px;">
+                            <tr>
+                                <td style="width:22%;"><strong>事件編號</strong></td>
+                                <td style="width:28%;"><span t-field="doc.name"/></td>
+                                <td style="width:22%;"><strong>事件類型</strong></td>
+                                <td><span t-field="doc.event_type"/>（<span t-field="doc.severity"/>）</td>
+                            </tr>
+                            <tr>
+                                <td><strong>監測場域</strong></td>
+                                <td><span t-field="doc.site_id.name"/></td>
+                                <td><strong>監測站</strong></td>
+                                <td><span t-field="doc.device_id.name"/>
+                                    <span t-if="doc.tank_id"> / <span t-field="doc.tank_id.name"/></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>發生時間</strong></td>
+                                <td><span t-field="doc.start_ts"/></td>
+                                <td><strong>結束時間</strong></td>
+                                <td><span t-field="doc.end_ts"/></td>
+                            </tr>
+                            <tr>
+                                <td><strong>極值</strong></td>
+                                <td><span t-field="doc.peak_value"/> m</td>
+                                <td><strong>保留區間</strong></td>
+                                <td><span t-field="doc.protected_from_ts"/> ~ <span t-field="doc.protected_to_ts"/></td>
+                            </tr>
+                        </table>
+
+                        <h4 style="margin-top:6mm;font-size:13px;">水位時間軸</h4>
+                        <t t-set="readings" t-value="doc.reading_ids_in_range()"/>
+                        <table class="table table-sm table-bordered" style="font-size:11px;">
+                            <thead>
+                                <tr>
+                                    <th>時間</th><th>設備上報值(m)</th><th>水位高程(m)</th>
+                                    <th>序號</th><th>雜湊</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="readings" t-as="r">
+                                    <td><span t-field="r.ts"/></td>
+                                    <td><span t-field="r.raw_value"/></td>
+                                    <td><span t-field="r.value"/></td>
+                                    <td><span t-field="r.seq_no"/></td>
+                                    <td style="font-family:monospace;font-size:9px;">
+                                        <t t-esc="(r.chain_hash or '')[:16]"/>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p t-if="not readings" style="font-size:11px;color:#a00;">
+                            這個區間沒有水位紀錄。
+                        </p>
+
+                        <h4 style="margin-top:6mm;font-size:13px;">影像關鍵幀</h4>
+                        <div t-if="not doc.frame_ids" style="font-size:11px;color:#666;">
+                            本事件沒有影像。
+                        </div>
+                        <div t-foreach="doc.frame_ids" t-as="f"
+                             style="display:inline-block;margin:0 4mm 4mm 0;vertical-align:top;">
+                            <img t-att-src="'data:%s;base64,%s' % (f.attachment_id.mimetype or 'image/jpeg', f.attachment_id.datas.decode())"
+                                 style="max-width:80mm;border:1px solid #ccc;"/>
+                            <div style="font-size:10px;color:#666;">
+                                <span t-field="f.kind"/> / <span t-field="f.ts"/><br/>
+                                sha256 <t t-esc="(f.frame_hash or '')[:16]"/>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:8mm;font-size:10px;color:#666;">
+                            說明：「事件前緩衝保全」的資料落盤由現場設備負責，
+                            本系統負責保存收到的紀錄、標記永久保留區間，並提供雜湊鏈驗證。
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

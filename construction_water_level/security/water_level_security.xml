@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- ============================================================ -->
+        <!-- Portal 可見性 Record Rules                                    -->
+        <!--                                                              -->
+        <!-- 註：本 repo 其他 portal rule 集中在 construction_portal/     -->
+        <!-- security/security.xml。這兩條刻意放在模型自己的模組裡——      -->
+        <!-- 少了 construction_portal 時模型不能是全開的。domain 與        -->
+        <!-- project.project._get_portal_projects_domain() 保持一致：      -->
+        <!-- 老闆看全部、其餘 portal 角色只看被指派為參與成員的專案。      -->
+        <!-- ============================================================ -->
+
+        <record id="water_level_device_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 水位監測站 - 僅參與成員專案（預設）</field>
+            <field name="model_id" ref="model_water_level_device"/>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ⚠️ v2 收斂：原本是 [(1,'=',1)]，社區場域的設備一進來，工程端的老闆帳號
+             就會看到所有社區的水池。老闆的「全部」只到工程場域為止。 -->
+        <record id="water_level_device_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 水位監測站 - 全部工程場域</field>
+            <field name="model_id" ref="model_water_level_device"/>
+            <field name="domain_force">[('site_id.site_type', '=', 'project')]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="water_level_reading_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 水位紀錄 - 僅參與成員專案（預設）</field>
+            <field name="model_id" ref="model_water_level_reading"/>
+            <field name="domain_force">[('device_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ⚠️ v2 收斂：同上 -->
+        <record id="water_level_reading_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 水位紀錄 - 全部工程場域</field>
+            <field name="model_id" ref="model_water_level_reading"/>
+            <field name="domain_force">[('device_id.site_id.site_type', '=', 'project')]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- 監測場域：前台只看得到工程場域。社區場域沒有任何 portal rule，   -->
+        <!-- 也就是預設拒絕——社區的可見性等前台需求確定後再另行設計。       -->
+        <!-- ============================================================ -->
+
+        <record id="water_level_site_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 監測場域 - 僅參與成員的工程場域</field>
+            <field name="model_id" ref="model_water_level_site"/>
+            <field name="domain_force">[('site_type', '=', 'project'),
+                                        ('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="water_level_site_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 監測場域 - 全部工程場域</field>
+            <field name="model_id" ref="model_water_level_site"/>
+            <field name="domain_force">[('site_type', '=', 'project')]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- 社區場域的前台可見性：成員制。                                 -->
+        <!-- 與工程端的 rule 互不干擾——工程走 project.member_user_ids，     -->
+        <!-- 社區走 site.member_user_ids，兩邊都是 OR 疊加在 base.group_portal 上。 -->
+        <!-- 沒被加進成員清單的 portal 帳號，社區資料一律看不到（deny by default）。 -->
+        <!-- ============================================================ -->
+
+        <record id="water_level_site_community_member_rule" model="ir.rule">
+            <field name="name">Portal: 社區場域 - 僅前台成員</field>
+            <field name="model_id" ref="model_water_level_site"/>
+            <field name="domain_force">[('site_type', '=', 'community'),
+                                        ('member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="water_level_tank_community_member_rule" model="ir.rule">
+            <field name="name">Portal: 蓄水池 - 僅前台成員的社區</field>
+            <field name="model_id" ref="model_water_level_tank"/>
+            <field name="domain_force">[('site_id.site_type', '=', 'community'),
+                                        ('site_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="water_level_device_community_member_rule" model="ir.rule">
+            <field name="name">Portal: 水位監測站 - 僅前台成員的社區</field>
+            <field name="model_id" ref="model_water_level_device"/>
+            <field name="domain_force">[('site_id.site_type', '=', 'community'),
+                                        ('site_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="water_level_reading_community_member_rule" model="ir.rule">
+            <field name="name">Portal: 水位紀錄 - 僅前台成員的社區</field>
+            <field name="model_id" ref="model_water_level_reading"/>
+            <field name="domain_force">[('device_id.site_id.site_type', '=', 'community'),
+                                        ('device_id.site_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_water_level_site_list" model="ir.ui.view">
+        <field name="name">water.level.site.list</field>
+        <field name="model">water.level.site</field>
+        <field name="arch" type="xml">
+            <list string="監測場域">
+                <field name="name"/>
+                <field name="code" optional="show"/>
+                <field name="site_type"/>
+                <field name="project_id" optional="show"/>
+                <field name="owner_partner_id" optional="show"/>
+                <field name="device_count" string="設備數"/>
+                <field name="retention_days" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_site_form" model="ir.ui.view">
+        <field name="name">water.level.site.form</field>
+        <field name="model">water.level.site</field>
+        <field name="arch" type="xml">
+            <form string="監測場域">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="例如：○○社區 或 磺港溪A標"/></h1>
+                    </div>
+                    <group>
+                        <group string="歸屬">
+                            <field name="site_type" widget="radio" options="{'horizontal': True}"/>
+                            <field name="project_id"
+                                   invisible="site_type != 'project'"
+                                   required="site_type == 'project'"
+                                   options="{'no_create': True}"/>
+                            <field name="owner_partner_id"
+                                   string="管委會／物業公司"
+                                   invisible="site_type != 'community'"
+                                   required="site_type == 'community'"/>
+                            <field name="code"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                        <group string="資料保存與位置">
+                            <field name="retention_days"/>
+                            <field name="address"/>
+                            <field name="latitude"/>
+                            <field name="longitude"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="蓄水池" name="tanks"
+                              invisible="site_type != 'community'">
+                            <field name="tank_ids" nolabel="1">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="usage"/>
+                                    <field name="effective_volume_m3"/>
+                                    <field name="current_volume_m3"/>
+                                    <field name="fill_rate" widget="percentage"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="前台成員" name="members"
+                              invisible="site_type != 'community'">
+                            <field name="member_user_ids" nolabel="1"
+                                   widget="many2many"
+                                   domain="[('share', '=', True)]"
+                                   context="{'default_share': True}">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="login"/>
+                                </list>
+                            </field>
+                            <p class="text-muted">
+                                只有列在這裡的前台帳號看得到這個社區的水情頁。
+                                工程場域不需要填——它的可見性走工程案件的成員清單。
+                            </p>
+                        </page>
+                        <page string="監測設備" name="devices">
+                            <field name="device_ids" nolabel="1">
+                                <list>
+                                    <field name="seq" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="device_uid"/>
+                                    <field name="last_value"/>
+                                    <field name="last_seen"/>
+                                    <field name="level_state" widget="badge"/>
+                                    <field name="is_offline"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_water_level_site_search" model="ir.ui.view">
+        <field name="name">water.level.site.search</field>
+        <field name="model">water.level.site</field>
+        <field name="arch" type="xml">
+            <search string="監測場域">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="project_id"/>
+                <field name="owner_partner_id"/>
+                <filter name="filter_community" string="社區"
+                        domain="[('site_type', '=', 'community')]"/>
+                <filter name="filter_project" string="工程案件"
+                        domain="[('site_type', '=', 'project')]"/>
+                <separator/>
+                <filter name="filter_inactive" string="已停用"
+                        domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_type" string="場域類型"
+                            context="{'group_by': 'site_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_water_level_site" model="ir.actions.act_window">
+        <field name="name">監測場域</field>
+        <field name="res_model">water.level.site</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一個監測場域</p>
+            <p>場域是設備的歸屬單位：工程案件底下的河川測站，或一個社區底下的蓄水池群。</p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="construction_water_level.LatLngMapPicker">
+        <div class="o_wl_latlng_picker">
+            <div class="o_wl_latlng_map" t-ref="map"/>
+            <div class="o_wl_latlng_bar">
+                <span class="o_wl_latlng_value" t-esc="coordText"/>
+                <span t-if="!props.readonly" class="o_wl_latlng_hint">
+                    在地圖上點一下即可標記
+                </span>
+                <button t-if="!props.readonly and hasCoords" type="button"
+                        class="btn btn-link btn-sm o_wl_latlng_clear"
+                        t-on-click="onClearClick">清除</button>
+            </div>
+        </div>
+    </t>
+
+</templates>

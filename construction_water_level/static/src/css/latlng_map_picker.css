@@ -1,0 +1,35 @@
+/* 地圖點選座標 widget（後台表單用） */
+
+.o_wl_latlng_picker {
+    width: 100%;
+    max-width: 520px;
+}
+
+.o_wl_latlng_map {
+    height: 260px;
+    width: 100%;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 4px;
+}
+
+/* Leaflet 的 pane 會蓋住 Odoo 的下拉選單，壓低它的堆疊層級 */
+.o_wl_latlng_map .leaflet-pane,
+.o_wl_latlng_map .leaflet-control {
+    z-index: 1;
+}
+
+.o_wl_latlng_bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+.o_wl_latlng_value {
+    font-variant-numeric: tabular-nums;
+}
+
+.o_wl_latlng_hint {
+    color: var(--text-muted, #6c757d);
+}

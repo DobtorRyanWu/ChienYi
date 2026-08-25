@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_water_level_tank_list" model="ir.ui.view">
+        <field name="name">water.level.tank.list</field>
+        <field name="model">water.level.tank</field>
+        <field name="arch" type="xml">
+            <list string="蓄水池"
+                  decoration-danger="fill_rate &lt; low_fill_alert_pct"
+                  decoration-warning="fill_rate &gt; high_fill_alert_pct">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="site_id"/>
+                <field name="usage"/>
+                <field name="effective_volume_m3" sum="有效容量"/>
+                <field name="current_volume_m3" sum="目前水量"/>
+                <field name="fill_rate" widget="percentage" string="儲水率"/>
+                <field name="is_stale" string="資料過期"/>
+                <field name="current_level" optional="show"/>
+                <field name="low_fill_alert_pct" column_invisible="1"/>
+                <field name="high_fill_alert_pct" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_tank_form" model="ir.ui.view">
+        <field name="name">water.level.tank.form</field>
+        <field name="model">water.level.tank</field>
+        <field name="arch" type="xml">
+            <form string="蓄水池">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="例如：B1 地下蓄水池"/></h1>
+                    </div>
+                    <group>
+                        <group string="基本">
+                            <field name="site_id" options="{'no_create': True}"/>
+                            <field name="code"/>
+                            <field name="usage"/>
+                            <field name="sequence"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                        <group string="現況">
+                            <field name="current_level"/>
+                            <field name="current_volume_m3"/>
+                            <field name="fill_rate" widget="percentage"/>
+                            <field name="primary_device_id"
+                                   domain="[('site_id', '=', site_id)]"
+                                   options="{'no_create': True}"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="幾何與容量（高程基準要與設備換算後一致）">
+                            <field name="bottom_elevation"/>
+                            <field name="full_elevation"/>
+                            <field name="design_volume_m3"/>
+                            <field name="effective_volume_m3"/>
+                            <field name="volume_method" widget="radio"/>
+                        </group>
+                        <group string="儲水率警戒">
+                            <field name="low_fill_alert_pct"/>
+                            <field name="high_fill_alert_pct"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="容量曲線" name="curve"
+                              invisible="volume_method != 'curve'">
+                            <field name="curve_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="elevation"/>
+                                    <field name="volume_m3"/>
+                                </list>
+                            </field>
+                            <p class="text-muted">
+                                異形池用實測的「水位高程 → 累積水量」對照表，兩點之間線性內插。
+                                至少要兩個點。
+                            </p>
+                        </page>
+                        <page string="監測設備" name="devices">
+                            <field name="device_ids" nolabel="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="device_uid"/>
+                                    <field name="last_value"/>
+                                    <field name="last_seen"/>
+                                    <field name="level_state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_water_level_tank_search" model="ir.ui.view">
+        <field name="name">water.level.tank.search</field>
+        <field name="model">water.level.tank</field>
+        <field name="arch" type="xml">
+            <search string="蓄水池">
+                <field name="name"/>
+                <field name="site_id"/>
+                <filter name="filter_low" string="低儲水率"
+                        domain="[('fill_rate', '&lt;', 30.0)]"/>
+                <filter name="filter_no_device" string="尚未裝表"
+                        domain="[('device_ids', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_site" string="監測場域"
+                            context="{'group_by': 'site_id'}"/>
+                    <filter name="group_usage" string="用途"
+                            context="{'group_by': 'usage'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 社區水情總覽：物管要的是一眼看到哪個池快沒水，不是水位幾公尺 -->
+    <record id="view_water_level_tank_kanban" model="ir.ui.view">
+        <field name="name">water.level.tank.kanban</field>
+        <field name="model">water.level.tank</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="site_id" class="o_kanban_small_column" create="0">
+                <field name="fill_rate"/>
+                <field name="low_fill_alert_pct"/>
+                <field name="high_fill_alert_pct"/>
+                <field name="device_ids"/>
+                <field name="is_stale"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_global_click">
+                            <div class="d-flex justify-content-between">
+                                <strong><field name="name"/></strong>
+                                <span class="badge text-bg-light"><field name="usage"/></span>
+                            </div>
+                            <div t-if="!record.device_ids.raw_value.length"
+                                 class="text-muted small mt-1">尚未裝表</div>
+                            <div t-else="" class="mt-2">
+                                <!-- 百分比放在條外：18px 高的條塞不下數字，會被擠成兩行 -->
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress flex-grow-1" style="height:14px;">
+                                        <div t-attf-class="progress-bar #{record.fill_rate.raw_value &lt; record.low_fill_alert_pct.raw_value ? 'bg-danger' : (record.fill_rate.raw_value &gt; record.high_fill_alert_pct.raw_value ? 'bg-warning' : 'bg-success')}"
+                                             t-attf-style="width: #{Math.min(100, Math.max(0, record.fill_rate.raw_value))}%;"/>
+                                    </div>
+                                    <strong style="min-width:52px;text-align:right;font-variant-numeric:tabular-nums;">
+                                        <field name="fill_rate"/>%
+                                    </strong>
+                                </div>
+                                <div class="text-muted small mt-1">
+                                    <field name="current_volume_m3"/> /
+                                    <field name="effective_volume_m3"/> m³
+                                    · 水位 <field name="current_level"/> m
+                                </div>
+                                <!-- 斷線時一定要標出來：這個百分比是最後一次上報算的，不是現況 -->
+                                <div t-if="record.is_stale.raw_value"
+                                     class="text-danger small fw-bold mt-1">
+                                    ⚠ 設備斷線，數字為最後一次上報
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="action_water_level_community_overview" model="ir.actions.act_window">
+        <field name="name">社區水情總覽</field>
+        <field name="res_model">water.level.tank</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('site_id.site_type', '=', 'community')]</field>
+        <field name="context">{'search_default_group_site': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有社區蓄水池</p>
+            <p>先在「監測場域」建一個社區，再把它底下的蓄水池建進來。</p>
+        </field>
+    </record>
+
+    <record id="action_water_level_tank" model="ir.actions.act_window">
+        <field name="name">蓄水池</field>
+        <field name="res_model">water.level.tank</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一個蓄水池</p>
+            <p>一個社區可以有多個池，池可以先建好但還沒裝表——儲水率會等裝表後才有數字。</p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 水位監測站                                                    -->
+    <!-- ============================================================ -->
+
+    <record id="view_water_level_device_list" model="ir.ui.view">
+        <field name="name">water.level.device.list</field>
+        <field name="model">water.level.device</field>
+        <field name="arch" type="xml">
+            <list string="水位監測站" decoration-danger="level_state == 'lv1'"
+                  decoration-warning="level_state in ['lv2', 'lv3']"
+                  decoration-muted="is_offline">
+                <field name="seq" widget="handle"/>
+                <field name="name"/>
+                <field name="site_id"/>
+                <field name="project_id" optional="hide"/>
+                <field name="device_uid"/>
+                <field name="last_value"/>
+                <field name="last_seen"/>
+                <field name="level_state" widget="badge"
+                       decoration-danger="level_state == 'lv1'"
+                       decoration-warning="level_state in ['lv2', 'lv3']"
+                       decoration-success="level_state == 'normal'"/>
+                <field name="is_offline" string="斷線"/>
+                <field name="has_api_key" string="已設金鑰" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_device_form" model="ir.ui.view">
+        <field name="name">water.level.device.form</field>
+        <field name="model">water.level.device</field>
+        <field name="arch" type="xml">
+            <form string="水位監測站">
+                <header>
+                    <button name="action_generate_api_key" type="object"
+                            string="產生上報金鑰" class="btn-primary"
+                            confirm="重新產生會讓舊金鑰立刻失效，設備要改設定才能繼續上報。確定要產生嗎？"/>
+                    <field name="level_state" widget="statusbar"
+                           statusbar_visible="normal,lv3,lv2,lv1"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_readings" type="object"
+                                class="oe_stat_button" icon="fa-line-chart">
+                            <field name="reading_count" widget="statinfo" string="水位紀錄"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="斷線" bg_color="text-bg-danger"
+                            invisible="not is_offline"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="例如：WL-01 上游橋墩"/></h1>
+                    </div>
+                    <group>
+                        <group string="基本">
+                            <field name="site_id" options="{'no_create': True}"/>
+                            <!-- 由場域帶入，社區場域為空 -->
+                            <field name="project_id" readonly="1"
+                                   invisible="not project_id"/>
+                            <field name="device_uid" placeholder="機器上報用的識別碼"/>
+                            <field name="seq"/>
+                            <field name="tank_id"
+                                   domain="[('site_id', '=', site_id)]"
+                                   options="{'no_create': True}"/>
+                            <field name="service_level"/>
+                            <field name="active" widget="boolean_toggle"/>
+                            <field name="has_api_key" readonly="1"/>
+                        </group>
+                        <group string="最新狀態">
+                            <field name="last_value"/>
+                            <field name="last_seen"/>
+                            <field name="is_offline"/>
+                            <field name="offline_after_min"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="警戒水位">
+                            <field name="datum_elevation"/>
+                            <field name="alert_direction" widget="radio"/>
+                            <label for="level_3" string="高水位（水利署三級，數字越小越嚴重）"
+                                   invisible="alert_direction == 'low'"/>
+                            <div invisible="alert_direction == 'low'">
+                                <field name="level_3" class="oe_inline"/> /
+                                <field name="level_2" class="oe_inline"/> /
+                                <field name="level_1" class="oe_inline"/>
+                            </div>
+                            <label for="low_level_3" string="低水位（缺水，數字越小越嚴重）"
+                                   invisible="alert_direction == 'high'"/>
+                            <div invisible="alert_direction == 'high'">
+                                <field name="low_level_3" class="oe_inline"/> /
+                                <field name="low_level_2" class="oe_inline"/> /
+                                <field name="low_level_1" class="oe_inline"/>
+                            </div>
+                        </group>
+                        <group string="位置（在地圖上點一下即可標記）">
+                            <field name="latitude" widget="latlng_map_picker"
+                                   options="{'longitude_field': 'longitude'}"/>
+                            <field name="longitude"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="設備健康與韌性" name="health">
+                            <group>
+                                <group string="電源">
+                                    <field name="power_source"/>
+                                    <field name="on_backup_power"/>
+                                    <field name="battery_percent"/>
+                                </group>
+                                <group string="通訊">
+                                    <field name="comm_type"/>
+                                    <field name="comm_path"/>
+                                    <field name="signal_dbm"/>
+                                    <field name="local_buffer_count"/>
+                                </group>
+                                <group string="版本（宣告式更新：只宣告目標版本，設備自取）">
+                                    <field name="firmware_version"/>
+                                    <field name="firmware_target_version"/>
+                                    <field name="model_version"/>
+                                    <field name="model_target_version"/>
+                                </group>
+                                <group string="紀錄完整性">
+                                    <field name="last_seq_no"/>
+                                    <field name="last_chain_hash"/>
+                                    <field name="chain_hash_origin"/>
+                                    <field name="clock_drift_sec"/>
+                                    <field name="last_health_ts"/>
+                                </group>
+                            </group>
+                            <group string="服務等級含哪些功能">
+                                <field name="feature_event_capture"/>
+                                <field name="feature_hash_chain"/>
+                                <field name="feature_realtime_alert"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_water_level_device_search" model="ir.ui.view">
+        <field name="name">water.level.device.search</field>
+        <field name="model">water.level.device</field>
+        <field name="arch" type="xml">
+            <search string="水位監測站">
+                <field name="name"/>
+                <field name="device_uid"/>
+                <field name="site_id"/>
+                <field name="project_id"/>
+                <filter name="filter_alerting" string="警戒中"
+                        domain="[('level_state', '!=', 'normal')]"/>
+                <separator/>
+                <filter name="filter_inactive" string="已停用"
+                        domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_site" string="監測場域"
+                            context="{'group_by': 'site_id'}"/>
+                    <filter name="group_project" string="工程案件"
+                            context="{'group_by': 'project_id'}"/>
+                    <filter name="group_level" string="水位等級"
+                            context="{'group_by': 'level_state'}"/>
+                    <filter name="group_service" string="服務等級"
+                            context="{'group_by': 'service_level'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_water_level_device" model="ir.actions.act_window">
+        <field name="name">水位監測站</field>
+        <field name="res_model">water.level.device</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一個水位監測站</p>
+            <p>監測站掛在工程案件底下。建好之後按「產生上報金鑰」，把設備碼與金鑰交給機器端，
+               機器就能把水位打進 <code>/water-level/ingest</code>。</p>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 水位紀錄                                                      -->
+    <!-- ============================================================ -->
+
+    <record id="view_water_level_reading_graph" model="ir.ui.view">
+        <field name="name">water.level.reading.graph</field>
+        <field name="model">water.level.reading</field>
+        <field name="arch" type="xml">
+            <!-- ⚠️ interval 最細只能到 day。Odoo 18 前端的 INTERVAL_OPTIONS 只有
+                 year/quarter/month/week/day（web/static/src/search/utils/dates.js:48），
+                 寫 interval="hour" 會讓整個 view 拋 "Invalid groupBy description: ts:hour"
+                 而崩掉（不是變醜，是白畫面）。
+                 也就是說原生 graph view 看不了日內解析度——那個要看前台頁面或
+                 表單上的「水位紀錄」按鈕。這裡定位是長期趨勢：每日最高水位。 -->
+            <!-- stacked="0" 不能省：graph view 預設堆疊，三個站的水位會被疊加成
+                 4.2 → 7.3 → 9.8 這種不存在的數字。 -->
+            <graph string="水位歷程（每日最高）" type="line" sample="1" stacked="0">
+                <field name="ts" interval="day"/>
+                <field name="device_id"/>
+                <field name="value" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_water_level_reading_list" model="ir.ui.view">
+        <field name="name">water.level.reading.list</field>
+        <field name="model">water.level.reading</field>
+        <field name="arch" type="xml">
+            <list string="水位紀錄" create="0">
+                <field name="device_id"/>
+                <field name="project_id" optional="hide"/>
+                <field name="ts"/>
+                <field name="value"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_reading_search" model="ir.ui.view">
+        <field name="name">water.level.reading.search</field>
+        <field name="model">water.level.reading</field>
+        <field name="arch" type="xml">
+            <search string="水位紀錄">
+                <field name="device_id"/>
+                <field name="project_id"/>
+                <!-- 沿用 repo 既有寫法：context_today() 回傳 date，不能對它用 replace(hour=...) -->
+                <filter name="last_day" string="今天以來"
+                        domain="[('ts', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="last_week" string="最近 7 天"
+                        domain="[('ts', '&gt;=', (context_today() - datetime.timedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_device" string="監測站"
+                            context="{'group_by': 'device_id'}"/>
+                    <!-- 同上：不能用 ts:hour，前端不接受 -->
+                    <filter name="group_ts_day" string="時間（日）"
+                            context="{'group_by': 'ts:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_water_level_reading" model="ir.actions.act_window">
+        <field name="name">水位紀錄</field>
+        <field name="res_model">water.level.reading</field>
+        <field name="view_mode">graph,list</field>
+        <!-- 不要預設 group by 監測站：那會把 x 軸從時間換成站名，圖就沒意義了。
+             預設只看最近 24 小時，站別在 graph view 裡是第二維（分色線）。 -->
+        <field name="context">{'search_default_last_day': 1}</field>
+    </record>
+
+</odoo>
