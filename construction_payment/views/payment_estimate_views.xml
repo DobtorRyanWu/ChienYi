@@ -64,6 +64,14 @@
                             type="object"
                             icon="fa-sitemap"
                             invisible="state not in ('draft', 'pending_approval') or not line_ids"/>
+                    <!-- 只有存在人工覆寫金額的工項時才出現 -->
+                    <button name="action_open_manual_amount_wizard"
+                            string="解除手動金額"
+                            type="object"
+                            icon="fa-undo"
+                            invisible="state not in ('draft', 'pending_approval')
+                                       or manual_amount_line_count == 0"/>
+                    <field name="manual_amount_line_count" invisible="1"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,pending_approval,approved,archived"/>
                 </header>
@@ -110,7 +118,16 @@
                                     <field name="available_qty"/>
                                     <field name="previous_approved_qty" optional="show"/>
                                     <field name="cumulative_estimate_qty"/>
-                                    <field name="estimate_amount"/>
+                                    <!-- 本次估驗金額：可手動覆寫，手動值優先於 單價 × 本次估驗數量。
+                                         取消勾選「金額手動輸入」即還原為系統計算值。 -->
+                                    <field name="estimate_amount"
+                                           decoration-bf="is_amount_manual"
+                                           readonly="is_summary_item or parent.state in ('approved', 'archived')"/>
+                                    <!-- 旗標不佔欄位（清單已很擠）：只用來讓手動列顯示為粗體，
+                                         並讓 onchange 同步。要還原成系統計算值，把金額改回
+                                         單價 × 本次估驗數量 即自動解除手動。 -->
+                                    <field name="is_amount_manual" column_invisible="1"/>
+                                    <field name="manual_estimate_amount" column_invisible="1"/>
                                     <field name="cumulative_estimate_amount"/>
                                     <field name="note"/>
                                 </list>

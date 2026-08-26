@@ -2,6 +2,7 @@
 
 from odoo import api, fields, models, Command
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import float_compare
 
 
 class PaymentEstimate(models.Model):
@@ -144,12 +145,25 @@ class PaymentEstimate(models.Model):
     ], default='draft', tracking=True, string='狀態')
 
     # === 計算欄位 ===
+    manual_amount_line_count = fields.Integer(
+        '手動金額工項數',
+        compute='_compute_manual_amount_line_count',
+        help='本次估驗金額被人工覆寫的工項數（供「解除手動金額」按鈕判斷顯示）'
+    )
+
     @api.depends('line_ids.estimate_amount', 'line_ids.is_summary_item')
     def _compute_subtotal(self):
         """計算本次估驗總金額（只加總葉節點，避免彙總列重複計算）"""
         for rec in self:
             leaf_lines = rec.line_ids.filtered(lambda l: not l.is_summary_item)
             rec.subtotal = sum(leaf_lines.mapped('estimate_amount'))
+
+    @api.depends('line_ids.is_amount_manual', 'line_ids.is_summary_item')
+    def _compute_manual_amount_line_count(self):
+        for rec in self:
+            rec.manual_amount_line_count = len(rec.line_ids.filtered(
+                lambda l: l.is_amount_manual and not l.is_summary_item
+            ))
 
     # === CRUD 覆寫 ===
     @api.model_create_multi
@@ -210,6 +224,22 @@ class PaymentEstimate(models.Model):
             'res_model': 'estimate.import.wizard',
             'view_mode': 'form',
             'target': 'current',
+            'context': {
+                'default_estimate_id': self.id,
+            },
+        }
+
+    def action_open_manual_amount_wizard(self):
+        """開啟「解除手動金額」精靈：逐項挑選要還原為系統計算值的工項"""
+        self.ensure_one()
+        if not self.manual_amount_line_count:
+            raise UserError('本估驗單沒有手動填寫金額的工項。')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '解除手動金額',
+            'res_model': 'estimate.manual.amount.wizard',
+            'view_mode': 'form',
+            'target': 'new',
             'context': {
                 'default_estimate_id': self.id,
             },
@@ -319,7 +349,8 @@ class PaymentEstimateLine(models.Model):
     - contract_qty: 原始契約數量（變更前）
     - approved_qty: 變更後核定數量（現行 planned_qty）
     - available_qty: 本次可估驗數量（施工日誌截至估驗日期的累計）
-    - estimate_qty: 本次估驗數量（唯一可編輯欄位）
+    - estimate_qty: 本次估驗數量（可編輯）
+    - estimate_amount: 本次估驗金額（可編輯；手動值優先於 單價 × 本次估驗數量）
     - cumulative_estimate_qty: 累計估驗數量（歷次已核定 + 本次）
     """
     _name = 'payment.estimate.line'
@@ -396,11 +427,11 @@ class PaymentEstimateLine(models.Model):
         readonly=True
     )
 
-    # === 估驗數量（唯一可編輯）===
+    # === 估驗數量（可編輯）===
     estimate_qty = fields.Float(
         '本次估驗數量',
         digits=(16, 4),
-        help='本次估驗的數量（唯一可編輯欄位）'
+        help='本次估驗的數量'
     )
 
     # === 計算欄位 ===
@@ -431,8 +462,22 @@ class PaymentEstimateLine(models.Model):
         digits=(16, 2),
         compute='_compute_amounts',
         store=True,
-        readonly=True,
-        help='單價 × 本次估驗數量'
+        readonly=False,
+        help='預設為 單價 × 本次估驗數量；可直接手動輸入覆寫。'
+             '一旦手動輸入，本欄即以手動值為準，不再被系統計算值覆蓋；'
+             '取消勾選「金額手動輸入」即還原為系統計算值'
+    )
+    is_amount_manual = fields.Boolean(
+        '金額手動輸入',
+        default=False,
+        help='本次估驗金額由人工輸入（優先於 單價 × 本次估驗數量）。'
+             '取消勾選即還原為系統計算值'
+    )
+    manual_estimate_amount = fields.Float(
+        '手動輸入金額',
+        digits=(16, 2),
+        help='保存人工輸入的本次估驗金額；計算欄位重算時沿用此值，'
+             '避免數量或單價變動把手動值蓋掉'
     )
     cumulative_estimate_amount = fields.Float(
         '累計估驗金額',
@@ -537,19 +582,91 @@ class PaymentEstimateLine(models.Model):
             lambda l: l.task_id.id in descendant_ids and not l.is_summary_item
         )
 
+    def _get_effective_amount(self):
+        """本行實際採用的「本次估驗金額」：手動輸入優先於 單價 × 本次估驗數量。
+
+        彙總項不適用手動覆寫（其金額恆為底下葉節點之和），故只看葉節點旗標。
+        刻意讀原始欄位（is_amount_manual / manual_estimate_amount / unit_price /
+        estimate_qty）而非計算欄位 estimate_amount，避免彙總項計算時讀到葉節點的舊值。
+        """
+        self.ensure_one()
+        if self.is_amount_manual and not self.is_summary_item:
+            return self.manual_estimate_amount
+        return self.unit_price * self.estimate_qty
+
     @api.depends('estimate_qty', 'unit_price', 'is_summary_item',
+                 'is_amount_manual', 'manual_estimate_amount',
                  'estimate_id.line_ids.estimate_qty',
-                 'estimate_id.line_ids.unit_price')
+                 'estimate_id.line_ids.unit_price',
+                 'estimate_id.line_ids.is_amount_manual',
+                 'estimate_id.line_ids.manual_estimate_amount')
     def _compute_amounts(self):
-        """計算本次估驗金額（彙總項加總底下葉節點，避免重複計算）"""
+        """計算本次估驗金額（彙總項加總底下葉節點，避免重複計算）
+
+        葉節點若標記為手動輸入，一律沿用手動值（手動優先於系統計算）。
+        """
         for line in self:
             if line.is_summary_item:
                 leaf_lines = line._get_descendant_leaf_lines()
                 line.estimate_amount = sum(
-                    l.unit_price * l.estimate_qty for l in leaf_lines
+                    l._get_effective_amount() for l in leaf_lines
                 )
             else:
+                line.estimate_amount = line._get_effective_amount()
+
+    @api.onchange('estimate_amount')
+    def _onchange_estimate_amount(self):
+        """使用者在表單／清單直接改金額 → 立即標記為手動並記下該值。
+
+        必須在 onchange 就標記：估驗計價表是 editable list，使用者可能先改金額再改
+        數量，若等到存檔才標記，中途的 _compute_amounts 會把剛輸入的金額蓋掉。
+        """
+        for line in self:
+            if line.is_summary_item:
+                continue
+            # ⚠ 先把使用者輸入的值讀進區域變數再動其他欄位：estimate_amount 的
+            #   @api.depends 含 is_amount_manual，一旦先設旗標，下一次讀
+            #   estimate_amount 會觸發重算（此時 manual_estimate_amount 還是 0）
+            #   而讀回 0，把使用者剛輸入的金額吃掉。
+            typed = line.estimate_amount
+            auto = line.unit_price * line.estimate_qty
+            if float_compare(typed, auto, precision_digits=2) == 0:
+                # 與系統計算值相同 → 視為未覆寫（也讓使用者能「改回計算值」而解除手動）
+                line.is_amount_manual = False
+                line.manual_estimate_amount = 0.0
+            else:
+                line.manual_estimate_amount = typed
+                line.is_amount_manual = True
+                line.estimate_amount = typed
+
+    @api.onchange('is_amount_manual')
+    def _onchange_is_amount_manual(self):
+        """取消勾選「金額手動輸入」→ 即時還原為系統計算值"""
+        for line in self:
+            if not line.is_amount_manual:
+                line.manual_estimate_amount = 0.0
                 line.estimate_amount = line.unit_price * line.estimate_qty
+
+    # === CRUD 覆寫：任何寫入 estimate_amount 的路徑都視為手動覆寫 ===
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if 'estimate_amount' in vals and 'is_amount_manual' not in vals:
+                vals['is_amount_manual'] = True
+                vals['manual_estimate_amount'] = vals['estimate_amount']
+        return super().create(vals_list)
+
+    def write(self, vals):
+        """手動寫入金額時同步記錄手動值。
+
+        計算欄位由 ORM 直接落庫（不經 write），故此處只會攔到人工／程式的顯式寫入。
+        """
+        if 'estimate_amount' in vals and 'manual_estimate_amount' not in vals:
+            vals = dict(vals)
+            vals.setdefault('is_amount_manual', True)
+            if vals['is_amount_manual']:
+                vals['manual_estimate_amount'] = vals['estimate_amount']
+        return super().write(vals)
 
     @api.depends('task_id', 'is_summary_item',
                  'estimate_id.project_id', 'estimate_id.estimate_date')
@@ -577,14 +694,20 @@ class PaymentEstimateLine(models.Model):
             line.previous_approved_qty = sum(prev_lines.mapped('estimate_qty'))
 
     @api.depends('estimate_qty', 'unit_price', 'previous_approved_qty', 'is_summary_item',
+                 'is_amount_manual', 'manual_estimate_amount',
                  'estimate_id.line_ids.estimate_qty',
                  'estimate_id.line_ids.unit_price',
-                 'estimate_id.line_ids.previous_approved_qty')
+                 'estimate_id.line_ids.previous_approved_qty',
+                 'estimate_id.line_ids.is_amount_manual',
+                 'estimate_id.line_ids.manual_estimate_amount')
     def _compute_cumulative(self):
         """計算累計估驗數量與金額（純算術，即時更新）
 
-        葉節點：累計 = 前期已核定累計 + 本次；金額 = 單價 × 累計。
-        彙總項：數量採「一式」固定 1；金額 = 底下葉節點的 單價×(前期+本次) 之和
+        葉節點：累計數量 = 前期已核定累計 + 本次；
+                累計金額 = 單價 × 前期累計數量 + 本次估驗金額
+                （本次金額走 _get_effective_amount，故手動金額會反映到累計；
+                  未手動時等同舊式 單價 × 累計數量）。
+        彙總項：數量採「一式」固定 1；金額 = 底下葉節點同式之和
                 （直接讀葉節點原始欄位算術，不讀其計算欄位，避免計算順序造成讀到舊值）。
         """
         for line in self:
@@ -592,9 +715,12 @@ class PaymentEstimateLine(models.Model):
                 leaf_lines = line._get_descendant_leaf_lines()
                 line.cumulative_estimate_qty = 1.0
                 line.cumulative_estimate_amount = sum(
-                    l.unit_price * (l.previous_approved_qty + l.estimate_qty)
+                    l.unit_price * l.previous_approved_qty + l._get_effective_amount()
                     for l in leaf_lines
                 )
                 continue
             line.cumulative_estimate_qty = line.previous_approved_qty + line.estimate_qty
-            line.cumulative_estimate_amount = line.unit_price * line.cumulative_estimate_qty
+            line.cumulative_estimate_amount = (
+                line.unit_price * line.previous_approved_qty
+                + line._get_effective_amount()
+            )

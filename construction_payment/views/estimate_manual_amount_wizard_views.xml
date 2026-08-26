@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ==================================== -->
+    <!-- 解除手動金額 Wizard                  -->
+    <!-- ==================================== -->
+
+    <record id="view_estimate_manual_amount_wizard_form" model="ir.ui.view">
+        <field name="name">estimate.manual.amount.wizard.form</field>
+        <field name="model">estimate.manual.amount.wizard</field>
+        <field name="arch" type="xml">
+            <form string="解除手動金額">
+                <field name="estimate_id" invisible="1"/>
+                <div class="alert alert-info" role="status">
+                    以下工項的「本次估驗金額」是人工填寫的。
+                    <strong>勾選</strong>者將還原為系統計算值（單價 × 本次估驗數量），
+                    <strong>不勾選</strong>者保留目前的手動金額。
+                </div>
+                <div class="mb-2">
+                    <button name="action_select_all" type="object"
+                            string="全選" class="btn-secondary btn-sm"/>
+                    <button name="action_unselect_all" type="object"
+                            string="全不選" class="btn-secondary btn-sm ms-1"/>
+                </div>
+                <field name="line_ids" nolabel="1">
+                    <list string="手動金額工項" editable="bottom"
+                          create="false" delete="false">
+                        <field name="sequence" column_invisible="1"/>
+                        <field name="estimate_line_id" column_invisible="1"/>
+                        <field name="item_no" readonly="1"/>
+                        <field name="description" readonly="1"/>
+                        <field name="unit" readonly="1"/>
+                        <field name="unit_price" readonly="1"/>
+                        <field name="estimate_qty" readonly="1"/>
+                        <field name="auto_amount" readonly="1" sum="系統計算合計"/>
+                        <field name="manual_amount" readonly="1" sum="手動金額合計"/>
+                        <field name="diff_amount" readonly="1"
+                               decoration-danger="diff_amount &lt; 0"
+                               decoration-success="diff_amount &gt; 0"/>
+                        <field name="to_clear" widget="boolean_toggle"/>
+                    </list>
+                </field>
+                <group>
+                    <field name="selected_count" readonly="1"/>
+                </group>
+                <footer>
+                    <button name="action_clear" type="object"
+                            string="解除選取的手動金額" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

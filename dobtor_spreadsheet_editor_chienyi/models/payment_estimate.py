@@ -91,7 +91,12 @@ class PaymentEstimate(models.Model):
                 col = self._sse_col_letter(c)
                 cell = None
                 if field in formula_cols:
-                    cell = {"content": formula_cols[field] % (r, r)}
+                    # 金額經人工覆寫者不可再套 單價×數量 的公式，否則試算表會顯示成
+                    # 與後台不同的數字；改直接寫入模型算好的值。
+                    if line.is_amount_manual:
+                        cell = {"content": repr(line[field] or 0.0)}
+                    else:
+                        cell = {"content": formula_cols[field] % (r, r)}
                 elif field == "description":
                     # 依 item_no 點數縮排（全形空白）
                     depth = (line.item_no or "").count(".")

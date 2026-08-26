@@ -19,7 +19,16 @@
     #        估驗計價照片要能單獨篩選。原本擋著不加的理由（地圖 JS 的
     #        SOURCE_COLORS / SOURCE_LABELS 寫死、會變成無名灰點）已隨
     #        construction_photo 18.0.3.6.0 一併補上對照表而解除。
-    'version': '18.0.1.4.1',
+    # 1.5.0: 估驗計價明細開放手動編輯「本次估驗金額」（原本只有本次估驗數量可編）。
+    #        手動值優先於 單價 × 本次估驗數量：以 is_amount_manual +
+    #        manual_estimate_amount 兩個欄位保存人工輸入，數量／單價之後再變動也不會
+    #        被系統計算值蓋掉；取消勾選「金額手動輸入」即還原為系統計算值。
+    #        本次估驗總金額與累計估驗金額一併沿用手動值。
+    # 1.5.1: 估驗計價表欄位已很擠 —— 拿掉「金額手動輸入」勾選欄（改 column_invisible，
+    #        手動列以粗體標示），解除手動改走表頭按鈕「解除手動金額」開精靈
+    #        （estimate.manual.amount.wizard）：列出所有手動金額工項與系統計算值／差額，
+    #        逐項勾選要解除或保留。
+    'version': '18.0.1.5.1',
     'category': 'Construction',
     'summary': '估驗計價、工項驗收、請款管理',
     'description': """
@@ -72,6 +81,7 @@
         'wizard/progress_activate_wizard_views.xml',
         # Views
         'views/estimate_import_wizard_views.xml',
+        'views/estimate_manual_amount_wizard_views.xml',
         'views/payment_estimate_views.xml',
         'views/work_acceptance_views.xml',
         'views/payment_claim_views.xml',

@@ -37,3 +37,5 @@ access_payment_claim_operator,payment.claim.operator,model_payment_claim,constru
 access_estimate_import_wizard_user,estimate.import.wizard.user,model_estimate_import_wizard,base.group_user,1,1,1,1
 access_estimate_import_wizard_line_user,estimate.import.wizard.line.user,model_estimate_import_wizard_line,base.group_user,1,1,1,1
 access_estimate_sync_wizard_user,estimate.sync.wizard.user,model_estimate_sync_wizard,base.group_user,1,1,1,1
+access_estimate_manual_amount_wizard_user,estimate.manual.amount.wizard.user,model_estimate_manual_amount_wizard,base.group_user,1,1,1,1
+access_estimate_manual_amount_wizard_line_user,estimate.manual.amount.wizard.line.user,model_estimate_manual_amount_wizard_line,base.group_user,1,1,1,1
