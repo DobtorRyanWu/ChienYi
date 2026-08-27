@@ -5,6 +5,7 @@ from io import BytesIO
 
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
+from odoo.osv import expression
 
 _logger = logging.getLogger(__name__)
 
@@ -892,13 +893,46 @@ class SupervisionPhoto(models.Model):
                 raise ValidationError('拍攝日期不能在未來！')
     
     # === 搜尋功能增強 ===
+    # 打一個關鍵字要同時命中的欄位。與 supervision_photo_view_search 主搜尋的
+    # filter_domain 保持同一份清單 —— 兩處不一致的話，同一個關鍵字在搜尋框與
+    # 在關聯欄位下拉會得到不同結果，是很難察覺的維護陷阱。
+    _SEARCH_FIELDS = (
+        'name',
+        'description',
+        'location_description',
+        'project_id.name',
+        'project_id.code',
+        'category_id.name',
+        'tag_ids.name',
+        'image_filename',
+    )
+
     @api.model
-    def _name_search(self, name, domain=None, operator='ilike', limit=None, order=None):
-        """支援搜尋 name、description 和 image_filename 欄位"""
-        domain = domain or []
-        if name:
-            domain = ['|', '|', 
-                      ('name', operator, name), 
-                      ('description', operator, name),
-                      ('image_filename', operator, name)] + domain
-        return self._search(domain, limit=limit, order=order)
+    def _search_display_name(self, operator, value):
+        """關鍵字同時比對照片本身、所屬工程、分類與標籤。
+
+        代操人員回報「以為搜尋只比對相片名稱」，實際期待是一個關鍵字就能找到
+        某個工程或某個分類的照片。
+
+        ⚠️ 這裡覆寫的是 `_search_display_name` 不是 `_name_search`：
+        Odoo 18 已經移除 `_name_search` hook，display_name 的搜尋改走本方法，
+        原本本模型的 `_name_search` 覆寫其實從未被呼叫過（死碼）。
+        同樣的坑 construction_test/models/test_standard.py:219 已記錄過一次。
+        `_rec_names_search` 不能用，因為它只吃本表欄位、不吃 project_id.name
+        這種 dotted path。
+
+        只接管正向運算子，負向（not ilike / != …）原樣交回 core。
+
+        負向本來「應該」用 AND 串同一組欄位才會與正向互為補集，但實測
+        （odoo18_dev 8,851 張照片）那樣寫會回 0 筆：`tag_ids.name not ilike X`
+        這種 x2many 的負向條件，Odoo 展開後要求「該記錄至少有一個標籤且該標籤
+        不含 X」，於是把所有沒有標籤的照片全部排除掉。dotted path + 負向
+        + x2many 三者湊在一起就會這樣，不是我們能在 domain 層繞過的。
+        交回 core 的話比對範圍是 `_rec_name`（name）一欄，與本 repo 其他
+        模型一致，也不會回出空集合這種明顯錯誤的結果。
+        """
+        if value and operator not in expression.NEGATIVE_TERM_OPERATORS:
+            return expression.OR([
+                [(fname, operator, value)] for fname in self._SEARCH_FIELDS
+            ])
+        return super()._search_display_name(operator, value)

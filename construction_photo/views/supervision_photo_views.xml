@@ -142,11 +142,22 @@
             <!-- 欄位一律可在清單上直接編輯：照片的三個描述欄位（說明／分類／
                  拍攝地點說明）需要能逐張快速修改，這是上傳時只填一組共用預設值
                  的前提。 -->
+            <!-- import="0"：關掉 ⚙️ 的 Odoo 標準「匯入記錄」。那支精靈只吃
+                 CSV/XLSX，代操人員誤以為可以丟 jpg，還會被導到英文官方 docs。
+                 照片要批次進系統請走下面的「批次上傳照片」。
+                 （核心判斷在 base_import 的 import_records.js：同時檢查 view arch
+                   的 import 與 create 兩個屬性，所以不能寫 create="0"，會連
+                   「新增」一起關掉。） -->
             <list string="工程照片" default_order="shot_at desc" editable="bottom"
-                  multi_edit="1">
-                <!-- 勾選任意幾張後才會出現。type="action" 會自動把勾選的
-                     active_ids 帶進精靈的 context，由 default_get() 接手 -->
+                  multi_edit="1" import="0">
                 <header>
+                    <!-- display="always"：不必勾記錄就常駐在「新增」旁邊。
+                         這是代操人員找不到上傳入口、退而去按「匯入記錄」的解法。 -->
+                    <button name="%(action_photo_upload_wizard)d" type="action"
+                            string="批次上傳照片" display="always"
+                            class="btn-secondary" icon="fa-upload"/>
+                    <!-- 勾選任意幾張後才會出現。type="action" 會自動把勾選的
+                         active_ids 帶進精靈的 context，由 default_get() 接手 -->
                     <button name="%(action_photo_download_wizard)d" type="action"
                             string="批次下載" class="btn-secondary"/>
                 </header>
@@ -310,7 +321,14 @@
         <field name="name">supervision.photo.view.kanban</field>
         <field name="model">supervision.photo</field>
         <field name="arch" type="xml">
-            <kanban class="o_kanban_small_column" sample="1">
+            <!-- import="0" 與 <header> 的用意同 list view，見上方註解。
+                 看板是本 action 的預設檢視，入口一定要在這裡也看得到。 -->
+            <kanban class="o_kanban_small_column" sample="1" import="0">
+                <header>
+                    <button name="%(action_photo_upload_wizard)d" type="action"
+                            string="批次上傳照片" display="always"
+                            class="btn-secondary" icon="fa-upload"/>
+                </header>
                 <field name="name"/>
                 <field name="image"/>
                 <field name="project_id"/>
@@ -384,13 +402,19 @@
         <field name="model">supervision.photo</field>
         <field name="arch" type="xml">
             <search string="搜尋工程照片">
-                <!-- 主要搜尋:打字同時比對多個欄位(name/description/location/project.name/filename) -->
-                <field name="name" string="照片"
-                       filter_domain="['|','|','|','|',
+                <!-- 主要搜尋:打一個關鍵字同時比對照片本身、所屬工程、分類與標籤。
+                     string 刻意寫成「照片／工程／分類」而不是「照片」——代操人員
+                     回報過「看到『照片』就以為只搜相片名稱」，欄位標籤本身要說明範圍。
+                     m2o/m2m 直接用 dotted path 即可，不需要另外開 <field>。 -->
+                <field name="name" string="照片／工程／分類"
+                       filter_domain="['|','|','|','|','|','|','|',
                                        ('name','ilike',self),
                                        ('description','ilike',self),
                                        ('location_description','ilike',self),
                                        ('project_id.name','ilike',self),
+                                       ('project_id.code','ilike',self),
+                                       ('category_id.name','ilike',self),
+                                       ('tag_ids.name','ilike',self),
                                        ('attachment_id.name','ilike',self)]"/>
                 <field name="description"/>
                 <field name="project_id"/>

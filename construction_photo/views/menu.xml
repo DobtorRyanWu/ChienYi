@@ -12,6 +12,15 @@
               parent="construction_supervision_base.menu_photo_management"
               sequence="10"/>
 
+    <!-- 批次上傳照片：與「批次下載照片」對稱。清單/看板的 <header> 已有常駐
+         按鈕，這裡再放一個選單入口當雙保險——代操人員原本在 ⚙️ 找不到上傳
+         入口，才會去按 Odoo 標準的「匯入記錄」（那支只吃 CSV/XLSX）。 -->
+    <menuitem id="menu_photo_batch_upload"
+              name="批次上傳照片"
+              action="action_photo_upload_wizard"
+              parent="construction_supervision_base.menu_photo_management"
+              sequence="12"/>
+
     <!-- 批次下載照片 -->
     <menuitem id="menu_photo_batch_download"
               name="批次下載照片"

@@ -231,6 +231,24 @@
     height: 3px;
     pointer-events: none;
 }
+/* 所屬工程案件字幕：疊在縮圖底部、來源色條正上方。
+   案名很長（例「(105)雨水下水道人孔調升降工程(北區工區)」），
+   一律單行省略，完整名稱靠 title 屬性 hover 看。 */
+.pm-area-thumb-project {
+    position: absolute;
+    bottom: 3px;
+    left: 0;
+    right: 0;
+    padding: 2px 4px;
+    font-size: 0.62rem;
+    line-height: 1.25;
+    color: #fff;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.32));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+}
 
 .pm-gallery-empty {
     text-align: center;
@@ -350,6 +368,15 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.pm-photo-item-project {
+    font-size: 0.72rem;
+    color: #3b82f6;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pm-photo-item-project i { margin-right: 3px; }
 .pm-photo-item-meta {
     font-size: 0.72rem;
     color: #6b7280;
@@ -482,6 +509,35 @@
     color: #dc2626;
     border-color: #ef4444;
 }
+
+/* Chip popover 內的關鍵字過濾框。
+   popover 是 overflow-y:auto，不 sticky 的話一往下捲搜尋框就不見了。 */
+.pm-chip-search {
+    position: sticky;
+    top: -6px;               /* 抵銷 popover 的 padding: 6px */
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: -6px -6px 4px;
+    padding: 8px 10px;
+    background: #fff;
+    border-bottom: 1px solid #eef0f3;
+}
+.pm-chip-search i {
+    color: #9ca3af;
+    font-size: 0.78rem;
+}
+.pm-chip-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: none;
+    background: transparent;
+    font-size: 0.82rem;
+    color: #2a2f3a;
+}
+.pm-chip-search input::placeholder { color: #b6bcc6; }
 
 /* Chip popover */
 .pm-chip-popover {
@@ -782,7 +838,20 @@
     font-size: 0.85rem;
     font-weight: 700;
     color: #2a2f3a;
+    margin-bottom: 4px;
+}
+/* 同座標的照片可能跨案，先讓人知道是哪個工程再看縮圖 */
+.pm-loc-popup-project {
+    font-size: 0.75rem;
+    color: #4b5563;
     margin-bottom: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pm-loc-popup-project i {
+    color: #3b82f6;
+    margin-right: 4px;
 }
 .pm-loc-popup-title i {
     color: #3b82f6;

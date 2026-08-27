@@ -290,8 +290,8 @@ export class PhotoMapAction extends Component {
 
             const marker = L.marker([p.latitude, p.longitude], { icon });
 
-            const thumbUrl = p.attachment_id
-                ? `/web/image/ir.attachment/${p.attachment_id[0]}/datas/100x100?crop=true`
+            const thumbUrl = p.id
+                ? `/web/image/supervision.photo/${p.id}/image/100x100?crop=true`
                 : "";
             const sourceLabel = SOURCE_LABELS[p.source_model] || "";
             const sourceColor = SOURCE_COLORS[p.source_model] || "#6b7280";
@@ -536,8 +536,8 @@ export class PhotoMapAction extends Component {
     }
 
     getThumbnailUrl(photo) {
-        return photo.attachment_id
-            ? `/web/image/ir.attachment/${photo.attachment_id[0]}/datas/80x80?crop=true`
+        return photo.id
+            ? `/web/image/supervision.photo/${photo.id}/image/80x80?crop=true`
             : "";
     }
 

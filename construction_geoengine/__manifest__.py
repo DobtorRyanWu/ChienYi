@@ -12,7 +12,20 @@
     #        estimate（估驗計價）與 signboard（工程告示牌）、移除 acceptance，
     #        與 construction_photo 18.0.3.6.0 的 source_model Selection 同步。
     #        兩支 photo_map_*.js 都改（photo_map_action 雖停用仍保持一致）。
-    'version': '18.0.1.2.1',
+    # 1.3.0: 代操人員 2026-08-27 回報的三件事。
+    #        (a) 地圖縮圖對非系統管理者全部破圖 —— 縮圖 URL 原本直接打
+    #            /web/image/ir.attachment/<id>/datas，但 ir.attachment.check()
+    #            對「res_id 為空」的附件只放行建立者與 base.group_system，
+    #            其餘一律 AccessError，而 /web/image 會把它換成灰色佔位圖。
+    #            改走 /web/image/supervision.photo/<id>/image 後檢查的是照片
+    #            記錄本身的存取權（地圖本來就讀得到），問題消失。
+    #            生產站實測：4,484 張照片有 4,373 張的附件 res_id=0。
+    #        (b) 縮圖／清單／cluster popup 補上「所屬工程案件」（單點 marker
+    #            popup 原本就有，其他三處沒有）。
+    #        (c) 工程／標籤／分類三個 chip 的 popover 加關鍵字過濾（生產站
+    #            187 個工程案件，平鋪清單捲不完）；材料分類 chip 從已停用的
+    #            category Selection 改綁 category_id 主檔。
+    'version': '18.0.1.3.0',
     'category': 'Construction/Supervision',
     'summary': '將工程照片整合至 GeoEngine 地圖視圖',
     'license': 'LGPL-3',

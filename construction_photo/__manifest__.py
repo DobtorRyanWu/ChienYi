@@ -37,7 +37,18 @@
     # 3.6.1: 批次下載精靈的「zip 內目錄結構」選項只留名稱，實際長相改由下方
     #        「範例」那一行動態顯示（隨選擇變化）。範例的資料夾部分呼叫
     #        _folder_for() —— 與實際打包同一個函式，不會兩邊寫兩份而漂移。
-    'version': '18.0.3.6.1',
+    # 3.7.0: 代操人員 2026-08-27 回報的兩件事。
+    #        (a) 清單／看板加 import="0" 關掉 Odoo 標準的「匯入記錄」——那支
+    #            精靈只吃 CSV/XLSX，代操以為能丟 jpg，還被導到英文官方 docs。
+    #            同時把既有的批次上傳精靈放上 <header display="always">（常駐在
+    #            「新增」旁邊）與選單，並讓它能在「沒有來源記錄」時獨立使用
+    #            （新增 project_id 讓使用者自選工程案件）。
+    #        (b) 搜尋語意：主搜尋的 filter_domain 與 _name_search() 都補上
+    #            分類(category_id)、標籤(tag_ids)、工程編號(project_id.code)，
+    #            兩處共用同一份欄位清單（_SEARCH_FIELDS）避免再度漂移；
+    #            搜尋欄標籤由「照片」改為「照片／工程／分類」，因為使用者正是
+    #            看到「照片」兩字才以為只比對相片名稱。
+    'version': '18.0.3.7.0',
     'category': 'Construction/Supervision',
     'summary': '工程照片管理與 GPS 追蹤',
     'description': """

@@ -59,7 +59,7 @@
                                     <t t-foreach="group.items" t-as="photo" t-key="photo.id">
                                         <div class="pm-area-thumb"
                                              t-on-click="() => this.focusPhoto(photo)"
-                                             t-att-title="photo.name">
+                                             t-att-title="getPhotoTitle(photo)">
                                             <t t-if="getThumbnailUrl(photo)">
                                                 <img t-att-src="getThumbnailUrl(photo)" loading="lazy" alt=""/>
                                             </t>
@@ -68,6 +68,11 @@
                                                     <i class="fa fa-image"/>
                                                 </div>
                                             </t>
+                                            <!-- 所屬工程案件：縮圖太小放不下整串案名，
+                                                 疊一條單行省略的字幕，全文看 title -->
+                                            <div t-if="getProjectName(photo)"
+                                                 class="pm-area-thumb-project"
+                                                 t-esc="getProjectName(photo)"/>
                                             <div class="pm-area-thumb-bar"
                                                  t-att-style="'background:' + getSourceColor(photo.source_model)"/>
                                         </div>
@@ -89,13 +94,16 @@
                             <t t-foreach="state.locationPhotos" t-as="photo" t-key="photo.id">
                                 <div class="pm-area-thumb"
                                      t-on-click="() => this.openPhoto(photo.id)"
-                                     t-att-title="photo.name">
+                                     t-att-title="getPhotoTitle(photo)">
                                     <t t-if="getThumbnailUrl(photo)">
                                         <img t-att-src="getThumbnailUrl(photo)" loading="lazy" alt=""/>
                                     </t>
                                     <t t-else="">
                                         <div class="pm-area-thumb-placeholder"><i class="fa fa-image"/></div>
                                     </t>
+                                    <div t-if="getProjectName(photo)"
+                                         class="pm-area-thumb-project"
+                                         t-esc="getProjectName(photo)"/>
                                     <div class="pm-area-thumb-bar"
                                          t-att-style="'background:' + getSourceColor(photo.source_model)"/>
                                 </div>
@@ -135,6 +143,12 @@
                                     </t>
                                     <div class="pm-photo-item-info">
                                         <div class="pm-photo-item-name" t-esc="ph.name or '未命名'"/>
+                                        <div t-if="getProjectName(ph)"
+                                             class="pm-photo-item-project"
+                                             t-att-title="getProjectName(ph)">
+                                            <i class="fa fa-building-o"/>
+                                            <t t-esc="getProjectName(ph)"/>
+                                        </div>
                                         <div class="pm-photo-item-meta">
                                             <i class="fa fa-location-arrow"/>
                                             <t t-esc="formatDistance(ph.distance_km)"/>
@@ -170,11 +184,22 @@
                                     <i t-else="" class="fa fa-caret-down"/>
                                 </button>
                                 <div class="pm-chip-popover" t-if="state.openChip === 'project_id'">
+                                    <!-- 選項多的時候平鋪清單捲不完（生產站 187 個
+                                         工程案件），加一個純前端關鍵字過濾。
+                                         t-on-click.stop：避免點輸入框被外層當成
+                                         「選了某個選項」而把 popover 關掉。 -->
+                                    <div class="pm-chip-search">
+                                        <i class="fa fa-search"/>
+                                        <input type="text" placeholder="搜尋工程案件…"
+                                               t-att-value="state.chipQuery.project_id"
+                                               t-on-click.stop=""
+                                               t-on-input="(ev) => this.onChipQueryInput('project_id', ev)"/>
+                                    </div>
                                     <div class="pm-chip-option"
                                          t-on-click="() => this.selectChipValue('project_id', '')">
                                         全部工程
                                     </div>
-                                    <t t-foreach="state.projects" t-as="proj" t-key="proj.id">
+                                    <t t-foreach="filteredProjects" t-as="proj" t-key="proj.id">
                                         <div t-attf-class="pm-chip-option #{state.filters.project_id === proj.id ? 'active' : ''}"
                                              t-on-click="() => this.selectChipValue('project_id', proj.id)">
                                             <t t-esc="proj.name"/>
@@ -219,11 +244,22 @@
                                     <i t-else="" class="fa fa-caret-down"/>
                                 </button>
                                 <div class="pm-chip-popover" t-if="state.openChip === 'tag_id'">
+                                    <!-- 選項多的時候平鋪清單捲不完（生產站 187 個
+                                         工程案件），加一個純前端關鍵字過濾。
+                                         t-on-click.stop：避免點輸入框被外層當成
+                                         「選了某個選項」而把 popover 關掉。 -->
+                                    <div class="pm-chip-search">
+                                        <i class="fa fa-search"/>
+                                        <input type="text" placeholder="搜尋標籤…"
+                                               t-att-value="state.chipQuery.tag_id"
+                                               t-on-click.stop=""
+                                               t-on-input="(ev) => this.onChipQueryInput('tag_id', ev)"/>
+                                    </div>
                                     <div class="pm-chip-option"
                                          t-on-click="() => this.selectChipValue('tag_id', '')">
                                         全部標籤
                                     </div>
-                                    <t t-foreach="state.tags" t-as="tag" t-key="tag.id">
+                                    <t t-foreach="filteredTags" t-as="tag" t-key="tag.id">
                                         <div t-attf-class="pm-chip-option #{state.filters.tag_id === tag.id ? 'active' : ''}"
                                              t-on-click="() => this.selectChipValue('tag_id', tag.id)">
                                             <t t-esc="tag.name"/>
@@ -232,25 +268,37 @@
                                 </div>
                             </div>
 
-                            <!-- 材料分類 chip -->
-                            <div class="pm-chip-wrap" t-if="(state.filterOptions.category or []).length > 0">
-                                <button t-attf-class="pm-chip #{isChipActive('category') ? 'active' : ''}"
-                                        t-on-click="() => this.toggleChip('category')">
+                            <!-- 材料分類 chip：綁 category_id（主檔 supervision.photo.category），
+                                 不是已停用的舊 category Selection 欄位 -->
+                            <div class="pm-chip-wrap" t-if="state.categories.length > 0">
+                                <button t-attf-class="pm-chip #{isChipActive('category_id') ? 'active' : ''}"
+                                        t-on-click="() => this.toggleChip('category_id')">
                                     <i class="fa fa-cube"/>
-                                    <span t-esc="getChipLabel('category')"/>
-                                    <i t-if="isChipActive('category')" class="fa fa-times-circle pm-chip-clear"
-                                       t-on-click="(ev) => this.clearChip('category', ev)"/>
+                                    <span t-esc="getChipLabel('category_id')"/>
+                                    <i t-if="isChipActive('category_id')" class="fa fa-times-circle pm-chip-clear"
+                                       t-on-click="(ev) => this.clearChip('category_id', ev)"/>
                                     <i t-else="" class="fa fa-caret-down"/>
                                 </button>
-                                <div class="pm-chip-popover" t-if="state.openChip === 'category'">
+                                <div class="pm-chip-popover" t-if="state.openChip === 'category_id'">
+                                    <!-- 選項多的時候平鋪清單捲不完（生產站 187 個
+                                         工程案件），加一個純前端關鍵字過濾。
+                                         t-on-click.stop：避免點輸入框被外層當成
+                                         「選了某個選項」而把 popover 關掉。 -->
+                                    <div class="pm-chip-search">
+                                        <i class="fa fa-search"/>
+                                        <input type="text" placeholder="搜尋分類…"
+                                               t-att-value="state.chipQuery.category_id"
+                                               t-on-click.stop=""
+                                               t-on-input="(ev) => this.onChipQueryInput('category_id', ev)"/>
+                                    </div>
                                     <div class="pm-chip-option"
-                                         t-on-click="() => this.selectChipValue('category', '')">
+                                         t-on-click="() => this.selectChipValue('category_id', '')">
                                         全部分類
                                     </div>
-                                    <t t-foreach="state.filterOptions.category or []" t-as="opt" t-key="opt[0]">
-                                        <div t-attf-class="pm-chip-option #{state.filters.category === opt[0] ? 'active' : ''}"
-                                             t-on-click="() => this.selectChipValue('category', opt[0])">
-                                            <t t-esc="opt[1]"/>
+                                    <t t-foreach="filteredCategories" t-as="cat" t-key="cat.id">
+                                        <div t-attf-class="pm-chip-option #{state.filters.category_id === cat.id ? 'active' : ''}"
+                                             t-on-click="() => this.selectChipValue('category_id', cat.id)">
+                                            <t t-esc="cat.name"/>
                                         </div>
                                     </t>
                                 </div>

@@ -20,6 +20,14 @@
                                         class="oe_inline fw-bold"/>
                 </div>
 
+                <!-- 從「照片管理」清單／看板／選單直接開啟時沒有來源記錄，
+                     照片要掛哪個工程案件無從推導，由使用者自己選。
+                     從業務記錄的照片頁籤開啟時 source_model 有值，這一段隱藏。 -->
+                <group invisible="source_model">
+                    <field name="project_id" required="not source_model"
+                           options="{'no_create': True}"/>
+                </group>
+
                 <group>
                     <field name="attachment_ids" widget="many2many_binary"
                            string="照片檔案" nolabel="1" colspan="2"/>

@@ -75,16 +75,23 @@ class PhotoMapController extends Component {
             filteredCount: 0,
             projects: [],
             tags: [],
+            categories: [],
             filterOptions: {},
             filters: {
                 project_id: false,
                 source_model: "",
                 tag_id: false,
-                category: "",
+                // 材料分類用 category_id（M2o supervision.photo.category）。
+                // 舊的 category Selection 欄位已停用，實測生產站 0 筆有值，
+                // 過去綁在它上面的分類篩選等於永遠篩不到東西。
+                category_id: false,
                 construction_phase: "",
                 date_from: "",
                 date_to: "",
             },
+            // chip popover 內的關鍵字（純前端過濾，不另發 RPC）。
+            // 工程案件在生產站有 187 個，平鋪清單捲不完，代操已回報難用。
+            chipQuery: { project_id: "", tag_id: "", category_id: "" },
             // 面板
             panelOpen: true,
             activeTab: "area",
@@ -186,14 +193,48 @@ class PhotoMapController extends Component {
         );
         this.state.tags = tags;
 
+        // 材料分類改讀主檔 supervision.photo.category（M2o category_id）。
+        // 原本讀的是舊的 category Selection 欄位，該欄位已停用、實測生產站
+        // 0 筆照片有值，所以「全部分類」以前根本篩不出東西。
+        const categories = await this.orm.searchRead(
+            "supervision.photo.category", [], ["id", "name"],
+            { limit: 500, order: "name" }
+        );
+        this.state.categories = categories;
+
         const fieldsInfo = await this.orm.call(Photo, "fields_get", [
-            ["source_model", "category", "construction_phase"],
+            ["source_model", "construction_phase"],
         ]);
         this.state.filterOptions = {
             source_model: fieldsInfo.source_model?.selection || [],
-            category: fieldsInfo.category?.selection || [],
             construction_phase: fieldsInfo.construction_phase?.selection || [],
         };
+    }
+
+    // =============================================
+    // chip popover 的關鍵字過濾（純前端）
+    // =============================================
+    onChipQueryInput(name, ev) {
+        this.state.chipQuery[name] = ev.target.value;
+    }
+
+    /** 依 chip 的關鍵字過濾選項；關鍵字空白時原樣回傳 */
+    _filterChipOptions(name, options) {
+        const q = (this.state.chipQuery[name] || "").trim().toLowerCase();
+        if (!q) return options;
+        return options.filter((o) => (o.name || "").toLowerCase().includes(q));
+    }
+
+    get filteredProjects() {
+        return this._filterChipOptions("project_id", this.state.projects);
+    }
+
+    get filteredTags() {
+        return this._filterChipOptions("tag_id", this.state.tags);
+    }
+
+    get filteredCategories() {
+        return this._filterChipOptions("category_id", this.state.categories);
     }
 
     // =============================================
@@ -343,8 +384,21 @@ class PhotoMapController extends Component {
                 ? `<img src="${url}" class="pm-loc-thumb" loading="lazy" alt="" onclick="window._photoMapView.openPhoto(${p.id}); return false;"/>`
                 : `<div class="pm-loc-thumb pm-loc-thumb-ph"><i class="fa fa-image"></i></div>`;
         }
+        // 同一個座標可能跨多個工程案件，一個就直接寫案名，多個寫「N 個工程」
+        const projectNames = [...new Set(
+            photos.map((p) => (p.project_id ? p.project_id[1] : "")).filter(Boolean)
+        )];
+        let projectHtml = "";
+        if (projectNames.length === 1) {
+            projectHtml = `<div class="pm-loc-popup-project">` +
+                `<i class="fa fa-building-o"></i> ${this._esc(projectNames[0])}</div>`;
+        } else if (projectNames.length > 1) {
+            projectHtml = `<div class="pm-loc-popup-project">` +
+                `<i class="fa fa-building-o"></i> ${projectNames.length} 個工程案件</div>`;
+        }
         return `<div class="pm-loc-popup">` +
             `<div class="pm-loc-popup-title"><i class="fa fa-map-marker"></i> 此地點 <strong>${n}</strong> 張照片</div>` +
+            projectHtml +
             `<div class="pm-loc-popup-grid">${thumbsHtml}</div>` +
             `<a href="#" class="pm-popup-btn primary" onclick="window._photoMapView.openLocationPanel(); return false;">` +
                 `<i class="fa fa-th"></i> 看全部 ${n} 張</a>` +
@@ -442,11 +496,12 @@ class PhotoMapController extends Component {
             project_id: false,
             source_model: "",
             tag_id: false,
-            category: "",
+            category_id: false,
             construction_phase: "",
             date_from: "",
             date_to: "",
         };
+        this.state.chipQuery = { project_id: "", tag_id: "", category_id: "" };
         this.state.openChip = "";
         this._loadMarkers();
     }
@@ -474,10 +529,10 @@ class PhotoMapController extends Component {
             const t = this.state.tags.find((x) => x.id === f.tag_id);
             return t ? t.name : "標籤";
         }
-        if (name === "category") {
-            if (!f.category) return "全部分類";
-            const opt = (this.state.filterOptions.category || []).find((o) => o[0] === f.category);
-            return opt ? opt[1] : "分類";
+        if (name === "category_id") {
+            if (!f.category_id) return "全部分類";
+            const c = this.state.categories.find((x) => x.id === f.category_id);
+            return c ? c.name : "分類";
         }
         if (name === "construction_phase") {
             if (!f.construction_phase) return "全部階段";
@@ -493,14 +548,14 @@ class PhotoMapController extends Component {
 
     isChipActive(name) {
         const f = this.state.filters;
-        if (name === "project_id" || name === "tag_id") return !!f[name];
+        if (name === "project_id" || name === "tag_id" || name === "category_id") return !!f[name];
         if (name === "date") return !!(f.date_from || f.date_to);
         return !!f[name];
     }
 
     hasAnyFilter() {
         const f = this.state.filters;
-        return !!(f.project_id || f.source_model || f.tag_id || f.category
+        return !!(f.project_id || f.source_model || f.tag_id || f.category_id
             || f.construction_phase || f.date_from || f.date_to);
     }
 
@@ -693,7 +748,7 @@ class PhotoMapController extends Component {
         if (f.project_id) domain.push(["project_id", "=", f.project_id]);
         if (f.source_model) domain.push(["source_model", "=", f.source_model]);
         if (f.tag_id) domain.push(["tag_ids", "in", [f.tag_id]]);
-        if (f.category) domain.push(["category", "=", f.category]);
+        if (f.category_id) domain.push(["category_id", "=", f.category_id]);
         if (f.construction_phase) domain.push(["construction_phase", "=", f.construction_phase]);
         if (f.date_from) domain.push(["shot_date", ">=", f.date_from]);
         if (f.date_to) domain.push(["shot_date", "<=", f.date_to]);
@@ -714,18 +769,39 @@ class PhotoMapController extends Component {
         return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(2)} km`;
     }
 
+    /** 照片所屬工程案件的名稱；沒有就回空字串。
+     *  代操回報「點預覽看不出這張是哪個案子的」，三個 tab 都要顯示。 */
+    getProjectName(photo) {
+        return photo.project_id ? photo.project_id[1] : "";
+    }
+
+    /** 縮圖 hover 用的完整說明：工程案件 · 照片名稱 */
+    getPhotoTitle(photo) {
+        const project = this.getProjectName(photo);
+        const name = photo.name || "未命名";
+        return project ? `${project} · ${name}` : name;
+    }
+
     getSourceLabel(src) { return SOURCE_LABELS[src] || src || ""; }
     getSourceColor(src) { return SOURCE_COLORS[src] || "#6b7280"; }
 
+    // ⚠️ 一定要走 supervision.photo 這條路徑，不要直接打 ir.attachment。
+    // ir.attachment.check() 有一條：附件的 res_id 為空時，只有建立者本人與
+    // base.group_system 讀得到，其他人一律 AccessError；而 /web/image 會把
+    // AccessError（UserError 子類）吞掉、改回傳灰色佔位圖 —— 於是地圖上所有
+    // 縮圖對非系統管理者「全部破圖」，畫面上完全看不出是權限問題。
+    // 生產站 4,484 張照片裡有 4,373 張的附件 res_id 是 0（舊系統遷移留下的），
+    // 就是這樣全滅的。改走 model 路徑後檢查的是 supervision.photo 的存取權，
+    // 地圖本來就讀得到這些記錄，所以一定過得了。
     getThumbnailUrl(photo) {
-        return photo.attachment_id
-            ? `/web/image/ir.attachment/${photo.attachment_id[0]}/datas/200x200?crop=true`
+        return photo.id
+            ? `/web/image/supervision.photo/${photo.id}/image/200x200?crop=true`
             : "";
     }
 
     getThumbnailLargeUrl(photo) {
-        return photo.attachment_id
-            ? `/web/image/ir.attachment/${photo.attachment_id[0]}/datas/320x200?crop=true`
+        return photo.id
+            ? `/web/image/supervision.photo/${photo.id}/image/320x200?crop=true`
             : "";
     }
 }

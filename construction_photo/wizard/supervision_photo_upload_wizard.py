@@ -63,6 +63,14 @@ class SupervisionPhotoUploadWizard(models.TransientModel):
     source_model = fields.Char(string='來源模型', readonly=True)
     source_name = fields.Char(string='上傳到', readonly=True)
 
+    # 從「照片管理」清單／看板／選單直接開精靈時沒有來源記錄（沒有 active_model），
+    # 這時候照片要掛哪個工程案件無從推導，改由使用者自己選。
+    # 有來源記錄時這個欄位隱藏，工程案件仍由 _resolve_project() 從來源推出來。
+    project_id = fields.Many2one(
+        'project.project', string='所屬工程',
+        help='從照片管理直接開啟時才需要指定；從各業務記錄的照片頁籤開啟時，'
+             '系統會自動沿用該記錄所屬的工程案件。')
+
     @api.model
     def default_get(self, fields_list):
         """從 action_* context 取來源記錄，順便把 photo_stage 帶進來。
@@ -88,27 +96,38 @@ class SupervisionPhotoUploadWizard(models.TransientModel):
         return record or None
 
     def action_upload(self):
-        """把選到的檔案建成 supervision.photo，並掛回來源記錄。"""
+        """把選到的檔案建成 supervision.photo，並掛回來源記錄。
+
+        兩種開啟情境：
+        1. 從業務記錄的照片頁籤開啟 → 有 active_model/active_id，照片掛回該記錄
+        2. 從「照片管理」清單／看板／選單開啟 → 沒有來源記錄，改用使用者選的
+           project_id，照片只掛工程案件（source_model 由模型端推導成「其他」）
+        """
         self.ensure_one()
         if not self.attachment_ids:
             raise UserError(_('請先選擇要上傳的照片檔案。'))
 
         record = self._source_record()
-        if not record:
-            raise UserError(_('找不到要掛載照片的來源記錄，請從記錄表單上開啟本精靈。'))
-
-        project = self._resolve_project(record)
-        if not project:
-            raise UserError(_('無法判斷這批照片所屬的工程案件。'))
+        if record:
+            project = self._resolve_project(record)
+            if not project:
+                raise UserError(_('無法判斷這批照片所屬的工程案件。'))
+        else:
+            # 情境 2：沒有來源記錄，工程案件由使用者指定
+            project = self.project_id
+            if not project:
+                raise UserError(_('請選擇這批照片所屬的工程案件。'))
 
         Photo = self.env['supervision.photo']
-        source_field = Photo.sudo()._photo_source_field_map().get(record._name)
-        if not source_field:
-            # 與前台 _portal_save_photos 一致：照片仍然建出來、仍看得到，
-            # 只是不會掛在來源記錄上。不要因此讓整批上傳失敗。
-            _logger.warning(
-                '批次上傳：supervision.photo 沒有對應 %s 的來源欄位，'
-                '照片會建立但不會掛在來源記錄上', record._name)
+        source_field = None
+        if record:
+            source_field = Photo.sudo()._photo_source_field_map().get(record._name)
+            if not source_field:
+                # 與前台 _portal_save_photos 一致：照片仍然建出來、仍看得到，
+                # 只是不會掛在來源記錄上。不要因此讓整批上傳失敗。
+                _logger.warning(
+                    '批次上傳：supervision.photo 沒有對應 %s 的來源欄位，'
+                    '照片會建立但不會掛在來源記錄上', record._name)
 
         photos = Photo
         for att in self.attachment_ids:
@@ -129,15 +148,21 @@ class SupervisionPhotoUploadWizard(models.TransientModel):
                 vals['photo_stage'] = self.photo_stage
             if source_field:
                 vals[source_field] = record.id
+            elif not record:
+                # 沒有來源記錄時 _normalize_source_fields() 推不出 source_model
+                # （_photo_source_model_code() 會回 False），留空會落在篩選的
+                # 「未指定」桶裡。明給 other，語意與前台直接上傳的照片一致。
+                vals['source_model'] = 'other'
             # source_model 留空，交給 _normalize_source_fields() 依來源欄位推導
             photos |= Photo.create(vals)
 
+        target_name = record.display_name if record else project.display_name
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('上傳完成'),
-                'message': _('已新增 %s 張照片到「%s」') % (len(photos), record.display_name),
+                'message': _('已新增 %s 張照片到「%s」') % (len(photos), target_name),
                 'type': 'success',
                 'next': {'type': 'ir.actions.act_window_close'},
             },
