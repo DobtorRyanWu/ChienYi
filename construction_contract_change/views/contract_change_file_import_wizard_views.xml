@@ -34,10 +34,18 @@
                         <field name="file_type" readonly="1" invisible="not file_type"/>
                     </group>
 
-                    <group string="稅什費比例預覽"
+                    <!-- 比例項＝金額由「比例 × 基數」算出的工項（稅什費、自主檢查費、
+                         工安費…）。一個案子可以有好幾個，各有各的比例與基數，
+                         所以逐項列出，不再只顯示第一個稅什費的比例。 -->
+                    <group string="比例項預覽"
                            invisible="preview_tax_misc_count == 0 or state != 'parsed'">
-                        <field name="preview_tax_misc_rate_before" string="解析前比例 (%)"/>
-                        <field name="preview_tax_misc_rate_after" string="解析後比例 (%)"/>
+                        <field name="preview_rate_detail" nolabel="1" colspan="2"
+                               widget="text" readonly="1"/>
+                        <div class="text-muted small" colspan="2">
+                            比例項的金額由系統依「變更後的基數 × 比例」重算，
+                            不吃文件上的單價。基數留空 = 同層全部前置工項；
+                            要指定基數請到變更精靈的「比例項設定」頁籤。
+                        </div>
                     </group>
 
                     <group string="解析結果" invisible="state != 'parsed'">

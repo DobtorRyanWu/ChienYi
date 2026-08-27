@@ -447,6 +447,12 @@ class TenderImportWizard(models.TransientModel):
         # N = 稅什費.xml_amount ÷ sum(同層 sequence 較小的項目 xml_amount) × 100
         self._compute_tax_misc_rate(created_tasks)
 
+        # ── 整包費用項標記 ──────────────────────────────────────────
+        # 必須排在 _compute_tax_misc_rate 之後：稅什費的比例要先寫進去，
+        # _mark_lump_sum_items 才排除得掉它（比例項不該被標成整包項）。
+        # 也必須在整批建立完成之後 —— 建立過程中子項還不存在，判不出「無子項」。
+        Task._mark_lump_sum_items(created_tasks)
+
         return created_tasks
 
     def _compute_tax_misc_rate(self, tasks):

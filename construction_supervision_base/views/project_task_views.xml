@@ -71,11 +71,36 @@
                             <group string="價量資訊">
                                 <field name="unit" required="1" placeholder="M, M2, M3, 式..." readonly="is_project_approved"/>
                                 <field name="planned_qty" required="1" readonly="is_project_approved"/>
-                                <field name="unit_price" required="1" readonly="is_project_approved"/>
+                                <!-- 整包費用項的單價欄在來源檔案本來就空白，不強制填 -->
+                                <field name="unit_price" required="not is_lump_sum"
+                                       readonly="is_project_approved"/>
                                 <field name="planned_amount" class="oe_inline" readonly="1"/>
                                 <!-- 預備單價項目：不計入契約金額（預約式議價新增項目用） -->
                                 <field name="exclude_from_contract_amount"
                                        readonly="is_project_approved"/>
+                                <!-- 整包費用項：金額走 XML 原始複價，不走數量 × 單價。
+                                     有子工項時走子項加總，本旗標無作用，故隱藏。 -->
+                                <field name="is_lump_sum"
+                                       invisible="child_ids"
+                                       readonly="is_project_approved"/>
+                                <field name="xml_amount"
+                                       string="整包金額"
+                                       invisible="not is_lump_sum"
+                                       readonly="is_project_approved"/>
+                                <!-- 比例項：比例 × 基數。基數留空 = 同層全部前置工項 -->
+                                <field name="tax_misc_rate"
+                                       invisible="child_ids"
+                                       readonly="is_project_approved"/>
+                                <field name="rate_base_task_ids"
+                                       widget="many2many_tags"
+                                       invisible="not tax_misc_rate"
+                                       readonly="is_project_approved"
+                                       options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True}"
+                                       placeholder="留空 = 同層全部前置工項"/>
+                                <!-- rate_base_task_ids 的 domain 用到 parent_id 與 sequence，
+                                     欄位必須在 view 裡，client 端才解析得到 -->
+                                <field name="child_ids" invisible="1"/>
+                                <field name="sequence" invisible="1"/>
                                 <field name="product_id" string="標準工項"
                                        domain="[('is_standard_work_item', '=', True)]"
                                        context="{'tree_view_ref': 'construction_supervision_base.view_product_standard_work_item_list', 'search_view_ref': 'construction_supervision_base.view_product_standard_work_item_search'}"

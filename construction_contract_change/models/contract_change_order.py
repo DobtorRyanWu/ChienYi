@@ -739,12 +739,28 @@ class ContractChangeOrder(models.Model):
                 if not line.task_id.original_planned_qty:
                     line.task_id.original_planned_qty = line.task_id.planned_qty
                 # 修改工項
-                line.task_id.write({
+                # 整包費用項（自主品管費等）的金額載體是 xml_amount 而非 unit_price。
+                # 把整包金額寫進 unit_price 會讓該工項從 xml_amount 分支掉進
+                # 「數量 × 單價」分支 —— 契約金額仍然正確，代價卻落在下游：
+                # 之後新建的通報單明細抄到非 0 單價，手填金額閘門被關閉，
+                # 手填的預估／實際金額被「數量 × 單價」靜靜蓋掉（111-09-AEG 實案）。
+                task_vals = {
                     'planned_qty': line.new_qty,
-                    'unit_price': line.new_unit_price,
                     'change_order_id': self.id,
                     'change_order_ids': [(4, self.id)],  # 新增到 Many2many
-                })
+                }
+                if line.task_id.is_lump_sum:
+                    task_vals['xml_amount'] = line.new_amount
+                elif line.task_id.tax_misc_rate:
+                    # 比例項（稅什費等）：金額是「比例 × 基數」算出來的，
+                    # 沒有單價可言。舊寫法把整包金額塞進 unit_price，契約金額
+                    # 因為走比例分支所以還是對的，但那個假單價會被估驗明細抄走，
+                    # 也讓變更設計詳細表印出「原單價 0、追加 = 全額」。
+                    # 這裡什麼都不寫 —— 金額自然跟著基數重算。
+                    pass
+                else:
+                    task_vals['unit_price'] = line.new_unit_price
+                line.task_id.write(task_vals)
                 # 建立版本記錄
                 next_version = max(line.task_id.version_ids.mapped('version') or [0]) + 1
                 self.env['project.task.version'].create({
@@ -761,11 +777,17 @@ class ContractChangeOrder(models.Model):
                 # 歸零：工項保留、數量歸零（保留原單價供參考），並建立版本記錄
                 if not line.task_id.original_planned_qty:
                     line.task_id.original_planned_qty = line.task_id.planned_qty
-                line.task_id.write({
+                zero_vals = {
                     'planned_qty': 0.0,
                     'change_order_id': self.id,
                     'change_order_ids': [(4, self.id)],
-                })
+                }
+                if line.task_id.is_lump_sum:
+                    # 整包費用項的金額不看數量（走 xml_amount），只把 planned_qty
+                    # 歸零等於什麼都沒做 —— 契約金額一毛都不會減，而且不報錯。
+                    # 必須連 xml_amount 一起歸零，「歸零」才真的是歸零。
+                    zero_vals['xml_amount'] = 0.0
+                line.task_id.write(zero_vals)
                 next_version = max(line.task_id.version_ids.mapped('version') or [0]) + 1
                 self.env['project.task.version'].create({
                     'task_id': line.task_id.id,
@@ -810,6 +832,13 @@ class ContractChangeOrder(models.Model):
             'ref_item_code': line.ref_item_code or '',
             'exclude_from_contract_amount': line.exclude_from_contract_amount,
         }
+        # 變更新增的整包費用項：金額載體是 xml_amount，不帶就是四個分支全落空 →
+        # 建出一個永遠 0 元的工項。is_lump_sum 由明細列的旗標帶過來
+        # （新增列沒有 task_id，related 讀不到，故由 is_new_lump_sum 明寫）。
+        if line.is_new_lump_sum:
+            vals['is_lump_sum'] = True
+            vals['xml_amount'] = line.new_amount
+            vals['unit_price'] = 0.0
         if line.ref_item_code:
             product = self.env['product.product'].search(
                 [('default_code', '=', line.ref_item_code)], limit=1)

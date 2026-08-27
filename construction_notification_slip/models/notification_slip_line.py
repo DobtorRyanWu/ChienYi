@@ -167,7 +167,8 @@ class ReservationNotificationSlipLine(models.Model):
             line.parent_line_id = match[:1]
 
     @api.depends('slip_id.detail_line_ids.task_id', 'task_id',
-                 'is_summary_line', 'unit_price', 'task_id.tax_misc_rate')
+                 'is_summary_line', 'unit_price', 'task_id.tax_misc_rate',
+                 'task_id.is_lump_sum')
     def _compute_is_manual_amount(self):
         """金額是否由人工填寫。
 
@@ -191,6 +192,7 @@ class ReservationNotificationSlipLine(models.Model):
                 line.is_manual_amount = bool(
                     line.is_summary_line
                     or line.task_id.tax_misc_rate
+                    or line.task_id.is_lump_sum
                     or not line.unit_price)
 
     @api.depends('planned_qty', 'unit_price', 'is_manual_amount',

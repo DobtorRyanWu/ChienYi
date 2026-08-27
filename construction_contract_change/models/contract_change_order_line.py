@@ -209,12 +209,59 @@ class ContractChangeOrderLine(models.Model):
         digits=(16, 2),
         help='變更後的單價')
 
+    # 整包費用項（單價欄本來就空白、金額只有整包複價）沒辦法用「數量 × 單價」
+    # 表達金額變化。以前只能把整包金額硬塞進「新單價」，那會讓 _apply_changes
+    # 把它寫回 task.unit_price，害該工項從 xml_amount 分支掉進「數量 × 單價」分支
+    # ——契約金額仍然正確，但下游通報單明細的手填金額閘門會被關掉。
+    # 改為：整包項直接編輯「新金額」，新單價欄留空不用。
+    is_lump_sum_line = fields.Boolean(
+        string='整包費用項',
+        related='task_id.is_lump_sum', store=True, readonly=True,
+        help='對應的契約工項是整包費用項；金額直接填「新金額」，不經數量 × 單價')
+
+    # 比例項（稅什費、自主品管費…）：金額 = 比例 × 基數，同樣不是「數量 × 單價」。
+    # 舊寫法把整包金額 ÷ 數量塞進 new_unit_price，套用後 task.unit_price 會變成
+    # 兩千多萬 —— 契約金額因為走比例分支所以仍然正確，但變更設計詳細表那一列會
+    # 印成「原金額 0、追加 = 全額」（原單價取自被污染前的 0），且估驗明細會抄到
+    # 那個假單價。
+    is_rate_line = fields.Boolean(
+        string='比例項',
+        compute='_compute_is_rate_line', store=True,
+        help='對應的契約工項以「比例 × 基數」計算金額（稅什費等）')
+
+    @api.depends('task_id', 'task_id.tax_misc_rate')
+    def _compute_is_rate_line(self):
+        for line in self:
+            line.is_rate_line = bool(line.task_id and line.task_id.tax_misc_rate)
+
+    # change_type='add' 的明細列沒有 task_id，related 讀不到，故另設一個可勾的欄位。
+    is_new_lump_sum = fields.Boolean(
+        string='新增為整包費用項',
+        default=False,
+        help='本次新增的工項是整包費用項（單位「式」、只有整包金額、沒有單價）。\n'
+             '勾選後改填「新金額」，建立出來的工項會帶「整包費用項」旗標。')
+
+    # 兩種來源合一：既有工項看 task 的旗標，新增列看自己勾的
+    is_lump_amount_line = fields.Boolean(
+        string='以整包金額計',
+        compute='_compute_is_lump_amount_line', store=True,
+        help='本列的金額直接填寫，不經「數量 × 單價」')
+
+    @api.depends('is_lump_sum_line', 'is_new_lump_sum', 'is_rate_line', 'change_type')
+    def _compute_is_lump_amount_line(self):
+        for line in self:
+            if line.change_type == 'add':
+                line.is_lump_amount_line = line.is_new_lump_sum
+            else:
+                # 比例項與整包項都不走「數量 × 單價」，金額直接以 new_amount 呈現
+                line.is_lump_amount_line = line.is_lump_sum_line or line.is_rate_line
+
     new_amount = fields.Float(
         string='新金額',
         digits=(16, 2),
         compute='_compute_new_amount',
-        store=True,
-        help='新數量 x 新單價')
+        store=True, readonly=False,
+        help='新數量 x 新單價；整包費用項則直接手動填寫整包金額')
 
     # === 差異 ===
     qty_change = fields.Float(
@@ -278,15 +325,31 @@ class ContractChangeOrderLine(models.Model):
                     line.task_id.display_item_no or line.task_id.item_no or line.item_no or ''
                 )
 
-    @api.depends('original_qty', 'original_unit_price')
+    @api.depends('original_qty', 'original_unit_price',
+                 'is_lump_sum_line', 'is_rate_line', 'task_id.planned_amount')
     def _compute_original_amount(self):
         for line in self:
-            line.original_amount = round(line.original_qty * line.original_unit_price, 2)
+            if (line.is_lump_sum_line or line.is_rate_line) and line.task_id:
+                # 整包費用項與比例項都沒有單價，「原數量 × 原單價」會是 0，
+                # 列印出來的變更設計詳細表那一列原金額就會空掉、追加金額被
+                # 誇大成全額。直接取工項的契約金額（整包項＝xml_amount、
+                # 比例項＝比例 × 基數，都是該項真正的變更前金額）。
+                line.original_amount = round(line.task_id.planned_amount or 0.0, 2)
+            else:
+                line.original_amount = round(
+                    line.original_qty * line.original_unit_price, 2)
 
-    @api.depends('new_qty', 'new_unit_price')
+    @api.depends('new_qty', 'new_unit_price', 'is_lump_amount_line')
     def _compute_new_amount(self):
         for line in self:
-            line.new_amount = round(line.new_qty * line.new_unit_price, 2)
+            if line.is_lump_amount_line:
+                # 手填：compute + store + readonly=False 的欄位一旦被明確寫入就
+                # 不再重算（與 payment_estimate.estimate_amount、
+                # notification_slip_line.planned_amount 同一套慣例）。
+                # 這裡讀回資料庫現值，避免把使用者填的整包金額歸零。
+                line.new_amount = line.new_amount or 0.0
+            else:
+                line.new_amount = round(line.new_qty * line.new_unit_price, 2)
 
     @api.depends('original_qty', 'original_unit_price', 'original_amount',
                  'new_qty', 'new_unit_price', 'new_amount', 'change_type')
@@ -332,6 +395,12 @@ class ContractChangeOrderLine(models.Model):
             if self.change_type == 'modify':
                 self.new_qty = self.task_id.planned_qty
                 self.new_unit_price = self.task_id.unit_price
+                if self.task_id.is_lump_sum:
+                    # 整包費用項沒有單價，預設帶 0 會讓「新金額」變成 0、
+                    # 金額增減顯示成 -全額。預設帶原本的整包金額，
+                    # 使用者只要把它改成變更後的金額即可。
+                    self.new_unit_price = 0.0
+                    self.new_amount = round(self.task_id.planned_amount or 0.0, 2)
 
     @api.onchange('parent_task_id')
     def _onchange_parent_task_id(self):

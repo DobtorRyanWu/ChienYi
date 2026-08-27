@@ -202,21 +202,26 @@
                                     <!-- 8. 原金額 -->
                                     <field name="original_amount" readonly="1"
                                            invisible="change_type == 'add'"/>
-                                    <!-- 9. 新數量（刪除/歸零/彙總項/稅什費時隱藏） -->
+                                    <!-- 9. 新數量（刪除/歸零/彙總項/稅什費/整包項時隱藏） -->
                                     <field name="new_qty"
-                                           invisible="change_type in ('delete', 'zero_out') or is_summary_line or is_tax_misc_line"
-                                           required="change_type in ('add', 'modify')"/>
+                                           invisible="change_type in ('delete', 'zero_out') or is_summary_line or is_tax_misc_line or is_lump_amount_line"
+                                           required="change_type in ('add', 'modify') and not is_lump_amount_line"/>
                                     <!-- 10. 新單價（同上） -->
                                     <field name="new_unit_price"
-                                           invisible="change_type in ('delete', 'zero_out') or is_summary_line or is_tax_misc_line"
-                                           required="change_type in ('add', 'modify')"/>
-                                    <!-- 11. 新金額 -->
-                                    <field name="new_amount" readonly="1"
+                                           invisible="change_type in ('delete', 'zero_out') or is_summary_line or is_tax_misc_line or is_lump_amount_line"
+                                           required="change_type in ('add', 'modify') and not is_lump_amount_line"/>
+                                    <!-- 11. 新金額（整包費用項直接填這一欄，其餘由數量 × 單價算出） -->
+                                    <field name="new_amount"
+                                           readonly="not is_lump_amount_line"
+                                           required="is_lump_amount_line and change_type in ('add', 'modify')"
                                            invisible="change_type in ('delete', 'zero_out')"/>
                                     <!-- 12. 金額增減 -->
                                     <field name="change_amount" readonly="1"
                                            sum="合計"/>
                                     <!-- 隱藏欄位 -->
+                                    <field name="is_lump_sum_line" column_invisible="1"/>
+                                    <field name="is_new_lump_sum" column_invisible="1"/>
+                                    <field name="is_lump_amount_line" column_invisible="1"/>
                                     <field name="project_id" column_invisible="1"/>
                                     <field name="change_order_id" column_invisible="1"/>
                                     <field name="currency_id" column_invisible="1"/>
@@ -425,11 +430,17 @@
                             <field name="original_amount" readonly="1"/>
                         </group>
                         <group string="新值" invisible="change_type in ('delete', 'zero_out')">
-                            <field name="new_qty" required="change_type != 'delete'"
-                                   invisible="is_summary_line or is_tax_misc_line"/>
-                            <field name="new_unit_price" required="change_type != 'delete'"
-                                   invisible="is_summary_line or is_tax_misc_line"/>
-                            <field name="new_amount" readonly="1"/>
+                            <field name="is_new_lump_sum" invisible="change_type != 'add'"/>
+                            <field name="new_qty"
+                                   required="change_type != 'delete' and not is_lump_amount_line"
+                                   invisible="is_summary_line or is_tax_misc_line or is_lump_amount_line"/>
+                            <field name="new_unit_price"
+                                   required="change_type != 'delete' and not is_lump_amount_line"
+                                   invisible="is_summary_line or is_tax_misc_line or is_lump_amount_line"/>
+                            <field name="new_amount" readonly="not is_lump_amount_line"
+                                   required="is_lump_amount_line"/>
+                            <field name="is_lump_sum_line" invisible="1"/>
+                            <field name="is_lump_amount_line" invisible="1"/>
                         </group>
                     </group>
                     <group>

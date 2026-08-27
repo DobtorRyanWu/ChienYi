@@ -46,12 +46,6 @@
                                 新單價 = 原單價 × 比例%（如輸入 80 = 原單價打八折）
                             </div>
                         </group>
-                        <group string="稅什費設定">
-                            <field name="tax_misc_rate" string="稅什費比例 (%)" readonly="1"/>
-                            <div class="text-muted small">
-                                由匯入檔案時自動帶入，僅供參考
-                            </div>
-                        </group>
                         <!-- 案例一：工項完全不動、只調整契約總額 -->
                         <group string="發包工程費調整（工項不動時使用）">
                             <field name="lump_adjust_amount"/>
@@ -100,6 +94,8 @@
                                 class="btn btn-sm btn-warning"/>
                     </div>
 
+                    <notebook>
+                    <page string="工項列表" name="items">
                     <!-- 新增工項按鈕 -->
                     <div class="d-flex align-items-center gap-2 flex-wrap" style="margin: 10px 0;">
                         <button name="action_add_new_line" type="object"
@@ -145,9 +141,11 @@
                             <!-- 9. 新數量（彙總項唯讀）-->
                             <field name="new_qty" readonly="is_summary_item"/>
                             <!-- 10. 新單價（彙總項與稅什費唯讀）-->
-                            <field name="new_unit_price" readonly="is_summary_item or is_tax_misc_item"/>
-                            <!-- 11. 新金額 -->
-                            <field name="new_amount" readonly="1"/>
+                            <field name="new_unit_price"
+                                   readonly="is_summary_item or is_tax_misc_item or is_lump_sum_item"/>
+                            <!-- 11. 新金額（整包費用項直接填這一欄，不經數量 × 單價）-->
+                            <field name="new_amount"
+                                   readonly="not is_lump_sum_item or change_type != 'modify'"/>
                             <!-- 12. 金額增減 -->
                             <field name="change_amount" readonly="1" sum="合計"/>
                             <!-- 隱藏欄位（後台邏輯用） -->
@@ -156,8 +154,59 @@
                             <field name="currency_id" column_invisible="1"/>
                             <field name="is_summary_item" column_invisible="1"/>
                             <field name="is_tax_misc_item" column_invisible="1"/>
+                            <field name="is_lump_sum_item" column_invisible="1"/>
                         </list>
                     </field>
+                    </page>
+
+                    <!-- ── 比例項設定 ────────────────────────────────────
+                         直接編輯 project.task 的計算組態（比例與比例基數）。
+                         比例是工項自己的組態、不是某一次變更的量價，
+                         檔案匯入精靈也是直接寫 task.tax_misc_rate，行為一致。
+                         刻意掛 project.task 而非再開一個 wizard.line 的 One2many：
+                         同一批 wizard line 掛在兩個 x2many 上，編輯時快取會不同步。 -->
+                    <page string="比例項設定" name="rate_items">
+                        <div class="text-muted small" style="margin: 10px 0;">
+                            這裡列出「金額不是由數量 × 單價決定」的工項：
+                            <b>比例項</b>（稅什費、自主品管費等，金額 = 比例 × 基數）與
+                            <b>整包費用項</b>（單價欄本來就空白、只有一筆整包金額）。<br/>
+                            <b>比例基數</b>留空 = 同層全部前置工項（稅什費的傳統行為）；
+                            指定時只以選定的工項為基數，用來表達
+                            「自主品管費 = 工程費 × 2%」這種基數只有特定群組的公式。
+                            基數只能選<b>排在該工項前面的同層工項</b>，故不會循環參照。<br/>
+                            <b>整包費用項</b>若設了比例，金額改由比例算出（比例優先）；
+                            留空則維持整包金額，變更時在「工項列表」直接填新金額。<br/>
+                            ⚠ 此頁的修改會<b>直接寫回契約工項</b>，不經變更明細。
+                        </div>
+                        <field name="rate_task_ids" nolabel="1"
+                               invisible="not project_id">
+                            <list editable="bottom" create="0" delete="0">
+                                <field name="display_item_no" string="項次" readonly="1"/>
+                                <field name="name" string="工項名稱" readonly="1"/>
+                                <field name="unit" string="單位" readonly="1"/>
+                                <field name="is_lump_sum" string="整包費用項"/>
+                                <field name="tax_misc_rate" string="比例 (%)"/>
+                                <!-- 不要加 readonly="not tax_misc_rate"：整包費用項一開始
+                                     比例是 0，加了就永遠設不了基數（先有雞先有蛋）。
+                                     沒有比例時基數只是備而不用，不影響任何計算。 -->
+                                <field name="rate_base_task_ids" string="比例基數"
+                                       widget="many2many_tags"
+                                       options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True}"
+                                       placeholder="留空 = 同層全部前置工項"/>
+                                <field name="xml_amount" string="整包金額"
+                                       readonly="not is_lump_sum"/>
+                                <field name="planned_amount" string="契約金額"
+                                       readonly="1" sum="合計"/>
+                                <!-- rate_base_task_ids 的 domain 用到這兩欄 -->
+                                <field name="parent_id" column_invisible="1"/>
+                                <field name="sequence" column_invisible="1"/>
+                            </list>
+                        </field>
+                        <div class="text-muted small" invisible="project_id">
+                            請先於上方選擇工程案件。
+                        </div>
+                    </page>
+                    </notebook>
 
                 </sheet>
             </form>
@@ -195,11 +244,17 @@
                                placeholder="請輸入工項名稱"/>
                         <field name="unit"/>
                         <field name="exclude_from_contract_amount"/>
+                        <!-- 整包費用項：單位「式」、沒有單價、只有一筆整包金額
+                             （自主品管費、工安費等）。勾選後改填「新金額」。 -->
+                        <field name="is_new_lump_sum" invisible="is_new_group"/>
                     </group>
                     <group string="數量單價">
-                        <field name="new_qty"/>
-                        <field name="new_unit_price"/>
-                        <field name="new_amount" readonly="1"/>
+                        <field name="is_lump_amount_item" invisible="1"/>
+                        <field name="new_qty" invisible="is_lump_amount_item"/>
+                        <field name="new_unit_price" invisible="is_lump_amount_item"/>
+                        <field name="new_amount"
+                               readonly="not is_lump_amount_item"
+                               required="is_lump_amount_item"/>
                         <field name="change_amount" readonly="1"/>
                     </group>
                 </sheet>

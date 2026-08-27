@@ -417,25 +417,110 @@ class ProjectTask(models.Model):
              '但不計入父彙總項加總、也不計入工程的契約金額。\n'
              '用於預約式議價新增的單價項目（數量 1、單價議價，不推高契約總額）。')
 
+    # 整包費用項：政府採購詳細價目表對「自主品管費」「稅什費」「工安費」這類
+    # 單位「式」、數量 1 的整包費用，單價欄本來就是空的（備註只寫 (一)*2% 這種
+    # 公式），金額寫在複價欄。這種工項的金額載體是 xml_amount 而非 unit_price。
+    #
+    # ⚠️ 為什麼需要一個顯式旗標，不能靠「unit_price 為空」推導：
+    # 契約變更套用時會把 new_unit_price 寫回 task.unit_price
+    # （contract_change_order._apply_changes_to_tasks），一旦寫過，
+    # 「unit_price 為空」這個判準就永久失效且不會報錯 —— 該工項會從
+    # xml_amount 分支掉進「數量 × 單價」分支，契約金額看起來仍然正確，
+    # 代價卻落在下游：通報單明細抄到非 0 單價後手填金額閘門被關閉
+    # （notification_slip_line._compute_is_manual_amount），手填的
+    # 預估／實際金額被「數量 × 單價」靜靜蓋掉。專案 111-09-AEG 因此
+    # 全案短少 267,163.95 元，而匯入器仍回報「0 失敗」。
+    #
+    # 判準只在「匯入當下」可靠（來源檔案的單價欄空白是直接記載的事實），
+    # 所以本旗標的意義是：在還判得準的時候把結論記下來。
+    is_lump_sum = fields.Boolean(
+        string='整包費用項',
+        default=False,
+        help='單位「式」、單價欄本來就空白、金額只有整包複價的費用項\n'
+             '（自主品管費、工安費等）。此類工項的契約金額由「XML 原始複價」提供，\n'
+             '不走「數量 × 單價」，契約變更也改為直接調整整包金額。\n'
+             '匯入標單時自動判定；來源不是標準格式時可人工勾選。')
+
     tax_misc_rate = fields.Float(
-        string='稅什費比例',
+        string='計算比例',
         digits=(12, 8),
-        help='稅什費工項的計算比例（%），由 XML 匯入時自動計算：\n'
-             '= 稅什費 XML Amount ÷ 同層前置分類複價總和 × 100\n'
+        help='以「比例 × 基數」計算金額的工項（稅什費、自主品管費等）的比例（%）。\n'
+             '基數由「比例基數」欄位指定；留空則為「同層全部前置工項」\n'
+             '（稅什費的傳統行為，由 XML 匯入時自動反推）。\n'
              '精確到小數點後 8 位')
+
+    # 比例基數：留空 = 同層全部前置工項（既有稅什費行為，一個字都不變）。
+    # 指定時 = 只以這些工項的金額為基數，用來表達「自主品管費 = 工程費(一) × 2%」
+    # 這種「基數只有特定群組」的公式 —— 那是 tax_misc_rate 原本表達不了的。
+    #
+    # ⚠️ domain 刻意限制成「同一父項、且 sequence 排在自己前面」：
+    # 依賴永遠指向排序更前面的工項，結構上不可能形成循環，
+    # 因此 planned_amount（store + recursive）不需要另外做循環偵測。
+    # _check_rate_base_precedes 會把這個限制守在 ORM 層，不只靠 view。
+    rate_base_task_ids = fields.Many2many(
+        'project.task', 'project_task_rate_base_rel', 'task_id', 'base_task_id',
+        string='比例基數',
+        domain="[('parent_id', '=', parent_id), ('sequence', '<', sequence),"
+               " ('id', '!=', id)]",
+        help='計算比例要乘的基數工項（可多選）。\n'
+             '留空 = 同層全部前置工項（稅什費的傳統行為）。\n'
+             '只能選同一父項底下、且排在本工項前面的工項，以確保不會循環參照。')
+
+    @api.constrains('rate_base_task_ids', 'parent_id', 'sequence')
+    def _check_rate_base_precedes(self):
+        """比例基數必須是「同父、且排在自己前面」的工項。
+
+        這是 planned_amount 不需要循環偵測的唯一憑據，故守在 ORM 層而非只在 view。
+        """
+        for task in self:
+            for base in task.rate_base_task_ids:
+                if base.id == task.id:
+                    raise ValidationError(
+                        '工項「%s」的比例基數不可以是自己。' % (task.name or ''))
+                if base.parent_id.id != task.parent_id.id:
+                    raise ValidationError(
+                        '工項「%s」的比例基數「%s」必須與本工項同一個父工項。'
+                        % (task.name or '', base.name or ''))
+                if base.sequence >= task.sequence:
+                    raise ValidationError(
+                        '工項「%s」的比例基數「%s」必須排在本工項前面'
+                        '（避免循環參照）。' % (task.name or '', base.name or ''))
+
+    def _rate_base_records(self):
+        """比例／整包項要參照的基數工項集合。
+
+        指定了 rate_base_task_ids → 用指定的那些；
+        沒指定 → 同層全部前置工項（既有稅什費行為，逐字沿用原本的 filtered 條件）。
+        兩種情況都排除預備單價項目，否則不計入契約金額的項目會經由比例
+        間接把契約金額墊高。
+        """
+        self.ensure_one()
+        if self.rate_base_task_ids:
+            return self.rate_base_task_ids.filtered(
+                lambda s: not s.exclude_from_contract_amount)
+        if not self.parent_id:
+            return self.browse()
+        return self.parent_id.child_ids.filtered(
+            lambda s: s.id != self.id and s.sequence < self.sequence
+            and not s.exclude_from_contract_amount)
 
     planned_amount = fields.Float(
         string='契約金額',
         compute='_compute_planned_amount', store=True, recursive=True,
         help='計算規則：\n'
              '・彙總項（有子工項）：子工項契約金額總和\n'
+             '・比例項（有計算比例）：比例 × 基數金額\n'
+             '・整包費用項：XML 原始複價\n'
              '・一般葉節點（有單價）：數量 × 單價\n'
-             '・無單價葉節點（稅什費等）：XML 原始複價')
+             '・其他無單價葉節點：XML 原始複價')
 
     @api.depends('planned_qty', 'unit_price',
                  'child_ids', 'child_ids.planned_amount',
                  'child_ids.exclude_from_contract_amount',
                  'xml_amount', 'tax_misc_rate', 'sequence',
+                 'is_lump_sum',
+                 'rate_base_task_ids', 'rate_base_task_ids.planned_amount',
+                 'rate_base_task_ids.exclude_from_contract_amount',
                  'parent_id', 'parent_id.child_ids.planned_amount',
                  'parent_id.child_ids.exclude_from_contract_amount')
     def _compute_planned_amount(self):
@@ -447,17 +532,19 @@ class ProjectTask(models.Model):
                     child.planned_amount for child in task.child_ids
                     if not child.exclude_from_contract_amount)
             elif task.tax_misc_rate and task.parent_id:
-                # 稅什費（無子項、設有比例）：比例 × 同層「前置」兄弟項契約金額加總
-                # 與 contract_change_wizard._compute_amounts 一致；只取 sequence 在其之前
-                # 者（不含自身），故工程量變動時稅什費連動重算，且不形成數值循環。
-                # 預備單價項目同樣排除在分母之外，否則不計入契約金額的項目會經由
-                # 稅什費間接把契約金額墊高。
-                preceding = task.parent_id.child_ids.filtered(
-                    lambda s: s.id != task.id and s.sequence < task.sequence
-                    and not s.exclude_from_contract_amount)
+                # 比例項（無子項、設有比例）：比例 × 基數金額加總。
+                # 基數預設是同層「前置」兄弟項（稅什費的傳統行為，_rate_base_records
+                # 逐字沿用原條件）；指定 rate_base_task_ids 時改以指定的工項為基數，
+                # 用來表達「自主品管費 = 工程費(一) × 2%」這種基數只有特定群組的公式。
+                # 兩種基數都只指向排序更前面的工項（constrains 保證），故不形成循環。
                 task.planned_amount = round(
-                    sum(preceding.mapped('planned_amount'))
+                    sum(task._rate_base_records().mapped('planned_amount'))
                     * task.tax_misc_rate / 100.0, 2)
+            elif task.is_lump_sum:
+                # 整包費用項：金額載體是 xml_amount，不受 unit_price 影響。
+                # 這一分支必須排在 unit_price 之前 —— 契約變更曾把整包金額寫進
+                # unit_price，有了本分支之後即使欄位被寫髒也不會改變金額來源。
+                task.planned_amount = task.xml_amount
             elif task.unit_price:
                 # 一般葉節點：數量 × 單價
                 task.planned_amount = task.planned_qty * task.unit_price
@@ -475,16 +562,22 @@ class ProjectTask(models.Model):
     actual_amount = fields.Float(
         string='實際請款金額',
         compute='_compute_actual_amount', store=True, recursive=True,
-        help='計算規則（與契約金額同一套三分支，才能逐層比對完成率）：\n'
+        help='計算規則（與契約金額同一套分支，才能逐層比對完成率）：\n'
              '・彙總項（有子工項）：子工項實際金額總和\n'
-             '・稅什費（有比例、無子項）：比例 × 同層前置工項實際金額總和\n'
+             '・比例項（有比例、無子項）：比例 × 基數工項實際金額總和\n'
+             '・整包費用項：契約金額 × 基數工項的完成比例\n'
              '・一般葉節點：實際完成數量 × 單價')
 
     @api.depends('actual_qty', 'unit_price',
                  'child_ids', 'child_ids.actual_amount',
                  'child_ids.exclude_from_contract_amount',
                  'tax_misc_rate', 'sequence',
+                 'is_lump_sum', 'planned_amount',
+                 'rate_base_task_ids', 'rate_base_task_ids.actual_amount',
+                 'rate_base_task_ids.planned_amount',
+                 'rate_base_task_ids.exclude_from_contract_amount',
                  'parent_id', 'parent_id.child_ids.actual_amount',
+                 'parent_id.child_ids.planned_amount',
                  'parent_id.child_ids.exclude_from_contract_amount')
     def _compute_actual_amount(self):
         for task in self:
@@ -495,13 +588,25 @@ class ProjectTask(models.Model):
                     child.actual_amount for child in task.child_ids
                     if not child.exclude_from_contract_amount)
             elif task.tax_misc_rate and task.parent_id:
-                # 稅什費：與 _compute_planned_amount 同規則，只取 sequence 在其之前者
-                preceding = task.parent_id.child_ids.filtered(
-                    lambda s: s.id != task.id and s.sequence < task.sequence
-                    and not s.exclude_from_contract_amount)
+                # 比例項：與 _compute_planned_amount 同一組基數
                 task.actual_amount = round(
-                    sum(preceding.mapped('actual_amount'))
+                    sum(task._rate_base_records().mapped('actual_amount'))
                     * task.tax_misc_rate / 100.0, 2)
+            elif task.is_lump_sum and task.parent_id:
+                # 整包費用項：不是靠「完成數量」做出來的，actual_qty 恆為 0，
+                # 走預設分支會讓完成率永遠卡在 0%。改為跟著基數工項的完成比例走 ——
+                # 這與上面比例項那一支在數學上是同一條規則：
+                #   比例項 planned = Σ基數planned × rate、actual = Σ基數actual × rate
+                #   → actual / planned = Σ基數actual / Σ基數planned
+                # 把該比值套到整包項的契約金額上，即得下式。
+                base = task._rate_base_records()
+                base_planned = sum(base.mapped('planned_amount'))
+                if base_planned:
+                    task.actual_amount = round(
+                        task.planned_amount
+                        * sum(base.mapped('actual_amount')) / base_planned, 2)
+                else:
+                    task.actual_amount = 0.0
             else:
                 task.actual_amount = task.actual_qty * task.unit_price
 
@@ -926,6 +1031,38 @@ class ProjectTask(models.Model):
             return 10
 
         return siblings[0].sequence + 10
+
+    @api.model
+    def _mark_lump_sum_items(self, tasks):
+        """把「整包費用項」標記出來，回傳被標記的 recordset。
+
+        判準（三個條件同時成立）：
+          1. 沒有子工項 —— 有子項的走「子項加總」，本來就不需要整包項處理
+             （示範工程的「自主品管費」底下有品管人員費／行政管理費兩項，
+             屬於這一類，正確地被排除）
+          2. unit_price 為 0 —— 來源檔案的單價欄本來就空白
+          3. xml_amount 不為 0 —— 金額寫在複價欄
+          4. 沒有 tax_misc_rate —— 稅什費類由比例驅動、會隨前置工項連動，
+             標成整包項會把它凍結在 xml_amount，那是退步。這道排除與
+             _compute_planned_amount 的分支順序（比例在整包項之前）互為雙重保護。
+
+        ⚠️ 這個判準只在「剛匯入、還沒辦過契約變更」時可靠：變更套用會把
+        new_unit_price 寫回 unit_price，條件 2 就永久失效。所以本方法的定位是
+        「在還判得準的當下把結論記下來」，之後一律以 is_lump_sum 旗標為準。
+
+        必須在「整批工項都建立完成之後」才呼叫 —— 建立過程中子項尚未存在，
+        條件 1 判不出來。標單匯入精靈把它掛在 _compute_tax_misc_rate 旁邊，
+        就是同一個理由。
+        """
+        hits = tasks.filtered(
+            lambda t: not t.child_ids
+            and not t.unit_price
+            and t.xml_amount
+            and not t.tax_misc_rate
+        )
+        if hits:
+            hits.write({'is_lump_sum': True})
+        return hits
 
     def _resequence_project_sequence(self, project_id):
         """以樹狀 DFS 前序，整個專案重編 sequence（每節點間隔 10）。

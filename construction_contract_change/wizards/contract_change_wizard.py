@@ -147,6 +147,39 @@ class ContractChangeWizardLine(models.TransientModel):
         for line in self:
             line.is_tax_misc_item = bool(line.task_id and line.task_id.tax_misc_rate)
 
+    is_lump_sum_item = fields.Boolean(
+        string='整包費用項',
+        compute='_compute_is_lump_sum_item',
+        store=False,
+        help='整包費用項：金額直接填「新金額」，不經數量 × 單價')
+
+    @api.depends('task_id', 'task_id.is_lump_sum')
+    def _compute_is_lump_sum_item(self):
+        for line in self:
+            line.is_lump_sum_item = bool(line.task_id and line.task_id.is_lump_sum)
+
+    # change_type='add' 的列沒有 task_id，上面那個 compute 讀不到，故另設可勾欄位
+    is_new_lump_sum = fields.Boolean(
+        string='新增為整包費用項',
+        default=False,
+        help='本次新增的工項是整包費用項（單位「式」、只有整包金額、沒有單價）。\n'
+             '勾選後改填「新金額」，建立出來的工項會帶「整包費用項」旗標。')
+
+    is_lump_amount_item = fields.Boolean(
+        string='以整包金額計',
+        compute='_compute_is_lump_amount_item',
+        store=False,
+        help='本列金額直接填寫，不經「數量 × 單價」')
+
+    @api.depends('is_lump_sum_item', 'is_new_lump_sum', 'change_type')
+    def _compute_is_lump_amount_item(self):
+        for line in self:
+            if line.change_type == 'add':
+                line.is_lump_amount_item = line.is_new_lump_sum
+            else:
+                line.is_lump_amount_item = line.is_lump_sum_item
+
+
     # === 數量單價 ===
     unit = fields.Char(string='單位')
 
@@ -176,11 +209,14 @@ class ContractChangeWizardLine(models.TransientModel):
         string='新單價',
         digits=(16, 2))
 
+    # 整包費用項沒有單價，金額變化沒辦法用「數量 × 單價」表達 —— 開放直接填。
+    # compute + store + readonly=False：一旦被明確寫入就不再重算
+    # （與 payment_estimate.estimate_amount 同一套慣例）。
     new_amount = fields.Float(
         string='新金額',
         digits=(16, 2),
         compute='_compute_amounts',
-        store=True)
+        store=True, readonly=False)
 
     change_amount = fields.Float(
         string='金額增減',
@@ -217,6 +253,7 @@ class ContractChangeWizardLine(models.TransientModel):
     @api.depends('original_qty', 'original_unit_price',
                  'new_qty', 'new_unit_price', 'change_type',
                  'task_id', 'task_id.planned_amount', 'task_id.child_ids',
+                 'task_id.is_lump_sum',
                  'wizard_id.wizard_line_ids.new_qty',
                  'wizard_id.wizard_line_ids.new_unit_price',
                  'wizard_id.wizard_line_ids.change_type',
@@ -224,6 +261,7 @@ class ContractChangeWizardLine(models.TransientModel):
                  'wizard_id.wizard_line_ids.parent_task_id',
                  'wizard_id.wizard_line_ids.parent_line_id',
                  'wizard_id.wizard_line_ids.exclude_from_contract_amount',
+                 'is_new_lump_sum',
                  'task_id.exclude_from_contract_amount')
     def _compute_amounts(self):
         """計算金額
@@ -287,6 +325,15 @@ class ContractChangeWizardLine(models.TransientModel):
                     if s.sequence < task.sequence
                 )
                 return round(preceding_sum * rate, 2)
+            elif task.is_lump_sum:
+                # 整包費用項：金額直接由手填的「新金額」提供，不經數量 × 單價。
+                # 未設變更類型（本次不動這一項）→ 沿用原契約金額。
+                wl = lines_by_task_id.get(task.id)
+                if wl and wl.change_type == 'modify':
+                    return round(wl.new_amount or 0.0, 2)
+                elif wl and wl.change_type in ('zero_out', 'delete'):
+                    return 0.0
+                return task.planned_amount or 0.0
             else:
                 # 一般葉節點：依 wizard line 的 change_type 計算
                 wl = lines_by_task_id.get(task.id)
@@ -333,11 +380,20 @@ class ContractChangeWizardLine(models.TransientModel):
                     if children:
                         line.new_amount = sum(
                             compute_add_line_amount(c, albp_line) for c in children)
+                    elif line.is_new_lump_sum:
+                        # 新增的整包費用項：金額直接手填，不經數量 × 單價
+                        line.new_amount = line.new_amount or 0.0
                     else:
                         line.new_amount = (line.new_qty or 0.0) * (line.new_unit_price or 0.0)
                     line.change_amount = line.new_amount
                 elif line.change_type == 'modify':
-                    line.new_amount = (line.new_qty or 0.0) * (line.new_unit_price or 0.0)
+                    if line.task_id and (line.task_id.is_lump_sum
+                                         or line.task_id.tax_misc_rate):
+                        # 整包費用項：手填值，不覆寫（欄位是 readonly=False 的
+                        # store compute，讀回來的是資料庫現值）
+                        line.new_amount = line.new_amount or 0.0
+                    else:
+                        line.new_amount = (line.new_qty or 0.0) * (line.new_unit_price or 0.0)
                     line.change_amount = line.new_amount - line.original_amount
                 else:
                     # 未設變更類型：新金額 = 原金額，變更金額為 0
@@ -368,6 +424,11 @@ class ContractChangeWizardLine(models.TransientModel):
         elif self.change_type == 'modify' and self.task_id:
             self.new_qty = self.original_qty
             self.new_unit_price = self.original_unit_price
+            if self.task_id.is_lump_sum:
+                # 整包費用項沒有單價，預設帶 0 會讓新金額變 0、金額增減顯示成
+                # -全額。預設帶原本的整包金額，使用者只要改成變更後的數字。
+                self.new_unit_price = 0.0
+                self.new_amount = round(self.task_id.planned_amount or 0.0, 2)
         elif self.change_type in ('delete', 'zero_out'):
             self.new_qty = 0.0
             self.new_unit_price = 0.0
@@ -573,6 +634,20 @@ class ContractChangeWizard(models.TransientModel):
         'wizard_id',
         string='工項列表')
 
+    # 「比例項設定」頁籤：直接掛 project.task，不另做一份 wizard line。
+    # 比例（tax_misc_rate）與比例基數（rate_base_task_ids）本來就是工項自己的
+    # 計算組態，不是某一次變更的量價 —— 檔案匯入精靈也是直接寫 task.tax_misc_rate
+    # （contract_change_file_import_wizard:1562），行為一致。
+    #
+    # ⚠️ 刻意用 project.task 而不是再開一個 contract.change.wizard.line 的
+    # One2many：同一批 wizard line 同時掛在兩個 x2many 欄位上，在其中一邊編輯時
+    # 另一邊的快取會不同步。掛不同 model 就沒有這個問題。
+    rate_task_ids = fields.Many2many(
+        'project.task',
+        'contract_change_wizard_rate_task_rel', 'wizard_id', 'task_id',
+        string='比例項工項',
+        help='以「比例 × 基數」計算金額的工項，以及整包費用項')
+
     # === 單價調整比例 ===
     adjust_rate = fields.Float(
         string='單價調整比例 (%)',
@@ -663,6 +738,7 @@ class ContractChangeWizard(models.TransientModel):
         """選擇工程後，自動載入所有契約工項"""
         if not self.project_id:
             self.wizard_line_ids = [Command.clear()]
+            self.rate_task_ids = [Command.clear()]
             return
 
         # 搜尋該工程的所有工項
@@ -684,6 +760,9 @@ class ContractChangeWizard(models.TransientModel):
                 # original_qty / original_unit_price 由 _compute_original_values 自動帶入
                 'new_qty': task.planned_qty or 0.0,
                 'new_unit_price': task.unit_price or 0.0,
+                # 整包費用項：金額不經數量 × 單價，預先帶原契約金額當基礎值
+                'new_amount': (round(task.planned_amount or 0.0, 2)
+                               if task.is_lump_sum else 0.0),
                 'exclude_from_contract_amount': task.exclude_from_contract_amount,
             }))
             seq += 10
@@ -691,6 +770,12 @@ class ContractChangeWizard(models.TransientModel):
 
         # 重設調整比例
         self.adjust_rate = 100.0
+
+        # 「比例項設定」頁籤：金額不是由「數量 × 單價」決定的葉節點 ——
+        # 有計算比例者（稅什費、自主品管費…）與整包費用項。彙總項不列入。
+        self.rate_task_ids = [Command.set(tasks.filtered(
+            lambda t: not t.child_ids and (t.tax_misc_rate or t.is_lump_sum)
+        ).ids)]
 
         # 帶入稅什費比例（從工項的 tax_misc_rate 欄位讀取）
         tax_task = tasks.filtered(lambda t: '稅什費' in (t.name or ''))
@@ -905,6 +990,14 @@ class ContractChangeWizard(models.TransientModel):
                 'exclude_from_contract_amount':
                     wizard_line.exclude_from_contract_amount,
             })
+            if wizard_line.is_new_lump_sum:
+                # 新增的整包費用項：金額走 new_amount，單價留 0；
+                # _create_added_task 會據此建出帶 is_lump_sum 的工項
+                vals.update({
+                    'is_new_lump_sum': True,
+                    'new_unit_price': 0.0,
+                    'new_amount': round(wizard_line.new_amount or 0.0, 2),
+                })
             # 父為「本次新增群組」：指向已建立的父 order.line（parent_line_id）
             if parent_order_line is not None:
                 vals['parent_line_id'] = parent_order_line.id
@@ -926,6 +1019,14 @@ class ContractChangeWizard(models.TransientModel):
                     'new_qty': wizard_line.new_qty,
                     'new_unit_price': wizard_line.new_unit_price,
                 })
+                if task.is_lump_sum or task.tax_misc_rate:
+                    # 整包費用項與比例項：金額載體是 new_amount，單價留 0。
+                    # 整包項套用時寫回 task.xml_amount；比例項則什麼都不寫，
+                    # 金額自然跟著基數重算（見 _apply_changes_to_tasks）。
+                    vals.update({
+                        'new_unit_price': 0.0,
+                        'new_amount': round(wizard_line.new_amount or 0.0, 2),
+                    })
             elif wizard_line.change_type in ('delete', 'zero_out'):
                 vals.update({
                     'new_qty': 0.0,

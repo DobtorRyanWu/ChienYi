@@ -61,6 +61,10 @@ class ContractChangeFileImportWizard(models.TransientModel):
     preview_tax_misc_rate_before = fields.Float(
         string='解析前稅什費比例 (%)', digits=(12, 4), readonly=True,
         help='套用前，工程案件中稅什費工項的現行比例')
+    preview_rate_detail = fields.Text(
+        string='比例項明細', readonly=True,
+        help='本次解析到的所有比例項（以「比例 × 基數」計算金額者），逐項列出')
+
     preview_tax_misc_rate_after = fields.Float(
         string='解析後稅什費比例 (%)', digits=(12, 4), readonly=True,
         help='依 XLSX 解析後的預計稅什費比例')
@@ -157,18 +161,33 @@ class ContractChangeFileImportWizard(models.TransientModel):
                 'notes': i.get('notes', '') or '',
             }))
 
-        # 提取稅什費比例（取第一個稅什費工項）
+        # 比例項預覽：逐項列出（不是只取第一個稅什費 —— 一個案子可以有
+        # 自主檢查費、工安費、稅什費等多個比例項，各有各的比例與基數）
         tax_misc_rate_before = 0.0
         tax_misc_rate_after = 0.0
+        rate_lines = []
         for item in parsed:
-            if item.get('change_type') == 'tax_misc':
-                task = item.get('task')
-                if task and hasattr(task, 'tax_misc_rate'):
-                    tax_misc_rate_before = task.tax_misc_rate or 0.0
-                m = re.search(r'([\d.]+)\s*%', item.get('notes', '') or '')
-                if m:
-                    tax_misc_rate_after = float(m.group(1))
-                break
+            if item.get('change_type') != 'tax_misc':
+                continue
+            task = item.get('task')
+            before = (task.tax_misc_rate or 0.0) if task else 0.0
+            m = re.search(r'([\d.]+)\s*%', item.get('notes', '') or '')
+            after = float(m.group(1)) if m else before
+            if not rate_lines:          # 第一筆同時填舊的單一欄位（相容既有引用）
+                tax_misc_rate_before, tax_misc_rate_after = before, after
+            base_desc = '同層全部前置工項'
+            if task and task.rate_base_task_ids:
+                base_desc = '、'.join(
+                    b.display_item_no or b.item_no or b.name
+                    for b in task.rate_base_task_ids)
+            rate_lines.append(
+                '%-6s %-20s 比例 %s%% → %s%%   金額 %s → %s   基數：%s'
+                % (item.get('item_no') or '',
+                   (item.get('item_name') or '')[:20],
+                   ('%.4f' % before), ('%.4f' % after),
+                   '{:,.0f}'.format(task.planned_amount or 0.0) if task else '?',
+                   '{:,.0f}'.format(float(item.get('new_amount') or 0.0)),
+                   base_desc))
 
         self.write({
             'state': 'parsed',
@@ -178,6 +197,7 @@ class ContractChangeFileImportWizard(models.TransientModel):
             'preview_tax_misc_count': counts['tax_misc'],
             'preview_tax_misc_rate_before': tax_misc_rate_before,
             'preview_tax_misc_rate_after': tax_misc_rate_after,
+            'preview_rate_detail': '\n'.join(rate_lines) if rate_lines else False,
             'preview_unmatch_count': counts['unmatch'],
             'preview_unmatch_details': '\n'.join(unmatch_details) if unmatch_details else False,
             'preview_recon_count': len(recon_items),
@@ -371,11 +391,17 @@ class ContractChangeFileImportWizard(models.TransientModel):
 
             wl = line_by_task_id.get(task.id)
             if wl:
-                qty = task.planned_qty or 1.0
+                # 比例項的金額走「新金額」，不塞進「新單價」。
+                # 舊寫法 new_tax_amount / qty 會產生一個兩千多萬的假單價，
+                # 套用時被寫回 task.unit_price（估驗明細會抄走），
+                # 且讓變更設計詳細表印成「原單價 0、追加 = 全額」。
+                # 本段是稅什費的最後一手，會覆蓋 _apply_to_existing_wizard
+                # 的設定，所以這裡也必須把 new_unit_price 壓成 0。
                 wl.write({
                     'change_type': 'modify',
-                    'new_qty': qty,
-                    'new_unit_price': round_twd(new_tax_amount / qty) if qty else 0.0,
+                    'new_qty': task.planned_qty or 1.0,
+                    'new_unit_price': 0.0,
+                    'new_amount': new_tax_amount,
                 })
 
         # 重建 line_by_task_id，捕捉 F1-C 對稅什費 wizard_line 的更新
@@ -499,6 +525,26 @@ class ContractChangeFileImportWizard(models.TransientModel):
         union = len(set_a | set_b)
         return union > 0 and len(set_a & set_b) / union > 0.35
 
+    def _rate_item_keys(self, tasks):
+        """已設「計算比例」的工項索引：{項次, 顯示項次, 正規化名稱}。
+
+        用來讓 _detect_xlsx_change_type 認出比例項，而不必寫死「稅什費」這個名字
+        —— 自主檢查費、工安費等只要在系統裡設了比例，就走同一條路徑
+        （F1-C 依變更後的基數重算金額、預覽也會逐項列出）。
+        """
+        keys = set()
+        for t in tasks:
+            if not t.tax_misc_rate:
+                continue
+            if t.item_no:
+                keys.add(t.item_no)
+            if t.display_item_no:
+                keys.add(t.display_item_no)
+            nm = self._normalize_name(t.name or '')
+            if nm:
+                keys.add(nm)
+        return keys
+
     def _task_is_in_section(self, task, section_task):
         """沿 parent_id 鏈向上回溯，判斷 task 是否在 section_task 的子樹下。
         用於替代 xml_parent_chain，以系統資料庫關係消歧，與 XML 格式完全無關。
@@ -561,7 +607,18 @@ class ContractChangeFileImportWizard(models.TransientModel):
         # 策略 2：全域 item_no + 名稱相容 + 章節所屬
         task = task_by_item_no.get(item_no_raw)
         if task and not task.is_summary_item and self._names_compatible(item_name, task.name):
-            if not current_section_task or self._task_is_in_section(task, current_section_task):
+            if (not current_section_task
+                    or self._task_is_in_section(task, current_section_task)
+                    # 「往上跳一層」：像「二 自主品管費」這種掛在頂層彙總項底下的
+                    # 葉節點，緊接在「一 工程費」的阿拉伯編號子項之後。讀到它時
+                    # 章節上下文還停在「一 工程費」，而它的父項是「壹」——
+                    # 只比對「是否在目前章節內」會判成配不到（實測整包費用項
+                    # 因此變成 unmatch，整包金額的變更就靜靜遺失）。
+                    # 目前章節若落在候選工項的父項底下，代表我們正要回到上一層，
+                    # 這是合法的移動，予以接受。
+                    or (task.parent_id
+                        and self._task_is_in_section(current_section_task,
+                                                     task.parent_id))):
                 return task
 
         # 策略 3（名稱）：全域唯一名稱（僅在無章節上下文時，避免跨章節誤配）
@@ -593,13 +650,15 @@ class ContractChangeFileImportWizard(models.TransientModel):
         ('qty_change', lambda h: '增減' in h),
         ('orig_price', lambda h: '單價' in h and ('契約' in h or '原' in h)),
         ('new_price',  lambda h: '單價' in h and '議定' in h),
+        ('orig_amount', lambda h: '合價' in h and ('原訂' in h or '原定' in h or '契約' in h)),
         ('new_amount', lambda h: '變更後' in h and '合價' in h),
         ('notes',      lambda h: '備註' in h),
     ]
     # fallback 固定索引（本參考檔位置）；對應不到時退回此處並 warning。
     _COLUMN_FALLBACK = {
         'item_no': 0, 'name': 1, 'unit': 2, 'orig_qty': 3, 'new_qty': 4,
-        'qty_change': 5, 'orig_price': 6, 'new_price': 8, 'new_amount': 10, 'notes': 13,
+        'qty_change': 5, 'orig_price': 6, 'new_price': 8, 'orig_amount': 9,
+        'new_amount': 10, 'notes': 13,
     }
 
     @staticmethod
@@ -800,6 +859,7 @@ class ContractChangeFileImportWizard(models.TransientModel):
             ('active', '=', True),
         ])
         task_by_item_no = {t.item_no: t for t in existing_tasks if t.item_no}
+        rate_item_keys = self._rate_item_keys(existing_tasks)
 
         # 策略 4 查找表：正規化名稱 → task（唯一名稱）
         _name_map = defaultdict(list)
@@ -868,12 +928,14 @@ class ContractChangeFileImportWizard(models.TransientModel):
             qty_change = cell(cols['qty_change'])
             orig_price = cell(cols['orig_price'])
             new_price = cell(cols['new_price'])
+            orig_amount = cell(cols['orig_amount'])
             new_amount = cell(cols['new_amount'])
             _nt = cell(cols['notes'])
             notes = str(_nt).strip() if _nt is not None else ''
 
             change_type = self._detect_xlsx_change_type(
-                orig_qty, new_qty, qty_change, orig_price, new_price, notes, item_name)
+                orig_qty, new_qty, qty_change, orig_price, new_price, notes, item_name,
+                orig_amount, new_amount, item_no_raw, rate_item_keys)
 
             if change_type == 'summary':
                 new_section = self._update_section_context(
@@ -1120,6 +1182,7 @@ class ContractChangeFileImportWizard(models.TransientModel):
 
         # 建立多層查找表
         task_by_item_no = {t.item_no: t for t in existing_tasks if t.item_no}
+        rate_item_keys = self._rate_item_keys(existing_tasks)
 
         # display_item_no 查找（葉節點只有最後一段數字，與 XLSX 格式相符）
         from collections import defaultdict
@@ -1161,11 +1224,13 @@ class ContractChangeFileImportWizard(models.TransientModel):
             qty_change = cell(5)
             orig_price = cell(6)
             new_price = cell(8)   # None = 單價不變；0 = 真的變為 0
+            orig_amount = cell(9)  # 原訂合價（整包費用項靠它偵測金額變化）
             new_amount = cell(10)  # 變更後複價（稅什費用）
             notes = str(cell(13)).strip() if cell(13) is not None else ''
 
             change_type = self._detect_xlsx_change_type(
-                orig_qty, new_qty, qty_change, orig_price, new_price, notes, item_name)
+                orig_qty, new_qty, qty_change, orig_price, new_price, notes, item_name,
+                orig_amount, new_amount, item_no, rate_item_keys)
 
             if change_type == 'summary':
                 # 彙總列：以 item_no（中文）找對應的 task 更新 parent_stack
@@ -1241,7 +1306,9 @@ class ContractChangeFileImportWizard(models.TransientModel):
         return qty_bad or price_bad
 
     def _detect_xlsx_change_type(self, orig_qty, new_qty, qty_change,
-                                  orig_price, new_price, notes, item_name=''):
+                                  orig_price, new_price, notes, item_name='',
+                                  orig_amount=None, new_amount=None,
+                                  item_no='', rate_item_keys=None):
         """
         判斷 XLSX 列的變更類型
 
@@ -1253,7 +1320,17 @@ class ContractChangeFileImportWizard(models.TransientModel):
         5. 修改工項
         6. 不變
         """
-        # 稅什費行：依名稱判斷，最可靠（orig_qty 可能為 1，不能依數量判斷）
+        # 比例項：金額 = 比例 × 基數，不是「數量 × 單價」，走專屬路徑
+        # （F1-C 會依變更後的基數重算金額，預覽也會逐項列出）。
+        # 判斷來源有二：
+        #   1. 系統裡該工項已設有計算比例（rate_item_keys，涵蓋自主檢查費等
+        #      任何比例項）—— 這是主要依據；
+        #   2. 名稱含「稅什費／稅雜費」—— 舊有的後備，涵蓋「系統還沒設比例、
+        #      但文件就是稅什費」的第一次匯入。
+        if rate_item_keys:
+            if (item_no or '') in rate_item_keys or self._normalize_name(
+                    item_name or '') in rate_item_keys:
+                return 'tax_misc'
         if '稅什費' in (item_name or '') or '稅雜費' in (item_name or ''):
             return 'tax_misc'
 
@@ -1272,6 +1349,13 @@ class ContractChangeFileImportWizard(models.TransientModel):
 
         # 修改工項：數量有增減，或有議定單價（I欄不為空）
         if (qty_change and qty_change != 0) or new_price is not None:
+            return 'modify'
+
+        # 整包費用項（自主品管費、工安費…）：單價欄本來就空白、金額只寫在複價欄。
+        # 數量恆為 1、也沒有議定單價，上面每一條規則都攔不到 —— 舊版判成「不變」
+        # 直接跳過，整包金額的變更就這樣靜靜遺失。改靠複價差異偵測。
+        if (not orig_price and orig_amount is not None and new_amount is not None
+                and abs(float(new_amount) - float(orig_amount)) > 0.01):
             return 'modify'
 
         return 'unchanged'
@@ -1527,6 +1611,15 @@ class ContractChangeFileImportWizard(models.TransientModel):
                     'new_qty': item.get('new_qty') or 0.0,
                     'new_unit_price': item.get('new_price') or 0.0,
                 }
+                # 新增的整包費用項（來源單價欄空白、金額只在複價欄）：
+                # 不標記的話 _create_added_task 會建出一個 xml_amount=0、
+                # unit_price=0 的工項 —— 四個分支全落空，永遠 0 元。
+                _add_price = item.get('new_price') or 0.0
+                _add_amount = item.get('new_amount') or 0.0
+                if (not item.get('is_new_group')
+                        and not _add_price and _add_amount > 0):
+                    vals['is_new_lump_sum'] = True
+                    vals['new_amount'] = round(_add_amount, 2)
                 if item.get('is_new_group'):
                     # 新彙總群組列：本身無量價，父=外層既有彙總項（可為空＝頂層）
                     parent_task = item.get('parent_task')
@@ -1565,11 +1658,14 @@ class ContractChangeFileImportWizard(models.TransientModel):
                     task.write(task_vals)
                 wizard_line = line_by_task_id.get(task.id)
                 if wizard_line and new_amount is not None:
-                    qty = task.planned_qty or 1.0
+                    # 比例項的金額走「新金額」，不塞進「新單價」——
+                    # new_amount / qty 那種假單價會被 _apply_changes 寫回
+                    # task.unit_price，也讓變更設計詳細表印成「原單價 0、追加=全額」。
                     wizard_line.write({
                         'change_type': 'modify',
-                        'new_qty': qty,
-                        'new_unit_price': new_amount / qty if qty else 0.0,
+                        'new_qty': task.planned_qty or 1.0,
+                        'new_unit_price': 0.0,
+                        'new_amount': round(new_amount, 2),
                     })
                 continue
 
@@ -1582,9 +1678,23 @@ class ContractChangeFileImportWizard(models.TransientModel):
                 new_price = item.get('new_price')
                 new_amount = item.get('new_amount')
 
+                if task.is_lump_sum or task.tax_misc_rate:
+                    # 整包費用項與比例項：金額載體是「新金額」，不是「新單價」。
+                    # 舊寫法把 new_amount ÷ qty 塞進 new_unit_price，套用時就會被
+                    # 寫回 task.unit_price —— 那正是 18.0.2.0.0 要消除的污染。
+                    # 也刻意「不」在這裡直接改 task.xml_amount：那會讓明細列的
+                    # 「原金額」變成新值、金額增減顯示成 0。改由變更單套用時
+                    # （_apply_changes_to_tasks）寫回，變更前／後才對得起來。
+                    wizard_line.write({
+                        'change_type': 'modify',
+                        'new_qty': (new_qty if new_qty is not None
+                                    else task.planned_qty or 1.0),
+                        'new_unit_price': 0.0,
+                        'new_amount': round(new_amount or 0.0, 2),
+                    })
                 # 式工項（Price=0）：xml_amount 發生變化（如稅什費）
                 # → 更新 task.xml_amount，wizard_line 以新 xml_amount 呈現
-                if (not new_price or new_price == 0) and new_amount and new_amount > 0:
+                elif (not new_price or new_price == 0) and new_amount and new_amount > 0:
                     task.write({'xml_amount': new_amount})
                     qty = new_qty or task.planned_qty or 1.0
                     wizard_line.write({
