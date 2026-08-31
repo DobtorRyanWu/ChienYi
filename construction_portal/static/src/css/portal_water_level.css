@@ -42,6 +42,31 @@
 .wl-empty-hint { font-size: 0.82rem; margin-top: 6px; line-height: 1.6; }
 
 /* ===== 目前水位 ===== */
+/* 示範資料橫幅：業主看得到的地方一定要講清楚這不是量測值，
+   後台的緞帶只有內部人員看得到。用警示色但不用錯誤色——這不是故障。 */
+.wl-demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--wb-warn);
+  border-radius: var(--wb-radius);
+  background: var(--wb-bg3);
+  color: var(--wb-t1);
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.wl-demo-banner-tag {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--wb-warn);
+  color: var(--wb-bg2);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .wl-hero {
   background: var(--wb-bg2);
   border: 1px solid var(--wb-bdr-soft);

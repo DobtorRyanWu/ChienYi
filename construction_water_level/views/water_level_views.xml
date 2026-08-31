@@ -50,6 +50,8 @@
                     </div>
                     <widget name="web_ribbon" title="斷線" bg_color="text-bg-danger"
                             invisible="not is_offline"/>
+                    <widget name="web_ribbon" title="示範資料" bg_color="text-bg-warning"
+                            invisible="not is_demo or is_offline"/>
                     <div class="oe_title">
                         <label for="name"/>
                         <h1><field name="name" placeholder="例如：WL-01 上游橋墩"/></h1>
@@ -67,6 +69,7 @@
                                    options="{'no_create': True}"/>
                             <field name="service_level"/>
                             <field name="active" widget="boolean_toggle"/>
+                            <field name="is_demo" widget="boolean_toggle"/>
                             <field name="has_api_key" readonly="1"/>
                         </group>
                         <group string="最新狀態">
@@ -77,6 +80,18 @@
                         </group>
                     </group>
                     <group>
+                        <group string="資料來源（pull 模式）">
+                            <field name="source_id" options="{'no_create': True}"/>
+                            <field name="remote_key"
+                                   placeholder="對方系統裡這台的識別字（留空＝用設備碼）"/>
+                            <field name="expected_interval_min"/>
+                            <div class="text-muted" colspan="2"
+                                 invisible="expected_interval_min &lt;= 1">
+                                缺號偵測的時間模式以這個間隔的三倍為門檻。
+                                填錯（例如 10 分鐘一筆卻留著預設的 1）會讓每一對相鄰讀值
+                                都被判成缺口，而且關不掉。
+                            </div>
+                        </group>
                         <group string="警戒水位">
                             <field name="datum_elevation"/>
                             <field name="alert_direction" widget="radio"/>

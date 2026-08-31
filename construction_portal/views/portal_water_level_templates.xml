@@ -32,6 +32,14 @@
                     </t>
 
                     <t t-else="">
+                        <!-- 示範資料要在業主看得到的地方講清楚，不能只有後台的緞帶 -->
+                        <t t-if="any(device.is_demo for device in devices)">
+                            <div class="wl-demo-banner">
+                                <span class="wl-demo-banner-tag">示範資料</span>
+                                這個工程的水位是<b>系統模擬</b>的，不是現場量測值。
+                            </div>
+                        </t>
+
                         <div id="wlApp"
                              t-att-data-project-id="project.id"
                              t-att-data-default-hours="default_hours">

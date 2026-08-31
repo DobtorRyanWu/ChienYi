@@ -23,6 +23,8 @@ from datetime import datetime, timedelta, timezone
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from . import demo_synth
+
 _logger = logging.getLogger(__name__)
 
 # 每次往回多撈多久（分鐘）。對方補寫舊資料、我們自己漏掉一輪，都靠這個接住。
@@ -40,6 +42,14 @@ FIRST_PULL_DAYS = 7
 IDENT_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 CM_PER_M = 100.0
 
+# 示範資料合成器：拿哪一年的歷史當基線、平均幾天下一場雨
+DEFAULT_DEMO_BASELINE_YEAR = 2025
+# 每天下一場雨的機率。0.05 約等於三週一場，接近這三站歷史上真的發生過的頻率
+# （2025 年 1~8 月各站約 5 場）。這個值直接寫在合成資料的統計特性上：
+# 實測 0.3 時整體標準差是歷史的 3.2 倍、平均值墊高 0.08 公尺。
+# 展示要看告警不必靠它——後台有「手動觸發暴漲」按鈕。
+DEFAULT_DEMO_SURGE_PROBABILITY = 0.05
+
 
 class WaterLevelSource(models.Model):
     _name = 'water.level.source'
@@ -51,9 +61,16 @@ class WaterLevelSource(models.Model):
     source_type = fields.Selection(
         [('http_json', '打網址取 JSON'),
          ('postgres', '直連 PostgreSQL'),
-         ('file_json', '讀本機 JSON 檔')],
+         ('file_json', '讀本機 JSON 檔'),
+         ('demo_synth', '示範資料合成器')],
         string='來源型態', required=True, default='http_json',
-        help='介面型態未定，所以做成可換。換 TimescaleDB 時改這裡就好，不用改程式。')
+        help='介面型態未定，所以做成可換。換 TimescaleDB 時改這裡就好，不用改程式。'
+             '「示範資料合成器」不連任何外部系統，是拿已匯入的歷史當樣本自己生資料，'
+             '**產出不是量測值**，只供展示。')
+
+    is_demo = fields.Boolean(
+        string='示範資料', default=False, copy=False, index=True,
+        help='這個來源餵進系統的不是真實量測值。')
 
     # === http_json ===
     endpoint = fields.Char(
@@ -106,6 +123,17 @@ class WaterLevelSource(models.Model):
         help='來源時間戳沒有帶時區標記時，用這個解讀。'
              '填錯的後果是整批資料位移，而且寫入不會報錯。')
 
+    # === 示範資料合成器（source_type = demo_synth）===
+    demo_baseline_year = fields.Integer(
+        string='基線年份', default=DEFAULT_DEMO_BASELINE_YEAR,
+        help='拿哪一年的歷史真值當基線重播。該年份必須已經匯入這些站的資料。')
+    demo_surge_probability = fields.Float(
+        string='每日暴漲機率', default=DEFAULT_DEMO_SURGE_PROBABILITY,
+        help='每天自動發生一場雨型暴漲的機率。0.3 約等於平均三天一場。設 0 就只剩手動觸發。')
+    demo_surge_tick = fields.Integer(
+        string='手動暴漲起點', readonly=True, copy=False,
+        help='按下「手動觸發暴漲」時寫入的時間格子編號。之後的讀數會疊上一段漲退曲線。')
+
     # === 撈取行為 ===
     overlap_minutes = fields.Integer(
         string='回頭重撈(分鐘)', default=DEFAULT_OVERLAP_MINUTES)
@@ -128,15 +156,25 @@ class WaterLevelSource(models.Model):
         for source in self:
             source.device_count = len(source.device_ids)
 
-    @api.constrains('source_type', 'endpoint', 'db_host', 'db_table')
+    @api.constrains('source_type', 'endpoint', 'db_host', 'db_table', 'key_seq')
     def _check_connection_fields(self):
         for source in self:
             if source.source_type in ('http_json', 'file_json') and not source.endpoint:
                 raise ValidationError(_('「%s」需要填網址或檔案路徑。', source.name))
             if source.source_type == 'postgres' and not (source.db_host and source.db_table):
                 raise ValidationError(_('「%s」需要填資料庫主機與資料表名。', source.name))
+            # 合成器每筆都帶得出流水號，就一定要讓它帶——否則缺號偵測會退回時間模式，
+            # 而時間模式對這種取樣間隔會把每一對相鄰讀值都判成缺口，且永遠關不掉。
+            if source.source_type == 'demo_synth' and not source.key_seq:
+                raise ValidationError(_(
+                    '「%s」是示範資料合成器，「關鍵字：流水號」必須填（例如 seq_no）。',
+                    source.name))
 
-    @api.constrains('db_table', 'key_timestamp', 'key_value', 'key_device', 'key_seq')
+    # source_type 一定要列進來：Odoo 只對 vals 裡出現的欄位跑 constrains，
+    # 漏了它就能先用 http_json 存下髒識別字（那時這條檢查直接 continue），
+    # 再單獨把型態改成 postgres——髒字串就這樣繞過檢查進到 SQL 組裝。
+    @api.constrains('source_type', 'db_table', 'key_timestamp', 'key_value',
+                    'key_device', 'key_seq')
     def _check_identifiers(self):
         """postgres 模式下這些名字會被拼進 SQL，形狀必須乾淨。"""
         for source in self:
@@ -162,6 +200,7 @@ class WaterLevelSource(models.Model):
             'http_json': self._fetch_http_json,
             'file_json': self._fetch_file_json,
             'postgres': self._fetch_postgres,
+            'demo_synth': self._fetch_demo_synth,
         }[self.source_type](device, since, until)
         return [row for row in (self._normalize(raw) for raw in raw_rows) if row]
 
@@ -238,6 +277,101 @@ class WaterLevelSource(models.Model):
             conn.close()
 
         return [dict(zip(columns, row)) for row in rows]
+
+    def _fetch_demo_synth(self, device, since, until):
+        """示範資料合成器：不連任何外部系統，拿這台已匯入的歷史當樣本自己生。
+
+        **刻意忽略傳進來的 since**：`pull()` 給的視窗是 `last_sync_ts` 往回推
+        `overlap_minutes`，對真實來源那是「對方可能補寫舊資料」的保險；
+        但合成器沒有補寫這回事，重算一遍只是白費力氣。改以這台自己的最後一筆為起點，
+        `pull()` 與 `_window_start()` 都不用動。
+
+        （即使真的被重算，同一個 tick 也會得到同一個值——見 demo_synth 的決定性說明。）
+        """
+        profile = demo_synth.load_profile(device.demo_profile)
+
+        self.env.cr.execute(
+            """SELECT ts, COALESCE(raw_value, value) FROM water_level_reading
+                WHERE device_id = %s ORDER BY ts DESC LIMIT 1""", (device.id,))
+        last_row = self.env.cr.fetchone()
+        last_ts = last_row[0] if last_row else None
+        # 接在前一筆的實際值後面，接縫才不會跳
+        initial_value = float(last_row[1]) if last_row and last_row[1] is not None else None
+        if last_ts:
+            start_tick = demo_synth.tick_of(last_ts) + 1
+        else:
+            start_tick = demo_synth.tick_of(until - timedelta(days=FIRST_PULL_DAYS))
+        # until 所在的那一格也要生，展示時才看得到「剛剛」那一筆
+        end_tick = demo_synth.tick_of(until) + 1
+
+        limit = self.max_rows_per_pull or DEFAULT_MAX_ROWS
+        if end_tick - start_tick > limit:
+            # 落後太多時從最舊的開始補、逐輪追上，不要跳過中間——
+            # 跳過留下的洞會被缺號偵測抓成真的缺口（它抓得對，是我們生錯）。
+            end_tick = start_tick + limit
+            _logger.info('示範來源 %s：%s 落後過多，本輪只補 %s 筆',
+                         self.name, device.name, limit)
+
+        rows = demo_synth.synth_series(
+            device.device_uid, profile, self._demo_baseline(device),
+            start_tick, end_tick,
+            surge_probability=self.demo_surge_probability,
+            manual_start_tick=self.demo_surge_tick,
+            manual_peak_rise=self._demo_manual_peak_rise(device),
+            initial_value=initial_value,
+        )
+        seq_key = self.key_seq or 'seq_no'
+        return [{self.key_timestamp: ts, self.key_value: value, seq_key: seq}
+                for ts, value, seq in rows]
+
+    def _demo_manual_peak_rise(self, device):
+        """手動觸發的那一場要漲多高（公尺），None = 照歷史原樣演。
+
+        目標是**二級警戒**：一定越過三級，畫面上又看得到等級往上跳一階。
+        用原始值（不含基準高程）計算，因為合成器產出的就是原始值。
+        """
+        if not self.demo_surge_tick or not device.level_2:
+            return None
+        current_raw = (device.last_value or 0.0) - (device.datum_elevation or 0.0)
+        target_raw = device.level_2 - (device.datum_elevation or 0.0)
+        return max(0.0, target_raw - current_raw)
+
+    def _demo_baseline(self, device):
+        """回傳 callable(tick) -> 一年前同月同日同時分的真值（沒有就 None）。
+
+        兩個容易錯的地方：
+
+        1. **不能無條件 `replace(year=基線年)`**。要合成的區間有一小段落在基線年
+           自己身上（歷史最後一筆是台北 12/31 23:50，換成 UTC 之後那天還剩八小時），
+           對這一段做 replace 等於查它自己，永遠查不到 → 整段掉進 fallback，
+           在枯水期造出高半公尺的假水位。所以基線年當年的時刻要再往前推一年。
+        2. **只拿歷史真值當基線**（`seq_no IS NULL`）。少了這個條件，明年此時
+           合成器會撈到自己去年的輸出當「真值」，誤差就一年一年疊上去。
+
+        查的是 `raw_value`（設備原始值）不是 `value`：合成出來的東西會再餵回
+        `ingest_readings()`，那支會自己加一次基準高程。拿 value 當基線會多加一次。
+        """
+        year = self.demo_baseline_year or DEFAULT_DEMO_BASELINE_YEAR
+        cache = {}
+
+        def baseline(tick):
+            moment = demo_synth.ts_of(tick)
+            target_year = year if moment.year > year else moment.year - 1
+            try:
+                key = moment.replace(year=target_year)
+            except ValueError:
+                # 2/29 而目標年不是閏年
+                key = moment.replace(year=target_year, day=28)
+            if key not in cache:
+                self.env.cr.execute(
+                    """SELECT COALESCE(raw_value, value) FROM water_level_reading
+                        WHERE device_id = %s AND ts = %s AND seq_no IS NULL""",
+                    (device.id, key))
+                row = self.env.cr.fetchone()
+                cache[key] = row[0] if row else None
+            return cache[key]
+
+        return baseline
 
     # ==================== 正規化 ====================
 
@@ -328,6 +462,29 @@ class WaterLevelSource(models.Model):
                              state=dict(self._fields['sync_state'].selection)[self.sync_state],
                              err=self.last_error or ''),
                 'type': 'success' if self.sync_state == 'ok' else 'warning',
+            },
+        }
+
+    def action_demo_trigger_surge(self):
+        """後台按鈕：從現在起演一場雨。
+
+        只記下起點格子，實際的漲退曲線由合成器在下一輪 cron 疊上去——
+        這樣「同一個 tick 永遠同一個值」的性質才不會被破壞。
+        """
+        self.ensure_one()
+        if self.source_type != 'demo_synth':
+            raise UserError(_('只有「示範資料合成器」型態的來源可以手動觸發暴漲。'))
+        self.demo_surge_tick = demo_synth.tick_of(fields.Datetime.now())
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('已排入一場暴漲'),
+                'message': _('下一輪撈取（最多 %s 分鐘後）開始漲水，'
+                             '越過三級警戒後會自動退水。要立刻看到就按「立刻撈一次」。',
+                             self.env.ref('construction_water_level.cron_water_level_source_pull',
+                                          raise_if_not_found=False).interval_number or 15),
+                'type': 'success',
             },
         }
 

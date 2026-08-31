@@ -23,6 +23,8 @@
         <field name="arch" type="xml">
             <form string="監測場域">
                 <sheet>
+                    <widget name="web_ribbon" title="示範資料" bg_color="text-bg-warning"
+                            invisible="not is_demo"/>
                     <div class="oe_title">
                         <label for="name"/>
                         <h1><field name="name" placeholder="例如：○○社區 或 磺港溪A標"/></h1>
@@ -40,6 +42,7 @@
                                    required="site_type == 'community'"/>
                             <field name="code"/>
                             <field name="active" widget="boolean_toggle"/>
+                            <field name="is_demo" widget="boolean_toggle"/>
                         </group>
                         <group string="資料保存與位置">
                             <field name="retention_days"/>

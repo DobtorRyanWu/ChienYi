@@ -68,6 +68,13 @@ class WaterLevelDevice(models.Model):
         string='上下游序', default=10,
         help='數字小的在上游。前台站台列依此排序，看得出水從哪邊來。')
     active = fields.Boolean(string='啟用', default=True)
+    is_demo = fields.Boolean(
+        string='示範資料', default=False, copy=False, index=True, tracking=True,
+        help='示範資料：這台的讀數不是真實量測值，而是系統依歷史樣本合成的。打勾只是標示，不影響任何排程與稽核——**不要**改用 active=False 當標記，那會讓資料悄悄脫離稽核卻仍留在庫裡。')
+    demo_profile = fields.Text(
+        string='示範資料統計輪廓', copy=False,
+        help='JSON：這台歷史序列的 p_zero／sigma／min／max，供示範資料合成器產生擬真讀數。'
+             '由匯入腳本算一次寫入，之後不再變動。')
 
     # === 資料來源（pull 模式）===
     # 設備自己打進來（push）時這兩欄留空；由我們去對方資料庫撈時才需要。

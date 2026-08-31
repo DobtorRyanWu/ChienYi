@@ -20,8 +20,10 @@ _logger = logging.getLogger(__name__)
 
 # 連續幾筆超標才告警。不做去抖動，感測器雜訊會讓手機在半夜變鬧鐘。
 ALERT_DEBOUNCE_COUNT = 3
-# 每分鐘一筆 → 一天應該有幾筆
-EXPECTED_READINGS_PER_DAY = 1440
+# 一天有幾分鐘。除以設備的「期望取樣間隔」才是這台一天應該有幾筆——
+# 寫死 1440 等於假設全世界的設備都是每分鐘一筆，10 分鐘取樣的河川測站
+# 會被判成只收到一成資料，稽核清單天天紅一片。
+MINUTES_PER_DAY = 1440
 # 實收低於期望的幾成就算不合格
 RETENTION_OK_RATIO = 0.95
 # 保存期到期前幾天開始提醒
@@ -141,22 +143,32 @@ class WaterLevelMonitor(models.AbstractModel):
         })
 
     def _notify(self, device, event):
-        """推播。走既有的 mail.thread —— 內部使用者進 inbox，
-        前台使用者由既有的通知中心（鈴鐺）撈同一批訊息，不另造一套。"""
+        """告警通知，兩條路一起走。
+
+        站內：既有的 mail.thread —— 內部使用者進 inbox，
+        前台使用者由既有的通知中心（鈴鐺）撈同一批訊息，不另造一套。
+
+        站外：交給 water.level.alert.channel 外送（Webhook，日後可加 LINE／簡訊）。
+        站內這條是憑據、站外那條才是「即時」——使用者不登入也收得到。
+        外送整段包在 _dispatch 裡，壞掉的外部端點不會影響站內通知與告警掃描。
+        """
         body = _('【%(site)s / %(device)s】%(type)s：%(note)s',
                  site=device.site_id.name, device=device.name,
                  type=dict(event._fields['event_type'].selection)[event.event_type],
                  note=event.note or '')
         event.message_post(body=body, subtype_xmlid='mail.mt_comment')
         device.message_post(body=body, subtype_xmlid='mail.mt_comment')
+        self.env['water.level.alert.channel']._dispatch(device, event, body)
 
     # ==================== 保存稽核 ====================
 
     @api.model
     def _cron_retention_audit(self):
-        """每台設備產一筆保存稽核：最舊資料多久、昨天實收幾筆 vs 期望 1440 筆。
+        """每台設備產一筆保存稽核：最舊資料多久、昨天實收幾筆 vs 期望幾筆。
 
-        這支的產出就是對客戶舉證「我們有守住每分鐘一筆、保存兩年」的憑據。
+        期望筆數依**每台自己的**取樣間隔換算：社區設備每分鐘一筆 → 1440，
+        河川測站每 10 分鐘一筆 → 144。這支的產出就是對客戶舉證
+        「我們有守住約定的取樣密度、保存兩年」的憑據。
         """
         Integrity = self.env['water.level.integrity.check']
         yesterday = fields.Date.context_today(self) - timedelta(days=1)
@@ -172,7 +184,8 @@ class WaterLevelMonitor(models.AbstractModel):
                 "SELECT min(ts) FROM water_level_reading WHERE device_id = %s", (device.id,))
             oldest = self.env.cr.fetchone()[0]
 
-            ratio = day_count / EXPECTED_READINGS_PER_DAY
+            expected = MINUTES_PER_DAY / (device.expected_interval_min or 1)
+            ratio = day_count / expected
             result = 'ok' if ratio >= RETENTION_OK_RATIO else 'gap'
             Integrity.create({
                 'check_type': 'retention',
@@ -183,7 +196,7 @@ class WaterLevelMonitor(models.AbstractModel):
                 'result': result,
                 'note': _('%(day)s 實收 %(got)s 筆／期望 %(want)s 筆（%(pct).1f%%）；'
                           '最舊資料 %(oldest)s。',
-                          day=yesterday, got=day_count, want=EXPECTED_READINGS_PER_DAY,
+                          day=yesterday, got=day_count, want=int(expected),
                           pct=ratio * 100, oldest=oldest or '無'),
             })
 

@@ -28,10 +28,16 @@
                 <header>
                     <button name="action_pull_now" type="object" string="立刻撈一次"
                             class="btn-primary"/>
+                    <button name="action_demo_trigger_surge" type="object"
+                            string="手動觸發暴漲" class="btn-secondary"
+                            invisible="source_type != 'demo_synth'"
+                            help="示範用：從現在起演一場雨，水位漲過三級警戒後自動退水。"/>
                     <field name="sync_state" widget="statusbar"
                            statusbar_visible="never,ok,error"/>
                 </header>
                 <sheet>
+                    <widget name="web_ribbon" title="示範資料" bg_color="text-bg-warning"
+                            invisible="not is_demo"/>
                     <div class="oe_title">
                         <label for="name"/>
                         <h1><field name="name" placeholder="例如：黃老師水位資料庫"/></h1>
@@ -40,6 +46,7 @@
                         <group string="來源型態">
                             <field name="source_type" widget="radio"/>
                             <field name="active" widget="boolean_toggle"/>
+                            <field name="is_demo" widget="boolean_toggle"/>
                         </group>
                         <group string="同步狀態">
                             <field name="last_sync_ts"/>
@@ -48,7 +55,7 @@
                         </group>
                     </group>
 
-                    <group string="連線" invisible="source_type == 'postgres'">
+                    <group string="連線" invisible="source_type in ('postgres', 'demo_synth')">
                         <field name="endpoint" placeholder="https://... 或 /mnt/data/readings.json"/>
                         <field name="auth_type" invisible="source_type != 'http_json'"/>
                         <field name="auth_token"
@@ -70,6 +77,17 @@
                         <field name="db_table"/>
                     </group>
 
+                    <group string="示範資料合成器" invisible="source_type != 'demo_synth'">
+                        <field name="demo_baseline_year"/>
+                        <field name="demo_surge_probability"/>
+                        <field name="demo_surge_tick"/>
+                        <div class="text-muted" colspan="2">
+                            合成器拿「基線年同月同日同時分」的真值當底，疊上均值回歸的隨機偏移，
+                            偶爾照歷史真實暴漲的形狀演一場雨。<b>產出不是量測值</b>，
+                            請確認上面的「示範資料」有打勾。
+                        </div>
+                    </group>
+
                     <group string="查詢參數" invisible="source_type != 'http_json'">
                         <field name="param_device"/>
                         <field name="param_since"/>
@@ -81,7 +99,7 @@
                     <group>
                         <group string="欄位對應（對方的欄位叫什麼就填什麼）">
                             <field name="records_path" placeholder="data.readings（留空＝最外層就是陣列）"
-                                   invisible="source_type == 'postgres'"/>
+                                   invisible="source_type in ('postgres', 'demo_synth')"/>
                             <field name="key_timestamp"/>
                             <field name="key_value"/>
                             <field name="key_device"/>

@@ -102,6 +102,7 @@ class WaterLevelRoutesMixin:
         return {
             'id': device.id,
             'name': device.name,
+            'is_demo': device.is_demo,
             'seq': device.seq,
             'latitude': device.latitude,
             'longitude': device.longitude,

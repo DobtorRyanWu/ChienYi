@@ -34,6 +34,9 @@ class WaterLevelSite(models.Model):
     name = fields.Char(string='場域名稱', required=True, tracking=True)
     code = fields.Char(string='場域代號', copy=False)
     active = fields.Boolean(string='啟用', default=True)
+    is_demo = fields.Boolean(
+        string='示範資料', default=False, copy=False, index=True, tracking=True,
+        help='這個場域底下的資料供展示用，不是真實量測。')
 
     site_type = fields.Selection(
         [(SITE_TYPE_PROJECT, '工程案件'),
