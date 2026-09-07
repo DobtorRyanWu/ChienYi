@@ -93,7 +93,15 @@
                             <field name="submitted_date" readonly="1"/>
                             <field name="estimate_date"
                                    readonly="state in ('approved', 'archived')"/>
+                            <!-- 有非契約工項時才拆開顯示三個小計，否則版面照舊 -->
+                            <field name="extra_line_count" invisible="1"/>
+                            <field name="contract_subtotal" readonly="1"
+                                   invisible="extra_line_count == 0"/>
+                            <field name="extra_subtotal" readonly="1"
+                                   invisible="extra_line_count == 0"/>
                             <field name="subtotal" readonly="1"/>
+                            <field name="extra_excluded_total" readonly="1"
+                                   invisible="extra_excluded_total == 0"/>
                             <field name="submitted_by_id" readonly="1"/>
                             <field name="approved_by_id" readonly="1"/>
                         </group>
@@ -130,6 +138,81 @@
                                     <field name="manual_estimate_amount" column_invisible="1"/>
                                     <field name="cumulative_estimate_amount"/>
                                     <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <!-- 非契約工項：估驗表上有、契約工項樹裡沒有的項目。
+                             這一頁的資料一列都不寫 project.task，契約金額不受影響。 -->
+                        <page string="非契約工項" name="extra_lines">
+                            <div class="alert alert-info" role="status">
+                                <p class="mb-1">
+                                    <strong>非契約工項</strong>＝估驗詳細表上會出現、但契約工項樹裡沒有的項目。
+                                    常見兩種，行為<strong>相反</strong>：
+                                </p>
+                                <ul class="mb-1">
+                                    <li><strong>貳 物價調整</strong> —— 勾「計入估驗總額」，進本次估驗總金額。</li>
+                                    <li><strong>參 變賣收入項</strong>（有價廢料變賣）—— <strong>不</strong>勾，
+                                        另走解繳鏈，不進本次估驗總金額。</li>
+                                </ul>
+                                <p class="mb-0">
+                                    金額一律填<strong>來源估驗詳細表印的正數</strong>（變賣收入雖是廠商付錢給機關，
+                                    來源表印的也是正數，方向由「計入估驗總額」表達）。
+                                    這張清單<strong>只能改本期的東西</strong>（本期顯示名稱、單價、數量、金額、是否計入）；
+                                    項目編號／單位／父項屬於工項定義，要改請把「工項定義」欄調出來、點連結進去改。
+                                    <strong>「計入估驗總額」由彙總項決定</strong> —— 子列跟著父列走，
+                                    改彙總項那一列，底下的子列會自動跟著改。
+                                </p>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-wrap" style="margin: 10px 0;">
+                                <!-- 這類工項在契約工項建立時根本不存在，所以入口是「新增」而不是
+                                     「從下拉挑」。概念比照 契約變更單 ▸ 匯入工程案件精靈 ▸
+                                     工項列表頁籤 ▸ [新增工項] 的 form dialog。 -->
+                                <button name="action_open_extra_item_wizard"
+                                        type="object" string="新增非契約工項"
+                                        class="btn-primary" icon="fa-plus"
+                                        invisible="state not in ('draft', 'pending_approval') or not project_id"/>
+                                <button name="action_load_extra_items"
+                                        type="object" string="帶入上期項目"
+                                        class="btn-secondary" icon="fa-refresh"
+                                        invisible="state not in ('draft', 'pending_approval') or not project_id"
+                                        help="把本工程已建立的非契約工項帶進本期（數量 0，單價沿用最近一期）。已存在的列不會被覆寫。"/>
+                            </div>
+                            <field name="extra_line_ids" nolabel="1"
+                                   readonly="state in ('approved', 'archived')">
+                                <!-- create="false"：新增一律走上面的精靈（要同時建「工項定義」與
+                                     「本期明細」兩筆，清單裡直接加一列做不到這件事）。 -->
+                                <list string="非契約工項" editable="bottom" create="false"
+                                      decoration-bold="is_summary_item"
+                                      decoration-muted="not include_in_subtotal">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="is_summary_item" column_invisible="1"/>
+                                    <!-- item_level 供下面兩個 readonly 判斷用，
+                                         必須留在 view 裡才抓得到值（不能用 optional="hide"）-->
+                                    <field name="item_level" column_invisible="1"/>
+                                    <field name="item_no" readonly="1"/>
+                                    <!-- 🔴 只有這一個名稱欄。它是「本期的名稱」，每期各存一份：
+                                         直接改它只影響這一期，其他期別與工項定義都不動。
+                                         帶到下一期時會沿用最近一期的字。 -->
+                                    <field name="name" string="項目名稱"/>
+                                    <!-- 工項定義：點開可改項目編號／單位／父項（跨期共用）-->
+                                    <field name="extra_item_id" string="工項定義"
+                                           readonly="1" optional="hide"
+                                           options="{'no_open': False}"/>
+                                    <field name="parent_item_id" string="父工項" readonly="1" optional="show"/>
+                                    <field name="unit" readonly="1"/>
+                                    <field name="unit_price" readonly="is_summary_item"/>
+                                    <field name="estimate_qty" readonly="is_summary_item"/>
+                                    <field name="estimate_amount"
+                                           decoration-bf="is_amount_manual"
+                                           readonly="is_summary_item"/>
+                                    <field name="is_amount_manual" column_invisible="1"/>
+                                    <field name="manual_estimate_amount" column_invisible="1"/>
+                                    <!-- 子列跟著彙總項走：有父項時唯讀，改彙總項那一列即可 -->
+                                    <field name="include_in_subtotal" widget="boolean_toggle"
+                                           readonly="item_level > 0"/>
+                                    <field name="previous_approved_amount" optional="show"/>
+                                    <field name="cumulative_estimate_amount"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                         </page>

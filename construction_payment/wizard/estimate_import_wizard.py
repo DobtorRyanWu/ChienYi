@@ -194,6 +194,11 @@ class EstimateImportWizard(models.TransientModel):
             'line_ids': line_vals,
         })
 
+        # 非契約工項「沿用到下一期」：把本工程已定義的非契約工項一併帶進來
+        #（本次數量 0，逐列自行填）。必須在 write 之後 —— project_id 這時才確定。
+        # 這批項目存在 payment.estimate.extra.item（工程層級），完全不經過 project.task。
+        estimate._load_extra_items()
+
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'payment.estimate',

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models, Command
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 from odoo.tools import float_compare
 
 
@@ -115,7 +115,29 @@ class PaymentEstimate(models.Model):
         '本次估驗總金額',
         compute='_compute_subtotal',
         store=True,
-        tracking=True
+        tracking=True,
+        help='契約工項小計 ＋ 有勾「計入估驗總額」的非契約工項'
+    )
+    contract_subtotal = fields.Monetary(
+        '契約工項小計',
+        compute='_compute_subtotal',
+        store=True,
+        help='估驗計價表（契約工項）的葉節點金額合計，即估驗詳細表的「壹 發包工程費」'
+    )
+    extra_subtotal = fields.Monetary(
+        '非契約工項（計入）',
+        compute='_compute_subtotal',
+        store=True,
+        help='非契約工項中有勾「計入估驗總額」者的金額合計，'
+             '例：估驗詳細表的「貳 第N次估驗物價調整累計金額」'
+    )
+    extra_excluded_total = fields.Monetary(
+        '非契約工項（不計入）',
+        compute='_compute_subtotal',
+        store=True,
+        help='非契約工項中未勾「計入估驗總額」者的金額合計，'
+             '例：估驗詳細表的「參 變賣收入項」（有價廢料變賣，另走解繳鏈）。'
+             '本欄不進「本次估驗總金額」，只是把這些項目的金額匯總出來供對帳'
     )
 
     # === 計價明細 ===
@@ -124,6 +146,22 @@ class PaymentEstimate(models.Model):
         'estimate_id',
         '估驗計價表',
         copy=True
+    )
+
+    # === 非契約工項（估驗表上有、契約工項樹裡沒有的項目）===
+    # 有價廢料變賣收入、物價調整…等。刻意獨立成兩個新模型，一列都不寫 project.task
+    # ——那是契約金額的真相載體，寫進去會污染契約總價／契約變更原金額／採購法第 22 條
+    # 累計變更比例，而且專案開工後契約工項全面唯讀，根本也寫不進去。
+    # 詳見 models/payment_estimate_extra.py 的模組說明。
+    extra_line_ids = fields.One2many(
+        'payment.estimate.extra.line',
+        'estimate_id',
+        '非契約工項',
+        copy=True
+    )
+    extra_line_count = fields.Integer(
+        '非契約工項列數',
+        compute='_compute_extra_line_count'
     )
 
     # === 照片 ===
@@ -151,12 +189,47 @@ class PaymentEstimate(models.Model):
         help='本次估驗金額被人工覆寫的工項數（供「解除手動金額」按鈕判斷顯示）'
     )
 
-    @api.depends('line_ids.estimate_amount', 'line_ids.is_summary_item')
+    @api.depends('line_ids.estimate_amount', 'line_ids.is_summary_item',
+                 'extra_line_ids.estimate_amount',
+                 'extra_line_ids.extra_item_id',
+                 'extra_line_ids.parent_item_id',
+                 'extra_line_ids.include_in_subtotal')
     def _compute_subtotal(self):
-        """計算本次估驗總金額（只加總葉節點，避免彙總列重複計算）"""
+        """計算本次估驗總金額 ＝ 契約工項小計 ＋ 有勾「計入估驗總額」的非契約工項。
+
+        非契約工項分兩種、行為相反（同一張估驗詳細表上會並存）：
+          ・「貳 物價調整」    → 勾計入，進總額（實務上照樣扣 5% 保留款）
+          ・「參 變賣收入項」  → 不勾，只算進 extra_excluded_total 供對帳，不進總額
+        沒有非契約工項時，本欄與改版前完全相同（extra_* 皆為 0）。
+
+        🔴 非契約工項這一側加總的是**本期的根列**，不是葉列。
+        契約工項那一側加總葉列是因為它的彙總項只是顯示用；非契約工項不一樣 ——
+        「計入與否」是整個彙總項一起決定的（同一彙總項底下一部分計入、一部分不計入
+        在實務上不成立），所以旗標要在彙總層生效。彙總列的 estimate_amount 本來就是
+        底下葉列的合計，加總根列剛好把每一筆算到一次，不會重複也不會漏。
+
+        「根列」＝ 沒有父項、或父項的那一列不在本期估驗單裡（後者是防呆：
+        子列被單獨帶進來時仍然算得到，不會整批消失）。
+        """
         for rec in self:
             leaf_lines = rec.line_ids.filtered(lambda l: not l.is_summary_item)
-            rec.subtotal = sum(leaf_lines.mapped('estimate_amount'))
+            rec.contract_subtotal = sum(leaf_lines.mapped('estimate_amount'))
+
+            extra = rec.extra_line_ids
+            present = set(extra.mapped('extra_item_id').ids)
+            roots = extra.filtered(
+                lambda l: not l.parent_item_id or l.parent_item_id.id not in present)
+            included = roots.filtered('include_in_subtotal')
+            rec.extra_subtotal = sum(included.mapped('estimate_amount'))
+            rec.extra_excluded_total = sum(
+                (roots - included).mapped('estimate_amount'))
+
+            rec.subtotal = rec.contract_subtotal + rec.extra_subtotal
+
+    @api.depends('extra_line_ids')
+    def _compute_extra_line_count(self):
+        for rec in self:
+            rec.extra_line_count = len(rec.extra_line_ids)
 
     @api.depends('line_ids.is_amount_manual', 'line_ids.is_summary_item')
     def _compute_manual_amount_line_count(self):
@@ -182,6 +255,21 @@ class PaymentEstimate(models.Model):
             for project in records.mapped('project_id'):
                 self._resequence_estimate_no(project.id)
         return records
+
+    def unlink(self):
+        """刪掉整張估驗單之前，先用 ORM 把非契約工項明細刪掉。
+
+        🔴 為什麼要特別處理：`extra.line.estimate_id` 是 `ondelete='cascade'`，
+        那是**資料庫層**的 ON DELETE CASCADE —— 刪父記錄時 Postgres 直接把子列
+        清掉，**Python 的 `extra.line.unlink()` 根本不會被呼叫**。
+        於是裡面那段「沒人用的工項定義一併刪掉」的清理完全不會跑，
+        整張估驗單刪掉之後留下一堆孤兒定義（實測重現）。
+        這正是使用者回報「刪掉之後記錄沒有正確清掉」的來源。
+
+        契約工項明細（line_ids）沒有這個問題 —— 它沒有需要連帶清理的工程層級定義。
+        """
+        self.mapped('extra_line_ids').unlink()
+        return super().unlink()
 
     def write(self, vals):
         """估驗日期變動時，重排該工程所有估驗單的次數（第N次依日期先後）"""
@@ -248,7 +336,10 @@ class PaymentEstimate(models.Model):
     def action_submit_estimate(self):
         """提出估驗"""
         for rec in self:
-            if not rec.line_ids:
+            # 非契約工項也算「有內容」：一張只有變賣收入／物價調整的估驗單不是空單。
+            # （實務上每期都會有契約工項，但這個閘門的語意是「不要送出空單」，
+            #   不是「一定要有契約工項」。）
+            if not rec.line_ids and not rec.extra_line_ids:
                 raise UserError('請先匯入工程案件')
             rec.write({
                 'state': 'pending_approval',
@@ -304,8 +395,7 @@ class PaymentEstimate(models.Model):
             # 取得工程全部有效工項（含彙總項），依樹狀順序
             tasks = Task.search([
                 ('supervision_project_id', '=', est.project_id.id),
-                ('active', '=', True),
-            ], order='sequence, id')
+                ], order='sequence, id')
             if not tasks:
                 continue
 
@@ -336,6 +426,138 @@ class PaymentEstimate(models.Model):
                 'title': '補列完成',
                 'message': f'已處理 {updated} 筆估驗單，補上彙總項並重排序號。',
                 'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    # === 非契約工項：沿用到下一期 ===
+    def _estimates_before(self):
+        """本工程裡「排在我前面」的所有期別，由早到晚。
+
+        排序刻意與 `_resequence_estimate_no()` 完全相同（estimate_date asc, id asc），
+        所以這裡的順序就是畫面上「第N次」的順序。
+
+        🔴 為什麼不用 domain 直接查：**同一天可能有好幾期**（補建歷史資料時，
+        一天之內把十幾期都建出來是常態）。`estimate_date <` 這種寫法在同日時
+        整組落空 —— 使用者實測就踩到：兩期都是當天日期，「帶入上期項目」
+        回「上一期沒有非契約工項」。日期不足以定序，必須連 id 一起比，
+        而那在 domain 裡表達不了，所以撈回來在 Python 排。
+        """
+        self.ensure_one()
+        if not self.project_id:
+            return self.browse()
+        # estimate_date 可能是空的（尚未填日期）→ 排在最後，
+        # 與 PostgreSQL 的 NULLS LAST 及 _resequence_estimate_no 的行為一致
+        far = fields.Date.to_date('9999-12-31')
+        ordered = self.search(
+            [('project_id', '=', self.project_id.id)]
+        ).sorted(key=lambda e: (e.estimate_date or far, e.id))
+        before = self.browse()
+        for est in ordered:
+            if est.id == self.id:
+                break
+            before |= est
+        return before
+
+    def _previous_estimate(self):
+        """緊接在本期之前的那一期（沒有就回空）。"""
+        self.ensure_one()
+        before = self._estimates_before()
+        return before[-1] if before else self.browse()
+
+    def _load_extra_items(self):
+        """把本工程已定義的非契約工項帶進本估驗單（本次數量歸 0）。
+
+        這就是需求的「可沿用到下一次的估驗計價表」：項目定義存在工程層級
+        （payment.estimate.extra.item），每一期只是多一列 extra.line 指向它，
+        所以累計靠 extra_item_id 聚合就自然成立，也完全不碰 project.task。
+
+        已存在的列不動（不覆寫使用者已填的數量／金額），只補缺的。回傳新增列數。
+        """
+        self.ensure_one()
+        if not self.project_id:
+            return 0
+        # 🔴 只帶「上一期實際有的項目」，不是全工程的項目清單。
+        #
+        # 原本抓全工程 → 在本期刪掉的列，一按這顆按鈕就整批回來，
+        # 使用者實測時就是被這個咬到（「被我刪除的那 3 個又都出現了」）。
+        # 而且按鈕名稱本來就寫「帶入上期項目」，程式卻做成「帶入全部」，
+        # 名實不符。改成名實一致：以「上一期」為準。
+        #
+        # ⚠️ 「上一期」必須用**與「第N次」完全同一套排序**決定，也就是
+        #    `_resequence_estimate_no()` 用的 (estimate_date, id)。
+        #    第一版寫成 domain `estimate_date < 本期日期`（**嚴格小於**），
+        #    結果**同一天建立的兩期就找不到上一期** —— 使用者實測時兩期都是
+        #    當天日期，按鈕回「上一期沒有非契約工項」。
+        #    同日多期是完全正常的操作（尤其補建歷史資料時一天建好幾期），
+        #    日期本身不足以定序，所以這裡照抄 estimate_no 的排序邏輯，
+        #    讓「上一期」＝畫面上顯示的前一次。
+        prev = self._previous_estimate()
+        if not prev:
+            return 0
+        items = prev.extra_line_ids.mapped('extra_item_id')
+        items = items.sorted(key=lambda i: (i.sequence, i.id))
+        if not items:
+            return 0
+        existing = set(self.extra_line_ids.mapped('extra_item_id').ids)
+        ExtraLine = self.env['payment.estimate.extra.line']
+        # 單價與計入旗標沿用「同一項目最近一期」的值（見 _prepare_line_vals）——
+        # 單價逐期會變，帶入下一期時要跟著最近一期走，不是回頭用定義的原始值。
+        new_lines = [
+            Command.create(
+                ExtraLine._prepare_line_vals(item, self, item.sequence or 10))
+            for item in items if item.id not in existing
+        ]
+        if new_lines:
+            self.write({'extra_line_ids': new_lines})
+        return len(new_lines)
+
+    def action_open_extra_item_wizard(self):
+        """開啟「新增非契約工項」對話框。
+
+        概念與操作方式比照契約變更那一套（契約變更單 ▸ 匯入工程案件精靈 ▸ 工項列表頁籤 ▸
+        [新增工項] → form dialog），見 contract_change_wizard.action_add_new_line。
+        這類工項在契約工項建立時根本不存在，所以入口必須是「新增」而不是「從清單挑」。
+        """
+        self.ensure_one()
+        if not self.project_id:
+            raise UserError('這張估驗單還沒有所屬工程，請先「匯入工程案件」。')
+        if self.state not in ('draft', 'pending_approval'):
+            raise UserError('只有草稿／待核定的估驗單可以新增非契約工項。')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '新增非契約工項',
+            'res_model': 'estimate.extra.item.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_estimate_id': self.id,
+            },
+        }
+
+    def action_load_extra_items(self):
+        """表頭按鈕：帶入本工程的非契約工項（本次數量歸 0，逐列自行填）"""
+        self.ensure_one()
+        if self.state not in ('draft', 'pending_approval'):
+            raise UserError('只有草稿／待核定的估驗單可以帶入非契約工項。')
+        added = self._load_extra_items()
+        if not added:
+            message = ('上一期沒有非契約工項，或上一期有的都已經在本期的清單裡了。\n'
+                       '要新增請按「新增非契約工項」。\n'
+                       '（本按鈕只帶「上一期實際有的項目」——'
+                       '在本期刪掉的列不會被它拉回來。）')
+            kind = 'warning'
+        else:
+            message = (f'已從上一期帶入 {added} 個非契約工項'
+                       f'（本次數量為 0，單價與計入旗標沿用最近一期）。')
+            kind = 'success'
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': '帶入非契約工項',
+                'message': message,
+                'type': kind,
                 'sticky': False,
             },
         }
@@ -558,11 +780,10 @@ class PaymentEstimateLine(models.Model):
             this_date = line.estimate_id.estimate_date
             cumulative_to_date = self._get_cumulative_qty_at(line.task_id, this_date)
 
-            prev_estimate = self.env['payment.estimate'].search([
-                ('project_id', '=', line.estimate_id.project_id.id),
-                ('estimate_date', '<', this_date),
-                ('id', '!=', line.estimate_id.id),
-            ], order='estimate_date desc, id desc', limit=1)
+            # 🔴 「前一張」要用 _previous_estimate()，不能用 domain 的
+            #    `estimate_date <`：同一天可能有好幾期（補建歷史資料時是常態），
+            #    嚴格小於在同日時整組落空 → 本期可估量算成「從頭到現在的累計」。
+            prev_estimate = line.estimate_id._previous_estimate()
             prev_cumulative = 0.0
             if prev_estimate:
                 prev_cumulative = self._get_cumulative_qty_at(
@@ -677,19 +898,33 @@ class PaymentEstimateLine(models.Model):
         本值不依賴本次 estimate_qty，故在估驗表即時編輯時保持穩定，
         累計欄位得以純算術（前期 + 本次）即時重算。非儲存：他單核定後重讀即更新。
         """
+        # `_estimates_before()` 每次都要 search 一次工程底下的所有估驗單。
+        # 這個 compute 是**逐列**跑的（一張估驗單動輒上百列），不快取的話
+        # 一次重算就是上百次相同的查詢。以估驗單為鍵快取，一張單只查一次。
+        before_cache = {}
         for line in self:
             est = line.estimate_id
             if (line.is_summary_item or not line.task_id
                     or not est.project_id or not est.estimate_date):
                 line.previous_approved_qty = 0.0
                 continue
+            # 🔴 「前期」用 _estimates_before()（與畫面上的「第N次」同一套排序），
+            #    不能用 domain 的 `estimate_date <`：**同一天可能有好幾期**
+            #    （補建歷史資料時一天建十幾期是常態），嚴格小於在同日時整組落空
+            #    → 前期累計變 0、累計估驗數量與金額跟著錯，而且**不會報任何錯**。
+            #    實測：同日兩期各估 30 / 20，第2期累計算成 20（應為 50）。
+            # archived 是「已核定後歸檔」，其數量仍為有效核定量，須一併計入前期累計，
+            # 否則前期估驗一歸檔，後期累計就會漏掉該期數量。
+            if est.id not in before_cache:
+                before_cache[est.id] = est._estimates_before().filtered(
+                    lambda e: e.state in ('approved', 'archived'))
+            before = before_cache[est.id]
+            if not before:
+                line.previous_approved_qty = 0.0
+                continue
             prev_lines = self.search([
                 ('task_id', '=', line.task_id.id),
-                ('estimate_id.project_id', '=', est.project_id.id),
-                # archived 是「已核定後歸檔」，其數量仍為有效核定量，須一併計入前期累計，
-                # 否則前期估驗一歸檔，後期累計就會漏掉該期數量。
-                ('estimate_id.state', 'in', ('approved', 'archived')),
-                ('estimate_id.estimate_date', '<', est.estimate_date),
+                ('estimate_id', 'in', before.ids),
             ])
             line.previous_approved_qty = sum(prev_lines.mapped('estimate_qty'))
 

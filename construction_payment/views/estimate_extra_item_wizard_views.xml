@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    新增估驗非契約工項 Dialog
+
+    版面比照契約變更的「新增工項」對話框
+    （construction_contract_change/views/contract_change_wizard_views.xml:217）。
+
+    兩個頁籤、擇一使用：
+      建立新項目          這個工程還沒有的東西，從零建
+      選用已建立的項目    別的期別建過、本期還沒有的，直接勾進來
+                          （這就是「誤刪之後加回來」的入口，而且是看得見的）
+-->
+<odoo>
+
+    <record id="view_estimate_extra_item_wizard_form" model="ir.ui.view">
+        <field name="name">estimate.extra.item.wizard.form</field>
+        <field name="model">estimate.extra.item.wizard</field>
+        <field name="arch" type="xml">
+            <form string="新增非契約工項">
+                <sheet>
+                    <field name="estimate_id" invisible="1"/>
+                    <field name="project_id" invisible="1"/>
+                    <field name="allowed_parent_ids" invisible="1"/>
+                    <field name="selectable_item_ids" invisible="1"/>
+
+                    <div class="alert alert-info" role="status">
+                        估驗詳細表上會出現、但<strong>契約工項樹裡沒有</strong>的項目。
+                        這裡建立的東西<strong>完全不影響契約工項與契約金額</strong>。
+                    </div>
+
+                    <notebook>
+                        <page string="建立新項目" name="new">
+                            <group string="基本資訊">
+                                <field name="is_group"/>
+                                <field name="parent_item_id"
+                                       domain="[('id', 'in', allowed_parent_ids)]"
+                                       options="{'no_create': True, 'no_quick_create': True,
+                                                 'no_create_edit': True}"
+                                       placeholder="留空 = 新增最高層項目（參、貳…）"/>
+                                <field name="item_no" placeholder="例：參、1"/>
+                                <field name="item_name" placeholder="例：變賣收入項"/>
+                                <field name="unit" placeholder="例：式、M3"/>
+                                <field name="code"
+                                       placeholder="留空由名稱自動產生（例：SALVAGE）"/>
+                            </group>
+
+                            <group string="本期量價" invisible="is_group">
+                                <!-- 有父工項時「計入」跟著彙總項走，不讓單獨設定 -->
+                                <field name="include_in_subtotal"
+                                       readonly="parent_item_id != False"/>
+                                <div class="text-muted" colspan="2"
+                                     invisible="not parent_item_id">
+                                    「計入估驗總額」<strong>跟著上面選的父工項走</strong>，
+                                    這裡不能單獨改 —— 同一個彙總項底下不能一部分計入、
+                                    一部分不計入。要改請改父工項那一列。
+                                </div>
+                                <field name="unit_price"/>
+                                <field name="estimate_qty"/>
+                                <field name="estimate_amount"/>
+                                <div class="text-muted" colspan="2" invisible="unit != '式'">
+                                    單位是「式」→ 本次數量不可超過 1。
+                                    一式計價請填「本期完成的比例」（分 4 期就每期 0.25），
+                                    或數量填 1、直接在「本次金額」填該期金額。
+                                </div>
+                            </group>
+
+                            <group string="計入方式" invisible="not is_group">
+                                <field name="include_in_subtotal"
+                                       readonly="parent_item_id != False"/>
+                                <div class="text-muted" colspan="2">
+                                    彙總項本身不填數量與金額，金額自動等於底下子項合計。
+                                    建好之後再新增子項、把「父工項」指向這一項。
+                                    <br/>
+                                    <strong>「計入估驗總額」設在這一層就好</strong> ——
+                                    底下的子項會自動跟著這一項走。
+                                </div>
+                            </group>
+                        </page>
+
+                        <page string="選用已建立的項目" name="existing">
+                            <div class="alert alert-secondary" role="status">
+                                本工程<strong>其他期別建過、但本期還沒有</strong>的項目。
+                                勾起來就會加進本期（本次數量 0，單價與計入旗標沿用最近一期）。
+                                <br/>
+                                <strong>在本期誤刪之後要加回來，就用這裡。</strong>
+                                勾選之後請把「建立新項目」頁籤的項目名稱留空 —— 兩種方式擇一。
+                            </div>
+                            <field name="existing_item_ids" nolabel="1"
+                                   domain="[('id', 'in', selectable_item_ids)]"
+                                   options="{'no_create': True, 'no_create_edit': True}">
+                                <list string="本工程已建立的項目" create="false">
+                                    <field name="item_no"/>
+                                    <field name="name"/>
+                                    <field name="parent_id" string="父工項"/>
+                                    <field name="unit"/>
+                                    <field name="unit_price" string="預設單價"/>
+                                    <field name="include_in_subtotal"
+                                           string="預設計入" widget="boolean_toggle"/>
+                                    <field name="code"/>
+                                </list>
+                            </field>
+                            <div class="text-muted">
+                                這裡空的話，代表本工程還沒有任何「別期建過、本期沒有」的項目。
+                                （所有期別都不用的項目會被直接刪掉，不會留在這裡當幽靈。）
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+                <footer>
+                    <button name="action_add" type="object"
+                            string="確認新增" class="oe_highlight"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

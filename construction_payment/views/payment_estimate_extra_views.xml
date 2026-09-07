@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    估驗非契約工項（payment.estimate.extra.item / .line）
+
+    估驗詳細表上有、契約工項樹裡沒有的項目：有價廢料變賣收入、物價調整…
+    這裡的資料完全獨立於 project.task，不影響契約金額。
+-->
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 非契約工項「定義」（工程層級，跨期共用）                      -->
+    <!-- ============================================================ -->
+    <record id="view_estimate_extra_item_tree" model="ir.ui.view">
+        <field name="name">payment.estimate.extra.item.tree</field>
+        <field name="model">payment.estimate.extra.item</field>
+        <field name="arch" type="xml">
+            <!-- decoration-bf（不是 decoration-bold）：頂層 list 視圖走 RelaxNG 嚴格驗證，
+                 decoration-bold 只在 form 內嵌的子視圖被放行 -->
+            <list string="估驗非契約工項" editable="bottom"
+                  decoration-bf="is_summary_item"
+                  decoration-muted="not include_in_subtotal">
+                <field name="sequence" widget="handle"/>
+                <field name="project_id" optional="show"/>
+                <field name="item_no"/>
+                <field name="name"/>
+                <field name="parent_id"
+                       domain="[('project_id', '=', project_id), ('id', '!=', id)]"/>
+                <field name="unit"/>
+                <field name="unit_price"/>
+                <field name="include_in_subtotal" widget="boolean_toggle"/>
+                <field name="code" optional="show"/>
+                <field name="item_level" optional="hide"/>
+                <field name="is_summary_item" optional="hide"/>
+                <field name="note" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_estimate_extra_item_form" model="ir.ui.view">
+        <field name="name">payment.estimate.extra.item.form</field>
+        <field name="model">payment.estimate.extra.item</field>
+        <field name="arch" type="xml">
+            <form string="估驗非契約工項">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="例：變賣收入項"/></h1>
+                    </div>
+                    <group>
+                        <group string="定位">
+                            <field name="project_id"
+                                   options="{'no_create': True}"/>
+                            <field name="parent_id"
+                                   domain="[('project_id', '=', project_id), ('id', '!=', id)]"
+                                   options="{'no_quick_create': True}"/>
+                            <field name="item_no"/>
+                            <field name="sequence"/>
+                            <field name="item_level" readonly="1"/>
+                            <field name="is_summary_item" readonly="1"/>
+                        </group>
+                        <group string="量價與計入方式">
+                            <field name="unit"/>
+                            <field name="unit_price"/>
+                            <field name="include_in_subtotal"/>
+                            <field name="code"
+                                   placeholder="（留空由名稱自動產生）"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-info" role="status">
+                        <strong>識別碼（code）是跨期身分。</strong>
+                        「沿用到下一期」與「累計」都認它，<strong>不認名稱</strong> ——
+                        因為名稱逐期會變（例：貳 第7次估驗物價調整累計金額 →
+                        第8次…）。<strong>名稱是每期各存一份的</strong> ——
+                        某一期要印不同的字，直接在該期估驗單的清單上改「項目名稱」即可，
+                        <strong>不要另外建一個項目</strong>，那會讓累計鏈斷掉。
+                        這裡的名稱只是「第一次建立時的預設值」。
+                    </div>
+                    <notebook>
+                        <page string="子項" name="children">
+                            <field name="child_ids" nolabel="1"
+                                   context="{'default_project_id': project_id,
+                                             'default_parent_id': id}">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="item_no"/>
+                                    <field name="name"/>
+                                    <field name="unit"/>
+                                    <field name="unit_price"/>
+                                    <field name="include_in_subtotal"
+                                           widget="boolean_toggle"/>
+                                    <field name="project_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="各期明細" name="lines">
+                            <field name="line_ids" nolabel="1" readonly="1">
+                                <list string="各期明細">
+                                    <field name="estimate_id"/>
+                                    <field name="name"/>
+                                    <field name="estimate_qty"/>
+                                    <field name="estimate_amount"/>
+                                    <field name="cumulative_estimate_amount"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="備註" name="note">
+                            <field name="note" nolabel="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_estimate_extra_item_search" model="ir.ui.view">
+        <field name="name">payment.estimate.extra.item.search</field>
+        <field name="model">payment.estimate.extra.item</field>
+        <field name="arch" type="xml">
+            <search string="估驗非契約工項">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="project_id"/>
+                <separator/>
+                <filter string="計入估驗總額" name="filter_included"
+                        domain="[('include_in_subtotal', '=', True)]"/>
+                <filter string="不計入估驗總額" name="filter_excluded"
+                        domain="[('include_in_subtotal', '=', False)]"/>
+                <group expand="0" string="群組">
+                    <filter string="所屬工程" name="group_project"
+                            context="{'group_by': 'project_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_estimate_extra_item" model="ir.actions.act_window">
+        <field name="name">估驗非契約工項</field>
+        <field name="res_model">payment.estimate.extra.item</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_estimate_extra_item_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                建立估驗非契約工項
+            </p>
+            <p>
+                估驗詳細表上出現、但契約工項樹裡沒有的項目：有價廢料變賣收入、
+                物價調整等。這裡定義的項目可以被每一期估驗單沿用，
+                且完全不影響契約工項與契約金額。
+            </p>
+        </field>
+    </record>
+
+</odoo>

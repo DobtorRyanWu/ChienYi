@@ -16,6 +16,11 @@ class EstimateSyncWizard(models.TransientModel):
     1. 更新現有明細行的 approved_qty → task.planned_qty
     2. 新增缺少的工項明細行（estimate_qty = 0）
     已核定或已歸檔的估驗單不受影響。
+
+    ⚠️ 本精靈只處理 line_ids（契約工項的鏡像），**不碰 extra_line_ids**
+    （非契約工項）。非契約工項不來自 project.task，契約變更也不會產生它們，
+    所以同步時既不需要更新、更不可以刪除 —— 契約變更套用後跑這支，
+    「參 變賣收入項」那一類的列必須原封不動留在估驗單上。
     """
     _name = 'estimate.sync.wizard'
     _description = '同步估驗計價工項'
