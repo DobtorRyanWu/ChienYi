@@ -319,6 +319,8 @@ class WaterLevelSource(models.Model):
             manual_start_tick=self.demo_surge_tick,
             manual_peak_rise=self._demo_manual_peak_rise(device),
             initial_value=initial_value,
+            # 向鄰站借基線的，連降雨事件也要跟著那一台，否則兩站各下各的雨
+            shape_uid=(device.demo_baseline_device_id or device).device_uid,
         )
         seq_key = self.key_seq or 'seq_no'
         return [{self.key_timestamp: ts, self.key_value: value, seq_key: seq}
@@ -329,8 +331,16 @@ class WaterLevelSource(models.Model):
 
         目標是**二級警戒**：一定越過三級，畫面上又看得到等級往上跳一階。
         用原始值（不含基準高程）計算，因為合成器產出的就是原始值。
+
+        ⚠️ 旗標會過期。它沒有歸零的路徑，而只要它一直是真的，
+        `synth_series` 裡「自動洪峰的總量上限」那段就永遠不會執行
+        （那段的條件是 `not manual_peak_rise`），連著兩天下雨就會疊破上限、
+        在頂端壓出一段平台。所以演完就當它沒發生過。
         """
         if not self.demo_surge_tick or not device.level_2:
+            return None
+        elapsed = demo_synth.tick_of(fields.Datetime.now()) - self.demo_surge_tick
+        if not 0 <= elapsed <= demo_synth.MAX_SURGE_TICKS * 2:
             return None
         current_raw = (device.last_value or 0.0) - (device.datum_elevation or 0.0)
         target_raw = device.level_2 - (device.datum_elevation or 0.0)
@@ -339,34 +349,30 @@ class WaterLevelSource(models.Model):
     def _demo_baseline(self, device):
         """回傳 callable(tick) -> 一年前同月同日同時分的真值（沒有就 None）。
 
-        兩個容易錯的地方：
+        三個容易錯的地方：
 
-        1. **不能無條件 `replace(year=基線年)`**。要合成的區間有一小段落在基線年
-           自己身上（歷史最後一筆是台北 12/31 23:50，換成 UTC 之後那天還剩八小時），
-           對這一段做 replace 等於查它自己，永遠查不到 → 整段掉進 fallback，
-           在枯水期造出高半公尺的假水位。所以基線年當年的時刻要再往前推一年。
+        1. 日期規則走 `demo_synth.baseline_key()`——那條規則有三個呼叫點，
+           必須是同一份（之前分成兩份寫，同一格算出過兩個答案）。
         2. **只拿歷史真值當基線**（`seq_no IS NULL`）。少了這個條件，明年此時
            合成器會撈到自己去年的輸出當「真值」，誤差就一年一年疊上去。
+        3. **自己沒有歷史的站可以向鄰站借**（`demo_baseline_device_id`）。
+           借的是原始值域，斷面高程差走 `datum_elevation` 在寫入時加一次，
+           所以合成器內部（夾限、AR(1)、雨型上限）全程留在被借那台的值域。
 
         查的是 `raw_value`（設備原始值）不是 `value`：合成出來的東西會再餵回
         `ingest_readings()`，那支會自己加一次基準高程。拿 value 當基線會多加一次。
         """
         year = self.demo_baseline_year or DEFAULT_DEMO_BASELINE_YEAR
+        origin = device.demo_baseline_device_id or device
         cache = {}
 
         def baseline(tick):
-            moment = demo_synth.ts_of(tick)
-            target_year = year if moment.year > year else moment.year - 1
-            try:
-                key = moment.replace(year=target_year)
-            except ValueError:
-                # 2/29 而目標年不是閏年
-                key = moment.replace(year=target_year, day=28)
+            key = demo_synth.baseline_key(demo_synth.ts_of(tick), year)
             if key not in cache:
                 self.env.cr.execute(
                     """SELECT COALESCE(raw_value, value) FROM water_level_reading
                         WHERE device_id = %s AND ts = %s AND seq_no IS NULL""",
-                    (device.id, key))
+                    (origin.id, key))
                 row = self.env.cr.fetchone()
                 cache[key] = row[0] if row else None
             return cache[key]

@@ -47,7 +47,7 @@
                             <!-- ===== 目前水位：水尺 + 大字 ===== -->
                             <section class="wl-hero">
                                 <div class="wl-hero-station" id="wlStationName">
-                                    <t t-esc="devices[0].name"/>
+                                    <t t-esc="(primary_device or devices[0]).name"/>
                                 </div>
                                 <div class="wl-hero-body">
                                     <!-- 水尺：刻度與水面由 JS 依警戒值算出來 -->

@@ -41,6 +41,8 @@
                                    invisible="site_type != 'community'"
                                    required="site_type == 'community'"/>
                             <field name="code"/>
+                            <field name="primary_device_id"
+                                   options="{'no_create': True}"/>
                             <field name="active" widget="boolean_toggle"/>
                             <field name="is_demo" widget="boolean_toggle"/>
                         </group>

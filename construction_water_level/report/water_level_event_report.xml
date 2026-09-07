@@ -17,6 +17,21 @@
                 <t t-call="web.external_layout">
                     <div class="page">
                         <h2 style="margin-bottom:2mm;">水位事件報表</h2>
+                        <!-- 這份報表長得像證據，所以示範資料一定要在最上面講清楚。
+                             下面「設備上報值」那一欄對借用鄰站基線的示範站來說，
+                             是被借那一台的水面高程，不是這台自己量到的東西。 -->
+                        <div t-if="doc.device_id.is_demo"
+                             style="border:1pt solid #b45309;background:#fffbeb;color:#7c2d12;
+                                    padding:2mm 3mm;margin-bottom:3mm;font-size:11px;">
+                            <strong>示範資料，不是量測值。</strong>
+                            這一站的讀數由系統合成，僅供展示與教育訓練使用，
+                            <strong>不得作為稽核、驗收或法律用途的憑據</strong>。
+                            <t t-if="doc.device_id.demo_baseline_device_id">
+                                下表「設備上報值」欄位是向
+                                <span t-field="doc.device_id.demo_baseline_device_id.name"/>
+                                借用的水位形狀，不是本站的實際量測。
+                            </t>
+                        </div>
                         <div style="font-size:11px;color:#666;margin-bottom:4mm;">
                             本報表由系統依實際紀錄產生。水位紀錄為純追加式資料，
                             事件區間內的紀錄已標記永久保留。

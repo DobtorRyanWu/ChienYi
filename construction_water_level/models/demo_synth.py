@@ -95,6 +95,25 @@ def ts_of(tick):
     return TICK_EPOCH + timedelta(seconds=tick * TICK_SECONDS)
 
 
+def baseline_key(moment, year):
+    """要合成的時刻 → 去基線年的哪一格取真值。
+
+    這條規則有三個呼叫點（來源適配層、補歷史腳本、新站建置腳本），
+    **必須是同一份**——之前分成兩份寫，同一格算出過兩個答案。
+
+    兩個容易錯的地方：
+    * 要合成的區間有一小段落在基線年自己身上（歷史最後一筆是台北 12/31 23:50，
+      換成 UTC 之後那天還剩八小時），對這一段做 `replace(year=基線年)` 等於查它自己、
+      永遠查不到，所以基線年當年的時刻要再往前推一年。
+    * 2/29 在非閏年沒有對應，退到 2/28。
+    """
+    target_year = year if moment.year > year else moment.year - 1
+    try:
+        return moment.replace(year=target_year)
+    except ValueError:
+        return moment.replace(year=target_year, day=28)
+
+
 def _seed(*parts):
     """穩定亂數種子：同樣的輸入在任何進程、任何機器都得到同一個數。
 
@@ -285,13 +304,19 @@ def _surge_offset(profile, device_uid, tick, surge_probability, manual_start_tic
 
 def synth_series(device_uid, profile, baseline, start_tick, end_tick,
                  surge_probability=0.0, manual_start_tick=0, manual_peak_rise=None,
-                 initial_value=None, warmup_ticks=144):
+                 initial_value=None, shape_uid=None, warmup_ticks=144):
     """合成 [start_tick, end_tick) 的讀數。
 
     :param baseline: callable(tick) -> float|None，回傳基線年同月日時分的真值
     :param initial_value: 前一筆已經存在的讀數。合成要接在它後面，不是憑空起跳——
                           少了它，暖身期若剛好取不到基線就會退回「全年中位數」，
                           在枯水期造出高出半公尺的起點，再花好幾小時慢慢爬回來
+    :param shape_uid: **事件層**的亂數種子（雨型、每日錨點）。向鄰站借基線的站要把它
+                      設成被借那一台，否則兩站會各下各的雨——實測 34 公尺外的兩站
+                      相關係數只有 0.50、十一場暴漲有七場只有一站在漲，
+                      而真實的相鄰測站幾乎同漲同退。留空就用自己的 uid。
+                      每 10 分鐘的抖動仍以 `device_uid` 為種子，那是各自的量測雜訊，
+                      本來就該獨立
     :param warmup_ticks: 往前空跑幾格。預設一整天，剛好涵蓋到最近一個「每日錨點」，
                          任何一格都能重現（見迴圈裡的重錨說明）；
                          同時也讓偏移量收斂到穩態，接縫處不會出現不自然的平段
@@ -309,6 +334,7 @@ def synth_series(device_uid, profile, baseline, start_tick, end_tick,
     median = profile['median']
     clamp = AR_CLAMP_SIGMA * sigma / math.sqrt(1 - AR_PHI ** 2)
 
+    shape_uid = shape_uid or device_uid
     rows = []
     off = 0.0
     previous = initial_value
@@ -319,10 +345,11 @@ def synth_series(device_uid, profile, baseline, start_tick, end_tick,
         if tick % TICKS_PER_DAY == 0:
             # 每天把偏移量重新錨定一次。AR(1) 是遞迴的——不重錨的話，
             # 「某一格的值」其實取決於是從哪一格開始算的，重算一段就會得到不同的數字。
-            # 錨點只由 (設備, 第幾天) 決定，所以往前多跑一天（預設的 warmup）
-            # 就足以重現任何一格。
+            # 錨點只由 (形狀來源, 第幾天) 決定，所以往前多跑一天（預設的 warmup）
+            # 就足以重現任何一格。用 shape_uid 是為了讓借基線的站與母本站
+            # 在「日」這個尺度上一起高一起低，而不是各自漂。
             off = random.Random(
-                _seed(device_uid, 'day-anchor', tick // TICKS_PER_DAY)).gauss(0, sigma)
+                _seed(shape_uid, 'day-anchor', tick // TICKS_PER_DAY)).gauss(0, sigma)
         base = baseline(tick)
         if base is None:
             # ⚠️ 基線有洞的時候**不能拿前一個輸出值頂替**。那會讓 AR(1) 的偏移從
@@ -334,8 +361,9 @@ def synth_series(device_uid, profile, baseline, start_tick, end_tick,
             base = last_base if last_base is not None else median
         else:
             last_base = base
+        # 雨型用 shape_uid：同一條河上的兩站不會各下各的雨
         surge = _surge_offset(
-            profile, device_uid, tick, surge_probability, manual_start_tick,
+            profile, shape_uid, tick, surge_probability, manual_start_tick,
             manual_peak_rise, baseline=baseline, ceiling=hi)
         if surge > 0 and not manual_peak_rise:
             # 連著兩天各下一場雨時，兩條曲線會疊加而衝破上限、在頂端壓出一段平台。

@@ -85,6 +85,10 @@
                             <field name="remote_key"
                                    placeholder="對方系統裡這台的識別字（留空＝用設備碼）"/>
                             <field name="expected_interval_min"/>
+                            <field name="demo_baseline_device_id"
+                                   invisible="not is_demo"
+                                   domain="[('id', '!=', id), ('is_demo', '=', True)]"
+                                   options="{'no_create': True}"/>
                             <div class="text-muted" colspan="2"
                                  invisible="expected_interval_min &lt;= 1">
                                 缺號偵測的時間模式以這個間隔的三倍為門檻。

@@ -52,6 +52,12 @@ class WaterLevelSite(models.Model):
         ondelete='restrict', index=True, tracking=True,
         help='場域類型為「社區」時必填：管理委員會、物業管理公司或學校機關。')
 
+    primary_device_id = fields.Many2one(
+        'water.level.device', string='代表監測站',
+        ondelete='set null', copy=False,
+        domain="[('site_id', '=', id)]",
+        help='前台水情頁預設顯示哪一站。留空就取上下游序最前面的那一台。')
+
     retention_days = fields.Integer(
         string='保存天數', default=DEFAULT_RETENTION_DAYS,
         help='對客戶承諾的資料保存期間。到期只會通知，不會自動刪除。')

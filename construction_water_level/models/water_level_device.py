@@ -71,6 +71,12 @@ class WaterLevelDevice(models.Model):
     is_demo = fields.Boolean(
         string='示範資料', default=False, copy=False, index=True, tracking=True,
         help='示範資料：這台的讀數不是真實量測值，而是系統依歷史樣本合成的。打勾只是標示，不影響任何排程與稽核——**不要**改用 active=False 當標記，那會讓資料悄悄脫離稽核卻仍留在庫裡。')
+    demo_baseline_device_id = fields.Many2one(
+        'water.level.device', string='示範基線借用自',
+        ondelete='set null', copy=False,
+        help='這台沒有自己的歷史時，向哪一台借水文形狀（同一條河的鄰近測站）。'
+             '斷面高程差請填在「基準高程」——合成器內部全程使用被借那台的值域，'
+             '高程差只在寫入時加一次。留空代表用自己的歷史。')
     demo_profile = fields.Text(
         string='示範資料統計輪廓', copy=False,
         help='JSON：這台歷史序列的 p_zero／sigma／min／max，供示範資料合成器產生擬真讀數。'

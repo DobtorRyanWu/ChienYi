@@ -49,6 +49,7 @@ class WaterLevelRoutesMixin:
 
         values = {
             'project': project,
+            'primary_device': self._water_level_primary(devices) or devices[:1],
             'page_name': 'construction_water_level',
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
@@ -76,7 +77,9 @@ class WaterLevelRoutesMixin:
             return {'devices': [], 'series': None, 'hours': hours}
 
         # 指定的站不屬於這個專案就退回第一站，別讓 device_id 變成跨專案讀取的縫隙
-        selected = devices.filtered(lambda d: d.id == int(device_id or 0)) or devices[0]
+        selected = (devices.filtered(lambda d: d.id == int(device_id or 0))
+                    or self._water_level_primary(devices)
+                    or devices[0])
 
         return {
             'devices': [self._water_level_device_payload(d) for d in devices],
@@ -94,6 +97,15 @@ class WaterLevelRoutesMixin:
         except (TypeError, ValueError):
             return RANGE_HOURS_DEFAULT
         return max(1, min(hours, RANGE_HOURS_MAX))
+
+    @staticmethod
+    def _water_level_primary(devices):
+        """場域指定的代表站——一個工程有好幾站時，預設要先看哪一台。
+
+        工地自己的設備比流域上游的參考站更該擺在第一眼（上游站是拿來對照的）。
+        場域沒指定就回空，呼叫端自己退回上下游序最前面那台。
+        """
+        return devices.filtered(lambda d: d == d.site_id.primary_device_id)[:1]
 
     def _water_level_device_payload(self, device):
         """站台摘要。狀態把「斷線」疊在水位等級之上——設備死掉比水位超標更常發生，
