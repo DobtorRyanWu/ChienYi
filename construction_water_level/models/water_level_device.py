@@ -67,6 +67,11 @@ class WaterLevelDevice(models.Model):
     seq = fields.Integer(
         string='上下游序', default=10,
         help='數字小的在上游。前台站台列依此排序，看得出水從哪邊來。')
+    map_label = fields.Char(
+        string='地圖標籤', size=4,
+        help='前台地圖上這個站要顯示的短代號（例如 A1）。'
+             '留空就顯示「上下游序」——那是數字，對看畫面的人通常沒有意義。'
+             '標記圖示只有 26×26 像素，所以最多四個字。')
     active = fields.Boolean(string='啟用', default=True)
     is_demo = fields.Boolean(
         string='示範資料', default=False, copy=False, index=True, tracking=True,

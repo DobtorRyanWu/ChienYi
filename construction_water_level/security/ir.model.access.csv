@@ -41,3 +41,7 @@ access_water_level_device_portal_base,water.level.device.portal.base,model_water
 access_water_level_reading_portal_base,water.level.reading.portal.base,model_water_level_reading,base.group_portal,1,0,0,0
 access_water_level_source_admin,water.level.source.admin,model_water_level_source,construction_supervision_base.group_supervisor_admin,1,1,1,1
 access_water_level_source_internal,water.level.source.internal,model_water_level_source,base.group_user,1,1,1,0
+access_water_level_alert_channel_admin,water.level.alert.channel.admin,model_water_level_alert_channel,construction_supervision_base.group_supervisor_admin,1,1,1,1
+access_water_level_alert_channel_internal,water.level.alert.channel.internal,model_water_level_alert_channel,base.group_user,1,0,0,0
+access_water_level_alert_delivery_admin,water.level.alert.delivery.admin,model_water_level_alert_delivery,construction_supervision_base.group_supervisor_admin,1,1,1,1
+access_water_level_alert_delivery_internal,water.level.alert.delivery.internal,model_water_level_alert_delivery,base.group_user,1,0,0,0

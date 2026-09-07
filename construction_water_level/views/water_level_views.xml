@@ -64,6 +64,7 @@
                                    invisible="not project_id"/>
                             <field name="device_uid" placeholder="機器上報用的識別碼"/>
                             <field name="seq"/>
+                            <field name="map_label" placeholder="例如 A1（留空就顯示上下游序）"/>
                             <field name="tank_id"
                                    domain="[('site_id', '=', site_id)]"
                                    options="{'no_create': True}"/>

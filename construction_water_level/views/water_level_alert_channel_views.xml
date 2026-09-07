@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_water_level_alert_channel_list" model="ir.ui.view">
+        <field name="name">water.level.alert.channel.list</field>
+        <field name="model">water.level.alert.channel</field>
+        <field name="arch" type="xml">
+            <list string="告警外送通道">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="channel_type"/>
+                <field name="min_severity"/>
+                <field name="endpoint"/>
+                <field name="last_sent_at"/>
+                <field name="last_error" optional="show"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_water_level_alert_channel_form" model="ir.ui.view">
+        <field name="name">water.level.alert.channel.form</field>
+        <field name="model">water.level.alert.channel</field>
+        <field name="arch" type="xml">
+            <form string="告警外送通道">
+                <header>
+                    <button name="action_test" type="object" string="送出測試訊息"
+                            class="btn-primary"
+                            help="設定完先按這個確認通得到，不要等真的出事才發現送不出去。"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="已停用" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="例如：管委會 LINE 群組"/></h1>
+                    </div>
+                    <group>
+                        <group string="送什麼">
+                            <field name="channel_type"/>
+                            <field name="min_severity"/>
+                            <field name="site_ids" widget="many2many_tags"
+                                   placeholder="留空 = 所有場域"/>
+                        </group>
+                        <group string="送到哪">
+                            <field name="endpoint" widget="url"
+                                   invisible="channel_type != 'webhook'"
+                                   required="channel_type == 'webhook'"
+                                   placeholder="https://..."/>
+                            <field name="secret" password="True"
+                                   invisible="channel_type != 'webhook'"/>
+                            <field name="max_per_hour"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group string="狀態">
+                        <group>
+                            <field name="last_sent_at"/>
+                            <field name="delivery_count"/>
+                        </group>
+                        <group>
+                            <field name="last_error"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="送達紀錄" name="deliveries">
+                            <field name="delivery_ids" readonly="1">
+                                <list>
+                                    <field name="create_date" string="產生時間"/>
+                                    <field name="device_id"/>
+                                    <field name="event_id"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state == 'sent'"
+                                           decoration-danger="state == 'failed'"
+                                           decoration-warning="state == 'pending'"/>
+                                    <field name="attempts"/>
+                                    <field name="sent_at"/>
+                                    <field name="last_error"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_water_level_alert_channel" model="ir.actions.act_window">
+        <field name="name">告警外送通道</field>
+        <field name="res_model">water.level.alert.channel</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一個告警外送通道</p>
+            <p>站內通知（收件匣與前台通知中心）本來就會發，不需要設定。
+               這裡設定的是<b>送到系統外面</b>的管道——使用者不登入也收得到。</p>
+            <p>只有勾了「即時告警」的監測站會外送。</p>
+        </field>
+    </record>
+
+    <record id="view_water_level_alert_delivery_list" model="ir.ui.view">
+        <field name="name">water.level.alert.delivery.list</field>
+        <field name="model">water.level.alert.delivery</field>
+        <field name="arch" type="xml">
+            <list string="告警送達紀錄" create="0">
+                <field name="create_date" string="產生時間"/>
+                <field name="channel_id"/>
+                <field name="device_id"/>
+                <field name="event_id"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'sent'"
+                       decoration-danger="state == 'failed'"
+                       decoration-warning="state == 'pending'"/>
+                <field name="attempts"/>
+                <field name="sent_at"/>
+                <field name="last_error"/>
+                <button name="action_retry" type="object" string="重送"
+                        icon="fa-repeat" invisible="state == 'sent'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_water_level_alert_delivery" model="ir.actions.act_window">
+        <field name="name">告警送達紀錄</field>
+        <field name="res_model">water.level.alert.delivery</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有送達紀錄</p>
+            <p>每一則外送的告警都會留一筆，含送出的原文——這是「我們確實通知過」的憑據。</p>
+        </field>
+    </record>
+
+</odoo>

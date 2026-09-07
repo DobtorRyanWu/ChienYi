@@ -61,4 +61,16 @@
               action="action_water_level_reading"
               sequence="20"/>
 
+    <menuitem id="menu_water_level_alert_channel"
+              name="告警外送通道"
+              parent="menu_water_level_root"
+              action="action_water_level_alert_channel"
+              sequence="40"/>
+
+    <menuitem id="menu_water_level_alert_delivery"
+              name="告警送達紀錄"
+              parent="menu_water_level_root"
+              action="action_water_level_alert_delivery"
+              sequence="45"/>
+
 </odoo>

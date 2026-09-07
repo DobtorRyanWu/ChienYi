@@ -326,7 +326,8 @@
     function markerIcon(item) {
         var cls = 'wl-marker is-' + itemStatus(item) +
                   (item.id === state.selectedId ? ' is-active' : '');
-        var label = item.seq || '';
+        // 有設短標籤就用它（例如 A1），沒設就沿用上下游序——留空的站行為不變
+        var label = item.map_label || item.seq || '';
         if (state.mode === 'community') {
             label = (item.fill_rate === null || item.fill_rate === undefined)
                 ? '—' : Math.round(item.fill_rate);

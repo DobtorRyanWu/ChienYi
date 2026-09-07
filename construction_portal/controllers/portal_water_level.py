@@ -116,6 +116,7 @@ class WaterLevelRoutesMixin:
             'name': device.name,
             'is_demo': device.is_demo,
             'seq': device.seq,
+            'map_label': device.map_label or '',
             'latitude': device.latitude,
             'longitude': device.longitude,
             'value': device.last_value if not offline else None,

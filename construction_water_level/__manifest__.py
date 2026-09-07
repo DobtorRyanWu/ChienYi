@@ -11,7 +11,23 @@
     # 2.2.0: 後台地圖（場域／蓄水池／監測站三個 leaflet_map view，標記依狀態上色）
     # 2.3.0: 改走 pull —— 新增可換來源的適配層（http_json／postgres／file_json）、
     #        欄位對應表、時間模式缺號偵測；push 端點保留，兩種並存
-    'version': '18.0.2.3.0',
+    # 2.4.0: 告警外送通道 —— _notify 除了站內 chatter，另把告警送出系統外
+    #        （Webhook 先行，LINE／簡訊日後加一個 _send_ 方法即可）；
+    #        含送達紀錄、每小時上限與失敗重送 cron
+    # 2.5.0: 示範資料合成器 —— 新增第四種來源型態 demo_synth，拿已匯入的歷史真值
+    #        當樣本合成擬真讀數（決定性、可重算），供真設備接上前的展示使用；
+    #        場域／監測站／來源加 is_demo 標示；
+    #        修正保存稽核寫死 1440 筆/日（改依各站 expected_interval_min 換算）；
+    #        device 表單補上 source_id／remote_key／expected_interval_min
+    #        （這三個欄位原本不在表單上，只能用 shell 設定）
+    # 2.6.0: 監測站可向鄰站借水文形狀（demo_baseline_device_id）——自己沒有歷史的站
+    #        （例如工地現場站）拿鄰近測站的真實歷史當基線，斷面高程差走既有的
+    #        datum_elevation，合成器內部全程留在被借那台的值域；
+    #        場域加代表站（primary_device_id），前台水情頁預設顯示它；
+    #        基線日期規則收斂成 demo_synth.baseline_key() 一份（原本兩處各寫一份）
+    # 2.7.0: 監測站加「地圖標籤」（map_label）——前台地圖的標記本來顯示 seq 這個整數，
+    #        對看畫面的人沒意義；留空時沿用舊行為，所以是安全的擴充
+    'version': '18.0.2.7.0',
     'category': 'Construction/Supervision',
     'summary': '水位監測站主檔、時序水位紀錄與設備上報端點',
     'description': """
@@ -60,6 +76,7 @@
         'views/water_level_event_views.xml',
         'views/water_level_gap_views.xml',
         'views/water_level_integrity_views.xml',
+        'views/water_level_alert_channel_views.xml',
         'views/menu.xml',
         # Report
         'report/water_level_event_report.xml',

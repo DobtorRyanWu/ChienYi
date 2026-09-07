@@ -67,9 +67,19 @@
             <field name="model_id" ref="model_water_level_source"/>
             <field name="state">code</field>
             <field name="code">model._cron_pull()</field>
-            <field name="interval_number">5</field>
+            <field name="interval_number">15</field>
             <field name="interval_type">minutes</field>
             <field name="active" eval="False"/>
+        </record>
+
+        <record id="cron_water_level_alert_retry" model="ir.cron">
+            <field name="name">水位監測：告警外送重試</field>
+            <field name="model_id" ref="model_water_level_alert_delivery"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_retry()</field>
+            <field name="interval_number">5</field>
+            <field name="interval_type">minutes</field>
+            <field name="active" eval="True"/>
         </record>
 
     </data>
