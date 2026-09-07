@@ -1013,6 +1013,17 @@ class ContractChangeWizard(models.TransientModel):
                 'original_qty': task.planned_qty or 0.0,
                 'original_unit_price': task.unit_price or 0.0,
             })
+            if task.is_lump_sum or task.tax_misc_rate:
+                # 整包項／比例項的 unit_price 是 0（金額載體是 xml_amount 或
+                # 「比例 × 基數」）。留 0 的話，明細列的「原金額」就只剩
+                # 鏡射 task.planned_amount 一條路 —— 而套用變更正是去改
+                # planned_amount，鏡子當場失真（原金額 = 新金額、追加 0）。
+                # 比照上方彙總／稅什費列的慣例：qty=1 × 變更前契約金額。
+                vals.update({
+                    'original_qty': 1.0,
+                    'original_unit_price': round(
+                        task.planned_amount or task.xml_amount or 0.0, 2),
+                })
 
             if wizard_line.change_type == 'modify':
                 vals.update({

@@ -651,6 +651,10 @@ class ContractChangeOrder(models.Model):
             raise UserError('只有專案負責人或系統管理者才能套用變更！')
         self._check_cumulative_change_limit()
 
+        # 最後一道保險：把整包／比例項的「變更前金額」落到明細列自己身上，
+        # 之後 _apply_changes_to_tasks 才可以放心改工項。
+        self._freeze_lump_original_prices()
+
         # 套用變更至工項
         self._apply_changes_to_tasks()
 
@@ -694,6 +698,31 @@ class ContractChangeOrder(models.Model):
         self.write(vals)
 
     # === 套用變更邏輯 ===
+    def _freeze_lump_original_prices(self):
+        """套用前把整包／比例項的「變更前金額」寫進明細列的原數量×原單價。
+
+        整包費用項與比例項的 task.unit_price 是 0（金額載體分別是 xml_amount
+        與「比例 × 基數」），所以明細列的「原金額」沒有 qty × price 可算，
+        只能鏡射 task.planned_amount —— 而套用變更就是去改 planned_amount，
+        鏡子在套用那一刻失真：原金額變成新金額、「追加」顯示 0
+        （磺港溪 111-22-AEF：自主品管費、稅什費兩列）。
+
+        正常路徑（匯入、精靈）現在都會在建立明細時就寫好原單價，這裡只處理
+        剩下的殘缺列（手動建立、或舊資料）：把當下算得出來的變更前金額
+        以 qty=1 × 金額固定下來。必須在 _apply_changes_to_tasks 之前呼叫。
+        """
+        self.ensure_one()
+        for line in self.line_ids:
+            if not ((line.is_lump_sum_line or line.is_rate_line) and line.task_id):
+                continue
+            if line.original_qty and line.original_unit_price:
+                continue        # 已經有真相載體
+            amount = round(
+                line.original_amount
+                or line.task_id.planned_amount
+                or line.task_id.xml_amount or 0.0, 2)
+            line.write({'original_qty': 1.0, 'original_unit_price': amount})
+
     def _apply_changes_to_tasks(self):
         """套用變更至工項"""
         self.ensure_one()

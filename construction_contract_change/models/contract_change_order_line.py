@@ -328,13 +328,32 @@ class ContractChangeOrderLine(models.Model):
     @api.depends('original_qty', 'original_unit_price',
                  'is_lump_sum_line', 'is_rate_line', 'task_id.planned_amount')
     def _compute_original_amount(self):
+        """原金額。整包費用項與比例項沒有單價可言，需要另一個載體。
+
+        ❌ 不能一律鏡射 task.planned_amount。「套用變更」的目的就是改
+        planned_amount，鏡子在套用那一刻就失真：原金額變成新金額、
+        「追加」顯示 0（磺港溪 111-22-AEF 實案：自主品管費、稅什費兩列）。
+
+        真正能存住套用的載體是「原數量 × 原單價」（qty=1 × 變更前契約金額）。
+        匯入這條路、以及精靈的彙總／稅什費列本來就這樣寫；剩下的缺口
+        （精靈對整包／比例項下 modify）已由 _create_change_order_line 與
+        _onchange_task_id 補上，並由 action_apply 的 _freeze_lump_original_prices()
+        在改動工項前做最後一道保險。
+        因此下面的分支②（鏡射）只會在「尚未套用」的單上走到，
+        那時 planned_amount 確實就是變更前金額。
+        """
         for line in self:
             if (line.is_lump_sum_line or line.is_rate_line) and line.task_id:
-                # 整包費用項與比例項都沒有單價，「原數量 × 原單價」會是 0，
-                # 列印出來的變更設計詳細表那一列原金額就會空掉、追加金額被
-                # 誇大成全額。直接取工項的契約金額（整包項＝xml_amount、
-                # 比例項＝比例 × 基數，都是該項真正的變更前金額）。
-                line.original_amount = round(line.task_id.planned_amount or 0.0, 2)
+                if line.original_qty and line.original_unit_price:
+                    # ① 原單價有值 → 它就是真正的變更前金額，
+                    #    而且套用之後仍然成立（不跟著 task 跑）。
+                    line.original_amount = round(
+                        line.original_qty * line.original_unit_price, 2)
+                else:
+                    # ② 尚未被寫入原單價（後台手建、尚未套用）：
+                    #    此時 task.planned_amount 還是變更前的值，可以照鏡子。
+                    #    （整包項＝xml_amount、比例項＝比例 × 基數）
+                    line.original_amount = round(line.task_id.planned_amount or 0.0, 2)
             else:
                 line.original_amount = round(
                     line.original_qty * line.original_unit_price, 2)
@@ -352,7 +371,8 @@ class ContractChangeOrderLine(models.Model):
                 line.new_amount = round(line.new_qty * line.new_unit_price, 2)
 
     @api.depends('original_qty', 'original_unit_price', 'original_amount',
-                 'new_qty', 'new_unit_price', 'new_amount', 'change_type')
+                 'new_qty', 'new_unit_price', 'new_amount', 'change_type',
+                 'is_lump_amount_line')
     def _compute_differences(self):
         for line in self:
             if line.change_type == 'add':
@@ -367,7 +387,11 @@ class ContractChangeOrderLine(models.Model):
                 line.change_amount = round(-line.original_amount, 2)
             else:  # modify 或空白（彙總項/稅什費）
                 line.qty_change = line.new_qty - line.original_qty
-                line.price_change = line.new_unit_price - line.original_unit_price
+                # 整包／比例項的「原單價」欄裝的是整包金額（qty=1 × 金額），
+                # 不是真的單價；相減得出的「單價增減」沒有意義，一律歸 0。
+                line.price_change = (
+                    0.0 if line.is_lump_amount_line
+                    else line.new_unit_price - line.original_unit_price)
                 line.change_amount = round(line.new_amount - line.original_amount, 2)
 
             # 計算變動比率（[0,1] 小數，widget="percentage" 會乘 100 顯示）
@@ -390,6 +414,15 @@ class ContractChangeOrderLine(models.Model):
             self.specification = self.task_id.specification
             self.original_qty = self.task_id.planned_qty
             self.original_unit_price = self.task_id.unit_price
+            if self.task_id.is_lump_sum or self.task_id.tax_misc_rate:
+                # 整包項／比例項的 unit_price 是 0（金額載體是 xml_amount 或
+                # 「比例 × 基數」）。若原單價留 0，「原金額」就只剩鏡射
+                # task.planned_amount 一條路，而套用會把它改掉 → 原金額變成
+                # 新金額、追加顯示 0。這裡比照匯入與精靈彙總列的慣例，
+                # 以 qty=1 × 變更前契約金額把真相存進來。
+                self.original_qty = 1.0
+                self.original_unit_price = round(
+                    self.task_id.planned_amount or self.task_id.xml_amount or 0.0, 2)
 
             # 修改類型：預設新值 = 原值
             if self.change_type == 'modify':
