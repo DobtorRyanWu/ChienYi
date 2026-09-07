@@ -371,14 +371,30 @@ class ProgressScheduleLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """建立時自動計算序號"""
+        """建立時自動計算序號，並比照 write/unlink 擋非草稿進度表新增明細。"""
         allow_sync = self.env.context.get('allow_sync_progress')
+        # 明細只能在「草稿」進度表新增：action_generate_lines / extend / add /
+        # copy_from_previous_version / apply_correction 皆已 gate state=='draft'，
+        # 合法路徑不受影響；此守衛堵住繞過那些 action 的程式化／匯入裸 create，在
+        # 「使用中／已歸檔」進度表灌明細（髒值原本的入口，且事後因 write 被擋還得繞
+        # SQL 才能修）。遷移／回填等刻意在 active 表補列的合法批次帶
+        # allow_line_on_active_schedule 旗標放行，避免擋死自家工具。
+        allow_on_active = self.env.context.get('allow_line_on_active_schedule')
         for vals in vals_list:
             # 實際進度是施工日誌的衍生加總，只能經同步寫入。擋掉非同步管道
             # （獨立表單、CSV 匯入、程式化 create）帶入的非零實際進度，避免 -50/250
             # 這類非法值繞過 write() 閘門靜默落庫。0.0（如複製版本時的初始化）放行。
             if not allow_sync and vals.get('actual_progress'):
                 raise UserError('實際進度只能透過「從日誌同步進度」功能更新，不可手動修改。')
+            # 狀態守衛：非草稿進度表不得新增明細（與 write/unlink 一致）
+            if not allow_on_active:
+                schedule_id = vals.get('schedule_id')
+                if schedule_id:
+                    schedule = self.env['progress.schedule'].browse(schedule_id)
+                    if schedule.state and schedule.state != 'draft':
+                        raise UserError(
+                            '只有草稿狀態的進度表可以新增明細。'
+                            '使用中的進度表如需調整，請先「重設為草稿」。')
             if 'sequence' not in vals or vals.get('sequence', 0) <= 0:
                 schedule_id = vals.get('schedule_id')
                 if schedule_id:

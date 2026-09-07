@@ -112,5 +112,5 @@ class TestDefectSource(TransactionCase):
             self.assertEqual(n, 1)
             lines = getattr(d, field)
             self.assertEqual(len(lines), 1)
-            self.assertEqual(lines[0]._name, 'general.defect.improvement.photo')
+            self.assertEqual(lines[0]._name, 'supervision.photo')
             self.assertEqual(lines[0].photo_stage, stage)
