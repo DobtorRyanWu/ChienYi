@@ -30,6 +30,9 @@ RETENTION_OK_RATIO = 0.95
 ARCHIVE_NOTICE_LEAD_DAYS = 30
 
 ALERT_STATES = ('lv1', 'lv2', 'lv3', 'low1', 'low2', 'low3')
+# 狀態型告警：異常條件消失就該自己收掉，因為它們描述的是「當下的狀態」。
+# 水位越線刻意不在此列——那是災情事件，要有人複核過才算結束（action_close 人工按）。
+RECOVERABLE_TYPES = ('offline', 'power_loss', 'comm_switch')
 
 
 class WaterLevelMonitor(models.AbstractModel):
@@ -46,18 +49,38 @@ class WaterLevelMonitor(models.AbstractModel):
         水位越線要去抖動——連續 ALERT_DEBOUNCE_COUNT 筆都超標才算，
         單筆突波是感測器雜訊不是災情。
         """
-        Event = self.env['water.level.event']
         devices = self.env['water.level.device'].search([('active', '=', True)])
-        opened = 0
+        opened = closed = 0
         for device in devices:
-            for event_type, severity, note in self._detect(device):
+            detected = self._detect(device)
+            for event_type, severity, note in detected:
                 event = self._open_event(device, event_type, severity, note)
                 if event:
                     opened += 1
                     if device.feature_realtime_alert:
                         self._notify(device, event)
-        _logger.info('水位告警掃描：開了 %s 個事件', opened)
+            closed += self._close_recovered(device, {t for t, _sev, _n in detected})
+        _logger.info('水位告警掃描：開了 %s 個事件、關了 %s 個已恢復的', opened, closed)
         return opened
+
+    def _close_recovered(self, device, active_types):
+        """狀態型異常消失後把事件收掉，回傳關掉幾個。
+
+        留一筆 critical 掛在畫面上，看的人會以為現在還在斷線——實際案例：
+        2026-09-08 生產站的撈取排程漏跑兩輪觸發斷線事件，資料兩小時後就恢復了，
+        事件卻掛了 21 小時沒關，因為當時的掃描只開不關。
+
+        `active_types` 是這一輪掃描仍然偵測到的異常種類，由呼叫端傳進來——
+        不在裡面就代表條件已經消失。水位越線不走這條路（見 RECOVERABLE_TYPES）。
+        """
+        stale = self.env['water.level.event'].search([
+            ('device_id', '=', device.id),
+            ('state', '=', 'open'),
+            ('event_type', 'in', RECOVERABLE_TYPES),
+        ]).filtered(lambda event: event.event_type not in active_types)
+        if stale:
+            stale.action_close()
+        return len(stale)
 
     def _detect(self, device):
         """回傳這台設備當下的異常清單 [(event_type, severity, note), ...]。"""
