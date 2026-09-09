@@ -32,14 +32,9 @@
                     </t>
 
                     <t t-else="">
-                        <!-- 示範資料要在業主看得到的地方講清楚，不能只有後台的緞帶 -->
-                        <t t-if="any(device.is_demo for device in devices)">
-                            <div class="wl-demo-banner">
-                                <span class="wl-demo-banner-tag">示範資料</span>
-                                這個工程的水位是<b>系統模擬</b>的，不是現場量測值。
-                            </div>
-                        </t>
-
+                        <!-- 示範資料橫幅已於 2.16.1 依裁示移除（原本在這裡，佔掉首屏一整條）。
+                             示範標示仍存在於：站名本身的「（示範）」字樣、後台監測站的緞帶、
+                             以及匯出 CSV／匯出圖上的警語——那兩者會離開這一頁單獨流傳，不移除。 -->
                         <div id="wlApp"
                              t-att-data-project-id="project.id"
                              t-att-data-default-hours="default_hours">
