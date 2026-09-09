@@ -271,32 +271,35 @@
                         </t>
                     </t>
 
+                    <!-- 量測記錄（表尾量測區）。位置與新增表單一致：
+                         夾在「檢查項目」與「備註」之間，紙本上它就在檢查項目表格下方。
+                         🔴 必須與「備註」各自獨立判斷。曾經整段被包在
+                         t-if="inspection.note" 裡面 → 備註沒填時，即使這筆有量測列
+                         也完全不顯示（資料在庫裡，只是渲染不出來）。 -->
+                    <t t-if="inspection.measure_line_ids">
+                        <t t-set="measure_groups"
+                           t-value="inspection.measure_line_ids.grouped('block_id')"/>
+                        <t t-foreach="measure_groups" t-as="mblock">
+                            <div class="cy-section-title"><t t-esc="mblock.name"/></div>
+                            <div style="margin-bottom: 16px;">
+                                <t t-foreach="measure_groups[mblock]" t-as="mline">
+                                    <div style="font-size: 0.9rem; padding: 8px 0;
+                                                border-bottom: 1px solid var(--wb-line);">
+                                        <div><t t-esc="mline_index + 1"/>. <t t-esc="mline.rendered"/></div>
+                                        <div style="margin-top: 4px;">
+                                            <span t-if="mline.result == 'pass'"
+                                                  style="color: var(--wb-green);">✓ 合格</span>
+                                            <span t-if="mline.result == 'fail'"
+                                                  style="color: var(--wb-red);">✗ 不合格</span>
+                                        </div>
+                                    </div>
+                                </t>
+                            </div>
+                        </t>
+                    </t>
+
                     <!-- 備註 -->
                     <t t-if="inspection.note">
-                        <!-- 量測記錄（表尾量測區）。位置與新增表單一致：
-                             夾在「檢查項目」與「備註」之間，紙本上它就在檢查項目表格下方。 -->
-                        <t t-if="inspection.measure_line_ids">
-                            <t t-set="measure_groups"
-                               t-value="inspection.measure_line_ids.grouped('block_id')"/>
-                            <t t-foreach="measure_groups" t-as="mblock">
-                                <div class="cy-section-title"><t t-esc="mblock.name"/></div>
-                                <div style="margin-bottom: 16px;">
-                                    <t t-foreach="measure_groups[mblock]" t-as="mline">
-                                        <div style="font-size: 0.9rem; padding: 8px 0;
-                                                    border-bottom: 1px solid var(--wb-line);">
-                                            <div><t t-esc="mline_index + 1"/>. <t t-esc="mline.rendered"/></div>
-                                            <div style="margin-top: 4px;">
-                                                <span t-if="mline.result == 'pass'"
-                                                      style="color: var(--wb-green);">✓ 合格</span>
-                                                <span t-if="mline.result == 'fail'"
-                                                      style="color: var(--wb-red);">✗ 不合格</span>
-                                            </div>
-                                        </div>
-                                    </t>
-                                </div>
-                            </t>
-                        </t>
-
                         <div class="cy-section-title">備註</div>
                         <div class="cy-info-section" style="padding: 12px 16px;">
                             <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="inspection.note"/></div>
@@ -776,31 +779,35 @@
                         </t>
                     </t>
 
-                    <t t-if="inspection.note">
-                        <!-- 量測記錄（表尾量測區）。位置與新增表單一致：
-                             夾在「檢查項目」與「備註」之間，紙本上它就在檢查項目表格下方。 -->
-                        <t t-if="inspection.measure_line_ids">
-                            <t t-set="measure_groups"
-                               t-value="inspection.measure_line_ids.grouped('block_id')"/>
-                            <t t-foreach="measure_groups" t-as="mblock">
-                                <div class="cy-section-title"><t t-esc="mblock.name"/></div>
-                                <div style="margin-bottom: 16px;">
-                                    <t t-foreach="measure_groups[mblock]" t-as="mline">
-                                        <div style="font-size: 0.9rem; padding: 8px 0;
-                                                    border-bottom: 1px solid var(--wb-line);">
-                                            <div><t t-esc="mline_index + 1"/>. <t t-esc="mline.rendered"/></div>
-                                            <div style="margin-top: 4px;">
-                                                <span t-if="mline.result == 'pass'"
-                                                      style="color: var(--wb-green);">✓ 合格</span>
-                                                <span t-if="mline.result == 'fail'"
-                                                      style="color: var(--wb-red);">✗ 不合格</span>
-                                            </div>
+                    <!-- 量測記錄（表尾量測區）。位置與新增表單一致：
+                         夾在「檢查項目」與「備註」之間，紙本上它就在檢查項目表格下方。
+                         🔴 必須與「備註」各自獨立判斷。曾經整段被包在
+                         t-if="inspection.note" 裡面 → 備註沒填時，即使這筆有量測列
+                         也完全不顯示（資料在庫裡，只是渲染不出來）。 -->
+                    <t t-if="inspection.measure_line_ids">
+                        <t t-set="measure_groups"
+                           t-value="inspection.measure_line_ids.grouped('block_id')"/>
+                        <t t-foreach="measure_groups" t-as="mblock">
+                            <div class="cy-section-title"><t t-esc="mblock.name"/></div>
+                            <div style="margin-bottom: 16px;">
+                                <t t-foreach="measure_groups[mblock]" t-as="mline">
+                                    <div style="font-size: 0.9rem; padding: 8px 0;
+                                                border-bottom: 1px solid var(--wb-line);">
+                                        <div><t t-esc="mline_index + 1"/>. <t t-esc="mline.rendered"/></div>
+                                        <div style="margin-top: 4px;">
+                                            <span t-if="mline.result == 'pass'"
+                                                  style="color: var(--wb-green);">✓ 合格</span>
+                                            <span t-if="mline.result == 'fail'"
+                                                  style="color: var(--wb-red);">✗ 不合格</span>
                                         </div>
-                                    </t>
-                                </div>
-                            </t>
+                                    </div>
+                                </t>
+                            </div>
                         </t>
+                    </t>
 
+                    <!-- 備註 -->
+                    <t t-if="inspection.note">
                         <div class="cy-section-title">備註</div>
                         <div class="cy-info-section" style="padding: 12px 16px;">
                             <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="inspection.note"/></div>
