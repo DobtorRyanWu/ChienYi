@@ -2099,8 +2099,10 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
             }
             if (spec.input_able) control.selectExclusiveOptions = { inputAble: true };
             if (spec.current_code) {
-                const hit = (spec.value_sets || []).find(v => v.code === spec.current_code);
-                if (hit) control.value = [{ value: hit.value }];
+                // 複選時 current_code 是逗號串接的多個 code（後端關聯欄位來源）
+                const codes = String(spec.current_code).split(",");
+                const hits = (spec.value_sets || []).filter(v => codes.includes(v.code));
+                if (hits.length) control.value = hits.map(h => ({ value: h.value }));
             }
         } else if (spec && spec.control_type === "radio") {
             control.type = "radio";

@@ -4,6 +4,20 @@ from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 
 
+# 檢查時機的預設選項（＝ 18.0.4.9.0 以前 inspection_timing Selection 的值域）。
+# 第三欄是 legacy_code，**只給資料遷移用**（把舊 Selection 的值對到新記錄）。
+# 匯入與日常操作一律以 name 為準 —— 與 self.inspection.type.stage 的
+# legacy_code(stage1/2/3) 同一個角色，手動新增的時機請留空。
+DEFAULT_TIMINGS = [
+    ('hold_point', '查驗停留點', 10),
+    ('random', '隨機抽查', 20),
+    ('before', '施工前檢查', 30),
+    ('during', '施工中檢查', 40),
+    ('after', '施工完成檢查', 50),
+]
+DEFAULT_TIMING_CODES = [c for c, _n, _s in DEFAULT_TIMINGS]
+
+
 class SelfInspectionType(models.Model):
     """
     自主檢查類型
@@ -98,6 +112,42 @@ class SelfInspectionType(models.Model):
             Command.create({'name': '施工後', 'sequence': 30, 'legacy_code': 'stage3'}),
         ]
 
+    # === 檢查時機 ===
+    # 掛在檢查類型底下而非做成全域主檔，因為各家紙本表格的選項組本來就不同，
+    # 連文字都不一樣：逸峰「施工完成檢查」vs 川易「施工後檢查」，
+    # 監造抽查類則整組換成「查驗停留點／隨機抽查」。
+    # 檢查類型本身已有 project_id，故「不同工程選項不同」自然成立。
+    timing_ids = fields.One2many(
+        'self.inspection.type.timing', 'type_id',
+        string='檢查時機',
+        copy=True,  # 複製檢查類型時一併複製（One2many 預設不複製）
+        default=lambda self: self._default_timing_ids(),
+        help='此檢查類型表頭「檢查時機」那一列可勾選的項目，紙本上可以同時勾多個'
+             '（例如施工中＋施工完成）。名稱請原樣照紙本印的字填，'
+             '匯入與列印都以名稱為準')
+
+    @api.model
+    def _default_timing_ids(self):
+        """新類型預設帶原本 Selection 的那 5 個選項。
+
+        與 _default_stage_ids 同樣只在 vals 未給 timing_ids 時生效，
+        所以匯入時傳了自訂時機不會多出這 5 筆。
+        """
+        return [
+            Command.create({'name': name, 'sequence': seq, 'legacy_code': code})
+            for code, name, seq in DEFAULT_TIMINGS
+        ]
+
+    # === 量測區塊（表尾「丈量___位置…□合格□不合格」那一段）===
+    # 定義見 self_inspection_measure.py。掛在類型底下、可以有多個，
+    # 與查驗段落／檢查時機同一個形狀。沒有這一段的檢查類型就不要建列。
+    measure_ids = fields.One2many(
+        'self.inspection.type.measure', 'type_id',
+        string='量測區塊',
+        copy=True,  # 複製檢查類型時一併複製（One2many 預設不複製）
+        help='紙本檢查項目表格「外面、下方」的那一段。'
+             '27 種檢查表裡只有鋼筋有，其他類型不必建')
+
     # === 預設檢查項目 ===
     default_item_ids = fields.One2many(
         'self.inspection.type.item', 'type_id',
@@ -191,6 +241,75 @@ class SelfInspectionType(models.Model):
         }
 
 
+class SelfInspectionTypeTiming(models.Model):
+    """
+    自主檢查類型檢查時機
+
+    設計說明：
+    - 對應紙本表頭「檢查時機」那一列的勾選框，實測會同時勾多個
+      （111年度西區水利 逸峰營造裂縫修補表：施工中＋施工完成）
+    - 每個檢查類型有自己的一組，各類型不共用 —— 各家表格的選項組不同，
+      連用字都不同（「施工完成檢查」vs「施工後檢查」）
+    - 注意與「查驗段落」self.inspection.type.stage 區分：
+      時機是整張檢查表的表頭屬性，段落是逐項的分組，兩者不同維度
+    """
+    _name = 'self.inspection.type.timing'
+    _description = '自主檢查類型檢查時機'
+    _order = 'sequence, id'
+
+    type_id = fields.Many2one(
+        'self.inspection.type',
+        string='檢查類型',
+        required=True,
+        ondelete='cascade',
+        index=True)
+
+    name = fields.Char(
+        string='時機名稱',
+        required=True,
+        help='原樣照紙本表頭印的字，例如：施工完成檢查／施工後檢查')
+
+    sequence = fields.Integer(
+        string='排序',
+        default=10)
+
+    legacy_code = fields.Char(
+        string='舊代碼',
+        copy=False,
+        index=True,
+        help='資料遷移用：hold_point/random/before/during/after（18.0.4.9.0 以前的'
+             'inspection_timing 值域）。手動新增的時機請留空 —— 匯入是用「時機名稱」'
+             '對應的，不需要代碼')
+
+    # === SQL 約束 ===
+    _sql_constraints = [
+        ('name_type_uniq', 'UNIQUE(type_id, name)',
+         '同一檢查類型內的時機名稱不可重複！'),
+        ('legacy_code_type_uniq', 'UNIQUE(type_id, legacy_code)',
+         '同一檢查類型內的舊代碼不可重複！'),
+    ]
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_in_use(self):
+        """時機已被檢查記錄勾選時不可刪除。
+
+        與 stage 同樣用 @api.ondelete 而非 FK restrict：刪整個檢查類型時
+        DB 會 cascade 掉本表，不走 ORM unlink，故此守門不會誤觸發。
+        """
+        for model in ('general.self.inspection',
+                      'reservation.self.inspection'):
+            Model = self.env.get(model)
+            if Model is None:
+                continue
+            count = Model.sudo().search_count([
+                ('inspection_timing_ids', 'in', self.ids)
+            ])
+            if count:
+                raise UserError(
+                    '此檢查時機已被 %s 筆「%s」勾選，請先取消勾選再刪除。'
+                    % (count, Model._description))
+
+
 class SelfInspectionTypeStage(models.Model):
     """
     自主檢查類型查驗段落
@@ -199,8 +318,8 @@ class SelfInspectionTypeStage(models.Model):
     - 對應抽查紀錄表表格內的段落標題（一 廠商自主檢查／二 施工中／三 銑刨作業…）
     - 每個檢查類型有自己的一組段落，各類型不共用
       （瀝青混凝土 6 段、模板 4 段、測量放樣 3 段）
-    - 注意與「檢查時機」inspection_timing 區分：後者是整張檢查表的屬性
-      （查驗停留點／施工前後檢查），段落是逐項的分組，兩者不同維度
+    - 注意與「檢查時機」self.inspection.type.timing 區分：後者是整張檢查表
+      表頭的屬性（查驗停留點／施工前後檢查），段落是逐項的分組，兩者不同維度
     """
     _name = 'self.inspection.type.stage'
     _description = '自主檢查類型查驗段落'

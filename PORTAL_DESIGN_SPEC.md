@@ -289,7 +289,7 @@ HUD（固定頂部）：
 |------|------|------|---------|
 | 檢查類型 | inspection_type_id | select（帶入 checklist） | |
 | 檢查位置 | inspection_location | text | |
-| 檢查時機 | inspection_timing | select 4項 | |
+| 檢查時機 | inspection_timing_ids | checkbox 群組（**可複選**，選項依所選檢查類型而定） | 18.0.5.0.0 改複選 |
 | 檢查人員 | inspector_id | 唯讀（自動=當前用戶） | ★ v10缺漏 |
 | 承包廠商 | contractor_company_id | 唯讀（自動帶入） | ★ v10缺漏 |
 | 檢查項目 | checklist_ids items | 按 stage 分群三按鈕 | |

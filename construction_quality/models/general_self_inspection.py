@@ -88,18 +88,47 @@ class GeneralSelfInspection(models.Model):
             record.contractor_name = record.project_id.contractor_company_name or ''
 
     # === 檢查時機 ===
-    # 紙本表單的「檢查時機」其實是兩個度：
-    #   ① 檢驗停留點 vs 隨機抽查（抽查方式）
-    #   ② 施工前 / 施工中 / 施工完成（時點）
-    # 模型合成一個 Selection。廠商自主檢查表只有①（只勾停留點或隨機），
-    # 舊值域沒有 random 時，這類表單從紙本搬進來會被 ValueError 擋下。
-    inspection_timing = fields.Selection([
-        ('hold_point', '查驗停留點'),
-        ('random', '隨機抽查'),
-        ('before', '施工前檢查'),
-        ('during', '施工中檢查'),
-        ('after', '施工完成檢查'),
-    ], string='檢查時機', default='during', tracking=True)
+    # 紙本表頭那一列本來就可以同時勾多個（實測：施工中＋施工完成），
+    # 而且各家表格的選項組不同、連用字都不同（「施工完成檢查」vs「施工後檢查」），
+    # 所以選項掛在檢查類型底下（self.inspection.type.timing）而非寫死 Selection。
+    # 18.0.5.0.0 以前是單選 Selection，值域 hold_point/random/before/during/after。
+    inspection_timing_ids = fields.Many2many(
+        'self.inspection.type.timing',
+        'general_self_inspection_timing_rel',
+        'inspection_id',
+        'timing_id',
+        string='檢查時機',
+        tracking=True,
+        domain="[('type_id', '=', inspection_type_id)]",
+        help='可複選；選項由所選「自主檢查類型」底下的檢查時機決定')
+
+    # 供列印報表、前台顯示與文件樣板取用的文字（原本直接讀 Selection 的 label）
+    inspection_timing_display = fields.Char(
+        string='檢查時機（文字）',
+        compute='_compute_inspection_timing_display',
+        store=True)
+
+    @api.depends('inspection_timing_ids', 'inspection_timing_ids.name')
+    def _compute_inspection_timing_display(self):
+        for record in self:
+            record.inspection_timing_display = '、'.join(
+                record.inspection_timing_ids.mapped('name'))
+
+    @api.constrains('inspection_timing_ids', 'inspection_type_id')
+    def _check_timing_belongs_to_type(self):
+        """勾選的時機必須屬於本筆所選的檢查類型。
+
+        沒有這道守門時，改掉檢查類型後舊的勾選會留著卻不再出現在畫面上
+        （domain 篩掉了），變成「看不到但列印得出來」的幽靈值。
+        """
+        for record in self:
+            bad = record.inspection_timing_ids.filtered(
+                lambda t: t.type_id != record.inspection_type_id)
+            if bad:
+                raise ValidationError(
+                    '檢查時機「%s」不屬於檢查類型「%s」，請重新勾選。'
+                    % ('、'.join(bad.mapped('name')),
+                       record.inspection_type_id.name or '（未選）'))
 
     # === 檢查人員 ===
     inspector_id = fields.Many2one(
@@ -124,6 +153,12 @@ class GeneralSelfInspection(models.Model):
         'general.self.inspection.item', 'inspection_id',
         string='檢查項目')
 
+    # === 量測記錄（表尾「丈量___位置…□合格□不合格」那一段）===
+    # 空列＝沒有記錄：紙本預印 4 列、實填 2 列就只建 2 列，不預建空列。
+    measure_line_ids = fields.One2many(
+        'general.self.inspection.measure.line', 'inspection_id',
+        string='量測記錄')
+
     # === 檢查結果 ===
     has_defect = fields.Boolean(
         string='是否有缺失',
@@ -142,20 +177,27 @@ class GeneralSelfInspection(models.Model):
         ('fail', '不合格'),
     ], string='整體結果', compute='_compute_overall_result', store=True)
 
-    @api.depends('checklist_ids.check_result')
+    @api.depends('checklist_ids.check_result', 'measure_line_ids.result')
     def _compute_has_defect(self):
+        # 量測列的「不合格」一併計入 —— 「這張表有沒有缺失」在語意上包含它。
+        # ⚠️ 但缺失單精靈只從檢查項目建（量測列沒有項目名稱可當缺失描述），
+        #    所以會有「has_defect 為真、精靈裡沒有可選項目」的情況，
+        #    由 construction_general 的精靈給訊息說明，不要給空清單。
         for record in self:
             defect_items = record.checklist_ids.filtered(
                 lambda x: x.check_result == 'defect')
-            record.defect_count = len(defect_items)
+            failed_measures = record.measure_line_ids.filtered(
+                lambda x: x.result == 'fail')
+            record.defect_count = len(defect_items) + len(failed_measures)
             record.has_defect = record.defect_count > 0
 
-    @api.depends('checklist_ids.check_result')
+    @api.depends('checklist_ids.check_result', 'measure_line_ids.result')
     def _compute_overall_result(self):
         for record in self:
-            if not record.checklist_ids:
+            if not record.checklist_ids and not record.measure_line_ids:
                 record.overall_result = False
-            elif any(item.check_result == 'defect' for item in record.checklist_ids):
+            elif (any(item.check_result == 'defect' for item in record.checklist_ids)
+                  or any(m.result == 'fail' for m in record.measure_line_ids)):
                 record.overall_result = 'fail'
             elif all(item.check_result in ('pass', 'na') for item in record.checklist_ids):
                 record.overall_result = 'pass'
@@ -260,9 +302,12 @@ class GeneralSelfInspection(models.Model):
 
     @api.onchange('inspection_type_id')
     def _onchange_inspection_type_id(self):
-        """自動帶入分項工程名稱"""
+        """自動帶入分項工程名稱，並清掉不屬於新類型的檢查時機"""
         if self.inspection_type_id:
             self.sub_project_name = self.inspection_type_id.name
+        # 時機是逐類型各一組，換了類型舊勾選必然失效（_check_timing_belongs_to_type
+        # 會擋下）。這裡先清掉，讓使用者在畫面上就看到要重新勾。
+        self.inspection_timing_ids = [Command.clear()]
 
     def action_load_default_items(self):
         """載入預設檢查項目"""
@@ -418,3 +463,35 @@ class GeneralSelfInspectionItem(models.Model):
         """查驗段落變更時，若已選的項目不屬於新段落則清除"""
         if self.type_item_id and self.type_item_id.stage_id != self.stage_id:
             self.type_item_id = False
+
+
+class GeneralSelfInspectionMeasureLine(models.Model):
+    """一般式自主檢查量測列。
+
+    句型與值都在 self.inspection.measure.line.mixin，這裡只多一個 inspection_id。
+    """
+    _name = 'general.self.inspection.measure.line'
+    _description = '一般式自主檢查量測列'
+    _inherit = ['self.inspection.measure.line.mixin']
+    _rec_name = 'rendered'
+
+    inspection_id = fields.Many2one(
+        'general.self.inspection',
+        string='自主檢查',
+        required=True,
+        ondelete='cascade',
+        index=True)
+
+    @api.constrains('block_id', 'inspection_id')
+    def _check_block_belongs_to_type(self):
+        """量測區塊必須屬於本筆所選的檢查類型。
+
+        沒有這道守門時，改掉檢查類型後舊的量測列會留著卻不再屬於這張表，
+        變成「看不到但列印得出來」的幽靈列 —— 與檢查時機那道守門同一個理由。
+        """
+        for line in self:
+            if line.block_id.type_id != line.inspection_id.inspection_type_id:
+                raise ValidationError(
+                    '量測區塊「%s」不屬於檢查類型「%s」，請重新選擇。'
+                    % (line.block_id.name or '',
+                        line.inspection_id.inspection_type_id.name or '（未選）'))

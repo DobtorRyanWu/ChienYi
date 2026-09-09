@@ -13,7 +13,7 @@
                 <field name="inspection_type_id"/>
                 <field name="sub_project_name"/>
                 <field name="inspection_date"/>
-                <field name="inspection_timing"/>
+                <field name="inspection_timing_ids" widget="many2many_tags" optional="show"/>
                 <field name="inspector_id"/>
                 <field name="has_defect"/>
                 <field name="defect_count"/>
@@ -78,7 +78,8 @@
                                    domain="[('project_id', '=', project_id)]"/>
                             <field name="sub_project_name" required="1"/>
                             <field name="inspection_date"/>
-                            <field name="inspection_timing"/>
+                            <field name="inspection_timing_ids" widget="many2many_checkboxes"
+                                   options="{'no_create': True}"/>
                             <field name="inspection_location"/>
                         </group>
                     </group>
@@ -115,6 +116,32 @@
                                            decoration-danger="check_result == 'defect'"
                                            decoration-muted="check_result == 'na'"/>
                                     <field name="note" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="量測記錄" name="measure_lines"
+                              invisible="not inspection_type_id">
+                            <div class="alert alert-info" role="alert">
+                                只有設定過「量測區塊」的檢查類型才需要填這一頁。
+                                選了「量測區塊」之後，右邊的<b>填寫內容</b>會顯示成
+                                <b>丈量＿＿位置，長＿＿cm</b> —— 有幾個 ＿＿ 就是要填幾格。
+                                「各空格的值」照左到右的順序填，中間用
+                                <b>｜</b>（全形直線）分隔，例如 <b>橫向｜100</b>。
+                                沒量到的格子留空即可。
+                                「填寫內容」是<b>存檔之後</b>才組回整句，可以存完再對照確認。
+                            </div>
+                            <field name="measure_line_ids"
+                                   context="{'default_inspection_type_id': inspection_type_id}">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="block_id"
+                                           domain="[('type_id', '=', parent.inspection_type_id)]"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="template" column_invisible="1"/>
+                                    <field name="values_text" string="各空格的值"
+                                           placeholder="依左到右順序，以 ｜ 分隔"/>
+                                    <field name="rendered" string="填寫內容" readonly="1"/>
+                                    <field name="result"/>
                                 </list>
                             </field>
                         </page>

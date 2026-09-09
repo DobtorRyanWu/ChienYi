@@ -81,7 +81,7 @@
                             <field name="inspection_type_id"/>
                             <field name="sub_project_name"/>
                             <field name="inspection_date"/>
-                            <field name="inspection_timing"/>
+                            <field name="inspection_timing_ids" widget="many2many_tags" optional="show"/>
                             <field name="inspector_id"/>
                             <field name="has_defect"/>
                             <field name="defect_count"/>

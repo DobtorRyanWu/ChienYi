@@ -56,6 +56,18 @@ class CreateDefectImprovementWizard(models.TransientModel):
             lambda x: x.check_result == 'defect' and not x.defect_improvement_id)
 
         if not defect_items:
+            # 量測列（表尾「丈量___位置…□合格□不合格」）的不合格也算缺失，
+            # 會讓 has_defect 為真；但缺失單要帶入「檢查項目名稱」當描述，
+            # 量測列沒有項目名稱，故不從這裡建。訊息要說清楚，不要讓人以為壞掉。
+            failed_measures = inspection.measure_line_ids.filtered(
+                lambda m: m.result == 'fail')
+            if failed_measures:
+                raise UserError(
+                    '這張檢查單的檢查項目沒有待建立的缺失，'
+                    '但量測記錄有 %s 列不合格。\n'
+                    '量測列沒有「檢查項目名稱」可以當缺失描述，'
+                    '無法從這裡自動建立缺失改善單 —— 請直接到缺失改善新增一筆，'
+                    '並於描述中註明是哪一列量測不合格。' % len(failed_measures))
             raise UserError('所有缺失項目皆已建立缺失改善單')
 
         created_improvements = self.env['general.defect.improvement']

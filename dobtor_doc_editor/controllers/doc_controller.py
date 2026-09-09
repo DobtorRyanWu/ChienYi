@@ -1954,6 +1954,60 @@ body {{
             'fields': fields_list,
         }
 
+    def _relational_value_sets(self, fdef, record):
+        """關聯欄位（m2o/m2m）的選項清單與目前值。
+
+        domain 是寫在欄位上的字串，可能引用同記錄的其他欄位
+        （例：[('type_id', '=', inspection_type_id)]）。只把 domain 字面上
+        提到的欄位餵進 eval context，避免為了組 context 去讀整張表的所有欄位
+        （會觸發不相干的 compute）。
+        """
+        from odoo.tools.safe_eval import safe_eval
+
+        comodel = fdef.comodel_name
+        if not comodel or comodel not in request.env:
+            return [], None
+
+        domain = fdef.domain or []
+        if isinstance(domain, str):
+            if record is not None and record.exists():
+                names = set(re.findall(r"[A-Za-z_]\w*", domain))
+                ctx = {}
+                for name in names:
+                    f = record._fields.get(name)
+                    if f is None:
+                        continue
+                    val = record[name]
+                    if f.type == 'many2one':
+                        ctx[name] = val.id
+                    elif f.type in ('one2many', 'many2many'):
+                        ctx[name] = val.ids
+                    else:
+                        ctx[name] = val if val else False
+                try:
+                    domain = safe_eval(domain, ctx)
+                except Exception:
+                    _logger.warning(
+                        'doc.template.field: 無法解析 %s.%s 的 domain %r，改用全部選項',
+                        record._name, fdef.name, fdef.domain)
+                    domain = []
+            else:
+                # 沒有綁定 record 就算不出 domain 引用的值；寧可不給選項，
+                # 也不要把別的檢查類型的時機混進來。
+                return [], None
+
+        options = request.env[comodel].search(domain)
+        value_sets = [{'value': o.display_name, 'code': str(o.id)}
+                      for o in options]
+
+        current_code = None
+        if record is not None and record.exists() and fdef.name in record._fields:
+            val = record[fdef.name]
+            if val:
+                # 複選時以逗號串接；前端 isMultiSelect 會拆開逐一比對
+                current_code = ','.join(str(i) for i in val.ids)
+        return value_sets, current_code
+
     def _field_control_spec(self, field, record, aliases=None):
         """把一個 doc.template.field 轉成前端 canvas-editor control 所需的設定。
 
@@ -1983,6 +2037,13 @@ body {{
                         val = record[field.selection_field_name]
                         if val:
                             current_code = val
+                elif fdef and fdef.relational:
+                    # 關聯欄位當選項來源（例：自主檢查的 inspection_timing_ids →
+                    # self.inspection.type.timing）。選項＝該欄位 domain 篩出來的
+                    # 那一組，code 用記錄 id。沒有這一段時，Selection 改成 Many2many
+                    # 之後 value_sets 會靜靜變成空清單、chip 上一個選項都沒有。
+                    value_sets, current_code = self._relational_value_sets(
+                        fdef, record)
         elif field.option_source == 'custom':
             for opt in field.option_ids.sorted('sequence'):
                 value_sets.append({'value': opt.value, 'code': opt.code or opt.value})

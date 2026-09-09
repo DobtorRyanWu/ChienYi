@@ -89,8 +89,9 @@
         </record>
 
         <!-- 自主檢查表：互動式變數 control（階段 1 示範）
-             timing → 下拉選單，選項來自 general.self.inspection 的 inspection_timing
-             Selection 欄位（查驗停留點/施工前/中/完成檢查），並允許自行填寫。
+             timing → 下拉選單（複選），選項來自 general.self.inspection 的
+             inspection_timing_ids（Many2many → self.inspection.type.timing），
+             亦即該筆所選檢查類型底下設定的那一組時機，並允許自行填寫。
              content_html 不動；前端開啟文件時依此設定把 {{ timing }} 升級成 select chip。 -->
         <record id="signer_self_inspection_default" model="doc.template.signer">
             <field name="template_id" ref="template_self_inspection"/>
@@ -103,7 +104,8 @@
             <field name="field_type">select</field>
             <field name="placeholder_text">timing</field>
             <field name="option_source">odoo</field>
-            <field name="selection_field_name">inspection_timing</field>
+            <field name="selection_field_name">inspection_timing_ids</field>
+            <field name="is_multi_select" eval="True"/>
             <field name="input_able" eval="True"/>
         </record>
 

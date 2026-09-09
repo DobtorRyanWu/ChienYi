@@ -1007,6 +1007,180 @@
         });
     }
 
+    // === 自主檢查表單：檢查時機（逐檢查類型各一組，可複選）===
+    // 選項不寫死：紙本各家用字不同（「施工完成檢查」／「施工後檢查」），
+    // 由後端 data-timing-map 帶進來，選定檢查類型後才知道要顯示哪一組。
+    var timingBox = document.getElementById('inspection_timing_box');
+    var timingMap = {};
+    if (timingBox) {
+        try {
+            timingMap = JSON.parse(timingBox.dataset.timingMap || '{}');
+        } catch (err) {
+            timingMap = {};
+        }
+    }
+
+    function renderTimingOptions(typeId) {
+        if (!timingBox) return;
+        var list = timingMap[String(typeId)] || [];
+        if (!typeId) {
+            timingBox.innerHTML = '<span style="font-size: 0.8rem; color: var(--wb-t3);">請先選擇檢查類型</span>';
+            return;
+        }
+        if (!list.length) {
+            timingBox.innerHTML = '<span style="font-size: 0.8rem; color: var(--wb-t3);">此檢查類型未設定檢查時機</span>';
+            return;
+        }
+        var html = '';
+        list.forEach(function (tm) {
+            var cid = 'timing_opt_' + tm.id;
+            // 行動優先：整個 label 都是可點區域，字與方框都放大到手指點得到
+            html += '<label for="' + cid + '" style="display: inline-flex; align-items: center;'
+                  + ' gap: 8px; font-size: 0.95rem; margin: 0; padding: 8px 12px;'
+                  + ' min-height: 42px; border: 1px solid var(--wb-line);'
+                  + ' border-radius: 8px; cursor: pointer;">';
+            html += '<input type="checkbox" id="' + cid + '" name="inspection_timing_ids"'
+                  + ' value="' + tm.id + '" style="width: 20px; height: 20px; margin: 0;'
+                  + ' flex-shrink: 0;"/>';
+            html += '<span>' + escHtml(tm.name) + '</span>';
+            html += '</label>';
+        });
+        timingBox.innerHTML = html;
+    }
+
+    var timingTypeSelect = document.getElementById('inspection_type_select')
+        || document.getElementById('inspection_type_select_reservation');
+    if (timingBox && timingTypeSelect) {
+        timingTypeSelect.addEventListener('change', function () {
+            renderTimingOptions(timingTypeSelect.value);
+            renderMeasureBlocks(timingTypeSelect.value);
+        });
+        renderTimingOptions(timingTypeSelect.value);
+        renderMeasureBlocks(timingTypeSelect.value);
+    }
+
+    // === 自主檢查表單：量測區塊（表尾「丈量___位置…□合格□不合格」）===
+    // 句型由後端切成文字段（N 個空格 → N+1 段），這裡在段與段之間插輸入框。
+    // 只有設定過量測區塊的檢查類型才會出現這一區。
+    var measureBox = document.getElementById('measure_blocks');
+    var measureMap = {};
+    if (measureBox) {
+        try {
+            measureMap = JSON.parse(measureBox.dataset.measureMap || '{}');
+        } catch (err) {
+            measureMap = {};
+        }
+    }
+    var measureRowSeq = 0;
+
+    function measureRowHtml(block, rowIdx) {
+        var segs = block.segments || [];
+        var html = '<div class="cy-card measure-row" style="margin-bottom: 8px;" data-idx="' + rowIdx + '">';
+        html += '<div class="cy-card-body" style="padding: 10px 12px;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
+        html += '<span style="font-size:0.78rem;color:var(--wb-t3);">第 ' + (rowIdx + 1) + ' 列</span>';
+        html += '<button type="button" class="measure-del" data-idx="' + rowIdx + '"'
+              + ' style="background:none;border:none;color:var(--wb-t3);font-size:0.8rem;">移除</button>';
+        html += '</div>';
+        html += '<input type="hidden" name="measure_block_' + rowIdx + '" value="' + block.id + '"/>';
+        html += '<div style="font-size:0.85rem;line-height:2.2;">';
+        segs.forEach(function (seg, j) {
+            html += escHtml(seg);
+            if (j < segs.length - 1) {
+                html += '<input type="text" name="measure_value_' + rowIdx + '_' + j + '"'
+                      + ' class="form-control measure-val"'
+                      + ' style="display:inline-block;width:66px;height:28px;'
+                      + 'font-size:0.85rem;padding:0 6px;margin:0 3px;"/>';
+            }
+        });
+        html += '</div>';
+        html += '<div class="insp-check-group" style="margin-top:8px;">';
+        html += '<button type="button" class="insp-check-btn measure-res" data-idx="' + rowIdx + '" data-result="pass">合格</button>';
+        html += '<button type="button" class="insp-check-btn measure-res" data-idx="' + rowIdx + '" data-result="fail">不合格</button>';
+        html += '</div>';
+        html += '<input type="hidden" name="measure_result_' + rowIdx + '" value="" class="measure-res-hidden" data-idx="' + rowIdx + '"/>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function renderMeasureBlocks(typeId) {
+        if (!measureBox) return;
+        measureBox.innerHTML = '';
+        measureRowSeq = 0;
+        var blocks = measureMap[String(typeId)] || [];
+        if (!typeId || !blocks.length) return;
+        blocks.forEach(function (block) {
+            var wrap = document.createElement('div');
+            wrap.style.marginBottom = '14px';
+            var rows = '';
+            // 紙本預印幾列就先給幾列空白（空列送出時會被略過，不會建成記錄）
+            var initial = Math.max(1, parseInt(block.row_count, 10) || 1);
+            for (var k = 0; k < initial; k++) {
+                rows += measureRowHtml(block, measureRowSeq);
+                measureRowSeq++;
+            }
+            wrap.innerHTML =
+                '<div class="cy-section-title">' + escHtml(block.name) + '</div>' +
+                '<div style="font-size:0.75rem;color:var(--wb-t3);margin-bottom:6px;">'
+                + '沒有量測的列留白即可，不會被建成記錄。</div>'
+                + '<div class="measure-rows">' + rows + '</div>'
+                + '<button type="button" class="measure-add" data-block="' + block.id + '"'
+                + ' style="margin-top:4px;background:none;border:1px dashed var(--wb-line);'
+                + 'border-radius:6px;padding:6px 12px;font-size:0.8rem;color:var(--wb-t2);">'
+                + '+ 新增一列</button>';
+            measureBox.appendChild(wrap);
+        });
+    }
+
+    if (measureBox) {
+        measureBox.addEventListener('click', function (ev) {
+            var addBtn = ev.target.closest('.measure-add');
+            if (addBtn) {
+                var bid = addBtn.dataset.block;
+                var block = null;
+                Object.keys(measureMap).forEach(function (k) {
+                    measureMap[k].forEach(function (b) {
+                        if (String(b.id) === String(bid)) block = b;
+                    });
+                });
+                if (block) {
+                    var holder = addBtn.parentNode.querySelector('.measure-rows');
+                    holder.insertAdjacentHTML('beforeend',
+                        measureRowHtml(block, measureRowSeq));
+                    measureRowSeq++;
+                }
+                return;
+            }
+            var delBtn = ev.target.closest('.measure-del');
+            if (delBtn) {
+                // 只清空不移除節點：欄位名是連號的，抽掉一列會讓後端的
+                // while 迴圈提早停在缺口上，後面的列整批讀不到。
+                var row = delBtn.closest('.measure-row');
+                row.querySelectorAll('input.measure-val').forEach(function (inp) {
+                    inp.value = '';
+                });
+                var hid = row.querySelector('.measure-res-hidden');
+                if (hid) hid.value = '';
+                row.querySelectorAll('.measure-res').forEach(function (b) {
+                    b.classList.remove('active');
+                });
+                return;
+            }
+            var resBtn = ev.target.closest('.measure-res');
+            if (resBtn) {
+                var idx = resBtn.dataset.idx;
+                var group = resBtn.parentNode;
+                group.querySelectorAll('.measure-res').forEach(function (b) {
+                    b.classList.remove('active');
+                });
+                resBtn.classList.add('active');
+                var target = group.parentNode.querySelector(
+                    '.measure-res-hidden[data-idx="' + idx + '"]');
+                if (target) target.value = resBtn.dataset.result;
+            }
+        });
+    }
+
     // === 自主檢查表單：選類型後 AJAX 載入 checklist items ===
     var inspTypeSelect = document.getElementById('inspection_type_select');
     var checklistContainer = document.getElementById('checklist_container');

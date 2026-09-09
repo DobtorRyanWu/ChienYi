@@ -1941,13 +1941,13 @@ class ReservationSelfInspection(models.Model):
     contractor_name = fields.Char('承攬廠商')
     subcontractor_name = fields.Char('協力廠商')
 
-    # 檢查時機
-    inspection_timing = fields.Selection([
-        ('hold_point', '查驗停留點'),
-        ('before', '施工前檢查'),
-        ('during', '施工中檢查'),
-        ('after', '施工完成檢查'),
-    ], string='檢查時機')
+    # 檢查時機（construction_quality 18.0.5.0.0 起：複選，且選項掛在檢查類型底下）
+    # 紙本表頭那一列可以同時勾多個，且各家表格的選項組與用字都不同
+    # （「施工完成檢查」vs「施工後檢查」），故不寫死 Selection。
+    inspection_timing_ids = fields.Many2many(
+        'self.inspection.type.timing',
+        string='檢查時機',
+        domain="[('type_id', '=', inspection_type_id)]")
 
     # 檢查結果
     inspector_id = fields.Many2one('res.users', '填表人', default=lambda self: self.env.uid)

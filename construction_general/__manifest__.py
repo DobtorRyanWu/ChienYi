@@ -12,7 +12,10 @@
     # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
     # 3.5.0: 自主檢查轉缺失單不再自動帶 responsible_company_id
     #        （自主檢查的承攬廠商已改為純文字，見 construction_quality 4.6.0）
-    'version': '18.0.3.5.0',
+    # 3.5.1: 缺失單精靈補訊息 —— 自主檢查的量測列不合格會讓 has_defect 為真，
+    #        但精靈只能從檢查項目建（量測列沒有項目名稱可當缺失描述）。
+    #        原本會回「所有缺失項目皆已建立缺失改善單」，與事實不符。
+    'version': '18.0.3.5.1',
     'category': 'Construction/General',
     'summary': '一般式工程專用管理模組',
     'description': """

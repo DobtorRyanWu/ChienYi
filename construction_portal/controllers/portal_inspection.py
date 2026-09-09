@@ -22,6 +22,125 @@ from .portal_utils import (
 )
 
 
+# ─── 檢查時機（self.inspection.type.timing）───────────────────────────────────
+# 18.0.5.0.0 起「檢查時機」由單選 Selection 改為複選，且選項掛在檢查類型底下
+# （各家紙本表格的選項組與用字都不同）。前台三處共用以下 helper。
+
+def _timing_map_json(inspection_types):
+    """{檢查類型 id: [{id, name, code}, ...]} 的 JSON 字串，給新增表單的 JS 切換用。
+
+    在 controller 就序列化：QWeb 的 render context 不保證有 json 模組。
+    """
+    return json.dumps({
+        t.id: [{'id': tm.id, 'name': tm.name} for tm in t.timing_ids]
+        for t in inspection_types
+    })
+
+
+def _measure_blocks_json(inspection_types):
+    """{檢查類型 id: [{id, name, template, row_count, blanks}]} 的 JSON 字串。
+
+    blanks 是句型切出來的文字段（N 個空格 → N+1 段），前端照它插輸入框。
+    在 controller 就序列化：QWeb 的 render context 不保證有 json 模組。
+    """
+    from odoo.addons.construction_quality.models.self_inspection_measure import (
+        split_template)
+    return json.dumps({
+        t.id: [{'id': b.id, 'name': b.name, 'template': b.template,
+                'row_count': b.row_count, 'segments': split_template(b.template)}
+               for b in t.measure_ids]
+        for t in inspection_types
+    })
+
+
+def _posted_measure_lines(post, allowed_block_ids):
+    """表單送回的量測列 → One2many 建立指令。
+
+    欄位命名：measure_block_<i> / measure_result_<i> / measure_value_<i>_<j>
+
+    🔴 整列全空就跳過（空列＝沒有記錄，紙本預印 4 列實填 2 列就只建 2 列）。
+    🔴 值的個數一律照句型的空格數送滿，未填的送空字串 ——
+       少送一個會讓模型的 _check_values_length 擋下來（那是刻意的：
+       個數不符代表位置對錯了，而位置錯了畫面上看不出來）。
+    """
+    from odoo.addons.construction_quality.models.self_inspection_measure import (
+        count_blanks)
+    Block = request.env['self.inspection.type.measure'].sudo()
+    commands = []
+    idx = 0
+    while True:
+        raw_block = post.get('measure_block_%s' % idx)
+        if raw_block is None:
+            break
+        try:
+            block_id = int(raw_block)
+        except (TypeError, ValueError):
+            block_id = 0
+        if not block_id or block_id not in allowed_block_ids:
+            idx += 1
+            continue
+        block = Block.browse(block_id)
+        blanks = count_blanks(block.template)
+        values = [(post.get('measure_value_%s_%s' % (idx, j)) or '').strip()
+                  for j in range(blanks)]
+        result = post.get('measure_result_%s' % idx) or ''
+        # 整列什麼都沒填 → 這一列在紙本上是空的，不建
+        if not any(values) and not result:
+            idx += 1
+            continue
+        # 🔴 有填值卻沒選合格／不合格 → 大聲擋，不要靜靜當成合格。
+        #    這正是 check_result 預設 pass 製造過的「假性合格」形狀。
+        if result not in ('pass', 'fail'):
+            raise UserError(
+                '量測記錄第 %s 列已經填了值，但沒有選「合格」或「不合格」。'
+                '請選擇之後再送出。' % (idx + 1))
+        commands.append((0, 0, {
+            'block_id': block_id,
+            'sequence': (idx + 1) * 10,
+            'template': block.template,   # 建立當下的句型快照
+            'values': values,
+            'result': result,
+        }))
+        idx += 1
+    return commands
+
+
+def _posted_timing_ids(post):
+    """表單送回的勾選框 → Many2many 寫入指令。
+
+    表單欄位名一律 inspection_timing_ids，值是 self.inspection.type.timing 的 id。
+    完全沒勾＝這張表沒填檢查時機，就寫空的（不要偷偷塞預設值 —— 舊版
+    default='during' 正是「沒填」被靜靜翻譯成「施工中檢查」的來源）。
+    """
+    raw = post.get('inspection_timing_ids')
+    if raw is None:
+        values = []
+    elif isinstance(raw, (list, tuple)):
+        values = list(raw)
+    else:
+        values = [raw]
+    ids = []
+    for v in values:
+        try:
+            v = int(v)
+        except (TypeError, ValueError):
+            continue
+        if v:
+            ids.append(v)
+    return [(6, 0, ids)]
+
+
+def _default_timing_cmd(inspection_type):
+    """批次匯入用：取該類型底下 code='during' 的那一筆當預設。
+
+    匯入檔本身沒有檢查時機欄，沿用舊版 default='during' 的行為；
+    該類型沒有這個 code（例如監造抽查類只有停留點／隨機）就留空不猜。
+    """
+    timing = inspection_type.timing_ids.filtered(
+        lambda t: t.legacy_code == 'during')
+    return [(6, 0, timing[:1].ids)]
+
+
 class InspectionRoutesMixin:
     @http.route(['/construction/<int:project_id>/inspections/import'],
                 type='http', auth='user', website=True, methods=['GET'])
@@ -178,7 +297,7 @@ class InspectionRoutesMixin:
                         'sub_project_name': type_name,
                         'inspection_date': insp_date,
                         'inspection_location': location,
-                        'inspection_timing': 'during',
+                        'inspection_timing_ids': _default_timing_cmd(t),
                         'note': note,
                         'checklist_ids': checklist_cmds,
                     })
@@ -433,16 +552,19 @@ class InspectionRoutesMixin:
         inspection_types = InspType.search(
             ['|', ('project_id', '=', False), ('project_id', '=', project.id)])
 
-        # inspection_timing 選項從 fields_get 拉
-        Inspection = request.env['general.self.inspection']
-        timing_selection = Inspection.fields_get(['inspection_timing'])['inspection_timing']['selection']
+        # 檢查時機是逐檢查類型各一組（self.inspection.type.timing），
+        # 使用者在同一頁選類型，故先把每個類型的那一組都送到前端，
+        # 由 JS 在切換類型時換掉勾選框（與 checklist 同一條路徑）。
+        timing_map_json = _timing_map_json(inspection_types)
+        measure_map_json = _measure_blocks_json(inspection_types)
 
         photo_categories = _photo_category_options(request.env)
 
         values = {
             'project': project,
             'inspection_types': inspection_types,
-            'timing_options': timing_selection,
+            'timing_map_json': timing_map_json,
+            'measure_map_json': measure_map_json,
             'photo_categories': photo_categories,
             'page_name': 'construction_inspection_new',
             'today': date.today().isoformat(),
@@ -470,7 +592,7 @@ class InspectionRoutesMixin:
             'inspection_type_id': int(post.get('inspection_type_id', 0)) or False,
             'inspection_date': post.get('inspection_date') or date.today().isoformat(),
             'inspection_location': post.get('inspection_location', ''),
-            'inspection_timing': post.get('inspection_timing') or 'during',
+            'inspection_timing_ids': _posted_timing_ids(post),
             'sub_project_name': post.get('sub_project_name', ''),
             'note': post.get('note', ''),
         }
@@ -512,6 +634,14 @@ class InspectionRoutesMixin:
                     })
             idx += 1
 
+        # 量測列（表尾量測區）。allowed 限本檢查類型底下的區塊，
+        # 擋掉被竄改的 block_id —— 模型層也有 _check_block_belongs_to_type，
+        # 這裡先擋是為了給前台使用者一個乾淨的結果而不是驗證錯誤。
+        allowed = set(inspection.inspection_type_id.measure_ids.ids)
+        measure_cmds = _posted_measure_lines(post, allowed)
+        if measure_cmds:
+            inspection.sudo().write({'measure_line_ids': measure_cmds})
+
         return request.redirect(
             f'/construction/inspection/{inspection.id}?message=created'
         )
@@ -522,11 +652,11 @@ class InspectionRoutesMixin:
         """AJAX: 取得檢查類型的預設 checklist items"""
         type_id = int(post.get('type_id', 0))
         if not type_id:
-            return {'items': [], 'stages': []}
+            return {'items': [], 'stages': [], 'timings': [], 'measures': []}
 
         InspType = request.env['self.inspection.type'].sudo().browse(type_id)
         if not InspType.exists():
-            return {'items': [], 'stages': []}
+            return {'items': [], 'stages': [], 'timings': [], 'measures': []}
 
         items = []
         for item in InspType.default_item_ids:
@@ -546,7 +676,19 @@ class InspectionRoutesMixin:
         if 0 in used:
             stages.append({'key': 0, 'label': '未分段'})
 
-        return {'items': items, 'stages': stages}
+        # 檢查時機（表頭那一列的勾選框，可複選）
+        timings = [{'id': t.id, 'name': t.name} for t in InspType.timing_ids]
+
+        # 量測區塊（表尾「丈量___位置…□合格□不合格」那一段）
+        from odoo.addons.construction_quality.models.self_inspection_measure import (
+            split_template)
+        measures = [{'id': b.id, 'name': b.name, 'template': b.template,
+                     'row_count': b.row_count,
+                     'segments': split_template(b.template)}
+                    for b in InspType.measure_ids]
+
+        return {'items': items, 'stages': stages, 'timings': timings,
+                'measures': measures}
 
     @http.route(['/construction/inspection/<int:inspection_id>'],
                 type='http', auth='user', website=True)
@@ -563,13 +705,6 @@ class InspectionRoutesMixin:
         # 依查驗段落分群 checklist items
         stage_groups = self._inspection_stage_groups(inspection.checklist_ids)
 
-        # inspection_timing Selection 選項
-        timing_selection = dict(
-            request.env['general.self.inspection'].fields_get(
-                ['inspection_timing']
-            )['inspection_timing']['selection']
-        )
-
         # overall_result Selection 選項
         result_selection = dict(
             request.env['general.self.inspection'].fields_get(
@@ -584,7 +719,6 @@ class InspectionRoutesMixin:
             'project': inspection.project_id,
             'page_name': 'construction_inspection_detail',
             'stage_groups': stage_groups,
-            'timing_selection': timing_selection,
             'result_selection': result_selection,
             'day_count': self._get_project_day_count(inspection.project_id),
             'nav_badges': self._get_nav_badges(inspection.project_id),
@@ -684,8 +818,9 @@ class InspectionRoutesMixin:
         inspection_types = InspType.search(
             ['|', ('project_id', '=', False), ('project_id', '=', project.id)])
 
-        Inspection = request.env['reservation.self.inspection']
-        timing_selection = Inspection.fields_get(['inspection_timing'])['inspection_timing']['selection']
+        # 與一般式同構：逐檢查類型一組
+        timing_map_json = _timing_map_json(inspection_types)
+        measure_map_json = _measure_blocks_json(inspection_types)
 
         photo_categories = _photo_category_options(request.env)
 
@@ -693,7 +828,8 @@ class InspectionRoutesMixin:
             'project': project,
             'slip': slip,
             'inspection_types': inspection_types,
-            'timing_options': timing_selection,
+            'timing_map_json': timing_map_json,
+            'measure_map_json': measure_map_json,
             'photo_categories': photo_categories,
             'page_name': 'construction_reservation_inspection_new',
             'today': date.today().isoformat(),
@@ -728,7 +864,7 @@ class InspectionRoutesMixin:
             'sub_project_name': post.get('sub_project_name', ''),
             'inspection_date': post.get('inspection_date') or date.today().isoformat(),
             'inspection_location': post.get('inspection_location', ''),
-            'inspection_timing': post.get('inspection_timing') or 'during',
+            'inspection_timing_ids': _posted_timing_ids(post),
             'note': post.get('note', ''),
         }
         # 承攬廠商留空＝自動帶入工程的營造廠商。務必「有值才放進 vals」：
@@ -771,6 +907,12 @@ class InspectionRoutesMixin:
             meta,
         )
 
+        # 量測列（表尾量測區）。與一般式同構。
+        allowed = set(inspection.inspection_type_id.measure_ids.ids)
+        measure_cmds = _posted_measure_lines(post, allowed)
+        if measure_cmds:
+            inspection.sudo().write({'measure_line_ids': measure_cmds})
+
         return request.redirect(
             f'/construction/reservation-inspection/{inspection.id}?message=created'
         )
@@ -792,10 +934,6 @@ class InspectionRoutesMixin:
         # 依查驗段落分群
         stage_groups = self._inspection_stage_groups(inspection.checklist_ids)
 
-        timing_selection = dict(
-            Inspection.fields_get(['inspection_timing'])['inspection_timing']['selection']
-        )
-
         photo_categories = _photo_category_options(request.env)
 
         values = {
@@ -803,7 +941,6 @@ class InspectionRoutesMixin:
             'slip': inspection.slip_id,
             'inspection': inspection,
             'stage_groups': stage_groups,
-            'timing_selection': timing_selection,
             'page_name': 'construction_reservation_inspection_detail',
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),

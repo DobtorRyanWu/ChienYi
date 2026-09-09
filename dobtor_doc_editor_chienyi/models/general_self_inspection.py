@@ -67,11 +67,9 @@ class GeneralSelfInspection(models.Model):
     def _doc_render_context(self):
         """提供 Jinja 樣板填充用的 context（key 與 template_self_inspection 對齊）。"""
         self.ensure_one()
-        timing_label = ''
-        if self.inspection_timing and 'inspection_timing' in self._fields:
-            timing_label = dict(
-                self._fields['inspection_timing'].selection
-            ).get(self.inspection_timing, '')
+        # 檢查時機自 18.0.5.0.0 起是複選（self.inspection.type.timing），
+        # 多選時以頓號串接，樣板端維持單一字串 key 不變。
+        timing_label = self.inspection_timing_display or ''
         return {
             'record_id': self.id,
             'record_model': self._name,

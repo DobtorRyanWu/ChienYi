@@ -74,8 +74,8 @@
                             </div>
                             <div class="cy-insp-card-footer">
                                 <span>✓ <t t-esc="len(insp.checklist_ids.filtered(lambda l: l.check_result in ('pass', 'defect', 'na')))"/>/<t t-esc="len(insp.checklist_ids)"/> 項</span>
-                                <t t-if="insp.inspection_timing">
-                                    <span><t t-esc="dict(insp._fields['inspection_timing'].selection).get(insp.inspection_timing, '')"/></span>
+                                <t t-if="insp.inspection_timing_display">
+                                    <span><t t-esc="insp.inspection_timing_display"/></span>
                                 </t>
                             </div>
                         </a>
@@ -199,7 +199,7 @@
                         <div class="cy-info-row">
                             <span class="cy-info-label">檢查時機</span>
                             <span class="cy-info-value">
-                                <t t-esc="timing_selection.get(inspection.inspection_timing, '-')"/>
+                                <t t-esc="inspection.inspection_timing_display or '-'"/>
                             </span>
                         </div>
                         <div class="cy-info-row">
@@ -273,6 +273,30 @@
 
                     <!-- 備註 -->
                     <t t-if="inspection.note">
+                        <!-- 量測記錄（表尾量測區）。位置與新增表單一致：
+                             夾在「檢查項目」與「備註」之間，紙本上它就在檢查項目表格下方。 -->
+                        <t t-if="inspection.measure_line_ids">
+                            <t t-set="measure_groups"
+                               t-value="inspection.measure_line_ids.grouped('block_id')"/>
+                            <t t-foreach="measure_groups" t-as="mblock">
+                                <div class="cy-section-title"><t t-esc="mblock.name"/></div>
+                                <div style="margin-bottom: 16px;">
+                                    <t t-foreach="measure_groups[mblock]" t-as="mline">
+                                        <div style="font-size: 0.9rem; padding: 8px 0;
+                                                    border-bottom: 1px solid var(--wb-line);">
+                                            <div><t t-esc="mline_index + 1"/>. <t t-esc="mline.rendered"/></div>
+                                            <div style="margin-top: 4px;">
+                                                <span t-if="mline.result == 'pass'"
+                                                      style="color: var(--wb-green);">✓ 合格</span>
+                                                <span t-if="mline.result == 'fail'"
+                                                      style="color: var(--wb-red);">✗ 不合格</span>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </t>
+                        </t>
+
                         <div class="cy-section-title">備註</div>
                         <div class="cy-info-section" style="padding: 12px 16px;">
                             <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="inspection.note"/></div>
@@ -345,22 +369,23 @@
                         </div>
 
                         <!-- 日期 + 時機 -->
-                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-                            <div style="flex: 1;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                            <div style="flex: 1 1 160px; min-width: 160px;">
                                 <label class="form-label" style="font-size: 0.85rem;">檢查日期</label>
                                 <input type="date" name="inspection_date" class="form-control"
                                        t-att-value="today" required="required"/>
                             </div>
-                            <div style="flex: 1;">
-                                <label class="form-label" style="font-size: 0.85rem;">檢查時機</label>
-                                <select name="inspection_timing" class="form-select">
-                                    <t t-foreach="timing_options" t-as="opt">
-                                        <option t-att-value="opt[0]"
-                                                t-att-selected="opt[0] == 'during' and 'selected' or None">
-                                            <t t-esc="opt[1]"/>
-                                        </option>
-                                    </t>
-                                </select>
+                            <div style="flex: 1 1 220px; min-width: 220px;">
+                                <label class="form-label" style="font-size: 0.85rem;">
+                                    檢查時機 <span style="color: var(--wb-t3); font-weight: 400;">（可複選）</span>
+                                </label>
+                                <!-- 選項是逐檢查類型各一組，由 portal_v10.js 在選定
+                                     檢查類型後依 data-timing-map 填入勾選框 -->
+                                <div id="inspection_timing_box"
+                                     t-att-data-timing-map="timing_map_json"
+                                     style="display: flex; flex-wrap: wrap; gap: 10px; padding-top: 6px;">
+                                    <span style="font-size: 0.8rem; color: var(--wb-t3);">請先選擇檢查類型</span>
+                                </div>
                             </div>
                         </div>
 
@@ -388,6 +413,16 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- 量測區塊（表尾「丈量___位置…□合格□不合格」那一段）
+                             只有設定過量測區塊的檢查類型才會出現；
+                             由 portal_v10.js 依 data-measure-map 依句型插輸入框。
+                             ⚠️ 位置刻意在「檢查項目」與「備註」之間 —— 紙本上它就在
+                             檢查項目表格的下方。也必須是**獨立一列**：先前誤放在
+                             「檢查日期／檢查時機」那個 flex 列裡面，手機上三欄各剩
+                             ~130px，檢查時機的字被擠成一字一行。 -->
+                        <div id="measure_blocks" t-att-data-measure-map="measure_map_json"
+                             style="margin-bottom: 16px;"></div>
 
                         <!-- 備註 -->
                         <div class="cy-section-title">備註</div>
@@ -528,7 +563,8 @@
                             <label class="form-label" style="font-size: 0.9rem; font-weight: 600;">
                                 檢查類型 <span style="color: var(--wb-red);">*</span>
                             </label>
-                            <select name="inspection_type_id" class="form-select" required="required">
+                            <select name="inspection_type_id" class="form-select" required="required"
+                                    id="inspection_type_select_reservation">
                                 <option value="">-- 選擇 --</option>
                                 <t t-foreach="inspection_types" t-as="itype">
                                     <option t-att-value="itype.id"><t t-esc="itype.name"/></option>
@@ -546,22 +582,23 @@
                             <input type="text" name="sub_project_name" class="form-control" required="required"/>
                         </div>
 
-                        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-                            <div style="flex: 1;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                            <div style="flex: 1 1 160px; min-width: 160px;">
                                 <label class="form-label" style="font-size: 0.85rem;">檢查日期</label>
                                 <input type="date" name="inspection_date" class="form-control"
                                        t-att-value="today" required="required"/>
                             </div>
-                            <div style="flex: 1;">
-                                <label class="form-label" style="font-size: 0.85rem;">檢查時機</label>
-                                <select name="inspection_timing" class="form-select">
-                                    <t t-foreach="timing_options" t-as="opt">
-                                        <option t-att-value="opt[0]"
-                                                t-att-selected="opt[0] == 'during' and 'selected' or None">
-                                            <t t-esc="opt[1]"/>
-                                        </option>
-                                    </t>
-                                </select>
+                            <div style="flex: 1 1 220px; min-width: 220px;">
+                                <label class="form-label" style="font-size: 0.85rem;">
+                                    檢查時機 <span style="color: var(--wb-t3); font-weight: 400;">（可複選）</span>
+                                </label>
+                                <!-- 選項是逐檢查類型各一組，由 portal_v10.js 在選定
+                                     檢查類型後依 data-timing-map 填入勾選框 -->
+                                <div id="inspection_timing_box"
+                                     t-att-data-timing-map="timing_map_json"
+                                     style="display: flex; flex-wrap: wrap; gap: 10px; padding-top: 6px;">
+                                    <span style="font-size: 0.8rem; color: var(--wb-t3);">請先選擇檢查類型</span>
+                                </div>
                             </div>
                         </div>
 
@@ -576,6 +613,16 @@
                             <input type="text" name="contractor_name" class="form-control"
                                    placeholder="留空自動帶入工程的營造廠商"/>
                         </div>
+
+                        <!-- 量測區塊（表尾「丈量___位置…□合格□不合格」那一段）
+                             只有設定過量測區塊的檢查類型才會出現；
+                             由 portal_v10.js 依 data-measure-map 依句型插輸入框。
+                             ⚠️ 位置刻意在「檢查項目」與「備註」之間 —— 紙本上它就在
+                             檢查項目表格的下方。也必須是**獨立一列**：先前誤放在
+                             「檢查日期／檢查時機」那個 flex 列裡面，手機上三欄各剩
+                             ~130px，檢查時機的字被擠成一字一行。 -->
+                        <div id="measure_blocks" t-att-data-measure-map="measure_map_json"
+                             style="margin-bottom: 16px;"></div>
 
                         <div class="cy-section-title">備註</div>
                         <div style="margin-bottom: 16px;">
@@ -671,7 +718,7 @@
                         <div class="cy-info-row">
                             <span class="cy-info-label">檢查時機</span>
                             <span class="cy-info-value">
-                                <t t-esc="timing_selection.get(inspection.inspection_timing, '-')"/>
+                                <t t-esc="inspection.inspection_timing_display or '-'"/>
                             </span>
                         </div>
                         <div class="cy-info-row" t-if="inspection.inspection_location">
@@ -730,6 +777,30 @@
                     </t>
 
                     <t t-if="inspection.note">
+                        <!-- 量測記錄（表尾量測區）。位置與新增表單一致：
+                             夾在「檢查項目」與「備註」之間，紙本上它就在檢查項目表格下方。 -->
+                        <t t-if="inspection.measure_line_ids">
+                            <t t-set="measure_groups"
+                               t-value="inspection.measure_line_ids.grouped('block_id')"/>
+                            <t t-foreach="measure_groups" t-as="mblock">
+                                <div class="cy-section-title"><t t-esc="mblock.name"/></div>
+                                <div style="margin-bottom: 16px;">
+                                    <t t-foreach="measure_groups[mblock]" t-as="mline">
+                                        <div style="font-size: 0.9rem; padding: 8px 0;
+                                                    border-bottom: 1px solid var(--wb-line);">
+                                            <div><t t-esc="mline_index + 1"/>. <t t-esc="mline.rendered"/></div>
+                                            <div style="margin-top: 4px;">
+                                                <span t-if="mline.result == 'pass'"
+                                                      style="color: var(--wb-green);">✓ 合格</span>
+                                                <span t-if="mline.result == 'fail'"
+                                                      style="color: var(--wb-red);">✗ 不合格</span>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </t>
+                        </t>
+
                         <div class="cy-section-title">備註</div>
                         <div class="cy-info-section" style="padding: 12px 16px;">
                             <div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="inspection.note"/></div>

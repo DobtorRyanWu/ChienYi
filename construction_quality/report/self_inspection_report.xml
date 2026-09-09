@@ -80,8 +80,8 @@
                             <td><t t-esc="inspection.inspection_type_id.name or '-'"/></td>
                             <td style="background-color: #f5f5f5; font-weight: bold;">查驗時機</td>
                             <td>
-                                <!-- 標籤直接取自模型的 Selection，不再硬編中文 -->
-                                <span t-field="inspection.inspection_timing"/>
+                                <!-- 可複選；文字取自檢查類型底下的檢查時機，不硬編中文 -->
+                                <t t-esc="inspection.inspection_timing_display or '-'"/>
                             </td>
                         </tr>
                         <tr>
@@ -190,6 +190,36 @@
                     </tbody>
                 </table>
 
+
+                <!-- 量測區塊（表尾「丈量___位置…□合格□不合格」那一段）
+                     依使用者裁示只印實際有的列，不補印紙本的空列。 -->
+                <t t-if="inspection.measure_line_ids">
+                    <t t-set="measure_groups"
+                       t-value="inspection.measure_line_ids.grouped('block_id')"/>
+                    <t t-foreach="measure_groups" t-as="block">
+                        <div style="margin-top: 12px; font-weight: bold;">
+                            <t t-esc="block.name"/>：
+                        </div>
+                        <t t-foreach="measure_groups[block]" t-as="mline">
+                            <div style="margin: 2px 0 2px 12px;">
+                                <t t-esc="mline_index + 1"/>.
+                                <t t-foreach="mline._render_parts()" t-as="part">
+                                    <t t-esc="part['text']"/>
+                                    <t t-if="part['value'] is not None">
+                                        <span style="text-decoration: underline;
+                                                     padding: 0 6px;">
+                                            <t t-esc="part['value'] or ''"/>
+                                        </span>
+                                    </t>
+                                </t>
+                                <span style="margin-left: 10px;">
+                                    <t t-esc="'■合格 □不合格' if mline.result == 'pass'
+                                              else '□合格 ■不合格'"/>
+                                </span>
+                            </div>
+                        </t>
+                    </t>
+                </t>
                 <!-- 備註區 -->
                 <t t-if="inspection.note">
                     <h5 style="font-weight: bold; border-left: 4px solid #6c757d; padding-left: 8px; margin: 15px 0 8px 0;">
@@ -306,8 +336,8 @@
                             <td><t t-esc="inspection.inspection_type_id.name or '-'"/></td>
                             <td style="background-color: #f5f5f5; font-weight: bold;">查驗時機</td>
                             <td>
-                                <!-- 標籤直接取自模型的 Selection，不再硬編中文 -->
-                                <span t-field="inspection.inspection_timing"/>
+                                <!-- 可複選；文字取自檢查類型底下的檢查時機，不硬編中文 -->
+                                <t t-esc="inspection.inspection_timing_display or '-'"/>
                             </td>
                         </tr>
                         <tr>
@@ -391,6 +421,36 @@
                     </tbody>
                 </table>
 
+
+                <!-- 量測區塊（表尾「丈量___位置…□合格□不合格」那一段）
+                     依使用者裁示只印實際有的列，不補印紙本的空列。 -->
+                <t t-if="inspection.measure_line_ids">
+                    <t t-set="measure_groups"
+                       t-value="inspection.measure_line_ids.grouped('block_id')"/>
+                    <t t-foreach="measure_groups" t-as="block">
+                        <div style="margin-top: 12px; font-weight: bold;">
+                            <t t-esc="block.name"/>：
+                        </div>
+                        <t t-foreach="measure_groups[block]" t-as="mline">
+                            <div style="margin: 2px 0 2px 12px;">
+                                <t t-esc="mline_index + 1"/>.
+                                <t t-foreach="mline._render_parts()" t-as="part">
+                                    <t t-esc="part['text']"/>
+                                    <t t-if="part['value'] is not None">
+                                        <span style="text-decoration: underline;
+                                                     padding: 0 6px;">
+                                            <t t-esc="part['value'] or ''"/>
+                                        </span>
+                                    </t>
+                                </t>
+                                <span style="margin-left: 10px;">
+                                    <t t-esc="'■合格 □不合格' if mline.result == 'pass'
+                                              else '□合格 ■不合格'"/>
+                                </span>
+                            </div>
+                        </t>
+                    </t>
+                </t>
                 <!-- 備註區 -->
                 <t t-if="inspection.note">
                     <h5 style="font-weight: bold; border-left: 4px solid #6c757d; padding-left: 8px; margin: 15px 0 8px 0;">

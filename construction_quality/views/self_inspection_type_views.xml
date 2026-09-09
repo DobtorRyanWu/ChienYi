@@ -68,6 +68,21 @@
                         <field name="template_filename" invisible="1"/>
                     </group>
                     <notebook>
+                        <page string="檢查時機" name="timings">
+                            <div class="alert alert-info" role="alert">
+                                檢查時機＝檢查表<b>表頭</b>那一列的勾選框，填表時<b>可以同時勾多個</b>
+                                （例：施工中檢查＋施工完成檢查）。
+                                <b>這裡填什麼，列印出來就是什麼</b>。
+                                新類型預設帶 5 個標準選項，用不到的直接刪掉即可。
+                            </div>
+                            <field name="timing_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="legacy_code" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="查驗段落" name="stages">
                             <div class="alert alert-info" role="alert">
                                 段落＝抽查紀錄表的分段（例：一 廠商自主檢查／二 施工中／三 銑刨作業）。
@@ -113,6 +128,24 @@
                                            options="{'no_create': True, 'no_open': True}"/>
                                     <field name="check_standard"/>
                                     <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="量測區塊" name="measures">
+                            <div class="alert alert-info" role="alert">
+                                量測區塊＝檢查表<b>表格外面、下方</b>那一段
+                                （例：鋼筋組立抽查情形，1.丈量___位置，長___cm…□合格□不合格）。<br/>
+                                句型用<b>連續兩個以上的底線</b>標出要填的空格，空格數會自動數出來。
+                                <b>這裡填什麼，列印出來就是什麼</b>。
+                                預印列數只是提示，實際存幾列由實填的內容決定（空列不建）。
+                            </div>
+                            <field name="measure_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="template"/>
+                                    <field name="row_count"/>
+                                    <field name="blank_count" readonly="1"/>
                                 </list>
                             </field>
                         </page>
