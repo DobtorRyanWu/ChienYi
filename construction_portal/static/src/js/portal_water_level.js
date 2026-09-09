@@ -14,6 +14,12 @@
 
     var POLL_INTERVAL_MS = 30000;
     var CHART_LIB_URL = '/web/static/lib/Chart/Chart.js';
+    var HOURS_PER_DAY = 24;
+    var RANGE_WEEK_HOURS = 24 * 7;
+    var RANGE_MONTH_HOURS = 24 * 30;
+    // 匯出圖上方的抬頭：站名一行 + 區間一行；示範站再多一行紅色警語
+    var PNG_HEADER_PX = 44;
+    var PNG_HEADER_PX_DEMO = 62;
     var GAUGE_HEADROOM = 1.15;      // 水尺頂端留的餘裕（相對最高警戒線）
     var GAUGE_MIN_TOP = 1.0;        // 沒有任何警戒值時的最小量程（公尺）
     var MINOR_TICK_M = 0.1;         // 10 公分一格
@@ -55,6 +61,11 @@
         map: null,
         markers: {},
         timer: null,
+        // 自訂區間：{dateFrom, hourFrom, dateTo, hourTo}。一旦設定就停掉輪詢——
+        // 歷史區間不會有新資料，繼續輪詢只會在使用者手指底下重繪表格。
+        custom: null,
+        lastSeries: null,
+        pending: false,
     };
 
     function $(id) { return document.getElementById(id); }
@@ -198,8 +209,7 @@
 
         var hasData = series && series.values && series.values.length;
         emptyEl.classList.toggle('is-shown', !hasData);
-        $('wlChartNote').textContent = series && series.granularity === 'raw'
-            ? '每筆原始資料' : '每' + (series && series.granularity === 'day' ? '日' : '小時') + '最高水位';
+        $('wlChartNote').textContent = chartNoteText(series);
 
         var device = state.devices.filter(function (d) { return d.id === state.selectedId; })[0] || {};
         var levels = device.levels || {};
@@ -404,14 +414,301 @@
         });
     }
 
+    // ==================== 區間摘要 / 逐筆表 / 匯出 ====================
+    // 這一段的每支 render 都先確認自己的 DOM 在不在：同一支 JS 也服務社區蓄水池頁，
+    // 那一頁沒有這些區塊，找不到就整支跳過（與上面 renderTanks / renderStations 同一套做法）。
+
+    function currentDevice() {
+        return state.devices.filter(function (d) { return d.id === state.selectedId; })[0] || {};
+    }
+
+    function fmtValue(v) {
+        return (v === null || v === undefined) ? '--' : Number(v).toFixed(2);
+    }
+
+    function chartNoteText(series) {
+        var base = series && series.granularity === 'raw'
+            ? '每筆原始資料'
+            : '每' + (series && series.granularity === 'day' ? '日' : '小時') + '最高水位';
+        if (state.custom && series && series.window) {
+            return base + '｜' + series.window.from + ' ~ ' + series.window.to + '・暫停自動更新';
+        }
+        return base;
+    }
+
+    function renderStats(series) {
+        if (!$('wlStats')) { return; }
+        var stats = (series && series.stats) || {};
+        var has = stats.count > 0;
+        $('wlStatMax').textContent = has ? fmtValue(stats.max) : '--';
+        $('wlStatMin').textContent = has ? fmtValue(stats.min) : '--';
+        $('wlStatAvg').textContent = has ? fmtValue(stats.avg) : '--';
+        $('wlStatCount').textContent = has ? String(stats.count) : '--';
+    }
+
+    /** 超過警戒值的列標色。用與圖上警戒線同一組語意色，不另外發明顏色。 */
+    function rowLevelClass(value, levels) {
+        if (value === null || value === undefined || !levels) { return ''; }
+        if (levels.lv1 && value >= levels.lv1) { return 'is-lv1'; }
+        if (levels.lv2 && value >= levels.lv2) { return 'is-lv2'; }
+        if (levels.lv3 && value >= levels.lv3) { return 'is-lv3'; }
+        return '';
+    }
+
+    function tableHeadText(series) {
+        if (series && series.granularity === 'day') { return '每日最高 (m)'; }
+        if (series && series.granularity === 'hour') { return '每小時最高 (m)'; }
+        return '水位 (m)';
+    }
+
+    function renderTable(series) {
+        var body = $('wlTableBody');
+        if (!body) { return; }
+        var rows = (series && series.rows) || [];
+        var levels = currentDevice().levels;
+        var wrap = $('wlTableWrap');
+        // 輪詢重繪不該把使用者捲到哪裡看的位置吃掉
+        var keepScroll = wrap ? wrap.scrollTop : 0;
+
+        var frag = document.createDocumentFragment();
+        rows.forEach(function (row) {
+            var tr = document.createElement('tr');
+            var cls = rowLevelClass(row[1], levels);
+            if (cls) { tr.className = cls; }
+            var tdTime = document.createElement('td');
+            tdTime.textContent = row[0];
+            var tdValue = document.createElement('td');
+            tdValue.className = 'wl-table-value';
+            tdValue.textContent = fmtValue(row[1]);
+            tr.appendChild(tdTime);
+            tr.appendChild(tdValue);
+            frag.appendChild(tr);
+        });
+        body.textContent = '';
+        body.appendChild(frag);
+        if (wrap) { wrap.scrollTop = keepScroll; }
+
+        $('wlTableValueHead').textContent = tableHeadText(series);
+        $('wlTableEmpty').classList.toggle('is-shown', rows.length === 0);
+        $('wlTableNote').textContent = series
+            ? ('區間內共 ' + (series.raw_total || 0) + ' 筆') : '';
+
+        var more = $('wlTableMore');
+        var truncated = !!(series && series.row_truncated);
+        more.hidden = !truncated;
+        if (truncated) {
+            more.textContent = '只列出最新 ' + rows.length + ' 筆，完整資料請用「匯出表」下載。';
+        }
+    }
+
+    /** 空圖不能只說「沒有資料」——要說最後一筆是什麼時候，並給一個看得到東西的去處。 */
+    function renderEmptyState(series) {
+        var titleEl = $('wlChartEmptyTitle');
+        if (!titleEl) { return; }   // 社區頁的空狀態是純文字版，不動它
+        var subEl = $('wlChartEmptySub');
+        var cta = $('wlChartEmptyCta');
+        if (series && series.values && series.values.length) {
+            cta.hidden = true;
+            return;
+        }
+        var device = currentDevice();
+        titleEl.textContent = '這段期間沒有資料';
+        subEl.textContent = device.last_ts
+            ? ('這一站最後一筆是 ' + device.last_ts + '（' + device.last_seen + '）')
+            : '這一站還沒有任何上報紀錄';
+
+        // 建議一個一定看得到資料的快捷區間；自訂區間是使用者自己選的，不越俎代庖
+        var age = device.last_ts_age_h;
+        var suggest = null;
+        if (!state.custom && age !== null && age !== undefined) {
+            if (age < RANGE_WEEK_HOURS && state.hours < RANGE_WEEK_HOURS) {
+                suggest = RANGE_WEEK_HOURS;
+            } else if (age < RANGE_MONTH_HOURS && state.hours < RANGE_MONTH_HOURS) {
+                suggest = RANGE_MONTH_HOURS;
+            }
+        }
+        cta.hidden = !suggest;
+        if (suggest) {
+            cta.textContent = '改看最近 ' + (suggest / HOURS_PER_DAY) + ' 天';
+            cta.dataset.hours = String(suggest);
+        }
+    }
+
+    function renderCustomNote(series) {
+        var note = $('wlCustomNote');
+        if (!note) { return; }
+        if (!state.custom) {
+            note.textContent = note.dataset.default || '';
+            note.classList.remove('is-warn');
+            return;
+        }
+        var win = (series && series.window) || {};
+        note.textContent = win.notice
+            ? (win.notice + '：目前顯示 ' + win.from + ' ~ ' + win.to)
+            : ('目前顯示 ' + win.from + ' ~ ' + win.to);
+        note.classList.toggle('is-warn', !!win.notice);
+    }
+
+    /** CSV 走 GET 連結而不是 fetch＋Blob：手機（尤其 iOS）對 blob: 下載的支援不一致。 */
+    function syncExportHref() {
+        var link = $('wlExportCsv');
+        if (!link) { return; }
+        var params = ['device_id=' + encodeURIComponent(state.selectedId || '')];
+        if (state.custom) {
+            params.push('date_from=' + encodeURIComponent(state.custom.dateFrom));
+            params.push('hour_from=' + encodeURIComponent(state.custom.hourFrom));
+            params.push('date_to=' + encodeURIComponent(state.custom.dateTo));
+            params.push('hour_to=' + encodeURIComponent(state.custom.hourTo));
+        } else {
+            params.push('hours=' + state.hours);
+        }
+        link.href = '/construction/' + state.projectId + '/water-level/export.csv?' +
+                    params.join('&');
+    }
+
+    function exportFilename(device) {
+        var win = (state.lastSeries && state.lastSeries.window) || {};
+        var stamp = (win.from || '') + '-' + (win.to || '');
+        return ((device.is_demo ? '示範資料_' : '') + '水位_' + (device.name || '') + '_' +
+                stamp).replace(/[\\/:*?"<>|\s]/g, '_') + '.png';
+    }
+
+    function ellipsize(ctx, text, maxWidth) {
+        if (ctx.measureText(text).width <= maxWidth) { return text; }
+        var cut = text;
+        while (cut.length > 1 && ctx.measureText(cut + '…').width > maxWidth) {
+            cut = cut.slice(0, -1);
+        }
+        return cut + '…';
+    }
+
+    /** 匯出的圖會離開這一頁單獨流傳，所以站名、區間、示範警語都要畫進像素裡。 */
+    function exportPng() {
+        if (!state.chart) { return; }
+        var src = state.chart.canvas;
+        var device = currentDevice();
+        var ratio = src.clientWidth ? (src.width / src.clientWidth) : 1;
+        var headerH = Math.round(
+            (device.is_demo ? PNG_HEADER_PX_DEMO : PNG_HEADER_PX) * ratio);
+        var out = document.createElement('canvas');
+        out.width = src.width;
+        out.height = src.height + headerH;
+        var ctx = out.getContext('2d');
+        // Chart.js 的 canvas 是透明的，直接存圖在深色背景上會看不到線
+        ctx.fillStyle = cssVar('--wb-bg2') || '#ffffff';
+        ctx.fillRect(0, 0, out.width, out.height);
+        ctx.drawImage(src, 0, headerH);
+
+        // 分行寫，不要擠成一行——站名可以很長，擠在一行會被畫布右緣切掉
+        var win = (state.lastSeries && state.lastSeries.window) || {};
+        var pad = 12 * ratio;
+        var maxWidth = out.width - pad * 2;
+        ctx.fillStyle = cssVar('--wb-t1') || '#222222';
+        ctx.font = Math.round(14 * ratio) + 'px sans-serif';
+        ctx.fillText(ellipsize(ctx, device.name || '', maxWidth), pad, 17 * ratio);
+        ctx.fillStyle = cssVar('--wb-t3') || '#666666';
+        ctx.font = Math.round(11 * ratio) + 'px sans-serif';
+        ctx.fillText(ellipsize(ctx, (win.from || '') + ' ~ ' + (win.to || ''), maxWidth),
+                     pad, 34 * ratio);
+        if (device.is_demo) {
+            ctx.fillStyle = cssVar('--wb-wl-lv1') || '#c0392b';
+            ctx.fillText(ellipsize(ctx, '示範資料／系統模擬，不是現場量測值', maxWidth),
+                         pad, 52 * ratio);
+        }
+        deliverPng(out.toDataURL('image/png'), exportFilename(device));
+    }
+
+    /** iOS 對 <a download> 的行為不一致（連 data: 都可能直接開新頁），
+     *  所以 iOS 一律走「把圖顯示出來讓使用者長按儲存」這條一定成立的路。 */
+    function deliverPng(dataUrl, filename) {
+        var a = document.createElement('a');
+        var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+        if (('download' in a) && !isIOS) {
+            a.href = dataUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            return;
+        }
+        var img = $('wlPngPreview');
+        if (!img) { window.open(dataUrl, '_blank'); return; }
+        img.src = dataUrl;
+        img.hidden = false;
+        $('wlPngHint').hidden = false;
+        img.scrollIntoView({ block: 'nearest' });
+    }
+
+    // ==================== 區間切換 ====================
+
+    function setRangeButtonsActive(hours) {
+        Array.prototype.forEach.call(
+            document.querySelectorAll('.wl-range'),
+            function (el) {
+                el.classList.toggle('is-active',
+                    hours !== null && parseInt(el.dataset.hours, 10) === hours);
+            });
+    }
+
+    function applyCustomRange() {
+        var dateFrom = $('wlDateFrom');
+        var dateTo = $('wlDateTo');
+        if (!dateFrom || !dateTo || !dateFrom.value || !dateTo.value) { return; }
+        state.custom = {
+            dateFrom: dateFrom.value,
+            hourFrom: $('wlHourFrom').value,
+            dateTo: dateTo.value,
+            hourTo: $('wlHourTo').value,
+        };
+        stopPolling();
+        setRangeButtonsActive(null);
+        fetchData();
+    }
+
+    function clearCustomRange() {
+        if (!state.custom) { return; }
+        state.custom = null;
+        setRangeButtonsActive(state.hours);
+        startPolling();
+        fetchData();
+    }
+
+    function selectQuickRange(hours) {
+        state.custom = null;
+        state.hours = hours;
+        setRangeButtonsActive(hours);
+        startPolling();
+        fetchData();
+    }
+
+    function stopPolling() {
+        if (state.timer) {
+            clearInterval(state.timer);
+            state.timer = null;
+        }
+    }
+
+    function startPolling() {
+        stopPolling();
+        state.timer = setInterval(function () {
+            // 分頁在背景時不要打——手機切出去再回來會累積一串沒人看的請求
+            if (!document.hidden) { fetchData(); }
+        }, POLL_INTERVAL_MS);
+    }
+
     // ==================== 資料流 ====================
 
     function requestParams() {
-        var params = { hours: state.hours };
+        // 社區頁提早 return：它的端點不吃自訂區間，這裡用結構擋住，不靠註解提醒
         if (state.mode === 'community') {
-            params.tank_id = state.selectedId;
-        } else {
-            params.device_id = state.selectedId;
+            return { hours: state.hours, tank_id: state.selectedId };
+        }
+        var params = { hours: state.hours, device_id: state.selectedId };
+        if (state.custom) {
+            params.date_from = state.custom.dateFrom;
+            params.hour_from = state.custom.hourFrom;
+            params.date_to = state.custom.dateTo;
+            params.hour_to = state.custom.hourTo;
         }
         return params;
     }
@@ -431,12 +728,28 @@
             renderStations(items);
         }
         refreshMarkers(items);
+        state.lastSeries = res.series;
         renderChart(res.series);
+        // 以下四支在社區頁沒有對應 DOM，會自己 no-op
+        renderStats(res.series);
+        renderTable(res.series);
+        renderEmptyState(res.series);
+        renderCustomNote(res.series);
+        syncExportHref();
         return true;
     }
 
     function fetchData() {
-        return rpc(state.endpoint, requestParams()).then(applyData);
+        // 上一發還沒回來就不要疊——切站時連點會讓回應亂序，畫面停在舊站的資料
+        if (state.pending) { return Promise.resolve(false); }
+        state.pending = true;
+        return rpc(state.endpoint, requestParams()).then(function (res) {
+            state.pending = false;
+            return applyData(res);
+        }, function (err) {
+            state.pending = false;
+            throw err;
+        });
     }
 
     function selectDevice(deviceId) {
@@ -465,12 +778,33 @@
         $('wlRanges').addEventListener('click', function (ev) {
             var btn = ev.target.closest('.wl-range');
             if (!btn) { return; }
-            state.hours = parseInt(btn.dataset.hours, 10);
-            Array.prototype.forEach.call(
-                document.querySelectorAll('.wl-range'),
-                function (el) { el.classList.toggle('is-active', el === btn); });
-            fetchData();
+            selectQuickRange(parseInt(btn.dataset.hours, 10));
         });
+
+        // 以下都是工程頁才有的控制項，社區頁抓不到就不綁
+        var toggle = $('wlCustomToggle');
+        if (toggle) {
+            toggle.addEventListener('click', function () {
+                var body = $('wlCustomBody');
+                var opening = body.hidden;
+                body.hidden = !opening;
+                toggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+                toggle.classList.toggle('is-open', opening);
+            });
+        }
+        var apply = $('wlCustomApply');
+        if (apply) { apply.addEventListener('click', applyCustomRange); }
+        var clear = $('wlCustomClear');
+        if (clear) { clear.addEventListener('click', clearCustomRange); }
+        var png = $('wlExportPng');
+        if (png) { png.addEventListener('click', exportPng); }
+        var cta = $('wlChartEmptyCta');
+        if (cta) {
+            cta.addEventListener('click', function () {
+                var hours = parseInt(cta.dataset.hours, 10);
+                if (hours) { selectQuickRange(hours); }
+            });
+        }
     }
 
     function start() {
@@ -483,6 +817,10 @@
             ('/construction/' + state.projectId + '/water-level/data');
         state.hours = parseInt(app.dataset.defaultHours, 10) || 24;
 
+        // 自訂區間提示列的原始文字要留著——切回快捷區間時得還原
+        var customNote = $('wlCustomNote');
+        if (customNote) { customNote.dataset.default = customNote.textContent.trim(); }
+
         bindEvents();
         loadChartLib().catch(function (err) {
             if (window.console) { console.warn('[water-level]', err); }
@@ -493,7 +831,7 @@
             if (!items) { return; }
             initMap(items);
             applyData(res);
-            state.timer = setInterval(fetchData, POLL_INTERVAL_MS);
+            startPolling();
         });
     }
 

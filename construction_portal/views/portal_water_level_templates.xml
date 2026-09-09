@@ -77,16 +77,115 @@
                                 <button type="button" class="wl-range" data-hours="720">30 天</button>
                             </section>
 
+                            <!-- ===== 自訂區間（預設收合，維持「開頁就看到 24 小時」的最短路徑） ===== -->
+                            <section class="wl-custom" id="wlCustom">
+                                <button type="button" class="wl-custom-toggle" id="wlCustomToggle"
+                                        aria-expanded="false" aria-controls="wlCustomBody">
+                                    <span>自訂區間</span>
+                                    <span class="wl-custom-caret" aria-hidden="true">▾</span>
+                                </button>
+                                <div class="wl-custom-body" id="wlCustomBody" hidden="hidden">
+                                    <div class="wl-custom-row">
+                                        <label class="wl-custom-label" for="wlDateFrom">起</label>
+                                        <input type="date" class="wl-custom-date" id="wlDateFrom"
+                                               t-att-value="custom_date_from"/>
+                                        <select class="wl-custom-hour" id="wlHourFrom" aria-label="起始時">
+                                            <t t-foreach="hour_choices" t-as="hour">
+                                                <option t-att-value="str(hour)"
+                                                        t-esc="'%02d 時' % hour"/>
+                                            </t>
+                                        </select>
+                                    </div>
+                                    <div class="wl-custom-row">
+                                        <label class="wl-custom-label" for="wlDateTo">迄</label>
+                                        <input type="date" class="wl-custom-date" id="wlDateTo"
+                                               t-att-value="custom_date_to"/>
+                                        <select class="wl-custom-hour" id="wlHourTo" aria-label="結束時">
+                                            <t t-foreach="hour_choices" t-as="hour">
+                                                <option t-att-value="str(hour)"
+                                                        t-att-selected="hour == 23 and 'selected' or None"
+                                                        t-esc="'%02d 時' % hour"/>
+                                            </t>
+                                        </select>
+                                    </div>
+                                    <div class="wl-custom-actions">
+                                        <button type="button" class="wl-custom-apply" id="wlCustomApply">查詢</button>
+                                        <button type="button" class="wl-custom-clear" id="wlCustomClear">回到快捷</button>
+                                    </div>
+                                    <div class="wl-custom-note" id="wlCustomNote">
+                                        一次最多查 <t t-esc="range_max_days"/> 天。查自訂區間時會暫停自動更新。
+                                    </div>
+                                </div>
+                            </section>
+
+                            <!-- ===== 區間摘要：hero 是「現在」，這裡是「這段期間」 ===== -->
+                            <section class="wl-stats" id="wlStats">
+                                <div class="wl-stat">
+                                    <span class="wl-stat-k">最高</span>
+                                    <span class="wl-stat-v" id="wlStatMax">--</span>
+                                </div>
+                                <div class="wl-stat">
+                                    <span class="wl-stat-k">最低</span>
+                                    <span class="wl-stat-v" id="wlStatMin">--</span>
+                                </div>
+                                <div class="wl-stat">
+                                    <span class="wl-stat-k">平均</span>
+                                    <span class="wl-stat-v" id="wlStatAvg">--</span>
+                                </div>
+                                <div class="wl-stat">
+                                    <span class="wl-stat-k">筆數</span>
+                                    <span class="wl-stat-v" id="wlStatCount">--</span>
+                                </div>
+                            </section>
+
                             <!-- ===== 歷程圖 ===== -->
                             <section class="wl-card">
                                 <div class="wl-card-title">
                                     水位歷程
                                     <span class="wl-card-note" id="wlChartNote"></span>
+                                    <span class="wl-card-actions">
+                                        <button type="button" class="wl-export-btn" id="wlExportPng">匯出圖</button>
+                                    </span>
                                 </div>
                                 <div class="wl-chart-wrap">
                                     <canvas id="wlChart"></canvas>
-                                    <div class="wl-chart-empty" id="wlChartEmpty">這段期間沒有資料</div>
+                                    <div class="wl-chart-empty" id="wlChartEmpty">
+                                        <span class="wl-chart-empty-title" id="wlChartEmptyTitle">這段期間沒有資料</span>
+                                        <span class="wl-chart-empty-sub" id="wlChartEmptySub"></span>
+                                        <button type="button" class="wl-chart-empty-cta" id="wlChartEmptyCta"
+                                                hidden="hidden"></button>
+                                    </div>
                                 </div>
+                                <!-- 匯出的圖會離開這一頁單獨流傳，圖上自帶站名與區間，示範站再加警語 -->
+                                <img class="wl-png-preview" id="wlPngPreview" alt="水位歷程圖" hidden="hidden"/>
+                                <div class="wl-png-hint" id="wlPngHint" hidden="hidden">長按圖片可儲存</div>
+                            </section>
+
+                            <!-- ===== 逐筆資料 =====
+                                 這是全站唯一的 <table>：兩欄數值要對齊、要能一眼比對相鄰時刻，
+                                 卡片列表做不到（使用者指定表格）。不要「順手」改回卡片。 -->
+                            <section class="wl-card" id="wlTableCard">
+                                <div class="wl-card-title">
+                                    水位歷程資料
+                                    <span class="wl-card-note" id="wlTableNote"></span>
+                                    <span class="wl-card-actions">
+                                        <a class="wl-export-btn" id="wlExportCsv"
+                                           t-attf-href="/construction/#{project.id}/water-level/export.csv">匯出表</a>
+                                    </span>
+                                </div>
+                                <div class="wl-table-wrap" id="wlTableWrap">
+                                    <table class="wl-table">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">時間</th>
+                                                <th scope="col" id="wlTableValueHead">水位 (m)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="wlTableBody"></tbody>
+                                    </table>
+                                    <div class="wl-table-empty" id="wlTableEmpty">這段期間沒有資料</div>
+                                </div>
+                                <div class="wl-table-more" id="wlTableMore" hidden="hidden"></div>
                             </section>
 
                             <!-- ===== 站點位置 ===== -->

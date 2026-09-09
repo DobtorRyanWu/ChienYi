@@ -300,6 +300,107 @@
   color: #fff;
 }
 
+/* ===== 自訂區間（預設收合） ===== */
+.wl-custom { margin-bottom: 12px; }
+.wl-custom-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px dashed var(--wb-bdr);
+  background: transparent;
+  color: var(--wb-t2);
+  border-radius: var(--wb-radius-sm);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.wl-custom-toggle.is-open { border-style: solid; color: var(--wb-t1); }
+.wl-custom-caret { transition: transform 0.15s ease; }
+.wl-custom-toggle.is-open .wl-custom-caret { transform: rotate(180deg); }
+.wl-custom-body {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius-sm);
+}
+.wl-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.wl-custom-label {
+  flex: 0 0 1.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--wb-t2);
+}
+.wl-custom-date, .wl-custom-hour {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--wb-bdr);
+  border-radius: var(--wb-radius-sm);
+  background: var(--wb-bg0);
+  color: var(--wb-t1);
+  font-size: 0.82rem;
+}
+.wl-custom-hour { flex: 0 0 5.5rem; }
+.wl-custom-actions { display: flex; gap: 8px; margin-top: 10px; }
+.wl-custom-apply, .wl-custom-clear {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: var(--wb-radius-sm);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.wl-custom-apply {
+  border: 1px solid var(--wb-brand);
+  background: var(--wb-brand);
+  color: #fff;
+}
+.wl-custom-clear {
+  border: 1px solid var(--wb-bdr);
+  background: var(--wb-bg2);
+  color: var(--wb-t2);
+}
+.wl-custom-note {
+  margin-top: 8px;
+  font-size: 0.7rem;
+  color: var(--wb-t3);
+  line-height: 1.5;
+}
+.wl-custom-note.is-warn { color: var(--wb-wl-lv2); font-weight: 700; }
+
+/* ===== 區間摘要（hero 是「現在」，這裡是「這段期間」） ===== */
+.wl-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.wl-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius-sm);
+}
+.wl-stat-k { font-size: 0.66rem; color: var(--wb-t3); }
+.wl-stat-v {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--wb-t1);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ===== 卡片 ===== */
 .wl-card {
   background: var(--wb-bg2);
@@ -314,21 +415,129 @@
   font-weight: 700;
   color: var(--wb-t1);
   margin-bottom: 10px;
-  display: flex;
+  /* 三欄：標題 | 註記 | 動作鈕。註記變長（自訂區間會把起訖時間寫進去）時
+     只在自己那一欄折行，標題不會被擠斷、匯出鈕也不會被推到下一行 */
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: baseline;
   gap: 8px;
 }
-.wl-card-note { font-size: 0.7rem; font-weight: 400; color: var(--wb-t3); }
+.wl-card-note {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--wb-t3);
+  flex-shrink: 0;
+  max-width: 100%;
+}
+/* 匯出鈕靠右，與標題同一行 */
+.wl-card-actions { grid-column: 3; display: flex; gap: 6px; }
+.wl-export-btn {
+  display: inline-block;
+  padding: 5px 10px;
+  border: 1px solid var(--wb-bdr);
+  border-radius: var(--wb-radius-sm);
+  background: var(--wb-bg0);
+  color: var(--wb-t2);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+.wl-export-btn:hover { color: var(--wb-brand); border-color: var(--wb-brand); }
 
 .wl-chart-wrap { position: relative; height: 240px; }
 .wl-chart-empty {
   display: none;
   position: absolute; inset: 0;
+  flex-direction: column;
   align-items: center; justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  text-align: center;
   color: var(--wb-t3);
   font-size: 0.82rem;
 }
 .wl-chart-empty.is-shown { display: flex; }
+.wl-chart-empty-title { font-weight: 700; color: var(--wb-t2); }
+.wl-chart-empty-sub { font-size: 0.72rem; }
+.wl-chart-empty-cta {
+  margin-top: 2px;
+  padding: 6px 14px;
+  border: 1px solid var(--wb-brand);
+  border-radius: var(--wb-radius-sm);
+  background: transparent;
+  color: var(--wb-brand);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 匯出圖：iOS 無法直接下載時就地顯示，讓使用者長按儲存 */
+.wl-png-preview {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius-sm);
+}
+.wl-png-hint { margin-top: 4px; font-size: 0.7rem; color: var(--wb-t3); text-align: center; }
+
+/* ===== 逐筆資料表 =====
+   全站唯一的 <table>：兩欄數值要縱向對齊才比得出相鄰時刻的變化。 */
+.wl-table-wrap {
+  position: relative;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius-sm);
+}
+.wl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.wl-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 12px;
+  background: var(--wb-bg3);
+  color: var(--wb-t2);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 1px solid var(--wb-bdr);
+}
+.wl-table th:last-child, .wl-table td:last-child { text-align: right; }
+.wl-table td {
+  padding: 7px 12px;
+  color: var(--wb-t1);
+  border-bottom: 1px solid var(--wb-bdr-soft);
+  font-variant-numeric: tabular-nums;
+}
+.wl-table tr:last-child td { border-bottom: none; }
+.wl-table-value { font-weight: 700; }
+/* 超過警戒值的列標色，用與圖上警戒線同一組語意色 */
+.wl-table tr.is-lv3 td:first-child { box-shadow: inset 3px 0 0 var(--wb-wl-lv3); }
+.wl-table tr.is-lv2 td:first-child { box-shadow: inset 3px 0 0 var(--wb-wl-lv2); }
+.wl-table tr.is-lv1 td:first-child { box-shadow: inset 3px 0 0 var(--wb-wl-lv1); }
+.wl-table tr.is-lv3 .wl-table-value { color: var(--wb-wl-lv3); }
+.wl-table tr.is-lv2 .wl-table-value { color: var(--wb-wl-lv2); }
+.wl-table tr.is-lv1 .wl-table-value { color: var(--wb-wl-lv1); }
+.wl-table-empty {
+  display: none;
+  padding: 28px 12px;
+  text-align: center;
+  color: var(--wb-t3);
+  font-size: 0.8rem;
+}
+.wl-table-empty.is-shown { display: block; }
+.wl-table-more {
+  margin-top: 8px;
+  font-size: 0.7rem;
+  color: var(--wb-t3);
+  line-height: 1.5;
+}
 
 .wl-map { height: 260px; border-radius: var(--wb-radius-sm); overflow: hidden; }
 .wl-map-hint { font-size: 0.7rem; color: var(--wb-t3); margin-top: 6px; }

@@ -5,3 +5,4 @@ from . import test_photo_access
 from . import test_defect_source
 from . import test_record_type_resolution
 from . import test_defect_parsers
+from . import test_water_level_window
