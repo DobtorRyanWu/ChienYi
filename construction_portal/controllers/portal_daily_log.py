@@ -3,6 +3,7 @@
 
 import base64
 import json
+import logging
 from datetime import date, datetime, timedelta
 
 from odoo import http, _, fields
@@ -12,6 +13,11 @@ from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
+
+# 這三支 mixin 都是從 portal.py 抽出來的，_logger 沒跟著搬過來——
+# 而用到它的地方全在 except 區塊裡，於是「記錄錯誤」自己炸成 NameError，
+# 把原始錯誤蓋掉並回 500。2026-09-10 補上。
+_logger = logging.getLogger(__name__)
 
 from .portal_utils import (
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
