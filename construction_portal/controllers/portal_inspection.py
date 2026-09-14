@@ -873,6 +873,8 @@ class InspectionRoutesMixin:
         contractor_name = (post.get('contractor_name') or '').strip()
         if contractor_name:
             vals['contractor_name'] = contractor_name
+        # 協力廠商是純文字、沒有 compute 自動帶入，所以留空就是留空，直接寫。
+        vals['subcontractor_name'] = (post.get('subcontractor_name') or '').strip()
         Inspection = request.env['reservation.self.inspection'].sudo()
         inspection = Inspection.create(vals)
 
@@ -958,6 +960,56 @@ class InspectionRoutesMixin:
         }
         return request.render(
             'construction_portal.portal_construction_reservation_inspection_detail', values)
+
+    # ------------------------------------------------------------------
+    # 匯出檢查表（Word）
+    # ------------------------------------------------------------------
+    DOCX_MIMETYPE = ('application/vnd.openxmlformats-officedocument'
+                     '.wordprocessingml.document')
+
+    def _portal_export_inspection(self, model, inspection_id, back_url):
+        """共用：套印並直接回傳 docx。
+
+        套印失敗（樣板與項目對不上）時 raise 的是 UserError，前台不能讓它
+        變成 500 白頁——那樣使用者只知道「壞了」，不知道差在哪。改成帶著訊息
+        轉回詳情頁，由模板顯示。
+        """
+        from urllib.parse import quote
+        try:
+            inspection = self._document_check_access(
+                model, inspection_id, access_token=request.params.get('access_token'))
+        except (AccessError, MissingError):
+            return request.redirect('/my')
+
+        try:
+            action = inspection.action_export_inspection_form()
+        except UserError as exc:
+            return request.redirect('%s?error=%s' % (back_url % inspection_id,
+                                                     quote(str(exc))))
+
+        attachment = request.env['ir.attachment'].sudo().browse(
+            int(action['url'].split('/web/content/')[1].split('?')[0]))
+        return request.make_response(attachment.raw, headers=[
+            ('Content-Type', self.DOCX_MIMETYPE),
+            ('Content-Disposition',
+             "attachment; filename*=UTF-8''%s" % quote(attachment.name or 'inspection.docx')),
+        ])
+
+    @http.route(['/construction/inspection/<int:inspection_id>/export'],
+                type='http', auth='user', website=True)
+    def portal_construction_inspection_export(self, inspection_id, **kw):
+        """一般式：把這張檢查紀錄套進樣板並下載 Word"""
+        return self._portal_export_inspection(
+            'general.self.inspection', inspection_id,
+            '/construction/inspection/%s')
+
+    @http.route(['/construction/reservation-inspection/<int:inspection_id>/export'],
+                type='http', auth='user', website=True)
+    def portal_construction_reservation_inspection_export(self, inspection_id, **kw):
+        """預約式：把這張檢查紀錄套進樣板並下載 Word"""
+        return self._portal_export_inspection(
+            'reservation.self.inspection', inspection_id,
+            '/construction/reservation-inspection/%s')
 
     @http.route(['/construction/inspection/<int:inspection_id>/confirm'],
                 type='http', auth='user', website=True, methods=['POST'])

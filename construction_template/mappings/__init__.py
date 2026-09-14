@@ -12,6 +12,8 @@
         daily_log_2（監造日報表第二聯，佔位符，單筆——2026-08-05 重做樣板）
         daily_log_c1 / daily_log_c2（施工日誌一二聯 營造版，佔位符，單筆）
         self_inspection（自主檢查總表，佔位符，**專案層級彙總**）
+        self_inspection_form（自主檢查表單張，docx，**一張檢查紀錄一份檔**——
+        樣板來源是檢查類型上傳的檔，沒上傳才用系統預設樣板）
         defect_improvement / defect_control / review_control / test_control
         （皆 docx，專案層級彙總）
         plan_control（計畫書送審管制總表，xlsx 佔位符，**專案層級彙總**——
@@ -28,6 +30,7 @@ from . import daily_log_2
 from . import daily_log_c1
 from . import daily_log_c2
 from . import self_inspection
+from . import self_inspection_form
 from . import defect_improvement
 from . import defect_control
 from . import review_control

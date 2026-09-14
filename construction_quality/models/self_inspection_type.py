@@ -156,6 +156,69 @@ class SelfInspectionType(models.Model):
         help='新增檢查時可自動帶入的預設項目')
 
     # === 統計 ===
+    def _used_inspection_count(self):
+        """本檢查類型已被幾筆檢查紀錄使用（兩式合計）。
+
+        onchange 裡 self.id 是虛擬的 NewId，要用 _origin 才問得到真正的記錄。
+        """
+        origin = self._origin if self else self
+        if not origin or not origin.id:
+            return 0
+        count = 0
+        for model in ('general.self.inspection', 'reservation.self.inspection'):
+            Model = self.env.get(model)
+            if Model is not None:
+                count += Model.sudo().search_count(
+                    [('inspection_type_id', '=', origin.id)])
+        return count
+
+    @api.onchange('name', 'code', 'category', 'description',
+                  'default_item_ids', 'stage_ids', 'timing_ids', 'measure_ids')
+    def _onchange_warn_used_by_inspections(self):
+        """改到已經在用的檢查類型時提醒去確認既有紀錄。
+
+        既有紀錄本身**不會被改壞**（項目名稱、檢查標準、量測句型都是建立當下
+        的快照），所以這不是資料完整性的守門。它要提醒的是**業務上的落差**：
+        範本加了一項檢查、改了檢查標準之後，那些用舊範本做的檢查要不要補做、
+        要不要重新判定——那是監造人員要決定的，系統只負責讓他知道有這件事。
+
+        ⚠️ onchange 只在畫面上操作時觸發；匯入與程式寫入不會跳，那些路徑
+        本來就不是人在逐筆判斷。
+        """
+        count = self._used_inspection_count()
+        if not count:
+            return
+        return {
+            'warning': {
+                'title': '這個檢查類型已經在使用中',
+                'message': '目前有 %s 筆自主檢查紀錄使用這個類型。\n'
+                           '存檔後請確認那些紀錄是否需要一併調整。' % count,
+            },
+        }
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_used_by_inspections(self):
+        """已經有檢查紀錄用這個類型時不可刪除。
+
+        沒有這道守門的話，PostgreSQL 的 RESTRICT 會先炸出來，使用者看到的是
+        `update or delete on table "self_inspection_type" violates RESTRICT`
+        這種原始 SQL 訊息（2026-09-14 實測），完全不知道是誰在用、要怎麼辦。
+
+        前台「刪除樣板」那條路（construction_portal）在有檢查紀錄時會改成
+        停用而不是刪除，不會走到這裡。
+        """
+        for model in ('general.self.inspection', 'reservation.self.inspection'):
+            Model = self.env.get(model)
+            if Model is None:
+                continue
+            count = Model.sudo().search_count([('inspection_type_id', 'in', self.ids)])
+            if count:
+                raise UserError(
+                    '這個檢查類型已經被 %s 筆「%s」使用，不能刪除。\n\n'
+                    '如果只是不想再看到它，請改用「停用」'
+                    '（右上角的動作選單 ▸ 封存），既有的檢查紀錄不受影響。'
+                    % (count, Model._description))
+
     inspection_count = fields.Integer(
         string='檢查次數',
         compute='_compute_inspection_count')

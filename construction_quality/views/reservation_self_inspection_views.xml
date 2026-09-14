@@ -87,6 +87,8 @@
                         <group string="廠商資訊">
                             <field name="contractor_name"
                                    placeholder="留空自動帶入工程的營造廠商"/>
+                            <field name="subcontractor_name"
+                                   placeholder="本次實際施作的下包，沒有就留空"/>
                         </group>
                         <group string="人員資訊">
                             <field name="responsible_user_id"/>
@@ -100,11 +102,11 @@
                                    context="{'default_stage_id': first_stage_id}">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
-                                    <!-- stage_id / type_item_id 的 domain 靠它求值，不可移除 -->
+                                    <!-- stage_id 的 domain 靠它求值，不可移除。
+                                         type_item_id（血緣）刻意不放進清單，見 18.0.6.2.0 -->
                                     <field name="inspection_type_id" column_invisible="1"/>
                                     <field name="stage_id" optional="show"
                                            options="{'no_create': True, 'no_open': True}"/>
-                                    <field name="type_item_id" string="從樣板選取" optional="show"/>
                                     <!-- check_item 是 required 且無 default，
                                          不放進清單的話「加入資料行」會因 not-null 而無法儲存 -->
                                     <field name="check_item" string="檢查項目"/>

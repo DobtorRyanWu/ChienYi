@@ -23,20 +23,34 @@ INS|FOR|END-FOR），未處理的標記會原樣印在報表上。本模組補�
 import io
 import logging
 import re
+from types import SimpleNamespace
 
 _logger = logging.getLogger(__name__)
 
 # +++IF <任意運算式>+++ / +++END-IF+++
 # 條件式是舊系統的 JS 運算式（例：$record.images[0].isEmpty !== true），
 # 含 [] ! = 等字元，不能只認識別字元。
-IF_RE = re.compile(r'\+{3}IF\s+[^+]{1,120}?\+{3,4}')
+# 🔴 條件式裡**可能含有 `+`**：自主檢查樣板的照片頁寫的是
+# `+++IF inspection.images[$evenIndex + 1] +++`。原本用 `[^+]` 界定範圍，
+# 遇到這種就整個匹配不到，標記原樣印在紙上（2026-09-11 實測）。
+# 改用非貪婪 `.*?` ——它會停在最近的 `+++`，而單獨一個 `+` 不會被
+# `\+{3,4}` 吃掉；相鄰標記黏成一長串加號的情況，上面的 `\+{6,}` 預處理
+# 已經先用零寬空格切開了。
+IF_RE = re.compile(r'\+{3}IF\s+.{1,160}?\+{3,4}')
 ENDIF_RE = re.compile(r'\+{3}END-IF\s*\+{3,4}')
 
 # +++IMAGE imageGenerator($record.images[0].src, $record.images[0].extension,
 #                         {height:6}, $record.images[0].date)+++
-# 抓出「哪個迴圈變數的第幾張圖」，轉成我們自己的 context 鍵。
+# 抓出「哪個集合的哪一張圖」，轉成我們自己的 context 鍵。
+#
+# 🔴 索引不一定是數字。缺失改善的樣板用固定索引 images[0]/[1]/[2]，但自主檢查
+# 的 79 份樣板全部是 `images[$evenIndex]` 與 `images[$evenIndex + 1]`
+# （照片頁一頁兩張，$evenIndex 來自 +++FOR evenIndex IN inspection.evenImagesIndex+++）。
+# 原本只認 (\d+) 的話，這類標記**完全匹配不到 → 原樣印在紙上、照片全部不見**
+# （2026-09-11 實測：分頁是對的、圖片一張都沒有）。
+# 所以索引改成「到 ] 為止的任意運算式」，替換時把 $ 去掉即可交給 Jinja2。
 IMAGE_RE = re.compile(
-    r'\+{3}IMAGE\s+imageGenerator\(\s*\$?(\w+)\.images\[(\d+)\]\.src[^+]*?\+{3,4}')
+    r'\+{3}IMAGE\s+imageGenerator\(\s*\$?(\w+)\.images\[([^\]]+)\]\.src.*?\+{3,4}')
 IMAGE_KEY = '__image__'          # context 裡的圖片佔位標記
 
 # 帶索引的取值：+++INS $record.images[0].description+++
@@ -71,7 +85,8 @@ def _strip_conditionals(raw_bytes):
             text = re.sub(r'\+{6,}', '+++​+++', text)
             # 圖片：轉成自己的 context 鍵，由 render() 換成 docxtpl 的 InlineImage
             text = IMAGE_RE.sub(
-                lambda m: '{{ %s.images[%s].image }}' % (m.group(1), m.group(2)), text)
+                lambda m: '{{ %s.images[%s].image }}' % (
+                    m.group(1), m.group(2).replace('$', '').strip()), text)
             # 帶索引的取值：既有轉換器處理不了，自己轉成 Jinja
             text = INDEXED_INS_RE.sub(
                 lambda m: '{{ %s }}' % re.sub(r'\s', '', m.group(1)), text)
@@ -111,6 +126,14 @@ def _swap_images(value, tpl):
 
     from . import photo_stamp
 
+    # SimpleNamespace：對照表的 context 用它而不是 dict，因為 Jinja2 的 `.` 存取
+    # 先找 attribute，dict 的 items/keys/values 會把同名的資料鍵蓋掉
+    # （`stage.items` 會拿到 dict.items 這個 method）。這裡要一起遞迴進去，
+    # 否則巢狀在 namespace 裡的照片標記換不到 InlineImage，照片會靜靜不見。
+    if isinstance(value, SimpleNamespace):
+        for key, inner in list(vars(value).items()):
+            setattr(value, key, _swap_images(inner, tpl))
+        return value
     if isinstance(value, dict):
         if IMAGE_KEY in value:
             raw = value.get(IMAGE_KEY)

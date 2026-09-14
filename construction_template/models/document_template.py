@@ -143,7 +143,10 @@ class DocumentTemplate(models.Model):
     template_type = fields.Selection([
         ('daily_log_1', '施工日誌-第一聯'),
         ('daily_log_2', '施工日誌-第二聯'),
-        ('self_inspection', '自主檢查表'),
+        ('self_inspection', '自主檢查總表'),
+        # 單張：一張檢查紀錄一份檔。這份是「使用者沒有替該檢查類型上傳樣板」
+        # 時的退路；有上傳就用 self.inspection.type.template_file。
+        ('self_inspection_form', '自主檢查表（單張）'),
         ('defect_improvement', '缺失改善'),
         ('defect_control', '缺失改善管制表'),
         ('review_control', '送審管制表'),

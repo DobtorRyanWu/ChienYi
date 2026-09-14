@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===== 自主檢查紀錄：匯出檢查表 ===== -->
+    <record id="view_general_self_inspection_form_export" model="ir.ui.view">
+        <field name="name">general.self.inspection.form.export</field>
+        <field name="model">general.self.inspection</field>
+        <field name="inherit_id" ref="construction_quality.view_general_self_inspection_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_inspection_form"
+                        string="匯出檢查表"
+                        type="object"
+                        icon="fa-file-word-o"
+                        help="把這張檢查紀錄的資料填進樣板並下載 Word 檔。樣板優先用該檢查類型上傳的那一份，沒有上傳才用系統預設樣板。"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_reservation_self_inspection_form_export" model="ir.ui.view">
+        <field name="name">reservation.self.inspection.form.export</field>
+        <field name="model">reservation.self.inspection</field>
+        <field name="inherit_id" ref="construction_quality.view_reservation_self_inspection_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_inspection_form"
+                        string="匯出檢查表"
+                        type="object"
+                        icon="fa-file-word-o"
+                        help="把這張檢查紀錄的資料填進樣板並下載 Word 檔。樣板優先用該檢查類型上傳的那一份，沒有上傳才用系統預設樣板。"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ===== 自主檢查類型：測試樣板 / 從樣板匯入設定 ===== -->
+    <record id="view_self_inspection_type_form_export" model="ir.ui.view">
+        <field name="name">self.inspection.type.form.export</field>
+        <field name="model">self.inspection.type</field>
+        <field name="inherit_id" ref="construction_quality.view_self_inspection_type_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='template_file']" position="after">
+                <div colspan="2">
+                    <button name="action_import_from_template"
+                            string="從樣板匯入設定"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-download"
+                            invisible="not template_file or not id"
+                            help="從上傳的 Word 樣板反推查驗段落與檢查項目。只有「硬編索引」格式的樣板抽得到（項目名稱印在檔案裡）；檢查標準那一欄在樣板裡是待填的空格，反推後會是空的，需要自己補。"/>
+                    <button name="action_test_inspection_template"
+                            string="測試樣板"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-flask"
+                            invisible="not id"
+                            help="用假資料套印一次，確認樣板的列數、順序、項目名稱與「預設檢查項目」對得上。對不上會直接指出差在哪一段第幾項。"/>
+                    <div class="text-muted mt-2" invisible="template_file">
+                        沒有上傳樣板時，匯出會使用系統預設樣板（動態表格，不限檢查項目數）。
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

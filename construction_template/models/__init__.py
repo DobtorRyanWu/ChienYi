@@ -7,3 +7,5 @@ from . import project_project
 from . import reservation_notification_slip
 from . import payment_estimate
 from . import acceptance_and_test
+from . import self_inspection
+from . import self_inspection_type

@@ -167,6 +167,22 @@
                         </div>
                     </t>
 
+                    <!-- 匯出檢查表（Word）。套印失敗時 controller 會帶 export_error
+                         轉回本頁——樣板與檢查項目對不上時訊息很長（會逐段指出
+                         差在哪一項），所以用 pre-wrap 完整顯示，不要截斷。 -->
+                    <t t-if="request.params.get('error')">
+                        <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-desc" style="white-space: pre-wrap;"><t t-esc="request.params.get('error')"/></div>
+                            </div>
+                        </div>
+                    </t>
+                    <a t-attf-href="/construction/inspection/#{inspection.id}/export"
+                       class="cy-btn" style="width:100%; display:block; text-align:center; margin-bottom:16px; text-decoration:none;">
+                        <i class="fa fa-file-word-o"/> 匯出檢查表（Word）
+                    </a>
+
                     <!-- 綜合結果（一般式）-->
                     <t t-if="inspection.overall_result">
                         <div t-attf-class="cy-event-card #{inspection.overall_result == 'pass' and 'cy-event-info' or inspection.overall_result == 'fail' and 'cy-event-urgent' or 'cy-event-warn'}" style="margin-bottom: 12px;">
@@ -209,6 +225,10 @@
                         <div class="cy-info-row" t-if="inspection.contractor_name">
                             <span class="cy-info-label">承攬廠商</span>
                             <span class="cy-info-value"><t t-esc="inspection.contractor_name"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="inspection.subcontractor_name">
+                            <span class="cy-info-label">協力廠商</span>
+                            <span class="cy-info-value"><t t-esc="inspection.subcontractor_name"/></span>
                         </div>
                     </div>
 
@@ -617,6 +637,12 @@
                                    placeholder="留空自動帶入工程的營造廠商"/>
                         </div>
 
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.85rem;">協力廠商</label>
+                            <input type="text" name="subcontractor_name" class="form-control"
+                                   placeholder="本次實際施作的下包，沒有就留空"/>
+                        </div>
+
                         <!-- 量測區塊（表尾「丈量___位置…□合格□不合格」那一段）
                              只有設定過量測區塊的檢查類型才會出現；
                              由 portal_v10.js 依 data-measure-map 依句型插輸入框。
@@ -700,6 +726,22 @@
                         </span>
                     </div>
 
+                    <!-- 匯出檢查表（Word）。套印失敗時 controller 會帶 export_error
+                         轉回本頁——樣板與檢查項目對不上時訊息很長（會逐段指出
+                         差在哪一項），所以用 pre-wrap 完整顯示，不要截斷。 -->
+                    <t t-if="request.params.get('error')">
+                        <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-desc" style="white-space: pre-wrap;"><t t-esc="request.params.get('error')"/></div>
+                            </div>
+                        </div>
+                    </t>
+                    <a t-attf-href="/construction/reservation-inspection/#{inspection.id}/export"
+                       class="cy-btn" style="width:100%; display:block; text-align:center; margin-bottom:16px; text-decoration:none;">
+                        <i class="fa fa-file-word-o"/> 匯出檢查表（Word）
+                    </a>
+
                     <div class="cy-section-title">所屬通報單</div>
                     <div class="cy-info-section">
                         <div class="cy-info-row">
@@ -731,6 +773,10 @@
                         <div class="cy-info-row" t-if="inspection.contractor_name">
                             <span class="cy-info-label">承攬廠商</span>
                             <span class="cy-info-value"><t t-esc="inspection.contractor_name"/></span>
+                        </div>
+                        <div class="cy-info-row" t-if="inspection.subcontractor_name">
+                            <span class="cy-info-label">協力廠商</span>
+                            <span class="cy-info-value"><t t-esc="inspection.subcontractor_name"/></span>
                         </div>
                         <div class="cy-info-row">
                             <span class="cy-info-label">填表人</span>

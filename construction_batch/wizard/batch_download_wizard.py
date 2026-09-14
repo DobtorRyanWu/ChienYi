@@ -55,6 +55,15 @@ RECORD_SOURCES = {
         'date_label': '工程會勘日期', 'states': None,
         'limit': 50, 'field': 'notification_slip_ids',
     },
+    # 自主檢查表（單張）：一張檢查紀錄一份 Word。
+    # 🔴 model 是動態的——一般式與預約式是兩個模型，由工程案件的 project_type
+    # 決定（見 _record_model）。這裡填一般式只是給「沒選工程」時一個預設值。
+    # 也刻意不提供手動選取欄位（field=None）：兩式是不同模型，一個 M2M 裝不下。
+    'self_inspection_form': {
+        'model': 'general.self.inspection', 'date_field': 'inspection_date',
+        'date_label': '檢查日期', 'states': None,
+        'limit': 50, 'field': None,
+    },
 }
 
 # 刻意不放進下載中心的樣板類型（保留紀錄，避免日後又被「補齊」進來）：
@@ -66,6 +75,7 @@ RECORD_SOURCES = {
 # 只有一種樣板的類型，直接對應；有多種的用 *_variant 欄位讓使用者選
 FIXED_TEMPLATE_TYPES = {
     'self_inspection': 'self_inspection',
+    'self_inspection_form': 'self_inspection_form',
     'test': 'test_control',
     'review': 'review_control',
     'plan': 'plan_control',
@@ -89,6 +99,7 @@ TYPE_LABELS = {
     'review': '送審管制表',
     'plan': '計畫書管制表',
     'self_inspection': '自主檢查',
+    'self_inspection_form': '自主檢查表（單張）',
     'defect': '缺失改善',
     'test': '檢(試)驗管制紀錄',
     'estimate': '估驗計價表',
@@ -117,6 +128,7 @@ class BatchDownloadWizard(models.TransientModel):
         ('review', '送審管制表'),
         ('plan', '計畫書管制表'),
         ('self_inspection', '自主檢查'),
+        ('self_inspection_form', '自主檢查表（單張）'),
         ('defect', '缺失改善'),
         ('test', '檢(試)驗管制紀錄'),
         ('estimate', '估驗計價表'),
@@ -308,7 +320,8 @@ class BatchDownloadWizard(models.TransientModel):
                 'extra_domain': self._mapping_source_domain(mapping),
             }
         spec = RECORD_SOURCES[self.download_type]
-        return dict(spec, domain=self._get_record_domain())
+        return dict(spec, model=self._record_model(),
+                    domain=self._get_record_domain())
 
     # -------------------------------------------------------------------------
     # Compute Methods
@@ -344,7 +357,8 @@ class BatchDownloadWizard(models.TransientModel):
         """
         self.ensure_one()
         if not self._is_project_level():
-            selected = self[RECORD_SOURCES[self.download_type]['field']]
+            field = RECORD_SOURCES[self.download_type]['field']
+            selected = self[field] if field else None
             if selected:
                 return len(selected)
         source = self._date_source()
@@ -399,11 +413,27 @@ class BatchDownloadWizard(models.TransientModel):
     # Domain Builder Methods
     # -------------------------------------------------------------------------
 
+    def _record_model(self):
+        """記錄層級類型要撈哪一個模型。
+
+        自主檢查是唯一需要動態決定的：一般式與預約式是兩個不同的模型
+        （general/reservation.self.inspection），由工程案件的 project_type 決定。
+        專案層級的「自主檢查總表」走的是對照表的 source_model()，兩邊的判斷
+        基準必須一致，所以這裡也用 project_type，不要另外發明條件。
+        """
+        self.ensure_one()
+        spec = RECORD_SOURCES[self.download_type]
+        if self.download_type == 'self_inspection_form':
+            if self.project_id.project_type == 'reservation':
+                return 'reservation.self.inspection'
+            return 'general.self.inspection'
+        return spec['model']
+
     def _get_record_domain(self):
         """記錄層級類型的查詢 domain"""
         self.ensure_one()
         spec = RECORD_SOURCES[self.download_type]
-        Model = self.env[spec['model']]
+        Model = self.env[self._record_model()]
         domain = []
 
         # 公司篩選只在模型真的有這個欄位時才加。
@@ -458,6 +488,15 @@ class BatchDownloadWizard(models.TransientModel):
     def action_download(self):
         """執行下載"""
         self.ensure_one()
+
+        # 自主檢查單張要靠工程案件的 project_type 決定撈哪一個模型
+        # （一般式／預約式是兩個模型），沒選工程就無從判斷。
+        # 這一關刻意放在 action 而不是 _record_model()——後者會被 compute 呼叫，
+        # 在 compute 裡 raise 會讓整個畫面打不開。
+        if self.download_type == 'self_inspection_form' and not self.project_id:
+            raise UserError(
+                '下載「自主檢查表（單張）」必須先選工程案件——'
+                '一般式與預約式的自主檢查是兩份不同的資料，要由工程案件決定。')
 
         if self._is_project_level():
             content, filename = self._download_project_summary()
@@ -578,7 +617,7 @@ class BatchDownloadWizard(models.TransientModel):
 
         if not self._is_project_level():
             spec = RECORD_SOURCES[self.download_type]
-            selected = self[spec['field']]
+            selected = self[spec['field']] if spec['field'] else None
             if selected:
                 return selected, spec['date_field'], spec['date_label']
         elif not self.project_id:
@@ -645,6 +684,18 @@ class BatchDownloadWizard(models.TransientModel):
         template_type = self._template_type()
 
         # 樣板依專案而異（專案專屬 > 公司 > 系統），跨專案時要各查各的
+        # 自主檢查的樣板來源是「檢查類型上傳的檔」，不是 document.template
+        # （見 construction_template/models/self_inspection.py 的說明）。
+        # 每一張檢查紀錄可能用不同的檢查類型＝不同的樣板，所以不能像其他類型
+        # 那樣「一個專案查一次樣板」快取起來。
+        if self.download_type == 'self_inspection_form':
+            rendered = [record.render_inspection_form() for record in records]
+            if len(rendered) == 1:
+                return rendered[0]
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            return (self._zip(rendered),
+                    '%s_%s.zip' % (TYPE_LABELS[self.download_type], timestamp))
+
         cache = {}
         used = self.env['document.template']
         rendered = []
@@ -669,9 +720,12 @@ class BatchDownloadWizard(models.TransientModel):
         """取得要下載的記錄，並套用單次上限"""
         self.ensure_one()
         spec = RECORD_SOURCES[self.download_type]
-        records = self[spec['field']]
+        model = self._record_model()
+        # field 為 None 的類型不提供手動選取（自主檢查兩式是不同模型，
+        # 一個 M2M 欄位裝不下），一律走篩選條件。
+        records = self[spec['field']] if spec['field'] else self.env[model]
         if not records:
-            records = self.env[spec['model']].search(self._get_record_domain())
+            records = self.env[model].search(self._get_record_domain())
 
         label = TYPE_LABELS[self.download_type]
         if not records:

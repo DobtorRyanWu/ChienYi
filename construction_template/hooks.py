@@ -28,6 +28,10 @@ TYPES = [
     ('daily_log_2',        '施工日誌-第二聯', 'xlsx', '111年 P11102 西區/監工日報表第二聯'),
     # 2026-08-05 換成使用者提供的 EAGLE 版「自主檢查總表」（內建 ${} 佔位符，專案層級彙總）
     ('self_inspection',    '自主檢查總表',   'xlsx', '任泰第二期 EAGLE 樣板匯出'),
+    # 2026-09-11 新增：自主檢查表「單張」的預設樣板（動態表格，不限項目數）。
+    # 由 tools/gen_doc_templates/build_self_inspection_form.py 從使用者提供的
+    # inspection_template.docx 草稿加工而來（修 {%tr %}、重做照片頁、補量測區塊）。
+    ('self_inspection_form', '自主檢查表（單張）', 'docx', '使用者提供之動態表格草稿'),
     ('defect_improvement', '矯正與預防處理紀錄', 'docx', '任泰第二期 EAGLE 樣板匯出'),
     ('defect_control', '矯正與預防紀錄管制表', 'docx', '任泰第二期 EAGLE 樣板匯出'),
     ('review_control', '材料設備送審管制總表', 'docx', '任泰第二期 EAGLE 樣板匯出'),

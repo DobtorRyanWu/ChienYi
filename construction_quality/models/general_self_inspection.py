@@ -87,6 +87,13 @@ class GeneralSelfInspection(models.Model):
         for record in self:
             record.contractor_name = record.project_id.contractor_company_name or ''
 
+    # 協力廠商＝本次實際施作的下包，與承攬廠商是兩件事，來源只有填表的人知道，
+    # 所以是純文字、沒有自動帶入（18.0.4.7.0 曾以「兩式各 0 筆填值」為由移除，
+    # 但紙本表頭本來就有這一格，列印時留白會與紙本對不上）。
+    subcontractor_name = fields.Char(
+        string='協力廠商',
+        help='本次實際施作的協力廠商（下包）；沒有下包時留空')
+
     # === 檢查時機 ===
     # 紙本表頭那一列本來就可以同時勾多個（實測：施工中＋施工完成），
     # 而且各家表格的選項組不同、連用字都不同（「施工完成檢查」vs「施工後檢查」），
