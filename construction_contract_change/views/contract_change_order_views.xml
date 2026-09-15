@@ -173,12 +173,19 @@
                                     <field name="item_name" string="工項名稱" readonly="1"/>
                                     <field name="task_id" column_invisible="1"/>
                                     <!-- 3. 父工項（合併欄）：既有彙總項 或 本次新增群組，單欄顯示/編輯 -->
-                                    <field name="parent_ref"
-                                           string="父工項"
+                                    <field name="parent_kind"
+                                           string="父項類型"
                                            readonly="change_type != 'add'"/>
-                                    <!-- 後端權威欄位（隱藏，供 domain/邏輯使用） -->
-                                    <field name="parent_task_id" column_invisible="1"/>
-                                    <field name="parent_line_id" column_invisible="1"/>
+                                    <field name="parent_task_id"
+                                           string="父工項(原契約已有)"
+                                           readonly="change_type != 'add'"
+                                           invisible="parent_kind != 'existing'"
+                                           options="{'no_create': True}"/>
+                                    <field name="parent_line_id"
+                                           string="父工項(本次新增)"
+                                           readonly="change_type != 'add'"
+                                           invisible="parent_kind != 'new_group'"
+                                           options="{'no_create': True}"/>
                                     <field name="is_new_group" optional="hide"/>
                                     <!-- 預備單價項目（不計入契約金額） -->
                                     <field name="exclude_from_contract_amount"
@@ -346,11 +353,19 @@
                        required="change_type != 'add'"
                        options="{'no_create': True}"
                        force_save="1"/>
-                <field name="parent_ref"
-                       string="父工項"
+                <field name="parent_kind"
+                       string="父項類型"
                        readonly="change_type != 'add'"/>
-                <field name="parent_task_id" column_invisible="1"/>
-                <field name="parent_line_id" column_invisible="1"/>
+                <field name="parent_task_id"
+                       string="父工項(原契約已有)"
+                       readonly="change_type != 'add'"
+                       invisible="parent_kind != 'existing'"
+                       options="{'no_create': True}"/>
+                <field name="parent_line_id"
+                       string="父工項(本次新增)"
+                       readonly="change_type != 'add'"
+                       invisible="parent_kind != 'new_group'"
+                       options="{'no_create': True}"/>
                 <field name="is_new_group" optional="hide"/>
                 <field name="parent_task_path"
                        readonly="1" optional="hide"/>

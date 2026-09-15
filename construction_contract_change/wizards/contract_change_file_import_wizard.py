@@ -136,6 +136,10 @@ class ContractChangeFileImportWizard(models.TransientModel):
                 'new_price': i.get('new_price') or 0.0,
                 'new_amount': i.get('new_amount') or 0.0,
                 'notes': i.get('notes', '') or '',
+                # 章節列（找不到父工項者）：帶出建議的父項類型與「不計入契約金額」勾選
+                'is_new_group': bool(i.get('is_new_group')),
+                'exclude_from_contract_amount': bool(i.get('suggest_exclude')),
+                'parent_kind': i.get('suggest_parent_kind') or False,
             }))
         # 對帳異常：配到但原數量/原單價≠系統現值。預填處置：
         #   偵測為未變更 → 預設「不變更」（系統值為真）；偵測為 modify/zero → 預設照常套用
@@ -261,6 +265,12 @@ class ContractChangeFileImportWizard(models.TransientModel):
                     'new_price': mapping_line.new_price,
                     'new_amount': mapping_line.new_amount,
                     'notes': mapping_line.notes or '',
+                    # 章節列與「不計入契約金額」的裁決結果要帶過去，
+                    # 否則使用者在頁籤上勾的那一下等於沒作用。
+                    'is_new_group': mapping_line.is_new_group,
+                    'exclude_from_contract_amount':
+                        mapping_line.exclude_from_contract_amount,
+                    'parent_kind': mapping_line.parent_kind or False,
                 })
             elif mapping_line.task_id:
                 ct = 'zero_out' if mapping_line.change_type == 'delete' else mapping_line.change_type
@@ -419,6 +429,17 @@ class ContractChangeFileImportWizard(models.TransientModel):
         self.env.flush_all()
 
         # F1-B：金額核對報告（僅在有 XLSX 章節合計資料時執行）
+        #
+        # 🔴 報告的「系統」值必須讀 wizard_line.new_amount，**不要**再呼叫
+        # simulate_task_amount —— 那支是 F1-C 專用的權宜算法：
+        # 算稅什費時有雞生蛋問題（稅什費 ＝ 比例 × 同層前置的變更後金額，
+        # 而那一刻 _compute_amounts 還沒跑、new_amount 讀不到有效值），
+        # 所以只好用純 Python 推算，它**沒有**比例項／整包項／不計入契約金額
+        # 這三個分支。上面第 414 行 _compute_amounts() 已經跑完並 flush，
+        # 此處 new_amount 就是畫面上「工項列表」顯示的那個值 —— 兩者必須一致，
+        # 否則報告會憑空少算一整筆稅什費（實測 111-20：少 3,855,640.37，
+        # 報告說「差異 -3,855,640.53」但列表顯示的金額其實是對的）。
+        line_by_task_id = {l.task_id.id: l for l in wizard.wizard_line_ids if l.task_id}
         _logger.info('[F1-B] xlsx_sec keys: %s', list(xlsx_sec.keys()) if xlsx_sec else 'EMPTY')
         if xlsx_sec:
             warn_rows = []
@@ -428,7 +449,11 @@ class ContractChangeFileImportWizard(models.TransientModel):
                 if not sec_task.exists():
                     continue
                 xlsx_total = sec_info.get('new_amount') or 0.0
-                simulated = simulate_task_amount(sec_task)
+                sec_line = line_by_task_id.get(sec_task.id)
+                # 精靈裡找不到該章節的行（理論上不會，onchange 會載入全部工項）
+                # 才退回模擬器，至少有個值可比。
+                simulated = (sec_line.new_amount if sec_line
+                             else simulate_task_amount(sec_task))
                 diff = round_twd(simulated - xlsx_total)
                 _logger.info('[F1-B] %s: simulated=%.2f xlsx=%.2f diff=%.2f',
                              sec_info.get('name', '?'), simulated, xlsx_total, diff)
@@ -979,6 +1004,11 @@ class ContractChangeFileImportWizard(models.TransientModel):
                         'unit': unit,
                         'task': None,
                         'parent_task': new_parent,
+                        # 連父節點都找不到 → 它會變成第二個「頂層工項」，
+                        # 而契約金額 ＝ Σ 頂層工項。政府變更明細表的**表尾總計列**
+                        # （「貳 總計」「總價(總計)」…）正是長這樣，不能靜靜建進去。
+                        # 交給 _flag_orphan_top_summaries 改判成待裁決。
+                        'is_orphan_top': not new_parent,
                         'orig_qty': None,
                         'new_qty': 0.0,
                         'new_price': 0.0,
@@ -1141,7 +1171,77 @@ class ContractChangeFileImportWizard(models.TransientModel):
                 'notes': notes,
             })
 
+        results = self._flag_orphan_top_summaries(results)
         return results, xlsx_section_amounts
+
+    # 名稱線索只作「說明用」，**不當判準** —— 關鍵字清單永遠只認得已經看過的寫法，
+    # 遇到沒見過的字會靜靜放行，而「放行」與「這真的是新章節」在畫面上一模一樣。
+    _TOTAL_NAME_HINTS = ('總計', '總價', '合計', '小計', '總金額')
+
+    def _flag_orphan_top_summaries(self, results):
+        """把「在契約樹裡連父節點都找不到的章節列」一律改判成待裁決（unmatch）。
+
+        為什麼不能直接建：這種列沒有父工項，套用後會成為**第二個頂層工項**，
+        而 `supervision_project._compute_contract_amount` ＝
+        「Σ 頂層工項（parent_id=False）且 not exclude_from_contract_amount」
+        → 金額只要不是 0 就直接墊高契約金額（111-20 的「貳 總計」即此類，
+        它目前金額 0 只是因為底下沒有子列）。
+
+        為什麼也不能直接略過：萬一它真的是一個該計入的新章節，略過就是靜靜漏帳。
+
+        所以一律丟進「待手動配對」頁籤讓使用者裁決，並依三個特徵**預先勾好**
+        建議值（使用者可以改）：
+          ① 是章節列（變更後數量與增減數量兩格都空）—— 進到這裡的都已成立
+          ② 在契約樹裡連父節點都找不到 —— `is_orphan_top`
+          ③ 位置在整張表最後（底下沒有子列、後面也沒有其他資料列）
+        三個都成立 → 建議勾「不計入契約金額」。
+        """
+        orphan_idx = [i for i, it in enumerate(results)
+                      if it.get('is_new_group') and it.get('is_orphan_top')]
+        if not orphan_idx:
+            return results
+
+        out = list(results)
+        for idx in orphan_idx:
+            item = results[idx]
+            gkey = item.get('group_key')
+            has_children = any(o.get('parent_group_key') == gkey for o in results)
+            is_last = (idx == len(results) - 1)
+            name = item.get('item_name') or ''
+            name_hit = any(k in name for k in self._TOTAL_NAME_HINTS)
+            suggest_exclude = (not has_children) and is_last
+
+            why = []
+            why.append('② 契約樹裡找不到父工項（套用後會成為第二個頂層工項）')
+            why.append('③ 位置在整張表最後' if is_last else '③ 後面還有其他資料列')
+            why.append('底下沒有子工項' if not has_children else
+                       '底下有子工項（看起來是真的新章節）')
+            if name_hit:
+                why.append('名稱含「總計/總價/合計/小計」')
+            out[idx] = {
+                'change_type': 'unmatch',
+                'change_type_hint': 'add',
+                'is_new_group': True,
+                'suggest_exclude': suggest_exclude,
+                # 它本來就沒有父項 —— 預設就是「無父項（頂層項次）」，
+                # 配上 suggest_exclude 之後金額不受影響。使用者可以改。
+                'suggest_parent_kind': 'top_level',
+                'item_no': item.get('item_no', ''),
+                'item_name': name,
+                'unit': item.get('unit', ''),
+                'task': None,
+                'parent_task': None,
+                'orig_qty': None,
+                'new_qty': 0.0,
+                'orig_price': 0.0,
+                'new_price': 0.0,
+                'new_amount': item.get('new_amount') or 0.0,
+                'notes': ('【需裁決】這一列是章節列但%s。%s｜依據：%s'
+                          % ('建議勾「不計入契約金額」' if suggest_exclude
+                             else '建議照常計入契約金額',
+                             (item.get('notes') or ''), '；'.join(why))),
+            }
+        return out
 
     # ── XLSX 直接解析（備用，需原始 XML 時不可用）────────────────────────────
 
@@ -1611,6 +1711,14 @@ class ContractChangeFileImportWizard(models.TransientModel):
                     'new_qty': item.get('new_qty') or 0.0,
                     'new_unit_price': item.get('new_price') or 0.0,
                 }
+                # 「不計入契約金額」：來自待裁決頁籤上使用者的勾選。
+                # 一路傳到 contract.change.order.line，套用時寫進
+                # project.task.exclude_from_contract_amount（見 contract_change_order.py:862）。
+                if item.get('exclude_from_contract_amount'):
+                    vals['exclude_from_contract_amount'] = True
+                # 父項類型：沒明給時讓 wizard line 的 compute 依父項欄位自己推導
+                if item.get('parent_kind'):
+                    vals['parent_kind'] = item['parent_kind']
                 # 新增的整包費用項（來源單價欄空白、金額只在複價欄）：
                 # 不標記的話 _create_added_task 會建出一個 xml_amount=0、
                 # unit_price=0 的工項 —— 四個分支全落空，永遠 0 元。

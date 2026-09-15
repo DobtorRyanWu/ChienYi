@@ -83,9 +83,21 @@
                                            options="{'no_create': True}"
                                            context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}"/>
                                     <field name="parent_task_id" string="所屬分類"
-                                           invisible="change_type != 'add'"
+                                           invisible="change_type != 'add' or is_new_group"
                                            options="{'no_create': True}"
                                            context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}"/>
+                                    <!-- 章節列（來源檔的彙總／總計列）才需要裁決要不要計入契約金額。
+                                         表尾的「總計／總價／合計」金額是其他章節的重複，
+                                         不勾會讓契約金額變成兩倍。 -->
+                                    <field name="is_new_group" string="章節列" readonly="1"
+                                           optional="show"/>
+                                    <field name="parent_kind" string="父項類型"
+                                           invisible="change_type != 'add'"/>
+                                    <field name="exclude_from_contract_amount"
+                                           string="不計入契約金額"
+                                           invisible="not is_new_group"/>
+                                    <field name="notes" string="裁決說明" readonly="1"
+                                           optional="show"/>
                                     <field name="project_id" column_invisible="1"/>
                                 </list>
                             </field>

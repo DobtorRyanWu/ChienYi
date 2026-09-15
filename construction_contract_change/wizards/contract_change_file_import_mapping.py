@@ -58,11 +58,36 @@ class ContractChangeFileImportMapping(models.TransientModel):
         domain="[('supervision_project_id', '=', project_id), ('active', '=', True)]",
         help='請選擇此 XLSX 工項對應的系統工項')
 
+    # 與精靈／變更明細同一組三選項，否則表尾總計列在這個頁籤上只能選「既有彙總項」，
+    # 問題只解一半。
+    parent_kind = fields.Selection([
+        ('existing', '原契約已有的彙總項'),
+        ('new_group', '本次變更新增的彙總項'),
+        ('top_level', '無父項（頂層項次）'),
+    ], string='父項類型',
+        help='無父項（頂層項次）＝ 與「壹 發包工程費」同層，會直接計入契約金額；'
+             '表尾的「總計／總價／合計」列請一併勾「不計入契約金額」。')
+
     parent_task_id = fields.Many2one(
         'project.task',
         string='所屬分類',
         domain="[('supervision_project_id', '=', project_id), ('is_summary_item', '=', True), ('active', '=', True)]",
         help='新增工項所屬的分類（類型為「新增」時填寫）')
+
+    # 「在契約樹裡找不到父工項的章節列」專用 —— 政府變更明細表的表尾總計列
+    # （「貳 總計」「總價(總計)」…）就是這一型。它沒有父工項，套用後會成為
+    # 第二個頂層工項，而契約金額 ＝ Σ 頂層工項 → 金額非 0 就會直接墊高契約金額。
+    # 所以一律送進本頁籤裁決，並預先勾好建議值。
+    is_new_group = fields.Boolean(
+        string='章節列',
+        readonly=True,
+        help='此列在來源檔是「章節（彙總）列」，不是一般工項')
+    exclude_from_contract_amount = fields.Boolean(
+        string='不計入契約金額',
+        help='勾選後此工項雖然會建立，但不計入工程的契約金額。\n'
+             '表尾的「總計／總價／合計」列請勾選 —— 它的金額是其他章節的重複，'
+             '不勾會讓契約金額變成兩倍。\n'
+             '若這其實是一個該計入的新章節，請取消勾選。')
 
     project_id = fields.Integer(
         string='工程 ID',

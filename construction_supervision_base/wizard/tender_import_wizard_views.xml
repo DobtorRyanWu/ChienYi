@@ -17,19 +17,21 @@
                             class="oe_highlight"
                             invisible="state != 'upload'"/>
 
-                    <!-- 確認階段：有差異時用警告色 -->
+                    <!-- 確認階段：有差異時用警告色。
+                         has_blocking_reference 時整顆藏起來（有單據引用既有工項，
+                         覆蓋一定會被擋，不必讓使用者白按）。 -->
                     <button name="action_confirm_import"
                             string="確認匯入（忽略差異）"
                             type="object"
                             class="btn-warning"
-                            invisible="state != 'previewing' or not has_validation_warning"/>
+                            invisible="state != 'previewing' or not has_validation_warning or has_blocking_reference"/>
 
                     <!-- 確認階段：無差異時正常色 -->
                     <button name="action_confirm_import"
                             string="確認匯入"
                             type="object"
                             class="oe_highlight"
-                            invisible="state != 'previewing' or has_validation_warning"/>
+                            invisible="state != 'previewing' or has_validation_warning or has_blocking_reference"/>
 
                     <!-- 確認階段：回到上傳 -->
                     <button name="action_reset_upload"
@@ -91,8 +93,41 @@
                             <group>
                                 <group>
                                     <field name="preview_count" string="預計匯入工項數" readonly="1"/>
+                                    <field name="existing_task_count" readonly="1"
+                                           invisible="not existing_task_count"/>
                                 </group>
                             </group>
+
+                            <field name="has_blocking_reference" invisible="1"/>
+
+                            <!-- 此工程已有工項，且沒有單據引用 → 要勾確認才能覆蓋 -->
+                            <div class="alert alert-warning mt-3" role="alert"
+                                 invisible="not existing_task_count or has_blocking_reference">
+                                <strong>⚠ 此工程已經有 <field name="existing_task_count" class="oe_inline" readonly="1"/> 個契約工項</strong><br/>
+                                若這次是要<strong>換一份標單重新匯入</strong>（例如上次選錯檔案），
+                                請勾選下面這一項。<br/>
+                                <span class="text-muted">不勾選就直接按確認匯入的話，系統會擋下來。</span>
+                                <!-- 🔴 勾選框一定要配 <label for="..."/>，否則畫面上是一個
+                                     沒有任何文字的裸方框，使用者根本找不到（實測回報過）。
+                                     外面再包一層白底粗框，讓它從警示色背景裡跳出來。 -->
+                                <div class="mt-3 p-3 bg-white border border-2 border-warning rounded d-flex align-items-center">
+                                    <field name="confirm_overwrite" nolabel="1" class="me-2"/>
+                                    <label for="confirm_overwrite" class="fw-bold mb-0"/>
+                                </div>
+                            </div>
+
+                            <!-- 有單據引用既有工項 → 不允許覆蓋 -->
+                            <div class="alert alert-danger mt-3" role="alert"
+                                 invisible="not has_blocking_reference">
+                                <strong>🚫 無法覆蓋：已有單據引用這些契約工項</strong><br/>
+                                此工程已有 <field name="existing_task_count" class="oe_inline" readonly="1"/> 個契約工項，
+                                而且下列單據還指著它們。直接刪除會讓那些單據失去工項（有的會被資料庫擋下、
+                                有的會靜靜變成空白），所以本精靈不允許覆蓋：<br/>
+                                <field name="blocking_reference_info" widget="text" readonly="1" nolabel="1"/>
+                                <p class="mt-2 text-muted">
+                                    請先處理（或刪除）這些單據，再回來重新匯入標單。
+                                </p>
+                            </div>
 
                             <div class="alert alert-success mt-3" role="status"
                                  invisible="has_validation_warning">
@@ -133,6 +168,13 @@
                                 <strong>匯入成功，但金額核對發現差異</strong><br/>
                                 已成功匯入 <field name="imported_count" class="oe_inline"/> 個契約工項，但以下工項的系統計算金額與 XML 宣告值不符：<br/>
                                 <field name="validation_report" widget="text" readonly="1" nolabel="1"/>
+                            </div>
+
+                            <!-- 系統自動替使用者做掉的事，一定要看得到 -->
+                            <div class="alert alert-info mt-3" role="status"
+                                 invisible="not import_note">
+                                <strong>ℹ 匯入過程的處理紀錄</strong><br/>
+                                <field name="import_note" widget="text" readonly="1" nolabel="1"/>
                             </div>
                         </page>
                     </notebook>

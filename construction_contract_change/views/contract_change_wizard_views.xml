@@ -94,6 +94,24 @@
                                 class="btn btn-sm btn-warning"/>
                     </div>
 
+                    <!-- 新增頂層項次 → 會直接墊高契約金額，要明確確認。
+                         只在「真的會改變金額」時出現（勾了不計入契約金額就不打擾）。
+                         🔴 勾選框一定要配 <label for="..."/>，否則是一個沒有文字的裸方框。 -->
+                    <field name="has_top_level_add" invisible="1"/>
+                    <div class="alert alert-danger mt-2" role="alert"
+                         invisible="not has_top_level_add">
+                        <strong>⚠ 本次變更會新增「頂層項次」，並計入契約金額</strong><br/>
+                        <field name="top_level_add_info" widget="text" readonly="1" nolabel="1"/>
+                        <div class="mt-3 p-3 bg-white border border-2 border-danger rounded d-flex align-items-center">
+                            <field name="confirm_top_level" nolabel="1" class="me-2"/>
+                            <label for="confirm_top_level" class="fw-bold mb-0"/>
+                        </div>
+                        <p class="mt-2 mb-0 text-muted">
+                            若這其實是來源檔表尾的「總計／總價／合計」列，
+                            請改把它勾成「不計入契約金額」，或直接刪掉那一列。
+                        </p>
+                    </div>
+
                     <notebook>
                     <page string="工項列表" name="items">
                     <!-- 新增工項按鈕 -->
@@ -118,12 +136,22 @@
                             <!-- 隱藏：item_name 供後端 create/action_confirm 使用 -->
                             <field name="item_name" column_invisible="1"/>
                             <!-- 3. 父工項（合併欄）：既有彙總項 或 本次新增群組，單欄顯示/編輯 -->
-                            <field name="parent_ref"
-                                   string="父工項"
+                            <field name="parent_kind"
+                                   string="父項類型"
                                    readonly="is_summary_item"/>
-                            <!-- 後端權威欄位（隱藏，供 domain/邏輯使用），編輯在行內 dialog -->
-                            <field name="parent_task_id" column_invisible="1"/>
-                            <field name="parent_line_id" column_invisible="1"/>
+                            <!-- 依父項類型顯示對應的挑選欄（兩個 domain 都限本工程／本精靈）-->
+                            <field name="parent_task_id"
+                                   string="父工項(原契約已有)"
+                                   column_invisible="0"
+                                   readonly="is_summary_item"
+                                   invisible="parent_kind != 'existing'"
+                                   options="{'no_create': True}"/>
+                            <field name="parent_line_id"
+                                   string="父工項(本次新增)"
+                                   readonly="is_summary_item"
+                                   invisible="parent_kind != 'new_group'"
+                                   options="{'no_create': True}"/>
+                            <field name="project_id" column_invisible="1"/>
                             <field name="is_new_group" optional="hide"/>
                             <!-- 預備單價項目（不計入契約金額） -->
                             <field name="exclude_from_contract_amount"
@@ -228,16 +256,29 @@
                     <field name="currency_id" invisible="1"/>
                     <group string="基本資訊">
                         <field name="is_new_group"/>
+                        <!-- 先選類型，再顯示對應的挑選欄；「無父項」不用再選任何東西。
+                             原本是兩個欄位並列＋「與上方擇一」的 placeholder，
+                             使用者反映看不出兩者差別，而且「留空」同時代表
+                             「忘了填」與「就是要頂層」，分不開。 -->
+                        <field name="parent_kind"/>
                         <field name="parent_task_id"
-                               string="父工項(原契約已存在)"
+                               string="父工項(原契約已有)"
+                               invisible="parent_kind != 'existing'"
+                               required="parent_kind == 'existing'"
                                domain="[('supervision_project_id', '=', project_id), ('is_summary_item', '=', True), ('active', '=', True)]"
-                               options="{'no_create': True}"
-                               placeholder="留空 = 新增最高層工項（壹/貳/參...）"/>
+                               options="{'no_create': True}"/>
                         <field name="parent_line_id"
                                string="父工項(本次新增)"
+                               invisible="parent_kind != 'new_group'"
+                               required="parent_kind == 'new_group'"
                                domain="[('wizard_id', '=', wizard_id), ('change_type', '=', 'add'), ('is_new_group', '=', True), ('id', '!=', id)]"
-                               options="{'no_create': True}"
-                               placeholder="父為本次新增的群組時選此（與上方擇一）"/>
+                               options="{'no_create': True}"/>
+                        <div class="alert alert-warning mb-2" role="alert"
+                             invisible="parent_kind != 'top_level'">
+                            此工項將與「壹 發包工程費」<strong>同層</strong>，
+                            並<strong>直接計入契約金額</strong>；
+                            若不該計入，請一併勾選下方的「預備單價項目（不計入契約金額）」。
+                        </div>
                         <field name="item_no"
                                placeholder="系統自動產生，可手動修改"/>
                         <field name="item_name"

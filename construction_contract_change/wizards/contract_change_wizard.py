@@ -29,11 +29,15 @@ class ContractChangeWizardLine(models.TransientModel):
         string='原工項',
         help='修改/刪除時選擇既有工項')
 
+    # 🔴 domain 一定要含 project_id：原本只有 `[('is_summary_item','=',True)]`，
+    #    會列出**資料庫裡所有工程**的彙總項（含 Odoo demo 的 Training / Meeting），
+    #    選到別案的工項就把本變更掛到別的工程的工項樹上。
     parent_task_id = fields.Many2one(
         'project.task',
-        string='父工項(既有彙總項)',
-        domain="[('is_summary_item', '=', True)]",
-        help='新增時選擇父工項')
+        string='父工項(原契約已有的彙總項)',
+        domain="[('supervision_project_id', '=', project_id),"
+               " ('is_summary_item', '=', True), ('active', '=', True)]",
+        help='新增時選擇父工項（限本工程的既有彙總項）')
 
     parent_task_path = fields.Char(
         string='父工項路徑',
@@ -60,41 +64,43 @@ class ContractChangeWizardLine(models.TransientModel):
         help='當父項是「本次變更新增的彙總群組」（尚未存在 task）時，'
              '指向同一精靈內已勾選「新增彙總群組」的列。')
 
-    # 合併顯示/編輯欄位：把「既有彙總項(parent_task_id)」與「本次新增群組(parent_line_id)」
-    # 合成單一欄位。store=False（不佔資料庫），後端仍以上述兩個欄位為權威來源。
-    parent_ref = fields.Reference(
-        selection=[('project.task', '既有彙總項'),
-                   ('contract.change.wizard.line', '本次新增群組')],
-        string='父工項',
-        compute='_compute_parent_ref',
-        inverse='_inverse_parent_ref',
-        store=False,
-        help='父工項：既有彙總項 或 本次新增的彙總群組（擇一，依所選對象自動歸位）。')
+    # 父項類型：取代原本的 parent_ref（fields.Reference）——
+    # Reference 沒有 domain（見 contract_change_order_line.py 的說明），
+    # 而且它的 selection 只能列「模型」，塞不進「無父項」這種語意值。
+    parent_kind = fields.Selection([
+        ('existing', '原契約已有的彙總項'),
+        ('new_group', '本次變更新增的彙總項'),
+        ('top_level', '無父項（頂層項次）'),
+    ], string='父項類型',
+        compute='_compute_parent_kind',
+        inverse='_inverse_parent_kind',
+        store=True, readonly=False,
+        help='原契約已有的彙總項：掛在既有工項樹底下。\n'
+             '本次變更新增的彙總項：掛在本次變更新建的群組底下。\n'
+             '無父項（頂層項次）：與「壹 發包工程費」同層，'
+             '**會直接計入契約金額**（除非同時勾「不計入契約金額」）。')
 
     @api.depends('parent_task_id', 'parent_line_id')
-    def _compute_parent_ref(self):
+    def _compute_parent_kind(self):
+        """有父項時由父項欄位推導；兩者皆空時**不覆寫**使用者選的 top_level。"""
         for line in self:
             if line.parent_line_id:
-                line.parent_ref = line.parent_line_id
+                line.parent_kind = 'new_group'
             elif line.parent_task_id:
-                line.parent_ref = line.parent_task_id
-            else:
-                line.parent_ref = False
+                line.parent_kind = 'existing'
+            elif line.parent_kind != 'top_level':
+                line.parent_kind = False
 
-    def _inverse_parent_ref(self):
-        """單欄選擇後自動歸位：選到「本次新增群組」→ parent_line_id；
-        選到「既有彙總項」→ parent_task_id；兩者互斥（清空另一個）。"""
+    def _inverse_parent_kind(self):
+        """選了「無父項」就把兩個父項欄清掉；換類型時清掉不相干的那一個。"""
         for line in self:
-            ref = line.parent_ref
-            if not ref:
+            if line.parent_kind == 'top_level':
                 line.parent_task_id = False
                 line.parent_line_id = False
-            elif ref._name == 'contract.change.wizard.line':
-                line.parent_line_id = ref.id
-                line.parent_task_id = False
-            elif ref._name == 'project.task':
-                line.parent_task_id = ref.id
+            elif line.parent_kind == 'existing':
                 line.parent_line_id = False
+            elif line.parent_kind == 'new_group':
+                line.parent_task_id = False
 
     project_id = fields.Many2one(
         'project.project',
@@ -708,6 +714,45 @@ class ContractChangeWizard(models.TransientModel):
     show_reconciliation_report = fields.Boolean(
         string='顯示核對報告', default=False)
 
+    # === 新增頂層項次的確認 ===
+    # 新增一個「與壹 發包工程費同層」的工項會直接墊高契約金額（契約金額 ＝ Σ 頂層工項）。
+    # 這是整個系統裡最有後果的一個數字，所以要使用者明確按一下確認 ——
+    # 但**只在真的會改變金額時問**（有勾「不計入契約金額」就無害，不打擾）。
+    top_level_add_info = fields.Text(
+        string='新增頂層項次的影響',
+        compute='_compute_top_level_add_info')
+    has_top_level_add = fields.Boolean(
+        compute='_compute_top_level_add_info')
+    confirm_top_level = fields.Boolean(
+        string='我確認：要新增上列頂層項次，並讓它計入契約金額')
+
+    @api.depends('wizard_line_ids.parent_kind', 'wizard_line_ids.change_type',
+                 'wizard_line_ids.new_amount',
+                 'wizard_line_ids.exclude_from_contract_amount',
+                 'project_id')
+    def _compute_top_level_add_info(self):
+        for wiz in self:
+            lines = wiz.wizard_line_ids.filtered(
+                lambda l: l.change_type == 'add'
+                and l.parent_kind == 'top_level'
+                and not l.exclude_from_contract_amount)
+            wiz.has_top_level_add = bool(lines)
+            if not lines:
+                wiz.top_level_add_info = False
+                continue
+            before = wiz.project_id.contract_amount or 0.0
+            delta = sum(l.new_amount or 0.0 for l in lines)
+            rows = '\n'.join(
+                '・%s %s：%s'
+                % (l.item_no or '', l.item_name or '', '{:,.2f}'.format(l.new_amount or 0.0))
+                for l in lines)
+            # 泛泛地問「確定嗎」沒有意義，把後果寫成數字才有。
+            # ⚠️ `%` 格式化不支援 `%+,.2f`（千分位是 str.format 的語法），
+            # 全部走 str.format 才不會在 compute 裡炸掉。
+            wiz.top_level_add_info = (
+                '{rows}\n\n契約金額將由 {before:,.2f} 變成 {after:,.2f}（{delta:+,.2f}）。'
+                .format(rows=rows, before=before, after=before + delta, delta=delta))
+
     # === 計算統計 ===
     @api.depends('wizard_line_ids.change_type',
                  'wizard_line_ids.change_amount')
@@ -857,6 +902,18 @@ class ContractChangeWizard(models.TransientModel):
         if not self.project_id:
             raise UserError('請先選擇所屬工程！')
 
+        # 🔴 新增頂層項次且會計入契約金額 → 必須明確確認。
+        # 權威放在這裡（Python），view 的勾選框只是 UX ——
+        # 這個方法 RPC 也叫得到，只把檢查寫在畫面上等於沒寫。
+        if self.has_top_level_add and not self.confirm_top_level:
+            raise UserError(
+                '本次變更要新增「頂層項次」（與「壹 發包工程費」同層），'
+                '而且沒有勾「不計入契約金額」：\n\n%s\n\n'
+                '若這是正確的，請勾選「我確認：要新增上列頂層項次，並讓它計入契約金額」後再送出。\n'
+                '若這其實是來源檔表尾的「總計／總價／合計」列，'
+                '請改把它勾成「不計入契約金額」，或直接刪掉那一列。'
+                % (self.top_level_add_info or ''))
+
         # 有 change_type 的明細行（葉節點、新增工項）
         explicit_lines = self.wizard_line_ids.filtered('change_type')
         # 彙總項與稅什費自動納入：
@@ -989,6 +1046,10 @@ class ContractChangeWizard(models.TransientModel):
                 'is_new_group': wizard_line.is_new_group,
                 'exclude_from_contract_amount':
                     wizard_line.exclude_from_contract_amount,
+                # 「無父項（頂層項次）」的裁決要帶到正式明細上 ——
+                # order line 的約束就是靠它才放行（見 _check_add_fields）。
+                # 有父項時 order line 的 create() 會自己補正確的值。
+                'parent_kind': wizard_line.parent_kind or False,
             })
             if wizard_line.is_new_lump_sum:
                 # 新增的整包費用項：金額走 new_amount，單價留 0；

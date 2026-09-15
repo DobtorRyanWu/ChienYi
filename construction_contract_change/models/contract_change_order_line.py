@@ -115,41 +115,52 @@ class ContractChangeOrderLine(models.Model):
         readonly=True,
         help='父工項的完整祖先路徑，如：壹 > 一 > (一)')
 
-    # 合併顯示/編輯欄位：既有彙總項(parent_task_id) 或 本次新增群組(parent_line_id) 單一欄。
-    # store=False（不佔資料庫），後端仍以上述兩欄為權威來源。
-    parent_ref = fields.Reference(
-        selection=[('project.task', '既有彙總項'),
-                   ('contract.change.order.line', '本次新增群組')],
-        string='父工項',
-        compute='_compute_parent_ref',
-        inverse='_inverse_parent_ref',
-        store=False,
-        help='父工項：既有彙總項 或 本次新增的彙總群組（擇一，依所選對象自動歸位）。')
+    # 父項類型：取代原本的 parent_ref（fields.Reference）。
+    #
+    # 🔴 為什麼不能用 Reference：Odoo 核心 `fields.py` 的 `class Reference(Selection)`
+    #    繼承自 Selection 而非關聯欄位，**結構上沒有 domain 屬性**，前端 reference
+    #    widget 也不吃 domain → 它一定會列出該 model 的全部記錄。實測畫面上會跑出
+    #    別的工程的「發包工程費」，甚至 Odoo demo 的 Training / Meeting。
+    #    選到別案的工項會把本變更掛到別的工程的工項樹上。
+    #
+    # 🔴 為什麼要有第三個值 `top_level`：原本「兩個父項欄都空」同時代表
+    #    「使用者忘了填」與「這就是要當頂層項次」，系統分不出來，只能一律拒絕，
+    #    於是「真的是新的頂層章節」這個合法情境做不到。明示之後兩者才分得開。
+    parent_kind = fields.Selection([
+        ('existing', '原契約已有的彙總項'),
+        ('new_group', '本次變更新增的彙總項'),
+        ('top_level', '無父項（頂層項次）'),
+    ], string='父項類型',
+        help='原契約已有的彙總項：掛在既有工項樹底下。\n'
+             '本次變更新增的彙總項：掛在本次變更新建的群組底下。\n'
+             '無父項（頂層項次）：與「壹 發包工程費」同層，'
+             '**會直接計入契約金額**（除非同時勾「不計入契約金額」）。')
 
-    @api.depends('parent_task_id', 'parent_line_id')
-    def _compute_parent_ref(self):
-        for line in self:
-            if line.parent_line_id:
-                line.parent_ref = line.parent_line_id
-            elif line.parent_task_id:
-                line.parent_ref = line.parent_task_id
-            else:
-                line.parent_ref = False
+    @api.model_create_multi
+    def create(self, vals_list):
+        """`parent_kind` 沒帶時依父項欄位自動補值。
 
-    def _inverse_parent_ref(self):
-        """單欄選擇後自動歸位：選到「本次新增群組」→ parent_line_id；
-        選到「既有彙總項」→ parent_task_id；兩者互斥（清空另一個）。"""
-        for line in self:
-            ref = line.parent_ref
-            if not ref:
-                line.parent_task_id = False
-                line.parent_line_id = False
-            elif ref._name == 'contract.change.order.line':
-                line.parent_line_id = ref.id
-                line.parent_task_id = False
-            elif ref._name == 'project.task':
-                line.parent_task_id = ref.id
-                line.parent_line_id = False
+        ⚠️ 刻意**不設必填**：`E:\\work\\匯入\\` 的步驟 8 直接以 RPC 建這張表的列，
+        只會帶 `parent_task_id` / `parent_line_id`。設成必填會讓整批匯入失敗。
+        兩者皆空又沒明示 `top_level` 時留空 —— 留空就是「未指定」，
+        `_check_add_fields` 會照舊擋下來，行為與改版前完全一致。
+        """
+        for vals in vals_list:
+            if not vals.get('parent_kind'):
+                if vals.get('parent_line_id'):
+                    vals['parent_kind'] = 'new_group'
+                elif vals.get('parent_task_id'):
+                    vals['parent_kind'] = 'existing'
+        return super().create(vals_list)
+
+    def write(self, vals):
+        """改父項欄位時同步 `parent_kind`（避免顯示與實際脫節）。"""
+        if 'parent_kind' not in vals:
+            if vals.get('parent_line_id'):
+                vals = dict(vals, parent_kind='new_group')
+            elif vals.get('parent_task_id'):
+                vals = dict(vals, parent_kind='existing')
+        return super().write(vals)
 
     item_level = fields.Integer(
         string='層級',
@@ -601,13 +612,22 @@ class ContractChangeOrderLine(models.Model):
                     raise ValidationError('新增工項必須填寫工項名稱！')
                 # 防呆：新增工項必須指定父項，否則會落到頂層（item_level=0）污染契約金額。
                 # 父項可為「既有彙總項」(parent_task_id) 或「本次新增的群組列」(parent_line_id)。
-                # 唯一例外：本身就是「新增的頂層彙總群組」(被其他列以 parent_line_id 指向者)
-                # 才允許兩者皆空——由 _is_referenced_as_parent 判定。
+                # 兩個例外允許兩者皆空：
+                #   (a) 本身就是「新增的頂層彙總群組」（被其他列以 parent_line_id 指向）
+                #   (b) 使用者**明示**這是頂層項次（parent_kind='top_level'）
+                #
+                # (b) 是 2026-09-16 加的。原本沒有它，「真的要新增一個頂層章節」
+                # 這個合法情境做不到；而「留空」與「刻意頂層」在資料上長得一樣，
+                # 系統只能一律拒絕。明示之後才分得開。
+                # ⚠️ 這是**嚴格放寬**：沒有明示就維持原本的擋法，既有呼叫端
+                # （含 `匯入\` 的步驟 8）行為完全不變。
                 if not line.parent_task_id and not line.parent_line_id:
-                    if not line._is_referenced_as_parent():
+                    if line.parent_kind != 'top_level' and not line._is_referenced_as_parent():
                         raise ValidationError(
-                            f'新增工項「{line.item_name}」必須指定父項（既有彙總項或本次新增的群組）！'
-                            '否則會被誤掛為頂層項次，導致契約金額計算錯誤。')
+                            f'新增工項「{line.item_name}」必須指定父項（原契約已有的彙總項，'
+                            f'或本次變更新增的彙總項）！\n'
+                            f'若這確實是一個新的頂層項次（與「壹 發包工程費」同層），'
+                            f'請把「父項類型」選成「無父項（頂層項次）」。')
 
     def _is_referenced_as_parent(self):
         """本列是否被同一變更內其他列以 parent_line_id 指向（即本列為新增的彙總群組）。"""
