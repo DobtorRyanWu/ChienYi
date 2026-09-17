@@ -4,4 +4,5 @@ from . import estimate_import_wizard
 from . import progress_activate_wizard_inherit
 from . import estimate_sync_wizard
 from . import estimate_manual_amount_wizard
+from . import estimate_fill_available_wizard
 from . import estimate_extra_item_wizard

@@ -109,6 +109,16 @@
 
                     <notebook>
                         <page string="估驗計價表" name="lines">
+                            <div class="d-flex align-items-center gap-2 flex-wrap" style="margin: 10px 0;">
+                                <!-- 把系統依施工日誌算出的 available_qty 預覽後帶入 estimate_qty，
+                                     免去逐列重打。不放表頭（7 顆已滿）、不放逐列（editable list
+                                     會強制存檔），入口與「新增非契約工項」同一種擺法。 -->
+                                <button name="action_open_fill_available_wizard"
+                                        type="object" string="帶入可估驗數量"
+                                        class="btn-secondary" icon="fa-magic"
+                                        invisible="state not in ('draft', 'pending_approval')"
+                                        help="把系統依施工日誌算出的本次可估驗數量預覽後帶入本次估驗數量，可逐項勾選。"/>
+                            </div>
                             <field name="line_ids" nolabel="1">
                                 <list string="估驗計價表" editable="bottom"
                                       create="false" delete="false"

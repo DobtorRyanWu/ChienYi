@@ -174,7 +174,7 @@
     #        Postgres 直接清掉子列，**Python 的 extra.line.unlink() 不會被呼叫** ——
     #        於是「沒人用的定義一併刪掉」的清理整段跳過，留下孤兒（實測重現）。
     #        payment.estimate 加 unlink() 覆寫，先用 ORM 刪 extra_line_ids。
-    'version': '18.0.1.7.2',
+    'version': '18.0.1.8.0',
     # 1.7.2: 效能：`payment.estimate.line._compute_previous_approved_qty` 與
     #        `extra.line._compute_previous_approved` 加 before_cache ——
     #        原本每一列都要重跑一次 `_estimates_before()`，一張估驗單查上百次。
@@ -189,6 +189,30 @@
     #          正確解法就是 1.7.1 已經做掉的那個：**不要拿日期定序，
     #          走 `_estimates_before()`**（estimate_date asc, id asc，
     #          與畫面上的「第N次」一致）。同日多期在功能上是完整支援的。
+    # 1.8.0: 新增「帶入可估驗數量」精靈（estimate.fill.available.wizard）——
+    #        把系統依施工日誌算出的本次可估驗數量（available_qty）預覽後寫入可編輯的
+    #        本次估驗數量（estimate_qty），免去承辦逐列重打。對外文宣「完成數量只在
+    #        施工日誌填一次，累計與估驗數量由系統帶出」原本在估驗這一站不成立——
+    #        available_qty 早就算好顯示在旁邊欄位，estimate_qty 卻仍要人工重打；
+    #        這顆按鈕補上最後一哩路。
+    #        入口：估驗計價表頁籤清單上方按鈕「帶入可估驗數量」，只在
+    #        draft/pending_approval 出現（不放表頭：7 顆已滿且語意是整單狀態流轉；
+    #        不放逐列：editable list 會強制存檔）。
+    #        彙總項（一式，available_qty 恆為 1）硬跳過，不出現在候選清單——
+    #        寫入是 no-op，且會與「補列彙總項」互打。
+    #        已填（estimate_qty != 0）、金額手動輸入（is_amount_manual）、
+    #        可估量 ≤ 0 三類仍列出但預設不勾選（仍可手動勾選覆寫），
+    #        只有「空白且可估量 > 0」預設勾選；提供全選／全不選／只勾空白列三按鈕。
+    #        🔴 只寫 estimate_qty 這一個鍵，絕對不寫 estimate_amount：
+    #        payment.estimate.line.write() 會把顯式寫入 estimate_amount（且未同時給
+    #        manual_estimate_amount）的動作強制標記 is_amount_manual=True（見該檔案
+    #        write() 覆寫），一次帶入會把整批列鎖成手動金額。estimate_amount 是
+    #        store=True 的 compute，depends 含 estimate_qty，寫完 qty 自動跟上。
+    #        不新增任何「超估」約束（1.7.2 已裁示撤掉、不要加回去）、不新增任何
+    #        header compute 欄位判斷按鈕可見性（_get_cumulative_qty_at 逐列 search，
+    #        全庫掃描會拖慢估驗單清單）——一律由精靈內 raise UserError 把關。
+    #        chatter 貼「原值 → 新值」逐列明細，是唯一的還原依據；估驗日期為空時
+    #        本次可估驗數量全部為 0，訊息與畫面提示都會提醒先填估驗日期。
     'category': 'Construction',
     'summary': '估驗計價、工項驗收、請款管理',
     'description': """
@@ -242,6 +266,7 @@
         # Views
         'views/estimate_import_wizard_views.xml',
         'views/estimate_manual_amount_wizard_views.xml',
+        'views/estimate_fill_available_wizard_views.xml',
         'views/estimate_extra_item_wizard_views.xml',
         'views/payment_estimate_extra_views.xml',
         'views/payment_estimate_views.xml',

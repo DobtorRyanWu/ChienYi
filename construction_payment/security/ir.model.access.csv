@@ -39,6 +39,8 @@ access_estimate_import_wizard_line_user,estimate.import.wizard.line.user,model_e
 access_estimate_sync_wizard_user,estimate.sync.wizard.user,model_estimate_sync_wizard,base.group_user,1,1,1,1
 access_estimate_manual_amount_wizard_user,estimate.manual.amount.wizard.user,model_estimate_manual_amount_wizard,base.group_user,1,1,1,1
 access_estimate_manual_amount_wizard_line_user,estimate.manual.amount.wizard.line.user,model_estimate_manual_amount_wizard_line,base.group_user,1,1,1,1
+access_estimate_fill_available_wizard_user,estimate.fill.available.wizard.user,model_estimate_fill_available_wizard,base.group_user,1,1,1,1
+access_estimate_fill_available_wizard_line_user,estimate.fill.available.wizard.line.user,model_estimate_fill_available_wizard_line,base.group_user,1,1,1,1
 access_payment_estimate_extra_item_user,payment.estimate.extra.item.user,model_payment_estimate_extra_item,base.group_user,1,0,0,0
 access_payment_estimate_extra_item_admin,payment.estimate.extra.item.admin,model_payment_estimate_extra_item,construction_supervision_base.group_supervisor_admin,1,1,1,1
 access_payment_estimate_extra_item_operator,payment.estimate.extra.item.operator,model_payment_estimate_extra_item,construction_supervision_base.group_operator,1,1,1,1

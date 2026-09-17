@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ==================================== -->
+    <!-- 帶入可估驗數量 Wizard                -->
+    <!-- ==================================== -->
+
+    <record id="view_estimate_fill_available_wizard_form" model="ir.ui.view">
+        <field name="name">estimate.fill.available.wizard.form</field>
+        <field name="model">estimate.fill.available.wizard</field>
+        <field name="arch" type="xml">
+            <form string="帶入可估驗數量">
+                <field name="estimate_id" invisible="1"/>
+                <div class="alert alert-warning" role="alert" invisible="not has_missing_date">
+                    本單尚未填「估驗日期」，本次可估驗數量全部算成 0，
+                    請先在表頭填上估驗日期再重新開啟本精靈。
+                </div>
+                <div class="alert alert-info" role="status">
+                    把系統依施工日誌算出的<strong>本次可估驗數量</strong>寫入
+                    <strong>本次估驗數量</strong>。預設只勾選「空白且可估量 &gt; 0」的工項；
+                    已填、金額手動輸入、可估量 ≤ 0 的工項預設<strong>不</strong>勾選
+                    （仍可手動勾選覆寫）。
+                </div>
+                <div class="mb-2">
+                    <button name="action_select_all" type="object"
+                            string="全選" class="btn-secondary btn-sm"/>
+                    <button name="action_unselect_all" type="object"
+                            string="全不選" class="btn-secondary btn-sm ms-1"/>
+                    <button name="action_select_blank_only" type="object"
+                            string="只勾空白列" class="btn-secondary btn-sm ms-1"/>
+                </div>
+                <field name="line_ids" nolabel="1">
+                    <list string="候選工項" editable="bottom" create="false" delete="false"
+                          decoration-muted="not to_apply" decoration-info="is_amount_manual">
+                        <field name="sequence" column_invisible="1"/>
+                        <field name="estimate_line_id" column_invisible="1"/>
+                        <field name="is_amount_manual" column_invisible="1"/>
+                        <field name="item_no" readonly="1"/>
+                        <field name="description" readonly="1"/>
+                        <field name="unit" readonly="1"/>
+                        <field name="current_qty" readonly="1"/>
+                        <field name="available_qty" readonly="1"/>
+                        <field name="diff_qty" readonly="1"
+                               decoration-danger="diff_qty &lt; 0"
+                               decoration-success="diff_qty &gt; 0"/>
+                        <field name="to_apply" widget="boolean_toggle"/>
+                    </list>
+                </field>
+                <group>
+                    <field name="selected_count" readonly="1"/>
+                </group>
+                <footer>
+                    <button name="action_fill_available_qty" type="object"
+                            string="帶入勾選工項" class="btn-primary"/>
+                    <button string="取消" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

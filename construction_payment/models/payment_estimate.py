@@ -4,6 +4,12 @@ from odoo import api, fields, models, Command
 from odoo.exceptions import UserError
 from odoo.tools import float_compare
 
+# 「已確認」的施工日誌狀態。直接沿用 construction_daily_log 的定義，
+# 該處註解明確要求勿另立一套（估驗與契約工項 actual_qty 必須同口徑）。
+from odoo.addons.construction_daily_log.models.project_task import (
+    CONFIRMED_SHEET_STATES,
+)
+
 
 class PaymentEstimate(models.Model):
     """
@@ -326,6 +332,26 @@ class PaymentEstimate(models.Model):
             'type': 'ir.actions.act_window',
             'name': '解除手動金額',
             'res_model': 'estimate.manual.amount.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_estimate_id': self.id,
+            },
+        }
+
+    def action_open_fill_available_wizard(self):
+        """開啟「帶入可估驗數量」精靈：預覽並逐項挑選要把 available_qty 帶入 estimate_qty 的工項
+
+        不加任何 header compute 欄位判斷是否「有東西可帶」（_get_cumulative_qty_at 逐列
+        search，全庫掃描會拖慢估驗單清單），只檢查狀態，其餘把關交給精靈內的 UserError。
+        """
+        self.ensure_one()
+        if self.state not in ('draft', 'pending_approval'):
+            raise UserError('已核定或已歸檔的估驗單不能修改數量。')
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '帶入可估驗數量',
+            'res_model': 'estimate.fill.available.wizard',
             'view_mode': 'form',
             'target': 'new',
             'context': {
@@ -753,14 +779,25 @@ class PaymentEstimateLine(models.Model):
 
     @api.model
     def _get_cumulative_qty_at(self, task, date):
-        """取得某工項截至指定日期的施工日誌累計完成量"""
+        """取得某工項截至指定日期的施工日誌累計完成量（僅計已確認日誌）
+
+        口徑與契約工項 actual_qty 一致：編輯中（draft）的草稿日誌不計入。
+
+        ⚠ 不可改回讀 daily.log.line.cumulative_qty —— 那個 compute 不篩
+           sheet_state（見 daily_log_line._compute_cumulative_qty），草稿日誌
+           一填數量就會被算進去。只在本處 search 加狀態條件也不夠：取到的
+           那筆快照值本身已含草稿量，故改為直接加總已確認日誌的 daily_qty。
+           否則同一套系統會有兩個「完成數量」：契約工項只認已確認日誌，
+           估驗卻全收。
+        """
         if not task or not date:
             return 0.0
-        last_log = self.env['daily.log.line'].search([
+        logs = self.env['daily.log.line'].search([
             ('work_item_id', '=', task.id),
             ('date', '<=', date),
-        ], order='date desc, id desc', limit=1)
-        return last_log.cumulative_qty if last_log else 0.0
+            ('sheet_state', 'in', CONFIRMED_SHEET_STATES),
+        ])
+        return sum(logs.mapped('daily_qty'))
 
     @api.depends('task_id', 'estimate_id.estimate_date', 'estimate_id.project_id')
     def _compute_available_qty(self):
