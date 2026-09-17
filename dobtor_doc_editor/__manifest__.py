@@ -1,9 +1,11 @@
 {
     'name': 'Dobtor Doc Editor',
+    # 2.4.1: 自主檢查表「檢查時機」欄位設定改複選（inspection_timing → inspection_timing_ids）
+    #        的遷移 —— 該記錄在 noupdate 區塊，既有 DB 升級吃不到 XML，要靠 migration 轉
     # 2.4.0: 支援紙張方向 —— doc.document 新增 page_orientation；載入文件時真的把
     #        紙張格式/方向套到 canvas（以前 page_format 讀了卻沒作用），匯出四處
     #        （列印 HTML／LO 中介 HTML／表格寬度修正／python-docx fallback）一併吃方向
-    'version': '18.0.2.4.0',
+    'version': '18.0.2.4.1',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1
