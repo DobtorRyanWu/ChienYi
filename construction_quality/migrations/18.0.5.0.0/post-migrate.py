@@ -51,16 +51,37 @@ def _table_exists(cr, name):
     return bool(cr.fetchone())
 
 
+def _timing_code_column(cr):
+    """時機表上放舊代碼的欄名：`legacy_code`（18.0.5.1.0 起）或 `code`（18.0.5.0.0）。
+
+    🔴 不能寫死 `code`：從 18.0.5.0.0 之前**一次**升到 18.0.5.1.0 以後時，
+       Odoo 先跑完所有 pre（5.1.0 的改名因為表還不存在而略過）、再用**現行模型**
+       建表（欄名已是 legacy_code），最後才跑本 post —— 寫死 `code` 會
+       `UndefinedColumn` 讓整個 construction_quality 升級回滾，
+       而排在它前面的模組已經提交，資料庫停在半升級狀態。
+       （2026-09-17 odoo18_dev 由 18.0.4.9.0 直升 18.0.6.4.0 實際踩到）
+    """
+    cr.execute("""
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'self_inspection_type_timing'
+           AND column_name = 'legacy_code'
+    """)
+    return 'legacy_code' if cr.fetchone() else 'code'
+
+
 def migrate(cr, version):
     if not version:
         return
+
+    # 欄名只會是上面兩個固定值之一，可安全組進 SQL
+    code_col = _timing_code_column(cr)
 
     # ── 1. 既有檢查類型補預設時機 ──────────────────────────────────────────
     cr.execute("SELECT id FROM self_inspection_type")
     type_ids = [r[0] for r in cr.fetchall()]
 
-    cr.execute("SELECT type_id, code FROM self_inspection_type_timing "
-               "WHERE code IS NOT NULL")
+    cr.execute("SELECT type_id, {col} FROM self_inspection_type_timing "
+               "WHERE {col} IS NOT NULL".format(col=code_col))
     existing = {(r[0], r[1]) for r in cr.fetchall()}
 
     created = 0
@@ -70,11 +91,11 @@ def migrate(cr, version):
                 continue
             cr.execute("""
                 INSERT INTO self_inspection_type_timing
-                       (type_id, name, sequence, code, create_uid, create_date,
+                       (type_id, name, sequence, {col}, create_uid, create_date,
                         write_uid, write_date)
                 VALUES (%s, %s, %s, %s, 1, now() AT TIME ZONE 'UTC',
                         1, now() AT TIME ZONE 'UTC')
-            """, (type_id, name, seq, code))
+            """.format(col=code_col), (type_id, name, seq, code))
             created += 1
     _logger.info('檢查時機遷移：%s 個檢查類型，補建預設時機 %s 筆',
                  len(type_ids), created)
@@ -93,9 +114,9 @@ def migrate(cr, version):
               JOIN {table} i ON i.id = t.id
               JOIN self_inspection_type_timing tm
                 ON tm.type_id = i.inspection_type_id
-               AND tm.code = t.timing_code
+               AND tm.{col} = t.timing_code
              ON CONFLICT DO NOTHING
-        """.format(rel=rel, tmp=tmp, table=table))
+        """.format(rel=rel, tmp=tmp, table=table, col=code_col))
         moved = cr.rowcount
 
         # 掛不上的：檢查類型為空，或該類型底下找不到這個 code
