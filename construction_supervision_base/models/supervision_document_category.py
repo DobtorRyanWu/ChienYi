@@ -102,6 +102,21 @@ class SupervisionDocumentCategory(models.Model):
     # 2026-08-20：改成遞迴顯示完整路徑。原本只往上看一層，分類樹加深到四層後
     # 「01-週報 / 01-會議＆會勘紀錄」仍看不出是掛在 12-文書資料 底下。
     # 依賴自己的 display_name（non-stored，比照 Odoo 原生 ir.module.category 作法）。
+    #
+    # 依賴上層的 display_name ＝ 自我遞迴依賴，必須宣告 recursive=True：
+    # 否則祖父層改名時失效只傳一層、孫層在同一 request 內仍是舊值，
+    # 且每次載入 registry 都會印 "should be declared with recursive=True" 警告。
+    # ⚠️ 必須完整寫出 core 的定義，不能只寫 fields.Char(recursive=True)：
+    # display_name 是魔法欄位，core（models.py add_default）只在子類別「沒定義」時
+    # 才加上去、不會合併屬性 → 只寫 recursive=True 會變成沒有 compute 的
+    # 一般 stored 欄位，顯示名稱全部變 False，升級時還會多建一個空欄。
+    display_name = fields.Char(
+        string='Display Name',
+        compute='_compute_display_name',
+        search='_search_display_name',
+        recursive=True,
+    )
+
     @api.depends('name', 'parent_id.display_name')
     def _compute_display_name(self):
         for category in self:
