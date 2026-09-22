@@ -1,0 +1,23 @@
+/* 前台維護橫幅的版面修正。
+   橫幅本身在版面流裡（#wrapwrap 內、<main> 之前），一般頁面不需要任何調整；
+   但「照片中心」的地圖頁把頂部工具列做成 position: fixed; top: 0，
+   會整條蓋住橫幅 → 有橫幅時把那一頁的固定元件往下推一個橫幅的高度。
+   高度由 portal_announcement.js 量出來寫進 --cy-maint-h。 */
+
+body.cy-has-maint .cy-map-topbar {
+    top: var(--cy-maint-h, 0px);
+}
+
+body.cy-has-maint .cy-map-pillbar {
+    top: calc(var(--map-topbar-h, 56px) + var(--cy-maint-h, 0px));
+}
+
+body.cy-has-maint .cy-photos-map-app {
+    min-height: calc(100vh - var(--cy-maint-h, 0px));
+}
+
+/* 底部抽屜的「全展開」高度是用 100vh 扣掉各列高度算的，橫幅也要扣掉 */
+body.cy-has-maint {
+    --map-sheet-full: calc(100vh - var(--map-topbar-h, 56px) - var(--map-pillbar-h, 44px)
+                           - var(--map-nav-h, 76px) - var(--cy-maint-h, 0px) - 8px);
+}

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_problem_form_release" model="ir.ui.view">
+        <field name="name">construction.problem.form.release</field>
+        <field name="model">construction.problem</field>
+        <field name="inherit_id" ref="construction_helpdesk.view_problem_form"/>
+        <field name="arch" type="xml">
+            <field name="occurred_version" position="after">
+                <field name="fix_release_display" string="修復版本"/>
+            </field>
+            <page name="tickets" position="after">
+                <!-- 更新紀錄只有 Odoo 管理員看得到；客服只看得到上面的「修復版本」文字 -->
+                <page string="關聯更新紀錄" name="release_entries" groups="base.group_system">
+                    <div class="text-muted small mb-2">
+                        在更新紀錄的「關聯問題單」選這張問題單，就會出現在這裡；「修復版本」由此自動推得。
+                    </div>
+                    <field name="release_entry_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="date"/>
+                            <field name="title"/>
+                            <field name="release_id"/>
+                            <field name="release_state"/>
+                        </list>
+                    </field>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <record id="view_problem_list_release" model="ir.ui.view">
+        <field name="name">construction.problem.list.release</field>
+        <field name="model">construction.problem</field>
+        <field name="inherit_id" ref="construction_helpdesk.view_problem_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="fix_release_id" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 「受影響模組 › 搜尋更多」用的模組清單。
+         priority 99：只在這裡用 list_view_ref 指定，不影響「應用程式」原本的清單。
+         刻意不放原清單的「Activate／Upgrade」表頭按鈕與作者、網站欄。 -->
+    <record id="view_module_pick_list" model="ir.ui.view">
+        <field name="name">ir.module.module.list.release.pick</field>
+        <field name="model">ir.module.module</field>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <list create="false" string="模組" decoration-info="state == 'uninstalled'">
+                <field name="shortdesc"/>
+                <field name="name"/>
+                <field name="installed_version" string="程式檔版號"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'uninstalled'"
+                       decoration-success="state == 'installed'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_release_entry_list" model="ir.ui.view">
+        <field name="name">construction.release.entry.list</field>
+        <field name="model">construction.release.entry</field>
+        <field name="arch" type="xml">
+            <list string="更新紀錄" decoration-warning="has_continuity_warning">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="entry_type"/>
+                <field name="title"/>
+                <field name="modules_summary" optional="show"/>
+                <field name="announce"/>
+                <field name="user_id" optional="show" widget="many2one_avatar_user"/>
+                <field name="commits" optional="hide"/>
+                <field name="release_id" optional="show"/>
+                <field name="has_continuity_warning" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_release_entry_form" model="ir.ui.view">
+        <field name="name">construction.release.entry.form</field>
+        <field name="model">construction.release.entry</field>
+        <field name="arch" type="xml">
+            <form string="更新紀錄">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                        <field name="title" readonly="is_locked" placeholder="一句話概括，20 字內。例如：同日多期估驗累計算錯"/>
+                    </div>
+                    <div class="alert alert-info" role="alert" invisible="not is_locked">
+                        所屬系統版本已確認或已發布，內容已定案不能修改。要修改請先把版本「退回草稿」（已發布的版本不能退回）。
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="not has_continuity_warning">
+                        有模組的改前版號與上一筆紀錄的改後版號接不起來，請看下方「受影響模組」的提醒欄。
+                        這通常代表中間有一次更新沒登記（不會擋存檔）。
+                    </div>
+                    <group>
+                        <group>
+                            <field name="entry_type" readonly="is_locked"/>
+                            <field name="date" readonly="is_locked"/>
+                            <field name="user_id" readonly="is_locked" widget="many2one_avatar_user"/>
+                        </group>
+                        <group>
+                            <field name="announce" readonly="is_locked" widget="radio" options="{'horizontal': true}"/>
+                            <field name="commits" readonly="is_locked" placeholder="例如：07258fb 3a91c2e"/>
+                            <field name="problem_ids" readonly="is_locked" widget="many2many_tags"/>
+                            <field name="has_continuity_warning" invisible="1"/>
+                            <field name="is_locked" invisible="1"/>
+                            <field name="release_id" string="所屬系統版本" placeholder="未排入"/>
+                            <field name="release_state" invisible="not release_id"/>
+                        </group>
+                    </group>
+                    <div class="text-muted small mb-2">
+                        以下三欄分開填、都必填，各只回答一個問題。每欄以 3 行內為原則；
+                        詳細推導、踩過的坑、驗收數字放 commit 訊息或技術文件。
+                    </div>
+                    <group string="原因：為什麼要改？">
+                        <field name="reason" readonly="is_locked" nolabel="1" colspan="2"
+                               placeholder="寫出「在什麼情況下、發生什麼結果」；會不會報錯也要寫。&#10;✅ 同一天建立兩期估驗計價單時，第 2 期的累計數量沒有把第 1 期算進去，累計金額少算，且系統不會報錯&#10;❌ 修正 bug／客戶反映不好用"/>
+                    </group>
+                    <group string="改變：改完之後有什麼不同？">
+                        <field name="change" readonly="is_locked" nolabel="1" colspan="2"
+                               placeholder="用使用者看得到的結果描述（「要公告」的紀錄會拿這欄寫對外公告）。&#10;✅ 同一天建立的多期估驗，累計數量與累計金額會依期別順序正確加總&#10;❌ 修好了／改了 _compute_previous_approved_qty（這是做法）"/>
+                    </group>
+                    <group string="做法：怎麼改的？（給工程師看）">
+                        <field name="method" readonly="is_locked" nolabel="1" colspan="2"
+                               placeholder="✅ 判斷「上一期」的條件原本是 estimate_date &lt;（嚴格小於），改為依「日期＋建立順序」排序取前一筆，並抽出共用方法供三處呼叫&#10;❌ 改了程式邏輯"/>
+                    </group>
+                    <group string="注意事項（有才填）">
+                        <field name="notes" readonly="is_locked" nolabel="1" colspan="2"
+                               placeholder="別人升級或接手時會踩到的事，例如：需要執行 migration／舊資料不會自動更正需另行盤點／有調整匯入工具會寫入的欄位／需清除前端 asset bundle 並重啟。&#10;動到 X 段（結構）時必須寫明 migration 與資料影響。"/>
+                    </group>
+                    <notebook>
+                        <page string="受影響模組" name="lines">
+                            <div class="text-muted small mb-2">
+                                選模組後，改前版號自動帶「該模組上一筆紀錄的改後版號」，
+                                改後版號自動帶模組 __manifest__.py 目前寫的版號。
+                                版號格式 18.0.X.Y.Z（X 結構／需 migration、Y 功能、Z 修正），改後必須大於改前。
+                            </div>
+                            <field name="line_ids" readonly="is_locked">
+                                <list editable="bottom">
+                                    <field name="module_id" options="{'no_create': True, 'no_open': True}" required="1"
+                                           context="{'list_view_ref': 'construction_release.view_module_pick_list'}"/>
+                                    <field name="module_name" column_invisible="1"/>
+                                    <field name="version_before"/>
+                                    <field name="version_after"/>
+                                    <field name="continuity_warning" readonly="1"
+                                           decoration-warning="continuity_warning"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_release_entry_search" model="ir.ui.view">
+        <field name="name">construction.release.entry.search</field>
+        <field name="model">construction.release.entry</field>
+        <field name="arch" type="xml">
+            <search string="更新紀錄">
+                <field name="title" filter_domain="['|', ('name', 'ilike', self), ('title', 'ilike', self)]"
+                       string="編號或標題"/>
+                <field name="line_ids" string="模組" filter_domain="[('line_ids.module_name', 'ilike', self)]"/>
+                <field name="commits"/>
+                <field name="user_id"/>
+                <field name="problem_ids" string="關聯問題單"/>
+                <filter name="announce_yes" string="要公告" domain="[('announce', '=', 'yes')]"/>
+                <filter name="announce_no" string="不公告" domain="[('announce', '=', 'no')]"/>
+                <separator/>
+                <filter name="unassigned" string="未排入版本" domain="[('release_id', '=', False)]"/>
+                <separator/>
+                <filter name="date" string="日期" date="date"/>
+                <group expand="0" string="分組">
+                    <filter name="group_release" string="系統版本" context="{'group_by': 'release_id'}"/>
+                    <filter name="group_type" string="類型" context="{'group_by': 'entry_type'}"/>
+                    <filter name="group_user" string="登記人" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_month" string="月份" context="{'group_by': 'date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_release_entry" model="ir.actions.act_window">
+        <field name="name">更新紀錄</field>
+        <field name="res_model">construction.release.entry</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">登記第一筆更新紀錄</p>
+            <p>一次推送到主分支（或一個 PR）登記一筆。推送當下登記，不事後補。</p>
+        </field>
+    </record>
+
+</odoo>

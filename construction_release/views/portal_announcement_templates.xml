@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 維護橫幅 ＋ 更新公告跳窗：掛在 web.frontend_layout            -->
+    <!-- 前台每一頁都會經過它，**登入頁也是**（未登入時只有橫幅）。    -->
+    <!-- construction_portal 有 39 處直接 t-call frontend_layout，     -->
+    <!-- 掛在這一層才不會漏掉沒經過 portal_v10_header 的頁面。         -->
+    <!-- ============================================================ -->
+    <template id="frontend_layout_release_notice" inherit_id="web.frontend_layout"
+              name="前台：維護橫幅與更新公告">
+        <xpath expr="//main" position="before">
+            <t t-set="cy_maint" t-value="request.env['construction.release'].sudo()._active_maintenance()"/>
+            <div t-if="cy_maint" class="cy-maint-banner"
+                 style="background: #fef3c7; color: #92400e; border-bottom: 1px solid #fcd34d; padding: 10px 14px; font-size: 0.9rem; line-height: 1.5;">
+                <span style="font-weight: 800;">⚠️ <t t-esc="cy_maint['headline']"/></span>
+                <span style="margin-left: 6px;"><t t-esc="cy_maint['message']"/></span>
+            </div>
+        </xpath>
+        <xpath expr="//main" position="after">
+            <t t-set="cy_unread" t-value="request.env['construction.release']._unread_announcements()"/>
+            <t t-if="cy_unread">
+                <t t-set="cy_notices"
+                   t-value="request.env['construction.release']._announcement_payload(cy_unread)"/>
+                <div class="modal fade" id="cyReleaseAnnouncement" tabindex="-1" aria-hidden="true"
+                     t-att-data-cy-release-ids="','.join(str(n['id']) for n in cy_notices)">
+                    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                        <div class="modal-content" style="border-radius: 16px;">
+                            <div class="modal-header">
+                                <h5 class="modal-title">系統更新公告</h5>
+                            </div>
+                            <div class="modal-body">
+                                <t t-foreach="cy_notices" t-as="n" t-key="n['id']">
+                                    <div style="margin-bottom: 18px;">
+                                        <div style="font-weight: 800; font-size: 1.05rem;"><t t-esc="n['title']"/></div>
+                                        <div style="color: #64748b; font-size: 0.8rem; margin: 2px 0 8px;">
+                                            系統版本 <t t-esc="n['version']"/>・發布日 <t t-esc="n['publish_date']"/>
+                                        </div>
+                                        <div style="white-space: pre-wrap;"><t t-esc="n['body']"/></div>
+                                    </div>
+                                </t>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-primary" id="cyReleaseAnnouncementAck">知道了</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- 抽屜「系統」區：把寫死的「ChienYi Portal v11.0」換成公告入口  -->
+    <!-- ============================================================ -->
+    <template id="portal_drawer_announcement" inherit_id="construction_portal.portal_v10_drawer"
+              name="Drawer：更新公告入口">
+        <xpath expr="//a[@data-cy-drawer-todo='ChienYi Portal v11.0']" position="replace">
+            <a class="cy-drawer-item"
+               t-attf-href="/construction/announcements#{project and ('?from_project=%s' % project.id) or ''}">
+                <span class="cy-drawer-item-icon">📣</span>
+                <span class="cy-drawer-item-label">更新公告</span>
+                <span class="cy-drawer-item-arrow">›</span>
+            </a>
+        </xpath>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- 回查頁 /construction/announcements                            -->
+    <!-- ============================================================ -->
+    <template id="portal_announcement_list" name="更新公告：列表">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-if="project" t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-else="" href="/construction" class="cy-breadcrumb-item">工程列表</a>
+                    <span class="cy-breadcrumb-item active">更新公告</span>
+                </div>
+                <div class="cy-content">
+                    <div class="cy-sec-divider"><span>歷次更新</span></div>
+                    <div class="cy-total-count">共 <t t-esc="len(announcements)"/> 筆</div>
+                    <t t-if="not announcements">
+                        <div class="cy-empty">
+                            <i class="fa fa-bullhorn"/>
+                            <div class="cy-empty-text">還沒有發布過更新公告</div>
+                        </div>
+                    </t>
+                    <t t-foreach="announcements" t-as="n" t-key="n['id']">
+                        <div style="background: #fff; border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(15,23,42,0.08);">
+                            <div style="font-weight: 800; font-size: 1.02rem;"><t t-esc="n['title']"/></div>
+                            <div style="color: #64748b; font-size: 0.8rem; margin: 2px 0 10px;">
+                                系統版本 <t t-esc="n['version']"/>・發布日 <t t-esc="n['publish_date']"/>
+                            </div>
+                            <div style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6;"><t t-esc="n['body']"/></div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+        </t>
+    </template>
+
+</odoo>

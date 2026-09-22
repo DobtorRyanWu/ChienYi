@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 更新公告回查頁：所有內部使用者（含代操作員）看得到，只有已發布的版本。
+         刻意另外做一組 view：管理用的那張表單只給管理員，裡面有更新紀錄與版本清單。 -->
+    <record id="view_release_announcement_list" model="ir.ui.view">
+        <field name="name">construction.release.announcement.list</field>
+        <field name="model">construction.release</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <list string="更新公告" create="false" delete="false" edit="false">
+                <field name="publish_datetime" string="發布時間"
+                       options="{'show_seconds': False, 'rounding': 1}"/>
+                <field name="name" string="系統版本"/>
+                <field name="announce_title" string="公告標題"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_release_announcement_form" model="ir.ui.view">
+        <field name="name">construction.release.announcement.form</field>
+        <field name="model">construction.release</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <form string="更新公告" create="false" delete="false" edit="false">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="announce_title" readonly="1"/></h1>
+                        <h3>
+                            系統版本 <field name="name" readonly="1" class="oe_inline"/>
+                            ・發布時間 <field name="publish_datetime" readonly="1" class="oe_inline"
+                                           options="{'show_seconds': False, 'rounding': 1}"/>
+                        </h3>
+                    </div>
+                    <field name="announce_body" readonly="1" nolabel="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_release_announcement" model="ir.actions.act_window">
+        <field name="name">更新公告</field>
+        <field name="res_model">construction.release</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('state', '=', 'published'), ('announce_title', '!=', False)]</field>
+        <field name="context">{'create': False, 'edit': False, 'delete': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有發布過的更新公告</p>
+            <p>系統版本發布後，公告會出現在這裡，並在下次登入時跳出一次。</p>
+        </field>
+    </record>
+
+    <record id="action_release_announcement_view_list" model="ir.actions.act_window.view">
+        <field name="sequence">10</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_release_announcement_list"/>
+        <field name="act_window_id" ref="action_release_announcement"/>
+    </record>
+
+    <record id="action_release_announcement_view_form" model="ir.actions.act_window.view">
+        <field name="sequence">20</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_release_announcement_form"/>
+        <field name="act_window_id" ref="action_release_announcement"/>
+    </record>
+
+    <menuitem id="menu_release_announcement_root"
+              name="更新公告"
+              action="action_release_announcement"
+              sequence="97"
+              groups="base.group_user"/>
+
+</odoo>

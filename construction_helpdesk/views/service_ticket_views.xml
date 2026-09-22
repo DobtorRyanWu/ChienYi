@@ -12,7 +12,7 @@
                   decoration-muted="state in ('done', 'cancel')"
                   decoration-info="state == 'new'">
                 <field name="name"/>
-                <field name="report_datetime" options="{'show_seconds': False}"/>
+                <field name="report_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                 <field name="subject"/>
                 <field name="category_id"/>
                 <field name="functional_module_id" optional="show"/>
@@ -80,7 +80,7 @@
                     </div>
                     <group>
                         <group string="回報資訊">
-                            <field name="report_datetime" readonly="state != 'new'" options="{'show_seconds': False}"/>
+                            <field name="report_datetime" readonly="state != 'new'" options="{'show_seconds': False, 'rounding': 1}"/>
                             <field name="channel" readonly="state != 'new'"/>
                             <field name="customer_company" readonly="state != 'new'" placeholder="例：○○營造"/>
                             <field name="contact_name" readonly="state != 'new'" placeholder="姓名、電話或 LINE"/>
@@ -98,7 +98,7 @@
                                    invisible="not ask_functional_module"
                                    readonly="state != 'new' and not is_helpdesk_agent"/>
                             <field name="create_uid" string="建單人" readonly="1"/>
-                            <field name="close_datetime" invisible="not close_datetime" options="{'show_seconds': False}"/>
+                            <field name="close_datetime" invisible="not close_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                             <field name="is_system_problem" invisible="1"/>
                             <field name="problem_id" readonly="1"
                                    invisible="not problem_id"
@@ -117,7 +117,7 @@
                                     <field name="agent_user_id" options="{'no_create': True}"/>
                                 </group>
                                 <group string="通知客戶">
-                                    <field name="notify_datetime" options="{'show_seconds': False}"/>
+                                    <field name="notify_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                     <field name="notify_result"/>
                                 </group>
                                 <group string="滿意度">

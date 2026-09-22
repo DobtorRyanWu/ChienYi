@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_deployment_list" model="ir.ui.view">
+        <field name="name">construction.deployment.list</field>
+        <field name="model">construction.deployment</field>
+        <field name="arch" type="xml">
+            <list string="部署紀錄" create="false" delete="false"
+                  decoration-success="result == 'match'" decoration-danger="result != 'match'">
+                <field name="check_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                <field name="release_id"/>
+                <field name="db_name"/>
+                <field name="user_id"/>
+                <field name="result" widget="badge"
+                       decoration-success="result == 'match'" decoration-danger="result != 'match'"/>
+                <field name="mismatch_count"/>
+                <field name="half_count"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_deployment_form" model="ir.ui.view">
+        <field name="name">construction.deployment.form</field>
+        <field name="model">construction.deployment</field>
+        <field name="arch" type="xml">
+            <form string="部署紀錄" create="false" delete="false">
+                <sheet>
+                    <div class="alert alert-success" role="alert" invisible="result != 'match'">
+                        相符：本庫每個已安裝的模組都與版本清單一致，也沒有升到一半的模組。可以回到系統版本按「發布」。
+                    </div>
+                    <div class="alert alert-danger" role="alert" invisible="result == 'match'">
+                        不相符：請看下方明細（排在最前面的是問題）。修好後回到系統版本再按一次「檢查部署」，這筆紀錄會保留下來當作經過。
+                    </div>
+                    <group>
+                        <group>
+                            <field name="release_id"/>
+                            <field name="db_name"/>
+                            <field name="check_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="result"/>
+                            <field name="mismatch_count"/>
+                            <field name="half_count"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="note" placeholder="失敗原因、是否回滾、實際停機多久……"/>
+                    </group>
+                    <field name="line_ids">
+                        <list decoration-danger="result in ('mismatch', 'half', 'extra')"
+                              decoration-muted="result == 'not_installed'">
+                            <field name="module_name"/>
+                            <field name="expected"/>
+                            <field name="actual"/>
+                            <field name="db_state"/>
+                            <field name="result"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_deployment_search" model="ir.ui.view">
+        <field name="name">construction.deployment.search</field>
+        <field name="model">construction.deployment</field>
+        <field name="arch" type="xml">
+            <search string="部署紀錄">
+                <field name="release_id"/>
+                <field name="db_name"/>
+                <filter name="match" string="相符" domain="[('result', '=', 'match')]"/>
+                <filter name="mismatch" string="不相符" domain="[('result', '=', 'mismatch')]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_release" string="系統版本" context="{'group_by': 'release_id'}"/>
+                    <filter name="group_db" string="資料庫" context="{'group_by': 'db_name'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_deployment" model="ir.actions.act_window">
+        <field name="name">部署紀錄</field>
+        <field name="res_model">construction.deployment</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有部署紀錄</p>
+            <p>在系統版本上按「檢查部署」會自動產生一筆。</p>
+        </field>
+    </record>
+
+</odoo>

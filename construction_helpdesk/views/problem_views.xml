@@ -157,7 +157,7 @@
                                     <field name="downgrade_reason" readonly="is_graded"
                                            invisible="not manual_priority and not downgrade_reason"/>
                                     <field name="final_priority"/>
-                                    <field name="graded_datetime" options="{'show_seconds': False}"/>
+                                    <field name="graded_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                     <field name="is_graded" invisible="1"/>
                                 </group>
                             </group>
@@ -190,11 +190,11 @@
                             <div class="text-muted mb-2">只記錄完成時間，不判逾時。</div>
                             <group>
                                 <group string="回應">
-                                    <field name="response_datetime" options="{'show_seconds': False}"/>
+                                    <field name="response_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                 </group>
                                 <group string="暫行措施（P1）" invisible="final_priority != 'p1'">
                                     <field name="temporary_measure"/>
-                                    <field name="temporary_datetime" options="{'show_seconds': False}"/>
+                                    <field name="temporary_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                     <field name="temporary_user_id" options="{'no_create': True}"/>
                                 </group>
                             </group>
@@ -232,7 +232,7 @@
                             <field name="ticket_ids" readonly="1">
                                 <list>
                                     <field name="name"/>
-                                    <field name="report_datetime" options="{'show_seconds': False}"/>
+                                    <field name="report_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                     <field name="subject"/>
                                     <field name="customer_company"/>
                                     <field name="state" widget="badge"/>

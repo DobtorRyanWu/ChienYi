@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="construction_release.MaintenanceBanner">
+        <div t-if="notice.maintenance"
+             class="cy-maint-banner alert alert-warning border-0 rounded-0 mb-0 py-2 px-3 d-print-none">
+            <span class="fw-bold me-2">⚠️ <t t-esc="notice.maintenance.headline"/></span>
+            <span t-esc="notice.maintenance.message"/>
+        </div>
+    </t>
+
+    <t t-inherit="web.NavBar" t-inherit-mode="extension">
+        <xpath expr="//nav[hasclass('o_main_navbar')]" position="after">
+            <ReleaseMaintenanceBanner/>
+        </xpath>
+    </t>
+
+    <t t-name="construction_release.AnnouncementDialog">
+        <Dialog size="'lg'" title="'系統更新公告'">
+            <t t-foreach="props.announcements" t-as="a" t-key="a.id">
+                <div class="mb-4">
+                    <h4 class="mb-1"><t t-esc="a.title"/></h4>
+                    <div class="text-muted small mb-2">
+                        系統版本 <t t-esc="a.version"/>・發布日 <t t-esc="a.publish_date"/>
+                    </div>
+                    <div style="white-space: pre-wrap;"><t t-esc="a.body"/></div>
+                </div>
+            </t>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" t-on-click="onAck">知道了</button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>

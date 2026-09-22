@@ -1,0 +1,10 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_release_entry_system,construction.release.entry 管理員,model_construction_release_entry,base.group_system,1,1,1,1
+access_release_entry_line_system,construction.release.entry.line 管理員,model_construction_release_entry_line,base.group_system,1,1,1,1
+access_release_system,construction.release 管理員,model_construction_release,base.group_system,1,1,1,1
+access_release_internal,construction.release 內部使用者（公告回查）,model_construction_release,base.group_user,1,0,0,0
+access_release_agent,construction.release 客服（問題單顯示修復版本）,model_construction_release,construction_helpdesk.group_helpdesk_agent,1,0,0,0
+access_release_manifest_line_system,construction.release.manifest.line 管理員,model_construction_release_manifest_line,base.group_system,1,1,1,1
+access_deployment_system,construction.deployment 管理員,model_construction_deployment,base.group_system,1,1,1,1
+access_deployment_line_system,construction.deployment.line 管理員,model_construction_deployment_line,base.group_system,1,1,1,1
+access_release_confirm_wizard_system,construction.release.confirm.wizard 管理員,model_construction_release_confirm_wizard,base.group_system,1,1,1,1

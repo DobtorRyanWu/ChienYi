@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_release_list" model="ir.ui.view">
+        <field name="name">construction.release.list</field>
+        <field name="model">construction.release</field>
+        <field name="groups_id" eval="[(4, ref('base.group_system'))]"/>
+        <field name="arch" type="xml">
+            <list string="系統版本" create="true" decoration-muted="state == 'published'">
+                <field name="display_name" string="版號"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'confirmed'"
+                       decoration-success="state == 'published'"/>
+                <field name="planned_date"/>
+                <field name="entry_count"/>
+                <field name="maint_state" optional="show" widget="badge"
+                       decoration-warning="maint_state == 'announced'"/>
+                <field name="publish_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_release_form" model="ir.ui.view">
+        <field name="name">construction.release.form</field>
+        <field name="model">construction.release</field>
+        <!-- 客服對本模型有讀取權（問題單顯示修復版本用），但這張管理表單只給管理員 -->
+        <field name="groups_id" eval="[(4, ref('base.group_system'))]"/>
+        <field name="arch" type="xml">
+            <form string="系統版本">
+                <header>
+                    <button name="action_pull_entries" type="object" string="帶入未排入的紀錄"
+                            invisible="state != 'draft'"/>
+                    <button name="action_generate_announcement" type="object" string="產生公告草稿"
+                            invisible="state == 'published'"
+                            confirm="會用「要公告」紀錄的「改變」欄重寫公告標題與內容，目前的公告內容會被覆蓋。確定嗎？"/>
+                    <button name="action_open_confirm_wizard" type="object" string="確認"
+                            class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_back_to_draft" type="object" string="退回草稿"
+                            invisible="state != 'confirmed'"
+                            confirm="退回草稿會清掉版號與版本清單，之前的部署檢查也不再算數。確定嗎？"/>
+                    <button name="action_maint_announce" type="object" string="發布維護預告"
+                            invisible="state != 'confirmed' or maint_state == 'announced'"
+                            confirm="發布後，後台、前台與登入頁頂端會出現維護橫幅。確定嗎？"/>
+                    <button name="action_maint_cancel" type="object" string="取消維護預告"
+                            invisible="state == 'published' or maint_state != 'announced'"
+                            confirm="維護橫幅會立刻收起。確定嗎？"/>
+                    <button name="action_check_deployment" type="object" string="檢查部署"
+                            invisible="state == 'draft'"/>
+                    <button name="action_publish" type="object" string="發布" class="oe_highlight"
+                            invisible="state != 'confirmed'"
+                            confirm="發布後：維護橫幅收起、後台與前台開始跳更新公告、自動建立下一版草稿。確定嗎？"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="display_name" readonly="1"/></h1>
+                    </div>
+                    <div class="alert alert-info" role="alert" invisible="state != 'draft'">
+                        草稿：之後登記的更新紀錄會自動放進這一版。不想跟這一版出的紀錄，在「更新紀錄」頁籤按「移出」。
+                        內容檢查完按「確認」——確認時才編版號，並鎖住所有紀錄。
+                    </div>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="state != 'confirmed' or maint_state == 'announced'">
+                        尚未發布維護預告（不強制）。升級時系統會重新啟動，建議先在「維護預告」頁籤填好時間後按「發布維護預告」。
+                    </div>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="state != 'confirmed' or has_matching_deployment">
+                        下一步：在主機上升級資料庫並<b>重新啟動容器</b>，再按「檢查部署」。結果「相符」才能發布。
+                    </div>
+                    <group>
+                        <group>
+                            <field name="planned_date" readonly="state == 'published'"/>
+                            <field name="entry_count"/>
+                            <field name="has_matching_deployment" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="confirm_user_id" invisible="state == 'draft'"/>
+                            <field name="confirm_datetime" invisible="state == 'draft'"
+                                   options="{'show_seconds': False, 'rounding': 1}"/>
+                            <field name="publish_datetime" invisible="state != 'published'"
+                                   options="{'show_seconds': False, 'rounding': 1}"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="更新紀錄" name="entries">
+                            <field name="entry_ids" readonly="1">
+                                <list decoration-warning="has_continuity_warning">
+                                    <field name="name"/>
+                                    <field name="date"/>
+                                    <field name="entry_type"/>
+                                    <field name="title"/>
+                                    <field name="modules_summary"/>
+                                    <field name="announce"/>
+                                    <field name="has_continuity_warning" column_invisible="1"/>
+                                    <button name="action_remove_from_release" type="object" string="移出"
+                                            icon="fa-sign-out" invisible="parent.state != 'draft'"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="公告" name="announcement">
+                            <div class="text-muted small mb-2">
+                                按「產生公告草稿」會用「要公告」紀錄的「改變」欄組成內容；發布前都可以修改。
+                                發布後前台與後台會各跳一次視窗。
+                            </div>
+                            <group>
+                                <field name="announce_title" readonly="state == 'published'"/>
+                                <field name="announce_body" readonly="state == 'published'"
+                                       placeholder="・同日多期估驗的累計會依期別順序正確加總"/>
+                            </group>
+                        </page>
+                        <page string="維護預告" name="maintenance">
+                            <div class="text-muted small mb-2">
+                                按「發布維護預告」後，後台、前台與登入頁頂端出現橫幅；按「發布」或「取消維護預告」立刻收起。
+                                過了預計結束時間仍未發布，橫幅會繼續顯示並改為「維護作業仍在進行中」。
+                            </div>
+                            <group>
+                                <field name="maint_state"/>
+                                <field name="maint_start" readonly="state == 'published'"
+                                       options="{'show_seconds': False, 'rounding': 1}"/>
+                                <field name="maint_end" readonly="state == 'published'"
+                                       options="{'show_seconds': False, 'rounding': 1}"/>
+                                <field name="maint_message" readonly="state == 'published'"/>
+                            </group>
+                        </page>
+                        <page string="版本清單" name="manifest" invisible="state == 'draft'">
+                            <div class="text-muted small mb-2">
+                                按「確認」時拍下：自有與第三方目錄的所有模組（含未安裝）程式檔版號，另加 Odoo 本體一行。
+                                這是「檢查部署」比對的標準答案。
+                            </div>
+                            <field name="manifest_line_ids" readonly="1">
+                                <list>
+                                    <field name="module_name"/>
+                                    <field name="version"/>
+                                    <field name="is_core" column_invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="部署紀錄" name="deployments" invisible="state == 'draft'">
+                            <field name="deployment_ids" readonly="1">
+                                <list decoration-success="result == 'match'" decoration-danger="result != 'match'">
+                                    <field name="check_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                                    <field name="db_name"/>
+                                    <field name="user_id"/>
+                                    <field name="result"/>
+                                    <field name="mismatch_count"/>
+                                    <field name="half_count"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_release_search" model="ir.ui.view">
+        <field name="name">construction.release.search</field>
+        <field name="model">construction.release</field>
+        <field name="arch" type="xml">
+            <search string="系統版本">
+                <field name="name"/>
+                <filter name="draft" string="草稿" domain="[('state', '=', 'draft')]"/>
+                <filter name="confirmed" string="已確認" domain="[('state', '=', 'confirmed')]"/>
+                <filter name="published" string="已發布" domain="[('state', '=', 'published')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_release" model="ir.actions.act_window">
+        <field name="name">系統版本</field>
+        <field name="res_model">construction.release</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一個系統版本（草稿）</p>
+            <p>建立後會自動帶入所有「未排入」的更新紀錄。之後每次發布都會自動建立下一版草稿。</p>
+        </field>
+    </record>
+
+    <!-- 確認精靈 -->
+    <record id="view_release_confirm_wizard_form" model="ir.ui.view">
+        <field name="name">construction.release.confirm.wizard.form</field>
+        <field name="model">construction.release.confirm.wizard</field>
+        <field name="arch" type="xml">
+            <form string="確認系統版本">
+                <div class="text-muted mb-2">
+                    確認後：編上版號、拍下版本清單、鎖住這一版的所有更新紀錄（要改只能退回草稿）。
+                </div>
+                <group>
+                    <field name="last_version"/>
+                    <field name="entry_count"/>
+                </group>
+                <group>
+                    <field name="bump" widget="radio"/>
+                    <field name="version_name"/>
+                </group>
+                <div class="text-muted small mb-2">
+                    <b>系統版本號 vX.Y.Z 的規則</b>（給客戶看的版號，與模組版號無關）：<br/>
+                    ・<b>大版本</b>：整體改版、主要流程或畫面大幅改變，客戶要重新學或要配合做什麼。
+                    可能好幾年才跳一次，這是正常的。<b>系統不會自動建議大版本</b>，要自己選。<br/>
+                    ・<b>中版本</b>：新增功能、新頁面、新報表，既有操作方式不變。<br/>
+                    ・<b>小版本</b>：只有修正錯誤與微調。<br/>
+                    加了高位，低位歸零；中版本沒有位數上限（v1.14.3 是合法的）。
+                    <div invisible="not suggest_note">
+                        目前建議：<field name="suggest_note" nolabel="1" class="d-inline"/>
+                    </div>
+                </div>
+                <div class="alert alert-warning" role="alert" invisible="not warning">
+                    下列模組的程式檔版號與資料庫版號不同，通常代表改了版號還沒在這個資料庫升級，
+                    或改了版號後沒有重新啟動（程式檔版號有快取）。版本清單會以<b>程式檔版號</b>為準。
+                    <field name="warning" nolabel="1"/>
+                </div>
+                <footer>
+                    <button name="action_confirm" type="object" string="確認" class="oe_highlight"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

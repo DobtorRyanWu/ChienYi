@@ -32,7 +32,9 @@
     #        轉問題單對照顯示本服務單說明，候選清單只列單號／標題／發生功能／問題說明摘要
     # 1.6.2: 問題單「問題說明」、服務單「詳細說明」頁籤內的欄位補上欄位名稱，提示文字縮短
     # 1.6.3: 轉問題單候選清單為空時顯示原因（同發生功能沒有未結案單 → 提示勾「列出所有」或新建）
-    'version': '18.0.1.6.3',
+    # 1.6.4: 時間欄位的選擇器不再出現「秒」——Odoo 18 的 show_seconds: False 會讓選擇器改成
+    #        顯示秒（datetime_field.js：沒給 rounding 時把 rounding 設成 0），一律補 rounding: 1（精確到分）
+    'version': '18.0.1.6.4',
     'category': 'Construction/Supervision',
     'summary': '客服服務單、系統問題單分級（S／U／P）與處理時限',
     'description': """

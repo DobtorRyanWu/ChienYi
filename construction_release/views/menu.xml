@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 管理功能只給 Odoo 管理員（設定）。第三階段的「更新公告」回查頁會另外開放給內部使用者 -->
+    <menuitem id="menu_release_root"
+              name="版本管理"
+              sequence="96"
+              groups="base.group_system"/>
+
+    <menuitem id="menu_release"
+              name="系統版本"
+              parent="menu_release_root"
+              action="action_release"
+              sequence="10"
+              groups="base.group_system"/>
+
+    <menuitem id="menu_release_entry"
+              name="更新紀錄"
+              parent="menu_release_root"
+              action="action_release_entry"
+              sequence="20"
+              groups="base.group_system"/>
+
+    <menuitem id="menu_deployment"
+              name="部署紀錄"
+              parent="menu_release_root"
+              action="action_deployment"
+              sequence="30"
+              groups="base.group_system"/>
+
+</odoo>

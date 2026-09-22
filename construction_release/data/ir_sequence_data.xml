@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="seq_release_entry" model="ir.sequence">
+            <field name="name">更新紀錄編號</field>
+            <field name="code">construction.release.entry</field>
+            <field name="prefix">UPD-</field>
+            <field name="padding">4</field>
+            <!-- no_gap：交易 rollback 時編號一併退回（standard 用 PG sequence，測試會讓正式編號跳號） -->
+            <field name="implementation">no_gap</field>
+            <field name="company_id" eval="False"/>
+        </record>
+    </data>
+</odoo>
