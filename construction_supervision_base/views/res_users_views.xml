@@ -10,6 +10,17 @@
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_form"/>
         <field name="arch" type="xml">
+            <!-- 工程管理者 → 代操作員：只改下拉會殘留「設定」等權限，必須走這顆按鈕 -->
+            <xpath expr="//header" position="inside">
+                <button name="action_downgrade_to_operator" type="object"
+                        string="降級為代操作員"
+                        groups="base.group_system"
+                        invisible="not is_engineering_manager"
+                        confirm="確定將此帳號從「工程管理者」降級為「代操作員」？將一併移除「設定」及其帶入的權限（含客服）。"/>
+            </xpath>
+            <xpath expr="//sheet" position="inside">
+                <field name="is_engineering_manager" invisible="1"/>
+            </xpath>
             <!-- 在 Access Rights 頁面的末尾插入前台角色與組織身分欄位 -->
             <xpath expr="//page[@name='access_rights']" position="inside">
                 <group string="前台角色（外部使用者）" name="portal_role_group">

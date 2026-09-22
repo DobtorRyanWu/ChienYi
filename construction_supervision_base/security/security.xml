@@ -12,7 +12,7 @@
         <!-- 新架構：特殊權限 category -->
         <record id="module_category_supervision_special" model="ir.module.category">
             <field name="name">工程監造 - 特殊權限</field>
-            <field name="description">系統管理者與代操作員專用</field>
+            <field name="description">代操作員（業務全權，不能碰系統設定）／工程管理者（代操作員＋系統設定）</field>
             <field name="sequence">101</field>
         </record>
 
@@ -27,12 +27,15 @@
         <!-- 使用者群組                                      -->
         <!-- ============================================== -->
 
-        <!-- 系統管理者 -->
+        <!-- 工程後台使用者（xmlid 沿用 group_supervisor_admin，22 個模組 190 處引用它） -->
+        <!-- 18.0.6.2.0 起移出「特殊權限」分類，不再出現在使用者表單的下拉選單，    -->
+        <!-- 只作為代操作員／工程管理者背後的基礎權限（開 debug 才看得到勾選框）。  -->
+        <!-- category_id 必須寫 eval="False"：只刪掉這一行，-u 不會清掉 DB 裡的舊值。 -->
         <record id="group_supervisor_admin" model="res.groups">
-            <field name="name">系統管理者</field>
-            <field name="category_id" ref="module_category_supervision_special"/>
+            <field name="name">工程後台使用者</field>
+            <field name="category_id" eval="False"/>
             <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
-            <field name="comment">工程監造系統管理者，擁有所有權限</field>
+            <field name="comment">能使用工程系統後台的業務資料；本身不含系統設定、帳號管理等管理權。由代操作員／工程管理者自動帶入，不需單獨指派。</field>
         </record>
 
     </data>

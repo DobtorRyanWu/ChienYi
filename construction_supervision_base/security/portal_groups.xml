@@ -14,6 +14,17 @@
             <field name="comment">開發商代操作人員，可跨公司存取所有客戶資料，操作會記錄審計追蹤</field>
         </record>
 
+        <!-- 工程管理者 = 代操作員 ＋ 系統設定（base.group_system）：能升級模組、改設定、管帳號 -->
+        <!-- 與代操作員同在「特殊權限」分類 → 使用者表單顯示成下拉：（空白）→ 代操作員 → 工程管理者 -->
+        <!-- ⚠️ 從工程管理者降級不要只改下拉：設定與它帶進來的 6 個群組會殘留，            -->
+        <!--    請用使用者表單上的「降級為代操作員」按鈕（res.users.action_downgrade_to_operator）。 -->
+        <record id="group_engineering_manager" model="res.groups">
+            <field name="name">工程管理者</field>
+            <field name="category_id" ref="construction_supervision_base.module_category_supervision_special"/>
+            <field name="implied_ids" eval="[(4, ref('construction_supervision_base.group_operator')), (4, ref('base.group_system'))]"/>
+            <field name="comment">代操作員的全部權限，加上系統設定：升級模組、改系統設定、管理帳號（工程師）。</field>
+        </record>
+
         <!-- ============================================== -->
         <!-- 舊的 Portal 群組定義已遷移至 new_portal_groups.xml -->
         <!-- ============================================== -->

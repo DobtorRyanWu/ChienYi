@@ -4,7 +4,8 @@
 
 from datetime import timedelta
 
-from odoo import models, fields, api
+from odoo import models, fields, api, SUPERUSER_ID
+from odoo.exceptions import AccessError, UserError
 
 # 定期閱覽者（臨時帳號）預設有效天數：
 # 頂層角色為「定期閱覽者」(group_portal_viewer 但無 group_portal_user)
@@ -14,6 +15,8 @@ DEFAULT_OBSERVER_VALIDITY_DAYS = 90
 # 代操作員的登入落地頁：工程管理 > 工程總覽 > 工程案件
 OPERATOR_GROUP_XMLID = 'construction_supervision_base.group_operator'
 OPERATOR_HOME_ACTION_XMLID = 'construction_supervision_base.action_supervision_project'
+# 工程管理者 = 代操作員 ＋ base.group_system（工程師）
+MANAGER_GROUP_XMLID = 'construction_supervision_base.group_engineering_manager'
 
 
 class ResUsers(models.Model):
@@ -45,6 +48,18 @@ class ResUsers(models.Model):
     }
     # 高→低（取最高角色用；老闆 ⊃ 主管 ⊃ 現場人員 ⊃ 定期閱覽者）
     _ROLE_KEYS_HIGH_TO_LOW = ('boss', 'manager', 'field', 'observer')
+
+    is_engineering_manager = fields.Boolean(
+        string='是工程管理者',
+        compute='_compute_is_engineering_manager',
+        help='控制使用者表單上「降級為代操作員」按鈕是否顯示。',
+    )
+
+    @api.depends('groups_id')
+    def _compute_is_engineering_manager(self):
+        manager = self.env.ref(MANAGER_GROUP_XMLID, raise_if_not_found=False)
+        for user in self:
+            user.is_engineering_manager = bool(manager and manager in user.groups_id)
 
     portal_role = fields.Selection(
         selection=[
@@ -242,9 +257,43 @@ class ResUsers(models.Model):
         action = self.env.ref(OPERATOR_HOME_ACTION_XMLID, raise_if_not_found=False)
         if not operator_group or not action:
             return
+        # 工程管理者也包含代操作員，但工程師登入後維持原本的畫面（使用者裁示）
+        manager_group = self.env.ref(MANAGER_GROUP_XMLID, raise_if_not_found=False)
         for user in self:
+            if manager_group and manager_group in user.groups_id:
+                continue
             if operator_group in user.groups_id and not user.action_id:
                 user.action_id = action.id
+
+    def action_downgrade_to_operator(self):
+        """工程管理者 → 代操作員。
+
+        只在下拉把「工程管理者」改成「代操作員」拿不乾淨：Odoo 移除群組時
+        不會連帶移除它帶進來的群組，於是「設定」(base.group_system) 與它再帶進來
+        的群組（客服、Bypass HTML Field Sanitize、Mail Template Editor…）全部殘留，
+        而且那些群組多半在 debug 才看得到的區塊，一般畫面上移不掉。
+
+        移除範圍 ＝ 工程管理者 ＋ 設定 ＋ 設定帶進來的全部群組，
+        但保留「代操作員會帶的」以及「此帳號其他群組會帶的」。
+        ⚠️ Odoo 分不出某群組是「單獨勾的」還是「被帶進來的」：若此帳號另外被單獨
+        指派了客服等群組，而它剛好也是設定會帶的，會一併移除，需要時再手動加回。
+        """
+        if not self.env.user.has_group('base.group_system'):
+            raise AccessError('只有具備「設定」權限的帳號可以執行降級。')
+        manager = self.env.ref(MANAGER_GROUP_XMLID)
+        operator = self.env.ref(OPERATOR_GROUP_XMLID)
+        system = self.env.ref('base.group_system')
+        for user in self:
+            if user.id == SUPERUSER_ID or user == self.env.user:
+                raise UserError('不能降級自己（或系統內建的超級使用者），以免失去管理權而無法復原。')
+            if manager not in user.groups_id:
+                raise UserError('「%s」目前不是工程管理者，不需要降級。' % user.name)
+            granted = manager | system | system.trans_implied_ids
+            others = user.groups_id - granted
+            keep = operator | operator.trans_implied_ids | others | others.trans_implied_ids
+            to_remove = (user.groups_id & granted) - keep
+            user.write({'groups_id': [(3, g.id) for g in to_remove] + [(4, operator.id)]})
+        return True
 
     def _apply_default_contractor_org(self):
         """前台(portal)帳號未設監造/營造身分時，預設為營造(承包商)。
