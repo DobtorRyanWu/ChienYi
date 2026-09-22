@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 預設值照《系統問題分級與處理時限標準》v0.2 第六節。
+         noupdate：之後在後台改的數字，升級不會被蓋回去。 -->
+    <data noupdate="1">
+        <record id="sla_p1" model="construction.problem.sla">
+            <field name="priority">p1</field>
+            <field name="default_fix_days">2</field>
+            <field name="response_target">1 工作小時</field>
+            <field name="temporary_target">4 工作小時</field>
+        </record>
+        <record id="sla_p2" model="construction.problem.sla">
+            <field name="priority">p2</field>
+            <field name="default_fix_days">5</field>
+            <field name="response_target">4 工作小時</field>
+        </record>
+        <record id="sla_p3" model="construction.problem.sla">
+            <field name="priority">p3</field>
+            <field name="default_fix_days">0</field>
+            <field name="no_days_note">下一次例行版本</field>
+            <field name="response_target">1 個工作天</field>
+        </record>
+        <record id="sla_p4" model="construction.problem.sla">
+            <field name="priority">p4</field>
+            <field name="default_fix_days">0</field>
+            <field name="no_days_note">排入規劃</field>
+            <field name="response_target">3 個工作天</field>
+        </record>
+    </data>
+</odoo>

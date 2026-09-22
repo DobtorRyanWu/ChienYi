@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 統計：預設好篩選／分組的清單或樞紐，不另做畫面 -->
+
+    <record id="action_report_problem_overdue" model="ir.actions.act_window">
+        <field name="name">逾時清單</field>
+        <field name="res_model">construction.problem</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_problem_list"/>
+        <field name="context">{'search_default_overdue': 1}</field>
+        <field name="help" type="html">
+            <p>超過預定修復日（內部工作目標）的問題單。</p>
+            <p>注意：逾時不代表客戶等太久；對外報告服務水準請看「總處理天數」。</p>
+        </field>
+    </record>
+
+    <record id="action_report_problem_to_confirm" model="ir.actions.act_window">
+        <field name="name">非工作日待確認</field>
+        <field name="res_model">construction.problem</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_problem_list"/>
+        <field name="context">{'search_default_to_confirm': 1}</field>
+    </record>
+
+    <record id="action_report_problem_upgraded" model="ir.actions.act_window">
+        <field name="name">曾升級改判</field>
+        <field name="res_model">construction.problem</field>
+        <field name="view_mode">list,form</field>
+        <field name="view_id" ref="view_problem_list"/>
+        <field name="context">{'search_default_ever_upgraded': 1}</field>
+        <field name="help" type="html">
+            <p>分級後又往上改判過的問題單。試行期每月檢視一次，看初判準不準。</p>
+        </field>
+    </record>
+
+    <record id="action_report_problem_by_module" model="ir.actions.act_window">
+        <field name="name">各發生功能問題數</field>
+        <field name="res_model">construction.problem</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="context">{'pivot_row_groupby': ['functional_module_id'],
+                               'pivot_column_groupby': ['final_priority'],
+                               'graph_groupbys': ['functional_module_id']}</field>
+    </record>
+
+    <record id="action_report_ticket_by_partner" model="ir.actions.act_window">
+        <field name="name">各客戶服務單數</field>
+        <field name="res_model">construction.service.ticket</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="context">{'pivot_row_groupby': ['customer_company'],
+                               'pivot_column_groupby': ['category_id'],
+                               'graph_groupbys': ['customer_company']}</field>
+    </record>
+
+    <record id="view_problem_pivot_monthly" model="ir.ui.view">
+        <field name="name">construction.problem.pivot.monthly</field>
+        <field name="model">construction.problem</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <pivot string="每月處理量與平均總處理天數">
+                <field name="fix_done_date" interval="month" type="row"/>
+                <field name="final_priority" type="col"/>
+                <field name="total_days" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_report_problem_monthly" model="ir.actions.act_window">
+        <field name="name">每月處理量與平均總處理天數</field>
+        <field name="res_model">construction.problem</field>
+        <field name="view_mode">pivot,list</field>
+        <field name="view_id" ref="view_problem_pivot_monthly"/>
+        <field name="context">{'pivot_measures': ['__count', 'total_days']}</field>
+        <!-- 只算已結案的：未結案的總處理天數是 0，會把平均拉低 -->
+        <field name="domain">[('state', '=', 'done')]</field>
+        <field name="help" type="html">
+            <p>已結案問題單，依修復完成月份統計件數與平均總處理天數（日曆天，從客戶回報那天算）。</p>
+        </field>
+    </record>
+
+</odoo>

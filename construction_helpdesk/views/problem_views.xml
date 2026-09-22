@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 看板（預設）：依狀態分欄，卡片顯示最終 P 與是否逾時           -->
+    <!-- ============================================================ -->
+    <record id="view_problem_kanban" model="ir.ui.view">
+        <field name="name">construction.problem.kanban</field>
+        <field name="model">construction.problem</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="state" quick_create="false" sample="1">
+                <field name="state"/>
+                <field name="final_priority"/>
+                <field name="is_overdue"/>
+                <field name="non_working_to_confirm"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <field name="name" class="text-muted small"/>
+                            <span t-if="record.final_priority.raw_value"
+                                  t-attf-class="badge #{record.final_priority.raw_value == 'p1' ? 'text-bg-danger' : record.final_priority.raw_value == 'p2' ? 'text-bg-warning' : 'text-bg-secondary'}">
+                                <field name="final_priority"/>
+                            </span>
+                            <span t-else="" class="badge text-bg-light border">未分級</span>
+                        </div>
+                        <field name="title" class="fw-bold"/>
+                        <field name="functional_module_id" class="small"/>
+                        <div class="small">
+                            預定修復日：<field name="planned_fix_date"/>
+                        </div>
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                            <span t-if="record.is_overdue.raw_value" class="badge text-bg-danger">逾時</span>
+                            <span t-if="record.non_working_to_confirm.raw_value" class="badge text-bg-warning">非工作日待確認</span>
+                        </div>
+                        <footer class="pt-1">
+                            <span class="small text-muted">服務單 <field name="ticket_count"/></span>
+                            <field name="engineer_id" widget="many2one_avatar_user" class="ms-auto"/>
+                        </footer>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 清單                                                          -->
+    <!-- ============================================================ -->
+    <record id="view_problem_list" model="ir.ui.view">
+        <field name="name">construction.problem.list</field>
+        <field name="model">construction.problem</field>
+        <field name="arch" type="xml">
+            <list string="系統問題單" decoration-danger="is_overdue" decoration-muted="state in ('done', 'wont_fix')">
+                <field name="name"/>
+                <field name="title"/>
+                <field name="functional_module_id"/>
+                <field name="final_priority"/>
+                <field name="severity" optional="hide"/>
+                <field name="urgency" optional="hide"/>
+                <field name="start_date" optional="show"/>
+                <field name="planned_fix_date"/>
+                <field name="fix_done_date" optional="show"/>
+                <field name="total_days" optional="hide"/>
+                <field name="is_overdue" optional="show"/>
+                <field name="non_working_to_confirm" optional="hide"/>
+                <field name="ever_upgraded" optional="hide"/>
+                <field name="reported_customer_count" optional="hide"/>
+                <field name="engineer_id" optional="show"/>
+                <field name="state" widget="badge"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 表單                                                          -->
+    <!-- 分級欄位在分級之後 readonly（UX）；權威在 Python write()。    -->
+    <!-- ============================================================ -->
+    <record id="view_problem_form" model="ir.ui.view">
+        <field name="name">construction.problem.form</field>
+        <field name="model">construction.problem</field>
+        <field name="arch" type="xml">
+            <form string="系統問題單">
+                <header>
+                    <button name="action_open_regrade" string="變更等級" type="object"
+                            invisible="not is_graded"/>
+                    <button name="action_to_deploy" string="待部署" type="object" class="oe_highlight"
+                            invisible="state != 'processing'"/>
+                    <button name="action_to_verify" string="待驗證" type="object" class="oe_highlight"
+                            invisible="state != 'pending_deploy'"/>
+                    <button name="action_back_to_processing" string="退回處理中" type="object"
+                            invisible="state not in ('pending_deploy', 'pending_verify')"/>
+                    <button name="action_done" string="結案" type="object" class="oe_highlight"
+                            invisible="state not in ('processing', 'pending_deploy', 'pending_verify')"/>
+                    <button name="action_wont_fix" string="不處理" type="object"
+                            confirm="確定這張問題單不處理？"
+                            invisible="state in ('done', 'wont_fix')"/>
+                    <button name="action_reopen" string="重新開啟" type="object"
+                            invisible="state not in ('done', 'wont_fix')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="pending_grade,processing,pending_deploy,pending_verify,done"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-warning mb-3" role="alert" invisible="not non_working_to_confirm">
+                        請確認「非工作日天數」：從計算基準日 <field name="base_date_label" class="d-inline"/>
+                        的<b>隔天</b>數到預定修復日為止的週末與國定假日（基準日當天不算）。
+                        數字正確就按右邊的「確認非工作日天數」。
+                        <button name="action_confirm_non_working_days" string="確認非工作日天數"
+                                type="object" class="btn btn-sm btn-warning ms-2"/>
+                    </div>
+                    <div class="alert alert-danger mb-3" role="alert" invisible="not is_overdue">
+                        已超過預定修復日（內部工作目標）。
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                        <h2><field name="title" placeholder="問題標題"/></h2>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="functional_module_id" options="{'no_create': True}"/>
+                            <field name="engineer_id" options="{'no_create': True}"/>
+                            <field name="occurred_version"/>
+                        </group>
+                        <group>
+                            <field name="final_priority" readonly="1"/>
+                            <field name="ticket_count"/>
+                            <field name="reported_customer_count"/>
+                            <field name="ever_upgraded" invisible="not ever_upgraded"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="問題說明" name="problem_description">
+                            <label for="description" class="fw-bold"/>
+                            <div class="text-muted small mb-1">從服務單轉出時會自動帶入服務單的詳細說明，可再補充。</div>
+                            <field name="description" placeholder="在哪個畫面、做了什麼操作、看到什麼結果、預期應該是什麼"/>
+                        </page>
+                        <page string="分級" name="grade">
+                            <div class="text-muted mb-2" invisible="is_graded">
+                                依《系統問題分級與處理時限標準》判定 S 與 U（沒判就留空，不要猜）。
+                                兩者都填好存檔後即完成分級，系統會帶入處理時限。
+                            </div>
+                            <div class="text-muted mb-2" invisible="not is_graded">
+                                已分級。要修改請按上方「變更等級」（需填改判原因）。
+                            </div>
+                            <group>
+                                <group string="判定">
+                                    <field name="severity" readonly="is_graded"/>
+                                    <field name="urgency" readonly="is_graded"/>
+                                    <field name="matrix_priority"/>
+                                </group>
+                                <group string="特例（最多升一級；資安直接 P1）">
+                                    <field name="special_external_doc" readonly="is_graded"/>
+                                    <field name="special_security" readonly="is_graded"/>
+                                    <field name="special_repeat" readonly="is_graded"/>
+                                    <field name="upgraded_priority"/>
+                                </group>
+                                <group string="人工調整">
+                                    <field name="manual_priority" readonly="is_graded"/>
+                                    <field name="downgrade_reason" readonly="is_graded"
+                                           invisible="not manual_priority and not downgrade_reason"/>
+                                    <field name="final_priority"/>
+                                    <field name="graded_datetime" options="{'show_seconds': False}"/>
+                                    <field name="is_graded" invisible="1"/>
+                                </group>
+                            </group>
+                            <separator string="判定標準（依《系統問題分級與處理時限標準》）"/>
+                            <field name="grade_guide_html" nolabel="1" readonly="1"/>
+                        </page>
+                        <page string="時限" name="deadline">
+                            <group>
+                                <group string="預定修復日">
+                                    <field name="start_date"/>
+                                    <field name="base_date_label"/>
+                                    <field name="base_date" invisible="1"/>
+                                    <field name="expected_work_days"/>
+                                    <field name="non_working_days"/>
+                                    <field name="planned_fix_date"/>
+                                    <field name="non_working_to_confirm"/>
+                                </group>
+                                <group string="結果">
+                                    <field name="fix_done_date"/>
+                                    <field name="total_days"/>
+                                    <field name="is_overdue"/>
+                                </group>
+                            </group>
+                            <div class="text-muted small">
+                                預定修復日 ＝ 計算基準日 ＋ 預期工作天數 ＋ 非工作日天數。
+                                「逾時」只代表沒達到內部工作目標；對外報告服務水準請看「總處理天數」（修復完成日 − 起算日）。
+                            </div>
+                        </page>
+                        <page string="回應與暫行措施" name="response">
+                            <div class="text-muted mb-2">只記錄完成時間，不判逾時。</div>
+                            <group>
+                                <group string="回應">
+                                    <field name="response_datetime" options="{'show_seconds': False}"/>
+                                </group>
+                                <group string="暫行措施（P1）" invisible="final_priority != 'p1'">
+                                    <field name="temporary_measure"/>
+                                    <field name="temporary_datetime" options="{'show_seconds': False}"/>
+                                    <field name="temporary_user_id" options="{'no_create': True}"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="資料修正" name="data_fix">
+                            <div class="alert alert-info" role="status">
+                                <b>判斷方法：這個錯誤有沒有把錯的值「存進」資料庫？</b>
+                                <ul class="mb-1 mt-1">
+                                    <li><b>要修正</b>：金額／數量算錯而且已存檔、契約變更後金額短少、資料寫到別的工程、狀態被改錯。
+                                        程式修好後，已經存錯的舊資料<b>不會自己變對</b>，要找出受影響的單逐筆更正。</li>
+                                    <li><b>不用</b>：只是畫面顯示錯或列印跑版（資料庫裡的值是對的），或按鈕按不了、存檔失敗（根本沒寫進去）。</li>
+                                </ul>
+                                勾選「需要修正既有資料」後，修正狀態未完成前不能結案。
+                            </div>
+                            <group>
+                                <group>
+                                    <field name="data_fix_needed"/>
+                                    <field name="data_fix_state" invisible="not data_fix_needed"/>
+                                    <field name="data_fix_done_date" invisible="not data_fix_needed"/>
+                                </group>
+                                <group>
+                                    <field name="data_fix_scope" invisible="not data_fix_needed"/>
+                                    <field name="data_fix_method" invisible="not data_fix_needed"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="已知錯誤" name="known_error">
+                            <group>
+                                <field name="is_known_error"/>
+                                <field name="known_error_reply" invisible="not is_known_error"
+                                       placeholder="選填：客服回覆客戶時可參考的說法"/>
+                            </group>
+                        </page>
+                        <page string="關聯服務單" name="tickets">
+                            <field name="ticket_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="report_datetime" options="{'show_seconds': False}"/>
+                                    <field name="subject"/>
+                                    <field name="customer_company"/>
+                                    <field name="state" widget="badge"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 搜尋                                                          -->
+    <!-- ============================================================ -->
+    <record id="view_problem_search" model="ir.ui.view">
+        <field name="name">construction.problem.search</field>
+        <field name="model">construction.problem</field>
+        <field name="arch" type="xml">
+            <search string="系統問題單">
+                <field name="name"/>
+                <field name="title"/>
+                <field name="functional_module_id"/>
+                <field name="engineer_id"/>
+                <filter name="open" string="未結案" domain="[('state', 'not in', ('done', 'wont_fix'))]"/>
+                <filter name="my" string="我負責的" domain="[('engineer_id', '=', uid)]"/>
+                <separator/>
+                <filter name="overdue" string="逾時" domain="[('is_overdue', '=', True)]"/>
+                <filter name="to_confirm" string="非工作日待確認" domain="[('non_working_to_confirm', '=', True)]"/>
+                <filter name="ever_upgraded" string="曾升級改判" domain="[('ever_upgraded', '=', True)]"/>
+                <filter name="not_graded" string="未分級" domain="[('final_priority', '=', False)]"/>
+                <separator/>
+                <filter name="p1" string="P1" domain="[('final_priority', '=', 'p1')]"/>
+                <filter name="p2" string="P2" domain="[('final_priority', '=', 'p2')]"/>
+                <filter name="p3" string="P3" domain="[('final_priority', '=', 'p3')]"/>
+                <filter name="p4" string="P4" domain="[('final_priority', '=', 'p4')]"/>
+                <separator/>
+                <filter name="done" string="已結案" domain="[('state', '=', 'done')]"/>
+                <filter name="fix_done" string="修復完成日" date="fix_done_date"/>
+                <group expand="0" string="分組">
+                    <filter name="group_state" string="狀態" context="{'group_by': 'state'}"/>
+                    <filter name="group_priority" string="最終 P" context="{'group_by': 'final_priority'}"/>
+                    <filter name="group_module" string="發生功能" context="{'group_by': 'functional_module_id'}"/>
+                    <filter name="group_engineer" string="負責工程師" context="{'group_by': 'engineer_id'}"/>
+                    <filter name="group_fix_month" string="修復月份" context="{'group_by': 'fix_done_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 樞紐、圖表                                                    -->
+    <!-- ============================================================ -->
+    <record id="view_problem_pivot" model="ir.ui.view">
+        <field name="name">construction.problem.pivot</field>
+        <field name="model">construction.problem</field>
+        <field name="arch" type="xml">
+            <pivot string="系統問題單統計">
+                <field name="functional_module_id" type="row"/>
+                <field name="final_priority" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_problem_graph" model="ir.ui.view">
+        <field name="name">construction.problem.graph</field>
+        <field name="model">construction.problem</field>
+        <field name="arch" type="xml">
+            <graph string="系統問題單統計" type="bar">
+                <field name="functional_module_id"/>
+                <field name="final_priority"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_problem" model="ir.actions.act_window">
+        <field name="name">系統問題單</field>
+        <field name="res_model">construction.problem</field>
+        <field name="view_mode">kanban,list,form,pivot,graph</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">目前沒有系統問題單</p>
+            <p>從類別為「系統問題」的服務單按「轉問題單」產生，或在這裡直接新建（內部發現的問題）。</p>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 對話框                                                        -->
+    <!-- ============================================================ -->
+    <record id="view_problem_link_wizard_form" model="ir.ui.view">
+        <field name="name">construction.problem.link.wizard.form</field>
+        <field name="model">construction.problem.link.wizard</field>
+        <field name="arch" type="xml">
+            <form string="轉問題單">
+                <group>
+                    <field name="ticket_id"/>
+                    <field name="functional_module_id"/>
+                    <field name="current_problem_id" invisible="not current_problem_id"/>
+                    <field name="mode" widget="radio"/>
+                    <field name="title" invisible="mode != 'new'" required="mode == 'new'"/>
+                </group>
+                <div invisible="mode != 'link'">
+                    <div class="text-muted mb-2">
+                        是不是同一個問題<b>只能由您判斷</b>：拿下面這張服務單的說明，對照候選問題單的<b>發生功能</b>與<b>問題說明</b>
+                        （摘要看不夠就點一列打開看完整內容），確定是同一件事再連過去；不確定就「新建問題單」，之後發現重複還可以改連。
+                    </div>
+                    <separator string="這張服務單的詳細說明"/>
+                    <field name="ticket_description" readonly="1" nolabel="1"/>
+                    <separator string="候選問題單"/>
+                    <group>
+                        <field name="show_all"/>
+                    </group>
+                    <field name="candidate_count" invisible="1"/>
+                    <!-- 清單空的時候要說明原因，否則看起來像壞掉 -->
+                    <div class="alert alert-warning mb-2" role="status"
+                         invisible="candidate_count or show_all or not functional_module_id">
+                        「<field name="functional_module_id" readonly="1" class="d-inline"/>」目前沒有未結案的問題單。
+                        可以勾「列出所有未結案問題單」看其他功能的（客戶可能選錯功能），或改選「新建問題單」。
+                    </div>
+                    <div class="alert alert-warning mb-2" role="status"
+                         invisible="candidate_count or (not show_all and functional_module_id)">
+                        目前沒有其他未結案的問題單，請改選「新建問題單」。
+                    </div>
+                    <field name="candidate_ids" readonly="1" nolabel="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="title"/>
+                            <field name="functional_module_id"/>
+                            <field name="description_summary"/>
+                        </list>
+                    </field>
+                    <group>
+                        <field name="problem_id" required="mode == 'link'" options="{'no_create': True}"/>
+                    </group>
+                </div>
+                <footer>
+                    <button name="action_confirm" string="確定" type="object" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_problem_regrade_wizard_form" model="ir.ui.view">
+        <field name="name">construction.problem.regrade.wizard.form</field>
+        <field name="model">construction.problem.regrade.wizard</field>
+        <field name="arch" type="xml">
+            <form string="變更等級">
+                <group>
+                    <group string="判定">
+                        <field name="problem_id"/>
+                        <field name="severity"/>
+                        <field name="urgency"/>
+                    </group>
+                    <group string="特例">
+                        <field name="special_external_doc"/>
+                        <field name="special_security"/>
+                        <field name="special_repeat"/>
+                    </group>
+                    <group string="結果">
+                        <field name="old_final_priority"/>
+                        <field name="new_upgraded_priority"/>
+                        <field name="manual_priority"/>
+                        <field name="downgrade_reason" invisible="not manual_priority"/>
+                        <field name="new_final_priority"/>
+                    </group>
+                </group>
+                <group>
+                    <field name="regrade_reason" placeholder="為什麼要改判？例如「查下去才發現金額會算錯」"/>
+                </group>
+                <div class="text-muted small mt-2">
+                    最終 P 改變時：計算基準日改為今天、預期工作天數帶入新等級預設值，並要求重新確認非工作日天數。
+                    起算日不變，「總處理天數」仍從客戶回報那天算。
+                </div>
+                <separator string="判定標準"/>
+                <field name="grade_guide_html" nolabel="1" readonly="1"/>
+                <footer>
+                    <button name="action_confirm" string="確定變更" type="object" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

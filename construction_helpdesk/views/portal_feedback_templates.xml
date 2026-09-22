@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 抽屜「系統」區：把「意見回饋」佔位換成真的入口               -->
+    <!-- construction_portal 不需要知道本模組存在（由本模組 inherit）。 -->
+    <!-- ============================================================ -->
+    <template id="portal_drawer_feedback" inherit_id="construction_portal.portal_v10_drawer"
+              name="Drawer：意見回饋入口">
+        <xpath expr="//a[@data-cy-drawer-todo='意見回饋即將推出']" position="replace">
+            <a class="cy-drawer-item"
+               t-attf-href="/construction/feedback#{project and ('?from_project=%s' % project.id) or ''}">
+                <span class="cy-drawer-item-icon">💬</span>
+                <span class="cy-drawer-item-label">意見回饋</span>
+                <span class="cy-drawer-item-arrow">›</span>
+            </a>
+        </xpath>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- 客戶看到的狀態標籤（顏色）                                    -->
+    <!-- ============================================================ -->
+    <template id="portal_feedback_state_badge" name="意見回饋：狀態標籤">
+        <t t-set="_color" t-value="{'new': '#64748b', 'processing': '#3b82f6', 'waiting_customer': '#f97316', 'done': '#22c55e', 'cancel': '#94a3b8'}.get(state, '#64748b')"/>
+        <span t-attf-style="display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; color: #fff; background: #{_color}; white-space: nowrap;">
+            <t t-esc="label"/>
+        </span>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- 列表 /construction/feedback                                  -->
+    <!-- ============================================================ -->
+    <template id="portal_feedback_list" name="意見回饋：列表">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-if="project" t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-else="" href="/construction" class="cy-breadcrumb-item">工程列表</a>
+                    <span class="cy-breadcrumb-item active">意見回饋</span>
+                </div>
+
+                <div class="cy-content">
+                    <div t-if="message == 'created'" class="alert alert-success" role="status">已送出，客服會盡快處理。</div>
+
+                    <a t-att-href="new_url" class="cy-btn cy-btn-block"
+                       style="display: flex; align-items: center; justify-content: center; min-height: 56px; font-size: 1.1rem; font-weight: 800; border-radius: 14px; background: #3b82f6; color: #fff; text-decoration: none; margin-bottom: 18px;">
+                        ＋ 我要反映問題或提出需求
+                    </a>
+
+                    <div class="cy-sec-divider"><span>我送出的</span></div>
+                    <div class="cy-total-count">共 <t t-esc="len(tickets)"/> 筆</div>
+
+                    <t t-if="not tickets">
+                        <div class="cy-empty">
+                            <i class="fa fa-comments-o"/>
+                            <div class="cy-empty-text">還沒有送出過意見回饋</div>
+                        </div>
+                    </t>
+
+                    <t t-foreach="tickets" t-as="tk">
+                        <a t-attf-href="/construction/feedback/#{tk.id}" class="cy-event-card"
+                           style="margin-bottom: 10px; text-decoration: none; color: inherit; display: flex; gap: 10px; align-items: center;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-size: 0.8rem; color: var(--wb-t3); margin-bottom: 4px;">
+                                    <t t-esc="tk.name"/> · <t t-esc="tk.category_id.name"/>
+                                    · <span t-field="tk.report_datetime" t-options="{'widget': 'date'}"/>
+                                </div>
+                                <div style="font-size: 1rem; font-weight: 700; word-break: break-word;">
+                                    <t t-esc="tk.subject"/>
+                                </div>
+                            </div>
+                            <t t-call="construction_helpdesk.portal_feedback_state_badge">
+                                <t t-set="state" t-value="tk.state"/>
+                                <t t-set="label" t-value="state_labels.get(tk.state, tk.state)"/>
+                            </t>
+                        </a>
+                    </t>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- 新增 /construction/feedback/new                              -->
+    <!-- 依流程圖主圖：類型必選、含截圖                                -->
+    <!-- ============================================================ -->
+    <template id="portal_feedback_new" name="意見回饋：新增">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-att-href="list_url" class="cy-breadcrumb-item">意見回饋</a>
+                    <span class="cy-breadcrumb-item active">新增</span>
+                </div>
+
+                <div class="cy-content">
+                    <div style="text-align: center; margin-bottom: 16px;">
+                        <div style="font-size: 1.5rem; font-weight: 900;">意見回饋</div>
+                        <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">
+                            遇到問題或有任何需求，填寫後送出，客服會在這裡回覆您
+                        </div>
+                    </div>
+
+                    <div t-if="error == 'missing'" class="alert alert-danger" role="alert">請選擇類別，並填寫主旨與詳細說明。</div>
+                    <div t-if="error == 'too_many_files'" class="alert alert-danger" role="alert">附件最多 <t t-esc="max_files"/> 個。</div>
+                    <div t-if="error == 'denied'" class="alert alert-danger" role="alert">送出失敗，請稍後再試或直接聯絡客服。</div>
+
+                    <form action="/construction/feedback/create" method="post" enctype="multipart/form-data"
+                          class="cy-feedback-form">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="from_project" t-att-value="project and project.id or ''"/>
+
+                        <div class="cy-card" style="margin-bottom: 14px;">
+                            <div class="cy-card-body">
+                                <!-- 類別（必選） -->
+                                <div style="margin-bottom: 14px;">
+                                    <label for="cy_fb_category" style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px; display: block;">
+                                        類別 <span style="color: var(--wb-red);">*</span>
+                                    </label>
+                                    <select id="cy_fb_category" name="category_id" class="form-select" required="required">
+                                        <option value="">請選擇…</option>
+                                        <t t-foreach="categories" t-as="cat">
+                                            <option t-att-value="cat.id"
+                                                    t-att-data-ask-module="'1' if cat.ask_functional_module else '0'">
+                                                <t t-esc="cat.name"/>
+                                            </option>
+                                        </t>
+                                    </select>
+                                </div>
+
+                                <!-- 發生功能（選填；只在「操作疑問／系統問題」這類出現） -->
+                                <div id="cy_fb_module_wrap" style="margin-bottom: 14px; display: none;">
+                                    <label for="cy_fb_module" style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px; display: block;">
+                                        在哪個功能遇到問題？
+                                        <span style="font-weight: 400; color: var(--wb-t3);">（選填）</span>
+                                    </label>
+                                    <select id="cy_fb_module" name="functional_module_id" class="form-select">
+                                        <option value="">不選</option>
+                                        <t t-foreach="modules" t-as="mod">
+                                            <option t-att-value="mod.id"><t t-esc="mod.get_portal_label()"/></option>
+                                        </t>
+                                    </select>
+                                </div>
+
+                                <!-- 主旨 -->
+                                <div style="margin-bottom: 14px;">
+                                    <label for="cy_fb_subject" style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px; display: block;">
+                                        主旨 <span style="color: var(--wb-red);">*</span>
+                                    </label>
+                                    <input id="cy_fb_subject" type="text" name="subject" class="form-control"
+                                           required="required" maxlength="200"
+                                           placeholder="一句話說明，例如：施工日誌存檔時出現錯誤"/>
+                                </div>
+
+                                <!-- 詳細說明 -->
+                                <div style="margin-bottom: 14px;">
+                                    <label for="cy_fb_description" style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px; display: block;">
+                                        詳細說明 <span style="color: var(--wb-red);">*</span>
+                                    </label>
+                                    <textarea id="cy_fb_description" name="description" class="form-control"
+                                              required="required" style="min-height: 140px;"
+                                              placeholder="請盡量寫清楚：發生了什麼事、在哪個畫面、做了什麼操作、預期應該是什麼。"></textarea>
+                                </div>
+
+                                <!-- 附件 -->
+                                <div>
+                                    <label for="cy_fb_files" style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px; display: block;">
+                                        附件（截圖、照片或檔案）
+                                        <span style="font-weight: 400; color: var(--wb-t3);">最多 <t t-esc="max_files"/> 個</span>
+                                    </label>
+                                    <input id="cy_fb_files" type="file" name="attachments" class="form-control" multiple="multiple"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="font-size: 0.85rem; color: var(--wb-t3); margin-bottom: 12px;">
+                            送出後內容不能修改；之後要補充說明或附檔，請在該筆的對話區留言。
+                        </div>
+
+                        <button type="submit" class="cy-btn cy-btn-block"
+                                style="font-size: 1.2rem; min-height: 64px; font-weight: 900; border-radius: 14px; background: #3b82f6; color: #fff; border: none; width: 100%;">
+                            送出
+                        </button>
+                    </form>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- 詳情＋對話 /construction/feedback/<id>                       -->
+    <!-- 只列客戶可見的欄位；關聯問題單、分級、負責客服等內部欄位      -->
+    <!-- 在模型層就限定客服群組，這裡也不引用。                        -->
+    <!-- ============================================================ -->
+    <template id="portal_feedback_detail" name="意見回饋：詳情">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a href="/construction/feedback" class="cy-breadcrumb-item">意見回饋</a>
+                    <span class="cy-breadcrumb-item active"><t t-esc="ticket.name"/></span>
+                </div>
+
+                <div class="cy-content">
+                    <div t-if="message == 'created'" class="alert alert-success" role="status">
+                        已送出（<t t-esc="ticket.name"/>），客服會在這裡回覆您。
+                    </div>
+
+                    <div class="cy-card" style="margin-bottom: 14px;">
+                        <div class="cy-card-body">
+                            <div style="display: flex; justify-content: space-between; gap: 10px; align-items: flex-start;">
+                                <div style="font-size: 1.15rem; font-weight: 800; word-break: break-word;">
+                                    <t t-esc="ticket.subject"/>
+                                </div>
+                                <t t-call="construction_helpdesk.portal_feedback_state_badge">
+                                    <t t-set="state" t-value="ticket.state"/>
+                                    <t t-set="label" t-value="state_label"/>
+                                </t>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--wb-t3); margin-top: 6px;">
+                                <t t-esc="ticket.name"/> · <t t-esc="ticket.category_id.name"/>
+                                <t t-if="ticket.functional_module_id"> · <t t-esc="ticket.functional_module_id.get_portal_label()"/></t>
+                                · <span t-field="ticket.report_datetime"/>
+                            </div>
+                            <div t-if="ticket.project_name" style="font-size: 0.85rem; color: var(--wb-t3); margin-top: 2px;">
+                                工程：<t t-esc="ticket.project_name"/>
+                                <t t-if="ticket.project_code">（<t t-esc="ticket.project_code"/>）</t>
+                            </div>
+                            <div style="margin-top: 12px; font-size: 0.95rem; word-break: break-word;">
+                                <t t-out="ticket.description"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cy-section-title" style="margin-top: 20px;">對話紀錄</div>
+                    <div style="font-size: 0.85rem; color: var(--wb-t3); margin-bottom: 8px;">
+                        要補充說明或附檔，請在下方留言。留言送出後不能修改或刪除。
+                    </div>
+                    <div style="background: var(--wb-bg2); border-radius: var(--wb-radius); border: 1px solid var(--wb-bdr); padding: 12px; margin-bottom: 14px;">
+                        <t t-call="portal.message_thread"/>
+                    </div>
+                </div>
+
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+</odoo>

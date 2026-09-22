@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 發生功能預設清單。「名稱」以後台選單名稱為主；前台叫法不同時放「前台顯示名稱」。
+         涵蓋前台看得到的功能（底部導覽＋抽屜）與後台專用項目。
+         noupdate：後台可自行增修。已安裝的庫由 migrations/18.0.1.3.0 更名與補旗標。 -->
+    <data noupdate="1">
+        <!-- 前台看得到的功能 -->
+        <record id="module_login" model="construction.functional.module">
+            <field name="name">登入／帳號</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="module_project_list" model="construction.functional.module">
+            <field name="name">工程列表</field>
+            <field name="active" eval="False"/>
+            <field name="sequence">15</field>
+        </record>
+        <record id="module_project_info" model="construction.functional.module">
+            <field name="name">工程案件</field>
+            <field name="portal_name">工程列表／工程資訊</field>
+            <field name="sequence">18</field>
+        </record>
+        <record id="module_daily_log" model="construction.functional.module">
+            <field name="name">施工日誌</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="module_photo" model="construction.functional.module">
+            <field name="name">照片管理</field>
+            <field name="portal_name">照片中心</field>
+            <field name="sequence">25</field>
+        </record>
+        <record id="module_self_inspection" model="construction.functional.module">
+            <field name="name">自主檢查</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="module_defect" model="construction.functional.module">
+            <field name="name">缺失管理</field>
+            <field name="portal_name">缺失改善</field>
+            <field name="sequence">35</field>
+        </record>
+        <record id="module_notification_slip" model="construction.functional.module">
+            <field name="name">通報單</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="module_file" model="construction.functional.module">
+            <field name="name">文件管理</field>
+            <field name="portal_name">檔案管理</field>
+            <field name="sequence">45</field>
+        </record>
+        <record id="module_test" model="construction.functional.module">
+            <field name="name">檢試驗管理</field>
+            <field name="portal_name">檢試驗管制</field>
+            <field name="sequence">50</field>
+        </record>
+        <record id="module_water_level" model="construction.functional.module">
+            <field name="name">水位監測</field>
+            <field name="sequence">55</field>
+        </record>
+        <record id="module_inspection_type" model="construction.functional.module">
+            <field name="name">自主檢查類型設定</field>
+            <field name="portal_name">自主檢查樣板庫</field>
+            <field name="sequence">60</field>
+        </record>
+        <record id="module_notification" model="construction.functional.module">
+            <field name="name">通知</field>
+            <field name="sequence">65</field>
+        </record>
+        <!-- 前後台都有、但叫法不同：後台「進度管理」＝前台「工程進度」 -->
+        <record id="module_progress" model="construction.functional.module">
+            <field name="name">進度管理</field>
+            <field name="portal_name">工程進度</field>
+            <field name="sequence">17</field>
+        </record>
+        <!-- 只在後台才有的功能：前台不顯示，供後台服務單／問題單選用。
+             名稱依後台實際選單（工程管理／計價請款／報表下載） -->
+        <record id="module_contract_item" model="construction.functional.module">
+            <field name="name">契約管理</field>
+            <field name="sequence">70</field>
+            <field name="show_in_portal" eval="False"/>
+        </record>
+        <record id="module_review" model="construction.functional.module">
+            <field name="name">送審管制</field>
+            <field name="sequence">71</field>
+            <field name="show_in_portal" eval="False"/>
+        </record>
+        <record id="module_plan_control" model="construction.functional.module">
+            <field name="name">計畫書管制</field>
+            <field name="sequence">72</field>
+            <field name="show_in_portal" eval="False"/>
+        </record>
+        <record id="module_manpower" model="construction.functional.module">
+            <field name="name">人機管理</field>
+            <field name="sequence">73</field>
+            <field name="show_in_portal" eval="False"/>
+        </record>
+        <record id="module_payment" model="construction.functional.module">
+            <field name="name">估驗計價</field>
+            <field name="sequence">75</field>
+            <field name="show_in_portal" eval="False"/>
+        </record>
+        <record id="module_cost_analysis" model="construction.functional.module">
+            <field name="name">成本分析</field>
+            <field name="sequence">76</field>
+            <field name="show_in_portal" eval="False"/>
+        </record>
+        <record id="module_realtime_pl" model="construction.functional.module">
+            <field name="name">即時損益</field>
+            <field name="sequence">77</field>
+            <field name="show_in_portal" eval="False"/>
+        </record>
+        <record id="module_report_download" model="construction.functional.module">
+            <field name="name">報表下載</field>
+            <field name="sequence">78</field>
+            <field name="show_in_portal" eval="False"/>
+        </record>
+        <!-- 客戶選不出來時不能卡住，實際判斷留給客服 -->
+        <record id="module_other" model="construction.functional.module">
+            <field name="name">不確定／其他</field>
+            <field name="sequence">99</field>
+        </record>
+    </data>
+</odoo>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 固定四筆：不能新增、刪除。刻意不做清單直接編輯 —— 點一列開表單，才看得到修改紀錄（chatter） -->
+    <record id="view_problem_sla_list" model="ir.ui.view">
+        <field name="name">construction.problem.sla.list</field>
+        <field name="model">construction.problem.sla</field>
+        <field name="arch" type="xml">
+            <list string="處理時限設定" create="false" delete="false">
+                <field name="priority" width="70px"/>
+                <field name="default_fix_days" string="預設修復工作天數" width="150px"/>
+                <field name="fix_limit_note" string="修復時限（自動）"/>
+                <field name="response_target"/>
+                <field name="temporary_target"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- 表單：看修改紀錄（chatter）用 -->
+    <record id="view_problem_sla_form" model="ir.ui.view">
+        <field name="name">construction.problem.sla.form</field>
+        <field name="model">construction.problem.sla</field>
+        <field name="arch" type="xml">
+            <form string="處理時限設定" create="false" delete="false">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="priority"/></h1>
+                    </div>
+                    <group>
+                        <group string="修復上線">
+                            <field name="default_fix_days"/>
+                            <field name="no_days_note" invisible="default_fix_days &gt; 0"
+                                   placeholder="例：下一次例行版本"/>
+                            <field name="fix_limit_note"/>
+                        </group>
+                        <group string="參考目標（只記錄、不判逾時）">
+                            <field name="response_target"/>
+                            <field name="temporary_target"/>
+                        </group>
+                    </group>
+                    <div class="text-muted">
+                        修改這裡不會影響既有問題單：問題單在分級當下已把天數抄進自己身上。
+                        「0」表示不設天數，該等級的問題單沒有預定修復日、不判逾時。
+                    </div>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_problem_sla" model="ir.actions.act_window">
+        <field name="name">處理時限設定</field>
+        <field name="res_model">construction.problem.sla</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p>P1～P4 固定四筆。點一列進去修改；右側會記錄誰、何時、從多少改成多少。</p>
+        </field>
+    </record>
+
+</odoo>

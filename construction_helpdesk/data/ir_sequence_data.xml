@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="seq_service_ticket" model="ir.sequence">
+            <field name="name">服務單單號</field>
+            <field name="code">construction.service.ticket</field>
+            <field name="prefix">SRV-</field>
+            <field name="padding">4</field>
+            <!-- no_gap：交易 rollback 時單號一併退回，不會跳號（standard 用 PG sequence，不退號） -->
+            <field name="implementation">no_gap</field>
+            <field name="company_id" eval="False"/>
+        </record>
+        <record id="seq_problem" model="ir.sequence">
+            <field name="name">系統問題單單號</field>
+            <field name="code">construction.problem</field>
+            <field name="prefix">PRB-</field>
+            <field name="padding">4</field>
+            <field name="implementation">no_gap</field>
+            <field name="company_id" eval="False"/>
+        </record>
+    </data>
+</odoo>

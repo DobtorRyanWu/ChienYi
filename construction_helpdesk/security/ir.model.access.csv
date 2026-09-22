@@ -1,0 +1,14 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_service_category_admin,construction.service.category 系統管理者,model_construction_service_category,construction_supervision_base.group_supervisor_admin,1,0,0,0
+access_service_category_agent,construction.service.category 客服,model_construction_service_category,group_helpdesk_agent,1,1,1,1
+access_functional_module_admin,construction.functional.module 系統管理者,model_construction_functional_module,construction_supervision_base.group_supervisor_admin,1,0,0,0
+access_functional_module_agent,construction.functional.module 客服,model_construction_functional_module,group_helpdesk_agent,1,1,1,1
+access_problem_sla_agent,construction.problem.sla 客服,model_construction_problem_sla,group_helpdesk_agent,1,1,0,0
+access_service_ticket_admin,construction.service.ticket 系統管理者,model_construction_service_ticket,construction_supervision_base.group_supervisor_admin,1,1,1,0
+access_service_ticket_agent,construction.service.ticket 客服,model_construction_service_ticket,group_helpdesk_agent,1,1,1,1
+access_problem_agent,construction.problem 客服,model_construction_problem,group_helpdesk_agent,1,1,1,1
+access_problem_link_wizard_agent,construction.problem.link.wizard 客服,model_construction_problem_link_wizard,group_helpdesk_agent,1,1,1,1
+access_problem_regrade_wizard_agent,construction.problem.regrade.wizard 客服,model_construction_problem_regrade_wizard,group_helpdesk_agent,1,1,1,1
+access_service_ticket_portal,construction.service.ticket 前台,model_construction_service_ticket,base.group_portal,1,0,1,0
+access_service_category_portal,construction.service.category 前台,model_construction_service_category,base.group_portal,1,0,0,0
+access_functional_module_portal,construction.functional.module 前台,model_construction_functional_module,base.group_portal,1,0,0,0

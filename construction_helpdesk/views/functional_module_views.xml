@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_functional_module_list" model="ir.ui.view">
+        <field name="name">construction.functional.module.list</field>
+        <field name="model">construction.functional.module</field>
+        <field name="arch" type="xml">
+            <list string="發生功能" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="portal_name" placeholder="與名稱相同可留空"/>
+                <field name="show_in_portal" widget="boolean_toggle"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_functional_module_search" model="ir.ui.view">
+        <field name="name">construction.functional.module.search</field>
+        <field name="model">construction.functional.module</field>
+        <field name="arch" type="xml">
+            <search string="發生功能">
+                <field name="name"/>
+                <filter name="portal" string="前台顯示" domain="[('show_in_portal', '=', True)]"/>
+                <filter name="backend_only" string="僅後台" domain="[('show_in_portal', '=', False)]"/>
+                <filter name="archived" string="已封存" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_functional_module" model="ir.actions.act_window">
+        <field name="name">發生功能</field>
+        <field name="res_model">construction.functional.module</field>
+        <field name="view_mode">list</field>
+    </record>
+
+</odoo>

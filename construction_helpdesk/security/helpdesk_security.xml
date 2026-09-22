@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- ============================================================ -->
+        <!-- 客服群組                                                      -->
+        <!--                                                              -->
+        <!-- 不設 category_id：不出現在使用者表單的下拉分類裡。            -->
+        <!-- 由 base.group_system（設定）implied → 現在所有「設定」帳號     -->
+        <!-- 自動擁有客服功能；日後要把客服交給非工程師，只要在該帳號       -->
+        <!-- 加上這個群組，不必改程式。                                     -->
+        <!--                                                              -->
+        <!-- ⚠️ 不要對 construction_supervision_base 的群組做任何修改       -->
+        <!--    （系統管理者／代操作員的調整是另一個獨立任務）。             -->
+        <!-- ============================================================ -->
+        <record id="group_helpdesk_agent" model="res.groups">
+            <field name="name">客服</field>
+            <field name="comment">客服服務單與系統問題單的完整權限。由「設定」自動包含。</field>
+        </record>
+
+        <record id="base.group_system" model="res.groups">
+            <field name="implied_ids" eval="[Command.link(ref('group_helpdesk_agent'))]"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- 服務單 Record Rules（同一操作的群組規則取聯集）                -->
+        <!--                                                              -->
+        <!-- 系統管理者（代操作員自動擁有）：只看得到自己建的；             -->
+        <!--   只能在「新建」時修改。讀／建與寫分成兩條，因為寫多一個條件。  -->
+        <!-- 客服：全部。有「設定」的人同時是系統管理者與客服，聯集＝全部。 -->
+        <!-- ⚠️ 不要寫「排除代操作員」的全域規則。                          -->
+        <!-- ============================================================ -->
+        <record id="rule_service_ticket_own_read" model="ir.rule">
+            <field name="name">服務單：系統管理者只看得到自己建的</field>
+            <field name="model_id" ref="model_construction_service_ticket"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+            <field name="groups" eval="[Command.link(ref('construction_supervision_base.group_supervisor_admin'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_service_ticket_own_write_new" model="ir.rule">
+            <field name="name">服務單：系統管理者只能修改自己建的「新建」單</field>
+            <field name="model_id" ref="model_construction_service_ticket"/>
+            <field name="domain_force">[('create_uid', '=', user.id), ('state', '=', 'new')]</field>
+            <field name="groups" eval="[Command.link(ref('construction_supervision_base.group_supervisor_admin'))]"/>
+            <field name="perm_read" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!-- 前台（客戶）：只看得到、只建得了自己送的；不能改、不能刪。
+             送出後的補充一律走留言（_mail_post_access = 'read'）。 -->
+        <record id="rule_service_ticket_portal_own" model="ir.rule">
+            <field name="name">服務單：前台只看得到自己送的</field>
+            <field name="model_id" ref="model_construction_service_ticket"/>
+            <field name="domain_force">[('create_uid', '=', user.id)]</field>
+            <field name="groups" eval="[Command.link(ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_service_ticket_agent_all" model="ir.rule">
+            <field name="name">服務單：客服全部</field>
+            <field name="model_id" ref="model_construction_service_ticket"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[Command.link(ref('group_helpdesk_agent'))]"/>
+        </record>
+
+    </data>
+</odoo>

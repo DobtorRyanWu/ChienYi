@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- 清單（預設畫面）                                              -->
+    <!-- ============================================================ -->
+    <record id="view_service_ticket_list" model="ir.ui.view">
+        <field name="name">construction.service.ticket.list</field>
+        <field name="model">construction.service.ticket</field>
+        <field name="arch" type="xml">
+            <list string="服務單"
+                  decoration-muted="state in ('done', 'cancel')"
+                  decoration-info="state == 'new'">
+                <field name="name"/>
+                <field name="report_datetime" options="{'show_seconds': False}"/>
+                <field name="subject"/>
+                <field name="category_id"/>
+                <field name="functional_module_id" optional="show"/>
+                <field name="customer_company"/>
+                <field name="project_name" optional="hide"/>
+                <field name="channel" optional="hide"/>
+                <field name="agent_user_id" optional="show" groups="construction_helpdesk.group_helpdesk_agent"/>
+                <field name="problem_id" optional="hide" groups="construction_helpdesk.group_helpdesk_agent"/>
+                <field name="create_uid" string="建單人" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'new'"
+                       decoration-warning="state in ('processing', 'waiting_customer')"
+                       decoration-success="state == 'done'"
+                       decoration-muted="state == 'cancel'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 表單                                                          -->
+    <!-- 回報內容在「新建」之後 readonly（UX）；權威在 Python write()。 -->
+    <!-- ============================================================ -->
+    <record id="view_service_ticket_form" model="ir.ui.view">
+        <field name="name">construction.service.ticket.form</field>
+        <field name="model">construction.service.ticket</field>
+        <field name="arch" type="xml">
+            <form string="服務單">
+                <header>
+                    <button name="action_start" string="開始處理" type="object" class="oe_highlight"
+                            invisible="state != 'new'"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <button name="action_open_link_problem" string="轉問題單" type="object"
+                            invisible="not is_system_problem or problem_id or state in ('done', 'cancel')"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <button name="action_open_link_problem" string="更改關聯問題單" type="object"
+                            invisible="not problem_id or state in ('done', 'cancel')"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <button name="action_wait_customer" string="待客戶確認" type="object"
+                            invisible="state != 'processing'"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <button name="action_back_to_processing" string="回到處理中" type="object"
+                            invisible="state != 'waiting_customer'"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <button name="action_done" string="結案" type="object" class="oe_highlight"
+                            invisible="state not in ('processing', 'waiting_customer')"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <button name="action_cancel" string="取消" type="object"
+                            invisible="state not in ('new', 'processing', 'waiting_customer')"
+                            confirm="確定要取消這張服務單？"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <button name="action_reopen" string="重新處理" type="object"
+                            invisible="state not in ('done', 'cancel')"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="new,processing,waiting_customer,done"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-info mb-3" role="status" invisible="state == 'new'">
+                        這張服務單已送出，回報內容不能再修改。要補充資訊或附檔，請在下方留言。
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                        <label for="subject"/>
+                        <h2><field name="subject" placeholder="一句話描述問題或需求" readonly="state != 'new'"/></h2>
+                    </div>
+                    <group>
+                        <group string="回報資訊">
+                            <field name="report_datetime" readonly="state != 'new'" options="{'show_seconds': False}"/>
+                            <field name="channel" readonly="state != 'new'"/>
+                            <field name="customer_company" readonly="state != 'new'" placeholder="例：○○營造"/>
+                            <field name="contact_name" readonly="state != 'new'" placeholder="姓名、電話或 LINE"/>
+                            <field name="project_name" readonly="state != 'new'"/>
+                            <field name="project_code" readonly="state != 'new'"/>
+                        </group>
+                        <group string="分類">
+                            <!-- 類別、發生功能是客服的處理欄位：送出後建單人（非客服）不能改，客服可以改 -->
+                            <field name="is_helpdesk_agent" invisible="1"/>
+                            <field name="category_id" options="{'no_create': True}" required="1"
+                                   readonly="state != 'new' and not is_helpdesk_agent"/>
+                            <field name="ask_functional_module" invisible="1"/>
+                            <!-- 與前台一致：只有勾了「詢問發生功能」的類別（操作疑問、系統問題）才出現 -->
+                            <field name="functional_module_id" options="{'no_create': True}"
+                                   invisible="not ask_functional_module"
+                                   readonly="state != 'new' and not is_helpdesk_agent"/>
+                            <field name="create_uid" string="建單人" readonly="1"/>
+                            <field name="close_datetime" invisible="not close_datetime" options="{'show_seconds': False}"/>
+                            <field name="is_system_problem" invisible="1"/>
+                            <field name="problem_id" readonly="1"
+                                   invisible="not problem_id"
+                                   groups="construction_helpdesk.group_helpdesk_agent"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="詳細說明" name="description">
+                            <label for="description" class="fw-bold"/>
+                            <field name="description" readonly="state != 'new'"
+                                   placeholder="在哪個畫面、做了什麼操作、看到什麼結果、預期應該是什麼（截圖請存檔後在下方以留言附檔）"/>
+                        </page>
+                        <page string="客服處理" name="agent" groups="construction_helpdesk.group_helpdesk_agent">
+                            <group>
+                                <group string="負責">
+                                    <field name="agent_user_id" options="{'no_create': True}"/>
+                                </group>
+                                <group string="通知客戶">
+                                    <field name="notify_datetime" options="{'show_seconds': False}"/>
+                                    <field name="notify_result"/>
+                                </group>
+                                <group string="滿意度">
+                                    <field name="satisfaction"/>
+                                    <field name="customer_feedback"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 搜尋                                                          -->
+    <!-- ============================================================ -->
+    <record id="view_service_ticket_search" model="ir.ui.view">
+        <field name="name">construction.service.ticket.search</field>
+        <field name="model">construction.service.ticket</field>
+        <field name="arch" type="xml">
+            <search string="服務單">
+                <field name="name"/>
+                <field name="subject"/>
+                <field name="customer_company"/>
+                <field name="contact_name"/>
+                <field name="project_name"/>
+                <field name="category_id"/>
+                <field name="functional_module_id"/>
+                <filter name="my_created" string="我建立的" domain="[('create_uid', '=', uid)]"/>
+                <filter name="my_assigned" string="我負責的" domain="[('agent_user_id', '=', uid)]"
+                        groups="construction_helpdesk.group_helpdesk_agent"/>
+                <separator/>
+                <filter name="open" string="未結案" domain="[('state', 'in', ('new', 'processing', 'waiting_customer'))]"/>
+                <filter name="state_new" string="新建" domain="[('state', '=', 'new')]"/>
+                <filter name="state_processing" string="處理中" domain="[('state', '=', 'processing')]"/>
+                <filter name="state_waiting" string="待客戶確認" domain="[('state', '=', 'waiting_customer')]"/>
+                <filter name="state_done" string="已結案" domain="[('state', '=', 'done')]"/>
+                <separator/>
+                <filter name="report_date" string="回報時間" date="report_datetime"/>
+                <group expand="0" string="分組">
+                    <filter name="group_state" string="狀態" context="{'group_by': 'state'}"/>
+                    <filter name="group_category" string="類別" context="{'group_by': 'category_id'}"/>
+                    <filter name="group_module" string="發生功能" context="{'group_by': 'functional_module_id'}"/>
+                    <filter name="group_partner" string="客戶公司" context="{'group_by': 'customer_company'}"/>
+                    <filter name="group_month" string="回報月份" context="{'group_by': 'report_datetime:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 樞紐、圖表                                                    -->
+    <!-- ============================================================ -->
+    <record id="view_service_ticket_pivot" model="ir.ui.view">
+        <field name="name">construction.service.ticket.pivot</field>
+        <field name="model">construction.service.ticket</field>
+        <field name="arch" type="xml">
+            <pivot string="服務單統計">
+                <field name="category_id" type="row"/>
+                <field name="report_datetime" interval="month" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_service_ticket_graph" model="ir.ui.view">
+        <field name="name">construction.service.ticket.graph</field>
+        <field name="model">construction.service.ticket</field>
+        <field name="arch" type="xml">
+            <graph string="服務單統計" type="bar">
+                <field name="report_datetime" interval="month"/>
+                <field name="category_id"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="action_service_ticket" model="ir.actions.act_window">
+        <field name="name">服務單</field>
+        <field name="res_model">construction.service.ticket</field>
+        <field name="view_mode">list,form,pivot,graph</field>
+        <field name="context">{'search_default_open': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一張服務單</p>
+            <p>客戶在前台「意見回饋」送出的單會出現在這裡；電話、LINE 反映的由客服在這裡代為登記。
+               送出後回報內容不能修改，後續以留言補充。</p>
+        </field>
+    </record>
+
+</odoo>

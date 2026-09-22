@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 頂層：系統管理者（建服務單）與客服都看得到；
+         沒有可見子選單的人，Odoo 會自動隱藏整個頂層選單 -->
+    <menuitem id="menu_helpdesk_root"
+              name="客服服務"
+              sequence="95"
+              groups="construction_supervision_base.group_supervisor_admin,group_helpdesk_agent"/>
+
+    <menuitem id="menu_service_ticket"
+              name="服務單"
+              parent="menu_helpdesk_root"
+              action="action_service_ticket"
+              sequence="10"/>
+
+    <!-- 以下只給客服 -->
+    <menuitem id="menu_problem"
+              name="系統問題單"
+              parent="menu_helpdesk_root"
+              action="action_problem"
+              sequence="20"
+              groups="group_helpdesk_agent"/>
+
+    <menuitem id="menu_helpdesk_report"
+              name="統計"
+              parent="menu_helpdesk_root"
+              sequence="80"
+              groups="group_helpdesk_agent"/>
+
+    <menuitem id="menu_report_problem_overdue" name="逾時清單"
+              parent="menu_helpdesk_report" action="action_report_problem_overdue" sequence="10"
+              groups="group_helpdesk_agent"/>
+    <menuitem id="menu_report_problem_to_confirm" name="非工作日待確認"
+              parent="menu_helpdesk_report" action="action_report_problem_to_confirm" sequence="20"
+              groups="group_helpdesk_agent"/>
+    <menuitem id="menu_report_problem_upgraded" name="曾升級改判"
+              parent="menu_helpdesk_report" action="action_report_problem_upgraded" sequence="30"
+              groups="group_helpdesk_agent"/>
+    <menuitem id="menu_report_problem_by_module" name="各發生功能問題數"
+              parent="menu_helpdesk_report" action="action_report_problem_by_module" sequence="40"
+              groups="group_helpdesk_agent"/>
+    <menuitem id="menu_report_ticket_by_partner" name="各客戶服務單數"
+              parent="menu_helpdesk_report" action="action_report_ticket_by_partner" sequence="50"
+              groups="group_helpdesk_agent"/>
+    <menuitem id="menu_report_problem_monthly" name="每月處理量與平均總處理天數"
+              parent="menu_helpdesk_report" action="action_report_problem_monthly" sequence="60"
+              groups="group_helpdesk_agent"/>
+
+    <menuitem id="menu_helpdesk_config"
+              name="設定"
+              parent="menu_helpdesk_root"
+              sequence="90"
+              groups="group_helpdesk_agent"/>
+
+    <menuitem id="menu_service_category"
+              name="服務單類別"
+              parent="menu_helpdesk_config"
+              action="action_service_category"
+              sequence="10"/>
+
+    <menuitem id="menu_functional_module"
+              name="發生功能"
+              parent="menu_helpdesk_config"
+              action="action_functional_module"
+              sequence="20"/>
+
+    <menuitem id="menu_problem_sla"
+              name="處理時限設定"
+              parent="menu_helpdesk_config"
+              action="action_problem_sla"
+              sequence="30"/>
+
+</odoo>
