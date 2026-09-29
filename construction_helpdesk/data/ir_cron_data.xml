@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 分級標準 v0.3 第九節：P3／P4 的服務單在「待客戶驗證」滿設定天數（預設 7 個日曆天）未回覆 → 自動結案。
+         P1／P2 不在這裡處理（要客服附齊三件修復對照後結案）。 -->
+    <record id="cron_close_overdue_verify" model="ir.cron">
+        <field name="name">客服：逾期未回覆的服務單自動結案（P3／P4）</field>
+        <field name="model_id" ref="model_construction_service_ticket"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_close_overdue_verify()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+    </record>
+</odoo>

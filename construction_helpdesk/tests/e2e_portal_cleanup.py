@@ -16,9 +16,10 @@ def check(name, cond, detail=''):
 user = env['res.users'].sudo().browse(cfg['uid'])
 t1 = T.browse(out.get('tid') or 0).exists()
 t2 = T.browse(out.get('tid2') or 0).exists()
+verified = bool(out.get('problem_id'))    # 有跑客戶驗證那段時，狀態已被推進，不再是新建
 if t1:
-    check('DB：管道＝前台、狀態＝新建、建單人＝前台帳號',
-          t1.channel == 'portal' and t1.state == 'new' and t1.create_uid == user)
+    check('DB：管道＝前台、建單人＝前台帳號' + ('' if verified else '、狀態＝新建'),
+          t1.channel == 'portal' and t1.create_uid == user and (verified or t1.state == 'new'))
     check('DB：硬塞後台專用的「估驗計價」被丟掉（系統問題類）', not t1.functional_module_id,
           t1.functional_module_id.name)
     check('DB：工程名稱／代號自動帶入', t1.project_name == cfg['project_name']
@@ -32,10 +33,27 @@ if t1:
     check('DB：說明是純文字轉 HTML，<script> 已跳脫', '<script>' not in (t1.description or ''))
 if t2:
     check('DB：操作疑問＋施工日誌 → 發生功能有保留', t2.functional_module_id.name == '施工日誌')
+problem = env['construction.problem'].sudo().browse(out.get('problem_id') or 0).exists()
+if problem:
+    # e2e_verify_prepare.py／e2e_verify_http.py 有跑時才檢查
+    check('DB（客戶驗證）：按「仍有問題」的單回到處理中、未確認',
+          t1.state == 'processing' and not t1.customer_confirmed, t1.state)
+    check('DB（客戶驗證）：按「問題已解決」的單已結案、方式＝前台、確認者＝前台帳號',
+          t2.state == 'done' and t2.customer_confirmed and t2.confirm_method == 'portal'
+          and t2.confirm_user_id == user, (t2.state, t2.confirm_method))
+    check('DB（客戶驗證）：問題單留下「仍有問題」與「客戶確認」紀錄',
+          any('仍有問題' in (m.body or '') for m in problem.message_ids)
+          and any('客戶確認問題已解決' in (m.body or '') for m in problem.message_ids))
 
 # ---------- 清理 ----------
 tickets = (t1 | t2 | T.browse(cfg['other_ticket']).exists())
 tickets.unlink()
+if problem:
+    problem.unlink()
+    pseq = env.ref('construction_helpdesk.seq_problem')
+    pnums = [int(n.split('-')[-1]) for n in env['construction.problem'].sudo().search([]).mapped('name')
+             if n.split('-')[-1].isdigit()]
+    pseq.sudo().write({'number_next': (max(pnums) + 1) if pnums else 1})
 # 系統既有行為：建立使用者（含前台帳號）時會自動建一筆員工資料，它會以 RESTRICT 擋住刪除使用者
 if 'hr.employee' in env:
     env['hr.employee'].sudo().with_context(active_test=False).search([('user_id', '=', user.id)]).unlink()

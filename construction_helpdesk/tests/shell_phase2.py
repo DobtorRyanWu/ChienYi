@@ -156,8 +156,9 @@ try:
     check('類別改成帳務類 → 發生功能自動清空', not f.functional_module_id)
 
     # ---------- 狀態流程 ----------
-    t_op.with_user(u_agent).action_wait_customer()
-    check('處理中 → 待客戶確認', t_op.state == 'waiting_customer')
+    # 2.0.0：兩個等待狀態只給已掛問題單的服務單；沒掛的等客戶時維持處理中
+    raises('沒掛問題單 → 不能設「待客戶補件」', UserError, lambda: t_op.with_user(u_agent).action_wait_info())
+    raises('沒掛問題單 → 不能設「待客戶驗證」', UserError, lambda: t_op.with_user(u_agent).action_wait_verify())
     t_op.with_user(u_agent).action_done()
     check('結案並記下結案時間', t_op.state == 'done' and t_op.close_datetime)
     t_op.with_user(u_agent).action_reopen()

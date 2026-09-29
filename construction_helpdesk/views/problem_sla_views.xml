@@ -7,11 +7,14 @@
         <field name="model">construction.problem.sla</field>
         <field name="arch" type="xml">
             <list string="處理時限設定" create="false" delete="false">
+                <!-- 欄寬寫死：文字欄會把剩下的寬度吃光，數字欄的長標題就被截成「客戶…」 -->
                 <field name="priority" width="70px"/>
                 <field name="default_fix_days" string="預設修復工作天數" width="150px"/>
-                <field name="fix_limit_note" string="修復時限（自動）"/>
-                <field name="response_target"/>
-                <field name="temporary_target"/>
+                <field name="fix_limit_note" string="修復時限（自動）" width="160px"/>
+                <field name="response_target" width="120px"/>
+                <field name="temporary_target" width="130px"/>
+                <field name="customer_wait_days" string="客戶未回覆可結案（日曆天）" width="230px"/>
+                <field name="data_fix_days" string="資料盤修（日曆天）" width="170px"/>
             </list>
         </field>
     </record>
@@ -36,6 +39,12 @@
                         <group string="參考目標（只記錄、不判逾時）">
                             <field name="response_target"/>
                             <field name="temporary_target"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="客戶驗證與資料盤修（日曆天）">
+                            <field name="customer_wait_days"/>
+                            <field name="data_fix_days"/>
                         </group>
                     </group>
                     <div class="text-muted">

@@ -122,9 +122,11 @@ try:
           p_sp.final_priority == 'p3' and not p_sp.planned_fix_date and not p_sp.is_overdue
           and not p_sp.non_working_to_confirm)
     p_x, _t = graded_problem(tw(2026, 9, 21), 's3', 'u2', None, special_external_doc=True)
-    check('特例：流入對外文件 → 升一級 P2', p_x.final_priority == 'p2', p_x.final_priority)
-    p_xx, _t = graded_problem(tw(2026, 9, 21), 's3', 'u2', None, special_external_doc=True, special_repeat=True)
-    check('兩個特例同時成立 → 最多升一級（仍是 P2）', p_xx.final_priority == 'p2', p_xx.final_priority)
+    check('特例（v0.3）：流入對外文件 → 直接 P1', p_x.final_priority == 'p1', p_x.final_priority)
+    p_rp, _t = graded_problem(tw(2026, 9, 21), 's3', 'u2', None, special_repeat=True)
+    check('特例：二次回報 → 升一級 P2', p_rp.final_priority == 'p2', p_rp.final_priority)
+    p_xx, _t = graded_problem(tw(2026, 9, 21), 's4', 'u3', None, special_repeat=True)
+    check('二次回報只升一級（P4 → P3，不是一路升到 P1）', p_xx.final_priority == 'p3', p_xx.final_priority)
     p_sec, _t = graded_problem(tw(2026, 9, 21), 's4', 'u3', None, special_security=True)
     check('資安 → 直接 P1（S4×U3 原本是 P4）', p_sec.final_priority == 'p1', p_sec.final_priority)
 
@@ -226,17 +228,32 @@ try:
     tc.write({'problem_id': p_multi.id})
     check('沒填客戶公司的服務單不算進回報客戶數', p_multi.ticket_count == 3 and p_multi.reported_customer_count == 2)
 
-    # ================= 結案 =================
+    # ================= 結案（2.0.0 起的完整條件另見 shell_phase5_v020.py）=================
     prb.with_user(u_agent).write({'data_fix_needed': True, 'data_fix_state': 'in_progress'})
     raises('需要修正既有資料但未完成 → 不能結案', UserError, lambda: prb.with_user(u_agent).action_done())
     prb.with_user(u_agent).write({'data_fix_state': 'done'})
     prb.with_user(u_agent).action_to_deploy()
     prb.with_user(u_agent).action_to_verify()
+    check('按「待驗證」（已部署）→ 修復完成日＝今天', prb.fix_done_date == today, prb.fix_done_date)
+    Att = env['ir.attachment']
+
+    def att(name, rec=prb):
+        return Att.create({'name': name, 'raw': b'x', 'res_model': rec._name, 'res_id': rec.id}).ids
+
+    prb.with_user(u_agent).write({
+        'data_fix_backup_location': '/backup/zz.dump', 'data_fix_scope': 'ZZ 工程 3 筆',
+        'data_fix_compare_ids': [(6, 0, att('compare.xlsx'))], 'data_fix_script_ids': [(6, 0, att('fix.sql'))],
+        'customer_notice_datetime': fields.Datetime.now(), 'customer_notice_content': 'ZZ 通知',
+        'evidence_before_ids': [(6, 0, att('before.txt'))], 'evidence_after_ids': [(6, 0, att('after.txt'))],
+    })
+    t1.with_user(u_agent).action_wait_verify()
+    t1.with_user(u_agent)._register_confirmation('portal', 'ZZ 王先生', False, u_agent)
     prb.with_user(u_agent).action_done()
-    check('結案：記下修復完成日＝今天', prb.state == 'done' and prb.fix_done_date == today)
-    check('問題單結案不動服務單（仍處理中）', t1.state == 'processing')
+    check('結案：客戶確認 → 結案方式「客戶確認」、修復完成日不變',
+          prb.state == 'done' and prb.close_type == 'confirmed' and prb.fix_done_date == today)
     prb.with_user(u_agent).action_reopen()
-    check('重新開啟 → 處理中、清掉修復完成日', prb.state == 'processing' and not prb.fix_done_date)
+    check('重新開啟 → 處理中、清掉修復完成日與結案方式',
+          prb.state == 'processing' and not prb.fix_done_date and not prb.close_type)
 
     # ================= 1.6.0：判定標準、調整原因、候選問題單、改連 =================
     check('問題單顯示「單號 標題」（下拉與候選清單看得出是什麼問題）',
@@ -249,7 +266,7 @@ try:
     check('改處理時限設定 → 判定標準表跟著變（P2 6 個工作天）',
           '6 個工作天' in str(env['construction.problem']._grade_guide_html()))
     env.ref('construction_helpdesk.sla_p2').write({'default_fix_days': 5})
-    check('S 選項附簡短條件', '資料錯誤' in dict(env[P]._fields['severity'].selection)['s1'])
+    check('S 選項附簡短條件', '存進資料庫' in dict(env[P]._fields['severity'].selection)['s1'])
     check('降級理由改名「調整原因」', env[P]._fields['downgrade_reason'].string == '調整原因')
     wv = env['construction.problem.regrade.wizard'].get_views([(False, 'form')])['views']['form']['arch']
     from lxml import etree

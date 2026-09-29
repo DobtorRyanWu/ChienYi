@@ -21,7 +21,7 @@
     <!-- 客戶看到的狀態標籤（顏色）                                    -->
     <!-- ============================================================ -->
     <template id="portal_feedback_state_badge" name="意見回饋：狀態標籤">
-        <t t-set="_color" t-value="{'new': '#64748b', 'processing': '#3b82f6', 'waiting_customer': '#f97316', 'done': '#22c55e', 'cancel': '#94a3b8'}.get(state, '#64748b')"/>
+        <t t-set="_color" t-value="{'new': '#64748b', 'processing': '#3b82f6', 'waiting_info': '#f97316', 'waiting_verify': '#f97316', 'done': '#22c55e', 'cancel': '#94a3b8'}.get(state, '#64748b')"/>
         <span t-attf-style="display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; color: #fff; background: #{_color}; white-space: nowrap;">
             <t t-esc="label"/>
         </span>
@@ -215,6 +215,48 @@
                 <div class="cy-content">
                     <div t-if="message == 'created'" class="alert alert-success" role="status">
                         已送出（<t t-esc="ticket.name"/>），客服會在這裡回覆您。
+                    </div>
+                    <div t-if="message == 'resolved'" class="alert alert-success" role="status">
+                        謝謝您的確認，這張單已結案。之後如果問題又出現，直接在下方留言即可。
+                    </div>
+                    <div t-if="message == 'not_resolved'" class="alert alert-warning" role="status">
+                        已通知客服問題仍在。請在下方留言說明目前看到的情況，方便我們繼續處理。
+                    </div>
+
+                    <!-- 待客戶驗證：請客戶確認問題是否已解決 -->
+                    <div t-if="ticket.state == 'waiting_verify'" class="cy-card"
+                         style="margin-bottom: 14px; border: 2px solid #f97316;">
+                        <div class="cy-card-body">
+                            <div style="font-size: 1.05rem; font-weight: 800; margin-bottom: 6px;">
+                                我們已經修好了，請幫忙確認問題是否已解決
+                            </div>
+                            <div style="font-size: 0.9rem; color: var(--wb-t2); margin-bottom: 12px;">
+                                請實際操作一次原本出問題的功能，再按下面其中一個按鈕。
+                            </div>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <form t-attf-action="/construction/feedback/#{ticket.id}/verify" method="post"
+                                      style="flex: 1; min-width: 140px;">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                    <input type="hidden" name="result" value="resolved"/>
+                                    <button type="submit" class="cy-btn cy-btn-block"
+                                            style="width: 100%; min-height: 52px; font-size: 1.05rem; font-weight: 800; border-radius: 12px; background: #22c55e; color: #fff; border: none;">
+                                        問題已解決
+                                    </button>
+                                </form>
+                                <form t-attf-action="/construction/feedback/#{ticket.id}/verify" method="post"
+                                      style="flex: 1; min-width: 140px;">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                    <input type="hidden" name="result" value="not_resolved"/>
+                                    <button type="submit" class="cy-btn cy-btn-block"
+                                            style="width: 100%; min-height: 52px; font-size: 1.05rem; font-weight: 800; border-radius: 12px; background: #fff; color: #f97316; border: 2px solid #f97316;">
+                                        仍有問題
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div t-if="ticket.state == 'waiting_info'" class="alert alert-warning" role="status">
+                        客服需要您補充一些資料才能繼續處理，請看下方對話紀錄並留言回覆。
                     </div>
 
                     <div class="cy-card" style="margin-bottom: 14px;">

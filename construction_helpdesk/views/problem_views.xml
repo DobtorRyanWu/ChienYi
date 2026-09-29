@@ -63,6 +63,8 @@
                 <field name="is_overdue" optional="show"/>
                 <field name="non_working_to_confirm" optional="hide"/>
                 <field name="ever_upgraded" optional="hide"/>
+                <field name="ever_waited_customer" optional="hide"/>
+                <field name="close_type" optional="hide"/>
                 <field name="reported_customer_count" optional="hide"/>
                 <field name="engineer_id" optional="show"/>
                 <field name="state" widget="badge"/>
@@ -81,7 +83,7 @@
             <form string="系統問題單">
                 <header>
                     <button name="action_open_regrade" string="變更等級" type="object"
-                            invisible="not is_graded"/>
+                            invisible="not is_graded or state in ('done', 'wont_fix')"/>
                     <button name="action_to_deploy" string="待部署" type="object" class="oe_highlight"
                             invisible="state != 'processing'"/>
                     <button name="action_to_verify" string="待驗證" type="object" class="oe_highlight"
@@ -91,7 +93,6 @@
                     <button name="action_done" string="結案" type="object" class="oe_highlight"
                             invisible="state not in ('processing', 'pending_deploy', 'pending_verify')"/>
                     <button name="action_wont_fix" string="不處理" type="object"
-                            confirm="確定這張問題單不處理？"
                             invisible="state in ('done', 'wont_fix')"/>
                     <button name="action_reopen" string="重新開啟" type="object"
                             invisible="state not in ('done', 'wont_fix')"/>
@@ -109,6 +110,19 @@
                     <div class="alert alert-danger mb-3" role="alert" invisible="not is_overdue">
                         已超過預定修復日（內部工作目標）。
                     </div>
+                    <!-- 不在提示裡嵌日期欄位：Date widget 是區塊元素，會把一句話拆成三行 -->
+                    <div class="alert alert-danger mb-3" role="alert" invisible="not data_fix_overdue">
+                        資料盤修已超過預定日，請看「資料修正」頁籤。
+                    </div>
+                    <div class="alert alert-warning mb-3" role="alert"
+                         invisible="final_priority != 'p1' or customer_notice_datetime or state in ('done', 'wont_fix')">
+                        P1 一律要通知客戶事實與影響範圍，請到「回應、暫行措施與通知」頁籤記錄。
+                    </div>
+                    <div class="alert alert-secondary mb-3" role="status" invisible="state != 'wont_fix'">
+                        不處理：<field name="wont_fix_reason" readonly="1" class="d-inline"/>
+                        <span invisible="not duplicate_of_id">（重複於 <field name="duplicate_of_id" readonly="1" class="d-inline"/>）</span>
+                        <div><field name="wont_fix_note" readonly="1"/></div>
+                    </div>
                     <div class="oe_title">
                         <h1><field name="name" readonly="1"/></h1>
                         <h2><field name="title" placeholder="問題標題"/></h2>
@@ -124,6 +138,8 @@
                             <field name="ticket_count"/>
                             <field name="reported_customer_count"/>
                             <field name="ever_upgraded" invisible="not ever_upgraded"/>
+                            <field name="ever_waited_customer" invisible="not ever_waited_customer"/>
+                            <field name="close_type" invisible="not close_type"/>
                         </group>
                     </group>
                     <notebook>
@@ -146,7 +162,7 @@
                                     <field name="urgency" readonly="is_graded"/>
                                     <field name="matrix_priority"/>
                                 </group>
-                                <group string="特例（最多升一級；資安直接 P1）">
+                                <group string="特例（對外文件、資安直接 P1；二次回報升一級）">
                                     <field name="special_external_doc" readonly="is_graded"/>
                                     <field name="special_security" readonly="is_graded"/>
                                     <field name="special_repeat" readonly="is_graded"/>
@@ -186,18 +202,88 @@
                                 「逾時」只代表沒達到內部工作目標；對外報告服務水準請看「總處理天數」（修復完成日 − 起算日）。
                             </div>
                         </page>
-                        <page string="回應與暫行措施" name="response">
-                            <div class="text-muted mb-2">只記錄完成時間，不判逾時。</div>
+                        <page string="回應、暫行措施與通知" name="response">
+                            <div class="text-muted mb-2">回應與暫行措施只記錄完成時間，不判逾時。</div>
                             <group>
                                 <group string="回應">
                                     <field name="response_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                 </group>
-                                <group string="暫行措施（P1）" invisible="final_priority != 'p1'">
-                                    <field name="temporary_measure"/>
+                                <group string="暫行措施（P1、P2）" invisible="final_priority not in ('p1', 'p2')">
+                                    <field name="temporary_measure"
+                                           placeholder="做了什麼；痕跡（訊息連結／截圖／檔案）請附在下方留言，沒有痕跡視同未做"/>
                                     <field name="temporary_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                     <field name="temporary_user_id" options="{'no_create': True}"/>
                                 </group>
                             </group>
+                            <group string="通知客戶（P1 一律要通知，未記錄不能結案）">
+                                <field name="customer_notice_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                                <field name="customer_notice_content"
+                                       placeholder="事實、影響範圍（哪個功能、哪些工程案件、什麼期間）、客戶該怎麼做。等級代號不對客戶公布，但後果要說。"/>
+                            </group>
+                        </page>
+                        <page string="修復驗證與結案" name="verify">
+                            <div class="alert alert-info" role="status">
+                                <b>什麼時候可以結案</b>
+                                <ul class="mb-1 mt-1">
+                                    <li>至少一張關聯服務單經<b>客戶確認</b>問題已解決（客戶在前台按「問題已解決」）。</li>
+                                    <li><b>P1／P2 客戶未回覆</b>：全部關聯服務單都在「待客戶驗證」滿設定天數、沒有人回「仍有問題」，
+                                        而且下面三件對照都附齊 → 結案方式記為「未回覆、附對照結案」。</li>
+                                    <li><b>P3／P4 客戶未回覆</b>：系統每天自動把逾期的服務單結案，之後這張問題單就能結案。</li>
+                                    <li><b>沒有關聯服務單</b>（內部自行發現）：P1／P2 要附齊三件對照；P3／P4 可直接結案。</li>
+                                    <li><b>P1</b> 不論哪一種，都要附「修復前跑出的失敗」與「修復後通過」，並記錄已通知客戶。</li>
+                                </ul>
+                            </div>
+                            <group>
+                                <group string="修復對照">
+                                    <field name="evidence_before_ids" widget="many2many_binary"/>
+                                    <field name="evidence_after_ids" widget="many2many_binary"/>
+                                    <field name="evidence_prod_ids" widget="many2many_binary"/>
+                                </group>
+                                <group string="結案">
+                                    <field name="close_type"/>
+                                    <field name="ever_waited_customer"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="資安事件" name="security" invisible="not special_security">
+                            <div class="alert alert-danger" role="status">
+                                時限一律以<b>實際經過的時間</b>計算（不受服務時間限制）。以下欄位未填齊不能結案。
+                                「無法判定」一律視同「有」。
+                            </div>
+                            <group>
+                                <group string="1 小時：封鎖">
+                                    <field name="sec_discovered_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                                    <field name="sec_contained_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                                    <field name="sec_contained_by" placeholder="寫人名，不寫角色"/>
+                                    <!-- 還沒填完成時間就不顯示耗時：否則顯示 0.00，看起來像瞬間完成 -->
+                                    <field name="sec_contain_hours"
+                                           invisible="not sec_discovered_datetime or not sec_contained_datetime"
+                                           decoration-danger="sec_contain_hours &gt; 1"/>
+                                </group>
+                                <group string="4 小時：個資外洩判定">
+                                    <field name="sec_pii_leak"/>
+                                    <field name="sec_pii_judged_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                                    <field name="sec_pii_hours" decoration-danger="sec_pii_hours &gt; 4"
+                                           invisible="not sec_discovered_datetime or not sec_pii_judged_datetime"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="24 小時：影響範圍">
+                                    <field name="sec_scope_estimate" placeholder="資料類別與筆數；估不出來要寫原因"/>
+                                    <field name="sec_scope_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                                    <field name="sec_scope_hours" decoration-danger="sec_scope_hours &gt; 24"
+                                           invisible="not sec_discovered_datetime or not sec_scope_datetime"/>
+                                </group>
+                                <group string="判定為有／無法判定之後：法定通知" invisible="sec_pii_leak not in ('yes', 'unknown')">
+                                    <field name="sec_legal_assessment" placeholder="評估結果與法律意見來源"/>
+                                    <field name="sec_notify_decision"/>
+                                    <field name="sec_not_notify_reason" invisible="sec_notify_decision != 'not_notify'"/>
+                                </group>
+                            </group>
+                            <div class="text-muted small">
+                                個人資料保護法對非公務機關的通知義務與時限尚待法務確認，本檢核表不作為法律意見。
+                                資安事件不適用「曾等客戶」的統計剔除。
+                            </div>
                         </page>
                         <page string="資料修正" name="data_fix">
                             <div class="alert alert-info" role="status">
@@ -207,19 +293,30 @@
                                         程式修好後，已經存錯的舊資料<b>不會自己變對</b>，要找出受影響的單逐筆更正。</li>
                                     <li><b>不用</b>：只是畫面顯示錯或列印跑版（資料庫裡的值是對的），或按鈕按不了、存檔失敗（根本沒寫進去）。</li>
                                 </ul>
-                                勾選「需要修正既有資料」後，修正狀態未完成前不能結案。
+                                勾選「需要修正既有資料」後：盤修要在程式修好<b>上線之後</b>做、<b>先備份原始錯誤值</b>；
+                                修正狀態「已完成」且備份位置、受影響範圍、對照、腳本都齊了才能結案。
                             </div>
                             <group>
                                 <group>
                                     <field name="data_fix_needed"/>
                                     <field name="data_fix_state" invisible="not data_fix_needed"/>
+                                    <field name="data_fix_planned_date" invisible="not data_fix_needed"/>
                                     <field name="data_fix_done_date" invisible="not data_fix_needed"/>
+                                    <field name="data_fix_overdue" invisible="not data_fix_needed"/>
+                                    <field name="data_fix_days" invisible="1"/>
+                                    <field name="data_fix_backup_location" invisible="not data_fix_needed"/>
                                 </group>
                                 <group>
-                                    <field name="data_fix_scope" invisible="not data_fix_needed"/>
+                                    <field name="data_fix_scope" invisible="not data_fix_needed"
+                                           placeholder="哪些工程案件、哪幾筆、什麼期間（暫行措施階段就先寫）"/>
                                     <field name="data_fix_method" invisible="not data_fix_needed"/>
+                                    <field name="data_fix_compare_ids" widget="many2many_binary" invisible="not data_fix_needed"/>
+                                    <field name="data_fix_script_ids" widget="many2many_binary" invisible="not data_fix_needed"/>
                                 </group>
                             </group>
+                            <div class="text-muted small" invisible="not data_fix_needed">
+                                盤修預定日＝修復完成日（問題單按「待驗證」那天）＋資料盤修天數（日曆天，見處理時限設定）。
+                            </div>
                         </page>
                         <page string="已知錯誤" name="known_error">
                             <group>
@@ -235,6 +332,9 @@
                                     <field name="report_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                     <field name="subject"/>
                                     <field name="customer_company"/>
+                                    <field name="waiting_verify_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                                    <field name="customer_confirmed"/>
+                                    <field name="overdue_closed"/>
                                     <field name="state" widget="badge"/>
                                 </list>
                             </field>
@@ -265,6 +365,8 @@
                 <filter name="to_confirm" string="非工作日待確認" domain="[('non_working_to_confirm', '=', True)]"/>
                 <filter name="ever_upgraded" string="曾升級改判" domain="[('ever_upgraded', '=', True)]"/>
                 <filter name="not_graded" string="未分級" domain="[('final_priority', '=', False)]"/>
+                <filter name="ever_waited" string="曾等客戶" domain="[('ever_waited_customer', '=', True)]"/>
+                <filter name="security" string="資安事件" domain="[('special_security', '=', True)]"/>
                 <separator/>
                 <filter name="p1" string="P1" domain="[('final_priority', '=', 'p1')]"/>
                 <filter name="p2" string="P2" domain="[('final_priority', '=', 'p2')]"/>
@@ -278,6 +380,8 @@
                     <filter name="group_priority" string="最終 P" context="{'group_by': 'final_priority'}"/>
                     <filter name="group_module" string="發生功能" context="{'group_by': 'functional_module_id'}"/>
                     <filter name="group_engineer" string="負責工程師" context="{'group_by': 'engineer_id'}"/>
+                    <filter name="group_close_type" string="結案方式" context="{'group_by': 'close_type'}"/>
+                    <filter name="group_wont_fix" string="不處理原因" context="{'group_by': 'wont_fix_reason'}"/>
                     <filter name="group_fix_month" string="修復月份" context="{'group_by': 'fix_done_date:month'}"/>
                 </group>
             </search>
@@ -411,6 +515,34 @@
                 <field name="grade_guide_html" nolabel="1" readonly="1"/>
                 <footer>
                     <button name="action_confirm" string="確定變更" type="object" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_problem_wontfix_wizard_form" model="ir.ui.view">
+        <field name="name">construction.problem.wontfix.wizard.form</field>
+        <field name="model">construction.problem.wontfix.wizard</field>
+        <field name="arch" type="xml">
+            <form string="不處理">
+                <group>
+                    <field name="problem_id"/>
+                    <field name="final_priority"/>
+                    <field name="reason" widget="radio"/>
+                    <field name="duplicate_of_id" invisible="reason != 'duplicate'"
+                           required="reason == 'duplicate'" options="{'no_create': True}"/>
+                    <field name="note" placeholder="為什麼不處理？（必填）"/>
+                </group>
+                <div class="text-muted small">
+                    <ul class="mb-0">
+                        <li><b>重複</b>：關聯服務單會一起移到選定的問題單。</li>
+                        <li><b>無法重現</b>、<b>接受風險</b>：P1 不能選。</li>
+                        <li>重複以外的原因：關聯服務單不會自動結案，請通知客戶後在服務單上結案。</li>
+                    </ul>
+                </div>
+                <footer>
+                    <button name="action_confirm" string="確定不處理" type="object" class="btn-primary"/>
                     <button string="取消" special="cancel"/>
                 </footer>
             </form>

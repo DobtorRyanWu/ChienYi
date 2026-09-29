@@ -24,7 +24,7 @@
                 <field name="create_uid" string="建單人" optional="hide"/>
                 <field name="state" widget="badge"
                        decoration-info="state == 'new'"
-                       decoration-warning="state in ('processing', 'waiting_customer')"
+                       decoration-warning="state in ('processing', 'waiting_info', 'waiting_verify')"
                        decoration-success="state == 'done'"
                        decoration-muted="state == 'cancel'"/>
             </list>
@@ -50,28 +50,45 @@
                     <button name="action_open_link_problem" string="更改關聯問題單" type="object"
                             invisible="not problem_id or state in ('done', 'cancel')"
                             groups="construction_helpdesk.group_helpdesk_agent"/>
-                    <button name="action_wait_customer" string="待客戶確認" type="object"
-                            invisible="state != 'processing'"
+                    <button name="action_wait_info" string="待客戶補件" type="object"
+                            invisible="state != 'processing' or not problem_id"
                             groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <button name="action_wait_verify" string="待客戶驗證" type="object"
+                            invisible="state != 'processing' or not problem_id"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    <!-- 【停用】登記客戶確認，恢復步驟見 wizards/ticket_confirm_wizard.py 開頭
+                    <button name="action_open_confirm_wizard" string="登記客戶確認" type="object" class="oe_highlight"
+                            invisible="state != 'waiting_verify'"
+                            groups="construction_helpdesk.group_helpdesk_agent"/>
+                    -->
                     <button name="action_back_to_processing" string="回到處理中" type="object"
-                            invisible="state != 'waiting_customer'"
+                            invisible="state not in ('waiting_info', 'waiting_verify')"
                             groups="construction_helpdesk.group_helpdesk_agent"/>
                     <button name="action_done" string="結案" type="object" class="oe_highlight"
-                            invisible="state not in ('processing', 'waiting_customer')"
+                            invisible="state != 'processing'"
                             groups="construction_helpdesk.group_helpdesk_agent"/>
                     <button name="action_cancel" string="取消" type="object"
-                            invisible="state not in ('new', 'processing', 'waiting_customer')"
+                            invisible="state in ('done', 'cancel')"
                             confirm="確定要取消這張服務單？"
                             groups="construction_helpdesk.group_helpdesk_agent"/>
                     <button name="action_reopen" string="重新處理" type="object"
                             invisible="state not in ('done', 'cancel')"
                             groups="construction_helpdesk.group_helpdesk_agent"/>
                     <field name="state" widget="statusbar"
-                           statusbar_visible="new,processing,waiting_customer,done"/>
+                           statusbar_visible="new,processing,done"/>
                 </header>
                 <sheet>
                     <div class="alert alert-info mb-3" role="status" invisible="state == 'new'">
                         這張服務單已送出，回報內容不能再修改。要補充資訊或附檔，請在下方留言。
+                    </div>
+                    <div class="alert alert-warning mb-3" role="status" invisible="state != 'waiting_info'"
+                         groups="construction_helpdesk.group_helpdesk_agent">
+                        等客戶補資料中。客戶留言補件後<b>不會</b>自動回到處理中，請判斷資料夠不夠再按「回到處理中」。
+                    </div>
+                    <div class="alert alert-info mb-3" role="status" invisible="state != 'waiting_verify'"
+                         groups="construction_helpdesk.group_helpdesk_agent">
+                        等客戶在前台按「問題已解決／仍有問題」。客戶一直不回：P3／P4 系統會自動結案，
+                        P1／P2 由問題單附齊修復對照後結案。
                     </div>
                     <div class="oe_title">
                         <h1><field name="name" readonly="1"/></h1>
@@ -120,9 +137,22 @@
                                     <field name="notify_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
                                     <field name="notify_result"/>
                                 </group>
-                                <group string="滿意度">
+                                <group string="滿意度（試行期暫不執行）">
                                     <field name="satisfaction"/>
                                     <field name="customer_feedback"/>
+                                </group>
+                                <group string="客戶驗證">
+                                    <field name="waiting_verify_datetime" options="{'show_seconds': False, 'rounding': 1}"/>
+                                    <field name="customer_confirmed"/>
+                                    <field name="confirm_method" invisible="not customer_confirmed"/>
+                                    <field name="confirm_datetime" invisible="not customer_confirmed"
+                                           options="{'show_seconds': False, 'rounding': 1}"/>
+                                    <field name="confirm_contact" invisible="not customer_confirmed"/>
+                                    <field name="confirm_user_id" invisible="not customer_confirmed"/>
+                                    <field name="confirm_note" invisible="not customer_confirmed"/>
+                                    <field name="confirm_attachment_ids" widget="many2many_binary"
+                                           invisible="not confirm_attachment_ids"/>
+                                    <field name="overdue_closed"/>
                                 </group>
                             </group>
                         </page>
@@ -152,11 +182,14 @@
                 <filter name="my_assigned" string="我負責的" domain="[('agent_user_id', '=', uid)]"
                         groups="construction_helpdesk.group_helpdesk_agent"/>
                 <separator/>
-                <filter name="open" string="未結案" domain="[('state', 'in', ('new', 'processing', 'waiting_customer'))]"/>
+                <filter name="open" string="未結案" domain="[('state', 'in', ('new', 'processing', 'waiting_info', 'waiting_verify'))]"/>
                 <filter name="state_new" string="新建" domain="[('state', '=', 'new')]"/>
                 <filter name="state_processing" string="處理中" domain="[('state', '=', 'processing')]"/>
-                <filter name="state_waiting" string="待客戶確認" domain="[('state', '=', 'waiting_customer')]"/>
+                <filter name="state_waiting_info" string="待客戶補件" domain="[('state', '=', 'waiting_info')]"/>
+                <filter name="state_waiting_verify" string="待客戶驗證" domain="[('state', '=', 'waiting_verify')]"/>
                 <filter name="state_done" string="已結案" domain="[('state', '=', 'done')]"/>
+                <filter name="overdue_closed" string="逾期未回覆結案" domain="[('overdue_closed', '=', True)]"
+                        groups="construction_helpdesk.group_helpdesk_agent"/>
                 <separator/>
                 <filter name="report_date" string="回報時間" date="report_datetime"/>
                 <group expand="0" string="分組">
@@ -194,6 +227,37 @@
             </graph>
         </field>
     </record>
+
+    <!-- ============================================================ -->
+    <!-- 【停用】登記客戶確認（電話、LINE 等）                          -->
+    <!-- 恢復步驟見 wizards/ticket_confirm_wizard.py 開頭。              -->
+    <!-- ============================================================ -->
+    <!--
+    <record id="view_ticket_confirm_wizard_form" model="ir.ui.view">
+        <field name="name">construction.service.ticket.confirm.wizard.form</field>
+        <field name="model">construction.service.ticket.confirm.wizard</field>
+        <field name="arch" type="xml">
+            <form string="登記客戶確認">
+                <div class="text-muted mb-2">
+                    客戶用電話、LINE 等方式說「問題已解決」時在這裡登記，服務單會結案。客戶沒回應不等於確認。
+                    LINE、Email：必附截圖；電話、當面：必須寫下時間與對方怎麼說。
+                </div>
+                <group>
+                    <field name="ticket_id"/>
+                    <field name="confirm_method"/>
+                    <field name="confirm_contact" placeholder="客戶那邊是誰說的"/>
+                    <field name="confirm_note" placeholder="客戶怎麼說的（電話、當面必填）"/>
+                    <field name="attachment_ids" widget="many2many_binary"
+                           invisible="confirm_method not in ('line', 'email')"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" string="登記並結案" type="object" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+    -->
 
     <record id="action_service_ticket" model="ir.actions.act_window">
         <field name="name">服務單</field>

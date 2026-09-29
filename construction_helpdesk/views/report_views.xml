@@ -70,10 +70,40 @@
         <field name="view_mode">pivot,list</field>
         <field name="view_id" ref="view_problem_pivot_monthly"/>
         <field name="context">{'pivot_measures': ['__count', 'total_days']}</field>
-        <!-- 只算已結案的：未結案的總處理天數是 0，會把平均拉低 -->
-        <field name="domain">[('state', '=', 'done')]</field>
+        <!-- 只算已結案的：未結案的總處理天數是 0，會把平均拉低。
+             剔除「曾等客戶」：等客戶補資料的時間不算我們的（分級標準 v0.3 附錄 A） -->
+        <field name="domain">[('state', '=', 'done'), ('ever_waited_customer', '=', False)]</field>
         <field name="help" type="html">
             <p>已結案問題單，依修復完成月份統計件數與平均總處理天數（日曆天，從客戶回報那天算）。</p>
+            <p>已剔除「曾等客戶」的問題單；被剔除的件數請看「結案方式統計」。</p>
+        </field>
+    </record>
+
+    <!-- 結案方式統計：逾期未回覆結案、未回覆附對照結案要分開看，不能和客戶確認的混在一起 -->
+    <record id="view_problem_pivot_close_type" model="ir.ui.view">
+        <field name="name">construction.problem.pivot.close_type</field>
+        <field name="model">construction.problem</field>
+        <field name="priority">21</field>
+        <field name="arch" type="xml">
+            <pivot string="結案方式統計">
+                <field name="close_type" type="row"/>
+                <field name="ever_waited_customer" type="row"/>
+                <field name="final_priority" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_report_problem_close_type" model="ir.actions.act_window">
+        <field name="name">結案方式統計</field>
+        <field name="res_model">construction.problem</field>
+        <field name="view_mode">pivot,list</field>
+        <field name="view_id" ref="view_problem_pivot_close_type"/>
+        <field name="domain">[('state', 'in', ('done', 'wont_fix'))]</field>
+        <field name="context">{'pivot_row_groupby': ['close_type', 'ever_waited_customer'],
+                               'pivot_column_groupby': ['final_priority']}</field>
+        <field name="help" type="html">
+            <p>已結束的問題單依結案方式分組（「不處理」的結案方式是空白，請另依不處理原因分組）。</p>
+            <p>報告時一起報：總進件、進入時限計算的件數、被移出的件數（含原因）、達標率。</p>
         </field>
     </record>
 

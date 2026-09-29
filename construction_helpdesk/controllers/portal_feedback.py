@@ -19,11 +19,12 @@ from odoo.addons.construction_portal.controllers.portal import ConstructionPorta
 
 TICKET = 'construction.service.ticket'
 
-# 客戶看到的狀態用字（後台的「新建」「待客戶確認」是內部用語）
+# 客戶看到的狀態用字（後台的「新建」「待客戶補件／驗證」是內部用語）
 CUSTOMER_STATE_LABELS = {
     'new': '已送出，待受理',
     'processing': '處理中',
-    'waiting_customer': '待您確認',
+    'waiting_info': '請您補充資料',
+    'waiting_verify': '請確認是否已解決',
     'done': '已結案',
     'cancel': '已取消',
 }
@@ -181,3 +182,27 @@ class HelpdeskPortal(ConstructionPortal):
             'message_per_page': 20,
         })
         return request.render('construction_helpdesk.portal_feedback_detail', values)
+
+    # ------------------------------------------------------------------
+    # 客戶驗證：問題已解決／仍有問題（分級標準 v0.3 第九節）
+    # ------------------------------------------------------------------
+    @http.route(['/construction/feedback/<int:ticket_id>/verify'], type='http', auth='user',
+                website=True, methods=['POST'])
+    def portal_feedback_verify(self, ticket_id, result=None, **post):
+        # 先以本人身分確認看得到這張（record rule：只看得到自己送的），寫入再由模型以 sudo 處理
+        try:
+            ticket = request.env[TICKET].browse(ticket_id).exists()
+            if not ticket:
+                raise MissingError(_('找不到這張服務單'))
+            ticket.check_access('read')
+        except (AccessError, MissingError):
+            return request.redirect('/construction/feedback')
+        url = '/construction/feedback/%s' % ticket.id
+        if ticket.state != 'waiting_verify' or result not in ('resolved', 'not_resolved'):
+            return request.redirect(url)
+        user = request.env.user
+        if result == 'resolved':
+            ticket._register_confirmation('portal', user.name, False, user)
+            return request.redirect(url + '?message=resolved')
+        ticket._register_not_resolved(user)
+        return request.redirect(url + '?message=not_resolved')

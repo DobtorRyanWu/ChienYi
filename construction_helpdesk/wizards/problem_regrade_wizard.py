@@ -22,7 +22,7 @@ class ConstructionProblemRegradeWizard(models.TransientModel):
     old_final_priority = fields.Selection(related='problem_id.final_priority', string='目前最終 P')
     severity = fields.Selection(SEVERITY_SELECTION, string='嚴重程度 S', required=True)
     urgency = fields.Selection(URGENCY_SELECTION, string='急迫性 U', required=True)
-    special_external_doc = fields.Boolean(string='錯誤已流入對外文件')
+    special_external_doc = fields.Boolean(string='錯誤已流入對外文件', help='直接 P1，且必須通知客戶。')
     special_security = fields.Boolean(string='資安事件')
     special_repeat = fields.Boolean(string='二次回報（前次未修好）')
     manual_priority = fields.Selection(PRIORITY_SELECTION, string='人工調整 P')
@@ -64,6 +64,8 @@ class ConstructionProblemRegradeWizard(models.TransientModel):
     def action_confirm(self):
         self.ensure_one()
         problem = self.problem_id
+        if problem.state in ('done', 'wont_fix'):
+            raise UserError(_('%s 已結案或不處理，不能變更等級。要改判請先「重新開啟」。', problem.name))
         if not (self.regrade_reason or '').strip():
             raise UserError(_('請填寫改判原因。'))
         old_p = problem.final_priority
@@ -87,6 +89,7 @@ class ConstructionProblemRegradeWizard(models.TransientModel):
                 'base_date': fields.Date.context_today(self),
                 'expected_work_days': days,
                 'non_working_to_confirm': bool(days),
+                'data_fix_days': Sla.get_data_fix_days(new_p),
             }
             if old_p and new_p and p_rank(new_p) < p_rank(old_p):
                 date_vals['ever_upgraded'] = True

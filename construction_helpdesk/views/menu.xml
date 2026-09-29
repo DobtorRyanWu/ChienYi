@@ -47,6 +47,10 @@
               parent="menu_helpdesk_report" action="action_report_problem_monthly" sequence="60"
               groups="group_helpdesk_agent"/>
 
+    <menuitem id="menu_report_problem_close_type" name="結案方式統計"
+              parent="menu_helpdesk_report" action="action_report_problem_close_type" sequence="70"
+              groups="group_helpdesk_agent"/>
+
     <menuitem id="menu_helpdesk_config"
               name="設定"
               parent="menu_helpdesk_root"

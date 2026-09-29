@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+from datetime import timedelta
+
+from markupsafe import Markup
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -20,13 +24,33 @@ CHANNEL_SELECTION = [
     ('portal', '前台'),
 ]
 
+# 兩個等待狀態只給「已掛上問題單」的服務單用（分級標準 v0.3 第九節）：
+#   待客戶補件：修好之前，請客戶補資料 → 問題單自動勾「曾等客戶」，不適用逾期結案
+#   待客戶驗證：修好之後，請客戶確認 → 前台有「問題已解決／仍有問題」按鈕，滿 N 天可逾期結案
+# 沒掛問題單的服務單（例如操作疑問）等客戶時維持「處理中」。
 STATE_SELECTION = [
     ('new', '新建'),
     ('processing', '處理中'),
-    ('waiting_customer', '待客戶確認'),
+    ('waiting_info', '待客戶補件'),
+    ('waiting_verify', '待客戶驗證'),
     ('done', '已結案'),
     ('cancel', '取消'),
 ]
+TICKET_ACTIVE_STATES = ('new', 'processing', 'waiting_info', 'waiting_verify')
+
+CONFIRM_METHOD_SELECTION = [
+    ('portal', '客戶在前台按「問題已解決」'),
+    ('phone', '電話'),
+    ('line', 'LINE'),
+    ('email', 'Email'),
+    ('in_person', '當面'),
+]
+
+# 只能由流程寫入的欄位（write() 擋手動修改）
+VERIFY_FIELDS = (
+    'waiting_verify_datetime', 'customer_confirmed', 'confirm_method', 'confirm_datetime',
+    'confirm_contact', 'confirm_user_id', 'confirm_note', 'confirm_attachment_ids', 'overdue_closed',
+)
 
 SATISFACTION_SELECTION = [
     ('1', '1 非常不滿意'),
@@ -93,6 +117,28 @@ class ConstructionServiceTicket(models.Model):
         SATISFACTION_SELECTION, string='滿意度', groups=AGENT_GROUP, copy=False)
     customer_feedback = fields.Text(string='客戶意見', groups=AGENT_GROUP, copy=False)
 
+    # ---- 客戶驗證（只由流程寫入：前台按鈕、登記客戶確認對話框、逾期排程）----
+    waiting_verify_datetime = fields.Datetime(
+        string='進入待客戶驗證時間', readonly=True, copy=False, groups=AGENT_GROUP,
+        help='「客戶未回覆可結案天數」從這個時間起算。')
+    customer_confirmed = fields.Boolean(
+        string='客戶已確認解決', readonly=True, copy=False, groups=AGENT_GROUP, tracking=True)
+    confirm_method = fields.Selection(
+        CONFIRM_METHOD_SELECTION, string='確認方式', readonly=True, copy=False, groups=AGENT_GROUP)
+    confirm_datetime = fields.Datetime(string='確認時間', readonly=True, copy=False, groups=AGENT_GROUP)
+    confirm_contact = fields.Char(
+        string='確認的人', readonly=True, copy=False, groups=AGENT_GROUP,
+        help='客戶那邊是誰確認的（前台按鈕＝按的人）。')
+    confirm_user_id = fields.Many2one(
+        'res.users', string='登記人', readonly=True, copy=False, groups=AGENT_GROUP)
+    confirm_note = fields.Text(string='確認說明', readonly=True, copy=False, groups=AGENT_GROUP)
+    confirm_attachment_ids = fields.Many2many(
+        'ir.attachment', 'construction_service_ticket_confirm_att_rel', 'ticket_id', 'attachment_id',
+        string='確認佐證', readonly=True, copy=False, groups=AGENT_GROUP)
+    overdue_closed = fields.Boolean(
+        string='逾期未回覆結案', readonly=True, copy=False, groups=AGENT_GROUP, tracking=True,
+        help='在「待客戶驗證」滿設定天數客戶都沒回覆而結案。客戶之後回覆會自動重開。')
+
     @api.depends_context('uid')
     def _compute_is_helpdesk_agent(self):
         is_agent = self.env.user.has_group(AGENT_GROUP)
@@ -125,6 +171,11 @@ class ConstructionServiceTicket(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
+        if not self.env.context.get('helpdesk_system_write'):
+            sys_touched = [f for f in VERIFY_FIELDS if f in vals]
+            if sys_touched:
+                raise UserError(_('%s 由系統依流程填寫（客戶在前台按的按鈕、逾期排程），不能手動修改。',
+                                  '、'.join(self._fields[f].string for f in sys_touched)))
         if not self.env.su:
             locked = self.filtered(lambda t: t.state != 'new')
             touched = [f for f in REPORTER_FIELDS if f in vals]
@@ -154,25 +205,185 @@ class ConstructionServiceTicket(models.Model):
             ticket.agent_user_id = self.env.user
         return True
 
-    def action_wait_customer(self):
+    def _check_linked(self):
+        for ticket in self:
+            if not ticket.sudo().problem_id:
+                raise UserError(_(
+                    '服務單 %s 還沒有關聯問題單。「待客戶補件」「待客戶驗證」只用在已轉成問題單的服務單；'
+                    '要請客戶補資料，請先轉問題單。', ticket.name))
+
+    def action_wait_info(self):
+        """修好之前請客戶補資料。問題單自動勾「曾等客戶」。"""
         self._check_state_from(('processing',))
-        self.write({'state': 'waiting_customer'})
+        self._check_linked()
+        self.write({'state': 'waiting_info'})
+        self.sudo().problem_id._mark_waited_customer()
+        return True
+
+    def action_wait_verify(self):
+        """修好（已部署）之後請客戶確認。從這一刻開始算「客戶未回覆可結案天數」。"""
+        self._check_state_from(('processing',))
+        self._check_linked()
+        for ticket in self:
+            problem = ticket.sudo().problem_id
+            if problem.state not in ('pending_verify', 'done'):
+                raise UserError(_(
+                    '服務單 %(t)s 的問題單 %(p)s 還沒部署（目前「%(s)s」）。'
+                    '要等問題單到「待驗證」之後才能請客戶驗證。',
+                    t=ticket.name, p=problem.name,
+                    s=dict(problem._fields['state'].selection).get(problem.state)))
+        self.write({'state': 'waiting_verify'})
+        self.with_context(helpdesk_system_write=True).write({
+            'waiting_verify_datetime': fields.Datetime.now(),
+            'customer_confirmed': False,
+            'overdue_closed': False,
+        })
         return True
 
     def action_back_to_processing(self):
-        self._check_state_from(('waiting_customer',))
+        self._check_state_from(('waiting_info', 'waiting_verify'))
         self.write({'state': 'processing'})
         return True
 
     def action_done(self):
-        self._check_state_from(('processing', 'waiting_customer'))
+        """客服直接結案。掛著未結案問題單的服務單不能走這裡——要客戶確認或等逾期。"""
+        self._check_state_from(('processing',))
+        for ticket in self:
+            problem = ticket.sudo().problem_id
+            if problem and problem.state not in ('done', 'wont_fix'):
+                raise UserError(_(
+                    '服務單 %(t)s 關聯的問題單 %(p)s 還沒結案。'
+                    '這類服務單要在「待客戶驗證」由客戶在前台按「問題已解決」，或等客戶逾期未回覆。',
+                    t=ticket.name, p=problem.name))
         self.write({'state': 'done', 'close_datetime': fields.Datetime.now()})
         return True
 
     def action_cancel(self):
-        self._check_state_from(('new', 'processing', 'waiting_customer'))
+        self._check_state_from(TICKET_ACTIVE_STATES)
         self.write({'state': 'cancel', 'close_datetime': fields.Datetime.now()})
         return True
+
+    # 【停用】登記客戶確認（客服代登記電話、LINE 等方式的確認）。2026-09-29 使用者判斷目前沒有電話、LINE 客服，
+    # 客戶一律在前台按「問題已解決」。要恢復時照 wizards/ticket_confirm_wizard.py 開頭的步驟取消註解。
+    # def action_open_confirm_wizard(self):
+    #     self.ensure_one()
+    #     self._check_state_from(('waiting_verify',))
+    #     return {
+    #         'type': 'ir.actions.act_window',
+    #         'name': _('登記客戶確認'),
+    #         'res_model': 'construction.service.ticket.confirm.wizard',
+    #         'view_mode': 'form',
+    #         'target': 'new',
+    #         'context': {'default_ticket_id': self.id},
+    #     }
+
+    # ------------------------------------------------------------------
+    # 客戶驗證的結果（只由流程呼叫，以 sudo 執行：前台帳號沒有服務單的寫入權）
+    # ------------------------------------------------------------------
+    def _register_confirmation(self, method, contact, note, user, attachments=None):
+        """客戶確認問題已解決 → 結案。"""
+        self.ensure_one()
+        if self.state != 'waiting_verify':
+            raise UserError(_('服務單 %s 不在「待客戶驗證」，不能登記確認。', self.name))
+        # 佐證依方式而定：LINE、Email 留得下截圖；電話、當面不可能有圖，改要求寫下對方怎麼說
+        if method in ('line', 'email') and not attachments:
+            raise UserError(_('LINE、Email 確認的，必須附上截圖作為佐證。'))
+        if method in ('phone', 'in_person') and not (note or '').strip():
+            raise UserError(_('電話、當面確認的，必須寫下時間與對方怎麼說。'))
+        ticket = self.sudo()
+        if attachments:
+            # 對話框上傳的附件改掛到服務單，客服在服務單上看得到
+            attachments.sudo().write({'res_model': self._name, 'res_id': self.id})
+        now = fields.Datetime.now()
+        ticket.with_context(helpdesk_system_write=True).write({
+            'state': 'done',
+            'close_datetime': now,
+            'customer_confirmed': True,
+            'confirm_method': method,
+            'confirm_datetime': now,
+            'confirm_contact': contact,
+            'confirm_user_id': user.id,
+            'confirm_note': note,
+            'confirm_attachment_ids': [(6, 0, attachments.ids if attachments else [])],
+        })
+        label = dict(CONFIRM_METHOD_SELECTION)[method]
+        ticket.message_post(
+            body=_('客戶確認問題已解決（%(m)s，%(c)s）。', m=label, c=contact or user.name),
+            subtype_xmlid='mail.mt_note', attachment_ids=attachments.ids if attachments else [])
+        if ticket.problem_id:
+            ticket.problem_id.message_post(
+                body=_('服務單 %(t)s：客戶確認問題已解決（%(m)s）。', t=self.name, m=label),
+                subtype_xmlid='mail.mt_note')
+        return True
+
+    def _register_not_resolved(self, user):
+        """客戶在前台按「仍有問題」→ 回到處理中。"""
+        self.ensure_one()
+        if self.state != 'waiting_verify':
+            raise UserError(_('服務單 %s 不在「待客戶驗證」。', self.name))
+        ticket = self.sudo()
+        ticket.with_context(helpdesk_system_write=True).write({'state': 'processing'})
+        ticket.message_post(body=_('客戶回報「仍有問題」（%s），服務單回到處理中。', user.name),
+                            subtype_xmlid='mail.mt_note')
+        if ticket.problem_id:
+            ticket.problem_id.message_post(
+                body=_('服務單 %s：客戶回報「仍有問題」。請判斷是沒修乾淨（重開本單）還是另一個問題（改連新的問題單）。',
+                       self.name),
+                subtype_xmlid='mail.mt_note')
+        return True
+
+    def _close_no_reply(self):
+        """客戶在「待客戶驗證」滿 N 天沒回覆 → 結案並標記。前台看得到這則說明。"""
+        now = fields.Datetime.now()
+        for ticket in self.sudo():
+            ticket = ticket.with_context(helpdesk_system_write=True)
+            ticket.write({'state': 'done', 'close_datetime': now, 'overdue_closed': True})
+            # 用一般留言（不是內部備註）：客戶在前台要看得到。
+            # context 帶 helpdesk_system_write：這則是系統發的，不能觸發下面 message_post 的「客戶回覆即重開」
+            ticket.message_post(
+                body=_('您一直沒有回覆，本單已視為問題解決並結案。'
+                       '如果問題仍在，直接回覆本單即會重新開啟，不需要重新回報。'),
+                message_type='comment', subtype_xmlid='mail.mt_comment')
+        return True
+
+    @api.model
+    def _cron_close_overdue_verify(self):
+        """每天執行：P3／P4 的服務單在「待客戶驗證」滿設定天數就自動結案。
+
+        P1／P2 不自動結案：要由客服在問題單附齊三件修復對照後結案（屆時一併處理這些服務單）。
+        """
+        Sla = self.env['construction.problem.sla']
+        now = fields.Datetime.now()
+        tickets = self.sudo().search([('state', '=', 'waiting_verify')])
+        todo = tickets.filtered(
+            lambda t: t.problem_id.final_priority in ('p3', 'p4') and t.waiting_verify_datetime
+            and t.waiting_verify_datetime <= now - timedelta(
+                days=Sla.get_customer_wait_days(t.problem_id.final_priority)))
+        todo._close_no_reply()
+        for problem in todo.mapped('problem_id'):
+            problem.message_post(
+                body=_('關聯服務單逾期未回覆，已自動結案：%s',
+                       '、'.join(todo.filtered(lambda t: t.problem_id == problem).mapped('name'))),
+                subtype_xmlid='mail.mt_note')
+        return len(todo)
+
+    def message_post(self, **kwargs):
+        """客戶回覆「逾期未回覆結案」的服務單 → 自動重開（自動結案通知裡的承諾）。"""
+        message = super().message_post(**kwargs)
+        if kwargs.get('message_type', 'notification') == 'comment' \
+                and not self.env.user.has_group(AGENT_GROUP) \
+                and not self.env.context.get('helpdesk_system_write'):
+            for ticket in self.sudo().filtered(lambda t: t.state == 'done' and t.overdue_closed):
+                ticket.with_context(helpdesk_system_write=True).write({
+                    'state': 'processing', 'close_datetime': False, 'overdue_closed': False})
+                ticket.message_post(body=_('客戶在逾期結案後回覆，服務單已自動重新開啟。'),
+                                    subtype_xmlid='mail.mt_note')
+                if ticket.problem_id:
+                    ticket.problem_id.message_post(
+                        body=Markup(_('服務單 %s 的客戶在逾期結案後回覆，服務單已重開，請確認問題是否仍在。'))
+                        % ticket.name,
+                        subtype_xmlid='mail.mt_note')
+        return message
 
     def action_open_link_problem(self):
         self.ensure_one()
@@ -190,6 +401,9 @@ class ConstructionServiceTicket(models.Model):
     def action_reopen(self):
         self._check_state_from(('done', 'cancel'))
         self.write({'state': 'processing', 'close_datetime': False})
+        # 重開＝這次的確認／逾期結案不算數了（舊值留在修改紀錄裡）
+        self.with_context(helpdesk_system_write=True).write({
+            'customer_confirmed': False, 'overdue_closed': False})
         return True
 
     # ------------------------------------------------------------------
