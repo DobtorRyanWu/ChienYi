@@ -26,6 +26,8 @@ class ReservationSelfInspection(models.Model):
         string='所屬通報單',
         required=True,
         ondelete='cascade',
+        # 退單（作廢）的通報單不出現在下拉；已經掛上去的不受影響
+        domain="[('state', '!=', 'cancelled')]",
         tracking=True)
 
     project_id = fields.Many2one(

@@ -561,6 +561,7 @@
 .cy-slip-home-card[data-state="not_started"] { border-left: 4px solid var(--wb-amber); }
 .cy-slip-home-card[data-state="in_progress"] { border-left: 4px solid var(--wb-blue); }
 .cy-slip-home-card[data-state="closed"] { border-left: 4px solid var(--wb-green); }
+.cy-slip-home-card[data-state="suspended"] { border-left: 4px solid var(--wb-warn); }
 
 /* === FAB 相機按鈕 === */
 .cy-fab-camera {
@@ -840,6 +841,19 @@
 .cy-slip-state.not_started { background: rgba(118, 159, 205, 0.12); color: var(--wb-amber); }
 .cy-slip-state.in_progress { background: rgba(59, 141, 224, 0.12); color: var(--wb-blue); }
 .cy-slip-state.closed { background: rgba(34, 179, 87, 0.12); color: var(--wb-green); }
+.cy-slip-state.suspended { background: rgba(214, 139, 26, 0.14); color: var(--wb-warn); }
+.cy-slip-state.cancelled { background: rgba(139, 144, 160, 0.12); color: var(--wb-t3); border: 1px dashed var(--wb-t3); }
+/* 退單（作廢）：清單卡片淡化；停工／退單的詳情頁橫幅 */
+.cy-slip-card[data-state="cancelled"] { opacity: 0.6; }
+/* 左側色條沿用 .cy-event-card::before，只換顏色（另加 border-left 會變成雙色條） */
+.cy-slip-banner-suspended { background: rgba(214, 139, 26, 0.06); border: 1px solid rgba(214, 139, 26, 0.25); }
+.cy-slip-banner-suspended::before { background: var(--wb-warn); }
+.cy-slip-banner-suspended .cy-event-icon, .cy-slip-banner-suspended .cy-event-title { color: var(--wb-warn); }
+.cy-slip-banner-cancelled { background: rgba(139, 144, 160, 0.08); border: 1px solid rgba(139, 144, 160, 0.3); }
+.cy-slip-banner-cancelled::before { background: var(--wb-t3); }
+.cy-slip-banner-cancelled .cy-event-icon, .cy-slip-banner-cancelled .cy-event-title { color: var(--wb-t3); }
+/* .cy-event-desc 預設單行截斷；停工原因、併入哪一通、退單說明在手機上要看得完整 */
+.cy-slip-banner-suspended .cy-event-desc, .cy-slip-banner-cancelled .cy-event-desc { white-space: normal; overflow: visible; }
 
 .cy-slip-meta {
   font-size: 0.8rem;

@@ -95,7 +95,8 @@ class DailyLogSheet(models.Model):
     notification_slip_id = fields.Many2one(
         'reservation.notification.slip',
         string='報備單',
-        domain="[('project_id', '=', supervision_project_id)]",
+        # 退單（作廢）的通報單不出現在下拉；已經掛上去的不受影響
+        domain="[('project_id', '=', supervision_project_id), ('state', '!=', 'cancelled')]",
         help='限報備型專案使用',
     )
 

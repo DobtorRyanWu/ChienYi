@@ -528,6 +528,10 @@ class PhotoRoutesMixin:
             [('id', '=', slip_id), ('project_id', '=', project.id)], limit=1)
         if not slip:
             return request.redirect(f'/construction/{project_id}/slips')
+        if slip.state == 'cancelled':
+            # 退單後唯讀：不再收新照片（模型層也會擋）
+            return request.redirect(
+                f'/construction/{project_id}/slip/{slip_id}?error=slip_cancelled')
         files = request.httprequest.files.getlist('photos')
         _portal_save_photos(
             request.env, slip, project, files,

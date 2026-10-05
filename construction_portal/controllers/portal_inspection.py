@@ -358,6 +358,8 @@ class InspectionRoutesMixin:
             try:
                 slip_list = request.env['reservation.notification.slip'].search([
                     ('project_id', '=', project.id),
+                    # 退單的通報單只在「底下還有檢查紀錄」時才列（才篩得到那些紀錄）
+                    '|', ('state', '!=', 'cancelled'), ('self_inspection_ids', '!=', False),
                 ], order='slip_no')
             except Exception:
                 pass
@@ -784,6 +786,8 @@ class InspectionRoutesMixin:
         # 提供通報單篩選 chips
         slip_list = request.env['reservation.notification.slip'].search([
             ('project_id', '=', project.id),
+            # 退單的通報單只在「底下還有檢查紀錄」時才列（才篩得到那些紀錄）
+            '|', ('state', '!=', 'cancelled'), ('self_inspection_ids', '!=', False),
         ], order='create_date desc', limit=20)
 
         values = {
@@ -818,6 +822,9 @@ class InspectionRoutesMixin:
         ], limit=1)
         if not slip:
             return request.redirect(f'/construction/{project_id}/slips')
+        if slip.state == 'cancelled':
+            return request.redirect(
+                f'/construction/{project_id}/slip/{slip.id}?error=slip_cancelled')
 
         InspType = request.env['self.inspection.type'].sudo()
         # 只顯示全域樣板 + 當前專案專屬樣板（避免撈到別專案的設定）
@@ -860,6 +867,10 @@ class InspectionRoutesMixin:
             project = self._document_check_access('project.project', slip.project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        if slip.state == 'cancelled':
+            # 模型 _check_slip_state 也會擋，但那會是 500；這裡先導回詳情頁
+            return request.redirect(
+                f'/construction/{project.id}/slip/{slip.id}?error=slip_cancelled')
 
         # H1：建立預約式自主檢查限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可建立自主檢查'))

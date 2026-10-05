@@ -30,7 +30,9 @@
                        decoration-info="slip_work_status == 'draft'"
                        decoration-warning="slip_work_status == 'not_started'"
                        decoration-primary="slip_work_status == 'in_progress'"
-                       decoration-success="slip_work_status == 'closed'"/>
+                       decoration-danger="slip_work_status == 'suspended'"
+                       decoration-success="slip_work_status == 'closed'"
+                       decoration-muted="slip_work_status == 'cancelled'"/>
                 <field name="slip_location"/>
             </xpath>
 

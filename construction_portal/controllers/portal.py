@@ -561,10 +561,10 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         if project.project_type == 'reservation':
             try:
                 Slip = request.env['reservation.notification.slip']
-                slip_count = Slip.search_count([('project_id', '=', project.id)])
-                recent_slips = Slip.search([
-                    ('project_id', '=', project.id),
-                ], limit=5, order='slip_no desc')
+                # 退單（作廢）的通報單編號保留但不是實際派工，首頁不列、不計數
+                active = [('project_id', '=', project.id), ('state', '!=', 'cancelled')]
+                slip_count = Slip.search_count(active)
+                recent_slips = Slip.search(active, limit=5, order='slip_no desc')
             except Exception:
                 pass
 

@@ -18,6 +18,20 @@
                 <div class="cy-content">
                     <h4 style="font-weight: 700; margin-bottom: 12px;">通報單</h4>
 
+                    <!-- 退單（作廢）的通報單預設不列，有退單時才出現切換 -->
+                    <div t-if="cancelled_count" style="margin-bottom: 12px; font-size: 0.85rem;">
+                        <t t-if="show_cancelled">
+                            <a t-attf-href="/construction/#{project.id}/slips" class="cy-filter-pill">
+                                <i class="fa fa-eye-slash"/> 隱藏已退單（<t t-esc="cancelled_count"/> 張）
+                            </a>
+                        </t>
+                        <t t-else="">
+                            <a t-attf-href="/construction/#{project.id}/slips?show_cancelled=1" class="cy-filter-pill">
+                                <i class="fa fa-eye"/> 顯示已退單（<t t-esc="cancelled_count"/> 張）
+                            </a>
+                        </t>
+                    </div>
+
                     <t t-if="not slips">
                         <div class="cy-empty">
                             <i class="fa fa-file-text-o"/>
@@ -26,7 +40,8 @@
                     </t>
 
                     <t t-foreach="slips" t-as="slip">
-                        <a t-attf-href="/construction/#{project.id}/slip/#{slip.id}" class="cy-slip-card">
+                        <a t-attf-href="/construction/#{project.id}/slip/#{slip.id}" class="cy-slip-card"
+                           t-att-data-state="slip.state">
                             <div class="cy-slip-header">
                                 <span class="cy-slip-no">
                                     第 <t t-esc="slip.slip_no"/> 次通報
@@ -98,21 +113,72 @@
 
                     <!-- 審核動作（限老闆/主管） -->
                     <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')">
-                        <t t-if="request.params.get('error')">
+                        <t t-if="request.params.get('error') and request.params.get('error') != 'slip_cancelled'">
                             <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
                                 <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="request.params.get('error')"/></div></div>
                             </div>
                         </t>
-                        <div style="display: flex; gap: 8px; margin-bottom: 16px;" t-if="slip.state in ('draft', 'in_progress')">
+                        <div style="display: flex; gap: 8px; margin-bottom: 16px;" t-if="slip.state in ('draft', 'in_progress', 'suspended')">
                             <form t-if="slip.state == 'draft'" t-attf-action="/construction/#{project.id}/slip/#{slip.id}/confirm" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-check"/> 核定</button>
                             </form>
-                            <form t-if="slip.state == 'in_progress'" t-attf-action="/construction/#{project.id}/slip/#{slip.id}/close" method="post" style="flex:1;">
+                            <form t-if="slip.state in ('in_progress', 'suspended')" t-attf-action="/construction/#{project.id}/slip/#{slip.id}/close" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-flag-checkered"/> 結案</button>
                             </form>
+                        </div>
+                    </t>
+
+                    <!-- 退單（作廢）：只顯示，動作在後台 -->
+                    <t t-if="slip.state == 'cancelled'">
+                        <div class="cy-event-card cy-slip-banner-cancelled" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon"><i class="fa fa-ban"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title">
+                                    本通報單已退單（<t t-esc="dict(slip._fields['cancel_reason'].selection).get(slip.cancel_reason, '')"/>）
+                                </div>
+                                <div class="cy-event-desc">
+                                    <t t-if="slip.cancel_date">退單日期 <t t-esc="slip.cancel_date"/>。</t>
+                                    <t t-if="slip.merged_into_slip_id">
+                                        併入
+                                        <a t-attf-href="/construction/#{project.id}/slip/#{slip.merged_into_slip_id.id}">第 <t t-esc="slip.merged_into_slip_id.slip_no"/> 次通報單</a>。
+                                    </t>
+                                    <t t-if="slip.cancel_note"><t t-esc="slip.cancel_note"/></t>
+                                </div>
+                                <div class="cy-event-desc" style="color: var(--wb-t3);">編號保留、內容唯讀，不能再新增檢查或上傳照片。</div>
+                            </div>
+                        </div>
+                    </t>
+                    <t t-if="slip.state == 'cancelled' and request.params.get('error') == 'slip_cancelled'">
+                        <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                            <div class="cy-event-body"><div class="cy-event-desc">本通報單已退單，無法執行這個動作</div></div>
+                        </div>
+                    </t>
+                    <t t-if="slip.state == 'suspended'">
+                        <t t-set="open_susp" t-value="slip.suspension_ids.filtered(lambda s: not s.resume_date)[:1]"/>
+                        <div class="cy-event-card cy-slip-banner-suspended" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon"><i class="fa fa-pause-circle"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-title">停工中（<t t-esc="open_susp.suspend_date"/> 起）</div>
+                                <div class="cy-event-desc"><t t-esc="open_susp.reason"/></div>
+                            </div>
+                        </div>
+                    </t>
+                    <!-- 合併：被併入的那一通看得到誰併進來 -->
+                    <t t-if="slip.merged_slip_ids">
+                        <div class="cy-event-card" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-t3);"><i class="fa fa-compress"/></span>
+                            <div class="cy-event-body">
+                                <div class="cy-event-desc">
+                                    併入本單：
+                                    <t t-foreach="slip.merged_slip_ids" t-as="ms">
+                                        <a t-attf-href="/construction/#{project.id}/slip/#{ms.id}">第 <t t-esc="ms.slip_no"/> 次</a><t t-if="not ms_last">、</t>
+                                    </t>
+                                </div>
+                            </div>
                         </div>
                     </t>
 
@@ -168,6 +234,7 @@
                             <div class="cy-event-body"><div class="cy-event-desc">座標格式或範圍不正確（緯度 -90~90、經度 -180~180）</div></div>
                         </div>
                     </t>
+                    <t t-if="slip.state != 'cancelled'">
                     <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_slip_geo">
                         <span>設定地點座標</span>
                         <i class="fa fa-chevron-down" style="font-size: 0.8rem; color: var(--wb-t3);"/>
@@ -201,6 +268,7 @@
                             </div>
                         </form>
                     </div>
+                    </t>
 
                     <!-- 工期 -->
                     <div class="cy-section-title">工期</div>
@@ -216,6 +284,18 @@
                         <div class="cy-info-row" t-if="slip.planned_duration">
                             <span class="cy-info-label">預定工期</span>
                             <span class="cy-info-value"><t t-esc="slip.planned_duration"/> 日</span>
+                        </div>
+                        <div class="cy-info-row" t-if="slip.suspended_days">
+                            <span class="cy-info-label">停工天數</span>
+                            <span class="cy-info-value"><t t-esc="slip.suspended_days"/> 日</span>
+                        </div>
+                        <div class="cy-info-row" t-if="slip.schedule_review_days">
+                            <span class="cy-info-label">工期檢討增加</span>
+                            <span class="cy-info-value"><t t-esc="slip.schedule_review_days"/> 日</span>
+                        </div>
+                        <div class="cy-info-row" t-if="slip.adjusted_planned_end_date and slip.adjusted_planned_end_date != slip.planned_end_date">
+                            <span class="cy-info-label">調整後預定完工</span>
+                            <span class="cy-info-value"><t t-esc="slip.adjusted_planned_end_date"/></span>
                         </div>
                         <div class="cy-info-row" t-if="slip.actual_start_date">
                             <span class="cy-info-label">實際開工</span>
@@ -304,7 +384,8 @@
                     <!-- 自主檢查 -->
                     <div class="cy-section-title">
                         <span>自主檢查</span>
-                        <a t-attf-href="/construction/#{project.id}/reservation-inspection/new?slip_id=#{slip.id}"
+                        <a t-if="slip.state != 'cancelled'"
+                           t-attf-href="/construction/#{project.id}/reservation-inspection/new?slip_id=#{slip.id}"
                            class="cy-btn cy-btn-outline"
                            style="font-size: 0.8rem; padding: 4px 12px; min-height: 32px;">
                             <i class="fa fa-plus"/> 新增檢查
@@ -395,7 +476,8 @@
                             </t>
                         </div>
                     </t>
-                    <form t-attf-action="/construction/#{project.id}/slip/#{slip.id}/photo/upload"
+                    <form t-if="slip.state != 'cancelled'"
+                          t-attf-action="/construction/#{project.id}/slip/#{slip.id}/photo/upload"
                           method="post" enctype="multipart/form-data" style="margin-bottom: 14px;">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                         <input type="file" name="photos" accept="image/*" multiple="multiple"

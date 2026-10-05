@@ -17,7 +17,22 @@ class SupervisionPhoto(models.Model):
         'reservation.notification.slip',
         string='通報單',
         ondelete='cascade',
-        index=True)
+        index=True,
+        domain="[('state', '!=', 'cancelled')]")
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # 已退單的通報單不再收新照片（既有照片不受影響）
+        self.env['reservation.notification.slip'].browse(
+            [v['slip_id'] for v in vals_list if v.get('slip_id')]
+        )._check_not_cancelled_for_children('照片')
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if vals.get('slip_id'):
+            self.env['reservation.notification.slip'].browse(
+                vals['slip_id'])._check_not_cancelled_for_children('照片')
+        return super().write(vals)
 
     def _photo_source_project(self):
         res = super()._photo_source_project()

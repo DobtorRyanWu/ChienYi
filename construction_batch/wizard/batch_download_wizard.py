@@ -50,9 +50,11 @@ RECORD_SOURCES = {
         'date_label': '報告日期', 'states': None,
         'limit': 50, 'field': 'progress_report_ids',
     },
+    # 自動選取排除「退單」（作廢、不是實際派工）；已核章的退單要印時仍可手動挑選
     'notification_slip': {
         'model': 'reservation.notification.slip', 'date_field': 'survey_date',
-        'date_label': '工程會勘日期', 'states': None,
+        'date_label': '工程會勘日期',
+        'states': ['draft', 'not_started', 'in_progress', 'suspended', 'closed'],
         'limit': 50, 'field': 'notification_slip_ids',
     },
     # 自主檢查表（單張）：一張檢查紀錄一份 Word。

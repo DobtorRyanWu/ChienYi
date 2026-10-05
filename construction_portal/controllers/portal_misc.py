@@ -83,7 +83,13 @@ class MiscRoutesMixin:
             return request.redirect(f'/construction/{project_id}')
 
         Slip = request.env['reservation.notification.slip']
+        # 退單（作廢）的通報單預設不列；頁頂提供「顯示已退單」切換
+        show_cancelled = kw.get('show_cancelled') == '1'
+        cancelled_count = Slip.search_count(
+            [('project_id', '=', project.id), ('state', '=', 'cancelled')])
         domain = [('project_id', '=', project.id)]
+        if not show_cancelled:
+            domain.append(('state', '!=', 'cancelled'))
 
         slip_count = Slip.search_count(domain)
         pager = portal_pager(
@@ -91,6 +97,7 @@ class MiscRoutesMixin:
             total=slip_count,
             page=page,
             step=self._items_per_page,
+            url_args={'show_cancelled': '1'} if show_cancelled else None,
         )
 
         slips = Slip.search(
@@ -103,6 +110,8 @@ class MiscRoutesMixin:
         values = {
             'project': project,
             'slips': slips,
+            'show_cancelled': show_cancelled,
+            'cancelled_count': cancelled_count,
             'page_name': 'construction_slips',
             'pager': pager,
             'default_url': f'/construction/{project_id}/slips',
@@ -408,6 +417,9 @@ class MiscRoutesMixin:
         back = f'/construction/{project_id}/slip/{slip_id}'
         if not slip:
             return request.redirect(f'/construction/{project_id}/slips')
+        if slip.state == 'cancelled':
+            # 退單後唯讀（模型 write() 也會擋，但那是 UserError，這裡不攔會變 500）
+            return request.redirect(f'{back}?error=slip_cancelled')
         try:
             lat = float(post.get('latitude') or 0)
             lng = float(post.get('longitude') or 0)

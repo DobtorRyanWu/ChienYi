@@ -82,9 +82,13 @@ class ReservationNotificationSlipLine(models.Model):
         related='task_id.is_summary_item', store=True,
         help='對應的契約工項底下還有子工項')
 
+    # compute_sudo：要讀契約工項的 tax_misc_rate／is_lump_sum／parent_id，而前台帳號
+    # （portal 角色）對 project.task 有記錄規則與欄位白名單限制。不加的話前台通報單
+    # 詳情頁只要有明細就 403（construction_portal 2.15.0 起詳情頁逐列讀這一欄）。
+    # 只放寬「算這個布林值」，前台帳號仍然讀不到契約工項本身。
     is_manual_amount = fields.Boolean(
         string='金額手填',
-        compute='_compute_is_manual_amount',
+        compute='_compute_is_manual_amount', compute_sudo=True,
         help='本單內沒有子列，且是彙總項或無單價項（如稅什費）→ 金額直接手填')
 
     # === 項目基本資訊 ===
@@ -354,11 +358,16 @@ class ReservationNotificationSlipLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        self.env['reservation.notification.slip'].browse(
+            [v.get('slip_id') for v in vals_list if v.get('slip_id')]
+        )._check_not_cancelled_for_children('施工詳細表')
         records = super().create(vals_list)
         records._restore_computed_amounts()
         return records
 
     def write(self, vals):
+        # 退單後唯讀（通報單本身的守門見 notification_slip.write）
+        self.mapped('slip_id')._check_not_cancelled_for_children('施工詳細表')
         amount_keys = [k for k in self._AMOUNT_FIELDS if k in vals]
         if not amount_keys:
             return super().write(vals)
@@ -382,6 +391,7 @@ class ReservationNotificationSlipLine(models.Model):
         同時祖父列「壹」還把它們算在加總裡 → 結算金額重複計算。
         子列全數移除後，父列金額歸零，回到可手填狀態。
         """
+        self.mapped('slip_id')._check_not_cancelled_for_children('施工詳細表')
         all_lines = self
         frontier = self
         while frontier:

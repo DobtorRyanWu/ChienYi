@@ -116,6 +116,13 @@ class ReservationDefectImprovementReservation(models.Model):
             if record.improvement_progress < 0 or record.improvement_progress > 100:
                 raise ValidationError('改善進度必須在 0-100 之間')
 
+    @api.constrains('slip_id')
+    def _check_slip_not_cancelled(self):
+        """退單（作廢）的通報單不得再掛缺失改善（只在改掛通報單時檢查）。"""
+        for record in self:
+            if record.slip_id.state == 'cancelled':
+                raise ValidationError(f'{record.slip_id.name} 已退單，不得掛缺失改善')
+
     @api.constrains('slip_id', 'notification_date')
     def _check_notification_date(self):
         """驗證通知改善日期不早於通報單的最早起算日。

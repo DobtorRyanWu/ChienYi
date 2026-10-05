@@ -6,7 +6,9 @@
     # 1.2.0: 放寬自主檢查／缺失改善的日期下限 —— 基準由單一 planned_start_date
     #        改為 survey_date / actual_start_date / planned_start_date 三者中
     #        有值者的最早日期（新增 slip._get_earliest_start_date）
-    'version': '18.0.1.2.0',
+    # 1.3.0: 通報單新增「停工」「退單」狀態（construction_notification_slip 18.0.3.0.0）——
+    #        停工的通報單照常可掛／新增自主檢查與缺失改善；退單的不可再掛
+    'version': '18.0.1.3.0',
     'category': 'Construction/Reservation',
     'summary': '預約式工程通報單整合自主檢查與缺失改善',
     'description': """

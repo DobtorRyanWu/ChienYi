@@ -16,7 +16,9 @@
     #        欄位與工地材料管理相同：項目/單位/契約數量/本日完成數量/累計完成數量/備註
     # 2.9.1: 「營造業特定項目」頁籤改排到施工日誌明細之後、工地材料管理之前
     #        （page 的 sequence 屬性在 Odoo 18 不參與排序，只能靠 XML 文件順序）
-    "version": "18.0.2.9.1",
+    # 2.9.2: 日誌的「報備單（通報單）」下拉排除退單的通報單
+    #        （construction_notification_slip 18.0.3.0.0 新增退單狀態）
+    "version": "18.0.2.9.2",
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """

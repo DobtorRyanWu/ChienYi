@@ -18,19 +18,51 @@
                             invisible="state != 'not_started'"/>
                     <button name="action_close" string="結案" type="object"
                             class="oe_highlight"
+                            invisible="state not in ['in_progress', 'suspended']"/>
+                    <!-- 停工／復工／退單／解除退單：照 CLAUDE.md 慣例不加 groups -->
+                    <button name="action_open_resume_wizard" string="復工" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'suspended'"/>
+                    <button name="action_open_suspend_wizard" string="停工" type="object"
                             invisible="state != 'in_progress'"/>
                     <button name="action_return_to_draft" string="退回草稿" type="object"
                             invisible="state not in ['not_started', 'in_progress']"/>
+                    <button name="action_open_cancel_wizard" string="退單" type="object"
+                            invisible="state in ['closed', 'cancelled']"/>
+                    <button name="action_uncancel" string="解除退單" type="object"
+                            invisible="state != 'cancelled'"
+                            confirm="確定解除退單？通報單會回到退單前的狀態。"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,not_started,in_progress,closed"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box"/>
+                    <widget name="web_ribbon" title="已退單" bg_color="text-bg-secondary"
+                            invisible="state != 'cancelled'"/>
+                    <widget name="web_ribbon" title="停工中" bg_color="text-bg-warning"
+                            invisible="state != 'suspended'"/>
                     <div class="oe_title">
                         <h1>
                             <field name="name" placeholder="通報單名稱"/>
                         </h1>
                     </div>
+                    <!-- 退單資訊：退單時才出現 -->
+                    <div class="alert alert-secondary" role="alert" invisible="state != 'cancelled'">
+                        <strong>本通報單已退單（作廢）</strong>，編號保留、內容唯讀。
+                        如需修改，請按上方「解除退單」。
+                    </div>
+                    <group string="退單資訊" name="cancel_info" invisible="state != 'cancelled'">
+                        <group>
+                            <field name="cancel_reason" readonly="1"/>
+                            <field name="merged_into_slip_id" readonly="1"
+                                   invisible="cancel_reason != 'merge'"/>
+                            <field name="cancel_date" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="state_before_cancel" readonly="1"/>
+                            <field name="cancel_note" readonly="1"/>
+                        </group>
+                    </group>
 
                     <!-- 基本資訊區 -->
                     <group string="基本資訊">
@@ -40,8 +72,8 @@
                                    options="{'no_create': True}"/>
                             <field name="slip_number" readonly="1"/>
                             <field name="slip_no" readonly="state != 'draft'"/>
-                            <field name="location" readonly="state == 'closed'"/>
-                            <field name="location_detail" readonly="state == 'closed'"
+                            <field name="location" readonly="state in ('closed', 'cancelled')"/>
+                            <field name="location_detail" readonly="state in ('closed', 'cancelled')"
                                    placeholder="可逐行填寫多個施工地點（會印在通報單上）"/>
                             <!-- 通報單照片若沒有 GPS EXIF，會沿用這組座標 -->
                             <!-- 兩個欄位並排時只靠 placeholder 分辨不出前後是經度還緯度，
@@ -49,16 +81,16 @@
                             <label for="latitude" string="施工地點座標"/>
                             <div class="o_row">
                                 <span class="o_form_label me-1">緯度：</span>
-                                <field name="latitude" readonly="state == 'closed'"
+                                <field name="latitude" readonly="state in ('closed', 'cancelled')"
                                        placeholder="25.123456"/>
                                 <span class="o_form_label ms-3 me-1">經度：</span>
-                                <field name="longitude" readonly="state == 'closed'"
+                                <field name="longitude" readonly="state in ('closed', 'cancelled')"
                                        placeholder="121.123456"/>
                             </div>
                         </group>
                         <group>
-                            <field name="survey_date"/>
-                            <field name="compiler_id"/>
+                            <field name="survey_date" readonly="state == 'cancelled'"/>
+                            <field name="compiler_id" readonly="state == 'cancelled'"/>
                             <field name="valuation_count" readonly="1"/>
                         </group>
                         <field name="company_id" invisible="1"/>
@@ -68,12 +100,16 @@
                     <!-- 工程預期區 -->
                     <group string="工程預期">
                         <group>
-                            <field name="planned_start_date"/>
-                            <field name="planned_duration"/>
+                            <field name="planned_start_date" readonly="state == 'cancelled'"/>
+                            <field name="planned_duration" readonly="state == 'cancelled'"/>
                             <field name="planned_end_date" readonly="1"/>
+                            <field name="schedule_review_days" readonly="state == 'cancelled'"/>
+                            <field name="suspended_days" readonly="1"/>
+                            <!-- 逾期以這一天判斷：預定完工日 ＋ 停工天數 ＋ 工期檢討增加天數 -->
+                            <field name="adjusted_planned_end_date" readonly="1"/>
                         </group>
                         <group>
-                            <field name="estimated_amount"/>
+                            <field name="estimated_amount" readonly="state == 'cancelled'"/>
                             <!-- 明細預估合計：與結算金額對稱，用來看出「明細沒填完」 -->
                             <field name="planned_total_amount" readonly="1"/>
                             <field name="estimated_variance" invisible="1"/>
@@ -85,21 +121,21 @@
                                        class="oe_inline"/>），
                                 請確認施工詳細表是否已填齊。
                             </div>
-                            <field name="design_summary" placeholder="設計概述"/>
+                            <field name="design_summary" placeholder="設計概述" readonly="state == 'cancelled'"/>
                         </group>
                     </group>
 
                     <!-- 工程執行區 -->
                     <group string="工程執行">
                         <group>
-                            <field name="actual_start_date"/>
-                            <field name="actual_end_date"/>
+                            <field name="actual_start_date" readonly="state == 'cancelled'"/>
+                            <field name="actual_end_date" readonly="state == 'cancelled'"/>
                             <field name="actual_duration" readonly="1"/>
                             <field name="overdue_display" readonly="1"/>
                         </group>
                         <group>
                             <field name="settlement_amount" readonly="1"/>
-                            <field name="completion_summary" placeholder="完工概述"/>
+                            <field name="completion_summary" readonly="state == 'cancelled'" placeholder="完工概述"/>
                         </group>
                     </group>
 
@@ -108,9 +144,9 @@
                         <page string="施工詳細表" name="detail_lines">
                             <button name="action_open_add_lines_wizard" string="加入工項"
                                     type="object" class="btn-primary mb-2"
-                                    invisible="state == 'closed'"/>
+                                    invisible="state in ('closed', 'cancelled')"/>
                             <field name="detail_line_ids"
-                                   readonly="state == 'closed'">
+                                   readonly="state in ('closed', 'cancelled')">
                                 <!-- 彙總（小計）列以粗體標示；金額欄只有「無子列的彙總項
                                      或無單價項」可以手填，其餘一律唯讀（子列加總或數量×單價）。
                                      列表的 sum 刻意不放在金額欄——小計列與明細列並存，
@@ -150,9 +186,35 @@
                                 </list>
                             </field>
                         </page>
+                        <!-- 停工紀錄：停工／復工按鈕會自動新增與收尾；這裡可更正日期，
+                             或補登已結束的歷次停工（兩個日期都要填） -->
+                        <page string="停工紀錄" name="suspensions">
+                            <field name="suspension_ids"
+                                   readonly="state == 'cancelled'">
+                                <list editable="bottom">
+                                    <field name="suspend_date"/>
+                                    <field name="resume_date"/>
+                                    <field name="days" sum="停工天數" width="100px"/>
+                                    <field name="reason"/>
+                                    <field name="note" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="合併" name="merged_slips"
+                              invisible="not merged_slip_ids">
+                            <field name="merged_slip_ids" readonly="1">
+                                <list>
+                                    <field name="slip_no" string="通報單次" width="100px"/>
+                                    <field name="slip_number"/>
+                                    <field name="location"/>
+                                    <field name="cancel_date"/>
+                                    <field name="cancel_note"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="備註" name="notes">
                             <group>
-                                <field name="notes"/>
+                                <field name="notes" readonly="state == 'cancelled'"/>
                             </group>
                         </page>
                         <page string="關聯照片" name="related_photos">
@@ -160,7 +222,7 @@
                             <button name="%(construction_photo.action_photo_upload_wizard)d"
                                     type="action" string="批次上傳照片"
                                     class="btn-primary" icon="fa-camera"
-                                    invisible="not id"/>
+                                    invisible="not id or state == 'cancelled'"/>
                             <field name="related_photo_count" invisible="1"/>
                             <field name="related_photo_ids" nolabel="1" mode="kanban" create="false"
                                    context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
@@ -186,7 +248,8 @@
         <field name="arch" type="xml">
             <list string="通報單列表"
                   decoration-info="state == 'draft'"
-                  decoration-success="state == 'closed'">
+                  decoration-success="state == 'closed'"
+                  decoration-muted="state == 'cancelled'">
                 <field name="project_id" string="所屬工程"/>
                 <field name="slip_no" string="通報單次數"/>
                 <field name="slip_number" string="通報單編號"/>
@@ -199,7 +262,10 @@
                        decoration-info="state == 'draft'"
                        decoration-warning="state == 'not_started'"
                        decoration-primary="state == 'in_progress'"
-                       decoration-success="state == 'closed'"/>
+                       decoration-danger="state == 'suspended'"
+                       decoration-success="state == 'closed'"
+                       decoration-muted="state == 'cancelled'"/>
+                <field name="overdue_days" string="逾期天數" optional="hide" width="100px"/>
                 <field name="valuation_count" string="本工程已估驗次數" optional="hide"/>
                 <field name="currency_id" column_invisible="1"/>
             </list>
@@ -223,7 +289,12 @@
                 <filter string="草稿" name="draft" domain="[('state', '=', 'draft')]"/>
                 <filter string="未開始" name="not_started" domain="[('state', '=', 'not_started')]"/>
                 <filter string="施工中" name="in_progress" domain="[('state', '=', 'in_progress')]"/>
+                <filter string="停工" name="suspended" domain="[('state', '=', 'suspended')]"/>
                 <filter string="已結案" name="closed" domain="[('state', '=', 'closed')]"/>
+                <filter string="退單" name="cancelled" domain="[('state', '=', 'cancelled')]"/>
+                <separator/>
+                <!-- 預設套用：退單的通報單編號保留但不是實際派工，清單預設不列（可手動拿掉） -->
+                <filter string="未退單" name="not_cancelled" domain="[('state', '!=', 'cancelled')]"/>
                 <separator/>
                 <filter string="逾期" name="overdue"
                         domain="[('overdue_days', '>', 0)]"/>
@@ -267,7 +338,7 @@
                                         </strong>
                                     </div>
                                     <field name="state" widget="label_selection"
-                                           options="{'classes': {'draft': 'info', 'not_started': 'warning', 'in_progress': 'primary', 'closed': 'success'}}"/>
+                                           options="{'classes': {'draft': 'info', 'not_started': 'warning', 'in_progress': 'primary', 'suspended': 'danger', 'closed': 'success', 'cancelled': 'secondary'}}"/>
                                 </div>
                                 <div class="o_kanban_record_body">
                                     <field name="name"/>
@@ -298,7 +369,7 @@
         <field name="res_model">reservation.notification.slip</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="search_view_id" ref="view_reservation_notification_slip_search"/>
-        <field name="context">{'search_default_group_by_project': 1}</field>
+        <field name="context">{'search_default_group_by_project': 1, 'search_default_not_cancelled': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一張通報單
@@ -315,7 +386,8 @@
         <field name="name">執行中通報單</field>
         <field name="res_model">reservation.notification.slip</field>
         <field name="view_mode">list,kanban,form</field>
-        <field name="domain">[('state', '=', 'in_progress')]</field>
+        <!-- 停工還會復工，仍屬執行中 -->
+        <field name="domain">[('state', 'in', ('in_progress', 'suspended'))]</field>
         <field name="context">{}</field>
     </record>
 

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 停工／復工／退單共用精靈：依 mode 只顯示該動作要填的欄位 -->
+    <record id="view_slip_state_wizard_form" model="ir.ui.view">
+        <field name="name">reservation.notification.slip.state.wizard.form</field>
+        <field name="model">reservation.notification.slip.state.wizard</field>
+        <field name="arch" type="xml">
+            <form string="通報單狀態">
+                <field name="mode" invisible="1" force_save="1"/>
+                <field name="project_id" invisible="1"/>
+                <group>
+                    <field name="slip_id" readonly="1" force_save="1"/>
+                </group>
+
+                <!-- 停工 -->
+                <group invisible="mode != 'suspend'">
+                    <field name="suspend_date" required="mode == 'suspend'"/>
+                    <field name="suspend_reason" required="mode == 'suspend'"
+                           placeholder="例：機關通知暫停施工、路證未核准、颱風…"/>
+                </group>
+                <div class="text-muted" invisible="mode != 'suspend'">
+                    停工天數（復工日 − 停工日）會在復工後自動從逾期天數扣除。
+                </div>
+
+                <!-- 復工 -->
+                <group invisible="mode != 'resume'">
+                    <field name="open_suspend_date" readonly="1"/>
+                    <field name="open_suspend_reason" readonly="1"/>
+                    <field name="resume_date" required="mode == 'resume'"/>
+                </group>
+
+                <!-- 退單 -->
+                <div class="alert alert-warning" role="alert" invisible="mode != 'cancel'">
+                    退單＝作廢。編號保留、整張通報單變成唯讀、不可刪除；
+                    之後可以用「解除退單」回到目前的狀態。
+                </div>
+                <group invisible="mode != 'cancel'">
+                    <field name="cancel_reason" widget="radio" options="{'horizontal': true}"
+                           required="mode == 'cancel'"/>
+                    <field name="merged_into_slip_id"
+                           invisible="cancel_reason != 'merge'"
+                           required="mode == 'cancel' and cancel_reason == 'merge'"
+                           options="{'no_create': True}"/>
+                    <field name="cancel_date" required="mode == 'cancel'"/>
+                    <field name="cancel_note"
+                           required="mode == 'cancel' and cancel_reason == 'other'"
+                           placeholder="例：工項價格有問題"/>
+                </group>
+                <field name="linked_summary" invisible="1"/>
+                <div class="alert alert-info" role="alert"
+                     invisible="mode != 'cancel' or not linked_summary">
+                    以下資料仍掛在本單上，退單後不會刪除、也不會自動搬到別的通報單：
+                    <field name="linked_summary" readonly="1" nolabel="1" class="d-block mt-1"/>
+                </div>
+
+                <footer>
+                    <button name="action_confirm" type="object" string="確定"
+                            class="btn-primary" data-hotkey="q"/>
+                    <button string="取消" class="btn-secondary" special="cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>
