@@ -16,12 +16,38 @@ Excel 畫面上看不出來，但列印會缺。
     A12 一、工程進行情況 → 明細表 A13:E16 + 大文字區 F13
     A17 本日重要工作（A17:L19）
     A26 三、查核材料 → 明細表 A28:L32（5 列）
+    A34 （一）施工廠商施工前檢查事項辦理情形 → H34 □完成 ／ I34 □未完成（勾選其一）
     A35 （二）其他工地安全衛生督導事項 → A36
     A37 五、其他約定監造事項 → A38
 """
 
 MODEL = 'daily.log.sheet'
 SHEET = 'xl/worksheets/sheet1.xml'
+
+# 四（一）施工前檢查的三個小題（施工日誌「二、工地職業安全衛生事項」(1) 的三題）
+PRE_CHECK_FIELDS = (
+    'safety_pre_work_education',
+    'safety_labor_insurance_check',
+    'safety_ppe_check',
+)
+
+
+def _pre_check_done(rec):
+    """三個小題都有勾選就算「完成」，不論勾的是有／無／無新進勞工；
+    任何一題沒勾就是「未完成」。"""
+    return all(rec[f] for f in PRE_CHECK_FIELDS)
+
+
+def _other_matters(rec):
+    """五、其他約定監造事項 ＝ 備註（notes）＋ 通知協力廠商辦理事項。
+
+    兩個欄位都有值時，各自以「●」開頭分段；只有一個有值就照印、不加標記。
+    """
+    parts = [t for t in ((rec.notes or '').strip(),
+                         (rec.subcontractor_notification or '').strip()) if t]
+    if len(parts) > 1:
+        return '\n'.join('●' + t for t in parts)
+    return parts[0] if parts else ''
 
 CELLS = {
     # 表頭
@@ -50,8 +76,11 @@ CELLS = {
     # 空白樣板裡它後面還跟著來源文件殘留的「1.假日自行車多，無施工。」，
     # 套印時一併蓋掉（殘料本身建議另外從樣板檔清掉）。
     'A17': lambda rec: '本日重要工作：%s' % (rec.important_matters or ''),
+    # 四（一）施工廠商施工前檢查事項辦理情形：H34「□完成」／I34「□未完成」勾選其一
+    'H34': lambda rec: ('■' if _pre_check_done(rec) else '□') + '完成',
+    'I34': lambda rec: ('□' if _pre_check_done(rec) else '■') + '未完成',
     'A36': 'safety_other_matters',    # （二）其他工地安全衛生督導事項
-    'A38': 'notes',                   # 五、其他約定監造事項（A38:L41）
+    'A38': _other_matters,            # 五、其他約定監造事項（A38:L41）
 }
 
 ROWS = [
