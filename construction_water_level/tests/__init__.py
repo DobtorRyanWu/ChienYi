@@ -2,3 +2,4 @@
 
 from . import test_alert_channel
 from . import test_alert_recovery
+from . import test_retention

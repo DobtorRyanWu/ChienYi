@@ -13,7 +13,7 @@ DM 對客戶承諾「純追加式寫入」與「連續序號核對，缺號自�
 2. **序號是設備給的**，不是資料庫序號。`(device_id, seq_no)` 唯一，
    跳號代表資料在路上掉了，由 water.level.gap 追蹤補送。
 
-量體：每分鐘一筆、保存兩年 = 單台約 105 萬筆。目前規模（10 台以內）單表即可；
+量體：每分鐘一筆、保存三年 = 單台約 158 萬筆。目前規模（10 台以內）單表即可；
 未來要切 range partition 時，`(device_id, seq_no)` 這條唯一約束會擋路（分割表的
 唯一約束必須含分割鍵 ts），屆時要重新決策。這裡選擇合規優先。
 """
@@ -96,7 +96,7 @@ class WaterLevelReading(models.Model):
     def unlink(self):
         if not self._maintenance_open():
             raise UserError(_(
-                '水位紀錄不可刪除——這套系統對客戶承諾依法保存兩年。'
+                '水位紀錄不可刪除——這套系統對客戶承諾依法保存三年。'
                 '到期要封存請走封存流程，不要刪資料。'))
         return super().unlink()
 

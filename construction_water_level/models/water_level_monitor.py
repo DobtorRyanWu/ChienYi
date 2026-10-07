@@ -6,7 +6,7 @@
 
 DM 對應：
 * 旗艦「異常即時告警推播」→ _cron_alert_scan
-* 基本「每分鐘一筆、保存兩年」→ _cron_retention_audit（產出可對客戶舉證的稽核紀錄）
+* 基本「每分鐘一筆、保存三年」→ _cron_retention_audit（產出可對客戶舉證的稽核紀錄）
 * 效能（不是清理）→ _cron_daily_rollup
 * 保存到期 → _cron_archive_notice（只通知，不刪）
 """
@@ -191,7 +191,7 @@ class WaterLevelMonitor(models.AbstractModel):
 
         期望筆數依**每台自己的**取樣間隔換算：社區設備每分鐘一筆 → 1440，
         河川測站每 10 分鐘一筆 → 144。這支的產出就是對客戶舉證
-        「我們有守住約定的取樣密度、保存兩年」的憑據。
+        「我們有守住約定的取樣密度、保存三年」的憑據。
         """
         Integrity = self.env['water.level.integrity.check']
         yesterday = fields.Date.context_today(self) - timedelta(days=1)
@@ -250,7 +250,7 @@ class WaterLevelMonitor(models.AbstractModel):
     def _cron_archive_notice(self):
         """超過保存期只發通知，實際封存要人按按鈕。
 
-        自動刪掉超過兩年的資料聽起來很合理，但那是把「合約到期」與「可以刪」
+        自動刪掉超過保存期的資料聽起來很合理，但那是把「合約到期」與「可以刪」
         劃上等號——客戶可能還在打官司。這支只講「可以評估封存了」。
         """
         for site in self.env['water.level.site'].search([('active', '=', True)]):

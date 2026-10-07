@@ -8,15 +8,17 @@ v2 新增的一層，用來吸收「社區蓄水池」與「工程案件河川�
 * 工程：指向 project.project（工程案件），一案一場域。
 * 社區：指向 res.partner（管委會／物業公司／學校機關），一個社區一場域、底下可多個蓄水池。
 
-刪除策略一律 restrict。這是承諾「依法保存兩年」的系統，任何「刪 A 連坐刪掉水位紀錄」
+刪除策略一律 restrict。這是承諾「依法保存三年」的系統，任何「刪 A 連坐刪掉水位紀錄」
 的路徑都必須堵死——包含資料庫層的 ON DELETE CASCADE，它會繞過 model 層的 unlink 保護。
 """
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
-# DM 承諾的保存期間（天）
-DEFAULT_RETENTION_DAYS = 730
+# DM 承諾的保存期間（天）。2026-10-07 由兩年改三年：新北市政府水利局 115.10.02 函
+# （新北水河計字第1151900632號）要求透水保水監測資料等佐證「保存期限至少 3 年」。
+# 既有場域由 migrations/18.0.2.8.0 補改（只改還停在舊預設 730 的）。
+DEFAULT_RETENTION_DAYS = 1095
 
 LATITUDE_LIMIT = 90.0
 LONGITUDE_LIMIT = 180.0

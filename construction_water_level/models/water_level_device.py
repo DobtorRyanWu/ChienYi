@@ -52,7 +52,7 @@ class WaterLevelDevice(models.Model):
         required=True, ondelete='restrict', index=True, tracking=True)
     # ⚠️ ondelete 從 cascade 改成 restrict：cascade 會讓「刪工程案件」在資料庫層
     #    連坐刪光該案所有水位紀錄，而且完全不報錯，直接繞過 unlink() 的保護。
-    #    這套系統對客戶承諾「依法保存兩年」，這條路徑必須堵死。
+    #    這套系統對客戶承諾「依法保存三年」，這條路徑必須堵死。
     # ⚠️ 這是實體欄位不是 related：改成 related store 會讓 reading.project_id
     #    （也是 stored related）跟著級聯重算上千萬列，而且 ingest 的原生 SQL
     #    明寫了這個欄位。值由 site 帶入，一致性靠下面的 constrains 保證。
