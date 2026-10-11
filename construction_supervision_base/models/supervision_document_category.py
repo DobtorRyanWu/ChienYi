@@ -171,3 +171,43 @@ class SupervisionDocumentCategory(models.Model):
             'domain': [('document_category_id', '=', self.id)],
             'context': {'default_document_category_id': self.id},
         }
+
+    # 舊版系統預設分類的 xml_id（已由 cat_11 ～ cat_18 分類樹取代）
+    _LEGACY_CATEGORY_XMLIDS = (
+        'category_pre_construction',
+        'category_construction',
+        'category_completion',
+        'category_acceptance',
+        'category_other',
+        'category_personnel_list',
+        'category_schedule',
+        'category_construction_plan',
+        'category_quality_plan',
+        'category_safety_plan',
+        'category_insurance',
+        'category_daily_log',
+        'category_supervision_report',
+        'category_test_report',
+        'category_inspection_record',
+        'category_photo',
+        'category_meeting_minutes',
+        'category_completion_drawing',
+        'category_completion_settlement',
+        'category_supervision_final_report',
+        'category_quality_certificate',
+        'category_warranty_certificate',
+        'category_correspondence',
+        'category_change_order',
+    )
+
+    @api.model
+    def _deactivate_legacy_categories(self):
+        """停用舊版預設分類。
+
+        只處理「已存在」的記錄：全新安裝時這些 xml_id 不存在，若在 XML 內寫
+        `<record>` 只帶 active=False，會因 name 必填而 NotNullViolation。
+        """
+        for xmlid in self._LEGACY_CATEGORY_XMLIDS:
+            rec = self.env.ref('construction_supervision_base.' + xmlid, raise_if_not_found=False)
+            if rec and rec.active:
+                rec.active = False
