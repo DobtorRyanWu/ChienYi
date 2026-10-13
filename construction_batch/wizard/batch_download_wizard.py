@@ -68,6 +68,13 @@ RECORD_SOURCES = {
     },
 }
 
+# 有手動選取 M2M 欄位的那些類型的欄位名（略過 field=None）。
+# 凡是「對每個類型的選取欄位做同一件事」（清空、重設）一律迭代這份清單，
+# 不要直接迭代 RECORD_SOURCES——2.8.0 加入 field=None 之後，onchange 執行
+# self[None] = False 爆 KeyError，連開啟精靈都失敗（2026-10-13 生產站）。
+SELECTION_FIELDS = tuple(
+    spec['field'] for spec in RECORD_SOURCES.values() if spec['field'])
+
 # 刻意不放進下載中心的樣板類型（保留紀錄，避免日後又被「補齊」進來）：
 #   material_test  —— 樣板實際上是「檢附試驗報告請機關備查」的公文函，不是報表。
 #                     2026-08-10 使用者決定先移出報表/下載，待釐清用途後再議。
@@ -389,8 +396,8 @@ class BatchDownloadWizard(models.TransientModel):
     @api.onchange('download_type')
     def _onchange_download_type(self):
         """換類型時清掉已選記錄，並把不支援清單彙總的類型切回正式表單"""
-        for spec in RECORD_SOURCES.values():
-            self[spec['field']] = False
+        for field in SELECTION_FIELDS:
+            self[field] = False
         if self.download_type not in ('daily_log', 'estimate'):
             self.output_format = 'template'
 
@@ -399,8 +406,8 @@ class BatchDownloadWizard(models.TransientModel):
         """當專案變更時，限制可選記錄的範圍"""
         if self.project_id:
             in_project = [('project_id', '=', self.project_id.id)]
-            return {'domain': {spec['field']: in_project
-                               for spec in RECORD_SOURCES.values()}}
+            return {'domain': {field: in_project
+                               for field in SELECTION_FIELDS}}
         return {}
 
     @api.constrains('date_from', 'date_to')
@@ -635,8 +642,7 @@ class BatchDownloadWizard(models.TransientModel):
         """重設精靈"""
         self.ensure_one()
         vals = {'state': 'draft', 'result_file': False, 'result_filename': False}
-        vals.update({spec['field']: [Command.clear()]
-                     for spec in RECORD_SOURCES.values()})
+        vals.update({field: [Command.clear()] for field in SELECTION_FIELDS})
         self.write(vals)
         return {
             'type': 'ir.actions.act_window',
