@@ -698,6 +698,17 @@ class PaymentEstimateLine(models.Model):
         help='估驗日期早於本次、且已核定的估驗單，本工項的估驗數量合計。'
              '不依賴本次估驗數量，故本表即時編輯時保持穩定'
     )
+    # ⚠ 刻意不設 digits：Float 有 digits 時 Odoo 會在寫進快取時就四捨五入，
+    #   累計金額再四捨五入一次 → 重複進位，少數列差 0.01
+    #   （開發庫實測 111-09-AEG 第2期 1.112：應為 126.847→126.85，設了 digits 變 126.84）。
+    #   不設 digits 才能讓「單價沒變、沒有手動金額」的列跟舊公式結果完全相同。
+    previous_approved_amount = fields.Float(
+        '前期已核定累計金額',
+        compute='_compute_previous_approved_qty',
+        readonly=True,
+        help='與「前期已核定累計數量」同一批前期估驗單，本工項各期「本次估驗金額」的合計'
+             '（手動金額照手動值、其餘照該期自己的單價 × 數量）'
+    )
     cumulative_estimate_qty = fields.Float(
         '累計估驗數量',
         digits=(16, 4),
@@ -732,7 +743,7 @@ class PaymentEstimateLine(models.Model):
         digits=(16, 2),
         compute='_compute_cumulative',
         readonly=True,
-        help='單價 × 累計估驗數量（非儲存）'
+        help='前期已核定累計金額 + 本次估驗金額（非儲存）'
     )
 
     # === 備註 ===
@@ -929,11 +940,15 @@ class PaymentEstimateLine(models.Model):
     @api.depends('task_id', 'is_summary_item',
                  'estimate_id.project_id', 'estimate_id.estimate_date')
     def _compute_previous_approved_qty(self):
-        """前期已核定累計數量：估驗日期「早於本次」且已核定的估驗單合計。
+        """前期已核定累計數量／金額：排在本次之前、且已核定的估驗單合計。
 
-        以 estimate_date 作為先後判定（次數是「數量+1」不代表時間先後，日期最保險）。
+        先後以 _estimates_before()（與畫面上的「第N次」同一套排序）判定。
         本值不依賴本次 estimate_qty，故在估驗表即時編輯時保持穩定，
         累計欄位得以純算術（前期 + 本次）即時重算。非儲存：他單核定後重讀即更新。
+
+        金額是前期各期「本次估驗金額」相加（18.0.1.8.1），不是 單價 × 前期數量：
+        前期的錢要照**那一期**實際估的金額 —— 手動金額照手動值、單價中途改過的
+        照當時的單價（估驗明細的單價是建列當下抄的快照）。
         """
         # `_estimates_before()` 每次都要 search 一次工程底下的所有估驗單。
         # 這個 compute 是**逐列**跑的（一張估驗單動輒上百列），不快取的話
@@ -944,6 +959,7 @@ class PaymentEstimateLine(models.Model):
             if (line.is_summary_item or not line.task_id
                     or not est.project_id or not est.estimate_date):
                 line.previous_approved_qty = 0.0
+                line.previous_approved_amount = 0.0
                 continue
             # 🔴 「前期」用 _estimates_before()（與畫面上的「第N次」同一套排序），
             #    不能用 domain 的 `estimate_date <`：**同一天可能有好幾期**
@@ -958,41 +974,56 @@ class PaymentEstimateLine(models.Model):
             before = before_cache[est.id]
             if not before:
                 line.previous_approved_qty = 0.0
+                line.previous_approved_amount = 0.0
                 continue
             prev_lines = self.search([
                 ('task_id', '=', line.task_id.id),
                 ('estimate_id', 'in', before.ids),
             ])
             line.previous_approved_qty = sum(prev_lines.mapped('estimate_qty'))
+            line.previous_approved_amount = sum(
+                l._get_effective_amount() for l in prev_lines)
 
-    @api.depends('estimate_qty', 'unit_price', 'previous_approved_qty', 'is_summary_item',
+    @api.depends('estimate_qty', 'unit_price', 'previous_approved_qty',
+                 'previous_approved_amount', 'is_summary_item',
                  'is_amount_manual', 'manual_estimate_amount',
                  'estimate_id.line_ids.estimate_qty',
                  'estimate_id.line_ids.unit_price',
                  'estimate_id.line_ids.previous_approved_qty',
+                 'estimate_id.line_ids.previous_approved_amount',
                  'estimate_id.line_ids.is_amount_manual',
                  'estimate_id.line_ids.manual_estimate_amount')
     def _compute_cumulative(self):
         """計算累計估驗數量與金額（純算術，即時更新）
 
-        葉節點：累計數量 = 前期已核定累計 + 本次；
-                累計金額 = 單價 × 前期累計數量 + 本次估驗金額
-                （本次金額走 _get_effective_amount，故手動金額會反映到累計；
-                  未手動時等同舊式 單價 × 累計數量）。
+        葉節點：累計數量 = 前期已核定累計數量 + 本次；
+                累計金額 = 前期已核定累計金額 + 本次估驗金額
+                （前期金額＝前期各期本次估驗金額相加；本次金額走 _get_effective_amount，
+                  故手動金額會反映到累計。單價沒變、沒有手動金額時等同 單價 × 累計數量）。
         彙總項：數量採「一式」固定 1；金額 = 底下葉節點同式之和
                 （直接讀葉節點原始欄位算術，不讀其計算欄位，避免計算順序造成讀到舊值）。
+
+        🔴 不可改回 `單價 × 前期數量 + 本次`（18.0.1.8.0 以前的寫法）：
+          ・單價是 0 的工項（自主品管費、稅什費等整包項／比例項，金額在 xml_amount）
+            每期只能填手動金額 → 累計只剩本期，前幾期全部不見（淡五第 9 期
+            七 自主管理費應為 331,621、顯示 55,442）
+          ・「式」工項每期數量填 1、金額另填 → 累計 ＝ 單價 × 前期期數 ＋ 本期，
+            多算好幾倍（111-09-AEG 3.1 應為 40,478、顯示 242,869）
+          ・單價中途改過 → 變更前的期別被新單價重算
+        三種都不會報錯。非契約工項（payment.estimate.extra.line）同一個理由，
+        18.0.1.7.0 起就是前期金額相加。
         """
         for line in self:
             if line.is_summary_item:
                 leaf_lines = line._get_descendant_leaf_lines()
                 line.cumulative_estimate_qty = 1.0
                 line.cumulative_estimate_amount = sum(
-                    l.unit_price * l.previous_approved_qty + l._get_effective_amount()
+                    l.previous_approved_amount + l._get_effective_amount()
                     for l in leaf_lines
                 )
                 continue
             line.cumulative_estimate_qty = line.previous_approved_qty + line.estimate_qty
             line.cumulative_estimate_amount = (
-                line.unit_price * line.previous_approved_qty
+                line.previous_approved_amount
                 + line._get_effective_amount()
             )

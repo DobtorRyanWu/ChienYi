@@ -12,10 +12,18 @@ class EstimateSyncWizard(models.TransientModel):
     同步估驗計價工項精靈
 
     在契約變更單套用後，將指定日期之後（草稿/待核定狀態）的估驗計價單
-    工項清單與「變更後核定數量」同步至最新的契約內容：
-    1. 更新現有明細行的 approved_qty → task.planned_qty
+    工項清單、「變更後核定數量」與單價同步至最新的契約內容：
+    1. 更新現有明細行的 approved_qty → task.planned_qty、unit_price → task.unit_price
     2. 新增缺少的工項明細行（estimate_qty = 0）
-    已核定或已歸檔的估驗單不受影響。
+    已核定或已歸檔的估驗單不受影響；原始契約數量（contract_qty）留原值。
+
+    🔴 單價也要更新（18.0.1.8.2，使用者 2026-10-19 裁示）：以前只更新數量，
+    契約變更改了單價時，變更前就建好的草稿估驗單（例：進度表啟用時一次建好的各期）
+    同步後仍是舊單價，本次估驗金額也照舊單價算（pg18 實測：A 改 12 元，同步後仍 10 元、
+    本次金額 50 不是 60）。估驗明細的單價是建列當下的快照、累計金額是各期金額相加
+    （18.0.1.8.1），所以基準日之前的期別照舊單價、之後的期別照新單價 ——
+    就是「改動前照原始金額、改動後才用改動之金額」。
+    手動金額（is_amount_manual）照手動值，不會被單價更新蓋掉。
 
     ⚠️ 本精靈只處理 line_ids（契約工項的鏡像），**不碰 extra_line_ids**
     （非契約工項）。非契約工項不來自 project.task，契約變更也不會產生它們，
@@ -92,13 +100,16 @@ class EstimateSyncWizard(models.TransientModel):
         for estimate in estimates:
             existing_task_ids = set(estimate.line_ids.mapped('task_id').ids)
 
-            # 1. 更新現有行的 approved_qty（彙總列正規化為 1）
+            # 1. 更新現有行的 approved_qty 與 unit_price（彙總列正規化為「一式」）
             for line in estimate.line_ids:
                 if line.task_id and line.task_id.id in current_task_ids:
                     if line.is_summary_item:
                         line.approved_qty = 1.0
                     else:
-                        line.approved_qty = line.task_id.planned_qty
+                        line.write({
+                            'approved_qty': line.task_id.planned_qty,
+                            'unit_price': line.task_id.unit_price,
+                        })
 
             # 2. 新增缺少的工項行（彙總列「一式」qty=1）
             missing_tasks = current_tasks.filtered(
@@ -125,7 +136,7 @@ class EstimateSyncWizard(models.TransientModel):
             'tag': 'display_notification',
             'params': {
                 'title': '同步完成',
-                'message': f'已更新 {synced_count} 筆估驗計價單的工項清單與核定數量。',
+                'message': f'已更新 {synced_count} 筆估驗計價單的工項清單、核定數量與單價。',
                 'type': 'success',
                 'sticky': False,
             },

@@ -21,7 +21,8 @@ Odoo 這邊拆成兩個按鈕，各自下載。
 
 from ..utils.formatters import roc_date_cn
 
-from .progress_report import authority_name, estimate_warnings
+from .progress_report import (
+    _contract_qty, authority_name, estimate_warnings, is_cancelled_item)
 
 MODEL = 'payment.estimate'
 MODE = 'placeholder'
@@ -57,6 +58,18 @@ def _amount(line, qty_field, amount_field):
     return line[qty_field] * line.unit_price
 
 
+def _approved_quantity(line):
+    """（二）變更後核定數量。
+
+    契約變更刪掉的工項印 0（不是空白、也不是原契約數量）：(一) 有數量、(二) 是 0，
+    一看就知道這項被刪了。原本 `approved_qty or contract_qty` 把 0 當成沒填、
+    印出原契約數量（見 progress_report._contract_qty）。
+    """
+    if is_cancelled_item(line) and line.contract_qty:
+        return '0'
+    return _num(_contract_qty(line))
+
+
 def build_context(estimate):
     lines = estimate.line_ids.sorted(lambda ln: (ln.sequence, ln.id))
     return {
@@ -72,7 +85,7 @@ def build_context(estimate):
             'description': line.description or '',
             'unit': line.unit or '',
             'quantity': _num(line.contract_qty),
-            'approvedQuantity': _num(line.approved_qty or line.contract_qty),
+            'approvedQuantity': _approved_quantity(line),
             'price': _money(line.unit_price),
             'sumQuantity': _num(line.estimate_qty),
             'totalQuantity': _num(line.cumulative_estimate_qty),

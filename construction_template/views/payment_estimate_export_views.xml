@@ -31,12 +31,19 @@
                         icon="fa-file-word-o"
                         context="{'template_type': 'invoice_photo'}"
                         help="本期區間內的施工照片，一頁兩張、日期浮水印"/>
+                <!-- 2026-10-19 使用者裁示：「匯出進度報告」暫時隱藏（3.5.4）。
+                     這份以估驗單為期間錨點，工項清單就是估驗單上的明細：
+                     匯入建的估驗單只有工作簿有填的工項、契約變更後的「同步估驗計價工項」
+                     要手動按且不更新單價 → 完成百分率的分母可能不完整。
+                     進度報告改用「工程管理 > 進度管理 > 進度報告」（報表／下載中心也是那一份）。
+                     恢復：拿掉下面的 invisible="1"、升版號、-u construction_template。 -->
                 <button name="action_export_estimate_template"
                         string="匯出進度報告"
                         type="object"
                         class="btn-secondary"
                         icon="fa-file-excel-o"
                         context="{'template_type': 'progress_report'}"
+                        invisible="1"
                         help="公共工程施工日誌第二聯（期間版）：本期與累計完成數量、完成百分率"/>
             </xpath>
         </field>

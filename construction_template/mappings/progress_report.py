@@ -129,8 +129,44 @@ def _contract_qty(line):
     樣板註 3：「如辦理契約變更，應填寫修正核定後之契約數量」——所以有核定數量
     就用核定數量。對應 EAGLE 的
     `if (!payItem.isApproved && payItem.previous) quantity = previous.quantity`。
+
+    🔴 變更後核定數量是 0 不一定是「沒填」：契約變更把工項刪掉時它就是 0。
+    原本 `approved_qty or contract_qty` 把這種 0 當成沒填、退回原契約數量 →
+    已刪掉的工項還被算進契約金額（完成百分率的分母），估驗詳細表（二）欄也印原數量
+    （開發庫 test-P11001 分母多 1,486,432.50，1.15、1.32）。
+    判斷：變更後核定數量是 0、而工項**現在**的契約數量也是 0 → 真的是 0。
+    其他（變更後核定數量沒填的舊資料）照舊退回原契約數量。
+    後台建估驗單（_prepare_line_vals）與匯入步驟 14 都會把 approved_qty 填成
+    工項當時的契約數量，所以平常只有「真的刪掉」才會是 0。
     """
-    return line.approved_qty or line.contract_qty or 0.0
+    if line.approved_qty:
+        return line.approved_qty
+    if is_cancelled_item(line):
+        return 0.0
+    return line.contract_qty or 0.0
+
+
+def is_cancelled_item(line):
+    """這一列是不是契約變更刪掉的工項（變更後核定數量 0、工項現在的契約數量也是 0）"""
+    return (not line.approved_qty and not line.is_summary_item
+            and bool(line.task_id) and not line.task_id.planned_qty)
+
+
+def _leaf_contract_amount(line):
+    """單一葉節點的契約金額（完成百分率的分母）。
+
+    有單價：照舊用估驗明細上的 核定數量 × 單價。
+    沒有單價（自主品管費、稅什費這類整包項／比例項，金額在工項的 xml_amount
+    或「比例 × 基數」）：用工項的契約金額 planned_amount。
+
+    🔴 原本一律 數量 × 單價 → 這類工項不在分母，但它們的金額在分子
+    （本期／累計金額）→ 百分率偏高。construction_payment 18.0.1.8.1 把累計金額
+    改對之後更明顯：開發庫 111-20-AEF-V 第 13 期累計百分率 99.52%，
+    應為 89.66%（分母少了稅什費 3,903,984.60）。
+    """
+    if line.unit_price:
+        return _contract_qty(line) * line.unit_price
+    return line.task_id.planned_amount or 0.0
 
 
 def _amounts(lines):
@@ -145,7 +181,7 @@ def _amounts(lines):
     所以純用「數量 × 單價」會讓多數專案的百分率變成 0。
     """
     leaves = [ln for ln in lines if not ln.is_summary_item]
-    contract = sum(_contract_qty(ln) * ln.unit_price for ln in leaves)
+    contract = sum(_leaf_contract_amount(ln) for ln in leaves)
     current = sum(ln.estimate_amount or (ln.estimate_qty * ln.unit_price) for ln in leaves)
     cumulative = sum(ln.cumulative_estimate_amount or
                      (ln.cumulative_estimate_qty * ln.unit_price) for ln in leaves)
@@ -213,7 +249,9 @@ def build_context(record):
             'fullItemNo': line.item_no or '',
             'description': line.description or '',
             'unit': line.unit or '',
-            'quantity': _qty(_contract_qty(line)),
+            # 契約變更刪掉的工項印 0（_qty 會把 0 印成空白，看起來像沒資料）
+            'quantity': ('0' if is_cancelled_item(line) and line.contract_qty
+                         else _qty(_contract_qty(line))),
             'sumQuantity': _qty(line.estimate_qty),
             'totalQuantity': _qty(line.cumulative_estimate_qty),
             'note': line.note or '',

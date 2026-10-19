@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import _, api, fields, models
+from odoo.tools import float_round
 
 
 class PaymentEstimate(models.Model):
@@ -79,7 +80,10 @@ class PaymentEstimate(models.Model):
         for c, header in enumerate(headers, start=1):
             cells["%s2" % self._sse_col_letter(c)] = {"content": header, "style": 2}
         lines = self.line_ids.sorted(key=lambda r: (r.sequence or 0, r.id))
-        # 金額欄改即時公式：H 本次估驗金額 = 單價(F) × 本次估驗數量(G)；J 累計估驗金額 = 單價(F) × 累計數量(I)
+        # 金額欄改即時公式：H 本次估驗金額 = 單價(F) × 本次估驗數量(G)。
+        # J 累計估驗金額（葉節點）= 前期已核定累計金額（寫成常數）+ 本次估驗金額(H)，
+        # 與後台 construction_payment 18.0.1.8.1 的算法相同（見下方迴圈）。
+        # 彙總列沿用 =F×I：彙總列單價是空的、算出 0，下方小計 SUM 才不會重複加總。
         formula_cols = {"estimate_amount": "=F%d*G%d", "cumulative_estimate_amount": "=F%d*I%d"}
         # D-J 數值欄套千分位格式（format id 1）
         numeric_fields = {
@@ -90,7 +94,16 @@ class PaymentEstimate(models.Model):
             for c, (_h, field) in enumerate(self._SSE_COLUMNS, start=1):
                 col = self._sse_col_letter(c)
                 cell = None
-                if field in formula_cols:
+                if field == "cumulative_estimate_amount" and not line.is_summary_item:
+                    # 🔴 不可用 =F×I（單價 × 累計數量）：前期是手動金額、單價 0 的整包項
+                    #    （稅什費等）、單價中途改過時都會跟後台對不上。前期的錢只能由
+                    #    後台算好（前期各期本次金額相加），試算表裡看不到前期的列，
+                    #    所以寫成常數；加上 H 欄，在試算表裡改本期數量累計仍會跟著重算。
+                    #    6 位小數：前期金額＝單價(2位)×數量(4位)之和，6 位是精確值，
+                    #    只去掉浮點尾數（避免公式裡出現 16530.434999999998）。
+                    prev = float_round(line.previous_approved_amount or 0.0, precision_digits=6)
+                    cell = {"content": ("=%r+H%d" % (prev, r)) if prev else ("=H%d" % r)}
+                elif field in formula_cols:
                     # 金額經人工覆寫者不可再套 單價×數量 的公式，否則試算表會顯示成
                     # 與後台不同的數字；改直接寫入模型算好的值。
                     if line.is_amount_manual:
