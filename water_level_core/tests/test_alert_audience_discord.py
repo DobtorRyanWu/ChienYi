@@ -60,14 +60,17 @@ class TestAlertAudienceAndDiscord(common.TransactionCase):
         super().setUpClass()
         Channel = cls.env['water.level.alert.channel']
         Channel.search([]).write({'active': False})
-        cls.site = cls.env['water.level.site'].create(site_vals(cls.env, '青田路社區'))
+        # 不同等級的設備放在不同場域：社區模組要求社區場域的設備等級等於場域等級
+        Site = cls.env['water.level.site']
+        cls.site = Site.create(site_vals(cls.env, '青田路社區', service_level='basic'))
+        cls.flagship_site = Site.create(site_vals(cls.env, '頂樓社區', service_level='flagship'))
         Device = cls.env['water.level.device']
         cls.basic = Device.create({
             'name': 'B1 蓄水池', 'site_id': cls.site.id,
             'device_uid': 'TEST-AUD-BASIC', 'service_level': 'basic',
         })
         cls.flagship = Device.create({
-            'name': '頂樓水塔', 'site_id': cls.site.id,
+            'name': '頂樓水塔', 'site_id': cls.flagship_site.id,
             'device_uid': 'TEST-AUD-FLAG', 'service_level': 'flagship',
         })
         cls.internal = Channel.create({
