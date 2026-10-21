@@ -5,3 +5,4 @@ from . import test_alert_recovery
 from . import test_retention
 from . import test_device_site_lock
 from . import test_alert_audience_discord
+from . import test_daily_rollup

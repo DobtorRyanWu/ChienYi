@@ -13,6 +13,7 @@ Odoo 收到的時候事情早就過去了。Odoo 這一側能做的是：把事�
 """
 
 import logging
+import uuid
 
 from odoo import _, api, fields, models
 
@@ -33,7 +34,12 @@ class WaterLevelEvent(models.Model):
     name = fields.Char(string='事件編號', readonly=True, copy=False, default='新事件')
     event_uid = fields.Char(
         string='設備端事件碼', index=True, copy=False,
-        help='設備自己給的事件識別碼。關鍵幀靠 (設備, 事件碼) 掛回來。')
+        help='設備自己給的事件識別碼。關鍵幀靠 (設備, 事件碼) 掛回來。'
+             '設備端回報的事件一定有（沒帶就自動補一個）；空白＝告警掃描開的事件。')
+    alert_notified_at = fields.Datetime(
+        string='告警外送時間', readonly=True, copy=False,
+        help='這筆告警交給外送、且至少一個通道已送達或排進重送的時間。空白＝沒有外送：設備端回報的事件、'
+             '沒有適用的通道、所有通道都略過或確定送不出去，或同一類越線不久前已外送、等級也沒升高（外送限速）。')
 
     device_id = fields.Many2one(
         'water.level.device', string='監測站',
@@ -106,7 +112,10 @@ class WaterLevelEvent(models.Model):
         if not start_ts:
             return False
         start = fields.Datetime.to_datetime(start_ts)
-        return start - timedelta(minutes=PRE_EVENT_BUFFER_MINUTES)
+        try:
+            return start - timedelta(minutes=PRE_EVENT_BUFFER_MINUTES)
+        except OverflowError:       # 時鐘錯成 0001 年之類的讀值，不讓整支排程掛掉
+            return start
 
     @staticmethod
     def _buffer_end(end_ts):
@@ -114,7 +123,10 @@ class WaterLevelEvent(models.Model):
         if not end_ts:
             return False
         end = fields.Datetime.to_datetime(end_ts)
-        return end + timedelta(minutes=POST_EVENT_BUFFER_MINUTES)
+        try:
+            return end + timedelta(minutes=POST_EVENT_BUFFER_MINUTES)
+        except OverflowError:       # 時鐘錯成 9999 年之類的讀值，不讓整支排程掛掉
+            return end
 
     def action_close(self):
         for event in self:
@@ -147,8 +159,11 @@ class WaterLevelEvent(models.Model):
 
     @api.model
     def record_from_device(self, device, payload):
-        """設備端送上來的事件。同一個 event_uid 重送只更新不重複開。"""
-        event_uid = payload.get('uid')
+        """設備端送上來的事件。同一個 event_uid 重送只更新不重複開。
+
+        沒帶 uid 就補一個：event_uid 空白是「告警掃描開的事件」的記號，設備事件混進來的話，
+        掃描會替它判結束時間、被它擋住不開新事件。"""
+        event_uid = payload.get('uid') or 'device-%s' % uuid.uuid4().hex
         domain = [('device_id', '=', device.id)]
         existing = self.search(domain + [('event_uid', '=', event_uid)], limit=1) \
             if event_uid else self.browse()

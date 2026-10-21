@@ -252,6 +252,10 @@ def _lock_crons(cr, cron_ids):
 
 
 def post_init_hook(env):
+    # 接手舊資料（例如 jt 從 construction_water_level 2.x 升上來）：核心是「新裝」，
+    # 自己的 migrations 不會跑，所以舊的 UTC 日摘要在這裡整批換成台灣日。空庫是 no-op。
+    env['water.level.monitor']._rollup_all()
+
     Param = env['ir.config_parameter'].sudo()
     raw = Param.get_param(CRON_STASH_PARAM)
     if not raw:
