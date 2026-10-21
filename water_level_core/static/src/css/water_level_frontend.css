@@ -1,8 +1,31 @@
 /**
- * 水位監測前台樣式（v11）
+ * 水位監測前台樣式（v11）——工程水位頁與社區水情頁共用。
  * 色彩一律走 --wb-* 變數；本頁另補三個警戒語意色（--wb-wl-*），深色模式一起定義。
  * 注意：v11 的 --wb-amber 已被改指向品牌鋼藍，不能拿它當警戒色。
+ *
+ * 2026-10 從 construction_portal 搬進水位核心（社區模組可以不裝工程前台單獨上線）。
+ * 本頁用到的 14 個 --wb-* 基礎變數原本定義在 construction_portal 的 portal_mobile.css；
+ * 這裡用 :where(:root) 給一份**淺色預設值**——:where() 的權重是 0，
+ * 所以合裝時 portal_mobile.css 的 :root（含深色模式）一定蓋過它，不必管 bundle 先後。
+ * 數值抄自 portal_mobile.css v11 淺色段，要改品牌色兩邊一起改。
  */
+
+:where(:root) {
+  --wb-bg0: #F7FBFC;
+  --wb-bg2: #ffffff;
+  --wb-bg3: #dbe1f0;
+  --wb-bdr: #B9D7EA;
+  --wb-bdr-soft: #dbe1f0;
+  --wb-t1: #1a1d26;
+  --wb-t2: #5a6070;
+  --wb-t3: #8b90a0;
+  --wb-brand: #769FCD;
+  --wb-brand-soft: #dbe1f0;
+  --wb-shadow: 0 1px 3px rgba(30,60,100,0.05), 0 2px 8px rgba(30,60,100,0.04);
+  --wb-shadow-lg: 0 4px 20px rgba(118,159,205,0.22);
+  --wb-radius: 14px;
+  --wb-radius-sm: 8px;
+}
 
 :root {
   --wb-wl-water: #769FCD;      /* 水體：品牌鋼藍 */

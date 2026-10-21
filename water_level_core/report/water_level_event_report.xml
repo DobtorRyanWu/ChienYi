@@ -5,8 +5,8 @@
         <field name="name">事件報表</field>
         <field name="model">water.level.event</field>
         <field name="report_type">qweb-pdf</field>
-        <field name="report_name">construction_water_level.report_water_level_event</field>
-        <field name="report_file">construction_water_level.report_water_level_event</field>
+        <field name="report_name">water_level_core.report_water_level_event</field>
+        <field name="report_file">water_level_core.report_water_level_event</field>
         <field name="binding_model_id" ref="model_water_level_event"/>
         <field name="binding_type">report</field>
     </record>
@@ -48,9 +48,8 @@
                                 <td><strong>監測場域</strong></td>
                                 <td><span t-field="doc.site_id.name"/></td>
                                 <td><strong>監測站</strong></td>
-                                <td><span t-field="doc.device_id.name"/>
-                                    <span t-if="doc.tank_id"> / <span t-field="doc.tank_id.name"/></span>
-                                </td>
+                                <!-- 社區模組在這格後面補「/ 池名」（name 是給 inherit 用的錨點） -->
+                                <td name="device_cell"><span t-field="doc.device_id.name"/></td>
                             </tr>
                             <tr>
                                 <td><strong>發生時間</strong></td>

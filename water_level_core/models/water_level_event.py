@@ -40,8 +40,6 @@ class WaterLevelEvent(models.Model):
         required=True, ondelete='restrict', index=True)
     site_id = fields.Many2one(
         related='device_id.site_id', string='監測場域', store=True, index=True)
-    tank_id = fields.Many2one(
-        'water.level.tank', string='蓄水池', ondelete='set null', index=True)
 
     event_type = fields.Selection(
         [('level_high', '水位過高'),
@@ -156,7 +154,6 @@ class WaterLevelEvent(models.Model):
             if event_uid else self.browse()
         vals = {
             'device_id': device.id,
-            'tank_id': device.tank_id.id or False,
             'event_uid': event_uid,
             'event_type': payload.get('type') or 'manual',
             'severity': payload.get('severity') or 'warning',

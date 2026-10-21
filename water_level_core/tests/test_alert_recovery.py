@@ -24,6 +24,8 @@ from datetime import timedelta
 from odoo import fields
 from odoo.tests import common, tagged
 
+from .common import site_vals
+
 
 @tagged('post_install', '-at_install')
 class TestWaterLevelAlertRecovery(common.TransactionCase):
@@ -31,13 +33,7 @@ class TestWaterLevelAlertRecovery(common.TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # 社區型場域有 constrains 要求填擁有者，不是可省的欄位
-        cls.owner = cls.env['res.partner'].create({'name': '測試管委會（恢復）'})
-        cls.site = cls.env['water.level.site'].create({
-            'name': '測試社區（恢復）',
-            'site_type': 'community',
-            'owner_partner_id': cls.owner.id,
-        })
+        cls.site = cls.env['water.level.site'].create(site_vals(cls.env, '測試社區（恢復）'))
         cls.device = cls.env['water.level.device'].create({
             'name': '測試蓄水池',
             'site_id': cls.site.id,

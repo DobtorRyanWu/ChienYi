@@ -1,29 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- 掛在「品質安全」底下，與自主檢查、缺失管理同層 -->
+    <!-- 核心自己是一個頂層 App。裝了工程水位時，該模組會把它改掛到
+         「品質安全」底下（與自主檢查、缺失管理同層），合裝站上不會出現兩個水位選單。 -->
     <menuitem id="menu_water_level_root"
               name="水位監測"
-              parent="construction_supervision_base.menu_quality_safety_root"
-              sequence="30"/>
-
-    <menuitem id="menu_water_level_community_overview"
-              name="社區水情總覽"
-              parent="menu_water_level_root"
-              action="action_water_level_community_overview"
-              sequence="1"/>
+              sequence="60"/>
 
     <menuitem id="menu_water_level_site"
               name="監測場域"
               parent="menu_water_level_root"
               action="action_water_level_site"
               sequence="5"/>
-
-    <menuitem id="menu_water_level_tank"
-              name="蓄水池"
-              parent="menu_water_level_root"
-              action="action_water_level_tank"
-              sequence="8"/>
 
     <menuitem id="menu_water_level_device"
               name="監測站"

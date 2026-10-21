@@ -156,7 +156,6 @@ class WaterLevelMonitor(models.AbstractModel):
             return False
         return Event.create({
             'device_id': device.id,
-            'tank_id': device.tank_id.id or False,
             'event_type': event_type,
             'severity': severity,
             'start_ts': fields.Datetime.now(),

@@ -26,6 +26,8 @@ from unittest.mock import patch
 
 from odoo.tests import common, tagged
 
+from .common import site_vals
+
 
 @tagged('post_install', '-at_install')
 class TestWaterLevelAlertChannel(common.TransactionCase):
@@ -33,13 +35,7 @@ class TestWaterLevelAlertChannel(common.TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # 社區型場域有 constrains 要求填擁有者（管委會／物業），不是可省的欄位
-        cls.owner = cls.env['res.partner'].create({'name': '測試管委會'})
-        cls.site = cls.env['water.level.site'].create({
-            'name': '測試社區',
-            'site_type': 'community',
-            'owner_partner_id': cls.owner.id,
-        })
+        cls.site = cls.env['water.level.site'].create(site_vals(cls.env, '測試社區'))
         cls.device = cls.env['water.level.device'].create({
             'name': '地下蓄水池',
             'site_id': cls.site.id,
@@ -165,9 +161,7 @@ class TestWaterLevelAlertChannel(common.TransactionCase):
 
     def test_other_site_not_sent(self):
         """通道指定了場域時，別的場域的告警不該送過去（多客戶共用同一站台的隔離）。"""
-        other_site = self.env['water.level.site'].create({
-            'name': '別的社區', 'site_type': 'community',
-            'owner_partner_id': self.owner.id})
+        other_site = self.env['water.level.site'].create(site_vals(self.env, '別的社區'))
         self.channel.site_ids = [(6, 0, [other_site.id])]
         sink = []
         self._patch_send(sink=sink)

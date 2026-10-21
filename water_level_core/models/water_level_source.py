@@ -488,7 +488,7 @@ class WaterLevelSource(models.Model):
                 'title': _('已排入一場暴漲'),
                 'message': _('下一輪撈取（最多 %s 分鐘後）開始漲水，'
                              '越過三級警戒後會自動退水。要立刻看到就按「立刻撈一次」。',
-                             self.env.ref('construction_water_level.cron_water_level_source_pull',
+                             self.env.ref('water_level_core.cron_water_level_source_pull',
                                           raise_if_not_found=False).interval_number or 15),
                 'type': 'success',
             },

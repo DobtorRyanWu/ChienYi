@@ -14,7 +14,7 @@
 import base64
 import io
 
-# 與 construction_portal/static/src/css/portal_water_level.css 的 --wb-wl-* 對齊
+# 與 water_level_core/static/src/css/water_level_frontend.css 的 --wb-wl-* 對齊
 COLOR_NORMAL = '#22b357'      # 正常
 COLOR_WARN_3 = '#d68b1a'      # 三級警戒／高儲水率
 COLOR_WARN_2 = '#e2660f'      # 二級警戒

@@ -32,29 +32,6 @@
         </field>
     </record>
 
-    <record id="view_water_level_tank_map" model="ir.ui.view">
-        <field name="name">water.level.tank.leaflet.map</field>
-        <field name="model">water.level.tank</field>
-        <field name="arch" type="xml">
-            <leaflet_map field_latitude="latitude" field_longitude="longitude"
-                         field_title="name"
-                         field_marker_icon_image="marker_icon"
-                         marker_icon_size_x="64" marker_icon_size_y="64"
-                         default_zoom="13">
-                <field name="latitude"/>
-                <field name="longitude"/>
-                <field name="name"/>
-                <field name="site_id"/>
-                <field name="usage"/>
-                <field name="fill_rate"/>
-                <field name="current_volume_m3"/>
-                <field name="effective_volume_m3"/>
-                <field name="is_stale"/>
-                <field name="marker_icon"/>
-            </leaflet_map>
-        </field>
-    </record>
-
     <record id="view_water_level_device_map" model="ir.ui.view">
         <field name="name">water.level.device.leaflet.map</field>
         <field name="model">water.level.device</field>
