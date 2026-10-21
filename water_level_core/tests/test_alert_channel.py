@@ -35,6 +35,8 @@ class TestWaterLevelAlertChannel(common.TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # 庫裡已有的真通道（在拷貝庫上跑時）也會收到測試事件，「送了幾則」就不準；只在測試交易裡封存
+        cls.env['water.level.alert.channel'].search([]).write({'active': False})
         cls.site = cls.env['water.level.site'].create(site_vals(cls.env, '測試社區'))
         cls.device = cls.env['water.level.device'].create({
             'name': '地下蓄水池',

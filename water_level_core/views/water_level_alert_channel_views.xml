@@ -5,10 +5,11 @@
         <field name="name">water.level.alert.channel.list</field>
         <field name="model">water.level.alert.channel</field>
         <field name="arch" type="xml">
-            <list string="告警外送通道">
+            <list string="告警外送通道" decoration-danger="last_error">
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="channel_type"/>
+                <field name="audience"/>
                 <field name="min_severity"/>
                 <field name="endpoint"/>
                 <field name="last_sent_at"/>
@@ -33,11 +34,12 @@
                             invisible="active"/>
                     <div class="oe_title">
                         <label for="name"/>
-                        <h1><field name="name" placeholder="例如：管委會 LINE 群組"/></h1>
+                        <h1><field name="name" placeholder="例如：千溢 Discord 告警頻道"/></h1>
                     </div>
                     <group>
                         <group string="送什麼">
                             <field name="channel_type"/>
+                            <field name="audience" widget="radio"/>
                             <field name="min_severity"/>
                             <field name="site_ids" widget="many2many_tags"
                                    placeholder="留空 = 所有場域"/>
@@ -47,8 +49,16 @@
                                    invisible="channel_type != 'webhook'"
                                    required="channel_type == 'webhook'"
                                    placeholder="https://..."/>
+                            <field name="discord_webhook_url" password="True"
+                                   groups="base.group_system"
+                                   invisible="channel_type != 'discord'"
+                                   required="channel_type == 'discord'"
+                                   placeholder="https://discord.com/api/webhooks/..."/>
                             <field name="secret" password="True"
                                    invisible="channel_type != 'webhook'"/>
+                            <field name="discord_role_id"
+                                   invisible="channel_type != 'discord'"
+                                   placeholder="例如：1234567890"/>
                             <field name="max_per_hour"/>
                             <field name="active"/>
                         </group>
@@ -57,9 +67,10 @@
                         <group>
                             <field name="last_sent_at"/>
                             <field name="delivery_count"/>
+                            <field name="rate_limited_until" invisible="not rate_limited_until"/>
                         </group>
                         <group>
-                            <field name="last_error"/>
+                            <field name="last_error" decoration-danger="last_error"/>
                         </group>
                     </group>
                     <notebook>
@@ -93,7 +104,8 @@
             <p class="o_view_nocontent_smiling_face">建立第一個告警外送通道</p>
             <p>站內通知（收件匣與前台通知中心）本來就會發，不需要設定。
                這裡設定的是<b>送到系統外面</b>的管道——使用者不登入也收得到。</p>
-            <p>只有勾了「即時告警」的監測站會外送。</p>
+            <p>「送給誰」選<b>千溢內部</b>：所有方案的告警都送（維護設備用）；
+               選<b>客戶</b>：只有旗艦方案（即時告警推播）的監測站才送。</p>
         </field>
     </record>
 

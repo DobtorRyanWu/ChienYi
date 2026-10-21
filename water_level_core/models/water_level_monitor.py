@@ -43,7 +43,7 @@ class WaterLevelMonitor(models.AbstractModel):
 
     @api.model
     def _cron_alert_scan(self):
-        """掃描異常並開事件；旗艦等級才推播。
+        """掃描異常並開事件，每個新事件都交給 _notify（推不推、推給誰由通道決定）。
 
         四種異常：水位越線、斷線、失電、時鐘偏移。
         水位越線要去抖動——連續 ALERT_DEBOUNCE_COUNT 筆都超標才算，
@@ -57,8 +57,7 @@ class WaterLevelMonitor(models.AbstractModel):
                 event = self._open_event(device, event_type, severity, note)
                 if event:
                     opened += 1
-                    if device.feature_realtime_alert:
-                        self._notify(device, event)
+                    self._notify(device, event)
             closed += self._close_recovered(device, {t for t, _sev, _n in detected})
         _logger.info('水位告警掃描：開了 %s 個事件、關了 %s 個已恢復的', opened, closed)
         return opened
@@ -170,16 +169,20 @@ class WaterLevelMonitor(models.AbstractModel):
         站內：既有的 mail.thread —— 內部使用者進 inbox，
         前台使用者由既有的通知中心（鈴鐺）撈同一批訊息，不另造一套。
 
-        站外：交給 water.level.alert.channel 外送（Webhook，日後可加 LINE／簡訊）。
+        站外：交給 water.level.alert.channel 外送（Webhook、Discord，社區模組加 LINE）。
         站內這條是憑據、站外那條才是「即時」——使用者不登入也收得到。
         外送整段包在 _dispatch 裡，壞掉的外部端點不會影響站內通知與告警掃描。
+
+        站內通知只有旗艦方案才發（維持 2026-10-21 之前的行為）；外送一律進 _dispatch，
+        由每個通道依「送給誰」判斷——千溢內部通道所有方案都收，客戶通道要旗艦。
         """
         body = _('【%(site)s / %(device)s】%(type)s：%(note)s',
                  site=device.site_id.name, device=device.name,
                  type=dict(event._fields['event_type'].selection)[event.event_type],
                  note=event.note or '')
-        event.message_post(body=body, subtype_xmlid='mail.mt_comment')
-        device.message_post(body=body, subtype_xmlid='mail.mt_comment')
+        if device.feature_realtime_alert:
+            event.message_post(body=body, subtype_xmlid='mail.mt_comment')
+            device.message_post(body=body, subtype_xmlid='mail.mt_comment')
         self.env['water.level.alert.channel']._dispatch(device, event, body)
 
     # ==================== 保存稽核 ====================

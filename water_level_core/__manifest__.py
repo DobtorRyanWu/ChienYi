@@ -36,7 +36,7 @@
     #        pre_init_hook 把 xmlid 從 construction_water_level 改掛到這裡，cron 的啟用
     #        狀態與事件序號因此原樣保留（見 hooks.py 檔頭）。
     #        前台水位圖表的 JS／CSS 從 construction_portal 搬進來，工程頁與社區頁共用。
-    'version': '18.0.3.0.0',
+    'version': '18.0.3.1.0',
     'category': 'Services/Water Level',
     'summary': '監測場域、監測站、時序水位紀錄、雜湊鏈稽核、告警與設備上報端點',
     'description': """
