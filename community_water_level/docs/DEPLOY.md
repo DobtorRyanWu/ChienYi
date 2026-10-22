@@ -40,10 +40,12 @@ jt 也是這樣，程式碼是 CorPaaS 從 GitHub 抓下來再掛進去。社區
 | 網址（資料庫） | 要裝 | 不要裝 |
 |---|---|---|
 | 社區的網址（新庫） | 只裝 `community_water_level`（`water_level_core`、兩個 leaflet 模組會自動一起裝） | 任何 `construction_*`、`project`、`assoc_*` |
-| jt.qytech.com.tw（`jt`） | 照舊（工程 `construction_*`，含 `construction_water_level`） | `community_water_level` |
+| jt.qytech.com.tw（`jt`） | 照舊（工程 `construction_*`，含 `construction_water_level`） | `community_water_level`、`assoc_*` |
+| 選舉／公會會員系統的網址（新庫） | 裝 `assoc_portal_election`（`assoc_base`、`assoc_meeting`、`assoc_election`、`assoc_portal` 會自動一起裝） | 任何 `construction_*`、`community_water_level`、`water_level_*` |
 
 - 跟 jt 共用同一個容器的話：更新程式碼要重啟容器，所有網址會一起斷線約 20 秒；水位核心更新時每個站都要各自「更新」。
 - 一個庫裝錯模組很難退（卸載會連資料刪掉），照上表裝。
+- 選舉站另外**必須**在 odoo.conf 設 `assoc_pii_key_file`（身分證字號加密金鑰的檔案路徑，檔案放容器外、唯讀掛進去、只給 odoo 帳號讀）；沒設的話任何牽涉身分證的動作都會被擋下。金鑰遺失＝所有身分證無法解密，要另外備份。選舉站的其他上線步驟（寄信開關 `assoc.mail.hold` 等）上線前另外對。
 - 建一個**新的資料庫**給社區，不要裝進 jt 的庫。
 
 ## 4. Odoo 設定（odoo.conf 與系統參數）
