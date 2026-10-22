@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- LINE 通道：掛回 core 的告警通道表單。Channel secret 沿用 core 的 secret 欄位 -->
+    <record id="view_water_level_alert_channel_form_line" model="ir.ui.view">
+        <field name="name">water.level.alert.channel.form.line</field>
+        <field name="model">water.level.alert.channel</field>
+        <field name="inherit_id" ref="water_level_core.view_water_level_alert_channel_form"/>
+        <field name="arch" type="xml">
+            <!-- core 的「送出測試訊息」對 LINE 是連線檢查（不推訊息），換一個說得清楚的按鈕 -->
+            <xpath expr="//header/button[@name='action_test']" position="attributes">
+                <attribute name="invisible">channel_type == 'line'</attribute>
+            </xpath>
+            <xpath expr="//header" position="inside">
+                <button name="action_test" type="object" string="檢查 LINE 連線" class="btn-primary"
+                        invisible="channel_type != 'line'"
+                        help="檢查 token、Webhook URL、Channel secret（請 LINE 實際打一次 webhook）。不推訊息、不扣額度。"/>
+            </xpath>
+            <field name="secret" position="attributes">
+                <attribute name="invisible">channel_type not in ('webhook', 'line')</attribute>
+                <attribute name="required">channel_type == 'line'</attribute>
+                <attribute name="help">Webhook：簽章金鑰。LINE：Channel secret（LINE Developers 後台的 Basic settings）。</attribute>
+            </field>
+            <field name="discord_role_id" position="after">
+                <field name="line_channel_access_token" password="True" groups="base.group_system"
+                       invisible="channel_type != 'line'" required="channel_type == 'line'"/>
+                <field name="line_add_friend_url" widget="url" invisible="channel_type != 'line'"
+                       placeholder="https://lin.ee/..."/>
+                <field name="line_site_monthly_cap" invisible="channel_type != 'line'"/>
+                <field name="line_quota_exhausted_month" invisible="not line_quota_exhausted_month"/>
+            </field>
+            <page name="deliveries" position="before">
+                <page string="LINE 收件人" name="line_recipients" invisible="channel_type != 'line'">
+                    <field name="line_recipient_ids" readonly="1" context="{'active_test': False}">
+                        <list>
+                            <field name="site_id"/>
+                            <field name="name"/>
+                            <field name="line_display_name"/>
+                            <field name="bound_at"/>
+                            <field name="created_by_id"/>
+                            <field name="active" widget="boolean"/>
+                            <field name="disabled_reason"/>
+                        </list>
+                    </field>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <!-- LINE 收件人（水位管理員）：看綁定狀況、傳測試訊息 -->
+    <record id="view_water_level_line_recipient_list" model="ir.ui.view">
+        <field name="name">water.level.line.recipient.list</field>
+        <field name="model">water.level.line.recipient</field>
+        <field name="arch" type="xml">
+            <list create="0" decoration-muted="not active">
+                <field name="site_id"/>
+                <field name="channel_id"/>
+                <field name="name"/>
+                <field name="line_display_name"/>
+                <field name="bound_at"/>
+                <field name="bind_code_expires" optional="hide"/>
+                <field name="created_by_id"/>
+                <field name="disabled_reason" optional="show"/>
+                <field name="active" column_invisible="True"/>
+                <button name="action_line_test" type="object" string="傳測試訊息" icon="fa-paper-plane"
+                        invisible="not active or not bound_at"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_water_level_line_recipient" model="ir.actions.act_window">
+        <field name="name">LINE 收件人</field>
+        <field name="res_model">water.level.line.recipient</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <menuitem id="menu_water_level_line_recipient"
+              name="LINE 收件人"
+              parent="water_level_core.menu_water_level_root"
+              action="action_water_level_line_recipient"
+              groups="water_level_core.group_water_level_manager"
+              sequence="96"/>
+</odoo>

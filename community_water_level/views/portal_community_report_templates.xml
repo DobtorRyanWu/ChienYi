@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        社區前台：報表頁 /community/<id>/reports
+        - 週期報表（PDF）：週／月／季／半年／年，選任一天＝含那一天的那一期；另給「上一期」捷徑
+        - 讀值 CSV：逐筆（上限 raw_max_days 天）或日彙總（上限 daily_max_days 天）
+        - 所有日期都是台灣日期；參數不合時 controller 回這一頁並顯示 error
+    -->
+    <template id="portal_community_reports" name="社區報表">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cw-app">
+                <t t-call="community_water_level.portal_community_header"/>
+                <div class="cw-content">
+                    <div class="cw-error" t-if="error" role="alert" t-esc="error"/>
+
+                    <section class="wl-card">
+                        <div class="wl-card-title">週期報表（PDF）</div>
+                        <form method="get" class="cw-form" t-attf-action="/community/#{site.id}/reports/period.pdf">
+                            <label for="cwPeriod">期間</label>
+                            <select id="cwPeriod" name="period">
+                                <t t-foreach="periods.items()" t-as="item">
+                                    <option t-att-value="item[0]" t-att-selected="form.get('period') == item[0] or None"
+                                            t-esc="item[1]"/>
+                                </t>
+                            </select>
+                            <label for="cwPeriodDate">包含這一天的那一期</label>
+                            <input id="cwPeriodDate" type="date" name="date" t-att-max="today"
+                                   t-att-value="form.get('date') or today"/>
+                            <button type="submit" class="cw-button">下載報表</button>
+                        </form>
+                        <div class="cw-quick">
+                            <span class="cw-hint">上一期：</span>
+                            <a t-foreach="previous" t-as="prev" class="cw-chip"
+                               t-attf-href="/community/#{site.id}/reports/period.pdf?period=#{prev[0]}&amp;date=#{prev[2]}"
+                               t-esc="prev[1]"/>
+                        </div>
+                        <p class="cw-hint">內容：每個池的最高／最低／平均水位、資料完整率、缺口數，以及期間內的事件與簽收狀態。週一起算。</p>
+                    </section>
+
+                    <section class="wl-card">
+                        <div class="wl-card-title">讀值匯出（CSV，Excel 可直接開）</div>
+                        <form method="get" class="cw-form" t-attf-action="/community/#{site.id}/reports/readings.csv">
+                            <label for="cwTank">蓄水池</label>
+                            <select id="cwTank" name="tank">
+                                <option value="">全部</option>
+                                <t t-foreach="tanks" t-as="tank">
+                                    <option t-att-value="tank.id" t-att-selected="str(form.get('tank')) == str(tank.id) or None"
+                                            t-esc="tank.name"/>
+                                </t>
+                            </select>
+                            <label for="cwKind">格式</label>
+                            <select id="cwKind" name="kind">
+                                <option value="daily" t-att-selected="form.get('kind') != 'raw' or None">
+                                    每日彙總（最多 <t t-esc="daily_max_days"/> 天）
+                                </option>
+                                <option value="raw" t-att-selected="form.get('kind') == 'raw' or None">
+                                    逐筆讀值（最多 <t t-esc="raw_max_days"/> 天）
+                                </option>
+                            </select>
+                            <label for="cwFrom">起日</label>
+                            <input id="cwFrom" type="date" name="from" t-att-max="today" t-att-value="form.get('from')"/>
+                            <label for="cwTo">迄日</label>
+                            <input id="cwTo" type="date" name="to" t-att-max="today" t-att-value="form.get('to')"/>
+                            <button type="submit" class="cw-button">下載 CSV</button>
+                        </form>
+                        <p class="cw-hint">時間都是台灣時間。已停用（換掉）的監測站也會匯出，名稱後面標「已停用」。</p>
+                    </section>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

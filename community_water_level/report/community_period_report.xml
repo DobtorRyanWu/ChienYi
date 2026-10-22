@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        社區週期報表（週／月／季／半年／年）。數字全部由 water.level.site._community_period_stats() 算好、
+        從前台路由以 data 傳進來（沒有 report.* 模型：data 原樣併進渲染 context）。
+        不綁後台列印選單——後台直接列印不會帶期間參數。
+    -->
+    <record id="action_report_community_period" model="ir.actions.report">
+        <field name="name">社區水位週期報表</field>
+        <field name="model">water.level.site</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">community_water_level.report_community_period</field>
+        <field name="report_file">community_water_level.report_community_period</field>
+    </record>
+
+    <template id="report_community_period">
+        <t t-call="web.html_container">
+            <t t-set="doc" t-value="docs[:1]"/>
+            <t t-call="web.external_layout">
+                <div class="page" style="font-size:12px;">
+                    <h2 style="margin-bottom:1mm;"><t t-esc="site_name"/>　<t t-esc="title"/></h2>
+                    <div style="color:#666;margin-bottom:3mm;">
+                        期間 <t t-esc="range_text"/>（台灣時間）· 產生於 <t t-esc="generated_at"/>
+                    </div>
+                    <div t-if="is_demo"
+                         style="border:1pt solid #b45309;background:#fffbeb;color:#7c2d12;padding:2mm 3mm;margin-bottom:3mm;">
+                        <strong>含示範資料，不是量測值。</strong>不得作為稽核、驗收或法律用途的憑據。
+                    </div>
+
+                    <h4 style="margin-top:4mm;">蓄水池水位</h4>
+                    <t t-foreach="tanks" t-as="tank">
+                        <div style="font-weight:bold;margin-top:2mm;" t-esc="tank['name']"/>
+                        <table class="table table-sm" style="font-size:11px;">
+                            <thead>
+                                <tr>
+                                    <th>監測站</th><th class="text-end">筆數</th>
+                                    <th class="text-end">最高水位(m)</th><th class="text-end">最低水位(m)</th>
+                                    <th class="text-end">平均水位(m)</th>
+                                    <th class="text-end">最高水位時儲水率</th><th class="text-end">最低水位時儲水率</th>
+                                    <th class="text-end">資料完整率</th><th class="text-end">缺口</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="tank['devices']" t-as="row">
+                                    <td><t t-esc="row['name']"/><t t-if="row['inactive']">（已停用）</t></td>
+                                    <td class="text-end" t-esc="row['count']"/>
+                                    <td class="text-end" t-esc="'%.3f' % row['max'] if row['max'] is not None else '—'"/>
+                                    <td class="text-end" t-esc="'%.3f' % row['min'] if row['min'] is not None else '—'"/>
+                                    <td class="text-end" t-esc="'%.3f' % row['avg'] if row['avg'] is not None else '—'"/>
+                                    <td class="text-end" t-esc="('%.1f' % row['max_fill']) + '%' if row['max_fill'] is not None else '—'"/>
+                                    <td class="text-end" t-esc="('%.1f' % row['min_fill']) + '%' if row['min_fill'] is not None else '—'"/>
+                                    <td class="text-end" t-esc="('%.1f' % row['completeness']) + '%' if row['completeness'] is not None else '無法計算'"/>
+                                    <td class="text-end" t-esc="row['gaps']"/>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </t>
+
+                    <h4 style="margin-top:4mm;">期間內的事件</h4>
+                    <p t-if="not events" style="color:#666;">這段期間沒有事件。</p>
+                    <table t-else="" class="table table-sm" style="font-size:11px;">
+                        <thead>
+                            <tr><th>事件</th><th>類型</th><th>嚴重度</th><th>蓄水池</th><th>開始</th><th>結束</th><th>簽收</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="events" t-as="ev">
+                                <td t-esc="ev['name']"/><td t-esc="ev['type']"/><td t-esc="ev['severity']"/>
+                                <td t-esc="ev['tank']"/><td t-esc="ev['start']"/><td t-esc="ev['end']"/><td t-esc="ev['ack']"/>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div style="color:#666;font-size:10px;margin-top:4mm;">
+                        說明：資料完整率＝期間內有讀值的時間格數 ÷ 應收格數；一格＝監測站設定的回報間隔（以目前設定計算），
+                        從該站第一筆讀值或期初（取晚者）算到期末或現在（取早者）。缺口＝期間內開始的缺號或斷訊。
+                        監測站依目前所在的蓄水池列出，換池的歷史不追溯。期間內開始、或期間開始前已發生但尚未結束的事件都會列出。
+                    </div>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

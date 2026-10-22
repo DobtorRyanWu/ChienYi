@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        社區前台：事件清單 /community/<id>/events 與詳情 /community/<id>/events/<eid>
+        - 「未處理」＝還沒有人簽收；簽收不結束事件（狀態欄照實顯示 core 的進行中／已結束）
+        - 時間一律台灣時區（controller 傳進來的 stamp()）
+        - 影像與事件 PDF 只有進階以上才出現；路由端另外擋（controllers/portal_community_events.py）
+    -->
+
+    <template id="portal_community_event_card" name="社區事件：清單一列">
+        <a t-att-href="'/community/%s/events/%s' % (site.id, ev.id)" class="cw-event-item">
+            <span class="cw-event-head">
+                <span t-attf-class="cw-sev cw-sev-#{ev.severity}" t-esc="labels['severity'].get(ev.severity)"/>
+                <span class="cw-event-type" t-esc="labels['type'].get(ev.event_type)"/>
+                <span class="cw-event-state" t-esc="labels['state'].get(ev.state)"/>
+            </span>
+            <span class="cw-event-meta">
+                <t t-esc="ev.name"/>
+                <t t-if="ev.tank_id"> · <t t-esc="ev.tank_id.name"/></t>
+                · <t t-esc="stamp(ev.start_ts)"/>
+            </span>
+            <span t-if="ev.ack_user_id" class="cw-event-ack is-acked">
+                已簽收：<t t-esc="ev.ack_user_id.name"/>（<t t-esc="stamp(ev.ack_at)"/>）
+            </span>
+            <span t-else="" class="cw-event-ack">未簽收</span>
+        </a>
+    </template>
+
+    <template id="portal_community_events" name="社區事件：清單">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cw-app">
+                <t t-call="community_water_level.portal_community_header"/>
+                <div class="cw-content">
+                    <div class="cw-filter">
+                        <a t-attf-href="/community/#{site.id}/events?filter=open"
+                           t-attf-class="cw-chip #{filter == 'open' and 'is-active' or ''}">
+                            未處理 <t t-esc="open_count"/>
+                        </a>
+                        <a t-attf-href="/community/#{site.id}/events?filter=all"
+                           t-attf-class="cw-chip #{filter == 'all' and 'is-active' or ''}">
+                            全部 <t t-esc="all_count"/>
+                        </a>
+                    </div>
+                    <t t-if="not events">
+                        <div class="wl-empty">
+                            <div class="wl-empty-icon">〰</div>
+                            <div class="wl-empty-title" t-if="filter == 'open'">目前沒有未處理的事件</div>
+                            <div class="wl-empty-title" t-else="">這個社區還沒有任何事件</div>
+                        </div>
+                    </t>
+                    <ul t-else="" class="cw-event-list">
+                        <li t-foreach="events" t-as="ev">
+                            <t t-call="community_water_level.portal_community_event_card"/>
+                        </li>
+                    </ul>
+                    <div class="cw-pager" t-if="pager['page_count'] &gt; 1">
+                        <t t-call="portal.pager"/>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="portal_community_event_detail" name="社區事件：詳情">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cw-app">
+                <t t-call="community_water_level.portal_community_header"/>
+                <div class="cw-content">
+                    <div class="cw-notice" t-if="acked_now">已簽收。</div>
+
+                    <section class="wl-card cw-event-detail">
+                        <div class="cw-event-head">
+                            <span t-attf-class="cw-sev cw-sev-#{event.severity}" t-esc="labels['severity'].get(event.severity)"/>
+                            <span class="cw-event-type" t-esc="labels['type'].get(event.event_type)"/>
+                            <span class="cw-event-state" t-esc="labels['state'].get(event.state)"/>
+                        </div>
+                        <dl class="cw-dl">
+                            <dt>事件編號</dt><dd t-esc="event.name"/>
+                            <dt>蓄水池</dt><dd t-esc="event.tank_id.name or '—'"/>
+                            <dt>監測站</dt><dd t-esc="event.device_id.name"/>
+                            <dt>開始</dt><dd t-esc="stamp(event.start_ts)"/>
+                            <dt>結束</dt><dd t-esc="stamp(event.end_ts) or '尚未結束'"/>
+                            <t t-if="event.peak_value">
+                                <dt>峰值水位</dt><dd><t t-esc="'%.2f' % event.peak_value"/> m</dd>
+                            </t>
+                        </dl>
+                        <a t-if="with_images" class="cw-button cw-button-secondary"
+                           t-attf-href="/community/#{site.id}/events/#{event.id}/report.pdf">下載事件報表（PDF）</a>
+                    </section>
+
+                    <section class="wl-card" t-if="frames">
+                        <div class="wl-card-title">事件影像</div>
+                        <t t-set="kind_labels" t-value="dict(frames._fields['kind'].selection)"/>
+                        <div class="cw-frames">
+                            <a t-foreach="frames" t-as="frame" class="cw-frame"
+                               t-attf-href="/community/#{site.id}/events/#{event.id}/frames/#{frame.id}" target="_blank">
+                                <img loading="lazy" t-att-alt="kind_labels.get(frame.kind)"
+                                     t-attf-src="/community/#{site.id}/events/#{event.id}/frames/#{frame.id}"/>
+                                <span><t t-esc="kind_labels.get(frame.kind)"/> · <t t-esc="stamp(frame.ts)"/></span>
+                            </a>
+                        </div>
+                    </section>
+
+                    <section class="wl-card">
+                        <div class="wl-card-title">處理紀錄</div>
+                        <t t-if="event.ack_user_id">
+                            <p class="cw-ack-done">
+                                <t t-esc="event.ack_user_id.name"/> 於 <t t-esc="stamp(event.ack_at)"/> 簽收
+                            </p>
+                            <p class="cw-ack-note" t-if="event.ack_note" t-esc="event.ack_note"/>
+                        </t>
+                        <form t-else="" method="post" class="cw-ack-form"
+                              t-attf-action="/community/#{site.id}/events/#{event.id}/ack">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <label for="cwAckNote">說明（選填）</label>
+                            <textarea id="cwAckNote" name="note" rows="3" t-att-maxlength="ack_note_max"
+                                      placeholder="例如：已通知水電行、已確認是排水造成"/>
+                            <button type="submit" class="cw-button">簽收（已處理）</button>
+                            <p class="cw-hint">簽收只記錄誰在什麼時候處理過，不會結束事件。</p>
+                        </form>
+                    </section>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 社區這一側的欄位，掛回核心的視圖（核心不認得管委會、蓄水池、前台成員） -->
+
+    <!-- ===== 監測場域 ===== -->
+    <record id="view_water_level_site_list_community" model="ir.ui.view">
+        <field name="name">water.level.site.list.community</field>
+        <field name="model">water.level.site</field>
+        <field name="inherit_id" ref="water_level_core.view_water_level_site_list"/>
+        <field name="arch" type="xml">
+            <field name="device_count" position="before">
+                <field name="owner_partner_id" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_water_level_site_form_community" model="ir.ui.view">
+        <field name="name">water.level.site.form.community</field>
+        <field name="model">water.level.site</field>
+        <field name="inherit_id" ref="water_level_core.view_water_level_site_form"/>
+        <field name="arch" type="xml">
+            <field name="code" position="before">
+                <field name="owner_partner_id"
+                       string="管委會／物業公司"
+                       invisible="site_type != 'community'"
+                       required="site_type == 'community'"/>
+                <!-- 改這裡會同步到旗下每一台監測站（含停用的）；監測站上的等級不能單獨改 -->
+                <field name="service_level"
+                       invisible="site_type != 'community'"/>
+            </field>
+            <page name="devices" position="before">
+                <page string="蓄水池" name="tanks"
+                      invisible="site_type != 'community'">
+                    <field name="tank_ids" nolabel="1">
+                        <list>
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="usage"/>
+                            <field name="effective_volume_m3"/>
+                            <field name="current_volume_m3"/>
+                            <field name="fill_rate" widget="percentage"/>
+                        </list>
+                    </field>
+                </page>
+                <page string="前台成員" name="members"
+                      invisible="site_type != 'community'">
+                    <field name="member_user_ids" nolabel="1"
+                           widget="many2many"
+                           domain="[('share', '=', True)]"
+                           context="{'default_share': True}">
+                        <list>
+                            <field name="name"/>
+                            <field name="login"/>
+                        </list>
+                    </field>
+                    <p class="text-muted">
+                        只有列在這裡的前台帳號看得到這個社區的水情頁。
+                        工程場域不需要填——它的可見性走工程案件的成員清單。
+                    </p>
+                </page>
+            </page>
+        </field>
+    </record>
+
+    <record id="view_water_level_site_search_community" model="ir.ui.view">
+        <field name="name">water.level.site.search.community</field>
+        <field name="model">water.level.site</field>
+        <field name="inherit_id" ref="water_level_core.view_water_level_site_search"/>
+        <field name="arch" type="xml">
+            <field name="code" position="after">
+                <field name="owner_partner_id"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ===== 監測站 ===== -->
+    <record id="view_water_level_device_form_community" model="ir.ui.view">
+        <field name="name">water.level.device.form.community</field>
+        <field name="model">water.level.device</field>
+        <field name="inherit_id" ref="water_level_core.view_water_level_device_form"/>
+        <field name="arch" type="xml">
+            <field name="map_label" position="after">
+                <field name="tank_id"
+                       domain="[('site_id', '=', site_id)]"
+                       options="{'no_create': True}"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ===== 水位事件 ===== -->
+    <record id="view_water_level_event_list_community" model="ir.ui.view">
+        <field name="name">water.level.event.list.community</field>
+        <field name="model">water.level.event</field>
+        <field name="inherit_id" ref="water_level_core.view_water_level_event_list"/>
+        <field name="arch" type="xml">
+            <field name="site_id" position="after">
+                <field name="tank_id" optional="hide"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_water_level_event_form_community" model="ir.ui.view">
+        <field name="name">water.level.event.form.community</field>
+        <field name="model">water.level.event</field>
+        <field name="inherit_id" ref="water_level_core.view_water_level_event_form"/>
+        <field name="arch" type="xml">
+            <field name="site_id" position="after">
+                <field name="tank_id"/>
+            </field>
+            <!-- 管委會在前台按的「已處理」：只記錄，不結束事件 -->
+            <xpath expr="//page[@name='note']" position="before">
+                <page string="管委會簽收" name="community_ack">
+                    <group>
+                        <field name="ack_user_id"/>
+                        <field name="ack_at"/>
+                        <field name="ack_note"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ===== 事件 PDF：監測站後面補池名 ===== -->
+    <template id="report_water_level_event_tank" inherit_id="water_level_core.report_water_level_event">
+        <xpath expr="//td[@name='device_cell']" position="inside">
+            <span t-if="doc.tank_id"> / <span t-field="doc.tank_id.name"/></span>
+        </xpath>
+    </template>
+
+    <!-- ===== 選單 ===== -->
+    <menuitem id="menu_water_level_community_overview"
+              name="社區水情總覽"
+              parent="water_level_core.menu_water_level_root"
+              action="action_water_level_community_overview"
+              sequence="1"/>
+
+    <menuitem id="menu_water_level_tank"
+              name="蓄水池"
+              parent="water_level_core.menu_water_level_root"
+              action="action_water_level_tank"
+              sequence="8"/>
+</odoo>

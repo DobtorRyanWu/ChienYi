@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        社區前台：LINE 通知設定 /community/<id>/notifications（旗艦方案）與「方案不含」說明頁。
+        綁定碼只給本社區成員看（controller 已過門與方案）；碼是一次性、24 小時過期。
+    -->
+    <template id="portal_community_plan_required" name="社區：方案不含此功能">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cw-app">
+                <t t-call="community_water_level.portal_community_header"/>
+                <div class="cw-content">
+                    <div class="wl-empty">
+                        <div class="wl-empty-icon">〰</div>
+                        <div class="wl-empty-title"><t t-esc="feature"/>屬於<t t-esc="level_label"/>方案</div>
+                        <div class="wl-empty-hint">目前的方案沒有這項功能。需要的話請聯絡千溢科技。</div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="portal_community_notifications" name="社區：LINE 通知設定">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cw-app">
+                <t t-call="community_water_level.portal_community_header"/>
+                <div class="cw-content">
+                    <div class="cw-error" t-if="error" role="alert" t-esc="error"/>
+
+                    <section class="wl-card">
+                        <div class="wl-card-title">LINE 異常通知</div>
+                        <p class="cw-hint">蓄水池發生異常時，系統會傳 LINE 給下面已綁定的人。同一台水位計同一類異常一小時內只通知一次。</p>
+                        <t t-if="not channel">
+                            <p>千溢還沒有替這個社區開通 LINE 通道。</p>
+                        </t>
+                        <form t-else="" method="post" class="cw-form"
+                              t-attf-action="/community/#{site.id}/notifications/new">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <label for="cwRecipientName">新增收件人（名稱）</label>
+                            <input id="cwRecipientName" type="text" name="name" maxlength="64" required="required"
+                                   placeholder="例如：主委 王先生"/>
+                            <button type="submit" class="cw-button">產生綁定碼</button>
+                        </form>
+                    </section>
+
+                    <section class="wl-card" t-if="rows">
+                        <div class="wl-card-title">收件人</div>
+                        <ul class="cw-recipient-list">
+                            <li t-foreach="rows" t-as="row" t-attf-class="cw-recipient is-#{row['state']} #{row['is_new'] and 'is-new' or ''}">
+                                <t t-set="rec" t-value="row['record']"/>
+                                <div class="cw-recipient-head">
+                                    <span class="cw-recipient-name" t-esc="rec.name"/>
+                                    <span class="cw-recipient-state">
+                                        <t t-if="row['state'] == 'bound'">已綁定</t>
+                                        <t t-elif="row['state'] == 'pending'">等待綁定</t>
+                                        <t t-elif="row['state'] == 'expired'">綁定碼已過期</t>
+                                        <t t-else="">已停用</t>
+                                    </span>
+                                </div>
+                                <div class="cw-recipient-meta">
+                                    <t t-if="rec.line_display_name">LINE：<t t-esc="rec.line_display_name"/> · </t>
+                                    <t t-if="rec.bound_at">綁定於 <t t-esc="stamp(rec.bound_at)"/> · </t>
+                                    建立人 <t t-esc="rec.created_by_id.name or '—'"/>
+                                    <t t-if="rec.disabled_at"> · 停用於 <t t-esc="stamp(rec.disabled_at)"/>（<t t-esc="rec.disabled_reason"/>）</t>
+                                </div>
+                                <div class="cw-bind" t-if="row['state'] == 'pending'">
+                                    <div>請這位成員用手機：</div>
+                                    <ol>
+                                        <li>加千溢 LINE 官方帳號好友<t t-if="friend_url">：<a t-att-href="friend_url" target="_blank" rel="noopener">點這裡加好友</a></t></li>
+                                        <li>在聊天室傳這組綁定碼：<strong class="cw-bind-code" t-esc="row['code']"/></li>
+                                    </ol>
+                                    <div class="cw-hint">綁定碼 <t t-esc="ttl_hours"/> 小時內有效、只能用一次。不要轉傳給不相干的人——拿到碼的人就會收到社區的通知。</div>
+                                </div>
+                                <form t-if="rec.active" method="post" class="cw-recipient-disable"
+                                      t-attf-action="/community/#{site.id}/notifications/#{rec.id}/disable">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                    <button type="submit" class="cw-link-button">停用</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </section>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

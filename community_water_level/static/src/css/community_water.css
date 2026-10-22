@@ -1,0 +1,217 @@
+/**
+ * 社區水情頁的外框與頁首（cw-*）。
+ * 圖表、水池卡片、地圖的樣式在水位核心的 water_level_frontend.css（wl-*），
+ * 色彩一律走 --wb-*（核心那支有淺色預設值；合裝時由 construction_portal 的 portal_mobile.css 接手）。
+ */
+
+.cw-app {
+  min-height: 100vh;
+  background: var(--wb-bg0);
+  color: var(--wb-t1);
+}
+
+.cw-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 14px;
+  background: var(--wb-bg2);
+  border-bottom: 1px solid var(--wb-bdr-soft);
+}
+
+.cw-header-back {
+  font-size: 28px;
+  line-height: 1;
+  color: var(--wb-t2);
+  text-decoration: none;
+  min-width: 28px;
+}
+
+.cw-header-title {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cw-header-logout {
+  font-size: 14px;
+  color: var(--wb-t3);
+  text-decoration: none;
+}
+
+/* 頁籤（水情／事件／報表／通知）：手機寬可橫向捲動，不換行擠成兩排 */
+.cw-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 14px;
+  background: var(--wb-bg2);
+  border-bottom: 1px solid var(--wb-bdr-soft);
+}
+
+.cw-tab {
+  flex: 0 0 auto;
+  padding: 10px 14px;
+  font-size: 15px;
+  color: var(--wb-t2);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.cw-tab.is-active {
+  color: var(--wb-t1);
+  font-weight: 600;
+  border-bottom-color: var(--wb-brand);
+}
+
+.cw-content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12px 14px 32px;
+}
+
+.cw-site-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.cw-site-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius);
+  color: var(--wb-t1);
+  text-decoration: none;
+}
+
+.cw-site-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cw-site-meta {
+  font-size: 13px;
+  color: var(--wb-t3);
+}
+
+/* =====================================================================
+ * 水情頁自適應版面（2026-10-21 使用者選定「左右兩欄」）
+ * 手機 <768px：不動（上面的單欄版面）。
+ * 平板 768–1199px：內容放寬到 960、池卡片一排多張、圖表與地圖加高，仍上下疊。
+ * 大螢幕 ≥1200px：內容放寬到 1400，#wlApp 排成左右兩欄——
+ *   左欄 .cw-col-side（站名列、池卡片直排、時間範圍），右欄 .cw-col-main（歷程圖在上、地圖在下）。
+ * 只掛在 .cw-water（水情頁），社區清單頁不跟著變寬；池卡片、圖表、地圖本身的樣式在核心（wl-*），
+ * 8069 的工區頁也用那一份，所以這裡只用 .cw-water 底下的選擇器覆寫尺寸與排列。
+ * 樣板的兩層包裝由 tests/test_community_page_layout.py 守著；
+ * 實際排版（各寬度位置、地圖不缺塊）用 water-odoo/tools/check_community_layout.py 驗。
+ * 圖表（Chart.js responsive）與地圖（Leaflet trackResize）跨斷點時會自己跟著容器重算。
+ * ===================================================================== */
+@media (min-width: 768px) {
+  .cw-water .cw-content { max-width: 960px; padding: 18px 24px 40px; }
+  .cw-water .wl-tanks { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .cw-water .wl-chart-wrap { height: 300px; }
+  .cw-water .wl-map { height: 300px; }
+}
+
+@media (min-width: 1200px) {
+  .cw-water .cw-content { max-width: 1400px; padding: 24px 32px 48px; }
+  .cw-water #wlApp {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .cw-water .wl-tanks { grid-template-columns: 1fr; }
+  .cw-water .wl-chart-wrap { height: 380px; }
+  .cw-water .wl-map { height: 340px; }
+}
+
+/* ===== 事件清單與詳情 ===== */
+.cw-filter { display: flex; gap: 8px; margin-bottom: 12px; }
+.cw-chip {
+  padding: 6px 12px; border-radius: 999px; font-size: 14px; text-decoration: none;
+  color: var(--wb-t2); background: var(--wb-bg2); border: 1px solid var(--wb-bdr-soft);
+}
+.cw-chip.is-active { color: #fff; background: var(--wb-brand); border-color: var(--wb-brand); }
+.cw-event-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cw-event-item {
+  display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; text-decoration: none; color: var(--wb-t1);
+  background: var(--wb-bg2); border: 1px solid var(--wb-bdr-soft); border-radius: var(--wb-radius);
+}
+.cw-event-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cw-event-type { font-weight: 600; }
+.cw-event-state { margin-left: auto; font-size: 13px; color: var(--wb-t3); }
+.cw-event-meta { font-size: 13px; color: var(--wb-t3); }
+.cw-event-ack { font-size: 13px; color: var(--wb-wl-lv2); }
+.cw-event-ack.is-acked { color: var(--wb-t3); }
+.cw-sev { padding: 1px 8px; border-radius: var(--wb-radius-sm); font-size: 12px; color: #fff; background: var(--wb-t3); }
+/* 色階沿用 core 的河川警戒：一級（lv1）最重、三級（lv3）最輕 */
+.cw-sev-warning { background: var(--wb-wl-lv3); }
+.cw-sev-critical { background: var(--wb-wl-lv1); }
+.cw-dl { display: grid; grid-template-columns: 6em 1fr; gap: 6px 12px; margin: 12px 0; font-size: 14px; }
+.cw-dl dt { color: var(--wb-t3); font-weight: normal; }
+.cw-dl dd { margin: 0; }
+.cw-frames { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.cw-frame { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--wb-t3); text-decoration: none; }
+.cw-frame img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--wb-radius-sm); background: var(--wb-bg3); }
+.cw-ack-form { display: grid; gap: 8px; }
+.cw-ack-form textarea {
+  width: 100%; padding: 8px; font-size: 15px; color: var(--wb-t1);
+  background: var(--wb-bg0); border: 1px solid var(--wb-bdr); border-radius: var(--wb-radius-sm);
+}
+.cw-ack-done { margin: 0; font-weight: 600; }
+.cw-ack-note { margin: 6px 0 0; white-space: pre-wrap; color: var(--wb-t2); }
+.cw-hint { margin: 0; font-size: 13px; color: var(--wb-t3); }
+.cw-notice {
+  margin-bottom: 12px; padding: 10px 14px; border-radius: var(--wb-radius-sm);
+  background: var(--wb-brand-soft); color: var(--wb-t1);
+}
+.cw-button {
+  display: inline-block; padding: 10px 16px; font-size: 15px; border: 0; border-radius: var(--wb-radius-sm);
+  color: #fff; background: var(--wb-brand); text-decoration: none; cursor: pointer;
+}
+.cw-button-secondary { color: var(--wb-brand); background: var(--wb-brand-soft); }
+.cw-pager { margin-top: 16px; }
+
+/* ===== 報表頁 ===== */
+.cw-form { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 8px 0; }
+.cw-form label { font-size: 13px; color: var(--wb-t3); }
+.cw-form select, .cw-form input {
+  padding: 8px; font-size: 15px; color: var(--wb-t1);
+  background: var(--wb-bg0); border: 1px solid var(--wb-bdr); border-radius: var(--wb-radius-sm);
+}
+.cw-form .cw-button { margin-top: 6px; justify-self: start; }
+.cw-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.cw-error {
+  margin-bottom: 12px; padding: 10px 14px; border-radius: var(--wb-radius-sm);
+  background: var(--wb-bg3); color: var(--wb-wl-lv1); border: 1px solid var(--wb-wl-lv1);
+}
+
+/* ===== LINE 通知設定 ===== */
+.cw-recipient-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cw-recipient { padding: 10px 12px; border: 1px solid var(--wb-bdr-soft); border-radius: var(--wb-radius-sm); background: var(--wb-bg0); }
+.cw-recipient.is-new { border-color: var(--wb-brand); }
+.cw-recipient.is-disabled { opacity: 0.6; }
+.cw-recipient-head { display: flex; align-items: center; gap: 8px; }
+.cw-recipient-name { font-weight: 600; }
+.cw-recipient-state { margin-left: auto; font-size: 13px; color: var(--wb-t3); }
+.cw-recipient.is-bound .cw-recipient-state { color: var(--wb-wl-normal); }
+.cw-recipient-meta { font-size: 12px; color: var(--wb-t3); margin-top: 4px; }
+.cw-bind { margin-top: 8px; padding: 8px 10px; background: var(--wb-brand-soft); border-radius: var(--wb-radius-sm); font-size: 14px; }
+.cw-bind ol { margin: 4px 0; padding-left: 20px; }
+.cw-bind-code { font-size: 18px; letter-spacing: 2px; font-family: ui-monospace, monospace; }
+.cw-recipient-disable { margin-top: 6px; }
+.cw-link-button { background: none; border: 0; padding: 0; color: var(--wb-t3); text-decoration: underline; cursor: pointer; font-size: 13px; }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- 每天看一次 LINE 官方帳號整個月的用量，到八成時每月提醒千溢一次（models/water_level_line.py） -->
+        <record id="cron_water_level_line_usage_check" model="ir.cron">
+            <field name="name">水位監測：LINE 推播用量檢查</field>
+            <field name="model_id" ref="water_level_core.model_water_level_alert_channel"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_line_usage_check()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>
