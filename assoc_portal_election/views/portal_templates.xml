@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 把「參選登記」接進 /my 的會員入口（與其他會員入口同一層、同樣式）。
+         **用 xpath 繼承而不是改 assoc_portal 的檔案**：那個模組不依賴 assoc_election，
+         入口卡指向一條它自己沒有的路由會變成死連結（沒裝這個橋接模組時）。
+         掛在這裡，不裝就沒有卡片，兩邊都照舊。繼承 assoc_portal 的那支擴充視圖，
+         保證套用順序在它之後（那個分類 div 才存在）。 -->
+    <template id="member_home_elections" inherit_id="assoc_portal.portal_my_home_assoc">
+        <xpath expr="//div[@id='assoc_member_category']" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/assoc_portal_election/static/src/img/member-election.svg'"/>
+                <t t-set="title">參選登記</t>
+                <t t-set="text">理監事選舉的候選人登記與退選。</t>
+                <t t-set="url" t-value="'/my/assoc/elections'"/>
+                <t t-set="config_card" t-value="True"/>
+            </t>
+        </xpath>
+    </template>
+
+    <template id="member_elections" name="參選登記">
+        <t t-call="portal.portal_layout">
+            <h3 class="mb-3">參選登記</h3>
+
+            <div t-if="error" class="alert alert-warning" role="alert">
+                <t t-esc="error"/>
+            </div>
+            <div t-if="ok == 'registered'" class="alert alert-success" role="alert">
+                登記完成。公會確認後會出現在候選人名單上。
+            </div>
+            <div t-if="ok == 'withdrawn'" class="alert alert-secondary" role="alert">
+                已退選。
+            </div>
+
+            <table class="table table-sm align-middle">
+                <thead>
+                    <tr><th>選舉</th><th>登記截止</th><th>職位</th><th>我的狀態</th><th/></tr>
+                </thead>
+                <tbody>
+                    <t t-foreach="elections" t-as="election">
+                        <tr t-foreach="offices.get(election.id) or []" t-as="office">
+                            <td><t t-esc="election.name"/></td>
+                            <!-- **不要直接 t-esc 一個 Datetime**（naive UTC、秒數外露、
+                                 台北早 8 小時，截止日落在凌晨時連日期都會錯一天），
+                                 **也不要只加 widget**（預設依觀看者 tz 換算）。
+                                 截止時間是公會定的事實，用 `tz_name` 釘死公會時區。
+                                 同一個坑的完整說明在 assoc_portal/views/portal_templates.xml。 -->
+                            <td>
+                                <t t-out="election.registration_deadline"
+                                   t-options="{'widget': 'datetime',
+                                               'format': 'yyyy-MM-dd HH:mm',
+                                               'tz_name': assoc_tz}"/>
+                            </td>
+                            <td><t t-esc="office_labels.get(office)"/></td>
+                            <t t-set="cand" t-value="mine.get((election.id, office))"/>
+                            <td>
+                                <span t-if="cand" t-attf-class="badge #{'text-bg-secondary' if cand.state == 'withdrawn' else 'text-bg-success'}">
+                                    <t t-esc="dict(cand._fields['state'].selection).get(cand.state)"/>
+                                </span>
+                                <span t-else="" class="text-muted">未登記</span>
+                            </td>
+                            <td>
+                                <!-- 兩個動作都是 POST：它們會動到候選人名單 -->
+                                <form t-if="is_open.get(election.id) and not cand"
+                                      t-attf-action="/my/assoc/elections/#{election.id}/register"
+                                      method="post" class="d-inline">
+                                    <input type="hidden" name="csrf_token"
+                                           t-att-value="request.csrf_token()"/>
+                                    <input type="hidden" name="office" t-att-value="office"/>
+                                    <button class="btn btn-sm btn-primary" type="submit">登記參選</button>
+                                </form>
+                                <form t-if="is_open.get(election.id) and cand and cand.state == 'registered'"
+                                      t-attf-action="/my/assoc/elections/#{election.id}/withdraw"
+                                      method="post" class="d-inline"
+                                      onsubmit="return confirm('確定要退選嗎？');">
+                                    <input type="hidden" name="csrf_token"
+                                           t-att-value="request.csrf_token()"/>
+                                    <input type="hidden" name="candidate_id" t-att-value="cand.id"/>
+                                    <button class="btn btn-sm btn-outline-secondary" type="submit">退選</button>
+                                </form>
+                                <span t-if="not is_open.get(election.id)" class="text-muted">登記已截止</span>
+                            </td>
+                        </tr>
+                    </t>
+                    <tr t-if="not elections">
+                        <td colspan="5" class="text-muted">目前沒有開放線上登記的選舉。</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p class="text-muted small">
+                登記後由公會確認資格；確認之後要退選請洽公會辦公室。
+            </p>
+            <a class="btn btn-outline-secondary" href="/my">回會員專區</a>
+        </t>
+    </template>
+
+</odoo>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 多公會隔離一律用 global rule（不掛 groups）。
+         Odoo 的合併語意是「global 之間 AND、group rule 之間 OR」(ir_rule.py:103-111)，
+         掛在群組上的公司規則會被其他群組規則 OR 掉而失效。
+         注意 global rule 對 public user 也生效：公開路由一律 sudo + 手動過濾。 -->
+    <record id="rule_assoc_member_company" model="ir.rule">
+        <field name="name">公會會員：公會隔離</field>
+        <field name="model_id" ref="model_assoc_member"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <!-- 屆次的 `company_id` 是 required：`company_id = False` 那條分支到不了，
+         而留著它就是「只要有人下 SQL 或日後放寬 required，那一列對**每一個
+         公會**都可讀」。同一個檔三行之後自己為軌跡立了這條判準（不留那條
+         分支，避免誤放行），屆次照抄 `assoc.member`（它的 company_id 可空）
+         才長出這一條（第三輪 red-team）。 -->
+    <record id="rule_assoc_term_company" model="ir.rule">
+        <field name="name">屆次：公會隔離</field>
+        <field name="model_id" ref="model_assoc_term"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_member_document_company" model="ir.rule">
+        <field name="name">會員文件：公會隔離</field>
+        <field name="model_id" ref="model_assoc_member_document"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <!-- 軌跡沒有 company_id=False 的情況：不留那條分支，避免誤放行 -->
+    <record id="rule_assoc_audit_log_company" model="ir.rule">
+        <field name="name">存取軌跡：公會隔離</field>
+        <field name="model_id" ref="model_assoc_audit_log"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <!-- 匯入暫存檔含身分證明文，核心 ACL 卻開給所有內部使用者且沒有 rule。
+         只看得到自己上傳的那筆。 -->
+    <record id="rule_base_import_own" model="ir.rule">
+        <field name="name">匯入暫存：只看自己上傳的</field>
+        <field name="model_id" ref="base_import.model_base_import_import"/>
+        <field name="domain_force">[('create_uid', '=', user.id)]</field>
+    </record>
+</odoo>

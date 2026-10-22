@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="desk_page" name="公會報到台">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="ax-desk" t-att-data-meeting-id="meeting.id" t-att-data-poll-ms="poll_interval_ms">
+                <header class="ax-desk__head">
+                    <div>
+                        <div class="ax-muted" t-out="meeting.company_id.name"/>
+                        <h1 class="ax-title" t-out="meeting.name"/>
+                    </div>
+                    <div class="ax-quorum" aria-live="polite">
+                        <div>出席 <strong data-ax="attending">0</strong> / <span data-ax="members">0</span></div>
+                        <span class="ax-badge" data-ax="quorum">未達法定人數</span>
+                    </div>
+                </header>
+
+                <section class="ax-card">
+                    <label for="ax-scan" class="ax-label">掃描會員卡</label>
+                    <input id="ax-scan" class="ax-input ax-input--scan" autocomplete="off" inputmode="numeric"
+                           placeholder="掃描會員卡，或輸入條碼後按 Enter"/>
+                    <div class="ax-result" data-ax="scan-result" aria-live="assertive"/>
+                </section>
+
+                <!-- 掃到受託人時列出他身上的委託，可直接代簽 -->
+                <section class="ax-card" data-ax="proxy-panel"/>
+
+                <!-- 選舉模組掛載點：領票、配對確認 -->
+                <div data-ax="desk-extra"/>
+
+                <section class="ax-card">
+                    <details>
+                        <summary class="ax-label">手動簽到（未帶會員卡）</summary>
+                        <input class="ax-input" data-ax="manual-q" autocomplete="off" placeholder="輸入會員編號或姓名"/>
+                        <ul class="ax-list" data-ax="manual-results"/>
+                    </details>
+                </section>
+
+                <section class="ax-card">
+                    <h2 class="ax-label">最近報到</h2>
+                    <ol class="ax-list" data-ax="recent"/>
+                </section>
+            </div>
+        </t>
+    </template>
+</odoo>

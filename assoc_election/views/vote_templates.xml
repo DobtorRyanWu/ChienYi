@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="vote_layout" name="公會投票頁版型">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="ax-vote" t-att-data-uuid="election.uuid">
+                <div t-if="insecure" class="ax-banner ax-banner--danger">
+                    測試環境（非 HTTPS），不具安全性，不可用於正式選舉
+                </div>
+                <!-- §6 的四要件只印在**選票頁**（`vote_ballot`），不在這個共用
+                     版型：領取頁與錯誤頁是匿名可達的，而 §6 要求載明的是
+                     選舉票本身。 -->
+                <div class="ax-muted" t-out="election.company_id.name"/>
+                <h1 class="ax-title mb-3" t-out="election.name"/>
+                <t t-out="0"/>
+            </div>
+        </t>
+    </template>
+
+    <template id="vote_claim" name="領取選票">
+        <t t-call="assoc_election.vote_layout">
+            <section class="ax-card">
+                <p class="ax-label" data-ax="claim-hint">正在領取選票…</p>
+                <form method="post" t-attf-action="/assoc/vote/#{election.uuid}/claim" data-ax="claim-form">
+                    <input type="hidden" name="t" value=""/>
+                    <button type="submit" class="ax-btn ax-btn--primary ax-btn--block" data-ax="claim-btn" hidden="hidden">
+                        領取選票
+                    </button>
+                </form>
+                <noscript><p>請開啟瀏覽器的 JavaScript 後重新掃描。</p></noscript>
+            </section>
+        </t>
+    </template>
+
+    <template id="vote_ballot" name="選票">
+        <t t-call="assoc_election.vote_layout">
+            <div t-if="error" class="ax-banner ax-banner--warn" t-out="error"/>
+            <!-- 選罷辦法 §6 I：選舉票應載明團體名稱、選舉屆次、職稱及年月日
+                 ——**紙本與電子票一視同仁**。團體名稱印在上面的版型裡，
+                 職稱逐職位印在下面各區塊的標題，這裡補屆次與年月日。
+                 年月日取**大會日**不是今天：重新整理頁面不可以換日期。 -->
+            <div class="ax-muted mb-3" data-ax="section6">
+                <span t-if="ballot_header['term_label']" t-out="ballot_header['term_label']"/>
+                <span t-if="ballot_header['term_label'] and ballot_header['date_label']"> · </span>
+                <span t-if="ballot_header['date_label']" t-out="ballot_header['date_label']"/>
+                <!-- 升級當下還在投票的場次拿不到屆次，而且補不回來（見
+                     migrations/18.0.1.2.0 的說明）。那時 §6 的要件就少一個，
+                     而**空白與「這場沒登記」長得一樣**——選民與監票員看到
+                     空白只會以為版面壞了，而這是法規要件缺席的唯一訊號
+                     （第二輪 red-team）。 -->
+                <span t-if="not ballot_header['term_label']" data-ax="no-term"
+                      >（本場未登記選舉屆次）</span>
+            </div>
+            <section class="ax-card">
+                <div class="ax-label">配對碼（請出示給報到台人員）</div>
+                <div class="ax-pair" t-out="pair_code"/>
+                <div class="ax-muted text-center" data-ax="arm-status" t-att-data-armed="'1' if armed else '0'">
+                    <t t-if="armed">✓ 已完成配對，可以投票</t>
+                    <t t-else="">報到台人員輸入配對碼後，這裡會自動更新</t>
+                </div>
+            </section>
+            <form method="post" t-attf-action="/assoc/vote/#{election.uuid}/cast" data-ax="ballot-form">
+                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                <t t-foreach="offices" t-as="office">
+                    <section class="ax-card" t-att-data-office="office['code']" t-att-data-max="office['max_marks']"
+                             t-att-data-label="office['label']">
+                        <h2 class="ax-label">
+                            <t t-out="office['label']"/>（應選 <t t-out="office['seats']"/> 名，最多圈選
+                            <t t-out="office['max_marks']"/> 名）
+                        </h2>
+                        <div class="ax-counter mb-2" data-ax="counter"/>
+                        <div data-ax="choices">
+                            <t t-foreach="office['candidates']" t-as="cand">
+                                <label class="ax-choice">
+                                    <input type="checkbox" t-att-name="office['code']" t-att-value="cand['member_id']"/>
+                                    <span>
+                                        <span t-if="cand['ballot_number']" class="ax-ballot-no"
+                                              t-out="cand['ballot_number']"/>
+                                        <span data-ax="choice-name" t-out="cand['name']"/>
+                                        <span class="ax-muted" t-out="cand['member_no']"/>
+                                    </span>
+                                </label>
+                            </t>
+                        </div>
+                        <details class="mt-2">
+                            <summary class="ax-muted">圈選參考名單以外的會員</summary>
+                            <input class="ax-input mt-2" data-ax="writein-q" autocomplete="off"
+                                   placeholder="輸入姓名（至少 2 個字）"/>
+                            <ul class="ax-list" data-ax="writein-results"/>
+                        </details>
+                    </section>
+                </t>
+                <section class="ax-card">
+                    <div data-ax="review" hidden="hidden">
+                        <h2 class="ax-label">請確認您的選擇</h2>
+                        <div data-ax="review-body"/>
+                        <p class="ax-muted mt-2">投出後不能修改，之後也不會再顯示您的選擇。</p>
+                        <button type="submit" class="ax-btn ax-btn--primary ax-btn--block" data-ax="submit">確定投出</button>
+                        <button type="button" class="ax-btn ax-btn--block mt-2" data-ax="back">返回修改</button>
+                    </div>
+                    <button type="button" class="ax-btn ax-btn--primary ax-btn--block" data-ax="to-review">檢視並投票</button>
+                </section>
+            </form>
+        </t>
+    </template>
+
+    <template id="vote_receipt" name="投票收據">
+        <t t-call="assoc_election.vote_layout">
+            <section class="ax-card">
+                <h2 class="ax-label">投票完成</h2>
+                <div class="ax-receipt" t-out="receipt_code"/>
+                <p class="ax-muted mt-3">這組收據碼只證明您已經投票，不含、也無法查出您投給誰。</p>
+            </section>
+        </t>
+    </template>
+
+    <template id="vote_message" name="投票頁訊息">
+        <t t-call="assoc_election.vote_layout">
+            <section class="ax-card">
+                <p class="ax-result ax-result--warn" t-out="message"/>
+            </section>
+        </t>
+    </template>
+</odoo>

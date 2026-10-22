@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_member_card" model="ir.actions.report">
+        <field name="name">會員卡</field>
+        <field name="model">assoc.member</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">assoc_base.report_member_card</field>
+        <field name="report_file">assoc_base.report_member_card</field>
+        <field name="print_report_name">'會員卡-%s' % object.member_no</field>
+        <field name="binding_model_id" ref="model_assoc_member"/>
+        <field name="binding_type">report</field>
+        <field name="groups_id" eval="[(4, ref('assoc_base.group_assoc_admin'))]"/>
+    </record>
+
+    <template id="report_member_card">
+        <t t-call="web.html_container">
+            <t t-call="web.basic_layout">
+                <div class="page">
+                    <t t-foreach="docs" t-as="o">
+                        <div style="border:1px solid #333; border-radius:8px; width:85mm; height:54mm; padding:4mm; margin:0 4mm 6mm 0; display:inline-block; vertical-align:top; page-break-inside:avoid;">
+                            <div style="font-size:11pt; font-weight:bold;" t-out="o.company_id.name"/>
+                            <table style="width:100%; margin-top:3mm;">
+                                <tr>
+                                    <td style="vertical-align:top;">
+                                        <div style="font-size:16pt; font-weight:bold;" t-out="o.name"/>
+                                        <div style="font-size:10pt;">會員編號 <span t-out="o.member_no"/></div>
+                                        <div style="font-size:8pt; color:#666; margin-top:6mm;">大會報到請出示此卡</div>
+                                    </td>
+                                    <td style="width:32mm; text-align:right; vertical-align:top;">
+                                        <img t-att-src="o._card_qr_data_uri()" style="width:30mm; height:30mm;"/>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

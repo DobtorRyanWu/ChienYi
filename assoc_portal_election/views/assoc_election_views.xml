@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 登記截止日放在抽籤亂數旁邊：兩個都是「凍結名冊之前要設好」的欄位。
+         `readonly="state != 'draft'"` 只是讓畫面誠實——真正擋住的是
+         `assoc_election.py` 的 write 安全帶（非 draft 一律拒絕非白名單欄位）。 -->
+    <record id="assoc_election_view_form_registration" model="ir.ui.view">
+        <field name="name">assoc.election.form.registration</field>
+        <field name="model">assoc.election</field>
+        <field name="inherit_id" ref="assoc_election.assoc_election_view_form"/>
+        <field name="arch" type="xml">
+            <field name="draw_entropy" position="after">
+                <field name="registration_deadline" readonly="state != 'draft'"/>
+            </field>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assoc_member_document_view_list" model="ir.ui.view">
+        <field name="name">assoc.member.document.list</field>
+        <field name="model">assoc.member.document</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'rejected'" decoration-success="state == 'approved'">
+                <field name="member_id"/>
+                <field name="doc_type"/>
+                <field name="cert_no"/>
+                <field name="expiry_date"/>
+                <field name="submitted_via"/>
+                <field name="state"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_member_document_view_form" model="ir.ui.view">
+        <field name="name">assoc.member.document.form</field>
+        <field name="model">assoc.member.document</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_approve" type="object" string="核准"
+                            class="btn-primary" invisible="state == 'approved'"
+                            groups="assoc_base.group_assoc_admin"/>
+                    <button name="action_reject" type="object" string="退回"
+                            invisible="state == 'approved'"
+                            groups="assoc_base.group_assoc_admin"/>
+                    <field name="state" widget="statusbar" statusbar_visible="submitted,approved"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="member_id"/>
+                            <field name="doc_type"/>
+                            <field name="cert_no"/>
+                        </group>
+                        <group>
+                            <field name="issue_date"/>
+                            <field name="expiry_date"/>
+                            <field name="submitted_via"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="檔案">
+                        <field name="file" filename="file_name" groups="assoc_base.group_assoc_admin"/>
+                        <field name="file_name" invisible="1"/>
+                        <field name="sha256" readonly="1"/>
+                    </group>
+                    <group string="審核">
+                        <field name="reviewer_uid" readonly="1"/>
+                        <field name="reviewed_at" readonly="1"/>
+                        <field name="reject_reason"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_member_document_view_search" model="ir.ui.view">
+        <field name="name">assoc.member.document.search</field>
+        <field name="model">assoc.member.document</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="member_id"/>
+                <field name="cert_no"/>
+                <filter name="todo" string="待審核" domain="[('state', '=', 'submitted')]"/>
+                <filter name="approved" string="已核准" domain="[('state', '=', 'approved')]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_type" string="文件類型" context="{'group_by': 'doc_type'}"/>
+                    <filter name="group_state" string="狀態" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="assoc_member_document_action" model="ir.actions.act_window">
+        <field name="name">證明文件</field>
+        <field name="res_model">assoc.member.document</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_todo': 1}</field>
+        <field name="search_view_id" ref="assoc_member_document_view_search"/>
+    </record>
+</odoo>

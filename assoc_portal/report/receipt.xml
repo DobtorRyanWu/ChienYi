@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_receipt" model="ir.actions.report">
+        <field name="name">會費收據</field>
+        <field name="model">assoc.payment</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">assoc_portal.report_receipt</field>
+        <field name="report_file">assoc_portal.report_receipt</field>
+        <field name="print_report_name">'收據-%s' % (object.receipt_no or object.id)</field>
+        <field name="groups_id" eval="[(4, ref('group_assoc_finance')), (4, ref('assoc_base.group_assoc_admin'))]"/>
+    </record>
+
+    <template id="report_receipt">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2 style="text-align:center; margin-bottom:6mm;">
+                            <span t-out="o.company_id.name"/>　會費收據
+                        </h2>
+                        <table class="table table-sm" style="width:100%;">
+                            <tr>
+                                <th style="width:22%;">收據號碼</th>
+                                <td style="width:28%;"><span t-out="o.receipt_no"/></td>
+                                <th style="width:22%;">收款日期</th>
+                                <td><span t-out="o.date"/></td>
+                            </tr>
+                            <tr>
+                                <th>繳款人</th><td><span t-out="o.payer_name"/></td>
+                                <th>會員編號</th><td><span t-out="o.member_id.member_no"/></td>
+                            </tr>
+                            <tr>
+                                <th>收款方式</th>
+                                <td><span t-field="o.method"/></td>
+                                <th>備註</th><td><span t-out="o.bank_ref or '—'"/></td>
+                            </tr>
+                        </table>
+
+                        <table class="table table-sm" style="width:100%; margin-top:4mm;">
+                            <thead>
+                                <tr><th>期別</th><th>期間</th><th style="text-align:right;">金額</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="o.dues_ids" t-as="dues">
+                                    <td><span t-out="dues.period_id.name"/></td>
+                                    <td><span t-out="dues.date_from"/> ~ <span t-out="dues.date_to"/></td>
+                                    <td style="text-align:right;">
+                                        <span t-out="dues.amount_due"
+                                              t-options='{"widget": "integer"}'/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th colspan="2" style="text-align:right;">合計新臺幣</th>
+                                    <th style="text-align:right;">
+                                        <span t-out="o.amount_total"
+                                              t-options='{"widget": "integer"}'/> 元
+                                    </th>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div t-if="o.state == 'voided'"
+                             style="margin-top:8mm; color:#c00; font-size:16pt; font-weight:bold;">
+                            本張收據已作廢
+                        </div>
+
+                        <div style="margin-top:10mm; text-align:right;">
+                            <img t-if="o.company_id.assoc_receipt_seal"
+                                 t-attf-src="data:image/png;base64,#{o.company_id.assoc_receipt_seal.decode()}"
+                                 style="width:28mm; height:28mm; object-fit:contain;" alt="印章"/>
+                        </div>
+                        <p t-if="o.company_id.assoc_receipt_footer"
+                           style="margin-top:8mm; font-size:9pt; color:#555; white-space:pre-line;"
+                           t-out="o.company_id.assoc_receipt_footer"/>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

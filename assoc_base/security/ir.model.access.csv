@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_assoc_member_staff,assoc.member staff,model_assoc_member,group_assoc_staff,1,0,0,0
+access_assoc_member_admin,assoc.member admin,model_assoc_member,group_assoc_admin,1,1,1,1
+access_assoc_member_document_staff,assoc.member.document staff,model_assoc_member_document,group_assoc_staff,1,0,0,0
+access_assoc_member_document_admin,assoc.member.document admin,model_assoc_member_document,group_assoc_admin,1,1,1,1
+access_assoc_audit_log_admin,assoc.audit.log admin,model_assoc_audit_log,group_assoc_admin,1,0,0,0
+access_assoc_term_staff,assoc.term staff,model_assoc_term,group_assoc_staff,1,0,0,0
+access_assoc_term_admin,assoc.term admin,model_assoc_term,group_assoc_admin,1,1,1,1

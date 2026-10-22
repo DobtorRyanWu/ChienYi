@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_activation_notice" model="ir.actions.report">
+        <field name="name">開通／重設密碼通知單</field>
+        <field name="model">assoc.member</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">assoc_portal.report_activation_notice</field>
+        <field name="report_file">assoc_portal.report_activation_notice</field>
+        <field name="print_report_name">'開通通知單 - %s' % (object.member_no)</field>
+        <field name="binding_model_id" eval="False"/>
+        <!-- 不存附件：通知單裡有一次性開通碼 -->
+    </record>
+
+    <template id="report_activation_notice">
+        <t t-call="web.html_container">
+            <t t-call="web.external_layout">
+                <div class="page">
+                    <h2 class="mb-4"><t t-esc="title"/></h2>
+                    <table class="table table-sm">
+                        <tr><th style="width: 8rem;">會員編號</th><td><t t-esc="member.member_no"/></td></tr>
+                        <tr><th>姓名</th><td><t t-esc="member.name"/></td></tr>
+                        <tr><th>登入帳號</th><td><t t-esc="login"/></td></tr>
+                        <tr><th>有效期限</th><td><t t-esc="expires_hours"/> 小時內（逾期請洽辦公室重印）</td></tr>
+                    </table>
+                    <div class="text-center my-4">
+                        <img t-att-src="qr" style="width: 55mm; height: 55mm;" alt="設定密碼 QR"/>
+                        <p class="mt-2">用手機掃描上方 QR，即可設定密碼</p>
+                    </div>
+                    <div class="mt-4 small">
+                        <p class="mb-1"><strong>注意事項</strong></p>
+                        <ul>
+                            <li>這張通知單只能使用一次；重新列印後，舊的通知單即失效。</li>
+                            <li>設定密碼後，可用 Email 或身分證字號登入。</li>
+                            <li>請妥善保管，不要轉傳他人。</li>
+                        </ul>
+                        <p class="text-muted">
+                            個人資料蒐集告知：本會依「052 會員名冊管理」目的蒐集您的資料，
+                            用於會務聯繫、會費與積分登錄；您可向本會查詢、更正。
+                        </p>
+                    </div>
+                </div>
+            </t>
+        </t>
+    </template>
+</odoo>

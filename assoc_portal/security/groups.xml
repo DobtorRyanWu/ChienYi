@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="group_assoc_finance" model="res.groups">
+        <field name="name">公會出納</field>
+        <field name="category_id" ref="assoc_base.module_category_association"/>
+        <field name="implied_ids" eval="[(4, ref('assoc_base.group_assoc_staff'))]"/>
+        <field name="comment">維護會費期別、應繳與收款；不含會員資料的編輯權。</field>
+    </record>
+</odoo>

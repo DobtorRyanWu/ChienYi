@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assoc_meeting_view_list" model="ir.ui.view">
+        <field name="name">assoc.meeting.list</field>
+        <field name="model">assoc.meeting</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="date_begin"/>
+                <field name="name"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="present_count"/>
+                <field name="member_count"/>
+                <field name="quorum_met"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'checkin_open'" decoration-success="state == 'in_session'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_meeting_view_form" model="ir.ui.view">
+        <field name="name">assoc.meeting.form</field>
+        <field name="model">assoc.meeting</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_build_roster" type="object" string="補建出席名冊"
+                            invisible="state == 'closed'" groups="assoc_base.group_assoc_admin"/>
+                    <button name="action_open_checkin" type="object" string="開放報到" class="btn-primary"
+                            invisible="state != 'draft'" groups="assoc_base.group_assoc_admin"/>
+                    <button name="action_open_desk" type="object" string="開啟報到台" class="btn-primary"
+                            invisible="state not in ('checkin_open', 'in_session')"
+                            groups="assoc_meeting.group_meeting_desk"/>
+                    <button name="action_start_session" type="object" string="開始開會"
+                            invisible="state != 'checkin_open'" groups="assoc_base.group_assoc_admin"/>
+                    <button name="action_recompute_credits" type="object" string="重算積分"
+                            invisible="kind != 'seminar'" groups="assoc_base.group_assoc_admin"/>
+                    <button name="action_export_credits" type="object" string="匯出積分名冊"
+                            invisible="kind != 'seminar'" groups="assoc_base.group_assoc_admin"/>
+                    <button name="action_close_meeting" type="object" string="散會"
+                            invisible="state not in ('checkin_open', 'in_session')"
+                            groups="assoc_base.group_assoc_admin" confirm="散會後不能再報到，確定？"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="例：第 12 屆第 1 次會員大會"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="kind" readonly="state != 'draft'"/>
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                            <field name="date_begin"/>
+                            <field name="date_end" invisible="kind != 'seminar'"
+                                   required="kind == 'seminar'" readonly="state != 'draft'"/>
+                            <field name="place"/>
+                        </group>
+                        <group>
+                            <field name="quorum_ratio" invisible="kind != 'assembly'"/>
+                            <field name="proxy_deadline" invisible="kind != 'assembly'"/>
+                            <field name="present_count"/>
+                            <field name="proxy_count"/>
+                            <field name="member_count"/>
+                            <field name="quorum_met"/>
+                        </group>
+                    </group>
+                    <group string="研討會設定" invisible="kind != 'seminar'">
+                        <group>
+                            <field name="credit_points" readonly="state != 'draft'"/>
+                            <field name="credit_hours" readonly="state != 'draft'"/>
+                            <field name="credit_category" readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="approval_ref" readonly="state != 'draft'"/>
+                            <field name="checkin_grace_min" readonly="state != 'draft'"/>
+                            <field name="checkout_open_min" readonly="state != 'draft'"/>
+                            <field name="require_dynamic_pass" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="出席名冊" name="attendance">
+                            <field name="attendance_ids" readonly="1">
+                                <list>
+                                    <field name="member_no"/>
+                                    <field name="member_name"/>
+                                    <field name="state" widget="badge" decoration-success="state != 'absent'"/>
+                                    <field name="checkin_at"/>
+                                    <field name="checkin_method"/>
+                                    <field name="checkin_by_uid"/>
+                                    <field name="manual_reason" optional="hide"/>
+                                    <field name="checkout_at" column_invisible="parent.kind != 'seminar'"/>
+                                    <field name="credit_status" column_invisible="parent.kind != 'seminar'"
+                                           widget="badge" decoration-success="credit_status == 'eligible'"
+                                           decoration-warning="credit_status in ('late', 'early_leave')"/>
+                                    <field name="credit_points" column_invisible="parent.kind != 'seminar'"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_meeting_action" model="ir.actions.act_window">
+        <field name="name">會員大會</field>
+        <field name="res_model">assoc.meeting</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

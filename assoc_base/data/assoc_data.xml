@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 郵件暫停寄送（計畫 §5）。noupdate：升級模組不會把上線後設定的 0 蓋回 1。
+         程式端讀不到參數時一律視為 hold，所以乾淨的新庫也不會寄出。 -->
+    <data noupdate="1">
+        <record id="param_assoc_mail_hold" model="ir.config_parameter">
+            <field name="key">assoc.mail.hold</field>
+            <field name="value">1</field>
+        </record>
+    </data>
+
+    <data>
+        <record id="cron_gc_assoc_member_imports" model="ir.cron">
+            <field name="name">公會：清除逾時的會員匯入暫存</field>
+            <field name="model_id" ref="base_import.model_base_import_import"/>
+            <field name="state">code</field>
+            <field name="code">model._gc_assoc_member_imports()</field>
+            <field name="interval_number">15</field>
+            <field name="interval_type">minutes</field>
+            <field name="active" eval="True"/>
+        </record>
+    </data>
+</odoo>

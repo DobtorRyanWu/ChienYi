@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- global rule（不掛 groups），理由見 assoc_base/security/record_rules.xml -->
+    <record id="rule_assoc_meeting_company" model="ir.rule">
+        <field name="name">會員大會：公會隔離</field>
+        <field name="model_id" ref="model_assoc_meeting"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_meeting_attendance_company" model="ir.rule">
+        <field name="name">出席紀錄：公會隔離</field>
+        <field name="model_id" ref="model_assoc_meeting_attendance"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_meeting_proxy_company" model="ir.rule">
+        <field name="name">委託書：公會隔離</field>
+        <field name="model_id" ref="model_assoc_meeting_proxy"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

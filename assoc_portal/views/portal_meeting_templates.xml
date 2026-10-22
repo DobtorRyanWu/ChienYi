@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 我的大會：列表。
+         名冊（出席列）是「這場與我有關」的唯一判準，也是入口的 guard：
+         出席列是逐會員建的，不在名冊上就看不到那場，順便擋掉跨公會。 -->
+    <template id="member_meetings" name="我的大會">
+        <t t-call="portal.portal_layout">
+            <h3 class="mb-3">我的大會</h3>
+            <p class="text-muted">名冊上有你的場次。點進去可以看到報到、委託、禮品與選舉。</p>
+            <div class="list-group">
+                <a t-foreach="attendances" t-as="att"
+                   t-attf-href="/my/assoc/meetings/#{att.meeting_id.id}"
+                   class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong t-esc="att.meeting_id.name"/>
+                            <span class="badge text-bg-light ms-2"
+                                  t-esc="kind_labels.get(att.meeting_id.kind)"/>
+                            <div class="text-muted small">
+                                <t t-out="att.meeting_id.date_begin"
+                                   t-options="{'widget': 'datetime', 'format': 'yyyy-MM-dd HH:mm',
+                                               'tz_name': assoc_tz}"/>
+                                <t t-if="att.meeting_id.place">　<t t-esc="att.meeting_id.place"/></t>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <span t-attf-class="badge #{'text-bg-success' if att.state != 'absent' else 'text-bg-secondary'}"
+                                  t-esc="att_labels.get(att.state)"/>
+                            <div class="text-muted small"
+                                 t-esc="meeting_labels.get(att.meeting_id.state)"/>
+                        </div>
+                    </div>
+                </a>
+                <div t-if="not attendances" class="list-group-item text-muted">
+                    目前沒有你在名冊上的場次。
+                </div>
+            </div>
+            <a class="btn btn-outline-secondary mt-3" href="/my">回會員專區</a>
+        </t>
+    </template>
+
+    <!-- 單場大會專區：這一頁就是「整合」的本體。
+         最後那個 anchor 給 assoc_portal_election 掛選舉用——本模組不依賴選舉模組
+         （計畫 D8），所以不能直接寫在這裡；沒裝那個模組就什麼都不會多出來。 -->
+    <template id="member_meeting" name="大會專區">
+        <t t-call="portal.portal_layout">
+            <h3 class="mb-1"><t t-esc="meeting.name"/></h3>
+            <p class="text-muted">
+                <span class="badge text-bg-light" t-esc="kind_labels.get(meeting.kind)"/>
+                <span class="badge text-bg-light ms-1" t-esc="meeting_labels.get(meeting.state)"/>
+                　<t t-out="meeting.date_begin"
+                     t-options="{'widget': 'datetime', 'format': 'yyyy-MM-dd HH:mm',
+                                 'tz_name': assoc_tz}"/>
+                <t t-if="meeting.place">　<t t-esc="meeting.place"/></t>
+            </p>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">我的出席</h5>
+                    <p class="mb-1">
+                        <span t-attf-class="badge #{'text-bg-success' if attendance.state != 'absent' else 'text-bg-secondary'}"
+                              t-esc="att_labels.get(attendance.state)"/>
+                        <t t-if="attendance.checkin_at">
+                            　報到時間
+                            <t t-out="attendance.checkin_at"
+                               t-options="{'widget': 'datetime', 'format': 'yyyy-MM-dd HH:mm',
+                                           'tz_name': assoc_tz}"/>
+                        </t>
+                    </p>
+                    <p t-if="meeting.kind == 'seminar'" class="mb-0 text-muted small">
+                        簽退：
+                        <t t-if="attendance.checkout_at">
+                            <t t-out="attendance.checkout_at"
+                               t-options="{'widget': 'datetime', 'format': 'yyyy-MM-dd HH:mm',
+                                           'tz_name': assoc_tz}"/>
+                        </t>
+                        <t t-else="">尚未簽退</t>
+                        　積分判定：<t t-esc="credit_labels.get(attendance.credit_status)"/>
+                        （<t t-esc="attendance.credit_points"/> 分）
+                    </p>
+                    <p t-if="attendance.state == 'absent'" class="mb-0 text-muted small">
+                        報到請在現場出示電子會員證（<a href="/my/assoc/pass">開啟</a>）。
+                    </p>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">委託</h5>
+                    <h6 class="text-muted small mb-1">我委託別人</h6>
+                    <ul class="list-unstyled mb-3">
+                        <li t-foreach="mine" t-as="one" class="mb-1">
+                            <t t-esc="purpose_labels.get(one.purpose)"/>　→
+                            <t t-esc="one.holder_member_id.name"/>
+                            <span class="badge text-bg-light ms-1"
+                                  t-esc="proxy_labels.get(one.state)"/>
+                            <!-- 列印是 POST：它會鑄新碼並讓外面那張舊的失效 -->
+                            <form t-if="one.state in ('requested', 'waiting')" method="post"
+                                  t-attf-action="/my/assoc/proxies/#{one.id}/form"
+                                  class="d-inline ms-1">
+                                <input type="hidden" name="csrf_token"
+                                       t-att-value="request.csrf_token()"/>
+                                <button class="btn btn-sm btn-outline-primary" type="submit">
+                                    列印委託書
+                                </button>
+                            </form>
+                        </li>
+                        <li t-if="not mine" class="text-muted">尚未委託他人。</li>
+                    </ul>
+                    <h6 class="text-muted small mb-1">別人委託我</h6>
+                    <ul class="list-unstyled mb-2">
+                        <li t-foreach="held" t-as="one">
+                            <t t-esc="one.principal_member_id.name"/>
+                            <t t-esc="purpose_labels.get(one.purpose)"/>
+                            <span class="badge text-bg-light ms-1"
+                                  t-esc="proxy_labels.get(one.state)"/>
+                        </li>
+                        <li t-if="not held" class="text-muted">沒有人委託你。</li>
+                    </ul>
+                    <a class="btn btn-sm btn-outline-secondary" href="/my/assoc/proxies">
+                        前往委託設定
+                    </a>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">我的禮品</h5>
+                    <ul class="list-unstyled mb-0">
+                        <li t-foreach="gifts" t-as="one">
+                            <t t-esc="one.item_id.name"/>
+                            <span class="badge text-bg-light ms-1"
+                                  t-esc="gift_labels.get(one.state)"/>
+                        </li>
+                        <li t-if="not gifts" class="text-muted">這一場沒有你的禮品。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="assoc_meeting_hub_extra"/>
+
+            <a class="btn btn-outline-secondary" href="/my/assoc/meetings">回我的大會</a>
+        </t>
+    </template>
+
+</odoo>

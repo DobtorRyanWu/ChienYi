@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assoc_member_view_form_portal" model="ir.ui.view">
+        <field name="name">assoc.member.form.portal</field>
+        <field name="model">assoc.member</field>
+        <field name="inherit_id" ref="assoc_base.assoc_member_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <!-- revoked 也要看得到：停用會保留 user_id 連結（login 全庫唯一，
+                     連封存的帳號也算），復權走的就是同一顆按鈕的重用分支。
+                     少了 revoked，被停用的會員在表單上一顆按鈕都沒有，只能進 shell 救。 -->
+                <button name="action_collect_fee" type="object" string="收款"
+                        groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"
+                        invisible="unpaid_dues_count == 0"/>
+                <button name="action_grant_portal" type="object" string="開通前台帳號"
+                        groups="assoc_base.group_assoc_admin"
+                        invisible="portal_state not in ['none', 'revoked']"/>
+                <button name="action_print_activation" type="object" string="列印開通通知單"
+                        groups="assoc_base.group_assoc_admin"
+                        invisible="portal_state not in ['pending', 'active']"/>
+                <button name="action_revoke_portal" type="object" string="停用前台帳號"
+                        groups="assoc_base.group_assoc_admin"
+                        invisible="portal_state in ['none', 'revoked']"
+                        confirm="停用後會員無法登入，確定？"/>
+            </xpath>
+            <xpath expr="//field[@name='join_date']" position="after">
+                <field name="portal_state"/>
+                <field name="unpaid_dues_count" invisible="1"/>
+                <field name="user_id" readonly="1" groups="base.group_system"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="assoc_member_view_search_portal" model="ir.ui.view">
+        <field name="name">assoc.member.search.portal</field>
+        <field name="model">assoc.member</field>
+        <field name="inherit_id" ref="assoc_base.assoc_member_view_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='inactive']" position="before">
+                <filter name="portal_none" string="未開通前台" domain="[('user_id', '=', False)]"/>
+                <filter name="no_contact" string="缺手機或 Email"
+                        domain="['|', ('email', '=', False), ('mobile', '=', False)]"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

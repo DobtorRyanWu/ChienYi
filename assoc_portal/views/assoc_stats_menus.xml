@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 統計選單（計畫 §9）。
+     **單獨一個檔而且排在 manifest 最後**：三個 action 分屬 assoc_meeting 與
+     assoc_portal 的不同檔案，選單必須在它們都載入之後才引用得到
+     （放進 assoc_dues_views.xml 會先於 assoc_gift_views.xml 載入 → 找不到 id）。
+     承辦要看的是「現在出席率／收費率／發放率各是多少」，不是「去哪個模組找」，
+     所以三張表集中在同一個選單底下。 -->
+<odoo>
+    <menuitem id="menu_assoc_stats" name="統計" parent="assoc_base.menu_assoc_root"
+              sequence="90"/>
+    <menuitem id="menu_assoc_stats_attendance" name="出席統計" parent="menu_assoc_stats"
+              action="assoc_meeting.assoc_attendance_stat_action" sequence="10"/>
+    <menuitem id="menu_assoc_stats_dues" name="會費統計" parent="menu_assoc_stats"
+              action="assoc_dues_stat_action" sequence="20"
+              groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"/>
+    <menuitem id="menu_assoc_stats_gift" name="禮品統計" parent="menu_assoc_stats"
+              action="assoc_gift_stat_action" sequence="30"/>
+</odoo>

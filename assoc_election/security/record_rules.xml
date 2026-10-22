@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- global rule（不掛 groups），理由見 assoc_base/security/record_rules.xml。
+         assoc.election.ballot 刻意沒有 company_id、沒有 ACL：只有 sudo 的投票與開票流程碰得到。 -->
+    <record id="rule_assoc_election_company" model="ir.rule">
+        <field name="name">選舉：公會隔離</field>
+        <field name="model_id" ref="model_assoc_election"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_election_candidate_company" model="ir.rule">
+        <field name="name">候選人：公會隔離</field>
+        <field name="model_id" ref="model_assoc_election_candidate"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_election_voter_company" model="ir.rule">
+        <field name="name">選舉人：公會隔離</field>
+        <field name="model_id" ref="model_assoc_election_voter"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_election_log_company" model="ir.rule">
+        <field name="name">稽核鏈：公會隔離</field>
+        <field name="model_id" ref="model_assoc_election_log"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <!-- 監票員逐場 rule（計畫 §3）。
+         **group rule 之間是 OR**（`ir_rule.py:103-111`），所以身兼監票員的選務
+         不會被這條縮限——officer／admin 另有 `[(1,'=',1)]` 的 rule 打開全部。
+         沒有這組 rule 的話，A 場的監票員看得到 B 場的稽核鏈與名冊。 -->
+    <record id="rule_election_observer" model="ir.rule">
+        <field name="name">選舉：監票員只看自己監的場次</field>
+        <field name="model_id" ref="model_assoc_election"/>
+        <field name="groups" eval="[(4, ref('group_election_observer'))]"/>
+        <field name="domain_force">[('observer_user_ids', 'in', [user.id])]</field>
+    </record>
+    <record id="rule_election_officer_all" model="ir.rule">
+        <field name="name">選舉：選務看全部</field>
+        <field name="model_id" ref="model_assoc_election"/>
+        <field name="groups" eval="[(4, ref('group_election_officer')),
+                                    (4, ref('assoc_base.group_assoc_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+    <record id="rule_candidate_observer" model="ir.rule">
+        <field name="name">候選人：監票員只看自己監的場次</field>
+        <field name="model_id" ref="model_assoc_election_candidate"/>
+        <field name="groups" eval="[(4, ref('group_election_observer'))]"/>
+        <field name="domain_force">[('election_id.observer_user_ids', 'in', [user.id])]</field>
+    </record>
+    <record id="rule_candidate_officer_all" model="ir.rule">
+        <field name="name">候選人：選務看全部</field>
+        <field name="model_id" ref="model_assoc_election_candidate"/>
+        <field name="groups" eval="[(4, ref('group_election_officer')),
+                                    (4, ref('assoc_base.group_assoc_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+    <record id="rule_voter_observer" model="ir.rule">
+        <field name="name">選舉人：監票員只看自己監的場次</field>
+        <field name="model_id" ref="model_assoc_election_voter"/>
+        <field name="groups" eval="[(4, ref('group_election_observer'))]"/>
+        <field name="domain_force">[('election_id.observer_user_ids', 'in', [user.id])]</field>
+    </record>
+    <record id="rule_voter_officer_all" model="ir.rule">
+        <field name="name">選舉人：選務看全部</field>
+        <field name="model_id" ref="model_assoc_election_voter"/>
+        <field name="groups" eval="[(4, ref('group_election_officer')),
+                                    (4, ref('assoc_base.group_assoc_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+    <record id="rule_log_observer" model="ir.rule">
+        <field name="name">稽核鏈：監票員只看自己監的場次</field>
+        <field name="model_id" ref="model_assoc_election_log"/>
+        <field name="groups" eval="[(4, ref('group_election_observer'))]"/>
+        <field name="domain_force">[('election_id.observer_user_ids', 'in', [user.id])]</field>
+    </record>
+    <record id="rule_log_officer_all" model="ir.rule">
+        <field name="name">稽核鏈：選務看全部</field>
+        <field name="model_id" ref="model_assoc_election_log"/>
+        <field name="groups" eval="[(4, ref('group_election_officer')),
+                                    (4, ref('assoc_base.group_assoc_admin'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+</odoo>

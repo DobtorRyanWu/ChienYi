@@ -1,0 +1,20 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_assoc_dues_period_staff,assoc.dues.period staff,model_assoc_dues_period,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_dues_period_finance,assoc.dues.period finance,model_assoc_dues_period,group_assoc_finance,1,1,1,0
+access_assoc_dues_period_admin,assoc.dues.period admin,model_assoc_dues_period,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_dues_staff,assoc.dues staff,model_assoc_dues,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_dues_finance,assoc.dues finance,model_assoc_dues,group_assoc_finance,1,1,1,1
+access_assoc_dues_admin,assoc.dues admin,model_assoc_dues,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_payment_staff,assoc.payment staff,model_assoc_payment,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_payment_finance,assoc.payment finance,model_assoc_payment,group_assoc_finance,1,1,1,1
+access_assoc_payment_admin,assoc.payment admin,model_assoc_payment,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_gift_campaign_staff,assoc.gift.campaign staff,model_assoc_gift_campaign,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_gift_campaign_desk,assoc.gift.campaign desk,model_assoc_gift_campaign,assoc_meeting.group_meeting_desk,1,0,0,0
+access_assoc_gift_campaign_admin,assoc.gift.campaign admin,model_assoc_gift_campaign,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_gift_item_staff,assoc.gift.item staff,model_assoc_gift_item,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_gift_item_desk,assoc.gift.item desk,model_assoc_gift_item,assoc_meeting.group_meeting_desk,1,0,0,0
+access_assoc_gift_item_admin,assoc.gift.item admin,model_assoc_gift_item,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_gift_entitlement_staff,assoc.gift.entitlement staff,model_assoc_gift_entitlement,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_gift_entitlement_desk,assoc.gift.entitlement desk,model_assoc_gift_entitlement,assoc_meeting.group_meeting_desk,1,1,0,0
+access_assoc_gift_entitlement_admin,assoc.gift.entitlement admin,model_assoc_gift_entitlement,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_gift_export_admin,assoc.gift.export admin,model_assoc_gift_export,assoc_base.group_assoc_admin,1,1,1,0

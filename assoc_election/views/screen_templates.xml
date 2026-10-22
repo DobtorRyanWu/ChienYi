@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 大螢幕：投影在會場前方，字要大、資訊要少。
+         刻意不 t-call portal layout：投影機上不需要選單與登入列。 -->
+    <template id="screen_page" name="選舉大螢幕">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="ax-screen" t-att-data-uuid="election_uuid"
+                 t-att-data-poll-ms="poll_interval_ms">
+                <h1 class="ax-screen__title" data-ax="title"/>
+                <div class="ax-screen__company" data-ax="company"/>
+                <div class="ax-screen__message" data-ax="message">連線中…</div>
+                <div class="ax-screen__stats" data-ax="stats"/>
+                <div class="ax-screen__result" data-ax="result"/>
+                <div class="ax-screen__chain">
+                    稽核鏈：<span data-ax="chain"/>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- 跑馬燈：大廳或官網嵌入，只顯示已公告的結果 -->
+    <template id="ticker_page" name="選舉結果跑馬燈">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="ax-ticker" t-att-data-companies="companies"
+                 t-att-data-poll-ms="poll_interval_ms">
+                <div class="ax-ticker__track" data-ax="ticker">載入中…</div>
+            </div>
+        </t>
+    </template>
+</odoo>

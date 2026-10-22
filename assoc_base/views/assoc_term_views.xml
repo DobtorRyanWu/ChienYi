@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assoc_term_view_list" model="ir.ui.view">
+        <field name="name">assoc.term.list</field>
+        <field name="model">assoc.term</field>
+        <field name="arch" type="xml">
+            <list string="屆次">
+                <field name="name"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'current'"
+                       decoration-muted="state == 'closed'"/>
+                <field name="note" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_term_view_form" model="ir.ui.view">
+        <field name="name">assoc.term.form</field>
+        <field name="model">assoc.term</field>
+        <field name="arch" type="xml">
+            <form string="屆次">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="term_no"/>
+                            <field name="state"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                            <field name="note"/>
+                        </group>
+                    </group>
+                </sheet>
+                <!-- **模型宣稱「chatter 是唯一的痕跡」，那就要接得上。**
+                     `assoc.term` 有 mail.thread 與四個 tracking 欄位，而這張
+                     表單原本沒有 chatter，於是那句話在 UI 上到不了（要下 SQL
+                     讀 mail_message）——而 `date_from`／`date_to`／`state`
+                     公會管理員永遠改得動，寫入守衛只鎖 `term_no` 與公會。
+                     這是 L2⑲「刪掉 A 因為 B 撐得住」而 B 沒接線；repo 裡其他
+                     四個 mail.thread 模型都有 chatter，只有這個漏了
+                     （第二輪 simplifier 與 red-team 各自指到）。 -->
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_term_action" model="ir.actions.act_window">
+        <field name="name">屆次</field>
+        <field name="res_model">assoc.term</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一屆</p>
+            <p>選舉票依人民團體選舉罷免辦法 §6 必須載明選舉屆次，
+               所以每一場選舉在凍結名冊之前都要指定屆次。</p>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="desk_page_election" inherit_id="assoc_meeting.desk_page" name="報到台：選舉領票">
+        <xpath expr="//div[@data-ax='desk-extra']" position="attributes">
+            <attribute name="t-att-data-can-reissue">'1' if can_reissue else '0'</attribute>
+        </xpath>
+        <xpath expr="//div[@data-ax='desk-extra']" position="inside">
+            <section class="ax-card" data-ax="election-stats" hidden="hidden"/>
+            <div data-ax="voter-cards"/>
+        </xpath>
+    </template>
+</odoo>

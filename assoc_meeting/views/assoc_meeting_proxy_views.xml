@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assoc_meeting_proxy_view_list" model="ir.ui.view">
+        <field name="name">assoc.meeting.proxy.list</field>
+        <field name="model">assoc.meeting.proxy</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="meeting_id"/>
+                <field name="principal_member_id"/>
+                <field name="holder_member_id"/>
+                <field name="purpose"/>
+                <field name="channel"/>
+                <field name="paper_received"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-warning="state == 'waiting'"
+                       decoration-danger="state == 'rejected'"/>
+                <field name="requested_at"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_meeting_proxy_view_form" model="ir.ui.view">
+        <field name="name">assoc.meeting.proxy.form</field>
+        <field name="model">assoc.meeting.proxy</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_receive_paper" type="object" string="已收書面委託書"
+                            class="btn-primary" groups="assoc_base.group_assoc_admin"
+                            invisible="paper_received or state not in ('requested', 'waiting')"
+                            help="人團法 §38 要的是書面委託；收到紙本後按這裡，系統會立刻嘗試生效。"/>
+                    <!-- 列印會鑄新單號並讓外面那張舊的失效，所以字樣要講清楚 -->
+                    <button name="action_print_proxy_form" type="object" string="列印委託書"
+                            groups="assoc_base.group_assoc_admin"
+                            invisible="state not in ('requested', 'waiting')"
+                            help="印一份帶條碼的委託書給委託人簽名。重印會讓先前印出的那張失效。"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="requested,waiting,active"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="meeting_id" readonly="1"/>
+                            <field name="principal_member_id" readonly="1"/>
+                            <field name="holder_member_id" readonly="1"/>
+                            <field name="purpose" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="channel" readonly="1"/>
+                            <field name="paper_received" readonly="1"/>
+                            <field name="requested_at" readonly="1"/>
+                            <field name="activated_at" readonly="1"/>
+                            <field name="activated_by_uid" readonly="1"/>
+                            <field name="cancel_reason" readonly="1"
+                                   invisible="state not in ('cancelled', 'rejected')"/>
+                        </group>
+                    </group>
+                    <group string="書面委託書">
+                        <field name="paper_file" filename="paper_file_name"
+                               groups="assoc_base.group_assoc_admin"/>
+                        <field name="paper_file_name" invisible="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_meeting_proxy_view_search" model="ir.ui.view">
+        <field name="name">assoc.meeting.proxy.search</field>
+        <field name="model">assoc.meeting.proxy</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="principal_member_id"/>
+                <field name="holder_member_id"/>
+                <field name="meeting_id"/>
+                <filter name="needs_paper" string="待收書面"
+                        domain="[('state', '=', 'requested'), ('channel', '=', 'portal')]"/>
+                <filter name="waiting" string="候補（1/3 已滿）" domain="[('state', '=', 'waiting')]"/>
+                <filter name="active" string="已生效" domain="[('state', '=', 'active')]"/>
+                <group expand="0" string="分組">
+                    <filter name="by_meeting" string="大會" context="{'group_by': 'meeting_id'}"/>
+                    <filter name="by_state" string="狀態" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="assoc_meeting_proxy_action" model="ir.actions.act_window">
+        <field name="name">委託出席</field>
+        <field name="res_model">assoc.meeting.proxy</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_needs_paper': 1}</field>
+    </record>
+
+    <!-- 簽到紀錄：獨立選單（對手簡報有這一項，而且承辦對帳時要能直接篩） -->
+    <record id="assoc_attendance_view_list" model="ir.ui.view">
+        <field name="name">assoc.meeting.attendance.list</field>
+        <field name="model">assoc.meeting.attendance</field>
+        <field name="arch" type="xml">
+            <list create="false" delete="false" edit="false">
+                <field name="meeting_id"/>
+                <field name="member_no"/>
+                <field name="member_name"/>
+                <field name="state" widget="badge" decoration-success="state != 'absent'"/>
+                <field name="checkin_at"/>
+                <field name="checkin_method"/>
+                <field name="checkin_by_uid" optional="hide"/>
+                <field name="manual_reason" optional="hide"/>
+                <field name="checkout_at" optional="show"/>
+                <field name="credit_status" optional="show"/>
+                <field name="credit_points" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_attendance_view_form" model="ir.ui.view">
+        <field name="name">assoc.meeting.attendance.form</field>
+        <field name="model">assoc.meeting.attendance</field>
+        <field name="arch" type="xml">
+            <form create="false" delete="false">
+                <header>
+                    <button name="button_manual_checkout" type="object" string="補登簽退"
+                            groups="assoc_base.group_assoc_admin"
+                            invisible="meeting_kind != 'seminar' or state != 'present'"
+                            help="真正的提前離場由承辦事後補登：掃碼在時窗外只提示、不寫入。"/>
+                    <button name="button_credit_override" type="object" string="人工調整積分"
+                            groups="assoc_base.group_assoc_admin"
+                            invisible="meeting_kind != 'seminar'"
+                            help="認可公文、補件等。調整過的紀錄之後重算會跳過。"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="meeting_id" readonly="1"/>
+                            <field name="meeting_kind" invisible="1"/>
+                            <field name="member_no" readonly="1"/>
+                            <field name="member_name" readonly="1"/>
+                            <field name="state" readonly="1"/>
+                            <field name="proxy_id" readonly="1" invisible="not proxy_id"/>
+                        </group>
+                        <group>
+                            <field name="checkin_at" readonly="1"/>
+                            <field name="checkin_method" readonly="1"/>
+                            <field name="checkin_by_uid" readonly="1"/>
+                            <field name="manual_reason" readonly="1" invisible="not manual_reason"/>
+                        </group>
+                    </group>
+                    <group string="簽退與積分" invisible="meeting_kind != 'seminar'">
+                        <group>
+                            <field name="checkout_at" readonly="1"/>
+                            <field name="checkout_method" readonly="1"/>
+                            <field name="checkout_reason" readonly="1"
+                                   invisible="not checkout_reason"/>
+                            <field name="credit_status" readonly="1"/>
+                            <field name="credit_points" readonly="1"/>
+                            <field name="credit_overridden" readonly="1"/>
+                            <field name="credit_note" readonly="1" invisible="not credit_note"/>
+                        </group>
+                        <group string="承辦操作" groups="assoc_base.group_assoc_admin">
+                            <field name="input_checkout_at"/>
+                            <field name="input_credit_status"/>
+                            <field name="input_credit_points"
+                                   invisible="not input_credit_status"/>
+                            <field name="input_reason"
+                                   placeholder="例：認可公文 1140918、家中急事先行離開"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_attendance_view_search" model="ir.ui.view">
+        <field name="name">assoc.meeting.attendance.search</field>
+        <field name="model">assoc.meeting.attendance</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="member_no"/>
+                <field name="member_name"/>
+                <field name="meeting_id"/>
+                <filter name="present" string="已出席" domain="[('state', '!=', 'absent')]"/>
+                <filter name="manual" string="手動簽到" domain="[('checkin_method', '=', 'manual')]"
+                        help="對帳訊號：手動筆數異常代表掃碼流程有問題，或有人在繞過會員卡。"/>
+                <filter name="no_checkout" string="未簽退"
+                        domain="[('state', '=', 'present'), ('checkout_at', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="by_meeting" string="會議" context="{'group_by': 'meeting_id'}"/>
+                    <filter name="by_state" string="出席狀態" context="{'group_by': 'state'}"/>
+                    <filter name="by_method" string="報到方式" context="{'group_by': 'checkin_method'}"/>
+                    <filter name="by_credit" string="積分判定" context="{'group_by': 'credit_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 出席統計（計畫 §9）。對手簡報的「現行痛點」第一句就是
+         「難以即時掌握出席及繳費狀況」，所以這兩張表是提案要展示的東西。
+         不裝 board 模組，直接用 pivot／graph。 -->
+    <record id="assoc_attendance_view_pivot" model="ir.ui.view">
+        <field name="name">assoc.meeting.attendance.pivot</field>
+        <field name="model">assoc.meeting.attendance</field>
+        <field name="arch" type="xml">
+            <pivot string="出席統計">
+                <field name="meeting_id" type="row"/>
+                <field name="state" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="assoc_attendance_view_graph" model="ir.ui.view">
+        <field name="name">assoc.meeting.attendance.graph</field>
+        <field name="model">assoc.meeting.attendance</field>
+        <field name="arch" type="xml">
+            <!-- 維度刻意與 pivot 不同（pivot 是大會×狀態）：
+                 同樣兩個維度的圖只是把同一張表再畫一次。
+                 `checkin_at` 的 interval 最細只到 day——寫 hour 整頁會崩
+                 （memory: odoo18_graph_view_pitfalls）。 -->
+            <graph string="報到方式統計" type="bar" stacked="0">
+                <field name="checkin_method"/>
+                <field name="meeting_id"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="assoc_attendance_action" model="ir.actions.act_window">
+        <field name="name">簽到紀錄</field>
+        <field name="res_model">assoc.meeting.attendance</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_present': 1}</field>
+    </record>
+
+    <record id="assoc_attendance_stat_action" model="ir.actions.act_window">
+        <field name="name">出席統計</field>
+        <field name="res_model">assoc.meeting.attendance</field>
+        <field name="view_mode">pivot,graph,list</field>
+    </record>
+</odoo>

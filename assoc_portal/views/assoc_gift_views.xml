@@ -1,0 +1,289 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============ 禮品活動 ============ -->
+    <record id="assoc_gift_campaign_view_list" model="ir.ui.view">
+        <field name="name">assoc.gift.campaign.list</field>
+        <field name="model">assoc.gift.campaign</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="meeting_id"/>
+                <field name="eligibility"/>
+                <field name="entitlement_count"/>
+                <field name="claimed_count"/>
+                <field name="pending_count"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'open'"
+                       decoration-muted="state == 'closed'"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_gift_campaign_view_form" model="ir.ui.view">
+        <field name="name">assoc.gift.campaign.form</field>
+        <field name="model">assoc.gift.campaign</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_ready" type="object" string="產生名單"
+                            class="btn-primary" invisible="state == 'closed'"
+                            groups="assoc_base.group_assoc_admin"
+                            help="為每個品項 × 每位合格會員建一列權利。可重複按，只補缺的。"/>
+                    <button name="action_open" type="object" string="開放領取"
+                            class="btn-primary" invisible="state != 'ready'"
+                            groups="assoc_base.group_assoc_admin"/>
+                    <button name="action_close" type="object" string="結束活動"
+                            invisible="state not in ('ready', 'open')"
+                            groups="assoc_base.group_assoc_admin"
+                            confirm="結束之後就不能再領取，確定？"/>
+                    <button name="action_reset_list" type="object" string="重建名單"
+                            invisible="state == 'draft' or claimed_count &gt; 0"
+                            groups="assoc_base.group_assoc_admin"
+                            confirm="會刪掉整份名單重來（只有都還沒領取時做得到），確定？"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="例：第 12 屆會員大會紀念品"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="eligibility"/>
+                            <field name="meeting_id"
+                                   domain="[('company_id', '=', company_id), ('kind', '=', 'assembly')]"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="snapshot_at" readonly="1"/>
+                            <field name="entitlement_count" readonly="1"/>
+                            <field name="claimed_count" readonly="1"/>
+                            <field name="pending_count" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="品項" name="items">
+                            <field name="item_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="delivery"/>
+                                    <field name="unit_value"/>
+                                    <field name="qty"/>
+                                    <button name="button_export" type="object" string="造冊匯出"
+                                            icon="fa-download"
+                                            invisible="delivery == 'pickup'"
+                                            groups="assoc_base.group_assoc_admin"/>
+                                </list>
+                            </field>
+                            <p class="text-muted">
+                                「現場領取」在報到台掃碼發放；「現金造冊」與「宜睿禮券」按右邊的
+                                造冊匯出產生名單（匯出後那批就算發出去了，要重來請用批次上的「還原」）。
+                            </p>
+                        </page>
+                        <page string="名單" name="entitlements">
+                            <field name="entitlement_ids" readonly="1">
+                                <list>
+                                    <field name="member_no"/>
+                                    <field name="member_name"/>
+                                    <field name="item_id"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state in ('claimed', 'exported')"
+                                           decoration-danger="state == 'pending'"/>
+                                    <field name="claim_channel" optional="show"/>
+                                    <field name="holder_member_id" optional="show"/>
+                                    <field name="claimed_at" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_gift_campaign_action" model="ir.actions.act_window">
+        <field name="name">禮品活動</field>
+        <field name="res_model">assoc.gift.campaign</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ============ 權利名單（獨立選單，現場查詢用） ============ -->
+    <record id="assoc_gift_entitlement_view_list" model="ir.ui.view">
+        <field name="name">assoc.gift.entitlement.list</field>
+        <field name="model">assoc.gift.entitlement</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false">
+                <field name="campaign_id"/>
+                <field name="member_no"/>
+                <field name="member_name"/>
+                <field name="item_id"/>
+                <field name="delivery" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-success="state in ('claimed', 'exported')"
+                       decoration-danger="state == 'pending'"/>
+                <field name="claim_channel"/>
+                <field name="holder_member_id" optional="show"/>
+                <field name="claimed_at" optional="show"/>
+                <field name="manual_reason" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_gift_entitlement_view_search" model="ir.ui.view">
+        <field name="name">assoc.gift.entitlement.search</field>
+        <field name="model">assoc.gift.entitlement</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="member_no"/>
+                <field name="member_name"/>
+                <field name="campaign_id"/>
+                <filter name="pending" string="未領取" domain="[('state', '=', 'pending')]"/>
+                <filter name="claimed" string="已領取" domain="[('state', '=', 'claimed')]"/>
+                <filter name="exported" string="已造冊" domain="[('state', '=', 'exported')]"/>
+                <separator/>
+                <filter name="by_proxy" string="代領" domain="[('claim_channel', '=', 'scan_proxy')]"/>
+                <filter name="manual" string="手動發放" domain="[('claim_channel', '=', 'manual')]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_item" string="品項" context="{'group_by': 'item_id'}"/>
+                    <filter name="group_state" string="狀態" context="{'group_by': 'state'}"/>
+                    <filter name="group_channel" string="管道" context="{'group_by': 'claim_channel'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- 統計：品項 × 狀態 × 管道（計畫 §9 的儀表板，不裝 board 模組） -->
+    <record id="assoc_gift_entitlement_view_pivot" model="ir.ui.view">
+        <field name="name">assoc.gift.entitlement.pivot</field>
+        <field name="model">assoc.gift.entitlement</field>
+        <field name="arch" type="xml">
+            <pivot string="禮品發放統計">
+                <field name="item_id" type="row"/>
+                <field name="state" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="assoc_gift_entitlement_view_graph" model="ir.ui.view">
+        <field name="name">assoc.gift.entitlement.graph</field>
+        <field name="model">assoc.gift.entitlement</field>
+        <field name="arch" type="xml">
+            <!-- 維度刻意與 pivot 不同（pivot 是品項×狀態）：
+                 同樣兩個維度的圖只是把同一張表再畫一次 -->
+            <graph string="領取管道統計" type="bar" stacked="0">
+                <field name="claim_channel"/>
+                <field name="item_id"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- 「禮品名單」是現場查詢用的，統計歸統計選單（assoc_gift_stat_action）。
+         兩個 action 掛同樣三個 view、只差順序＝同一件事做兩遍（第十輪 simplifier）。 -->
+    <record id="assoc_gift_entitlement_action" model="ir.actions.act_window">
+        <field name="name">禮品名單</field>
+        <field name="res_model">assoc.gift.entitlement</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <!-- 統計選單要開的是統計，不是清單：同一個模型、pivot 優先的第二個 action。
+         沿用上面那個的話，點「禮品統計」會開出一張列表（出席與會費兩張是 pivot 優先，
+         三個選單行為不一致）。 -->
+    <record id="assoc_gift_stat_action" model="ir.actions.act_window">
+        <field name="name">禮品統計</field>
+        <field name="res_model">assoc.gift.entitlement</field>
+        <field name="view_mode">pivot,graph,list</field>
+    </record>
+
+    <!-- ============ 造冊批次 ============ -->
+    <record id="assoc_gift_export_view_list" model="ir.ui.view">
+        <field name="name">assoc.gift.export.list</field>
+        <field name="model">assoc.gift.export</field>
+        <field name="arch" type="xml">
+            <list create="false">
+                <field name="campaign_id"/>
+                <field name="item_id"/>
+                <field name="kind"/>
+                <field name="row_count"/>
+                <field name="exception_count"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-muted="state == 'reverted'"/>
+                <field name="create_date"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_gift_export_view_form" model="ir.ui.view">
+        <field name="name">assoc.gift.export.form</field>
+        <field name="model">assoc.gift.export</field>
+        <field name="arch" type="xml">
+            <form create="false">
+                <header>
+                    <button name="button_download" type="object" string="下載名單"
+                            class="btn-primary" invisible="state != 'done'"
+                            groups="assoc_base.group_assoc_admin"/>
+                    <button name="button_revert" type="object" string="還原"
+                            invisible="state != 'done'"
+                            groups="assoc_base.group_assoc_admin"
+                            confirm="還原後這批名單退回未造冊，可以重新造冊。原檔會留著，確定？"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="file_name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="campaign_id" readonly="1"/>
+                            <field name="item_id" readonly="1"/>
+                            <field name="kind" readonly="1"/>
+                            <field name="create_date" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="row_count" readonly="1"/>
+                            <field name="exception_count" readonly="1"/>
+                            <field name="sha256" readonly="1"/>
+                            <field name="revert_reason" readonly="1" invisible="state != 'reverted'"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning" role="alert" invisible="exception_count == 0">
+                        <strong>缺聯絡資料、沒有匯出的人：</strong>
+                        <field name="exception_note" readonly="1" nolabel="1"/>
+                    </div>
+                    <group string="還原" invisible="state != 'done'"
+                           groups="assoc_base.group_assoc_admin">
+                        <field name="revert_input" placeholder="例：名單給錯窗口，要重出"/>
+                    </group>
+                    <notebook>
+                        <page string="這批的名單" name="rows">
+                            <field name="entitlement_ids" readonly="1">
+                                <list>
+                                    <field name="member_no"/>
+                                    <field name="member_name"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_gift_export_action" model="ir.actions.act_window">
+        <field name="name">禮品造冊</field>
+        <field name="res_model">assoc.gift.export</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_assoc_gift_campaign" name="禮品活動" parent="assoc_base.menu_assoc_root"
+              action="assoc_gift_campaign_action" sequence="40"
+              groups="assoc_base.group_assoc_admin,assoc_meeting.group_meeting_desk"/>
+    <menuitem id="menu_assoc_gift_entitlement" name="禮品名單" parent="assoc_base.menu_assoc_root"
+              action="assoc_gift_entitlement_action" sequence="42"/>
+    <menuitem id="menu_assoc_gift_export" name="禮品造冊" parent="assoc_base.menu_assoc_root"
+              action="assoc_gift_export_action" sequence="44"
+              groups="assoc_base.group_assoc_admin"/>
+</odoo>

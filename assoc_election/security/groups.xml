@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="group_election_officer" model="res.groups">
+        <field name="name">選務人員</field>
+        <field name="category_id" ref="assoc_base.module_category_association"/>
+        <field name="implied_ids" eval="[(4, ref('assoc_meeting.group_meeting_desk'))]"/>
+        <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+
+    <record id="group_election_observer" model="res.groups">
+        <field name="name">監票員</field>
+        <field name="category_id" ref="assoc_base.module_category_association"/>
+        <field name="implied_ids" eval="[(4, ref('assoc_base.group_assoc_staff'))]"/>
+    </record>
+</odoo>

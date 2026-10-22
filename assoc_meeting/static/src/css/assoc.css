@@ -1,0 +1,76 @@
+/* 公會系統前台樣式：變數命名空間 --ax-*，class 前綴 ax- */
+:root {
+    --ax-surface: #ffffff;
+    --ax-border: #d9dde3;
+    --ax-text: #1d2330;
+    --ax-muted: #5f6b7a;
+    --ax-brand: #1f5fbf;
+    --ax-brand-contrast: #ffffff;
+    --ax-ok: #1e7a45;
+    --ax-ok-soft: #e3f4ea;
+    --ax-warn: #9a5b00;
+    --ax-warn-soft: #fff1d6;
+    --ax-danger: #b3261e;
+    --ax-danger-soft: #fde8e6;
+    --ax-radius: 12px;
+    --ax-gap: 16px;
+    --ax-touch: 48px;
+}
+
+.ax-desk, .ax-vote { max-width: 960px; margin: 0 auto; padding: var(--ax-gap); color: var(--ax-text); }
+.ax-vote { max-width: 640px; }
+.ax-desk__head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--ax-gap); margin-bottom: var(--ax-gap); flex-wrap: wrap; }
+.ax-title { font-size: 1.6rem; font-weight: 700; margin: 0; }
+.ax-muted { color: var(--ax-muted); font-size: .95rem; }
+.ax-quorum { text-align: right; font-size: 1.2rem; }
+.ax-quorum strong { font-size: 1.8rem; }
+
+.ax-card { background: var(--ax-surface); border: 1px solid var(--ax-border); border-radius: var(--ax-radius); padding: var(--ax-gap); margin-bottom: var(--ax-gap); }
+.ax-label { display: block; font-size: 1rem; font-weight: 600; margin: 0 0 8px; }
+.ax-input { width: 100%; min-height: var(--ax-touch); font-size: 1.1rem; padding: 8px 12px; border: 1px solid var(--ax-border); border-radius: 8px; }
+.ax-input--scan { font-size: 1.4rem; letter-spacing: .05em; }
+.ax-input--code { font-size: 2rem; letter-spacing: .4em; text-align: center; max-width: 12ch; }
+
+.ax-btn { min-height: var(--ax-touch); padding: 0 20px; font-size: 1.05rem; border-radius: 8px; border: 1px solid var(--ax-border); background: var(--ax-surface); color: var(--ax-text); cursor: pointer; }
+.ax-btn--primary { background: var(--ax-brand); border-color: var(--ax-brand); color: var(--ax-brand-contrast); }
+.ax-btn--danger { color: var(--ax-danger); border-color: var(--ax-danger); }
+.ax-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ax-btn--block { width: 100%; }
+
+.ax-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .9rem; background: var(--ax-warn-soft); color: var(--ax-warn); }
+.ax-badge--ok { background: var(--ax-ok-soft); color: var(--ax-ok); }
+
+.ax-result { margin-top: 12px; min-height: 64px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; font-size: 1.3rem; }
+.ax-result--ok { background: var(--ax-ok-soft); color: var(--ax-ok); }
+.ax-result--warn { background: var(--ax-warn-soft); color: var(--ax-warn); }
+.ax-result--error { background: var(--ax-danger-soft); color: var(--ax-danger); }
+.ax-result img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
+
+.ax-list { list-style: none; padding: 0; margin: 8px 0 0; }
+.ax-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--ax-border); }
+.ax-list li:last-child { border-bottom: 0; }
+
+.ax-qr { display: block; width: min(320px, 80vw); height: auto; margin: 12px auto; image-rendering: pixelated; }
+.ax-pair { font-size: 3rem; font-weight: 700; letter-spacing: .3em; text-align: center; }
+.ax-banner { padding: 10px 14px; border-radius: 8px; margin-bottom: var(--ax-gap); font-weight: 600; }
+.ax-banner--danger { background: var(--ax-danger); color: #fff; }
+.ax-banner--warn { background: var(--ax-warn-soft); color: var(--ax-warn); }
+
+/* 號次：選票上最先被眼睛找到的東西，要比姓名更醒目、寬度固定才對得齊 */
+.ax-ballot-no {
+    display: inline-block; min-width: 2.2em; text-align: center;
+    font-weight: 700; font-size: 1.2rem;
+    border: 2px solid var(--ax-border); border-radius: 6px; padding: 2px 6px;
+}
+.ax-choice { display: flex; align-items: center; gap: 12px; min-height: var(--ax-touch); padding: 8px 12px; border: 1px solid var(--ax-border); border-radius: 8px; margin-bottom: 8px; font-size: 1.15rem; }
+.ax-choice input { width: 24px; height: 24px; }
+.ax-choice--checked { border-color: var(--ax-brand); background: #eaf1fb; }
+.ax-counter { font-weight: 600; }
+.ax-counter--full { color: var(--ax-danger); }
+.ax-receipt { font-size: 1.8rem; font-weight: 700; letter-spacing: .15em; text-align: center; padding: 16px; border: 2px dashed var(--ax-ok); border-radius: var(--ax-radius); color: var(--ax-ok); }
+
+/* 委託人會員編號掃描框：**底色刻意與主掃描框不同**。
+   它與主掃描框的碼形狀無法在伺服器端分辨，唯一的區分是「掃進哪一格」，
+   所以視覺上必須一眼看得出來這不是報到用的那一格。 */
+.ax-proxy-scan { margin: 8px 0; padding: 8px; background: var(--ax-warn-soft); border-radius: 8px; }
+.ax-proxy-scan .ax-label { display: block; margin-bottom: 4px; }

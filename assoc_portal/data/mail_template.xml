@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="mail_template_dues_reminder" model="mail.template">
+        <field name="name">會費繳款提醒</field>
+        <field name="model_id" ref="model_assoc_dues"/>
+        <field name="subject">{{ object.company_id.name }}　會費繳款提醒（{{ object.period_id.name }}）</field>
+        <field name="email_from">{{ object.company_id.email or user.email_formatted }}</field>
+        <field name="email_to">{{ object.member_id.email or '' }}</field>
+        <field name="body_html" type="html">
+            <div style="font-family: sans-serif;">
+                <p>親愛的 <t t-out="object.member_id.name"/> 會員您好：</p>
+                <p>
+                    您在「<t t-out="object.period_id.name"/>」尚有會費新臺幣
+                    <strong t-out="object.amount_due"/> 元未繳。
+                </p>
+                <p t-if="object.due_date">繳款期限：<t t-out="object.due_date"/></p>
+                <p>若您已完成繳款，請忽略本通知；如有疑問請洽公會辦公室。</p>
+                <p style="color:#666; font-size:12px;">
+                    <t t-out="object.company_id.name"/>
+                </p>
+            </div>
+        </field>
+        <field name="auto_delete" eval="False"/>
+    </record>
+</odoo>

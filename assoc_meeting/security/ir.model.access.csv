@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_assoc_meeting_staff,assoc.meeting staff,model_assoc_meeting,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_meeting_admin,assoc.meeting admin,model_assoc_meeting,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_meeting_attendance_staff,assoc.meeting.attendance staff,model_assoc_meeting_attendance,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_meeting_attendance_desk,assoc.meeting.attendance desk,model_assoc_meeting_attendance,group_meeting_desk,1,1,0,0
+access_assoc_meeting_attendance_admin,assoc.meeting.attendance admin,model_assoc_meeting_attendance,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_meeting_proxy_staff,assoc.meeting.proxy staff,model_assoc_meeting_proxy,assoc_base.group_assoc_staff,1,0,0,0
+access_assoc_meeting_proxy_desk,assoc.meeting.proxy desk,model_assoc_meeting_proxy,group_meeting_desk,1,0,0,0
+access_assoc_meeting_proxy_admin,assoc.meeting.proxy admin,model_assoc_meeting_proxy,assoc_base.group_assoc_admin,1,1,1,1

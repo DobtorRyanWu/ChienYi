@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assoc_member_view_list" model="ir.ui.view">
+        <field name="name">assoc.member.list</field>
+        <field name="model">assoc.member</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="member_no"/>
+                <field name="name"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="fee_paid_until"/>
+                <field name="is_voter_eligible"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_member_view_form" model="ir.ui.view">
+        <field name="name">assoc.member.form</field>
+        <field name="model">assoc.member</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_rotate_barcode" type="object" string="換發會員卡"
+                            groups="assoc_base.group_assoc_admin"
+                            confirm="換發後舊會員卡立即失效，確定？"/>
+                    <button name="action_reveal_national_id" type="object" string="顯示身分證"
+                            groups="assoc_base.group_assoc_admin"
+                            invisible="not national_id_masked"
+                            confirm="顯示明文會留下存取軌跡，確定？"/>
+                    <button name="action_clear_national_id" type="object" string="清除身分證"
+                            groups="assoc_base.group_assoc_admin"
+                            invisible="not national_id_masked"
+                            confirm="清除後無法復原，確定？"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="已停權" bg_color="text-bg-danger" invisible="active"/>
+                    <field name="image_1920" widget="image" class="oe_avatar"
+                           options="{'preview_image': 'image_128'}"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="由聯絡人帶入"/></h1>
+                    </div>
+                    <group>
+                        <group string="會籍">
+                            <field name="partner_id"/>
+                            <field name="member_no"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="join_date"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                        <group string="會費與選舉">
+                            <field name="fee_paid_opening"/>
+                            <field name="fee_paid_until" readonly="1"/>
+                            <field name="coverage_from" readonly="1" invisible="not coverage_from"/>
+                            <field name="is_voter_eligible"/>
+                            <field name="barcode" groups="assoc_base.group_assoc_admin"/>
+                        </group>
+                        <group string="聯絡方式">
+                            <field name="email" widget="email"/>
+                            <field name="mobile" widget="phone"/>
+                        </group>
+                        <group string="身分與技師資料">
+                            <!-- national_id 讀回來一律空白；填了才會加密存檔 -->
+                            <field name="national_id" password="True"
+                                   placeholder="填寫後存檔即加密；留空不會清除既有資料"
+                                   groups="assoc_base.group_assoc_admin"/>
+                            <field name="national_id_masked"/>
+                            <field name="national_id_kind"/>
+                            <field name="engineer_field"/>
+                            <field name="engineer_cert_no"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="證明文件" name="documents">
+                            <field name="document_ids" context="{'default_member_id': id}">
+                                <list editable="bottom">
+                                    <field name="doc_type"/>
+                                    <field name="cert_no"/>
+                                    <field name="issue_date"/>
+                                    <field name="expiry_date"/>
+                                    <field name="file" filename="file_name"
+                                           groups="assoc_base.group_assoc_admin"/>
+                                    <field name="file_name" column_invisible="1"/>
+                                    <field name="submitted_via"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_member_view_search" model="ir.ui.view">
+        <field name="name">assoc.member.search</field>
+        <field name="model">assoc.member</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="member_no"/>
+                <!-- 會籍是否有效只能有一個定義：直接用 `is_voter_eligible` 的 search，
+                     否則後台清單、選舉人名冊、前台三方會各說各話
+                     （預繳明年那期的人 fee_paid_until 已經是明年，但今天還不算有效）。 -->
+                <filter name="fee_valid" string="會費有效" domain="[('is_voter_eligible', '=', True)]"/>
+                <filter name="fee_unpaid" string="會費未繳" domain="[('is_voter_eligible', '=', False)]"/>
+                <filter name="doc_todo" string="有待審文件" domain="[('document_ids.state', '=', 'submitted')]"/>
+                <filter name="inactive" string="已停權" domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_company" string="所屬公會" context="{'group_by': 'company_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="assoc_member_action" model="ir.actions.act_window">
+        <field name="name">會員</field>
+        <field name="res_model">assoc.member</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="assoc_member_view_search"/>
+    </record>
+</odoo>

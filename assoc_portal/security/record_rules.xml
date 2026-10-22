@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- global rule（不掛 groups）：與角色 rule 是 AND，理由見 assoc_base -->
+    <record id="rule_assoc_dues_period_company" model="ir.rule">
+        <field name="name">會費期別：公會隔離</field>
+        <field name="model_id" ref="model_assoc_dues_period"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_dues_company" model="ir.rule">
+        <field name="name">應繳會費：公會隔離</field>
+        <field name="model_id" ref="model_assoc_dues"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_payment_company" model="ir.rule">
+        <field name="name">會費收款：公會隔離</field>
+        <field name="model_id" ref="model_assoc_payment"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <!-- 禮品四個模型：同一套公會隔離。
+         entitlement 的 company_id 是 related store（來自活動），所以這條鎖得住 -->
+    <record id="rule_assoc_gift_campaign_company" model="ir.rule">
+        <field name="name">禮品活動：公會隔離</field>
+        <field name="model_id" ref="model_assoc_gift_campaign"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_gift_item_company" model="ir.rule">
+        <field name="name">禮品品項：公會隔離</field>
+        <field name="model_id" ref="model_assoc_gift_item"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_gift_entitlement_company" model="ir.rule">
+        <field name="name">禮品權利：公會隔離</field>
+        <field name="model_id" ref="model_assoc_gift_entitlement"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+    <record id="rule_assoc_gift_export_company" model="ir.rule">
+        <field name="name">禮品造冊：公會隔離</field>
+        <field name="model_id" ref="model_assoc_gift_export"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

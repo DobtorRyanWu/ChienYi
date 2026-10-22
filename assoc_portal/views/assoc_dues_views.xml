@@ -1,0 +1,332 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============ 會費期別 ============ -->
+    <record id="assoc_dues_period_view_list" model="ir.ui.view">
+        <field name="name">assoc.dues.period.list</field>
+        <field name="model">assoc.dues.period</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="fee_type"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="amount"/>
+                <field name="dues_count"/>
+                <field name="paid_count"/>
+                <field name="unpaid_amount"/>
+                <field name="state" widget="badge" decoration-success="state == 'closed'"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_dues_period_view_form" model="ir.ui.view">
+        <field name="name">assoc.dues.period.form</field>
+        <field name="model">assoc.dues.period</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_generate_dues" type="object" string="產生應繳"
+                            class="btn-primary" invisible="state == 'closed'"
+                            groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"
+                            help="為有效會員補建應繳列，可重複執行（只補缺的）。"/>
+                    <button name="action_close" type="object" string="結清期別"
+                            invisible="state != 'open'"
+                            confirm="結清之後就不能再產生應繳，確定？"
+                            groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"/>
+                    <button name="button_send_reminder" type="object" string="寄整批提醒"
+                            invisible="state != 'open'"
+                            groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"
+                            help="對本期所有未繳的會員寄提醒。信會留在佇列（系統目前不真的寄出）。"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="例：115 年度常年會費"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="fee_type"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="amount"/>
+                        </group>
+                        <group>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                            <field name="due_date"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="dues_count" readonly="1"/>
+                        <field name="paid_count" readonly="1"/>
+                        <field name="unpaid_amount" readonly="1"/>
+                    </group>
+                    <notebook>
+                        <page string="應繳明細" name="dues">
+                            <field name="dues_ids" readonly="1">
+                                <list>
+                                    <field name="member_no"/>
+                                    <field name="member_name"/>
+                                    <field name="amount_due"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state in ('paid', 'waived')"
+                                           decoration-danger="state == 'unpaid'"/>
+                                    <field name="payment_id"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_dues_period_action" model="ir.actions.act_window">
+        <field name="name">會費期別</field>
+        <field name="res_model">assoc.dues.period</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ============ 應繳 ============ -->
+    <record id="assoc_dues_view_list" model="ir.ui.view">
+        <field name="name">assoc.dues.list</field>
+        <field name="model">assoc.dues</field>
+        <field name="arch" type="xml">
+            <list create="false">
+                <field name="period_id"/>
+                <field name="member_no"/>
+                <field name="member_name"/>
+                <field name="amount_due"/>
+                <field name="due_date"/>
+                <field name="state" widget="badge"
+                       decoration-success="state in ('paid', 'waived')"
+                       decoration-danger="state == 'unpaid'"/>
+                <field name="payment_id" optional="show"/>
+                <field name="reminder_count" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_dues_view_form" model="ir.ui.view">
+        <field name="name">assoc.dues.form</field>
+        <field name="model">assoc.dues</field>
+        <field name="arch" type="xml">
+            <form create="false">
+                <header>
+                    <button name="button_send_reminder" type="object" string="寄繳款提醒"
+                            invisible="state != 'unpaid'"
+                            groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"
+                            help="信會留在佇列（系統目前不真的寄出），可在設定→技術→電子郵件檢視。"/>
+                    <button name="button_waive" type="object" string="改為免繳"
+                            invisible="state != 'unpaid'"
+                            groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"
+                            help="例如年中入會、榮譽會員。免繳仍然算進「會費繳至」的連續計算。"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="period_id" readonly="1"/>
+                            <field name="member_id" readonly="1"/>
+                            <field name="amount_due" readonly="1"/>
+                            <field name="due_date" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="payment_id" readonly="1"/>
+                            <field name="waive_reason" readonly="1" invisible="state != 'waived'"/>
+                            <field name="reminder_count" readonly="1"/>
+                            <field name="last_reminder_at" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="承辦操作" invisible="state != 'unpaid'"
+                           groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin">
+                        <field name="waive_input" placeholder="例：年中入會，本期免繳"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_dues_view_search" model="ir.ui.view">
+        <field name="name">assoc.dues.search</field>
+        <field name="model">assoc.dues</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="member_no"/>
+                <field name="member_name"/>
+                <field name="period_id"/>
+                <filter name="unpaid" string="未繳" domain="[('state', '=', 'unpaid')]"/>
+                <filter name="overdue" string="已逾期" domain="[('is_overdue', '=', True)]"/>
+                <filter name="paid" string="已繳" domain="[('state', 'in', ('paid', 'waived'))]"/>
+                <group expand="0" string="分組">
+                    <filter name="by_period" string="期別" context="{'group_by': 'period_id'}"/>
+                    <filter name="by_state" string="狀態" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="assoc_dues_action" model="ir.actions.act_window">
+        <field name="name">應繳會費</field>
+        <field name="res_model">assoc.dues</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_unpaid': 1}</field>
+    </record>
+
+    <!-- ============ 收款 ============ -->
+    <record id="assoc_payment_view_list" model="ir.ui.view">
+        <field name="name">assoc.payment.list</field>
+        <field name="model">assoc.payment</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="date"/>
+                <field name="receipt_no"/>
+                <field name="member_id"/>
+                <field name="payer_name"/>
+                <field name="method"/>
+                <field name="amount_total"/>
+                <field name="state" widget="badge" decoration-success="state == 'posted'"
+                       decoration-danger="state == 'voided'"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_payment_view_form" model="ir.ui.view">
+        <field name="name">assoc.payment.form</field>
+        <field name="model">assoc.payment</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_post" type="object" string="過帳並開收據"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_print_receipt" type="object" string="列印收據"
+                            invisible="not receipt_attachment_id"/>
+                    <button name="button_void" type="object" string="作廢"
+                            invisible="state != 'posted'"
+                            confirm="作廢後應繳會退回未繳，確定？"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="member_id" readonly="state != 'draft'"/>
+                            <field name="payer_name" readonly="state != 'draft'"/>
+                            <field name="company_id" groups="base.group_multi_company"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="method" readonly="state != 'draft'"/>
+                            <field name="bank_ref" readonly="state != 'draft'"/>
+                            <field name="dues_amount" readonly="1"/>
+                            <field name="amount_total" readonly="1" invisible="state == 'draft'"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="沖銷的應繳" name="dues">
+                            <field name="dues_ids" readonly="1">
+                                <list>
+                                    <field name="period_id"/>
+                                    <field name="date_from"/>
+                                    <field name="date_to"/>
+                                    <field name="amount_due"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                            <p class="text-muted" invisible="state != 'draft'">
+                                應繳由「會員」表單的「收款」按鈕帶入；草稿可以刪除重開。
+                            </p>
+                        </page>
+                        <page string="收據與作廢" name="receipt" invisible="state == 'draft'">
+                            <group>
+                                <group>
+                                    <field name="receipt_no" readonly="1"/>
+                                    <field name="posted_at" readonly="1"/>
+                                    <field name="posted_by_uid" readonly="1"/>
+                                    <field name="receipt_sha256" readonly="1"/>
+                                </group>
+                                <group invisible="state != 'voided'">
+                                    <field name="void_reason" readonly="1"/>
+                                    <field name="voided_at" readonly="1"/>
+                                    <field name="voided_by_uid" readonly="1"/>
+                                </group>
+                            </group>
+                            <group string="作廢" invisible="state != 'posted'">
+                                <field name="void_input" placeholder="例：支票退票、重複收款"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_payment_view_search" model="ir.ui.view">
+        <field name="name">assoc.payment.search</field>
+        <field name="model">assoc.payment</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="receipt_no"/>
+                <field name="member_id"/>
+                <field name="payer_name"/>
+                <filter name="draft" string="草稿" domain="[('state', '=', 'draft')]"/>
+                <filter name="posted" string="已過帳" domain="[('state', '=', 'posted')]"/>
+                <filter name="voided" string="已作廢" domain="[('state', '=', 'voided')]"/>
+                <group expand="0" string="分組">
+                    <filter name="by_state" string="狀態" context="{'group_by': 'state'}"/>
+                    <filter name="by_method" string="收款方式" context="{'group_by': 'method'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="assoc_payment_action" model="ir.actions.act_window">
+        <field name="name">會費收款</field>
+        <field name="res_model">assoc.payment</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- 會費統計（計畫 §9）：期別 × 狀態、金額加總 -->
+    <record id="assoc_dues_view_pivot" model="ir.ui.view">
+        <field name="name">assoc.dues.pivot</field>
+        <field name="model">assoc.dues</field>
+        <field name="arch" type="xml">
+            <pivot string="會費統計">
+                <field name="period_id" type="row"/>
+                <field name="state" type="col"/>
+                <field name="amount_due" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- **這裡曾經有一個 graph**，維度是 period_id × state、measure 也是 amount_due
+         ——與上面的 pivot 完全相同，就是把同一張表再畫一次。
+         而「維度要與 pivot 錯開」這條規則，我在出席與禮品那兩個檔各寫了一次
+         （assoc_meeting_proxy_views.xml、assoc_gift_views.xml），第三處卻違反
+         （第十輪 simplifier）。與其湊一個第二維度，不如不畫：
+         pivot 已經回答了「各期別收了多少、欠多少」。
+         所以 `assoc_dues_stat_action` 的 view_mode 是 `pivot,list`，沒有 graph
+         ——留著 graph 而刪掉這個 view 的話，Odoo 會自動生一個更沒意義的。 -->
+
+    <record id="assoc_dues_stat_action" model="ir.actions.act_window">
+        <field name="name">會費統計</field>
+        <field name="res_model">assoc.dues</field>
+        <field name="view_mode">pivot,list</field>
+    </record>
+
+    <menuitem id="menu_assoc_dues_period" name="會費期別" parent="assoc_base.menu_assoc_root"
+              action="assoc_dues_period_action" sequence="30"
+              groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"/>
+    <menuitem id="menu_assoc_dues" name="應繳會費" parent="assoc_base.menu_assoc_root"
+              action="assoc_dues_action" sequence="32"/>
+    <menuitem id="menu_assoc_payment" name="會費收款" parent="assoc_base.menu_assoc_root"
+              action="assoc_payment_action" sequence="34"
+              groups="assoc_portal.group_assoc_finance,assoc_base.group_assoc_admin"/>
+
+</odoo>

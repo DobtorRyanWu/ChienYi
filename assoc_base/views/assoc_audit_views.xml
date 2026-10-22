@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assoc_audit_log_view_list" model="ir.ui.view">
+        <field name="name">assoc.audit.log.list</field>
+        <field name="model">assoc.audit.log</field>
+        <field name="arch" type="xml">
+            <list create="false" edit="false" delete="false">
+                <field name="create_date" string="時間"/>
+                <field name="create_uid" string="操作者"/>
+                <field name="action"/>
+                <field name="res_model"/>
+                <field name="res_ids_text"/>
+                <field name="record_count"/>
+                <field name="ip"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_audit_log_view_search" model="ir.ui.view">
+        <field name="name">assoc.audit.log.search</field>
+        <field name="model">assoc.audit.log</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="res_ids_text"/>
+                <field name="create_uid"/>
+                <filter name="pii" string="個資存取"
+                        domain="[('action', 'in', ['reveal_pii', 'export_pii', 'clear_national_id'])]"/>
+                <filter name="conflict" string="開通衝突" domain="[('action', '=', 'grant_conflict')]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_action" string="動作" context="{'group_by': 'action'}"/>
+                    <filter name="group_user" string="操作者" context="{'group_by': 'create_uid'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="assoc_audit_log_action" model="ir.actions.act_window">
+        <field name="name">存取軌跡</field>
+        <field name="res_model">assoc.audit.log</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="assoc_audit_log_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">個資存取與重要操作的軌跡</p>
+            <p>依法規至少保存 5 年，不可修改或刪除。</p>
+        </field>
+    </record>
+</odoo>

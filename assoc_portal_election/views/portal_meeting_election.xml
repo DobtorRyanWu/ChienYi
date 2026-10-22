@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 大會專區的選舉區塊：掛進 assoc_portal 在 member_meeting 留的 anchor。
+         資料由 controller 的 _meeting_hub_extra 覆寫提供；沒裝本模組就不會出現。 -->
+    <template id="member_meeting_elections" inherit_id="assoc_portal.member_meeting">
+        <xpath expr="//div[@id='assoc_meeting_hub_extra']" position="inside">
+            <div t-if="hub_elections" class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">這一場的選舉</h5>
+                    <div t-foreach="hub_elections" t-as="election" class="mb-3">
+                        <strong t-esc="election.name"/>
+                        <span class="badge text-bg-light ms-1"
+                              t-esc="hub_election_labels.get(election.state)"/>
+
+                        <div t-if="hub_registration_open.get(election.id)"
+                             class="text-muted small mt-1">
+                            候選人登記開放中，截止
+                            <t t-out="election.registration_deadline"
+                               t-options="{'widget': 'datetime', 'format': 'yyyy-MM-dd HH:mm',
+                                           'tz_name': assoc_tz}"/>
+                            　<a href="/my/assoc/elections">前往登記</a>
+                        </div>
+
+                        <!-- 開票後不顯示個人登記狀態：有沒有那一列本身會洩漏
+                             「有沒有人投我」（見 controller 的 CANDIDACY_VISIBLE_STATES）。
+                             這裡要明說，不可以沉默地落到下面的「未登記」——那是假話。 -->
+                        <div t-if="election.state in ('counted', 'published')"
+                             class="text-muted small mt-1">
+                            開票後不再顯示個人登記狀態。
+                        </div>
+                        <div t-else="" class="text-muted small mt-1">
+                            <t t-foreach="election._active_offices()" t-as="office">
+                                <t t-set="cand"
+                                   t-value="hub_my_candidacies.get((election.id, office))"/>
+                                <span class="me-2">
+                                    <t t-esc="hub_office_labels.get(office)"/>：
+                                    <t t-if="cand"
+                                       t-esc="dict(cand._fields['state'].selection).get(cand.state)"/>
+                                    <t t-else="">未登記</t>
+                                </span>
+                            </t>
+                        </div>
+
+                        <!-- 投票中沒有前台投票連結是**刻意的**：票要由報到台當場發
+                             （QR ＋台面輸入的配對碼），前台給得出連結就等於繞過領票。
+                             所以這裡只說去哪領，不給入口。 -->
+                        <div t-if="election.state in ('open', 'closing')"
+                             class="text-muted small mt-1">
+                            投票請到會場報到台領票，再用手機掃台面螢幕上的 QR。
+                        </div>
+                        <div t-if="election.state in ('closed', 'counted')"
+                             class="text-muted small mt-1">
+                            已停止投票，開票結果公告後會出現在這裡。
+                        </div>
+
+                        <!-- 已公告才列名單。開票中刻意只顯示進度，不顯示票數。 -->
+                        <div t-if="election.state == 'published' and election.result_json"
+                             class="mt-2">
+                            <t t-foreach="election.result_json.get('offices') or {}"
+                               t-as="office_key">
+                                <t t-set="ranking"
+                                   t-value="election.result_json['offices'][office_key].get('ranking') or []"/>
+                                <div class="small">
+                                    <strong t-esc="hub_office_labels.get(office_key) or office_key"/>
+                                    當選：
+                                    <t t-foreach="ranking" t-as="row">
+                                        <t t-if="row.get('result') == 'elected'">
+                                            <span class="me-2"><t t-esc="row.get('name')"/></span>
+                                        </t>
+                                    </t>
+                                </div>
+                                <!-- 候補也要印：公開的跑馬燈印「當選／候補名單」，
+                                     會員自己的頁面卻只印當選，等於對候補當選人而言
+                                     那句「結果公告後會出現在這裡」永遠不會兌現。 -->
+                                <div class="small text-muted"
+                                     t-if="any(r.get('result') == 'alternate' for r in ranking)">
+                                    　候補：
+                                    <t t-foreach="ranking" t-as="row">
+                                        <t t-if="row.get('result') == 'alternate'">
+                                            <span class="me-2"><t t-esc="row.get('name')"/></span>
+                                        </t>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </xpath>
+    </template>
+
+</odoo>

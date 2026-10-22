@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 「本屆的選舉」：模型本體與表單在 assoc_base，選舉的部分在這裡補。 -->
+    <record id="assoc_term_view_form_elections" model="ir.ui.view">
+        <field name="name">assoc.term.form.elections</field>
+        <field name="model">assoc.term</field>
+        <field name="inherit_id" ref="assoc_base.assoc_term_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <!-- **一定要帶 groups**：`assoc.term` 的讀權開給職員，而
+                     `assoc.election` 的 ACL 只給選務／監票／公會管理員。
+                     沒有 groups 的話，出納或報到台帳號一點開屆次表單就
+                     AccessError（實查 `finance_tp` 確認）——Odoo 只會因為
+                     `groups=` 把欄位整個拿掉，不會因為讀不到就略過。 -->
+                <notebook groups="assoc_election.group_election_officer,assoc_election.group_election_observer,assoc_base.group_assoc_admin">
+                <page string="本屆的選舉" name="elections">
+                    <field name="election_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="meeting_id"/>
+                            <field name="term_no" string="凍結時的屆次"/>
+                            <field name="state"/>
+                        </list>
+                    </field>
+                </page>
+                </notebook>
+            </xpath>
+        </field>
+    </record>
+</odoo>

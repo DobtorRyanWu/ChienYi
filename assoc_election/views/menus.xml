@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_assoc_election" name="理監事選舉" parent="assoc_base.menu_assoc_root"
+              action="assoc_election_action" sequence="30"
+              groups="assoc_election.group_election_officer,assoc_election.group_election_observer"/>
+</odoo>

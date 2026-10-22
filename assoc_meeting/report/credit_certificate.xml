@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_credit_certificate" model="ir.actions.report">
+        <field name="name">積分證明</field>
+        <field name="model">assoc.meeting.attendance</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">assoc_meeting.report_credit_certificate</field>
+        <field name="report_file">assoc_meeting.report_credit_certificate</field>
+        <field name="print_report_name">'積分證明-%s-%s' % (object.member_no, object.meeting_id.name)</field>
+        <field name="binding_model_id" ref="model_assoc_meeting_attendance"/>
+        <field name="binding_type">report</field>
+        <field name="groups_id" eval="[(4, ref('assoc_base.group_assoc_admin'))]"/>
+    </record>
+
+    <template id="report_credit_certificate">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2 style="text-align:center; margin-bottom:8mm;">繼續教育積分證明</h2>
+                        <table class="table table-sm" style="width:100%;">
+                            <tr><th style="width:30%;">姓名</th><td t-out="o.member_name"/></tr>
+                            <tr><th>會員編號</th><td t-out="o.member_no"/></tr>
+                            <tr><th>身分證字號</th>
+                                <!-- 預設遮蔽：這張證明會被轉寄、影印、上傳 -->
+                                <td t-out="o.member_id.national_id_masked or '—'"/></tr>
+                            <tr><th>課程名稱</th><td t-out="o.meeting_id.name"/></tr>
+                            <tr><th>日期</th><td t-out="o.meeting_id.date_begin"/></tr>
+                            <tr><th>時數</th><td t-out="o.meeting_id.credit_hours"/></tr>
+                            <tr><th>積分</th><td t-out="o.credit_points"/></tr>
+                            <!-- t-field 不能直接掛在 td 上（QWeb 會丟
+                                 "widgets do not work correctly on 'td' elements"），要包一層 -->
+                            <tr><th>類別</th>
+                                <td><span t-field="o.meeting_id.credit_category"/></td></tr>
+                            <tr><th>認可文號</th><td t-out="o.meeting_id.approval_ref or '—'"/></tr>
+                        </table>
+                        <p style="margin-top:10mm;">
+                            茲證明上列會員全程參與本課程，特此證明。
+                        </p>
+                        <p style="margin-top:12mm; text-align:right;" t-out="o.meeting_id.company_id.name"/>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

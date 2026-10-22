@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="assoc_election_view_list" model="ir.ui.view">
+        <field name="name">assoc.election.list</field>
+        <field name="model">assoc.election</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="meeting_id"/>
+                <field name="term_id" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="voted_count"/>
+                <field name="voter_count"/>
+                <field name="state" widget="badge"
+                       decoration-info="state in ('open', 'closing')"
+                       decoration-warning="state == 'closed'"
+                       decoration-success="state in ('counted', 'published')"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="assoc_election_view_form" model="ir.ui.view">
+        <field name="name">assoc.election.form</field>
+        <field name="model">assoc.election</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_ready" type="object" string="凍結名冊" class="btn-primary"
+                            invisible="state != 'draft'" groups="assoc_election.group_election_officer"
+                            confirm="凍結後，候選人與選舉人名冊（依今天的會籍與會費狀態）都不能再變更。確定？"/>
+                    <button name="action_open" type="object" string="開始投票" class="btn-primary"
+                            invisible="state != 'ballot_ready'" groups="assoc_election.group_election_officer"
+                            confirm="開始投票後，監票員名單會寫入稽核鏈並鎖定。確定？"/>
+                    <button name="action_start_closing" type="object" string="停止領票"
+                            invisible="state != 'open'" groups="assoc_election.group_election_officer"
+                            confirm="停止領票後，尚未領票的人將無法投票；已領取選票的人仍可配對並投出。確定？"/>
+                    <button name="action_close" type="object" string="關票"
+                            invisible="state != 'closing'" groups="assoc_election.group_election_officer"
+                            confirm="關票後任何人都不能再投票。確定？"/>
+                    <!-- 封箱與開票是兩個按鈕，而且封箱在前：關票到開票之間是承辦
+                         一個人的時間，第十輪抗辯在那段時間用一句 SQL 換掉了當選名單
+                         而離線驗算全綠。封箱把「票匭長這樣」釘進稽核鏈，
+                         **請當著監票員的面按**，並請他當場把鏈頭再抄一次。 -->
+                    <button name="action_seal_ballots" type="object" string="封存票匭"
+                            class="btn-primary" invisible="state != 'closed' or ballots_sealed"
+                            groups="assoc_election.group_election_officer"
+                            confirm="封箱之後票匭就不能再變，而且只能封一次。請確認監票員在場，並在按下去**之後**請他當場抄下新的鏈頭——能證明票匭沒被換過的是封箱這一筆，不是之前那一筆。確定？"/>
+                    <!-- 作廢封箱：封箱之後票匭一旦與封存當下不符，這場選舉原本沒有
+                         任何出口（不能開票、不能重封、cancel 不吃 closed、也刪不掉），
+                         唯一的復原手段是下 SQL——而那完全無痕（第十一輪紅隊）。
+                         限公會管理員、要寫原因、而且作廢本身入鏈。 -->
+                    <button name="action_void_seal" type="object" string="作廢封箱"
+                            invisible="state != 'closed' or not ballots_sealed"
+                            groups="assoc_base.group_assoc_admin"
+                            confirm="作廢會永久記在稽核鏈上，監票員的離線驗算會印出你寫的原因。
+                                     監票員之前抄下的鏈頭從此不再是鏈頭。確定？"/>
+                    <button name="action_count" type="object" string="開票" class="btn-primary"
+                            invisible="state != 'closed' or not ballots_sealed"
+                            groups="assoc_election.group_election_officer"/>
+                    <button name="action_publish" type="object" string="公告結果" class="btn-primary"
+                            invisible="state != 'counted'" groups="assoc_election.group_election_officer"/>
+                    <button name="action_build_archive" type="object" string="產生監票封存包"
+                            invisible="state != 'published'"
+                            groups="assoc_election.group_election_officer"
+                            help="公告後產生一個 zip，內含明文選票、名冊、稽核鏈與離線驗算腳本。只有本場監票員下載得到。"/>
+                    <button name="action_download_archive" type="object" string="下載封存包"
+                            invisible="not archive_sha256"
+                            groups="assoc_election.group_election_observer"/>
+                    <button name="action_cancel" type="object" string="取消選舉"
+                            invisible="state not in ('draft', 'ballot_ready')"
+                            groups="assoc_election.group_election_officer" confirm="確定取消這場選舉？"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,ballot_ready,open,closing,closed,counted,published"/>
+                    <!-- 兩個按鈕的 invisible 都用到它 -->
+                    <field name="ballots_sealed" invisible="1"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="例：第 12 屆理監事選舉"/></h1>
+                    </div>
+                    <group>
+                        <group string="基本資料">
+                            <field name="company_id" groups="base.group_multi_company" readonly="state != 'draft'"/>
+                            <field name="meeting_id" readonly="state != 'draft'"/>
+                            <!-- 選罷辦法 §6：選票要載明屆次。閘在 `action_ready`，
+                                 **這裡刻意不標 required**：標了就變成「建檔當下
+                                 必須有屆次」，而屆次只有公會管理員建得了
+                                 （ACL），於是選務連新選舉都存不了——與
+                                 `action_ready` 旁邊寫的設計意圖直接矛盾，
+                                 而測試全是 superuser＋工廠先建好屆次，碰不到
+                                 這條路（L4⑤：加必填之前先對每一條正當入口實跑）。 -->
+                            <field name="term_id" readonly="state != 'draft'"/>
+                            <field name="term_no" invisible="state == 'draft'"/>
+                            <field name="mark_limit_mode" readonly="state != 'draft'"/>
+                            <field name="limit_resolution_note" readonly="state != 'draft'"
+                                   invisible="mark_limit_mode != 'half_floor'"
+                                   required="mark_limit_mode == 'half_floor'"/>
+                            <field name="draw_entropy" readonly="state != 'draft'"
+                                   placeholder="例：擲骰 3-5-1-6（監票員現場產生）"/>
+                            <field name="show_on_ticker" invisible="state != 'published'"/>
+                        </group>
+                        <group string="應選名額">
+                            <field name="director_seats" readonly="state != 'draft'"/>
+                            <field name="director_alt" readonly="state != 'draft'"/>
+                            <field name="supervisor_seats" readonly="state != 'draft'"/>
+                            <field name="supervisor_alt" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+                    <group string="投票進度" invisible="state in ('draft', 'cancelled')">
+                        <group>
+                            <field name="voter_count"/>
+                            <field name="unissued_count"/>
+                            <field name="issued_count"/>
+                            <field name="voted_count"/>
+                        </group>
+                        <group string="對帳訊號">
+                            <field name="claimed_unarmed_count"/>
+                            <field name="conflict_count" decoration-danger="conflict_count &gt; 0"/>
+                            <field name="regenerate_count"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="候選人" name="candidates">
+                            <field name="candidate_ids" readonly="state != 'draft'">
+                                <list editable="bottom" default_order="office, rank, sequence">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="office"/>
+                                    <field name="member_id" options="{'no_create': True}"/>
+                                    <field name="state"/>
+                                    <field name="votes" column_invisible="parent.state not in ('counted', 'published')"/>
+                                    <field name="rank" column_invisible="parent.state not in ('counted', 'published')"/>
+                                    <field name="result" column_invisible="parent.state not in ('counted', 'published')"
+                                           widget="badge" decoration-success="result == 'elected'"
+                                           decoration-info="result == 'alternate'"/>
+                                    <field name="company_id" column_invisible="True"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="選舉人名冊" name="voters" invisible="state == 'draft'">
+                            <field name="voter_ids" readonly="1">
+                                <list>
+                                    <field name="member_no"/>
+                                    <field name="member_name"/>
+                                    <field name="state" widget="badge"
+                                           decoration-info="state == 'issued'" decoration-success="state == 'voted'"
+                                           decoration-warning="state == 'voided'"/>
+                                    <field name="issued_at" optional="show"/>
+                                    <field name="claimed_at" optional="hide"/>
+                                    <field name="armed_at" optional="show"/>
+                                    <field name="voted_at" optional="show"/>
+                                    <field name="issue_count" optional="hide"/>
+                                    <field name="claim_conflict" optional="show"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="監票與開票" name="audit">
+                            <group>
+                                <group string="監票">
+                                    <field name="observer_user_ids" widget="many2many_tags"
+                                           readonly="state not in ('draft', 'ballot_ready')"/>
+                                    <field name="tie_entropy" readonly="state != 'closed'"/>
+                                    <!-- 欄位本身已經有 groups=（模型層），這裡不重複；
+                                         模型層那道才擋得住 RPC，view 的只是不顯示。 -->
+                                    <field name="seal_void_reason" readonly="state != 'closed'"
+                                           invisible="state != 'closed' or not ballots_sealed"/>
+                                    <field name="chain_seq"/>
+                                    <field name="chain_head"/>
+                                    <field name="chain_verified"/>
+                                </group>
+                                <group string="關票與開票">
+                                    <field name="closed_at"/>
+                                    <field name="close_xid"/>
+                                    <field name="counted_at"/>
+                                    <field name="published_at"/>
+                                    <field name="ballots_digest"/>
+                                    <field name="roster_final_digest"/>
+                                    <field name="result_digest"/>
+                                    <field name="uuid"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="稽核鏈" name="chain" invisible="state == 'draft'">
+                            <field name="log_ids" readonly="1">
+                                <list>
+                                    <field name="seq"/>
+                                    <field name="ts"/>
+                                    <field name="action"/>
+                                    <field name="actor_name"/>
+                                    <field name="payload_text"/>
+                                    <field name="entry_hash" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="assoc_election_view_search" model="ir.ui.view">
+        <field name="name">assoc.election.search</field>
+        <field name="model">assoc.election</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="meeting_id"/>
+                <field name="term_id"/>
+                <filter name="active_elections" string="進行中"
+                        domain="[('state', 'in', ('ballot_ready', 'open', 'closing', 'closed'))]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="assoc_election_action" model="ir.actions.act_window">
+        <field name="name">理監事選舉</field>
+        <field name="res_model">assoc.election</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="assoc_election_view_search"/>
+    </record>
+</odoo>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_report_result" model="ir.actions.report">
+        <field name="name">選舉結果公告</field>
+        <field name="model">assoc.election</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">assoc_election.report_result</field>
+        <field name="report_file">assoc_election.report_result</field>
+        <field name="print_report_name">'選舉結果-%s' % (object.name or object.id)</field>
+        <field name="groups_id" eval="[(4, ref('group_election_officer')),
+                                       (4, ref('group_election_observer')),
+                                       (4, ref('assoc_base.group_assoc_admin'))]"/>
+    </record>
+
+    <!-- 公告內容一律讀 `result_json`（開票當下凍結的那份），不讀即時的候選人列：
+         候選人列之後仍可能因資料修補而變動，公告不能跟著變。 -->
+    <template id="report_result">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2 style="text-align:center; margin-bottom:4mm;">
+                            <span t-out="o.company_id.name"/>　選舉結果公告
+                        </h2>
+                        <h3 style="text-align:center; margin-top:0;"><span t-out="o.name"/></h3>
+
+                        <t t-if="o.state != 'published'">
+                            <p class="text-danger">本場選舉尚未公告，這份文件不具公告效力。</p>
+                        </t>
+
+                        <table class="table table-sm" style="margin-top:6mm;">
+                            <tr><th style="width:30%;">公告時間</th><td><span t-out="o.published_at"/></td></tr>
+                            <tr><th>選舉識別碼</th><td><span t-out="o.uuid"/></td></tr>
+                            <tr><th>選票摘要</th><td style="word-break:break-all;"><span t-out="o.ballots_digest"/></td></tr>
+                            <tr><th>名冊摘要</th><td style="word-break:break-all;"><span t-out="o.roster_final_digest"/></td></tr>
+                            <tr><th>結果摘要</th><td style="word-break:break-all;"><span t-out="o.result_digest"/></td></tr>
+                            <tr><th>稽核鏈頭</th><td style="word-break:break-all;"><span t-out="o._report_chain_head()"/></td></tr>
+                        </table>
+
+                        <t t-foreach="o._report_offices()" t-as="office">
+                            <h4 style="margin-top:8mm;">
+                                <span t-out="office['label']"/>
+                                （應選 <span t-out="office['seats']"/> 名、候補 <span t-out="office['alternates']"/> 名）
+                            </h4>
+                            <p class="text-muted" style="margin:0 0 2mm;">
+                                有效票 <span t-out="office['valid_ballots']"/>、
+                                無效票 <span t-out="office['invalid_ballots']"/>
+                            </p>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr><th>名次</th><th>號次</th><th>會員編號</th><th>姓名</th>
+                                        <th class="text-end">得票</th><th>結果</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr t-foreach="office['rows']" t-as="row">
+                                        <td><span t-out="row['rank']"/></td>
+                                        <td><span t-out="row['ballot_number'] or '—'"/></td>
+                                        <td><span t-out="row['member_no']"/></td>
+                                        <td><span t-out="row['name']"/></td>
+                                        <td class="text-end"><span t-out="row['votes']"/></td>
+                                        <td><span t-out="row['result_label']"/></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </t>
+
+                        <p style="margin-top:8mm; font-size:9pt;" class="text-muted">
+                            監票員可用封存包內的 <code>verify_digest.py</code> 離線重算上列摘要與票數。
+                        </p>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

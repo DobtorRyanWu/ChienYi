@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 帶單號的委託書。
+         `binding_model_id` 留空（eval False）＝刻意不進後台列印選單：
+         它只能由「列印委託書」那顆按鈕以 data 帶單號觸發，
+         否則從選單列印會拿不到 code 而 raise（見 proxy_form.py 的理由）。 -->
+    <record id="action_report_proxy_form" model="ir.actions.report">
+        <field name="name">委託書（帶單號）</field>
+        <field name="model">assoc.meeting.proxy</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">assoc_meeting.report_proxy_form</field>
+        <field name="report_file">assoc_meeting.report_proxy_form</field>
+        <field name="print_report_name">'委託書-%s-%s' % (object.principal_member_id.member_no, object.meeting_id.name)</field>
+        <field name="binding_model_id" eval="False"/>
+    </record>
+
+    <record id="action_report_proxy_blank" model="ir.actions.report">
+        <field name="name">委託書（空白）</field>
+        <field name="model">assoc.meeting</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">assoc_meeting.report_proxy_blank</field>
+        <field name="report_file">assoc_meeting.report_proxy_blank</field>
+        <field name="print_report_name">'空白委託書-%s' % (object.name)</field>
+        <field name="binding_model_id" ref="model_assoc_meeting"/>
+        <field name="binding_type">report</field>
+        <field name="groups_id" eval="[(4, ref('assoc_base.group_assoc_admin'))]"/>
+    </record>
+
+    <!-- 共用的法定注意事項。§38 的兩條硬限制必須印在紙上：
+         前台頁面已經寫了同一段文字，紙本不寫等於兩邊說法不一致；
+         而且被列為候補的受託人會抗議，紙上有依據才擋得住。 -->
+    <template id="proxy_form_notes">
+        <div style="margin-top:6mm; font-size:9pt; line-height:1.6;">
+            <strong>注意事項（人民團體法 §38）</strong>
+            <ol style="margin:2mm 0 0 4mm; padding:0;">
+                <li>每一位受託人以代理<strong>一人</strong>為限。</li>
+                <li>委託出席之人數，不得超過<strong>親自出席人數的三分之一</strong>；
+                    超過時依報到先後順序列為候補，於現場人數足夠時依序生效。</li>
+                <li>本委託書須由委託人<strong>親自簽名或蓋章</strong>，並於報到時交會場報到台查驗。</li>
+            </ol>
+        </div>
+    </template>
+
+    <template id="report_proxy_form">
+        <t t-call="web.html_container">
+            <t t-call="web.external_layout">
+                <div class="page">
+                    <h2 style="text-align:center; margin-bottom:2mm;">會員大會出席委託書</h2>
+                    <p style="text-align:center; margin:0 0 6mm 0; font-size:10pt;"
+                       t-out="proxy.meeting_id.company_id.name"/>
+
+                    <table class="table table-sm" style="width:100%;">
+                        <tr><th style="width:22%;">大會名稱</th>
+                            <td colspan="3" t-out="proxy.meeting_id.name"/></tr>
+                        <tr><th>開會時間</th>
+                            <td t-out="proxy.meeting_id.date_begin"
+                                t-options="{'widget': 'datetime', 'format': 'yyyy-MM-dd HH:mm', 'tz_name': assoc_tz}"/>
+                            <th style="width:18%;">地點</th>
+                            <td t-out="proxy.meeting_id.place or '—'"/></tr>
+                        <tr><th>委託人</th>
+                            <td t-out="proxy.principal_member_id.name"/>
+                            <th>會員編號</th>
+                            <td t-out="proxy.principal_member_id.member_no"/></tr>
+                        <tr><th>受託人</th>
+                            <td t-out="proxy.holder_member_id.name"/>
+                            <th>會員編號</th>
+                            <td t-out="proxy.holder_member_id.member_no"/></tr>
+                        <tr><th>委託事項</th>
+                            <td colspan="3">
+                                <span t-if="proxy.purpose == 'attend'">☑ 大會出席</span>
+                                <span t-else="">☐ 大會出席</span>
+                                <span style="margin-left:8mm;"/>
+                                <span t-if="proxy.purpose == 'gift'">☑ 禮品代領</span>
+                                <span t-else="">☐ 禮品代領</span>
+                            </td></tr>
+                    </table>
+
+                    <t t-call="assoc_meeting.proxy_form_notes"/>
+
+                    <table style="width:100%; margin-top:10mm;">
+                        <tr>
+                            <td style="width:62%; vertical-align:bottom;">
+                                <p style="margin:0 0 14mm 0;">委託人簽名或蓋章：</p>
+                                <p style="margin:0; border-top:1px solid #000; width:70%;"/>
+                                <p style="margin:6mm 0 0 0;">日期：______年______月______日</p>
+                            </td>
+                            <!-- QR 一律 data URI：走 /report/barcode?value= 的話
+                                 wkhtmltopdf 會回呼那條網址，單號就進了 access log -->
+                            <td style="width:38%; text-align:center; vertical-align:top;">
+                                <img t-att-src="qr" style="width:34mm; height:34mm;"/>
+                                <p style="margin:1mm 0 0 0; font-family:monospace; font-size:8pt;"
+                                   t-out="code_grouped"/>
+                                <p style="margin:1mm 0 0 0; font-size:8pt;">
+                                    本單限本場使用。<strong>重印後舊單即失效。</strong>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </t>
+        </t>
+    </template>
+
+    <template id="report_proxy_blank">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="meeting">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2 style="text-align:center; margin-bottom:2mm;">會員大會出席委託書</h2>
+                        <p style="text-align:center; margin:0 0 6mm 0; font-size:10pt;"
+                           t-out="meeting.company_id.name"/>
+
+                        <table class="table table-sm" style="width:100%;">
+                            <tr><th style="width:22%;">大會名稱</th>
+                                <td colspan="3" t-out="meeting.name"/></tr>
+                            <tr><th>開會時間</th>
+                                <td t-out="meeting.date_begin"
+                                    t-options="{'widget': 'datetime', 'format': 'yyyy-MM-dd HH:mm', 'tz_name': assoc_tz}"/>
+                                <th style="width:18%;">地點</th>
+                                <td t-out="meeting.place or '—'"/></tr>
+                            <!-- 委託人填的是**會員編號**，不是會員卡條碼：
+                                 會員卡條碼掃下去會讓那個人被標成親自出席，
+                                 印在會離開會員手中的紙上等於放寬 §38 的 1/3 分母。 -->
+                            <tr><th>委託人姓名</th><td style="height:10mm;"/>
+                                <th>會員編號</th>
+                                <td style="height:10mm;">
+                                    <span style="font-size:8pt; color:#666;">
+                                        （可貼會員編號條碼）
+                                    </span>
+                                </td></tr>
+                            <tr><th>受託人姓名</th><td style="height:10mm;"/>
+                                <th>會員編號</th><td style="height:10mm;"/></tr>
+                            <tr><th>委託事項</th>
+                                <td colspan="3">☐ 大會出席
+                                    <span style="margin-left:8mm;"/>☐ 禮品代領</td></tr>
+                        </table>
+
+                        <t t-call="assoc_meeting.proxy_form_notes"/>
+
+                        <div style="margin-top:12mm;">
+                            <p style="margin:0 0 14mm 0;">委託人簽名或蓋章：</p>
+                            <p style="margin:0; border-top:1px solid #000; width:45%;"/>
+                            <p style="margin:6mm 0 0 0;">日期：______年______月______日</p>
+                        </div>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+</odoo>

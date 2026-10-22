@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_assoc_meeting" name="會員大會" parent="assoc_base.menu_assoc_root"
+              action="assoc_meeting_action" sequence="20"/>
+    <menuitem id="menu_assoc_meeting_proxy" name="委託出席" parent="assoc_base.menu_assoc_root"
+              action="assoc_meeting_proxy_action" sequence="22"/>
+    <menuitem id="menu_assoc_attendance" name="簽到紀錄" parent="assoc_base.menu_assoc_root"
+              action="assoc_attendance_action" sequence="24"/>
+</odoo>

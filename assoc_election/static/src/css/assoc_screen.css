@@ -1,0 +1,38 @@
+/* 大螢幕：投影用，字要大、對比要夠。變數前綴 --ax-* 與其他前台一致。 */
+.ax-screen {
+    --ax-screen-fg: #1a1a1a;
+    --ax-screen-muted: #6b6b6b;
+    padding: 4vh 5vw;
+    font-size: 2.2vh;
+    color: var(--ax-screen-fg);
+}
+.ax-screen__title { font-size: 5vh; margin: 0 0 1vh; }
+.ax-screen__company { color: var(--ax-screen-muted); margin-bottom: 3vh; }
+.ax-screen__message { font-size: 3vh; margin-bottom: 2vh; }
+.ax-screen__stats { margin-bottom: 3vh; }
+.ax-screen__big { font-size: 12vh; font-weight: 700; line-height: 1; }
+.ax-screen__ranking { font-size: 3vh; }
+.ax-screen__ranking li { margin-bottom: 0.8vh; }
+.ax-screen__name { display: inline-block; min-width: 10em; }
+.ax-screen__votes { display: inline-block; min-width: 6em; }
+.ax-screen__outcome { font-weight: 700; }
+.ax-screen__chain {
+    margin-top: 4vh;
+    color: var(--ax-screen-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1.8vh;
+}
+
+/* 跑馬燈：單行橫向捲動 */
+.ax-ticker { overflow: hidden; white-space: nowrap; padding: 0.8rem 0; }
+.ax-ticker__track { display: inline-block; animation: ax-ticker-scroll 40s linear infinite; }
+.ax-ticker__item { margin-right: 4rem; }
+@keyframes ax-ticker-scroll {
+    from { transform: translateX(100%); }
+    to { transform: translateX(-100%); }
+}
+/* 使用者要求減少動態時不要捲動（無障礙） */
+@media (prefers-reduced-motion: reduce) {
+    .ax-ticker__track { animation: none; white-space: normal; }
+    .ax-ticker { white-space: normal; }
+}

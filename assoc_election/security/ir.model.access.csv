@@ -1,0 +1,13 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_assoc_election_officer,assoc.election officer,model_assoc_election,group_election_officer,1,1,1,0
+access_assoc_election_observer,assoc.election observer,model_assoc_election,group_election_observer,1,0,0,0
+access_assoc_election_admin,assoc.election admin,model_assoc_election,assoc_base.group_assoc_admin,1,1,1,1
+access_assoc_election_candidate_officer,assoc.election.candidate officer,model_assoc_election_candidate,group_election_officer,1,1,1,1
+access_assoc_election_candidate_reader,assoc.election.candidate reader,model_assoc_election_candidate,group_election_observer,1,0,0,0
+access_assoc_election_candidate_admin,assoc.election.candidate admin,model_assoc_election_candidate,assoc_base.group_assoc_admin,1,0,0,0
+access_assoc_election_voter_officer,assoc.election.voter officer,model_assoc_election_voter,group_election_officer,1,0,0,0
+access_assoc_election_voter_observer,assoc.election.voter observer,model_assoc_election_voter,group_election_observer,1,0,0,0
+access_assoc_election_voter_admin,assoc.election.voter admin,model_assoc_election_voter,assoc_base.group_assoc_admin,1,0,0,0
+access_assoc_election_log_officer,assoc.election.log officer,model_assoc_election_log,group_election_officer,1,0,0,0
+access_assoc_election_log_observer,assoc.election.log observer,model_assoc_election_log,group_election_observer,1,0,0,0
+access_assoc_election_log_admin,assoc.election.log admin,model_assoc_election_log,assoc_base.group_assoc_admin,1,0,0,0

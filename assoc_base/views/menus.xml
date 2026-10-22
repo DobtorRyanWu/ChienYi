@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_assoc_root" name="公會" sequence="60"
+              groups="assoc_base.group_assoc_staff"/>
+    <menuitem id="menu_assoc_member" name="會員" parent="menu_assoc_root"
+              action="assoc_member_action" sequence="10"/>
+    <menuitem id="menu_assoc_member_document" name="證明文件" parent="menu_assoc_root"
+              action="assoc_member_document_action" sequence="20"/>
+    <menuitem id="menu_assoc_term" name="屆次" parent="menu_assoc_root"
+              action="assoc_term_action" sequence="30"/>
+    <menuitem id="menu_assoc_audit_log" name="存取軌跡" parent="menu_assoc_root"
+              action="assoc_audit_log_action" sequence="90"
+              groups="assoc_base.group_assoc_admin"/>
+</odoo>
