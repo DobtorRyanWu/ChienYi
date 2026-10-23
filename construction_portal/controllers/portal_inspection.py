@@ -462,8 +462,12 @@ class InspectionRoutesMixin:
         if not vals['name']:
             return request.redirect('/construction/inspection-types/new?error=name')
 
-        # docx 上傳（可選，未選則不動原檔）
+        # docx 上傳（可選，未選則不動原檔）。只開放內部帳號：套印引擎 docxtpl 的 Jinja2 沒有沙箱，
+        # 能上傳樣板＝能讓伺服器執行樣板裡的運算式，不能交給營造廠帳號。
+        # 回歸測試：tests/test_inspection_type_docx_upload.py
         upload = request.httprequest.files.get('template_file')
+        if upload and upload.filename and request.env.user.share:
+            raise AccessError(_('前台帳號不可上傳樣板 docx，請由監造／代操上傳'))
         if upload and upload.filename:
             data = base64.b64encode(upload.read())
             vals['template_file'] = data

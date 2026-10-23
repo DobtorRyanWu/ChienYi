@@ -255,12 +255,16 @@
                         <label class="cyf-label">類型說明</label>
                         <textarea name="description" rows="2" class="cyf-input" placeholder="選填"><t t-esc="rec.description if rec else ''"/></textarea>
 
-                        <label class="cyf-label">樣板 docx（選填，上傳即取代原檔）</label>
-                        <t t-if="rec and rec.template_filename">
-                            <div style="font-size:.8rem;color:var(--wb-t3);margin-bottom:6px;">目前：📎 <t t-esc="rec.template_filename"/></div>
+                        <!-- 樣板 docx 只開放內部帳號上傳：套印引擎（docxtpl）用的是沒有沙箱的 Jinja2，
+                             上傳者等於能讓伺服器跑他寫的運算式（controller 也擋） -->
+                        <t t-if="not request.env.user.share">
+                            <label class="cyf-label">樣板 docx（選填，上傳即取代原檔）</label>
+                            <t t-if="rec and rec.template_filename">
+                                <div style="font-size:.8rem;color:var(--wb-t3);margin-bottom:6px;">目前：📎 <t t-esc="rec.template_filename"/></div>
+                            </t>
+                            <input type="file" name="template_file" accept=".docx"
+                                   style="font-size:.85rem;width:100%;"/>
                         </t>
-                        <input type="file" name="template_file" accept=".docx"
-                               style="font-size:.85rem;width:100%;"/>
                     </div>
 
                     <!-- 檢查項目編輯：新增樣板時類型還沒建檔、沒有段落可選，
