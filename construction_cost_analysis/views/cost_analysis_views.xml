@@ -109,6 +109,8 @@
                             <field name="import_mode"/>
                             <field name="source_project_id"
                                    invisible="import_mode != 'project'"/>
+                            <!-- 依這個公司比對價格庫；來源專案只能選這個公司的工程 -->
+                            <field name="company_id" groups="base.group_multi_company"/>
                             <field name="xml_file"
                                    widget="binary"
                                    filename="xml_filename"

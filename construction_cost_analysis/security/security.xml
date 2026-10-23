@@ -54,5 +54,18 @@
             <field name="perm_unlink" eval="True"/>
         </record>
 
+        <!-- 全域公司隔離（18.0.2.1.0）：上面的群組規則都是 (1=1)。明細存著從價格庫抄來的建議單價，
+             多家公司共用一個庫（jt）時，不擋的話價格庫的公司隔離可以從成本分析繞過。 -->
+        <record id="rule_cost_analysis_company" model="ir.rule">
+            <field name="name">成本分析 - 公司隔離</field>
+            <field name="model_id" ref="model_cost_analysis"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_cost_analysis_line_company" model="ir.rule">
+            <field name="name">成本分析明細 - 公司隔離</field>
+            <field name="model_id" ref="model_cost_analysis_line"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+
     </data>
 </odoo>

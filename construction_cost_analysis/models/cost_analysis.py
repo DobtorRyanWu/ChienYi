@@ -58,10 +58,13 @@ class CostAnalysis(models.Model):
         help='選擇從既有專案或 XML 標單匯入工項'
     )
 
+    # 只能選本分析所屬公司的工程（同匯入精靈 cost_analysis_import_project_wizard 的寫法）：
+    # 比對價格庫用的是分析的公司，明細的公司也跟著分析，兩者一致才不會把別家的單價存進本公司的明細（18.0.2.1.0）
     source_project_id = fields.Many2one(
         'project.project',
         string='來源專案',
         tracking=True,
+        domain="[('company_id', '=', company_id)]",
         help='從此專案匯入契約工項'
     )
 
@@ -433,8 +436,19 @@ class CostAnalysis(models.Model):
     # ========================================
     # 價格庫匯入方法
     # ========================================
+    @api.constrains('company_id', 'source_project_id')
+    def _check_source_project_company(self):
+        for rec in self:
+            if rec.source_project_id and rec.source_project_id.sudo().company_id != rec.company_id:
+                raise ValidationError('來源專案必須屬於本成本分析的公司（%s）。' % rec.company_id.name)
+            # 比對完再改分析的公司：明細（公司跟著分析）會帶著別家的價格庫項目與建議單價
+            other = rec.sudo().line_ids.library_item_id.filtered(lambda i: i.company_id != rec.company_id)
+            if other:
+                raise ValidationError('明細已比對到其他公司的價格庫項目（%s），不能改成這家公司；請先清除比對結果。'
+                                      % '、'.join(other.mapped('name')[:5]))
+
     def action_import_suggested_prices(self):
-        """從價格庫比對建議單價（正規化名稱 + 正規化單位，忽略公司）"""
+        """從價格庫比對建議單價（正規化名稱 + 正規化單位，限本分析所屬公司）"""
         import unicodedata
         import re
 
@@ -446,10 +460,13 @@ class CostAnalysis(models.Model):
         if not self.line_ids:
             raise UserError('沒有可比對的明細！')
 
+        # 限本分析所屬公司的啟用項目（18.0.2.1.0）。原本假設單庫單公司而不分公司，但 jt 是多家監造公司
+        # 共用的庫：不分公司會比對到別家的單價。比對公司、明細的公司（related）與來源工程的公司（domain＋約束）
+        # 都是分析的 company_id，別家的單價就不會被存進本公司的明細。
+        # 成本分析本身有全域公司規則：看得到這份分析的人，一定已勾選它的公司，價格庫的公司規則也就放行。
         PriceItem = self.env['price.library.item']
         Task = self.env['project.task']
-        # 單庫單公司：比對不以 company 過濾，僅限啟用中的項目
-        base_domain = [('active', '=', True)]
+        base_domain = [('active', '=', True), ('company_id', '=', self.company_id.id)]
         by_name = ambiguous = 0
         unmatched_no_name = []   # 找不到同名項目
         unmatched_unit = []      # 有同名但單位不符

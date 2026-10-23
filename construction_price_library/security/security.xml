@@ -103,5 +103,34 @@
             <field name="perm_unlink" eval="False"/>
         </record>
 
+        <!-- ============================================== -->
+        <!-- 全域公司隔離（18.0.1.1.0）                        -->
+        <!-- ============================================== -->
+        <!-- 上面兩組群組規則都是 (1=1)（註解寫「只能查看自己公司」但實際沒擋）。正式站 jt 是多家監造公司
+             共用的庫：寫進廷暉、和建的契約單價分析之後，任泰的管理者會在價格庫看到別家的單價。
+             全域規則與群組規則是 AND：任何人都只看得到「目前選取的公司」的價格庫。
+             結案提取（_extract_tasks_to_price_library）走 sudo，不受影響。 -->
+        <record id="rule_price_library_category_company" model="ir.rule">
+            <field name="name">價格庫分類 - 公司隔離</field>
+            <field name="model_id" ref="model_price_library_category"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_price_library_item_company" model="ir.rule">
+            <field name="name">價格庫項目 - 公司隔離</field>
+            <field name="model_id" ref="model_price_library_item"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_price_library_item_source_company" model="ir.rule">
+            <field name="name">價格來源 - 公司隔離</field>
+            <field name="model_id" ref="model_price_library_item_source"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 價格歷史本身沒有 company_id，跟著項目的公司 -->
+        <record id="rule_price_library_item_history_company" model="ir.rule">
+            <field name="name">價格歷史 - 公司隔離</field>
+            <field name="model_id" ref="model_price_library_item_history"/>
+            <field name="domain_force">[('item_id.company_id', 'in', company_ids)]</field>
+        </record>
+
     </data>
 </odoo>
