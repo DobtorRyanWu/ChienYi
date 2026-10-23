@@ -46,12 +46,14 @@ class PersonnelType(models.Model):
         string='說明',
         help='此人員類型的詳細說明')
 
+    # 預設共用（空白）：日誌下拉依「工程所屬公司」過濾（18.0.1.4.0），若預設帶建立者當下的公司，
+    # 在別家公司的工程下建的工種會從那個工程的下拉消失（jt 有 56/58 筆就是這樣建出來的）。
+    # 要只給某家公司用時才明確選公司（匯入工具 import_resources.py 一律明寫）。
     company_id = fields.Many2one(
         'res.company',
         string='公司',
-        default=lambda self: self.env.company,
         index=True,
-        help='多公司環境下的資料隔離')
+        help='空白＝所有公司共用；選了公司＝只出現在該公司工程的人機下拉')
 
     # === 使用統計 ===
     usage_count = fields.Integer(

@@ -27,6 +27,7 @@
                     <field name="man_machine_detail_ids">
                         <list editable="bottom">
                             <field name="sequence" widget="handle"/>
+                            <field name="project_company_id" column_invisible="1"/>
                             <field name="personnel_type_id" required="1"/>
                             <field name="record_type" column_invisible="1"/>
                             <field name="quantity"/>

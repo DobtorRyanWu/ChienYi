@@ -28,13 +28,22 @@ class DailyLogManMachineDetail(models.Model):
         index=True)
 
     # 使用者直接選種類（不再選工程層級彙整記錄）
+    # 下拉只列「共用（company_id 空白）＋案件所屬公司」的項目：多家公司共用一個庫時，
+    # 別家公司的工種、機具不出現在本案日誌（18.0.1.4.0）
     personnel_type_id = fields.Many2one(
         'personnel.type',
         string='人員機具種類',
         required=True,
-        domain="[('active', '=', True)]",
+        domain="[('active', '=', True), '|', ('company_id', '=', False), "
+               "('company_id', '=', project_company_id)]",
         ondelete='restrict',
     )
+
+    project_company_id = fields.Many2one(
+        'res.company',
+        string='工程所屬公司',
+        related='project_id.company_id',
+        help='人員機具種類下拉的公司過濾依據')
 
     # 彙整記錄由 create() 自動 find-or-create，不需使用者操作
     man_machine_id = fields.Many2one(

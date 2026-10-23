@@ -47,7 +47,9 @@ class DailyLogManMachine(models.Model):
         'personnel.type',
         string='人員機具設定',
         required=True,
-        domain="[('record_type', '=', record_type)]")
+        # 只列共用＋本工程所屬公司的項目（18.0.1.4.0）；右側 company_id 是本筆（工程）的公司
+        domain="[('record_type', '=', record_type), '|', ('company_id', '=', False), "
+               "('company_id', '=', company_id)]")
 
     # === 計價資訊 ===
     unit_price = fields.Float(

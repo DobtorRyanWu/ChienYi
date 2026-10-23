@@ -62,12 +62,20 @@ class DailyLogAddManMachineWizard(models.TransientModel):
         readonly=True,
     )
 
+    project_company_id = fields.Many2one(
+        related='sheet_id.project_id.company_id',
+        string='工程所屬公司',
+    )
+
+    # 只列共用＋本工程所屬公司的項目（18.0.1.4.0）；過濾只寫在這裡，view 不要再寫 domain（會蓋掉）
     selected_type_ids = fields.Many2many(
         'personnel.type',
         'dl_mm_wiz_type_rel',
         'wizard_id',
         'type_id',
         string='選擇人員/機具',
+        domain="[('active', '=', True), '|', ('company_id', '=', False), "
+               "('company_id', '=', project_company_id)]",
     )
 
     line_ids = fields.One2many(

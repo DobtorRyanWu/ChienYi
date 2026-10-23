@@ -58,6 +58,7 @@
             <list string="人機項目主檔" editable="bottom">
                 <field name="sequence" widget="handle"/>
                 <field name="project_id"/>
+                <field name="company_id" column_invisible="1"/>
                 <field name="record_type" column_invisible="context.get('hide_record_type')"/>
                 <field name="personnel_type_id"
                        options="{'no_create': True, 'no_create_edit': True}"/>

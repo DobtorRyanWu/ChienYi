@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- noupdate：序列記錄只在安裝時建立。沒有 noupdate 時，每次 -u（包括被別的模組連帶升級）都會把
+         number_next 寫回 1、PG 序列 RESTART，當月靜默重號（單號沒有 UNIQUE，不會報錯）。
+         同 construction_supervision_base、construction_payment 等 9 個模組的寫法。 -->
+    <data noupdate="1">
 
     <!-- 機具設備序列 -->
     <record id="seq_supervision_equipment" model="ir.sequence">
@@ -20,5 +24,5 @@
         <field name="number_next">1</field>
         <field name="number_increment">1</field>
     </record>
-
+    </data>
 </odoo>

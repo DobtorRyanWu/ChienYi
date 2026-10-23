@@ -26,8 +26,8 @@
                 <notebook>
                     <!-- Tab 1：選擇人員/機具（Many2many，支援原生搜尋更多） -->
                     <page string="選擇人員/機具" name="select_types">
+                        <field name="project_company_id" invisible="1"/>
                         <field name="selected_type_ids" nolabel="1"
-                               domain="[('active', '=', True)]"
                                options="{'no_create': True, 'no_open': True}">
                             <list>
                                 <field name="record_type" string="類型"
