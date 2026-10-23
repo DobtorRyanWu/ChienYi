@@ -100,6 +100,10 @@ ROWS = [
         # C 取樣位置 / H 試樣數量 / I 設計強度 在 daily.log.material 沒有對應欄位，
         # 留空由人工填，不硬湊。
         'source': 'material_ids',
+        # 這一節是監造「查核材料規格及品質」，只印人工手填的列（＝加這個功能之前的全部列）。
+        # 連結契約材料清單的列是營造廠的「工地材料使用量」（印在營造版第一聯 c1），印在這裡語意不對，
+        # 而且會和查核材料搶預留的 5 列、把監造的查核紀錄擠出報表。
+        'filter': lambda m: not m.catalog_item_id,
         'start_row': 28,
         'max_rows': 5,
         'columns': {

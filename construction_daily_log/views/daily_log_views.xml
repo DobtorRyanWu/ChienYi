@@ -212,15 +212,21 @@
                         <page string="工地材料管理" name="material_management" sequence="25">
                             <div class="text-muted mb-2">
                                 含約定之重要材料使用狀況及數量等
+                                <button name="action_load_key_materials" type="object"
+                                        string="帶入重要材料" class="btn btn-link"
+                                        invisible="is_locked and not is_unlocked"/>
                             </div>
                             <field name="material_ids" readonly="is_locked and not is_unlocked">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
+                                    <field name="catalog_item_id" optional="hide"
+                                           domain="[('project_id', '=', parent.supervision_project_id)]"/>
+                                    <!-- 名稱／單位／契約數量：選契約材料時由 onchange 帶入，仍可手改（契約變更後要能修正） -->
                                     <field name="name" placeholder="施工項目名稱"/>
                                     <field name="unit"/>
                                     <field name="contract_qty"/>
                                     <field name="daily_qty"/>
-                                    <field name="cumulative_qty"/>
+                                    <field name="cumulative_qty" readonly="catalog_item_id"/>
                                     <field name="note"/>
                                 </list>
                             </field>

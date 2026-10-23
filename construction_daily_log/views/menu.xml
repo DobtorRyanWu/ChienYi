@@ -47,6 +47,15 @@
         groups="construction_supervision_base.group_supervisor_admin"
     />
 
+    <!-- 契約材料清單 (under 設定)：每案一份，標「重要材料」的會自動帶入新日誌 -->
+    <menuitem
+        id="menu_contract_material"
+        name="契約材料清單"
+        parent="menu_daily_log_config"
+        action="action_contract_material"
+        sequence="5"
+    />
+
     <!-- 日誌明細 (under 設定) -->
     <menuitem
         id="menu_daily_log_lines"

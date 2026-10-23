@@ -4,12 +4,14 @@
 import base64
 import json
 import logging
+import re
 from datetime import date, datetime, timedelta
 
 from odoo import http, _, fields
 from odoo.http import request
 from odoo.addons.portal.controllers.portal import pager as portal_pager
 from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
+from odoo.addons.construction_daily_log.models.daily_log_material import MAX_MATERIAL_DAILY_QTY
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
@@ -28,7 +30,70 @@ from .portal_utils import (
 )
 
 
+# 前台「工地材料（約定重要材料）」本日數量欄位的名稱前綴：
+#   新增：key_material_qty_<契約材料清單項 id>；編輯：material_qty_<材料列 id>
+KEY_MATERIAL_QTY_PREFIX = 'key_material_qty_'
+MATERIAL_QTY_PREFIX = 'material_qty_'
+# id 只認 ASCII 數字、長度有上限（str.isdigit() 會把「²」當數字，int() 再丟例外 → 500）
+MATERIAL_ID_RE = re.compile(r'[0-9]{1,12}')
+
+
+def _parse_material_qtys(post, prefix):
+    """從 POST 取出 {id: 數量}。空字串＝0（編輯時把數量清空要真的歸零）；
+    負數、非數字、nan/inf、超過上限、不是文字（multipart 檔案欄位）回 None。"""
+    qtys = {}
+    for key, raw in post.items():
+        if not key.startswith(prefix) or not MATERIAL_ID_RE.fullmatch(key[len(prefix):]):
+            continue
+        if not isinstance(raw, str):
+            return None
+        text = raw.strip()
+        try:
+            qty = float(text) if text else 0.0
+        except ValueError:
+            return None
+        # NaN 的比較一律為 False、inf 超過上限，都會被這一行擋下
+        if not 0 <= qty <= MAX_MATERIAL_DAILY_QTY:
+            return None
+        qtys[int(key[len(prefix):])] = qty
+    return qtys
+
+
 class DailyLogRoutesMixin:
+    def _daily_log_form_materials(self, project, log=None):
+        """表單用的材料清單（唯讀欄位 + 一個本日數量輸入）。
+
+        新增（log 為空）：該案啟用中的重要材料，輸入欄名 key_material_qty_<清單項 id>，
+        累計顯示「已累計（不含本日）」＝既有日誌該材料 daily_qty 總和。
+        編輯：這張日誌「已連結契約材料」的列，輸入欄 material_qty_<列 id>。沒連結的人工列不列在這一節
+        （詳情頁照常顯示）：沒有契約材料清單的案件（例如任泰）編輯頁不會多出這一節。
+        """
+        from types import SimpleNamespace
+        if not log:
+            items = request.env['construction.contract.material'].sudo().search([
+                ('project_id', '=', project.id),
+                ('is_key', '=', True),
+                ('active', '=', True),
+            ])
+            totals = {}
+            if items:
+                groups = request.env['daily.log.material'].sudo()._read_group(
+                    [('catalog_item_id', 'in', items.ids)],
+                    ['catalog_item_id'], ['daily_qty:sum'])
+                totals = {item.id: total for item, total in groups}
+            return [SimpleNamespace(
+                name=i.name or '', unit=i.unit or '',
+                contract_qty=i.contract_qty or 0.0,
+                cumulative_qty=totals.get(i.id, 0.0), daily_qty=0.0,
+                input_name='%s%s' % (KEY_MATERIAL_QTY_PREFIX, i.id),
+            ) for i in items]
+        return [SimpleNamespace(
+            name=m.name or '', unit=m.unit or '',
+            contract_qty=m.contract_qty or 0.0,
+            cumulative_qty=m.cumulative_qty or 0.0, daily_qty=m.daily_qty or 0.0,
+            input_name='%s%s' % (MATERIAL_QTY_PREFIX, m.id),
+        ) for m in log.sudo().material_ids.filtered('catalog_item_id')]
+
     @http.route(['/construction/<int:project_id>/daily-logs', '/construction/<int:project_id>/daily-logs/page/<int:page>'],
                 type='http', auth='user', website=True)
     def portal_construction_daily_logs(self, project_id, page=1, **kw):
@@ -374,6 +439,8 @@ class DailyLogRoutesMixin:
                     company_id=project.company_id.id,
                     tracking_disable=True,
                     mail_create_nolog=True,
+                    # 歷史日誌匯入：材料照 xlsm 原樣（人工列，帶實際數量），不再補 0 數量的重要材料列
+                    skip_key_material_autofill=True,
                 ).create(sheet_vals)
                 imported += 1
 
@@ -431,6 +498,7 @@ class DailyLogRoutesMixin:
             'photo_categories': photo_categories,
             'is_edit': False,
             'log': False,
+            'form_materials': self._daily_log_form_materials(project),
             'form_action': '/construction/daily-log/create',
             'page_name': 'construction_daily_log_new',
             'today': date.today().isoformat(),
@@ -453,6 +521,12 @@ class DailyLogRoutesMixin:
 
         # H1：建立施工日誌限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可建立施工日誌'))
+
+        # 約定重要材料的本日數量：先驗證，數字不合法就不建日誌
+        key_qtys = _parse_material_qtys(post, KEY_MATERIAL_QTY_PREFIX)
+        if key_qtys is None:
+            return request.redirect(
+                f'/construction/{project_id}/daily-log/new?error=invalid_qty')
 
         # 基本欄位
         vals = {
@@ -479,6 +553,15 @@ class DailyLogRoutesMixin:
 
         DailyLog = request.env['daily.log.sheet'].sudo()
         log = DailyLog.create(vals)
+
+        # 約定重要材料本日數量：create() 已依案件清單自動帶入材料列，這裡只填數量。
+        # 只認「這張日誌自己、對應到該清單項」的列（外來的清單項 id 找不到列就略過）。
+        # 直接寫材料列而不經 log.write()：建立日誌本來就不受 14 天鎖定限制（補登舊日期），
+        # 與下面工項明細的建立方式一致。
+        if key_qtys:
+            for row in log.material_ids.filtered(
+                    lambda m: m.catalog_item_id.id in key_qtys):
+                row.write({'daily_qty': key_qtys[row.catalog_item_id.id]})
 
         # 處理工項明細（line_ids）：支援「契約工項」與「自填項目（純文字）」
         # 排序由 daily.log.line.type_order 決定（契約恆在自填之前），與建立先後無關。
@@ -588,6 +671,7 @@ class DailyLogRoutesMixin:
             'tasks': tasks,
             'photo_categories': photo_categories,
             'is_edit': True,
+            'form_materials': self._daily_log_form_materials(project, log),
             'form_action': f'/construction/{project_id}/daily-log/{log.id}/update',
             'page_name': 'construction_daily_log_edit',
             'today': log.log_date.isoformat() if log.log_date else date.today().isoformat(),
@@ -627,6 +711,10 @@ class DailyLogRoutesMixin:
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        # H1：閱覽角色不可寫入。_is_field_only() 對閱覽者回 False，下面的
+        # _require_owner_or_manager 不會擋他，所以要在這裡先擋（create 路由同寫法）。
+        self._require_write(_('權限不足：閱覽角色不可修改施工日誌'))
+
         DailyLog = request.env['daily.log.sheet'].sudo()
         log = DailyLog.search([
             ('id', '=', log_id),
@@ -634,7 +722,9 @@ class DailyLogRoutesMixin:
         ], limit=1)
         if not log:
             return request.redirect(f'/construction/{project_id}/daily-logs')
-        if log.is_locked:
+        # 鎖定用即時判斷：stored is_locked 會 stale（H2）。下面的 log.write() 也會擋（材料指令併在同一次
+        # write 裡），這裡先擋是為了導回提示頁，而不是讓 write() 的 UserError 變成 500
+        if log._is_edit_locked():
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}?error=locked'
             )
@@ -647,7 +737,22 @@ class DailyLogRoutesMixin:
                 f'/construction/{project_id}/daily-log/{log.id}?error=not_owner'
             )
 
-        log.write({
+        # 約定重要材料本日數量。只接受「這張日誌自己、已連結契約材料」的列 id：
+        # Odoo 18 的 (1, id, vals) 指令不檢查 id 是否屬於父記錄，偽造別張日誌的列 id
+        # 會在 sudo 下直接寫到別張。數字不合法就整筆不寫。
+        material_qtys = _parse_material_qtys(post, MATERIAL_QTY_PREFIX)
+        if material_qtys is None:
+            # 導回編輯頁（表單有 invalid_qty 提示）；整筆未儲存
+            return request.redirect(
+                f'/construction/{project_id}/daily-log/{log.id}/edit?error=invalid_qty'
+            )
+        own_linked_ids = set(log.material_ids.filtered('catalog_item_id').ids)
+        material_cmds = [
+            (1, row_id, {'daily_qty': qty})
+            for row_id, qty in material_qtys.items() if row_id in own_linked_ids
+        ]
+
+        vals = {
             'log_date': post.get('log_date') or log.log_date,
             'weather_am': post.get('weather_am') or False,
             'weather_pm': post.get('weather_pm') or False,
@@ -661,7 +766,11 @@ class DailyLogRoutesMixin:
             'subcontractor_notification': post.get('subcontractor_notification', ''),
             'important_matters': post.get('important_matters', ''),
             'notes': post.get('notes', ''),
-        })
+        }
+        if material_cmds:
+            # 併進同一次 write：14 天鎖定在 write() 判斷，材料指令也要被它擋得到
+            vals['material_ids'] = material_cmds
+        log.write(vals)
 
         # 編輯時若有上傳新照片
         meta = _post_photo_meta(post)

@@ -709,6 +709,11 @@ class DailyLogSheet(models.Model):
 
         sheets = super().create(vals_list)
         # No need for state transition - default is already 'draft'
+        # 自動帶入案件契約材料清單的「重要材料」：補上這張日誌還沒有的重要材料（只看 catalog_item_id，
+        # vals 自帶的人工列照留、也不會讓它略過）。xlsm 歷史日誌匯入帶 skip_key_material_autofill：
+        # 材料照檔案原樣，不補 0 數量列（這個旗標只會「少補」，被呼叫端帶進來也無害）。
+        if not self.env.context.get('skip_key_material_autofill'):
+            sheets._load_key_materials()
         return sheets
 
     def write(self, vals):
@@ -746,6 +751,10 @@ class DailyLogSheet(models.Model):
                 )
 
         res = super().write(vals)
+        if 'log_date' in vals:
+            # 日期變動會改變連結列的累計順序 → 重算受影響的契約材料
+            self.env['daily.log.material']._recompute_catalog_cumulative(
+                self.material_ids.catalog_item_id)
         return res
 
     def unlink(self):
@@ -756,7 +765,73 @@ class DailyLogSheet(models.Model):
                     f'無法刪除已鎖定的日誌: {sheet.complete_name}\n'
                     f'請先申請解鎖。'
                 )
-        return super().unlink()
+        # 材料列由 DB cascade 刪除，不經 daily.log.material.unlink()，
+        # 所以要先記下連結的契約材料，刪完再重算後面日期的累計。
+        items = self.material_ids.catalog_item_id
+        res = super().unlink()
+        self.env['daily.log.material']._recompute_catalog_cumulative(items)
+        return res
+
+    # -------------------------------------------------------------------------
+    # 契約材料清單：自動帶入重要材料
+    # -------------------------------------------------------------------------
+
+    def _load_key_materials(self):
+        """把案件清單中 is_key 且啟用、但本日誌還沒有的材料補成材料列，回傳補上的筆數。
+
+        不檢查 14 天鎖定：create() 剛建好的日誌本來就可以補登舊日期；
+        使用者按鈕（action_load_key_materials）與「套用到未鎖定日誌」在呼叫前自己擋鎖定。
+        """
+        Catalog = self.env['construction.contract.material'].sudo()
+        cache = {}
+        vals_list = []
+        for sheet in self:
+            pid = sheet.supervision_project_id.id
+            if pid not in cache:
+                cache[pid] = Catalog.search([
+                    ('project_id', '=', pid),
+                    ('is_key', '=', True),
+                    ('active', '=', True),
+                ])
+            have_ids = set(sheet.sudo().material_ids.catalog_item_id.ids)
+            vals_list += [{
+                'daily_log_id': sheet.id,
+                'name': item.name,
+                'unit': item.unit,
+                'contract_qty': item.contract_qty,
+                'catalog_item_id': item.id,
+                'sequence': item.sequence,
+                'daily_qty': 0.0,
+            } for item in cache[pid] if item.id not in have_ids]
+        if vals_list:
+            # sudo：補登舊日期（已過 14 天）的日誌在建立當下就要帶入，材料列的鎖定守衛只擋非 sudo 的直接修改
+            self.env['daily.log.material'].sudo().create(vals_list)
+        return len(vals_list)
+
+    def action_load_key_materials(self):
+        """帶入重要材料（已有同一契約材料的列會略過；已鎖定的日誌不可帶入）"""
+        # _load_key_materials 用 sudo 建列：先確認呼叫者對這些日誌有寫入權（閱覽者經 RPC 也叫得到這個方法）
+        self.check_access('write')
+        locked = self.filtered(lambda s: s._is_edit_locked())
+        if locked:
+            raise UserError(
+                '以下日誌已鎖定（超過14天），不能帶入重要材料：\n'
+                + '\n'.join('- %s' % s.complete_name for s in locked)
+                + '\n\n請先申請解鎖。')
+        self._load_key_materials()
+        return True
+
+    @api.constrains('supervision_project_id')
+    def _check_material_catalog_project(self):
+        """日誌改了所屬工程時，已連結契約材料的列不可留在舊案的清單（累計會算錯案）"""
+        for sheet in self:
+            wrong = sheet.material_ids.filtered(
+                lambda m: m.catalog_item_id
+                and m.catalog_item_id.project_id != sheet.supervision_project_id)
+            if wrong:
+                raise ValidationError(
+                    '這張日誌有連結到其他工程契約材料的列（%s），不能改所屬工程；'
+                    '請先刪除這些材料列。' % '、'.join(wrong.mapped('name')))
 
     def copy(self, default=None):
         """Prevent sheet duplication by default"""

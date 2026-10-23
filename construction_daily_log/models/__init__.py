@@ -6,6 +6,7 @@ from . import project_task        # 契約工項：實際完成數量接施工�
 from . import daily_log_sheet
 from . import daily_log_line
 from . import daily_log_weather
+from . import contract_material   # 案件契約材料清單
 from . import daily_log_material
 from . import daily_log_specific_item
 from . import construction_weekly_schedule

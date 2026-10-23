@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 契約材料清單含契約單價。正式站 jt 是多家監造公司共用的庫：只看得到目前選取公司的工程的清單。
+         前台群組沒有這個模型的讀權（ir.model.access.csv），前台路由一律 sudo 讀。 -->
+    <record id="rule_contract_material_company" model="ir.rule">
+        <field name="name">契約材料清單 - 公司隔離</field>
+        <field name="model_id" ref="model_construction_contract_material"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

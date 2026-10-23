@@ -104,6 +104,9 @@ class TestPortalRoleGuards(TransactionCase):
             ('portal_construction_daily_log_create', {'project_id': pid}),
             ('portal_construction_inspection_create', {'project_id': pid}),
             ('portal_construction_photo_upload', {'project_id': pid}),
+            # 既有漏洞：update 路由原本沒擋 viewer（_is_field_only 對 viewer 回 False）
+            ('portal_construction_daily_log_update',
+             {'project_id': self.project.id, 'log_id': 0}),
         ]
         for method, kw in cases:
             with self.assertRaises(AccessError,

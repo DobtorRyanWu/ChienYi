@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Copyright 2024-2025 Engineering Supervision System
+    License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
+
+    案件契約材料清單：每案一份；is_key=True 的項目建立施工日誌時自動帶入。
+-->
+<odoo>
+    <record id="view_contract_material_list" model="ir.ui.view">
+        <field name="name">construction.contract.material.list</field>
+        <field name="model">construction.contract.material</field>
+        <field name="arch" type="xml">
+            <list editable="bottom" string="契約材料清單">
+                <header>
+                    <button name="action_apply_to_open_logs" type="object"
+                            string="套用到未鎖定日誌"/>
+                </header>
+                <field name="sequence" widget="handle"/>
+                <field name="project_id"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="unit"/>
+                <field name="contract_qty"/>
+                <field name="unit_price" optional="hide"/>
+                <field name="amount" optional="hide"/>
+                <field name="is_key" widget="boolean_toggle"/>
+                <field name="note" optional="hide"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_contract_material_search" model="ir.ui.view">
+        <field name="name">construction.contract.material.search</field>
+        <field name="model">construction.contract.material</field>
+        <field name="arch" type="xml">
+            <search string="契約材料清單">
+                <field name="name" filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"
+                       string="材料名稱／代碼"/>
+                <field name="project_id"/>
+                <filter name="filter_key" string="重要材料" domain="[('is_key', '=', True)]"/>
+                <filter name="filter_not_key" string="非重要材料" domain="[('is_key', '=', False)]"/>
+                <filter name="filter_archived" string="已封存" domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_project" string="工程案件" context="{'group_by': 'project_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_contract_material" model="ir.actions.act_window">
+        <field name="name">契約材料清單</field>
+        <field name="res_model">construction.contract.material</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_contract_material_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+    </record>
+</odoo>

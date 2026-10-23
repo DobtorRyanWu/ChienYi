@@ -531,13 +531,20 @@
                             </div>
                         </div>
 
+                        <t t-if="request.params.get('error') == 'invalid_qty'">
+                            <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                                <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                                <div class="cy-event-body"><div class="cy-event-desc">材料本日數量必須是大於或等於 0 的數字，整筆未儲存，請修正後再送出。</div></div>
+                            </div>
+                        </t>
+
                         <t t-if="is_edit">
                             <div class="cy-event-card cy-event-info" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon"><i class="fa fa-info-circle"/></span>
                                 <div class="cy-event-body">
                                     <div class="cy-event-title">編輯模式</div>
                                     <div class="cy-event-desc">
-                                        施工項目編輯請至後台操作。本頁可修改文字欄位、追加照片。
+                                        施工項目編輯請至後台操作。本頁可修改文字欄位、約定重要材料的本日數量、追加照片。
                                     </div>
                                 </div>
                             </div>
@@ -606,6 +613,31 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- 工地材料（約定重要材料）：名稱／單位／契約數量／累計唯讀，只填本日數量 -->
+                        <t t-if="form_materials">
+                            <div class="cy-section-title" style="margin-bottom: 8px;">
+                                <span>工地材料（約定重要材料）</span>
+                            </div>
+                            <t t-foreach="form_materials" t-as="fm">
+                                <div class="cy-card" style="margin-bottom: 10px;">
+                                    <div class="cy-card-body">
+                                        <div style="font-weight: 700; margin-bottom: 6px;"><t t-esc="fm.name"/></div>
+                                        <div style="display: flex; gap: 16px; font-size: 0.85rem; flex-wrap: wrap; color: var(--wb-t2); margin-bottom: 8px;">
+                                            <span>單位：<strong><t t-esc="fm.unit or '-'"/></strong></span>
+                                            <span>契約：<strong><t t-esc="fm.contract_qty"/></strong></span>
+                                            <span>累計：<strong><t t-esc="fm.cumulative_qty"/></strong></span>
+                                        </div>
+                                        <!-- 表單只列連結契約材料的列（新增：重要材料；編輯：本日誌的連結列），一律可填 -->
+                                        <label class="form-label" style="font-size: 0.85rem;">本日數量</label>
+                                        <input type="number" step="any" min="0" inputmode="decimal"
+                                               class="form-control" placeholder="0"
+                                               t-att-name="fm.input_name"
+                                               t-att-value="fm.daily_qty or None"/>
+                                    </div>
+                                </div>
+                            </t>
+                        </t>
 
                         <!-- 工作摘要（CollapseSection defaultOpen）-->
                         <div class="cy-section-title" style="cursor: pointer;" data-collapse-toggle="sec_summary">

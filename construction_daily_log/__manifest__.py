@@ -18,7 +18,14 @@
     #        （page 的 sequence 屬性在 Odoo 18 不參與排序，只能靠 XML 文件順序）
     # 2.9.2: 日誌的「報備單（通報單）」下拉排除退單的通報單
     #        （construction_notification_slip 18.0.3.0.0 新增退單狀態）
-    "version": "18.0.2.9.2",
+    # 2.10.0: 新增「契約材料清單」（construction.contract.material，每案一份，來源是 PCCES
+    #         契約檔的契約資源統計表）。標為「重要材料」的項目在建立施工日誌時自動帶入第三節
+    #         「工地材料管理概況」（名稱/單位/契約數量），現場只填本日數量；連結列的累計由
+    #         daily.log.material 依日期顯式重算（補登、刪除、改日期都會重算；未連結的人工手填列
+    #         完全不受影響）。日誌新增「帶入重要材料」按鈕；清單新增「套用到未鎖定日誌」。
+    #         清單有全域公司隔離規則、前台群組沒有讀權（前台一律 sudo 讀）：jt 是多家公司共用的庫，
+    #         清單含契約單價。
+    "version": "18.0.2.10.0",
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """
@@ -53,12 +60,14 @@
     "data": [
         "security/security.xml",
         "security/ir.model.access.csv",
+        "security/contract_material_security.xml",
         "data/mail_activity_data.xml",
         "data/daily_log_cron.xml",
         "wizard/daily_log_unlock_wizard_views.xml",
         "wizard/daily_log_add_items_wizard_views.xml",
         "wizard/weekly_schedule_add_items_wizard_views.xml",
         "views/daily_log_views.xml",
+        "views/contract_material_views.xml",
         "views/construction_weekly_schedule_views.xml",
         "views/menu.xml",
         "report/daily_log_report.xml",
