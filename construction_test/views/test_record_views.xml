@@ -188,6 +188,44 @@
                                    context="{'kanban_view_ref': 'construction_photo.supervision_photo_view_kanban_embedded',
                                              'form_view_ref': 'construction_photo.supervision_photo_view_form_embedded'}"/>
                         </page>
+                        <page string="抽(查)驗紀錄表" name="inspection_record">
+                            <!-- 新北契約附表11「材料設備品質抽(查)驗紀錄表」要印的欄位 -->
+                            <group>
+                                <group string="材料">
+                                    <field name="supplier_name"/>
+                                    <field name="storage_location"/>
+                                    <field name="factory_cert_docs"/>
+                                </group>
+                                <group string="抽(查)驗方式">
+                                    <field name="method_factory"/>
+                                    <field name="method_catalog"/>
+                                    <field name="method_site"/>
+                                    <field name="method_lab"/>
+                                    <field name="method_document"/>
+                                    <field name="method_other_note"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="取樣與試驗">
+                                    <field name="sample_keep_location"/>
+                                    <field name="sample_send_date"/>
+                                    <field name="test_date"/>
+                                    <field name="concrete_pour_location"/>
+                                </group>
+                                <group string="試驗機構">
+                                    <field name="lab_name"/>
+                                    <field name="test_report_no"/>
+                                </group>
+                            </group>
+                            <field name="value_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="item_name"/>
+                                    <field name="standard_value"/>
+                                    <field name="test_value"/>
+                                </list>
+                            </field>
+                        </page>
                         <page string="備註" name="notes">
                             <field name="note" placeholder="輸入備註說明..."/>
                         </page>

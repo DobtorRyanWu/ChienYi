@@ -8,3 +8,4 @@ from . import test_defect_parsers
 from . import test_water_level_window
 from . import test_inspection_type_docx_upload
 from . import test_daily_log_materials  # 前台工地材料：本日數量、權限、鎖定
+from . import test_daily_log_actual_progress  # 前台日誌可填累計實際進度

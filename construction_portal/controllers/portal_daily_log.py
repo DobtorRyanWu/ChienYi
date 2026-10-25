@@ -59,6 +59,30 @@ def _parse_material_qtys(post, prefix):
     return qtys
 
 
+# 累計實際進度(%) 的上限（百分比）
+MAX_ACTUAL_PROGRESS = 100.0
+_INVALID = object()
+
+
+def _parse_actual_progress(raw):
+    """前台「累計實際進度(%)」：空白＝這天沒更新（存 0，列印時沿用前一次有填的值，
+    見 construction_template/utils/progress.py）；不是 0～100 的數字（含 nan/inf、
+    multipart 檔案欄位）回 _INVALID。"""
+    if raw is None:
+        return 0.0
+    if not isinstance(raw, str):
+        return _INVALID
+    text = raw.strip()
+    try:
+        value = float(text) if text else 0.0
+    except ValueError:
+        return _INVALID
+    # NaN 的比較一律為 False、inf 超過上限，都會被這一行擋下
+    if not 0 <= value <= MAX_ACTUAL_PROGRESS:
+        return _INVALID
+    return value
+
+
 class DailyLogRoutesMixin:
     def _daily_log_form_materials(self, project, log=None):
         """表單用的材料清單（唯讀欄位 + 一個本日數量輸入）。
@@ -527,6 +551,10 @@ class DailyLogRoutesMixin:
         if key_qtys is None:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/new?error=invalid_qty')
+        actual_progress = _parse_actual_progress(post.get('actual_progress'))
+        if actual_progress is _INVALID:
+            return request.redirect(
+                f'/construction/{project_id}/daily-log/new?error=invalid_progress')
 
         # 基本欄位
         vals = {
@@ -544,6 +572,7 @@ class DailyLogRoutesMixin:
             'subcontractor_notification': post.get('subcontractor_notification', ''),
             'important_matters': post.get('important_matters', ''),
             'notes': post.get('notes', ''),
+            'actual_progress': actual_progress,
         }
 
         # 通報單連結（預約式）
@@ -746,6 +775,11 @@ class DailyLogRoutesMixin:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}/edit?error=invalid_qty'
             )
+        actual_progress = _parse_actual_progress(post.get('actual_progress'))
+        if actual_progress is _INVALID:
+            return request.redirect(
+                f'/construction/{project_id}/daily-log/{log.id}/edit?error=invalid_progress'
+            )
         own_linked_ids = set(log.material_ids.filtered('catalog_item_id').ids)
         material_cmds = [
             (1, row_id, {'daily_qty': qty})
@@ -766,6 +800,7 @@ class DailyLogRoutesMixin:
             'subcontractor_notification': post.get('subcontractor_notification', ''),
             'important_matters': post.get('important_matters', ''),
             'notes': post.get('notes', ''),
+            'actual_progress': actual_progress,
         }
         if material_cmds:
             # 併進同一次 write：14 天鎖定在 write() 判斷，材料指令也要被它擋得到

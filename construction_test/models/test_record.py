@@ -216,6 +216,33 @@ class TestRecord(models.Model):
         tracking=True,
         help='舊系統欄位: archiveNumber')
 
+    # === 新北契約附表11「材料設備品質抽(查)驗紀錄表」（2026-10-25）===
+    # 系統原本只記到進場、抽樣、結果；附表11 另要以下欄位。全部可空，舊資料不受影響。
+    supplier_name = fields.Char(string='供料廠商')
+    factory_cert_docs = fields.Text(string='材料設備出廠應提供證明文件')
+    storage_location = fields.Char(string='材料堆置地點')
+    # 抽(查)驗方式：紙本是可複選的勾框，一格一個欄位（比照送審管制的 has_catalog 寫法）；
+    # 「其他」不另設勾選，有填說明就印勾
+    method_factory = fields.Boolean(string='駐廠檢驗')
+    method_catalog = fields.Boolean(string='型錄樣品審核')
+    method_site = fields.Boolean(string='工地現場檢驗')
+    method_lab = fields.Boolean(string='材料試驗室檢驗')
+    method_document = fields.Boolean(string='書面審核')
+    method_other_note = fields.Char(string='其他抽(查)驗方式')
+    sample_keep_location = fields.Char(string='樣品保存或養護地點')
+    sample_send_date = fields.Date(string='送樣日期')
+    test_date = fields.Date(
+        string='試驗日期',
+        help='試驗機構實際試驗的日期；與「結果判定日期」不同')
+    concrete_pour_location = fields.Char(string='混凝土澆置位置')
+    lab_name = fields.Char(string='試驗機構名稱')
+    # 不沿用「歸檔編號」：dev 實值 81 筆裡 65 筆是「111.05.03簽奉核准…」這類簽核紀錄，
+    # 只有 2 筆像報告編號；檢(試)驗管制總表也另印歸檔編號一欄
+    test_report_no = fields.Char(string='試驗報告編號')
+    value_ids = fields.One2many(
+        'supervision.test.record.value', 'record_id',
+        string='試驗項目及數據')
+
     # === 附件 ===
     attachment_ids = fields.Many2many(
         'ir.attachment',

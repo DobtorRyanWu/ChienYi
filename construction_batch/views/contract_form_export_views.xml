@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 新北市政府工程契約附表6-2「計畫送審核章表」：計畫名稱、提報次數與日期、監造審查與機關核定的日期文號 -->
+    <record id="view_plan_control_form_export" model="ir.ui.view">
+        <field name="name">supervision.plan.control.form.export.template</field>
+        <field name="model">supervision.plan.control</field>
+        <field name="inherit_id" ref="construction_review.view_plan_control_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_plan_review_stamp"
+                        string="匯出計畫送審核章表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        help="計畫送審核章表（裝訂於計畫首頁）：帶入計畫名稱、提報次數與日期、監造審查合格與機關核定的日期文號"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 新北市政府工程契約附表7「材料設備申請及審查紀錄表」 -->
+    <record id="view_review_application_form_export" model="ir.ui.view">
+        <field name="name">supervision.review.application.form.export.template</field>
+        <field name="model">supervision.review.application</field>
+        <field name="inherit_id" ref="construction_review.view_review_application_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_export_material_review_record"
+                        string="匯出材料設備申請及審查紀錄表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        help="帶入材料名稱、送審日期、送審項目與提供文件勾選、審查意見與結果；系統沒有記的欄位（供料廠商、送審次數、細項規格比對）留白手填"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

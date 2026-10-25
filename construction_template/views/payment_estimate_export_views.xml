@@ -31,6 +31,14 @@
                         icon="fa-file-word-o"
                         context="{'template_type': 'invoice_photo'}"
                         help="本期區間內的施工照片，一頁兩張、日期浮水印"/>
+                <!-- 2026-10-25 新北契約第五條附件一、附件二：估驗時要附的兩張表放同一份 Word -->
+                <button name="action_export_estimate_template"
+                        string="匯出進度報告表（估驗附件）"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        context="{'template_type': 'estimate_progress_report'}"
+                        help="工程施工進度報告表（截至本期預定／實際進度、超前落後、剩餘工期）＋承攬廠商品質管理文件查對表"/>
                 <!-- 2026-10-19 使用者裁示：「匯出進度報告」暫時隱藏（3.5.4）。
                      這份以估驗單為期間錨點，工項清單就是估驗單上的明細：
                      匯入建的估驗單只有工作簿有填的工項、契約變更後的「同步估驗計價工項」

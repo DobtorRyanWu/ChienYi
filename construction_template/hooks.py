@@ -57,14 +57,37 @@ TYPES = [
     # EAGLE 的全域估驗樣板（原系統打包成 zip；這裡拆成兩份各自下載）
     ('invoice_detail', '估驗詳細表', 'xlsx', '任泰第二期 EAGLE 樣板匯出'),
     ('invoice_photo', '估驗照片', 'docx', '任泰第二期 EAGLE 樣板匯出'),
+    # 2026-10-25 從新北市政府工程契約原表切出（tools/ntpc_forms/build_forms.py 的 neutral 版：
+    # 拿掉新北的附表編號，機關名稱用案件的主辦機關）
+    ('material_inspection_record', '材料設備品質抽(查)驗紀錄表', 'docx',
+     '新北市政府工程契約 附表11（承攬廠商品質管制規定）'),
+    ('estimate_progress_report', '工程施工進度報告表（估驗附件）', 'docx',
+     '新北市政府工程契約 第五條附件一、附件二'),
+    # 3.7.0 契約附表（只帶表頭；附表6-2、附表7 有送審資料可帶）
+    ('plan_review_opinion_construction', '施工計畫審查意見表', 'docx', '新北市政府工程契約 附表4'),
+    ('plan_review_opinion_quality', '品質計畫審查意見表', 'docx', '新北市政府工程契約 附表5'),
+    ('plan_review_stamp', '計畫送審核章表', 'docx', '新北市政府工程契約 附表6-2'),
+    ('material_review_record', '材料設備申請及審查紀錄表', 'docx', '新北市政府工程契約 附表7'),
+    ('qc_staff_register', '廠商品管人員登錄表', 'docx', '新北市政府工程契約 附表8-1'),
+    ('site_staff_register', '工地相關人員登錄表', 'docx', '新北市政府工程契約 附表8-2'),
+    ('quality_evaluation', '施工品質評量表', 'docx', '新北市政府工程契約 契約附表八'),
+    ('engineer_supervision_record', '專任工程人員督察紀錄表', 'docx', '新北市政府工程契約 附表10-1'),
+    ('technician_sign_sheet', '施工日誌之技術士簽章表', 'docx', '新北市政府工程契約 附表9-1 附件'),
+    ('soil_transport_attachments', '土石方運送附件（照片黏貼頁）', 'docx', '新北市政府工程契約 第九條附件一、二、四'),
 ]
 
 
-def seed_default_templates(env):
+def seed_default_templates(env, types=None, replaceable=None):
     """冪等建立／更新 TYPES 列的系統預設樣板。
 
     重跑只會 update 既有記錄，不會產生重複——unique_default_per_type 約束
     （template_type + company_id + is_default）本身也擋著。
+
+    :param types: 只處理這些 template_type（None＝全部；安裝時用）
+    :param replaceable: {template_type: {sha1, ...}}——既有系統預設的附件 checksum 在清單裡
+        （＝之前出貨的版本）才覆蓋；不在清單裡代表有人在系統裡換過，**略過並記 WARNING**，
+        升級不能默默蓋掉別人換過的檔（2026-10-25 紅隊審查）。None＝不檢查（安裝時沒有既有記錄）。
+        找不到既有記錄時一律新建；同一類型的系統預設不只一筆（含已封存）時略過並記 WARNING。
     """
     company = env.ref('base.main_company', raise_if_not_found=False)
     if not company:
@@ -78,6 +101,8 @@ def seed_default_templates(env):
 
     created, updated, skipped = 0, 0, 0
     for ttype, label, ext, note in TYPES:
+        if types is not None and ttype not in types:
+            continue
         path = os.path.join(BLANK_DIR, f'{ttype}.{ext}')
         if not os.path.isfile(path):
             _logger.warning('預設樣板 %s：找不到檔案 %s，略過', ttype, path)
@@ -92,6 +117,24 @@ def seed_default_templates(env):
             ('is_default', '=', True),
             ('company_id', '=', company.id),
         ], limit=1)
+
+        if replaceable is not None:
+            # 已封存的也要算：不然封存的那筆會讓 create 撞 UNIQUE、整個 -u 中止
+            all_defaults = Template.with_context(active_test=False).search([
+                ('template_type', '=', ttype), ('is_default', '=', True)])
+            if len(all_defaults) > 1 or (all_defaults and not existing):
+                _logger.warning(
+                    '預設樣板 %s：系統預設有 %s 筆（含封存或掛在別家公司），不自動處理，請人工確認',
+                    ttype, len(all_defaults))
+                skipped += 1
+                continue
+            if existing and existing.attachment_id.checksum not in replaceable.get(ttype, set()):
+                _logger.warning(
+                    '預設樣板 %s：系統裡的檔（checksum %s）不是已知的出貨版本，可能有人換過，'
+                    '不覆蓋；要更新請手動上傳 data/templates_blank/%s.%s',
+                    ttype, existing.attachment_id.checksum, ttype, ext)
+                skipped += 1
+                continue
 
         att = Attachment.create({
             'name': fname,

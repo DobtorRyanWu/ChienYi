@@ -29,8 +29,10 @@ ESTIMATE_DOWNLOADABLE_STATES = ('approved', 'archived')
 # progress_schedule 例外：它的樣板刻意只帶工程名稱與工期（工項留白供手填），
 # 沒有來源記錄也沒有日期概念——見 mappings/progress_schedule.py 的說明。
 PROJECT_LEVEL_TYPES = ('defect', 'self_inspection', 'test', 'review', 'plan',
-                       'progress_schedule')
-NO_FILTER_TYPES = ('progress_schedule',)
+                       'progress_schedule', 'contract_form')
+# contract_form：契約附的空白表單，只帶表頭（工程名稱、契約編號、機關、廠商…），
+# 跟 progress_schedule 一樣沒有來源記錄可篩
+NO_FILTER_TYPES = ('progress_schedule', 'contract_form')
 
 # 「一筆記錄產一個檔」的類型。多筆時打包成 zip。
 RECORD_SOURCES = {
@@ -114,6 +116,7 @@ TYPE_LABELS = {
     'estimate': '估驗計價表',
     'progress_report': '進度報告',
     'progress_schedule': '工程預定進度表',
+    'contract_form': '契約附表',
 }
 
 
@@ -143,6 +146,8 @@ class BatchDownloadWizard(models.TransientModel):
         ('estimate', '估驗計價表'),
         ('progress_report', '進度報告'),
         ('progress_schedule', '工程預定進度表'),
+        # 2026-10-25 新北市政府工程契約附表（只帶表頭，其餘現場手填）
+        ('contract_form', '契約附表'),
     ], string='下載類型', required=True, default='daily_log',
        help='選擇要下載的文件類型')
 
@@ -180,6 +185,18 @@ class BatchDownloadWizard(models.TransientModel):
         ('sub_plan', '分項計畫送審管制總表'),
         ('drawing', '施工圖送審管制總表'),
     ], string='計畫書表單', default='plan')
+
+    # 契約附表：每張一種樣板類型，表頭共用 construction_template/mappings/project_header.py
+    contract_form_variant = fields.Selection([
+        ('plan_review_opinion_construction', '施工計畫審查意見表'),
+        ('plan_review_opinion_quality', '品質計畫審查意見表'),
+        ('qc_staff_register', '廠商品管人員登錄表'),
+        ('site_staff_register', '工地相關人員登錄表'),
+        ('engineer_supervision_record', '專任工程人員督察紀錄表'),
+        ('technician_sign_sheet', '施工日誌之技術士簽章表'),
+        ('quality_evaluation', '施工品質評量表'),
+        ('soil_transport_attachments', '土石方運送附件（照片黏貼頁）'),
+    ], string='契約附表', default='plan_review_opinion_construction')
 
     # === 日期區間篩選 ===
     date_from = fields.Date(
@@ -277,6 +294,7 @@ class BatchDownloadWizard(models.TransientModel):
             'daily_log': self.daily_log_variant,
             'estimate': self.estimate_variant,
             'defect': self.defect_variant,
+            'contract_form': self.contract_form_variant,
         }.get(self.download_type)
         return variant or FIXED_TEMPLATE_TYPES[self.download_type]
 
@@ -288,9 +306,12 @@ class BatchDownloadWizard(models.TransientModel):
         對照表沒收到就印計畫書（見 mappings/plan_control.py）。
         """
         self.ensure_one()
+        # 不篩日期的類型（畫面上起訖日期是藏起來的）不能帶日期：先選別的類型填了截止日再切過來，
+        # 欄位看不到、值還在，契約附表的填表日期與「截至今天」的進度會靜靜算在舊日期（2.10.0 審查）
+        dated = self.download_type not in NO_FILTER_TYPES
         return {
-            record_filter.CTX_FROM: self.date_from,
-            record_filter.CTX_TO: self.date_to,
+            record_filter.CTX_FROM: self.date_from if dated else False,
+            record_filter.CTX_TO: self.date_to if dated else False,
             'plan_control_type': self.plan_variant,
         }
 
@@ -619,6 +640,9 @@ class BatchDownloadWizard(models.TransientModel):
         self.ensure_one()
         label = TYPE_LABELS[self.download_type]
 
+        if self.download_type == 'contract_form':
+            raise UserError('「%s」只帶入表頭（工程名稱、契約編號、機關、廠商等），沒有可預覽的記錄。'
+                            % label)
         if self.download_type in NO_FILTER_TYPES:
             raise UserError(
                 '「%s」只帶入工程名稱與預定工期（工項需自行填寫），沒有可預覽的記錄。'

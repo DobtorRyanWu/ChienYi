@@ -42,23 +42,35 @@ EOCD_SIG = 0x06054b50
 FLAG_DATA_DESCRIPTOR = 0x08
 
 
-def patch(src, dst, updates, additions=None):
+def patch(src, dst, updates, additions=None, removals=()):
     """updates: {entry 名稱: 新的未壓縮 bytes}；未列出的 entry 原封複製。
 
     additions: {entry 名稱: 未壓縮 bytes} —— 原檔沒有的新 entry（例如分頁時
     複製出來的 xl/worksheets/sheet2.xml）。附加在既有 entry 之後，
     不影響前面任何一個 entry 的位元組。
+
+    removals: 要整個拿掉的 entry 名稱（例如從整份契約切出單張表單時，用不到的
+    頁首頁尾、圖片）。名稱必須真的存在，打錯字就拋錯——不能默默留著。
+    同一個名稱不能同時出現在 updates 與 removals。
     """
     with open(src, 'rb') as fh:
         blob = fh.read()
     with zipfile.ZipFile(src) as zin:
         infos = zin.infolist()
+    removals = set(removals)
+    missing = removals - {i.filename for i in infos}
+    if missing:
+        raise ValueError(f'要移除的 entry 不存在：{sorted(missing)}')
+    if removals & set(updates):
+        raise ValueError(f'同時要改又要刪：{sorted(removals & set(updates))}')
 
     out = bytearray()
     central = bytearray()
     count = 0
 
     for info in infos:
+        if info.filename in removals:
+            continue
         off = info.header_offset
         (sig, ver, flag, comp, mtime, mdate, crc, csize, usize,
          fnlen, extralen) = struct.unpack('<IHHHHHIIIHH', blob[off:off + 30])

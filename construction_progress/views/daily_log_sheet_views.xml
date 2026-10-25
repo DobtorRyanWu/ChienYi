@@ -32,6 +32,11 @@
                             <field name="daily_actual_progress"
                                 string="本日實際進度(%)"
                                 readonly="state != 'draft'"/>
+                            <!-- 累計實際進度：日誌與進度報告表列印時取「當天或之前最後一次有填的值」
+                                 （construction_template/utils/progress.py）；以前只有 xlsm 匯入會寫 -->
+                            <field name="actual_progress"
+                                string="累計實際進度(%)"
+                                readonly="state != 'draft'"/>
                             <field name="daily_progress_reference"
                                 string="參考值 (%)"
                                 readonly="1"

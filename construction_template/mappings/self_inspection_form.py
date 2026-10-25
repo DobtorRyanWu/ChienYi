@@ -65,6 +65,7 @@ TIMING_SLOTS = {
     'afterConstruction': 'after',
 }
 TIMING_MARK = 'V'          # 與 EAGLE 原系統一致（不是 ✓）
+BOX_ON, BOX_OFF = '■', '□'   # timingBox：樣板本身就印「□施工前」這種勾框字時用
 
 PHOTOS_PER_PAGE = 2        # 照片頁每頁兩張，同 EAGLE 的 evenImagesIndex
 
@@ -87,11 +88,16 @@ TOKEN_SCHEMA = {
         'no', 'name', 'subContractor', 'position', 'inspectedAt',
         'inspectionTiming', 'stages', 'measures', 'images', 'imagePages',
         'evenImagesIndex',
+        # 2026-10-25 新北固定清單檢查表（施工前安衛、環境清潔、汛期、生態）用
+        'inspector', 'defectCount', 'note', 'timingBox',
     },
     'inspection.inspectionTiming': set(TIMING_SLOTS),
+    'inspection.timingBox': set(TIMING_SLOTS),
     'inspection.stages[]': {'name', 'items'},
     'inspection.stages[].items[]': {
-        'name', 'standard', 'situation', 'result', 'remark'},
+        'name', 'standard', 'situation', 'result', 'remark',
+        # 分欄勾記：'V' 或空白（與量測列的 passMark/failMark 同義）
+        'passMark', 'defectMark', 'naMark'},
     'inspection.measures[]': {'title', 'lines'},
     'inspection.measures[].lines[]': {
         'no', 'text', 'result', 'passMark', 'failMark'},
@@ -114,6 +120,29 @@ def _timing_codes(record):
     return set(record.inspection_timing_ids.mapped('legacy_code')) - {False, ''}
 
 
+def checklist_item(name='', standard='', situation='', check_result=None, remark=''):
+    """一個檢查項目給樣板的樣子；套印（_stages）與「測試樣板」（_test_context）共用。
+
+    新北的固定清單檢查表把結果印成分開的欄（合格／不合格、不適用／是／否），
+    所以除了單一符號 result，再給三個勾記位置——樣板若改用
+    `{% if item.result == '○' %}` 自己判斷，欄位守門驗不到 block if，拼錯只會整欄空白。
+    """
+    return SimpleNamespace(
+        name=name, standard=standard, situation=situation,
+        result=RESULT_MARKS.get(check_result, '') if check_result else '',
+        remark=remark,
+        passMark=TIMING_MARK if check_result == 'pass' else '',
+        defectMark=TIMING_MARK if check_result == 'defect' else '',
+        naMark=TIMING_MARK if check_result == 'na' else '',
+    )
+
+
+def timing_box(codes):
+    """檢查時機的勾框版（■／□），給樣板自己印了「□施工前 □施工中」那種字的檢查表"""
+    return SimpleNamespace(**{
+        slot: (BOX_ON if code in codes else BOX_OFF) for slot, code in TIMING_SLOTS.items()})
+
+
 def _stages(record):
     """依段落分群的檢查項目。
 
@@ -132,11 +161,11 @@ def _stages(record):
             index[key] = SimpleNamespace(
                 name=line.stage_id.name or '', items=[])
             groups.append(index[key])
-        index[key].items.append(SimpleNamespace(
+        index[key].items.append(checklist_item(
             name=line.check_item or '',
             standard=line.design_standard or '',
             situation=line.actual_result or '',
-            result=RESULT_MARKS.get(line.check_result, ''),
+            check_result=line.check_result,
             remark=line.note or '',
         ))
     return groups
@@ -250,13 +279,8 @@ def _merge_measures_into_stages(stages, measures, probe_result):
     merged = list(stages)
     for offset, (title, row_count, stage_index) in enumerate(blocks):
         block = measures[offset] if offset < len(measures) else None
-        items = [SimpleNamespace(
-            name=title,
-            standard=line.text,
-            situation='',
-            result='',
-            remark='',
-        ) for line in (block.lines if block else [])]
+        items = [checklist_item(name=title, standard=line.text)
+                 for line in (block.lines if block else [])]
         # 🔴 量測列要**補空白**補到樣板的列數。
         # 紙本預印 8 列、實際只量了 2 處是常態（09-09 的裁示：空列＝沒有記錄，
         # 只存實填的），但硬編樣板的 stages[2] 寫死要 items[0..7]——不補的話
@@ -265,8 +289,7 @@ def _merge_measures_into_stages(stages, measures, probe_result):
         # 反過來，實填**超過**樣板列數時不補也不截斷，交給守門擋（那才是真的
         # 裝不下——多出來的量測記錄會靜靜消失）。
         while len(items) < row_count:
-            items.append(SimpleNamespace(
-                name='', standard='', situation='', result='', remark=''))
+            items.append(checklist_item())
         while len(merged) <= stage_index:
             merged.append(SimpleNamespace(name='', items=[]))
         merged[stage_index] = SimpleNamespace(
@@ -310,6 +333,10 @@ def build_context(record, probe_result=None):
         }),
         stages=build_stages(record, probe_result),
         measures=_measures(record),
+        inspector=record.inspector_id.name or '',
+        defectCount=len(record.checklist_ids.filtered(lambda l: l.check_result == 'defect')),
+        note=record.note or '',
+        timingBox=timing_box(codes),
         # 🔴 舊樣板的照片頁是用**索引**取圖（images[$evenIndex] 與
         # images[$evenIndex + 1]），張數是奇數時最後一頁的第二格會越界，
         # Jinja2 的 Undefined 一被存取屬性就拋 UndefinedError，整份套印失敗

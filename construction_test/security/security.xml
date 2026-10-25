@@ -34,6 +34,20 @@
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
 
+        <!-- 試驗項目及數據（附表11）：全域公司隔離。規則不會從母表繼承，而母表的
+             「管理者完整存取」(1=1) 在多家監造公司共用的庫裡等於沒有隔離——子表不跟著放寬。
+             前台沒有檢試驗填寫頁，ir.model.access.csv 也沒給前台角色權限。 -->
+        <record id="rule_test_record_value_company" model="ir.rule">
+            <field name="name">檢(試)驗試驗數據: 公司隔離</field>
+            <field name="model_id" ref="model_supervision_test_record_value"/>
+            <field name="domain_force">[
+                '|',
+                ('company_id', '=', False),
+                ('company_id', 'in', company_ids)
+            ]</field>
+            <field name="global" eval="True"/>
+        </record>
+
         <!-- 系統管理者完整存取 -->
         <record id="rule_admin_full_access_test_standard" model="ir.rule">
             <field name="name">管理者: 檢試驗項目完整存取</field>

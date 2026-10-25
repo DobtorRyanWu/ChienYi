@@ -267,6 +267,13 @@
                             <span class="cy-info-label">剩餘工期</span>
                             <span class="cy-info-value"><t t-esc="log.remaining_duration"/> 日</span>
                         </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">累計實際進度</span>
+                            <span class="cy-info-value">
+                                <t t-if="log.actual_progress"><t t-esc="'%.2f' % log.actual_progress"/> %</t>
+                                <t t-else="">－（今天沒更新）</t>
+                            </span>
+                        </div>
                     </div>
 
                     <t t-if="log_lines">
@@ -531,6 +538,12 @@
                             </div>
                         </div>
 
+                        <t t-if="request.params.get('error') == 'invalid_progress'">
+                            <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                                <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                                <div class="cy-event-body"><div class="cy-event-desc">累計實際進度必須是 0～100 的數字，整筆未儲存，請修正後再送出。</div></div>
+                            </div>
+                        </t>
                         <t t-if="request.params.get('error') == 'invalid_qty'">
                             <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
@@ -646,6 +659,12 @@
                         </div>
                         <div id="sec_summary">
                             <textarea name="work_summary" class="form-control" placeholder="今日施工重點摘要..." style="margin-bottom: 16px;"><t t-esc="log and log.work_summary or ''"/></textarea>
+                            <!-- 累計實際進度：空白＝今天沒更新，列印日誌與進度報告表時沿用前一次有填的值 -->
+                            <label class="form-label" style="font-size: 0.85rem;">累計實際進度（%）</label>
+                            <input type="number" name="actual_progress" class="form-control" min="0" max="100" step="0.01" inputmode="decimal"
+                                   t-att-value="(log and log.actual_progress) or ''"
+                                   placeholder="截至今天的累計，例：12.5；沒更新可留空"
+                                   style="margin-bottom: 16px;"/>
                         </div>
 
                         <!-- 安全衛生（CollapseSection defaultOpen=false）-->

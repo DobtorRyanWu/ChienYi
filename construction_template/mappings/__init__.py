@@ -22,6 +22,13 @@
         estimate_report（工程估驗計價單，佔位符——2026-08-05 重做樣板）
         progress_schedule（預定進度表，僅表頭——工項與甘特無資料來源）
         acceptance_report / material_test（docx，2026-08-05 重做樣板）
+        material_inspection_record（附表11 材料設備品質抽(查)驗紀錄表，docx，單筆）
+        estimate_progress_report（估驗附件：工程施工進度報告表＋品質管理文件查對表，docx）
+        ——兩者 2026-10-25 從新北市政府工程契約原表切出（tools/ntpc_forms/）
+        契約附表（3.7.0）：plan_review_opinion_construction／_quality、qc_staff_register、
+        site_staff_register、quality_evaluation、engineer_supervision_record、
+        technician_sign_sheet、soil_transport_attachments（都 import project_header，只帶表頭）、
+        plan_review_stamp（附表6-2，計畫送審）、material_review_record（附表7，材料送審）
 待建立：progress_report（等 EAGLE 版樣板）
 """
 
@@ -41,3 +48,16 @@ from . import estimate_report
 from . import progress_schedule
 from . import acceptance_report
 from . import material_test
+from . import material_inspection_record
+from . import estimate_progress_report
+from . import project_header
+from . import plan_review_opinion_construction
+from . import plan_review_opinion_quality
+from . import plan_review_stamp
+from . import material_review_record
+from . import qc_staff_register
+from . import site_staff_register
+from . import quality_evaluation
+from . import engineer_supervision_record
+from . import technician_sign_sheet
+from . import soil_transport_attachments

@@ -17,8 +17,9 @@ def build_context(record):
     return {
         # 試驗名稱：優先用檢試驗項目的名稱，沒有就用記錄本身的名稱
         'testName': (standard.display_name if standard else '') or record.name or '',
-        # 報告編號：歸檔編號就是報告上的編號
-        'reportNo': record.archive_number or record.name or '',
+        # 報告編號：優先用 construction_test 2.7.0 新增的「試驗報告編號」。舊資料沒有，
+        # 退回歸檔編號（那欄實際上多半存簽核紀錄，見 test_record.test_report_no 的說明）
+        'reportNo': record.test_report_no or record.archive_number or record.name or '',
     }
 
 

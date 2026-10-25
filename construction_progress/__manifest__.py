@@ -4,7 +4,9 @@
 
 {
     "name": "工程監造系統 - 進度表管理",
-    "version": "18.0.1.3.0",
+    # 1.4.0: 施工日誌表單「進度」區顯示「累計實際進度(%)」（actual_progress，原本隱藏；
+    #        列印取當天或之前最後一次有填的值，見 construction_template 3.6.0）
+    "version": "18.0.1.4.0",
     "category": "Construction/Supervision",
     "summary": "工程進度表管理 - 支援每周/每兩周/自訂計算模式",
     "description": """

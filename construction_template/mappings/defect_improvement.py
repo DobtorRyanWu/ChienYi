@@ -38,6 +38,7 @@ MARK = 'ˇ'          # 樣板既有的勾選符號慣例（見送審管制「是
 #   state           draft 草稿 / notified 已通知 / improving 改善中 /
 #                   improved 已改善 / verified 已驗證 / closed 結案
 CLOSED_STATES = ('verified', 'closed')
+BOX_ON, BOX_OFF = '■', '□'   # 新北版樣板的勾選框（舊樣板用上面的 MARK 慣例）
 
 
 def _photo(photos):
@@ -85,6 +86,13 @@ def _record(defect):
         'isTimeout': MARK if defect.is_overdue else '',
         'isUncorrected': MARK if defect.state not in CLOSED_STATES else '',
         'result': defect.improvement_result or '',
+        # 新北契約附表12「不合格品改正紀錄表」用（2026-10-24 加；舊 key 不動）
+        'foundAt': roc_date(defect.found_date),
+        'location': defect.defect_location or '',
+        'recheckAt': roc_date(defect.recheck_date),
+        # 「□改善完成 □未完成改善」：待複查（pending）或沒填時兩格都不勾
+        'doneBox': BOX_ON if defect.recheck_result == 'pass' else BOX_OFF,
+        'undoneBox': BOX_ON if defect.recheck_result == 'fail' else BOX_OFF,
     }
 
 
@@ -111,6 +119,8 @@ def build_context(project):
         'title': contractor or (project.management_company_name or ''),
         'projectContractor': contractor,
         'projectName': project.name or '',
+        # 新北附表12 的「監造廠商」；與 review_control／test_control 的 supervision 同一欄
+        'supervisorCompany': project.management_company_name or '',
         'errorRecords': [_record(d) for d in defects],
     }
 

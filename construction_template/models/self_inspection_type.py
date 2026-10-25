@@ -28,12 +28,14 @@ from odoo.exceptions import UserError
 
 from ..utils import docx_render, template_probe, template_tokens
 from ..mappings import self_inspection_form as mapping
-from ..mappings.self_inspection_form import RESULT_MARKS, TIMING_MARK, TIMING_SLOTS
+from ..mappings.self_inspection_form import TIMING_MARK, TIMING_SLOTS
 
 _logger = logging.getLogger(__name__)
 
 TEMPLATE_TYPE = 'self_inspection_form'
 TEST_WORD = '測試'          # 與舊系統一致：每個細項填「測試」字樣
+# 測試樣板的假結果輪流給：合格／缺失／無此項目（分欄勾記才看得出錯位）
+TEST_RESULTS = ('pass', 'defect', 'na')
 
 
 def _ns(**kwargs):
@@ -69,6 +71,7 @@ class SelfInspectionType(models.Model):
         """假資料：每個細項填「測試」，讓使用者一眼看出哪一格對到哪一項。"""
         self.ensure_one()
         stages, index = [], {}
+        n_items = 0
         for item in self.default_item_ids:
             key = item.stage_id.id or 0
             if key not in index:
@@ -78,12 +81,15 @@ class SelfInspectionType(models.Model):
             # 正是測試樣板要抓的東西（實測回報：下載的檔案看起來完全正常）。
             # 所以：標準欄填**項目名稱**（可與樣板自己印的名稱肉眼對照），
             # 情形欄填**段-項編號**（一眼看出這一格對到第幾段第幾項）。
-            index[key].items.append(_ns(
+            # 結果輪流給合格／缺失／無此項目：全部都是合格的話，分欄勾記永遠是
+            # 「V、空、空」，欄位錯位看不出來（同上面「每格都填測試」的教訓）
+            n_items += 1
+            index[key].items.append(mapping.checklist_item(
                 name=item.name or '',
                 standard=item.check_standard or ('【%s】' % (item.name or '')),
                 situation='%s %d-%d' % (TEST_WORD, len(stages),
                                         len(index[key].items) + 1),
-                result=RESULT_MARKS['pass'],
+                check_result=TEST_RESULTS[(n_items - 1) % len(TEST_RESULTS)],
                 remark=TEST_WORD,
             ))
 
@@ -115,6 +121,10 @@ class SelfInspectionType(models.Model):
                     for slot, code in TIMING_SLOTS.items()}),
                 stages=stages,
                 measures=measures,
+                inspector=TEST_WORD,
+                defectCount=sum(1 for st in stages for it in st.items if it.defectMark),
+                note=TEST_WORD,
+                timingBox=mapping.timing_box(codes),
                 images=[],
                 imagePages=[],
                 evenImagesIndex=[],

@@ -167,6 +167,20 @@ class DocumentTemplate(models.Model):
         # 同一張日誌可依需要匯出監造版或營造版。
         ('daily_log_c1', '施工日誌-第一聯（營造版）'),
         ('daily_log_c2', '施工日誌-第二聯（營造版）'),
+        # 2026-10-25 從新北市政府工程契約原表切出（tools/ntpc_forms/）
+        ('material_inspection_record', '材料設備品質抽(查)驗紀錄表'),
+        ('estimate_progress_report', '工程施工進度報告表（估驗附件）'),
+        # 契約附表（只帶表頭，批次下載中心「契約附表」；6-2／7 在計畫送審、材料送審表單上）
+        ('plan_review_opinion_construction', '施工計畫審查意見表'),
+        ('plan_review_opinion_quality', '品質計畫審查意見表'),
+        ('plan_review_stamp', '計畫送審核章表'),
+        ('material_review_record', '材料設備申請及審查紀錄表'),
+        ('qc_staff_register', '廠商品管人員登錄表'),
+        ('site_staff_register', '工地相關人員登錄表'),
+        ('quality_evaluation', '施工品質評量表'),
+        ('engineer_supervision_record', '專任工程人員督察紀錄表'),
+        ('technician_sign_sheet', '施工日誌之技術士簽章表'),
+        ('soil_transport_attachments', '土石方運送附件（照片黏貼頁）'),
     ], string='樣板類型', required=True, index=True, tracking=True,
        help='選擇此樣板適用的報表類型')
 

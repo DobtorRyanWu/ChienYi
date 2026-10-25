@@ -22,19 +22,22 @@
                         <field name="plan_variant" widget="radio"
                                invisible="download_type != 'plan'"
                                required="download_type == 'plan'"/>
+                        <field name="contract_form_variant"
+                               invisible="download_type != 'contract_form'"
+                               required="download_type == 'contract_form'"/>
                         <field name="output_format" widget="radio"
                                invisible="download_type not in ['daily_log', 'estimate']"/>
                     </group>
                     <group string="篩選條件">
                         <field name="project_id" options="{'no_create': True}"
-                               required="download_type in ['defect', 'self_inspection', 'test', 'review', 'plan', 'progress_schedule']"/>
+                               required="download_type in ['defect', 'self_inspection', 'test', 'review', 'plan', 'progress_schedule', 'contract_form']"/>
                         <field name="company_id" options="{'no_create': True}" groups="base.group_multi_company"/>
                         <field name="date_from"
-                               invisible="download_type == 'progress_schedule'"/>
+                               invisible="download_type in ['progress_schedule', 'contract_form']"/>
                         <field name="date_to"
-                               invisible="download_type == 'progress_schedule'"/>
+                               invisible="download_type in ['progress_schedule', 'contract_form']"/>
                         <field name="record_count" readonly="1"
-                               invisible="download_type == 'progress_schedule'"/>
+                               invisible="download_type in ['progress_schedule', 'contract_form']"/>
                     </group>
                 </group>
 
@@ -48,6 +51,13 @@
                      invisible="state != 'draft' or download_type != 'progress_schedule'">
                     這份樣板<strong>只自動帶入工程名稱與預定工期</strong>，工作項目與甘特長條需自行填寫
                     （Odoo 的進度表是週期 S 曲線，沒有工項工期資料，自動填會產生假的工項清單）。
+                </div>
+
+                <div class="alert alert-info" role="status"
+                     invisible="state != 'draft' or download_type != 'contract_form'">
+                    契約附表（新北市政府工程契約附的空白表單）<strong>只自動帶入表頭</strong>：
+                    工程名稱、契約編號、工程地點、開竣工日期、決標金額、主辦機關、監造單位、承攬廠商等；
+                    人員、審查意見、評分等欄位現場手填。案件有專用版樣板時優先使用。
                 </div>
 
                 <div class="alert alert-warning" role="alert"

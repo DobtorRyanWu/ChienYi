@@ -7,7 +7,7 @@
     # 2.7.3: 修「設了日期區間 + 有記錄日期空白時，按下載跳 UncaughtPromiseError」——
     #        _get_download_action() 缺 views，被塞進 display_notification 的 next 後
     #        不會經過 clean_action 補值，前端 action.views.map 直接掛掉
-    'version': '18.0.2.9.1',  # 2.9.1: 修「開啟報表/下載就 KeyError: None」——2.8.0 的 field=None 只補了讀取端三處，onchange 清空、action_reset 重設仍直接迭代 RECORD_SOURCES；改為統一迭代 SELECTION_FIELDS，並新增 tests/。 2.9.0: 通報單「依篩選條件自動選取」排除退單（construction_notification_slip 18.0.3.0.0 新增退單狀態），手動挑選不受限。 2.8.0: 下載中心新增「自主檢查表（單張）」——一張檢查紀錄一份 Word、多筆打包 zip。它與既有類型有兩點不同：(a) 模型是動態的（一般式/預約式由工程案件的 project_type 決定），所以新增 _record_model() 當單一入口，_get_record_domain/_get_records/_date_source 全部改用它；(b) 樣板來自檢查類型上傳的檔而非 document.template，所以不能沿用「一個專案查一次樣板」的快取，改為逐筆呼叫render_inspection_form()。另外它不提供手動選取（兩式是不同模型，一個 M2M 裝不下），field=None，相關三處都補了 None 判斷。 2.7.2: 預覽摘要拿掉多餘的日期欄位備註
+    'version': '18.0.2.10.0',  # 2.10.0: 新北市政府工程契約附表（construction_template 3.7.0）——下載類型新增「契約附表」（只帶表頭的 8 張：施工計畫／品質計畫審查意見表、品管人員／工地相關人員登錄表、專任工程人員督察紀錄表、施工日誌之技術士簽章表、施工品質評量表、土石方運送附件），工程案件層級、不篩日期；計畫送審表單加「匯出計畫送審核章表」（附表6-2）、材料送審表單加「匯出材料設備申請及審查紀錄表」（附表7）——兩個模型屬 construction_review，construction_template 不依賴它，所以掛在這個模組。不篩日期的類型（契約附表、工程預定進度表）匯出時不帶起訖日期（畫面上藏起來的舊值不能影響填表日期與進度）。 2.9.1: 修「開啟報表/下載就 KeyError: None」——2.8.0 的 field=None 只補了讀取端三處，onchange 清空、action_reset 重設仍直接迭代 RECORD_SOURCES；改為統一迭代 SELECTION_FIELDS，並新增 tests/。 2.9.0: 通報單「依篩選條件自動選取」排除退單（construction_notification_slip 18.0.3.0.0 新增退單狀態），手動挑選不受限。 2.8.0: 下載中心新增「自主檢查表（單張）」——一張檢查紀錄一份 Word、多筆打包 zip。它與既有類型有兩點不同：(a) 模型是動態的（一般式/預約式由工程案件的 project_type 決定），所以新增 _record_model() 當單一入口，_get_record_domain/_get_records/_date_source 全部改用它；(b) 樣板來自檢查類型上傳的檔而非 document.template，所以不能沿用「一個專案查一次樣板」的快取，改為逐筆呼叫render_inspection_form()。另外它不提供手動選取（兩式是不同模型，一個 M2M 裝不下），field=None，相關三處都補了 None 判斷。 2.7.2: 預覽摘要拿掉多餘的日期欄位備註
     'category': 'Construction/Supervision',
     'summary': '報表 / 下載中心：各式正式表單的統一下載入口',
     'description': """
@@ -69,6 +69,8 @@
         'wizard/batch_download_wizard_views.xml',
         # Views
         'views/menu.xml',
+        # 計畫送審、材料送審表單上的契約表單匯出按鈕（附表6-2、附表7）
+        'views/contract_form_export_views.xml',
     ],
     'installable': True,
     'auto_install': False,

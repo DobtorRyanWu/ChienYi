@@ -25,7 +25,34 @@ import logging
 import re
 from types import SimpleNamespace
 
+from jinja2.exceptions import SecurityError
+from jinja2.sandbox import SandboxedEnvironment as _JinjaSandbox
+
+from odoo.models import BaseModel
+
 _logger = logging.getLogger(__name__)
+
+
+class SandboxedEnvironment(_JinjaSandbox):
+    """樣板用的沙箱：再擋掉 Odoo 記錄的一切屬性。
+
+    Jinja2 的沙箱只擋底線開頭的屬性與標了不安全的呼叫，`record.unlink()` 這種公開
+    方法照樣能呼叫。對照表的 context 目前都是純值（dict、SimpleNamespace、字串），
+    這一道是萬一有人把 recordset 放進 context 時的保險——樣板是使用者上傳的。
+    """
+
+    def is_safe_attribute(self, obj, attr, value):
+        if isinstance(obj, BaseModel):
+            # 回 False 的話 Jinja 只會給一個印成空白的 Undefined；樣板是使用者上傳的，
+            # 碰到這種寫法要明確失敗，不要產出一份「看起來正常但缺字」的檔
+            raise SecurityError('樣板不能存取系統記錄（%s.%s）' % (obj._name, attr))
+        return super().is_safe_attribute(obj, attr, value)
+
+    def getitem(self, obj, argument):
+        # record['name'] 走這條，不經 is_safe_attribute（Odoo 記錄支援以字串鍵取欄位值）
+        if isinstance(obj, BaseModel):
+            raise SecurityError('樣板不能存取系統記錄（%s[%r]）' % (obj._name, argument))
+        return super().getitem(obj, argument)
 
 # +++IF <任意運算式>+++ / +++END-IF+++
 # 條件式是舊系統的 JS 運算式（例：$record.images[0].isEmpty !== true），
@@ -172,7 +199,12 @@ def render(raw_bytes, context):
     # 另有「盤式支承 固定型，標稱載重 < 50tf」同樣會中。
     # InlineImage 有定義 __html__()，autoescape 下 markupsafe 會呼叫它取原始
     # XML 而不是跳脫，所以照片不受影響。
-    tpl.render(_swap_images(context, tpl), autoescape=True)
+    # 🔴 沙箱：樣板是使用者上傳的（任何後台帳號都能換），docxtpl 預設的 Environment
+    # 沒有沙箱，`{{ x.__class__.__mro__ }}` 這類運算式就能走到 Python 內部在主機上執行
+    # （2026-10-25 紅隊審查）。SandboxedEnvironment 擋底線屬性與不安全呼叫，
+    # 一般的取值、for、if 照常；dev 117 份自主檢查樣板與系統預設樣板回歸比對產出相同。
+    tpl.render(_swap_images(context, tpl),
+               jinja_env=SandboxedEnvironment(autoescape=True), autoescape=True)
     out = io.BytesIO()
     tpl.save(out)
     return out.getvalue()

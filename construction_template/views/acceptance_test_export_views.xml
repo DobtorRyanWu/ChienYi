@@ -31,6 +31,14 @@
                         class="btn-secondary"
                         icon="fa-file-word-o"
                         help="把本筆檢試驗的資料自動帶入「材料試驗報告」送審函並下載"/>
+                <!-- 2026-10-25 新北契約附表11（欄位見檢試驗表單「抽(查)驗紀錄表」頁籤） -->
+                <button name="action_export_test_template"
+                        string="匯出抽(查)驗紀錄表"
+                        type="object"
+                        class="btn-secondary"
+                        icon="fa-file-word-o"
+                        context="{'template_type': 'material_inspection_record'}"
+                        help="材料設備品質抽(查)驗紀錄表：進場、抽驗方式、取樣、試驗機構、試驗數據、抽驗結果"/>
             </xpath>
         </field>
     </record>

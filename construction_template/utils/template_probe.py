@@ -43,6 +43,8 @@ W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 INDEX_RE = re.compile(r'stages\s*\[\s*(\d+)\s*\]\s*\.\s*items\s*\[\s*(\d+)\s*\]\s*\.\s*(\w+)')
 # 動態樣板的迴圈（{%tr for ... %} 與 {% for ... %} 都算）
 DYNAMIC_RE = re.compile(r'\{%\s*(?:tr\s+)?for\s+\w+\s+in\s+', re.S)
+# 「項次」欄：一到三位數字
+ITEM_NO_RE = re.compile(r'\d{1,3}')
 # 任何一種佔位符：用來判斷「這一格是不是純佔位符」
 TOKEN_RE = re.compile(r'\+{3}[^+]{0,160}\+{3,4}|\{\{.*?\}\}|\{%.*?%\}', re.S)
 
@@ -228,12 +230,15 @@ def probe(raw_bytes):
                 stage_name = cur_stage
 
             item_name = None
-            if len(cells) > 1:
-                text1 = texts[1]
+            # 第二欄是「項次」數字時項目名稱在下一欄（工程會／新北的表常多一欄項次，例：
+            # 生態保育措施自主檢查表「項目｜項次｜檢查項目｜…」）；79 份 EAGLE 樣板第二欄都是名稱
+            name_col = 2 if len(cells) > 2 and ITEM_NO_RE.fullmatch(texts[1] or '') else 1
+            if len(cells) > name_col:
+                text1 = texts[name_col]
                 if text1 and not _is_token_only(text1):
                     cur_item = text1
                     item_name = text1
-                elif _vmerge(cells[1]) == 'continue':
+                elif _vmerge(cells[name_col]) == 'continue':
                     item_name = cur_item
                 else:
                     cur_item = None

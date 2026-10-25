@@ -21,6 +21,9 @@ Excel 畫面上看不出來，但列印會缺。
     A37 五、其他約定監造事項 → A38
 """
 
+from ..utils import progress
+from ..utils.formatters import percent
+
 MODEL = 'daily.log.sheet'
 SHEET = 'xl/worksheets/sheet1.xml'
 
@@ -67,8 +70,11 @@ CELLS = {
     'G9': 'project_id.extension_duration',
     'K9': ('project_id.original_contract_amount', 'money'),
     'K10': ('project_id.current_contract_amount', 'money'),
-    'C10': ('daily_planned_progress', 'percent'),
-    'G10': ('actual_progress', 'percent'),
+    # 累計值（2026-10-25 以前 C10 印的是當日份額 daily_planned_progress，見 utils/progress.py）
+    'C10': lambda rec: percent(progress.rounded(
+        progress.planned_cumulative_on(rec.project_id, rec.log_date))),
+    'G10': lambda rec: percent(progress.rounded(
+        progress.actual_cumulative_on(rec.project_id, rec.log_date))),
 
     # 文字區
     'F13': 'work_summary',            # 一、工程進行情況（F13:L16，無標籤）

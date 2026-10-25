@@ -24,6 +24,7 @@ BSON dump 實測比對，16 個 token 有 14 個直接命中欄位名）。
                                                  （record_type personnel/equipment）
 """
 
+from ..utils import progress
 from ..utils.formatters import contractor_name, roc_date, selection_label
 
 MODEL = 'daily.log.sheet'
@@ -70,11 +71,50 @@ def _weather(record):
     return am or pm or ''
 
 
+CHECKED, UNCHECKED = '■', '□'
+
+
+def _box(value, expected):
+    """勾選框：資料等於 expected 印 ■，其餘（含沒填）印 □——沒填不能替現場勾答案"""
+    return CHECKED if value == expected else UNCHECKED
+
+
+def _safety_boxes(record):
+    """第四項、第五項(一)的勾選。
+
+    2026-10-24 以前樣板 A23「□有■無」、A27／A29「■有 □無」是寫死的字，A28 的
+    ${value9-1/2/3} 對照表也沒供值——印出來永遠是同一個答案。監造版
+    daily_log_1.py 早就接了同樣三個欄位，營造版漏了。
+    """
+    tech = record.has_technician_requirement
+    edu = record.safety_pre_work_education
+    labor = record.safety_labor_insurance_check
+    ppe = record.safety_ppe_check
+    return {
+        'technicianYes': _box(tech, 'yes'),
+        'technicianNo': _box(tech, 'no'),
+        'eduYes': _box(edu, 'yes'),
+        'eduNo': _box(edu, 'no'),
+        # 新進勞工三選一：有／無／無新進勞工（樣板的 token 名沿用 EAGLE 的 value9-*）
+        'value9-1': _box(labor, 'yes'),
+        'value9-2': _box(labor, 'no'),
+        'value9-3': _box(labor, 'no_new_worker'),
+        'ppeYes': _box(ppe, 'yes'),
+        'ppeNo': _box(ppe, 'no'),
+    }
+
+
 def build_context(record):
     project = record.project_id
     details = record.man_machine_detail_ids
 
     return {
+        # 第四項、第五項(一)勾選
+        **_safety_boxes(record),
+        # 新北版樣板把天氣分成上午、下午兩格；系統預設樣板仍用合併的 weather
+        'weatherAm': selection_label(record.weather_am, record, 'weather_am'),
+        'weatherPm': selection_label(record.weather_pm, record, 'weather_pm'),
+
         # 表頭
         'project.contractor': _contractor(project),
         'project.name': project.name or '',
@@ -90,8 +130,11 @@ def build_context(record):
         'value2': _qty(record.cumulative_duration),
         'value3': _qty(record.remaining_duration),
         'value4': _qty(record.extension_duration),
-        'expectProgress': _qty(record.daily_planned_progress),
-        'exportProgress': _qty(record.actual_progress),
+        # 累計值（2026-10-25 以前印的是當日份額，見 utils/progress.py）
+        'expectProgress': _qty(progress.rounded(
+            progress.planned_cumulative_on(project, record.log_date))),
+        'exportProgress': _qty(progress.rounded(
+            progress.actual_cumulative_on(project, record.log_date))),
 
         # 文字區
         'other': record.safety_other_matters or '',
