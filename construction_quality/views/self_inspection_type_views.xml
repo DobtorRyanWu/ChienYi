@@ -64,6 +64,14 @@
                         <field name="description"/>
                     </group>
                     <group>
+                        <group>
+                            <field name="result_layout"/>
+                        </group>
+                        <group>
+                            <field name="allow_close_with_defect"/>
+                        </group>
+                    </group>
+                    <group>
                         <field name="template_file" filename="template_filename"/>
                         <field name="template_filename" invisible="1"/>
                     </group>
@@ -127,6 +135,7 @@
                                            domain="[('type_id', '=', parent.id)]"
                                            options="{'no_create': True, 'no_open': True}"/>
                                     <field name="check_standard"/>
+                                    <field name="reverse_question" optional="hide"/>
                                     <field name="note"/>
                                 </list>
                             </field>

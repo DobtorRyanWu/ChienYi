@@ -6,10 +6,11 @@ daily_planned_progress——那是「當日份額」（區間預定進度 ÷ 區
 契約附表9-1 註 4 要的是累計。實際進度印的是當張日誌的 actual_progress，而這個欄位
 只有 xlsm 匯入會寫，沒填的日子印空白。
 
-使用者裁示（2026-10-25）：
-  預定進度＝依進度表內插到當天的累計值（換版當天沿用舊版，與日誌自己的
+使用者裁示：
+  預定進度（2026-10-25）＝依進度表內插到當天的累計值（換版當天沿用舊版，與日誌自己的
             base_progress_schedule_id 規則相同）。
-  實際進度＝當天或之前最後一次有填的累計值。
+  實際進度（2026-10-28，照說明書＋保留舊資料）＝「本日實際進度」每日增量的加總（只算已填寫／鎖定，
+            與進度表同步相同）；有 xlsm 匯入的累計值時，以當天或之前最後一張為基準、只加它之後的增量。
 """
 
 from datetime import timedelta
@@ -78,22 +79,45 @@ class TestProgressCumulative(TransactionCase):
         self.assertIsNone(progress.planned_cumulative_on(other, fields.Date.today()))
         self.assertIsNone(progress.actual_cumulative_on(other, fields.Date.today()))
 
-    def test_actual_takes_last_filled(self):
-        self._sheet(self.d0 + timedelta(days=2), actual_progress=4.0)
-        self._sheet(self.d0 + timedelta(days=5))                     # 沒填
-        self._sheet(self.d0 + timedelta(days=8), actual_progress=9.5)
+    def test_actual_sums_daily_increments(self):
+        self._sheet(self.d0 + timedelta(days=2), daily_actual_progress=1.5, state='filled')
+        self._sheet(self.d0 + timedelta(days=4), daily_actual_progress=2.0, state='locked')
+        self._sheet(self.d0 + timedelta(days=5), daily_actual_progress=9.0)          # 編輯中：不算
+        self._sheet(self.d0 + timedelta(days=8), daily_actual_progress=0.5, state='auto_locked')
         on = lambda n: progress.actual_cumulative_on(self.project, self.d0 + timedelta(days=n))
         self.assertIsNone(on(1))
-        self.assertEqual(on(2), 4.0)
-        self.assertEqual(on(6), 4.0)            # 沒填的日子沿用前一次
-        self.assertEqual(on(8), 9.5)
+        self.assertEqual(on(2), 1.5)
+        self.assertEqual(on(6), 3.5)            # 編輯中的 9.0 不算
+        self.assertEqual(on(8), 4.0)
+        # 對照：10-25 那一版（最後一次有填的「累計」欄）在這組資料上全是 None
+        self.assertFalse(self.env['daily.log.sheet'].search_count(
+            [('supervision_project_id', '=', self.project.id), ('actual_progress', '>', 0)]))
+
+    def test_actual_counts_the_printed_draft_itself(self):
+        self._sheet(self.d0 + timedelta(days=2), daily_actual_progress=1.5, state='filled')
+        draft = self._sheet(self.d0 + timedelta(days=3), daily_actual_progress=0.75)
+        day = self.d0 + timedelta(days=3)
+        self.assertEqual(progress.actual_cumulative_on(self.project, day), 1.5)
+        self.assertEqual(progress.actual_cumulative_on(self.project, day, include=draft), 2.25)
+
+    def test_legacy_cumulative_is_the_base(self):
+        # 舊系統匯入：actual_progress 存累計（部分匯入資料兩欄都有值，增量不可重複加）
+        legacy = self._sheet(self.d0 + timedelta(days=2), actual_progress=40.0,
+                             daily_actual_progress=1.0, state='locked')
+        self._sheet(self.d0 + timedelta(days=1), daily_actual_progress=3.0, state='locked')   # 基準之前：不加
+        self._sheet(self.d0 + timedelta(days=6), daily_actual_progress=0.5, state='filled')
+        on = lambda n: progress.actual_cumulative_on(self.project, self.d0 + timedelta(days=n))
+        self.assertEqual(on(2), 40.0)           # 舊日誌重印＝它自己的累計值（與換版前相同）
+        self.assertEqual(on(5), 40.0)
+        self.assertEqual(on(6), 40.5)
+        self.assertEqual(progress.actual_cumulative_on(self.project, legacy.log_date, include=legacy), 40.0)
 
     def test_daily_logs_print_cumulative(self):
-        self._sheet(self.d0 + timedelta(days=2), actual_progress=4.0)
-        sheet = self._sheet(self.d0 + timedelta(days=14))            # 當天沒填實際進度
+        self._sheet(self.d0 + timedelta(days=2), daily_actual_progress=4.0, state='filled')
+        sheet = self._sheet(self.d0 + timedelta(days=14), daily_actual_progress=1.0)   # 編輯中，印自己
         ctx = daily_log_c1.build_context(sheet)
         self.assertEqual(ctx['expectProgress'], '20')
-        self.assertEqual(ctx['exportProgress'], '4')
+        self.assertEqual(ctx['exportProgress'], '5')
         values = build_values(sheet, daily_log_1)
         self.assertEqual(values['C10'], '20.00')
-        self.assertEqual(values['G10'], '4.00')
+        self.assertEqual(values['G10'], '5.00')

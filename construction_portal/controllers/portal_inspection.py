@@ -10,6 +10,8 @@ from odoo import http, _, fields
 from odoo.http import request
 from odoo.addons.portal.controllers.portal import pager as portal_pager
 from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
+from odoo.addons.construction_quality.models.self_inspection_mark import (
+    LAYOUT_MARKS, STANDARD, result_for_mark)
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
@@ -109,6 +111,20 @@ def _posted_measure_lines(post, allowed_block_ids):
         }))
         idx += 1
     return commands
+
+
+def _posted_item_result(inspection, posted, default='pass'):
+    """前台送出的單題結果 → 寫進檢查項目的值。
+
+    標準樣式（合格／缺失／無此項目）送的是 check_result，沒送用 default（與原本相同）；
+    其他樣式送的是勾選值 mark——不在這個樣式的選項裡、或沒勾，一律當沒勾，
+    檢查結果由 construction_quality 的 self.inspection.item.mark.mixin 換算（紀錄型沒勾也算通過）。
+    """
+    layout = inspection.inspection_type_id.result_layout or STANDARD
+    if layout == STANDARD:
+        return {'check_result': posted or default}
+    allowed = {value for value, _label in LAYOUT_MARKS.get(layout, [])}
+    return {'mark': posted if posted in allowed else False}
 
 
 def _posted_timing_ids(post):
@@ -635,15 +651,12 @@ class InspectionRoutesMixin:
             if item_id_str is None:
                 break
             if item_id_str:
-                check_result = post.get(f'checklist_result_{idx}', 'pass')
                 actual_result = post.get(f'checklist_actual_{idx}', '')
                 item = inspection.sudo().checklist_ids.filtered(
                     lambda l: l.type_item_id.id == int(item_id_str))
                 if item:
-                    item.write({
-                        'check_result': check_result,
-                        'actual_result': actual_result,
-                    })
+                    item.write(dict(_posted_item_result(inspection, post.get(f'checklist_result_{idx}')),
+                                    actual_result=actual_result))
             idx += 1
 
         # 量測列（表尾量測區）。allowed 限本檢查類型底下的區塊，
@@ -699,8 +712,18 @@ class InspectionRoutesMixin:
                      'segments': split_template(b.template)}
                     for b in InspType.measure_ids]
 
+        # 結果欄位（construction_quality/models/self_inspection_mark.py）：非標準樣式照表上的欄名畫按鈕，
+        # 送出的是勾選值（mark），檢查結果由模型換算；result 給前台計數用
+        layout = InspType.result_layout or STANDARD
+        marks = [{'value': v, 'label': label, 'result': result_for_mark(layout, v) or ''}
+                 for v, label in LAYOUT_MARKS.get(layout, [])]
+        # 反向題（例：是否有民眾陳情）的換算相反：每題帶自己的按鈕，計數才對
+        for item, row in zip(InspType.default_item_ids, items):
+            if marks and item.reverse_question:
+                row['marks'] = [dict(m, result=result_for_mark(layout, m['value'], True) or '') for m in marks]
+
         return {'items': items, 'stages': stages, 'timings': timings,
-                'measures': measures}
+                'measures': measures, 'layout': layout, 'marks': marks}
 
     @http.route(['/construction/inspection/<int:inspection_id>'],
                 type='http', auth='user', website=True)
@@ -909,13 +932,10 @@ class InspectionRoutesMixin:
         if inspection.checklist_ids:
             items = list(inspection.checklist_ids)
             for idx, item in enumerate(items):
-                check_result = post.get(f'checklist_result_{idx}')
+                posted = post.get(f'checklist_result_{idx}')
                 actual_result = post.get(f'checklist_actual_{idx}', '')
-                if check_result:
-                    item.write({
-                        'check_result': check_result,
-                        'actual_result': actual_result,
-                    })
+                if posted or inspection.inspection_type_id.result_layout not in (False, 'standard'):
+                    item.write(dict(_posted_item_result(inspection, posted), actual_result=actual_result))
 
         # 處理上傳照片（同一般式，見上方說明）
         meta = _post_photo_meta(post)

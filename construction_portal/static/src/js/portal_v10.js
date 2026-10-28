@@ -1210,6 +1210,9 @@
                 var result = data.result || {};
                 var items = result.items || [];
                 var stages = result.stages || [];
+                // 結果欄位：標準＝合格／有缺失／無此項（預設合格）；其他樣式照表上的欄名（是／否／不足…），
+                // 預設不選、送出勾選值，檢查結果由後端換算（construction_quality self_inspection_mark.py）
+                var marks = (result.layout && result.layout !== 'standard') ? (result.marks || []) : null;
 
                 if (items.length === 0) {
                     checklistContainer.innerHTML = '<div class="cy-empty" style="padding: 20px;"><div class="cy-empty-text">此類型沒有預設檢查項目</div></div>';
@@ -1235,13 +1238,19 @@
 
                         // 隱藏欄位
                         html += '<input type="hidden" name="checklist_item_id_' + itemIdx + '" value="' + item.id + '"/>';
-                        html += '<input type="hidden" name="checklist_result_' + itemIdx + '" value="pass" class="checklist-result-hidden"/>';
+                        html += '<input type="hidden" name="checklist_result_' + itemIdx + '" value="' + (marks ? '' : 'pass') + '" class="checklist-result-hidden"/>';
 
                         // 三按鈕 toggle
                         html += '<div class="insp-check-group">';
-                        html += '<button type="button" class="insp-check-btn active" data-result="pass" data-idx="' + itemIdx + '">合格</button>';
-                        html += '<button type="button" class="insp-check-btn" data-result="defect" data-idx="' + itemIdx + '">有缺失</button>';
-                        html += '<button type="button" class="insp-check-btn" data-result="na" data-idx="' + itemIdx + '">無此項</button>';
+                        if (marks) {
+                            (item.marks || marks).forEach(function (m) {
+                                html += '<button type="button" class="insp-check-btn" data-mark="' + escHtml(m.value) + '" data-result="' + escHtml(m.result) + '" data-idx="' + itemIdx + '">' + escHtml(m.label) + '</button>';
+                            });
+                        } else {
+                            html += '<button type="button" class="insp-check-btn active" data-result="pass" data-idx="' + itemIdx + '">合格</button>';
+                            html += '<button type="button" class="insp-check-btn" data-result="defect" data-idx="' + itemIdx + '">有缺失</button>';
+                            html += '<button type="button" class="insp-check-btn" data-result="na" data-idx="' + itemIdx + '">無此項</button>';
+                        }
                         html += '</div>';
 
                         // 實際結果 textarea
@@ -1266,7 +1275,7 @@
                             btn.classList.add('active');
                             var idx = btn.getAttribute('data-idx');
                             var hidden = checklistContainer.querySelector('input[name="checklist_result_' + idx + '"]');
-                            if (hidden) hidden.value = btn.getAttribute('data-result');
+                            if (hidden) hidden.value = btn.getAttribute('data-mark') || btn.getAttribute('data-result');
                             // 更新計數
                             var filled = checklistContainer.querySelectorAll('.insp-check-btn.active').length;
                             var total = checklistContainer.querySelectorAll('.insp-check-group').length;

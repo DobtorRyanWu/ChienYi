@@ -102,6 +102,7 @@
                     <notebook>
                         <page string="檢查項目" name="checklist">
                             <field name="first_stage_id" invisible="1"/>
+                            <field name="result_layout" invisible="1"/>
                             <field name="checklist_ids"
                                    context="{'default_stage_id': first_stage_id}">
                                 <list editable="bottom">
@@ -114,8 +115,11 @@
                                     <field name="check_item" string="檢查項目"/>
                                     <field name="design_standard" optional="show"/>
                                     <field name="actual_result" optional="show"/>
+                                    <!-- 結果欄位不是「合格／缺失／無此項目」時，填「勾選」、檢查結果由它換算（self_inspection_mark.py） -->
+                                    <field name="mark" column_invisible="parent.result_layout == 'standard'"/>
                                     <field name="check_result"
-                                           required="1"
+                                           required="parent.result_layout == 'standard'"
+                                           readonly="parent.result_layout != 'standard'"
                                            decoration-success="check_result == 'pass'"
                                            decoration-danger="check_result == 'defect'"
                                            decoration-muted="check_result == 'na'"/>

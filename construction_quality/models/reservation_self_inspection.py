@@ -177,6 +177,7 @@ class ReservationSelfInspection(models.Model):
         ('conditional_pass', '條件合格'),
         ('fail', '不合格'),
     ], string='整體結果', compute='_compute_overall_result', store=True)
+    result_layout = fields.Selection(related='inspection_type_id.result_layout', string='結果欄位')
 
     @api.depends('checklist_ids.check_result', 'measure_line_ids.result')
     def _compute_has_defect(self):
@@ -356,6 +357,7 @@ class ReservationSelfInspectionItem(models.Model):
     - 支援多階段查驗
     """
     _name = 'reservation.self.inspection.item'
+    _inherit = ['self.inspection.item.mark.mixin']
     _description = '預約式自主檢查項目'
     # stage_sequence 排前面，項目自然依段落分群排好
     _order = 'stage_sequence, sequence, id'

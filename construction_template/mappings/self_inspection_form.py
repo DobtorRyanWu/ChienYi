@@ -96,8 +96,8 @@ TOKEN_SCHEMA = {
     'inspection.stages[]': {'name', 'items'},
     'inspection.stages[].items[]': {
         'name', 'standard', 'situation', 'result', 'remark',
-        # 分欄勾記：'V' 或空白（與量測列的 passMark/failMark 同義）
-        'passMark', 'defectMark', 'naMark'},
+        # 分欄勾記：'V' 或空白（與量測列的 passMark/failMark 同義）；partialMark＝「不足」欄（2026-10-28）
+        'passMark', 'defectMark', 'naMark', 'partialMark'},
     'inspection.measures[]': {'title', 'lines'},
     'inspection.measures[].lines[]': {
         'no', 'text', 'result', 'passMark', 'failMark'},
@@ -120,21 +120,31 @@ def _timing_codes(record):
     return set(record.inspection_timing_ids.mapped('legacy_code')) - {False, ''}
 
 
-def checklist_item(name='', standard='', situation='', check_result=None, remark=''):
+# 結果欄位不是「合格／缺失／無此項目」時，勾選印在哪一欄（construction_quality self_inspection_mark.py）：
+# 是→passMark、否→defectMark、不適用→naMark、不足→partialMark——新北樣板的「是／否／不適用」「是／不足／否」
+# 欄本來就是 passMark／defectMark／naMark，多一個不足欄。紀錄型的「否」換算成合格，但仍印在「否」欄
+MARK_SLOTS = {'yes': 'passMark', 'no': 'defectMark', 'na': 'naMark', 'partial': 'partialMark'}
+
+
+def checklist_item(name='', standard='', situation='', check_result=None, remark='', mark=None):
     """一個檢查項目給樣板的樣子；套印（_stages）與「測試樣板」（_test_context）共用。
 
     新北的固定清單檢查表把結果印成分開的欄（合格／不合格、不適用／是／否），
-    所以除了單一符號 result，再給三個勾記位置——樣板若改用
+    所以除了單一符號 result，再給四個勾記位置——樣板若改用
     `{% if item.result == '○' %}` 自己判斷，欄位守門驗不到 block if，拼錯只會整欄空白。
+
+    :param mark: 檢查類型的結果欄位不是標準樣式時傳實際勾選（沒勾傳 False）；None＝標準樣式，照 check_result
     """
+    if mark is None:
+        slots = {'passMark': check_result == 'pass', 'defectMark': check_result == 'defect',
+                 'naMark': check_result == 'na', 'partialMark': False}
+    else:
+        slots = {slot: MARK_SLOTS.get(mark) == slot for slot in MARK_SLOTS.values()}
     return SimpleNamespace(
         name=name, standard=standard, situation=situation,
         result=RESULT_MARKS.get(check_result, '') if check_result else '',
         remark=remark,
-        passMark=TIMING_MARK if check_result == 'pass' else '',
-        defectMark=TIMING_MARK if check_result == 'defect' else '',
-        naMark=TIMING_MARK if check_result == 'na' else '',
-    )
+        **{slot: TIMING_MARK if on else '' for slot, on in slots.items()})
 
 
 def timing_box(codes):
@@ -155,6 +165,7 @@ def _stages(record):
     """
     groups = []
     index = {}
+    standard = (record.inspection_type_id.result_layout or 'standard') == 'standard'
     for line in record.checklist_ids:
         key = line.stage_id.id or 0
         if key not in index:
@@ -167,6 +178,7 @@ def _stages(record):
             situation=line.actual_result or '',
             check_result=line.check_result,
             remark=line.note or '',
+            mark=None if standard else (line.mark or False),
         ))
     return groups
 

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api, Command
+
+from .self_inspection_mark import RESULT_LAYOUTS, STANDARD
 from odoo.exceptions import UserError, ValidationError
 
 
@@ -81,6 +83,15 @@ class SelfInspectionType(models.Model):
 
     # === 說明 ===
     description = fields.Text(string='類型說明')
+
+    # === 結果欄位（2026-10-28，見 self_inspection_mark.py）===
+    result_layout = fields.Selection(
+        RESULT_LAYOUTS, string='結果欄位', default=STANDARD, required=True,
+        help='檢查表上每一題的勾選欄。「是／否／不適用」只紀錄、不判定（勾什麼都算通過）；'
+             '「是／不足／否」的不足、否算缺失。前台按鈕與列印照這個設定。')
+    allow_close_with_defect = fields.Boolean(
+        string='有缺失也可結案',
+        help='勾選後，這個類型的檢查有缺失也能按「結案」（缺失仍照常計數、可另開缺失改善單）')
 
     # === 原始樣板檔 ===
     template_file = fields.Binary(
@@ -489,6 +500,11 @@ class SelfInspectionTypeItem(models.Model):
         string='檢查項目',
         required=True)
 
+    # 反向題（2026-10-28，見 self_inspection_mark.py）：題目反著問，答「是」代表有狀況
+    reverse_question = fields.Boolean(
+        string='反向題',
+        help='題目是反著問的（例：「是否有民眾陳情」），答「是」代表有狀況。'
+             '結果欄位是「是／不足／否」時：是、不足＝缺失，否＝正常。其他結果欄位不受影響。')
     check_standard = fields.Text(
         string='設計圖說、規範之管理標準(定性/定量)',
         help='設計圖說、規範之管理標準(定性/定量)')

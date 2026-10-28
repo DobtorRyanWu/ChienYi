@@ -26,6 +26,8 @@ import logging
 from odoo import _, models
 from odoo.exceptions import UserError
 
+from odoo.addons.construction_quality.models.self_inspection_mark import LAYOUT_MARKS, result_for_mark
+
 from ..utils import docx_render, template_probe, template_tokens
 from ..mappings import self_inspection_form as mapping
 from ..mappings.self_inspection_form import TIMING_MARK, TIMING_SLOTS
@@ -72,6 +74,7 @@ class SelfInspectionType(models.Model):
         self.ensure_one()
         stages, index = [], {}
         n_items = 0
+        test_marks = [value for value, _label in LAYOUT_MARKS.get(self.result_layout, [])]
         for item in self.default_item_ids:
             key = item.stage_id.id or 0
             if key not in index:
@@ -84,13 +87,19 @@ class SelfInspectionType(models.Model):
             # 結果輪流給合格／缺失／無此項目：全部都是合格的話，分欄勾記永遠是
             # 「V、空、空」，欄位錯位看不出來（同上面「每格都填測試」的教訓）
             n_items += 1
+            if test_marks:   # 結果欄位不是標準樣式：輪流給該樣式的每個勾選（含「不足」欄）
+                mark = test_marks[(n_items - 1) % len(test_marks)]
+                check_result = result_for_mark(self.result_layout, mark, item.reverse_question)
+            else:
+                mark, check_result = None, TEST_RESULTS[(n_items - 1) % len(TEST_RESULTS)]
             index[key].items.append(mapping.checklist_item(
                 name=item.name or '',
                 standard=item.check_standard or ('【%s】' % (item.name or '')),
                 situation='%s %d-%d' % (TEST_WORD, len(stages),
                                         len(index[key].items) + 1),
-                check_result=TEST_RESULTS[(n_items - 1) % len(TEST_RESULTS)],
+                check_result=check_result,
                 remark=TEST_WORD,
+                mark=mark,
             ))
 
         measures = []

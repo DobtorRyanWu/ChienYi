@@ -272,18 +272,28 @@
                                             </div>
                                         </t>
                                         <div>
-                                            <span t-if="item.check_result == 'pass'"
-                                                  class="cy-badge" style="background: rgba(34,179,87,0.12); color: var(--wb-green);">
-                                                ✓ 合格
-                                            </span>
-                                            <span t-elif="item.check_result == 'defect'"
-                                                  class="cy-badge" style="background: rgba(232,54,79,0.12); color: var(--wb-red);">
-                                                ✗ 缺失
-                                            </span>
-                                            <span t-elif="item.check_result == 'na'"
-                                                  class="cy-badge" style="background: rgba(139,144,160,0.12); color: var(--wb-t3);">
-                                                — 無此項
-                                            </span>
+                                            <!-- 結果欄位不是「合格／缺失／無此項目」時顯示實際勾選（是／不足／否／不適用），顏色照換算出的檢查結果 -->
+                                            <t t-set="res_layout" t-value="item.inspection_type_id.result_layout or 'standard'"/>
+                                            <t t-if="res_layout != 'standard'">
+                                                <t t-set="mark_label" t-value="{'yes': '是', 'partial': '不足', 'no': '否', 'na': '不適用'}.get(item.mark)"/>
+                                                <span class="cy-badge" t-attf-style="background: #{item.check_result == 'defect' and 'rgba(232,54,79,0.12)' or 'rgba(139,144,160,0.12)'}; color: #{item.check_result == 'defect' and 'var(--wb-red)' or 'var(--wb-t2)'};">
+                                                    勾選：<t t-esc="mark_label or '未填'"/>
+                                                </span>
+                                            </t>
+                                            <t t-else="">
+                                                <span t-if="item.check_result == 'pass'"
+                                                      class="cy-badge" style="background: rgba(34,179,87,0.12); color: var(--wb-green);">
+                                                    ✓ 合格
+                                                </span>
+                                                <span t-elif="item.check_result == 'defect'"
+                                                      class="cy-badge" style="background: rgba(232,54,79,0.12); color: var(--wb-red);">
+                                                    ✗ 缺失
+                                                </span>
+                                                <span t-elif="item.check_result == 'na'"
+                                                      class="cy-badge" style="background: rgba(139,144,160,0.12); color: var(--wb-t3);">
+                                                    — 無此項
+                                                </span>
+                                            </t>
                                         </div>
                                     </div>
                                 </div>
@@ -802,22 +812,32 @@
                                             </div>
                                         </t>
                                         <div>
-                                            <span t-if="item.check_result == 'pass'"
-                                                  class="cy-badge" style="background: rgba(34,179,87,0.12); color: var(--wb-green);">
-                                                ✓ 合格
-                                            </span>
-                                            <span t-elif="item.check_result == 'defect'"
-                                                  class="cy-badge" style="background: rgba(232,54,79,0.12); color: var(--wb-red);">
-                                                ✗ 缺失
-                                            </span>
-                                            <span t-elif="item.check_result == 'na'"
-                                                  class="cy-badge" style="background: rgba(139,144,160,0.12); color: var(--wb-t3);">
-                                                — 無此項
-                                            </span>
-                                            <span t-else=""
-                                                  class="cy-badge" style="background: rgba(139,144,160,0.12); color: var(--wb-t3);">
-                                                未填
-                                            </span>
+                                            <!-- 結果欄位不是「合格／缺失／無此項目」時顯示實際勾選（是／不足／否／不適用），顏色照換算出的檢查結果 -->
+                                            <t t-set="res_layout" t-value="item.inspection_type_id.result_layout or 'standard'"/>
+                                            <t t-if="res_layout != 'standard'">
+                                                <t t-set="mark_label" t-value="{'yes': '是', 'partial': '不足', 'no': '否', 'na': '不適用'}.get(item.mark)"/>
+                                                <span class="cy-badge" t-attf-style="background: #{item.check_result == 'defect' and 'rgba(232,54,79,0.12)' or 'rgba(139,144,160,0.12)'}; color: #{item.check_result == 'defect' and 'var(--wb-red)' or 'var(--wb-t2)'};">
+                                                    勾選：<t t-esc="mark_label or '未填'"/>
+                                                </span>
+                                            </t>
+                                            <t t-else="">
+                                                <span t-if="item.check_result == 'pass'"
+                                                      class="cy-badge" style="background: rgba(34,179,87,0.12); color: var(--wb-green);">
+                                                    ✓ 合格
+                                                </span>
+                                                <span t-elif="item.check_result == 'defect'"
+                                                      class="cy-badge" style="background: rgba(232,54,79,0.12); color: var(--wb-red);">
+                                                    ✗ 缺失
+                                                </span>
+                                                <span t-elif="item.check_result == 'na'"
+                                                      class="cy-badge" style="background: rgba(139,144,160,0.12); color: var(--wb-t3);">
+                                                    — 無此項
+                                                </span>
+                                                <span t-else=""
+                                                      class="cy-badge" style="background: rgba(139,144,160,0.12); color: var(--wb-t3);">
+                                                    未填
+                                                </span>
+                                            </t>
                                         </div>
                                     </div>
                                 </div>

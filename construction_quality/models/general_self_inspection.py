@@ -183,6 +183,7 @@ class GeneralSelfInspection(models.Model):
         ('conditional_pass', '條件合格'),
         ('fail', '不合格'),
     ], string='整體結果', compute='_compute_overall_result', store=True)
+    result_layout = fields.Selection(related='inspection_type_id.result_layout', string='結果欄位')
 
     @api.depends('checklist_ids.check_result', 'measure_line_ids.result')
     def _compute_has_defect(self):
@@ -285,7 +286,7 @@ class GeneralSelfInspection(models.Model):
         for record in self:
             if record.state != 'confirmed':
                 raise UserError('只有已確認狀態可以結案')
-            if record.has_defect:
+            if record.has_defect and not record.inspection_type_id.allow_close_with_defect:
                 raise UserError('尚有缺失未改善，無法結案')
             record.state = 'closed'
 
@@ -382,6 +383,7 @@ class GeneralSelfInspectionItem(models.Model):
     - 支援多階段查驗
     """
     _name = 'general.self.inspection.item'
+    _inherit = ['self.inspection.item.mark.mixin']
     _description = '一般式自主檢查項目'
     # stage_sequence 排前面，項目自然依段落分群排好
     _order = 'stage_sequence, sequence, id'

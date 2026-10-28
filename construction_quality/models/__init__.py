@@ -5,6 +5,7 @@ from . import defect_constants
 from . import defect_improvement_prefix_config
 from . import daily_defect_mixin
 from . import self_inspection_type
+from . import self_inspection_mark   # 結果欄位：照表上欄名勾（是／否／不足），換算 check_result
 from . import self_inspection_measure   # 表尾量測區（區塊定義 ＋ 量測列 mixin）
 from . import general_self_inspection
 from . import reservation_self_inspection

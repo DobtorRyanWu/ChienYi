@@ -74,7 +74,7 @@ CELLS = {
     'C10': lambda rec: percent(progress.rounded(
         progress.planned_cumulative_on(rec.project_id, rec.log_date))),
     'G10': lambda rec: percent(progress.rounded(
-        progress.actual_cumulative_on(rec.project_id, rec.log_date))),
+        progress.actual_cumulative_on(rec.project_id, rec.log_date, include=rec))),
 
     # 文字區
     'F13': 'work_summary',            # 一、工程進行情況（F13:L16，無標籤）

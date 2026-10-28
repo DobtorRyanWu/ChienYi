@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""前台施工日誌可填「累計實際進度(%)」（daily.log.sheet.actual_progress）。
+"""前台施工日誌填「本日實際進度(%)」（daily.log.sheet.daily_actual_progress，每日增量）。
 
-2026-10-25 使用者裁示：日誌與工程施工進度報告表上的實際進度，取「當天或之前最後一次
-有填的累計值」（construction_template/utils/progress.py）。這個欄位以前只有 xlsm 匯入
-會寫，後台表單隱藏、前台沒有欄位——現場沒地方填，印出來永遠是空白。
+說明書（施工日誌、進度表、進度報告）的設計：日誌填本日增量、進度表加總成累計。
+2026-10-25 那一版前台另開「累計實際進度」寫進 actual_progress——那個欄位存的是舊系統 xlsm 匯入的累計值，
+jt 有 3,391 張日誌只靠它；使用者 2026-10-28 選「照說明書＋保留舊資料」，前台改填增量、不再碰 actual_progress。
 
-空白＝這天沒更新（存 0），列印時沿用前一次；不合法的值整筆不寫、導回編輯頁。
+空白＝今天沒有進度（存 0）；不合法的值整筆不寫、導回編輯頁。
 """
 
 from datetime import timedelta
@@ -23,7 +23,7 @@ LEADER = 'construction_supervision_base.group_portal_leader'
 
 
 @tagged('post_install', '-at_install', 'construction_portal')
-class TestPortalDailyLogActualProgress(TransactionCase):
+class TestPortalDailyLogDailyProgress(TransactionCase):
 
     @classmethod
     def setUpClass(cls):
@@ -67,39 +67,48 @@ class TestPortalDailyLogActualProgress(TransactionCase):
     def _location(response):
         return response.headers.get('Location', '')
 
-    def test_update_writes_actual_progress(self):
+    def test_update_writes_daily_increment(self):
         sheet = self._sheet()
-        res = self._update(sheet, actual_progress='35.5')
+        res = self._update(sheet, daily_actual_progress='0.35')
         self.assertIn('message=updated', self._location(res))
-        self.assertEqual(sheet.actual_progress, 35.5)
+        self.assertEqual(sheet.daily_actual_progress, 0.35)
 
-    def test_blank_means_not_updated(self):
+    def test_blank_means_no_progress_today(self):
         sheet = self._sheet()
-        sheet.write({'actual_progress': 20.0})
-        self._update(sheet, actual_progress='')
-        self.assertEqual(sheet.actual_progress, 0.0)
+        sheet.write({'daily_actual_progress': 2.0})
+        self._update(sheet, daily_actual_progress='')
+        self.assertEqual(sheet.daily_actual_progress, 0.0)
+
+    def test_update_never_touches_imported_cumulative(self):
+        # 舊系統 xlsm 匯入的累計值：前台編輯（包括舊表單殘留的 actual_progress 參數）都不可以改到它
+        sheet = self._sheet()
+        sheet.write({'actual_progress': 40.0})
+        self._update(sheet, daily_actual_progress='1', actual_progress='0')
+        self.assertEqual(sheet.actual_progress, 40.0)
+        self.assertEqual(sheet.daily_actual_progress, 1.0)
 
     def test_invalid_redirects_and_writes_nothing(self):
         sheet = self._sheet()
         bads = ('-1', '100.01', 'abc', 'nan', 'inf',
                 FileStorage(BytesIO(b'5'), filename='x.txt'))
         for bad in bads:
-            res = self._update(sheet, work_summary='不該寫入', actual_progress=bad)
+            res = self._update(sheet, work_summary='不該寫入', daily_actual_progress=bad)
             self.assertIn('/edit?error=invalid_progress', self._location(res), bad)
-            self.assertEqual(sheet.actual_progress, 0.0, bad)
+            self.assertEqual(sheet.daily_actual_progress, 0.0, bad)
             self.assertFalse(sheet.work_summary, bad)
 
-    def test_create_with_actual_progress(self):
+    def test_create_with_daily_increment(self):
         with MockRequest(self.env(user=self.leader)) as req:
             req.httprequest.files.getlist.return_value = []
             res = self.ctrl.portal_construction_daily_log_create(
                 project_id=str(self.project.id),
                 log_date=str(fields.Date.today() - timedelta(days=1)),
-                actual_progress='12')
+                daily_actual_progress='1.2')
         self.assertIn('message=created', self._location(res))
         log = self.env['daily.log.sheet'].search(
             [('supervision_project_id', '=', self.project.id)], limit=1)
-        self.assertEqual(log.actual_progress, 12.0)
+        self.assertEqual(log.daily_actual_progress, 1.2)
+        self.assertFalse(log.actual_progress)
 
     def test_create_invalid_redirects_without_creating(self):
         with MockRequest(self.env(user=self.leader)) as req:
@@ -107,7 +116,7 @@ class TestPortalDailyLogActualProgress(TransactionCase):
             res = self.ctrl.portal_construction_daily_log_create(
                 project_id=str(self.project.id),
                 log_date=str(fields.Date.today() - timedelta(days=1)),
-                actual_progress='abc')
+                daily_actual_progress='abc')
         self.assertIn('/daily-log/new?error=invalid_progress', self._location(res))
         self.assertFalse(self.env['daily.log.sheet'].search(
             [('supervision_project_id', '=', self.project.id)]))

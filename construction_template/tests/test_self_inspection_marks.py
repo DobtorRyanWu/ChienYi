@@ -95,3 +95,44 @@ class TestSelfInspectionMarks(TransactionCase):
         items = self._items(ctx)
         self.assertEqual({(i.passMark, i.defectMark, i.naMark) for i in items},
                          {('V', '', ''), ('', 'V', ''), ('', '', 'V')})
+
+    # ---------- 結果欄位（construction_quality self_inspection_mark.py，2026-10-28）----------
+    def _layout_insp(self, layout, marks):
+        itype = self.env['self.inspection.type'].create({
+            'name': '結果欄位 %s' % layout, 'project_id': self.project.id, 'result_layout': layout})
+        insp = self.env['general.self.inspection'].create({
+            'name': 'SI-LAYOUT', 'project_id': self.project.id, 'inspection_type_id': itype.id,
+            'sub_project_name': itype.name, 'inspection_date': fields.Date.today()})
+        insp.checklist_ids.unlink()
+        for seq, mark in enumerate(marks, start=1):
+            self.env['general.self.inspection.item'].create({
+                'inspection_id': insp.id, 'sequence': seq, 'check_item': '第%d題' % seq, 'mark': mark})
+        return itype, insp
+
+    def _slots(self, ctx):
+        return [(i.passMark, i.partialMark, i.defectMark, i.naMark) for i in self._items(ctx)]
+
+    def test_record_layout_prints_the_actual_mark(self):
+        # 環境清潔表：「否」換算成合格（不算缺失），但要印在「否」欄——反著問的題目照實勾
+        _t, insp = self._layout_insp('yes_no', ['yes', 'no', 'na', False])
+        ctx = self_inspection_form.build_context(insp)
+        self.assertEqual(self._slots(ctx), [('V', '', '', ''), ('', '', 'V', ''), ('', '', '', 'V'), ('', '', '', '')])
+        self.assertEqual(ctx['inspection'].defectCount, 0)
+
+    def test_partial_layout_prints_partial_column(self):
+        _t, insp = self._layout_insp('yes_partial_no', ['yes', 'partial', 'no'])
+        ctx = self_inspection_form.build_context(insp)
+        self.assertEqual(self._slots(ctx), [('V', '', '', ''), ('', 'V', '', ''), ('', '', 'V', '')])
+        self.assertEqual(ctx['inspection'].defectCount, 2)
+
+    def test_standard_layout_never_prints_partial(self):
+        ctx = self_inspection_form.build_context(self.insp)
+        self.assertEqual([i.partialMark for i in self._items(ctx)], ['', '', ''])
+        self.assertIn('partialMark', self_inspection_form.TOKEN_SCHEMA['inspection.stages[].items[]'])
+
+    def test_test_context_rotates_layout_marks(self):
+        itype, _insp = self._layout_insp('yes_partial_no', [])
+        for name in ('甲', '乙', '丙'):
+            self.env['self.inspection.type.item'].create({'type_id': itype.id, 'name': name})
+        slots = set(self._slots(itype._test_context()))
+        self.assertEqual(slots, {('V', '', '', ''), ('', 'V', '', ''), ('', '', 'V', '')})

@@ -59,14 +59,18 @@ def _parse_material_qtys(post, prefix):
     return qtys
 
 
-# 累計實際進度(%) 的上限（百分比）
-MAX_ACTUAL_PROGRESS = 100.0
+# 本日實際進度(%) 的上限（百分比）
+MAX_DAILY_PROGRESS = 100.0
 _INVALID = object()
+# 前台填「本日實際進度」＝每日增量（construction_progress 的 daily_actual_progress），與後台、說明書相同；
+# 存檔後 construction_progress 會自動同步到進度表，列印的累計值是增量加總（construction_template/utils/progress.py）。
+# 2026-10-25 那一版前台填的是「累計實際進度」、寫進 actual_progress——那個欄位只給舊系統 xlsm 匯入存累計值用，
+# 前台不再寫它（使用者 2026-10-28 選「照說明書＋保留舊資料」）。
+DAILY_PROGRESS_FIELD = 'daily_actual_progress'
 
 
-def _parse_actual_progress(raw):
-    """前台「累計實際進度(%)」：空白＝這天沒更新（存 0，列印時沿用前一次有填的值，
-    見 construction_template/utils/progress.py）；不是 0～100 的數字（含 nan/inf、
+def _parse_daily_progress(raw):
+    """前台「本日實際進度(%)」：空白＝今天沒有進度（存 0）；不是 0～100 的數字（含 nan/inf、
     multipart 檔案欄位）回 _INVALID。"""
     if raw is None:
         return 0.0
@@ -78,7 +82,7 @@ def _parse_actual_progress(raw):
     except ValueError:
         return _INVALID
     # NaN 的比較一律為 False、inf 超過上限，都會被這一行擋下
-    if not 0 <= value <= MAX_ACTUAL_PROGRESS:
+    if not 0 <= value <= MAX_DAILY_PROGRESS:
         return _INVALID
     return value
 
@@ -551,8 +555,8 @@ class DailyLogRoutesMixin:
         if key_qtys is None:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/new?error=invalid_qty')
-        actual_progress = _parse_actual_progress(post.get('actual_progress'))
-        if actual_progress is _INVALID:
+        daily_progress = _parse_daily_progress(post.get(DAILY_PROGRESS_FIELD))
+        if daily_progress is _INVALID:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/new?error=invalid_progress')
 
@@ -572,8 +576,9 @@ class DailyLogRoutesMixin:
             'subcontractor_notification': post.get('subcontractor_notification', ''),
             'important_matters': post.get('important_matters', ''),
             'notes': post.get('notes', ''),
-            'actual_progress': actual_progress,
         }
+        if DAILY_PROGRESS_FIELD in request.env['daily.log.sheet']._fields:   # 沒裝 construction_progress 就沒有這格
+            vals[DAILY_PROGRESS_FIELD] = daily_progress
 
         # 通報單連結（預約式）
         slip_id = post.get('notification_slip_id')
@@ -775,8 +780,8 @@ class DailyLogRoutesMixin:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}/edit?error=invalid_qty'
             )
-        actual_progress = _parse_actual_progress(post.get('actual_progress'))
-        if actual_progress is _INVALID:
+        daily_progress = _parse_daily_progress(post.get(DAILY_PROGRESS_FIELD))
+        if daily_progress is _INVALID:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}/edit?error=invalid_progress'
             )
@@ -800,8 +805,9 @@ class DailyLogRoutesMixin:
             'subcontractor_notification': post.get('subcontractor_notification', ''),
             'important_matters': post.get('important_matters', ''),
             'notes': post.get('notes', ''),
-            'actual_progress': actual_progress,
         }
+        if DAILY_PROGRESS_FIELD in log._fields:
+            vals[DAILY_PROGRESS_FIELD] = daily_progress
         if material_cmds:
             # 併進同一次 write：14 天鎖定在 write() 判斷，材料指令也要被它擋得到
             vals['material_ids'] = material_cmds
