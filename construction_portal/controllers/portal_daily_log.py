@@ -806,7 +806,8 @@ class DailyLogRoutesMixin:
             'important_matters': post.get('important_matters', ''),
             'notes': post.get('notes', ''),
         }
-        if DAILY_PROGRESS_FIELD in log._fields:
+        # 表單沒送這一欄（例：換版前打開、換版後才送出的舊編輯頁）就不動它，不要當成 0 蓋掉原值（r1 審查 RT2 low）
+        if DAILY_PROGRESS_FIELD in log._fields and DAILY_PROGRESS_FIELD in post:
             vals[DAILY_PROGRESS_FIELD] = daily_progress
         if material_cmds:
             # 併進同一次 write：14 天鎖定在 write() 判斷，材料指令也要被它擋得到

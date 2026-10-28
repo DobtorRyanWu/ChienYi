@@ -134,7 +134,7 @@ def build_context(record):
         'expectProgress': _qty(progress.rounded(
             progress.planned_cumulative_on(project, record.log_date))),
         'exportProgress': _qty(progress.rounded(
-            progress.actual_cumulative_on(project, record.log_date, include=record))),
+            progress.actual_cumulative_on(project, record.log_date, sheet=record))),
 
         # 文字區
         'other': record.safety_other_matters or '',

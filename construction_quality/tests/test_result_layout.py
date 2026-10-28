@@ -70,7 +70,9 @@ class TestResultLayout(TransactionCase):
     def test_standard_layout_unchanged(self):
         insp = self._insp(self.t_std)
         item = self._item(insp, 'general.self.inspection.item', check_result='defect')
-        item.write({'mark': 'yes'})          # 標準樣式不換算：勾選欄沒有作用
+        from odoo.exceptions import ValidationError
+        with self.assertRaises(ValidationError):   # 標準樣式不用勾選（填了也不會換算，乾脆擋下）
+            item.write({'mark': 'yes'})
         self.assertEqual(item.check_result, 'defect')
         self.assertEqual(insp.overall_result, 'fail')
 
@@ -128,3 +130,25 @@ class TestResultLayout(TransactionCase):
         rec = self._insp(self.t_rec)
         it2 = self._item(rec, 'general.self.inspection.item', type_item_id=q2.id, mark='yes')
         self.assertEqual(it2.check_result, 'pass')
+
+    def test_copy_keeps_reverse_questions(self):
+        # 「複製到其他工程」：漏帶反向題的話，複本的「否」（沒有陳情）會被算成缺失（r1 審查 S2）
+        self.env['self.inspection.type.item'].create(
+            {'type_id': self.t_eco.id, 'name': '是否有民眾陳情', 'reverse_question': True})
+        dup = self.t_eco.copy()
+        self.assertEqual(dup.result_layout, 'yes_partial_no')
+        self.assertEqual(dup.default_item_ids.mapped('reverse_question'), [True])
+
+    def test_mark_must_belong_to_the_layout(self):
+        # 後台下拉列全部 4 個：環境清潔表選「不足」、生態保育表選「不適用」換算不出結果、列印整列空白（r1 審查 S4）
+        from odoo.exceptions import ValidationError
+        rec = self._insp(self.t_rec)
+        with self.assertRaises(ValidationError):
+            self._item(rec, 'general.self.inspection.item', mark='partial')
+        eco = self._insp(self.t_eco)
+        item = self._item(eco, 'general.self.inspection.item', mark='yes')
+        with self.assertRaises(ValidationError):
+            item.write({'mark': 'na'})
+        std = self._insp(self.t_std)
+        with self.assertRaises(ValidationError):
+            self._item(std, 'general.self.inspection.item', mark='yes')

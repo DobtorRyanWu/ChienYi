@@ -22,6 +22,7 @@
      （儲存格本身是百分比格式）且**只在最後一頁**給值
 """
 
+from ..utils import progress
 from ..utils.formatters import roc_date
 
 from .daily_log_c1 import _contractor, _qty
@@ -54,7 +55,8 @@ def build_context(record):
         'fillInAt': roc_date(record.log_date),
         # currentPageNo / totalPageNo 由引擎依實際頁數填入「第N頁」
         'donePercent': _percent(record.daily_actual_progress),
-        'totalPercent': _percent(record.actual_progress),
+        # 累計：與第一聯同一條規則（utils/progress.py）；2026-10-28 以前讀 actual_progress，換版後新日誌印 0%（r1 審查 S3／F1）
+        'totalPercent': _percent(progress.rounded(progress.actual_cumulative_on(record.project_id, record.log_date, sheet=record))),
         'payItems': [{
             'fullItemNo': line.item_no or '',
             'description': line.item_name or line.custom_name or '',

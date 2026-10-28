@@ -13,12 +13,14 @@
   effective_change_date 嚴格小於該日的最新版；找不到才用當天生效的最舊版
   （construction_progress/models/daily_log_sheet.py 的 _compute_base_progress_schedule）。
   區間內線性內插：區間起點累計 + 區間預定 × 已過天數 / 區間天數。
-- 實際（使用者 2026-10-28 選「照說明書＋保留舊資料」）：每日增量的加總，只算已填寫／鎖定的日誌
-  （與進度表同步同一組狀態）；當天或之前若有 xlsm 匯入的累計值，以最後那一張為基準、只加它之後的增量
-  ——舊日誌重印時印的還是它自己的累計值，與 2026-10-25 以前相同（jt 10-28 實查：5,679 張日誌有 3,391 張
-  只有匯入累計值、沒有每日增量）。10-25 那一版是「最後一次有填的累計值」，前後台另開欄位手填，已撤回。
-
-construction_template 不依賴 construction_progress，所以沒有進度表模型時回 None。
+- 實際（使用者 2026-10-28 選「照說明書＋保留舊資料」）：每日增量（本日實際進度）的加總，**所有狀態都算**
+  ——jt 10-28 實查 5,679 張日誌全是「自動鎖定」、沒有一張「已填寫」：大家不按定稿、靠 14 天自動鎖定；
+  只算已填寫／鎖定的話，當天印的日誌會少掉最近兩週的進度（r1 審查 F4）。進度表的同步照說明書只算已填寫／鎖定，
+  所以最近 14 天內兩者可能不同。
+  舊系統 xlsm 匯入的日誌在 actual_progress 存累計值（jt 3,391 張只靠它）：
+  · 印那一張舊日誌本身＝它自己的值（與 2026-10-25 以前完全相同；同案同日多人各一張時不會印成別人的，r1 審查 F2）；
+  · 其他日子＝當天或之前最後一個有匯入值的日期為基準（同日多張取最大）＋那天之後的增量。
+  10-25 那一版是「最後一次有填的累計值」、前後台另開欄位手填，已撤回。
 """
 
 SCHEDULE_STATES = ('active', 'archived')
@@ -65,29 +67,25 @@ def planned_cumulative_on(project, day):
     return cumulative
 
 
-# 進度表「從日誌同步進度」加總的日誌狀態（construction_progress/models/progress_schedule_line.py）
-COUNTED_STATES = ('filled', 'auto_locked', 'locked')
-
-
-def actual_cumulative_on(project, day, include=None):
+def actual_cumulative_on(project, day, sheet=None):
     """截至 day（含）的累計實際進度 %；沒有任何實際進度資料回 None。
 
-    :param include: 印某一張日誌時傳它自己——還在編輯中（不在 COUNTED_STATES）的那一張也要算進去
+    :param sheet: 印某一張日誌時傳它自己——舊匯入的日誌印它自己的累計值，不管同日有沒有別張
     """
     if not day:
         return None
+    if sheet is not None and (sheet.actual_progress or 0) > 0:
+        return sheet.actual_progress
     Sheet = project.env['daily.log.sheet']
     scope = [('supervision_project_id', '=', project.id), ('log_date', '<=', day)]
-    legacy = Sheet.search(scope + [('actual_progress', '>', 0)], order='log_date desc, id desc', limit=1)
-    total, found = (legacy.actual_progress, True) if legacy else (0.0, False)
+    last = Sheet.search(scope + [('actual_progress', '>', 0)], order='log_date desc, id desc', limit=1)
+    found = bool(last)
+    total = max(Sheet.search(scope + [('actual_progress', '>', 0), ('log_date', '=', last.log_date)])
+                .mapped('actual_progress')) if last else 0.0
     if 'daily_actual_progress' not in Sheet._fields:      # 沒裝 construction_progress
         return total if found else None
-    after = [('log_date', '>', legacy.log_date)] if legacy else []
-    logs = Sheet.search(scope + after + [('state', 'in', COUNTED_STATES), ('daily_actual_progress', '!=', 0)])
-    if include and include.state not in COUNTED_STATES and include.daily_actual_progress \
-            and include.supervision_project_id == project and include.log_date <= day \
-            and (not legacy or include.log_date > legacy.log_date):
-        logs |= include
+    after = [('log_date', '>', last.log_date)] if last else []
+    logs = Sheet.search(scope + after + [('daily_actual_progress', '!=', 0)])
     if logs:
         total += sum(logs.mapped('daily_actual_progress'))
         found = True

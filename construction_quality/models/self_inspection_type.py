@@ -295,6 +295,8 @@ class SelfInspectionType(models.Model):
                 'name': it.name,
                 'check_standard': it.check_standard,
                 'note': it.note,
+                # 反向題（2026-10-28）：漏帶的話，複製出來的生態保育表兩題反向題答「否」會被算成缺失（r1 審查 S2）
+                'reverse_question': it.reverse_question,
                 'stage_id': stage_map.get(it.stage_id.name, False),
             } for it in src.default_item_ids]
             if vals_list:

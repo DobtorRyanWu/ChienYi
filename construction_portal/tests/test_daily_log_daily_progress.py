@@ -87,6 +87,14 @@ class TestPortalDailyLogDailyProgress(TransactionCase):
         self.assertEqual(sheet.actual_progress, 40.0)
         self.assertEqual(sheet.daily_actual_progress, 1.0)
 
+    def test_form_without_the_field_keeps_the_value(self):
+        # 換版前打開、換版後才送出的舊編輯頁沒有這一欄：不可以當成 0 蓋掉
+        sheet = self._sheet()
+        sheet.write({'daily_actual_progress': 0.8})
+        self._update(sheet, work_summary='舊頁送出')
+        self.assertEqual(sheet.daily_actual_progress, 0.8)
+        self.assertEqual(sheet.work_summary, '舊頁送出')
+
     def test_invalid_redirects_and_writes_nothing(self):
         sheet = self._sheet()
         bads = ('-1', '100.01', 'abc', 'nan', 'inf',

@@ -168,7 +168,12 @@
                                 <td style="font-size: 8pt;"><t t-esc="item.design_standard or '-'"/></td>
                                 <td style="font-size: 8pt;"><t t-esc="item.actual_result or '-'"/></td>
                                 <td style="text-align: center;">
-                                    <t t-if="item.check_result == 'pass'">
+                                    <!-- 結果欄位不是標準樣式：印實際勾選（2026-10-28；照檢查結果印的話紀錄型的「否」會印成 ✓） -->
+                                    <t t-if="(item.inspection_type_id.result_layout or 'standard') != 'standard'">
+                                        <span t-att-style="item.check_result == 'defect' and 'color: #dc3545;' or ''"
+                                              t-esc="{'yes': '是', 'partial': '不足', 'no': '否', 'na': '不適用'}.get(item.mark) or '未填'"/>
+                                    </t>
+                                    <t t-elif="item.check_result == 'pass'">
                                         <span style="color: #28a745;">✓</span>
                                     </t>
                                     <t t-elif="item.check_result == 'defect'">
@@ -408,7 +413,12 @@
                                 <td style="font-size: 8pt;"><t t-esc="item.design_standard or '-'"/></td>
                                 <td style="font-size: 8pt;"><t t-esc="item.actual_result or '-'"/></td>
                                 <td style="text-align: center;">
-                                    <t t-if="item.check_result == 'pass'">
+                                    <!-- 結果欄位不是標準樣式：印實際勾選（2026-10-28；照檢查結果印的話紀錄型的「否」會印成 ✓） -->
+                                    <t t-if="(item.inspection_type_id.result_layout or 'standard') != 'standard'">
+                                        <span t-att-style="item.check_result == 'defect' and 'color: #dc3545;' or ''"
+                                              t-esc="{'yes': '是', 'partial': '不足', 'no': '否', 'na': '不適用'}.get(item.mark) or '未填'"/>
+                                    </t>
+                                    <t t-elif="item.check_result == 'pass'">
                                         <span style="color: #28a745;">✓</span>
                                     </t>
                                     <t t-elif="item.check_result == 'defect'">

@@ -9,6 +9,7 @@
 所以直接沿用那邊的取值邏輯。
 """
 
+from ..utils import progress
 from ..utils.formatters import roc_date
 
 from .daily_log_c1 import _qty
@@ -22,7 +23,8 @@ def build_context(record):
         'project.name': record.project_id.name or '',
         'fillInAt': roc_date(record.log_date),
         'donePercent': _qty(record.daily_actual_progress),
-        'totalPercent': _qty(record.actual_progress),
+        # 累計：與第一聯同一條規則（utils/progress.py；r1 審查 S3／F1）
+        'totalPercent': _qty(progress.rounded(progress.actual_cumulative_on(record.project_id, record.log_date, sheet=record))),
         'payItems': [{
             'description': line.item_name or line.custom_name or '',
             'unit': line.unit or '',

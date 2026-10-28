@@ -13,7 +13,8 @@
 列印依 mark 決定印在哪一欄（construction_template/mappings/self_inspection_form.py）。
 """
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 STANDARD = 'standard'
 RESULT_LAYOUTS = [
@@ -53,6 +54,19 @@ class SelfInspectionItemMarkMixin(models.AbstractModel):
         MARKS, string='勾選',
         help='檢查類型的「結果欄位」不是「合格／缺失／無此項目」時，實際勾的是這一欄；'
              '檢查結果由它換算（是不足否：不足、否＝缺失；只紀錄：一律通過）')
+
+    @api.constrains('mark', 'inspection_id')
+    def _check_mark_in_layout(self):
+        """勾選必須是這張檢查類型的選項：後台下拉列的是全部 4 個，環境清潔表選「不足」、生態保育表選「不適用」
+        換算不出結果、列印也沒有那一欄，整列空白而不報錯（r1 審查 S4／RT2-2）。標準樣式不用勾選。"""
+        for item in self.filtered('mark'):
+            layout = item.inspection_id.inspection_type_id.result_layout or STANDARD
+            allowed = [label for _v, label in LAYOUT_MARKS.get(layout, [])]
+            if item.mark not in {v for v, _l in LAYOUT_MARKS.get(layout, [])}:
+                raise ValidationError(_(
+                    '「%(item)s」的勾選「%(mark)s」不是這張檢查表的選項（可選：%(allowed)s）。',
+                    item=item.check_item or '', mark=dict(MARKS).get(item.mark, item.mark),
+                    allowed='、'.join(allowed) or '這張表用「檢查結果」，不用勾選'))
 
     def _layout_for(self, inspection_id):
         inspection = self.env[self._fields['inspection_id'].comodel_name].browse(inspection_id)

@@ -9,8 +9,9 @@ daily_planned_progress——那是「當日份額」（區間預定進度 ÷ 區
 使用者裁示：
   預定進度（2026-10-25）＝依進度表內插到當天的累計值（換版當天沿用舊版，與日誌自己的
             base_progress_schedule_id 規則相同）。
-  實際進度（2026-10-28，照說明書＋保留舊資料）＝「本日實際進度」每日增量的加總（只算已填寫／鎖定，
-            與進度表同步相同）；有 xlsm 匯入的累計值時，以當天或之前最後一張為基準、只加它之後的增量。
+  實際進度（2026-10-28，照說明書＋保留舊資料）＝「本日實際進度」每日增量的加總，所有狀態都算
+            （jt 沒人按「已填寫」、全靠 14 天自動鎖定）；印舊匯入日誌本身＝它自己的累計值；其他日子以當天或之前
+            最後一個有匯入值的日期為基準（同日多張取最大）＋之後的增量。第一聯、第二聯、後台 PDF 同一條規則。
 """
 
 from datetime import timedelta
@@ -18,7 +19,7 @@ from datetime import timedelta
 from odoo import fields
 from odoo.tests.common import TransactionCase, tagged
 
-from odoo.addons.construction_template.mappings import daily_log_1, daily_log_c1
+from odoo.addons.construction_template.mappings import daily_log_1, daily_log_2, daily_log_c1, daily_log_c2
 from odoo.addons.construction_template.utils import progress
 from odoo.addons.construction_template.utils.template_render import build_values
 
@@ -79,26 +80,17 @@ class TestProgressCumulative(TransactionCase):
         self.assertIsNone(progress.planned_cumulative_on(other, fields.Date.today()))
         self.assertIsNone(progress.actual_cumulative_on(other, fields.Date.today()))
 
-    def test_actual_sums_daily_increments(self):
+    def test_actual_sums_daily_increments_in_any_state(self):
+        # jt 10-28：5,679 張日誌全是自動鎖定、沒有一張已填寫——草稿也要算，不然當天印的少兩週
         self._sheet(self.d0 + timedelta(days=2), daily_actual_progress=1.5, state='filled')
         self._sheet(self.d0 + timedelta(days=4), daily_actual_progress=2.0, state='locked')
-        self._sheet(self.d0 + timedelta(days=5), daily_actual_progress=9.0)          # 編輯中：不算
+        self._sheet(self.d0 + timedelta(days=5), daily_actual_progress=9.0)          # 草稿
         self._sheet(self.d0 + timedelta(days=8), daily_actual_progress=0.5, state='auto_locked')
         on = lambda n: progress.actual_cumulative_on(self.project, self.d0 + timedelta(days=n))
         self.assertIsNone(on(1))
         self.assertEqual(on(2), 1.5)
-        self.assertEqual(on(6), 3.5)            # 編輯中的 9.0 不算
-        self.assertEqual(on(8), 4.0)
-        # 對照：10-25 那一版（最後一次有填的「累計」欄）在這組資料上全是 None
-        self.assertFalse(self.env['daily.log.sheet'].search_count(
-            [('supervision_project_id', '=', self.project.id), ('actual_progress', '>', 0)]))
-
-    def test_actual_counts_the_printed_draft_itself(self):
-        self._sheet(self.d0 + timedelta(days=2), daily_actual_progress=1.5, state='filled')
-        draft = self._sheet(self.d0 + timedelta(days=3), daily_actual_progress=0.75)
-        day = self.d0 + timedelta(days=3)
-        self.assertEqual(progress.actual_cumulative_on(self.project, day), 1.5)
-        self.assertEqual(progress.actual_cumulative_on(self.project, day, include=draft), 2.25)
+        self.assertEqual(on(6), 12.5)
+        self.assertEqual(on(8), 13.0)
 
     def test_legacy_cumulative_is_the_base(self):
         # 舊系統匯入：actual_progress 存累計（部分匯入資料兩欄都有值，增量不可重複加）
@@ -107,17 +99,33 @@ class TestProgressCumulative(TransactionCase):
         self._sheet(self.d0 + timedelta(days=1), daily_actual_progress=3.0, state='locked')   # 基準之前：不加
         self._sheet(self.d0 + timedelta(days=6), daily_actual_progress=0.5, state='filled')
         on = lambda n: progress.actual_cumulative_on(self.project, self.d0 + timedelta(days=n))
-        self.assertEqual(on(2), 40.0)           # 舊日誌重印＝它自己的累計值（與換版前相同）
+        self.assertEqual(on(2), 40.0)
         self.assertEqual(on(5), 40.0)
         self.assertEqual(on(6), 40.5)
-        self.assertEqual(progress.actual_cumulative_on(self.project, legacy.log_date, include=legacy), 40.0)
+        self.assertEqual(progress.actual_cumulative_on(self.project, legacy.log_date, sheet=legacy), 40.0)
+
+    def test_legacy_reprint_is_its_own_value_with_several_logs_that_day(self):
+        # 同案同日可以多人各一張（唯一性含員工）：重印某一張要印它自己的值，不是 id 最大那張的（r1 審查 F2）
+        other = self.env['hr.employee'].create({'name': '同日另一位', 'company_id': self.env.company.id})
+        day = self.d0 + timedelta(days=3)
+        a = self._sheet(day, actual_progress=58.06, state='locked')
+        b = self._sheet(day, actual_progress=45.60, state='locked', employee_id=other.id)
+        self.assertGreater(b.id, a.id)
+        self.assertEqual(progress.actual_cumulative_on(self.project, day, sheet=a), 58.06)
+        self.assertEqual(progress.actual_cumulative_on(self.project, day, sheet=b), 45.60)
+        self.assertEqual(progress.actual_cumulative_on(self.project, day), 58.06)    # 依日期：同日取最大
+        self.assertEqual(daily_log_c1.build_context(a)['exportProgress'], '58.06')
 
     def test_daily_logs_print_cumulative(self):
         self._sheet(self.d0 + timedelta(days=2), daily_actual_progress=4.0, state='filled')
-        sheet = self._sheet(self.d0 + timedelta(days=14), daily_actual_progress=1.0)   # 編輯中，印自己
+        sheet = self._sheet(self.d0 + timedelta(days=14), daily_actual_progress=1.0)   # 草稿
         ctx = daily_log_c1.build_context(sheet)
         self.assertEqual(ctx['expectProgress'], '20')
         self.assertEqual(ctx['exportProgress'], '5')
         values = build_values(sheet, daily_log_1)
         self.assertEqual(values['C10'], '20.00')
         self.assertEqual(values['G10'], '5.00')
+        # 第二聯、後台 PDF 同一條規則（10-28 以前讀 actual_progress，新日誌印 0%）
+        self.assertAlmostEqual(daily_log_c2.build_context(sheet)['totalPercent'], 0.05)
+        self.assertEqual(daily_log_2.build_context(sheet)['totalPercent'], '5')
+        self.assertEqual(sheet.print_actual_cumulative(), 5.0)

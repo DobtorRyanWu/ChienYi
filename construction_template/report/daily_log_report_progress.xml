@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 後台施工日誌 PDF（construction_daily_log）的「實際進度」改印累計值：與日誌第一聯、第二聯同一條規則
+         （utils/progress.py；2026-10-28 使用者選「照說明書＋保留舊資料」）。原本印 actual_progress，
+         那欄只有舊系統 xlsm 匯入會寫，換版後的新日誌印 0%（r1 審查 F1）。舊匯入日誌印的仍是它自己的值。 -->
+    <template id="report_daily_log_document_actual_cumulative"
+              inherit_id="construction_daily_log.report_daily_log_document">
+        <xpath expr="//t[contains(@t-esc, 'log.actual_progress')]" position="attributes">
+            <attribute name="t-esc">'{:.1f}'.format(log.print_actual_cumulative())</attribute>
+        </xpath>
+    </template>
+    <template id="report_daily_log_batch_actual_cumulative"
+              inherit_id="construction_daily_log.report_daily_log_batch">
+        <xpath expr="//t[contains(@t-esc, 'log.actual_progress')]" position="attributes">
+            <attribute name="t-esc">'{:.1f}'.format(log.print_actual_cumulative())</attribute>
+        </xpath>
+    </template>
+</odoo>

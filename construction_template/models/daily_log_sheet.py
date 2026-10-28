@@ -5,6 +5,8 @@ import logging
 
 from odoo import models
 
+from ..utils import progress
+
 _logger = logging.getLogger(__name__)
 
 DEFAULT_TEMPLATE_TYPE = 'daily_log_1'
@@ -13,6 +15,14 @@ DEFAULT_TEMPLATE_TYPE = 'daily_log_1'
 class DailyLogSheet(models.Model):
     _name = 'daily.log.sheet'
     _inherit = ['daily.log.sheet', 'document.template.export.mixin']
+
+    def print_actual_cumulative(self):
+        """列印用的累計實際進度 %（與日誌第一聯、第二聯同一條規則，utils/progress.py）；沒有資料回 0。
+        給 construction_daily_log 的後台 PDF 報表用（report/daily_log_report_progress.xml），
+        它原本印 actual_progress——那欄只有舊匯入會寫，換版後的新日誌印 0%（r1 審查 F1）"""
+        self.ensure_one()
+        return progress.rounded(progress.actual_cumulative_on(
+            self.supervision_project_id, self.log_date, sheet=self)) or 0.0
 
     def action_export_daily_log_template(self):
         """把本張日誌的資料填進樣板並下載。

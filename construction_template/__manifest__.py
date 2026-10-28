@@ -73,6 +73,7 @@
         'views/payment_estimate_export_views.xml',
         'views/acceptance_test_export_views.xml',
         'views/self_inspection_export_views.xml',
+        'report/daily_log_report_progress.xml',
         'views/menu.xml',
     ],
     'demo': [],

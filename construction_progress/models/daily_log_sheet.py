@@ -266,21 +266,36 @@ class DailyLogSheet(models.Model):
     # Write Method - Feedback to Progress Module
     # -------------------------------------------------------------------------
 
+    # 改了會影響進度表同步結果的欄位：本日進度、狀態（同步只算已填寫／自動鎖定／已鎖定）、日期（換區間）
+    _PROGRESS_SYNC_FIELDS = ('daily_actual_progress', 'state', 'log_date')
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        sheets = super().create(vals_list)
+        sheets.filtered(lambda s: s.daily_actual_progress and s.progress_line_id) \
+            .mapped('progress_line_id')._sync_actual_from_daily_logs()
+        return sheets
+
     def write(self, vals):
-        """當 daily_actual_progress 實際改變時，自動同步到進度表"""
-        # 在寫入前記錄舊值，供後續比較
-        if 'daily_actual_progress' in vals:
-            old_values = {sheet.id: sheet.daily_actual_progress for sheet in self}
+        """本日進度、狀態或日期真的改變時，自動同步到進度表（新舊兩個區間都重算）。
+
+        2026-10-28 以前只看本日進度：前台的正常流程是「新增（草稿）→ 標記已填寫（只改狀態）→ 14 天自動鎖定
+        （只改狀態）」，而同步只算已填寫／鎖定的日誌——被填的那張永遠不在它自己觸發的同步裡，進度表、首頁進度 %、
+        進度報告都不會動（r1 審查 F3／RT2-3；jt 10-28 實查 5,679 張日誌全是自動鎖定）。
+        """
+        watch = any(f in vals for f in self._PROGRESS_SYNC_FIELDS)
+        if watch:
+            before = {s.id: (s.daily_actual_progress, s.state, s.progress_line_id) for s in self}
 
         res = super().write(vals)
 
-        # 只有值真正改變時才觸發同步，避免每次儲存都重算
-        if 'daily_actual_progress' in vals:
-            new_value = vals['daily_actual_progress']
+        if watch:
+            lines = self.env['progress.schedule.line']
             for sheet in self:
-                old_value = old_values.get(sheet.id, 0.0)
-                if new_value != old_value and sheet.progress_line_id:
-                    sheet.progress_line_id._sync_actual_from_daily_logs()
+                old_daily, old_state, old_line = before[sheet.id]
+                if (sheet.daily_actual_progress, sheet.state, sheet.progress_line_id) != (old_daily, old_state, old_line):
+                    lines |= old_line | sheet.progress_line_id
+            lines._sync_actual_from_daily_logs()
 
         return res
     
