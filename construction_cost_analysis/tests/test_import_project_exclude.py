@@ -65,6 +65,17 @@ class TestImportProjectExclude(TransactionCase):
         self.assertFalse(lines[orphan.id].parent_id)
         self.assertEqual(planning.total_budget, 2.0 * 50.0 + 10.0)
 
+    def test_load_button_skips_excluded_row(self):
+        """畫面上的「載入工項」按鈕是另一條路，要和匯入精靈一樣略過總計列。"""
+        self._hierarchy()
+        self._task('總計', qty=1.0, price=GRAND_TOTAL_ROW_AMOUNT, exclude=True, seq=30)
+        planning = self.env['cost.analysis'].create({
+            'name': '載入工項排除測試', 'source_project_id': self.project.id,
+            'company_id': self.env.company.id, 'state': 'draft'})
+        planning.action_load_from_project()
+        self.assertNotIn('總計', planning.line_ids.mapped('name'))
+        self.assertEqual(planning.total_budget, TOTAL_EXPECTED)
+
     def test_nothing_left_after_filter_raises(self):
         self._task('只有總計', qty=1.0, price=1.0, exclude=True)
         with self.assertRaises(UserError) as cm:

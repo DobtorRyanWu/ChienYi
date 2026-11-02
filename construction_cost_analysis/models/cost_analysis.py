@@ -366,31 +366,31 @@ class CostAnalysis(models.Model):
     # ========================================
     # 從專案載入工項
     # ========================================
-    def action_load_from_project(self):
-        """從來源專案載入契約工項（保留父子階層）"""
+    def _create_lines_from_project(self):
+        """依來源專案的契約工項建預算明細，保留父子階層。
+
+        略過「不計入契約金額」的列（例如表尾的總價列）：招標總價是加總明細，
+        留著會把它再算一次。上層被略過時往上找最近一層有建明細的祖先，找不到就掛頂層。
+        """
         self.ensure_one()
-        if not self.source_project_id:
-            raise UserError('請先選擇來源專案！')
-        if self.state != 'draft':
-            raise UserError('只有草稿狀態可以重新載入工項！')
-
-        self.line_ids.unlink()
-
-        tasks = self.source_project_id.task_ids.sorted(
+        all_tasks = self.source_project_id.task_ids
+        tasks = all_tasks.filtered(lambda t: not t.exclude_from_contract_amount).sorted(
             lambda t: (t.sequence, t.item_no or '', t.id)
         )
         if not tasks:
             raise UserError('來源專案沒有工項！')
+        skipped = all_tasks - tasks
 
         task_to_line = {}
         for task in tasks:
-            parent_line_id = False
-            if task.parent_id and task.parent_id.id in task_to_line:
-                parent_line_id = task_to_line[task.parent_id.id].id
+            ancestor = task.parent_id
+            while ancestor in skipped:
+                ancestor = ancestor.parent_id
+            parent_line = task_to_line.get(ancestor.id)
 
-            line = self.env['cost.analysis.line'].create({
+            task_to_line[task.id] = self.env['cost.analysis.line'].create({
                 'planning_id': self.id,
-                'parent_id': parent_line_id,
+                'parent_id': parent_line.id if parent_line else False,
                 'sequence': task.sequence,
                 'item_no': task.item_no,
                 'name': task.name,
@@ -401,7 +401,18 @@ class CostAnalysis(models.Model):
                 'quantity': task.planned_qty,
                 'contract_unit_price': task.unit_price,
             })
-            task_to_line[task.id] = line
+
+    def action_load_from_project(self):
+        """從來源專案載入契約工項（保留父子階層）"""
+        self.ensure_one()
+        if not self.source_project_id:
+            raise UserError('請先選擇來源專案！')
+        if self.state != 'draft':
+            raise UserError('只有草稿狀態可以重新載入工項！')
+
+        self.line_ids.unlink()
+
+        self._create_lines_from_project()
 
         return {
             'type': 'ir.actions.act_window',

@@ -110,49 +110,10 @@ class CostAnalysisImportProjectWizard(models.TransientModel):
             'state': 'draft',
         })
 
-        # 2. 取得所有工項（包含彙總項），略過「不計入契約金額」的列（例如總計列）：
-        #    招標總價是加總明細，留著會把它再算一次
-        tasks = self.source_project_id.task_ids.filtered(
-            lambda t: not t.exclude_from_contract_amount
-        ).sorted(lambda t: (t.sequence, t.item_no or '', t.id))
-        skipped = self.source_project_id.task_ids - tasks
+        # 2. 建立明細（與「載入工項」按鈕共用）
+        planning._create_lines_from_project()
 
-        if not tasks:
-            raise UserError(_('來源專案沒有工項'))
-
-        # 3. 建立 task_id 到 line 的映射（用於建立父子關係）
-        task_to_line = {}
-
-        # 4. 遍歷所有工項並建立 cost.analysis.line
-        for task in tasks:
-            # 決定 parent_id
-            # 上層被略過時往上找最近一層有建明細的祖先，找不到就掛頂層（不斷鏈）
-            parent_line_id = False
-            ancestor = task.parent_id
-            while ancestor in skipped:
-                ancestor = ancestor.parent_id
-            if ancestor and ancestor.id in task_to_line:
-                parent_line_id = task_to_line[ancestor.id].id
-
-            # 建立 cost.analysis.line
-            line = self.env['cost.analysis.line'].create({
-                'planning_id': planning.id,
-                'parent_id': parent_line_id,
-                'sequence': task.sequence,
-                'item_no': task.item_no,
-                'name': task.name,
-                'unit': task.unit,
-                'unit_id': task.unit_id.id if task.unit_id else False,
-                'ref_item_code': task.ref_item_code or False,
-                'task_id': task.id,
-                'quantity': task.planned_qty,
-                'contract_unit_price': task.unit_price,
-            })
-
-            # 記錄映射
-            task_to_line[task.id] = line
-
-        # 5. 返回新建的成本分析
+        # 3. 返回新建的成本分析
         return {
             'type': 'ir.actions.act_window',
             'name': _('成本分析'),
