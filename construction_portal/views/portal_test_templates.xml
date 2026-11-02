@@ -48,7 +48,7 @@
                                             </div>
                                             <div style="font-size: 0.82rem; color: var(--wb-t3); margin-top: 2px;">
                                                 <t t-esc="test.name or ''"/>
-                                                <t t-if="test.task_id"> · <t t-esc="test.task_id.name"/></t>
+                                                <t t-if="test.task_id"> · <t t-esc="test.task_id.sudo().name"/></t>
                                             </div>
                                         </div>
                                         <span t-attf-style="flex-shrink: 0; font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; #{test.result == 'pass' and 'background: rgba(34,197,94,.15); color: var(--wb-green);' or (test.result == 'fail' and 'background: rgba(239,68,68,.15); color: var(--wb-red);' or 'background: var(--wb-bg2); color: var(--wb-t3);')}">
@@ -119,7 +119,7 @@
                     <div class="cy-info-section">
                         <div class="cy-info-row" t-if="test.task_id">
                             <span class="cy-info-label">材料名稱</span>
-                            <span class="cy-info-value"><t t-esc="test.task_id.name"/></span>
+                            <span class="cy-info-value"><t t-esc="test.task_id.sudo().name"/></span>
                         </div>
                         <div class="cy-info-row" t-if="test.standard_unit">
                             <span class="cy-info-label">檢查單位</span>

@@ -544,6 +544,12 @@
                                 <div class="cy-event-body"><div class="cy-event-desc">累計實際進度必須是 0～100 的數字，整筆未儲存，請修正後再送出。</div></div>
                             </div>
                         </t>
+                        <t t-if="request.params.get('error') == 'duplicate_log'">
+                            <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                                <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                                <div class="cy-event-body"><div class="cy-event-desc">這個專案在同一天已經有施工日誌，整筆未儲存。請到施工日誌清單開啟該天的日誌修改，或改選其他日期。</div></div>
+                            </div>
+                        </t>
                         <t t-if="request.params.get('error') == 'invalid_qty'">
                             <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
@@ -830,7 +836,7 @@
                     <div style="text-align: center; margin-bottom: 16px;">
                         <div style="font-size: 1.4rem; font-weight: 900; color: var(--wb-amber);">批次匯入施工日誌</div>
                         <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">
-                            上傳上溢營造「公共工程施工日誌」XLSM 檔案（可多選）
+                            上傳「公共工程施工日誌」XLSM 檔案（可多選）
                         </div>
                     </div>
 

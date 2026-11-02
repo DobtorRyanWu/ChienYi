@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from markupsafe import Markup
+
 from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 
@@ -345,9 +347,8 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
             if not record.responsible_user_id:
                 continue
             record.message_post(
-                body=(f'缺失 <b>{record.defect_no or record.id}</b> 已逾期 '
-                      f'{record.overdue_days} 天（期限：{record.deadline}），'
-                      f'請儘速完成改善。'),
+                body=Markup('缺失 <b>%s</b> 已逾期 %s 天（期限：%s），請儘速完成改善。') % (
+                    record.defect_no or record.id, record.overdue_days, record.deadline),
                 partner_ids=record.responsible_user_id.partner_id.ids,
                 message_type='notification',
                 subtype_xmlid='mail.mt_comment',
@@ -370,11 +371,13 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
                 unit = record.improvement_unit or ''
                 record.message_subscribe(partner_ids=partner.ids)
                 record.message_post(
-                    body=(
-                        f'缺失 <b>{record.defect_no}</b> 已派發給您'
-                        + (f'（執行改善單位：{unit}）' if unit else '') + '，'
-                        f'請於 <b>{record.deadline}</b> 前完成改善。<br/>'
-                        f'缺失說明：{record.defect_description or "（無）"}'
+                    body=Markup(
+                        '缺失 <b>%s</b> 已派發給您%s，請於 <b>%s</b> 前完成改善。<br/>缺失說明：%s'
+                    ) % (
+                        record.defect_no,
+                        Markup('（執行改善單位：%s）') % unit if unit else '',
+                        record.deadline,
+                        record.defect_description or '（無）',
                     ),
                     partner_ids=partner.ids,
                     message_type='notification',
@@ -402,7 +405,7 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
             if record.discovery_user_id:
                 partner = record.discovery_user_id.partner_id
                 record.message_post(
-                    body=f'缺失 <b>{record.defect_no}</b> 已完成改善，請複查。',
+                    body=Markup('缺失 <b>%s</b> 已完成改善，請複查。') % record.defect_no,
                     partner_ids=partner.ids,
                     message_type='notification',
                     subtype_xmlid='mail.mt_comment',

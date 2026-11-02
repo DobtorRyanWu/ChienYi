@@ -69,10 +69,9 @@ class DefectImprovementPrefixConfig(models.Model):
             if record.contractor_prefix and not re.match(r'^[\u4e00-\u9fa5a-zA-Z0-9]+$', record.contractor_prefix):
                 raise ValidationError('營造編號前綴只能包含中文、英文字母和數字')
 
-    def name_get(self):
-        """自訂顯示名稱"""
-        result = []
+    @api.depends('project_name', 'supervision_prefix', 'contractor_prefix')
+    def _compute_display_name(self):
+        """自訂顯示名稱（Odoo 18 用 display_name，不再呼叫 name_get）"""
         for record in self:
-            name = f"{record.project_name} (監造:{record.supervision_prefix} / 營造:{record.contractor_prefix})"
-            result.append((record.id, name))
-        return result
+            record.display_name = (
+                f"{record.project_name} (監造:{record.supervision_prefix} / 營造:{record.contractor_prefix})")

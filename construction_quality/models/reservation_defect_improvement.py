@@ -31,6 +31,7 @@ class ReservationDefectImprovement(models.Model):
     # photo.sync.mixin 已隨照片資料表收斂退場
     _inherit = ['construction.daily.defect.mixin', 'mail.thread', 'mail.activity.mixin',
                 'supervision.attachment.mixin']
+    _rec_name = 'defect_no'  # 預設 name 欄不存在，會顯示成 model,id
     _order = 'notification_date desc, id desc'
 
     # === 通報單關聯 ===

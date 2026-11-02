@@ -475,10 +475,11 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
                 ('week_end', '>=', today),
             ], limit=1, order='week_start desc')
             if schedule:
-                weekly_lines = schedule.line_ids
+                # sudo 只讀：前台帳號沒有 project.task 讀權；schedule 已由非 sudo 查詢限定在本專案
+                weekly_lines = schedule.sudo().line_ids
                 week_display = schedule.week_display or ''
                 # 組合本週目標文字
-                task_names = [l.task_name or l.task_id.name for l in schedule.line_ids if l.task_name or l.task_id]
+                task_names = [l.task_name or l.task_id.name for l in weekly_lines if l.task_name or l.task_id]
                 week_target = ' + '.join(task_names[:3])
                 if len(task_names) > 3:
                     week_target += f' 等 {len(task_names)} 項'

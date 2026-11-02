@@ -130,7 +130,9 @@
     #        （construction_notification_slip 18.0.3.0.0 新增退單狀態；已掛上的不受影響）
     # 6.6.0（2026-10-28）：檢查類型加「結果欄位」（合格／缺失／無此項目｜是／否／不適用只紀錄｜是／不足／否）與
     #        「有缺失也可結案」；檢查項目加「勾選」，非標準樣式時由它換算檢查結果（models/self_inspection_mark.py）
-    'version': '18.0.6.6.0',
+    # 6.6.1（2026-11-02）：預約式缺失顯示名稱改缺失編號（_rec_name）；編號前綴設定改 _compute_display_name；
+    #        缺失通知 chatter 改 Markup 並跳脫使用者輸入（原本畫面顯示原始 <b>）
+    'version': '18.0.6.6.1',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """

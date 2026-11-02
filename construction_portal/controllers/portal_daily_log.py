@@ -161,7 +161,8 @@ class DailyLogRoutesMixin:
                 ('week_end', '>=', today),
             ], limit=1)
             if schedule:
-                task_names = [l.task_name or l.task_id.name for l in schedule.line_ids if l.task_name or l.task_id]
+                # sudo 只讀：前台帳號沒有 project.task 讀權；schedule 已由非 sudo 查詢限定在本專案
+                task_names = [l.task_name or l.task_id.name for l in schedule.sudo().line_ids if l.task_name or l.task_id]
                 week_target = ' + '.join(task_names[:3])
         except Exception:
             pass
@@ -306,9 +307,11 @@ class DailyLogRoutesMixin:
             # 區塊用 att.id 組 /construction/img/<att_id> 與刪除網址。
             # 直接送照片記錄的話 att.id 會是「照片 id」被當成「附件 id」用 —— 症狀是
             # 縮圖 404 破圖、詳情連結指向 /construction/photo/0、刪除鈕靜默失效。
-            'photos': log.photo_ids.attachment_id,
+            # sudo 範圍：只讀這張日誌自己的照片附件；log 已由上方路由用非 sudo 查詢
+            # 確認使用者看得到這張日誌，附件 public=False 前台帳號本身沒有 ir.attachment 讀權
+            'photos': log.sudo().photo_ids.attachment_id,
             'photo_to_supervision': _portal_photo_to_supervision(
-                request.env, log.photo_ids.attachment_id),
+                request.env, log.sudo().photo_ids.attachment_id),
             'photo_categories': photo_categories,
             'upload_url': f'/construction/daily-log/{log.id}/photo/upload',
             'delete_url_tpl': f'/construction/daily-log/{log.id}/photo/%s/delete',
@@ -586,7 +589,13 @@ class DailyLogRoutesMixin:
             vals['notification_slip_id'] = int(slip_id)
 
         DailyLog = request.env['daily.log.sheet'].sudo()
-        log = DailyLog.create(vals)
+        try:
+            with request.env.cr.savepoint():
+                log = DailyLog.create(vals)
+        except ValidationError:
+            # 同專案同一天已有日誌（唯一性由 daily.log.sheet 的 constraint 擋）：導回新增頁並提示
+            return request.redirect(
+                f'/construction/{project_id}/daily-log/new?error=duplicate_log')
 
         # 約定重要材料本日數量：create() 已依案件清單自動帶入材料列，這裡只填數量。
         # 只認「這張日誌自己、對應到該清單項」的列（外來的清單項 id 找不到列就略過）。
