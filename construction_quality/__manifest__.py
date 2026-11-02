@@ -132,7 +132,7 @@
     #        「有缺失也可結案」；檢查項目加「勾選」，非標準樣式時由它換算檢查結果（models/self_inspection_mark.py）
     # 6.6.1（2026-11-02）：預約式缺失顯示名稱改缺失編號（_rec_name）；編號前綴設定改 _compute_display_name；
     #        缺失通知 chatter 改 Markup 並跳脫使用者輸入（原本畫面顯示原始 <b>）
-    'version': '18.0.6.6.1',
+    'version': '18.0.6.6.2',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """

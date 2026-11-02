@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- noupdate：排程開關由各站決定。沒有 noupdate 時，每次 -u 都把這裡寫死的 active 蓋回去。 -->
+    <data noupdate="1">
     <!-- 分級標準 v0.3 第九節：P3／P4 的服務單在「待客戶驗證」滿設定天數（預設 7 個日曆天）未回覆 → 自動結案。
          P1／P2 不在這裡處理（要客服附齊三件修復對照後結案）。 -->
     <record id="cron_close_overdue_verify" model="ir.cron">
@@ -11,4 +13,5 @@
         <field name="interval_type">days</field>
         <field name="active" eval="True"/>
     </record>
+    </data>
 </odoo>

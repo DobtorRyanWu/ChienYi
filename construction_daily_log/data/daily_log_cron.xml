@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <!-- noupdate：排程開關由各站決定。沒有 noupdate 時，每次 -u 都把這裡寫死的 active 蓋回去。 -->
+    <data noupdate="1">
 
     <!-- 施工日誌自動鎖定排程（每日凌晨 2:00 執行）-->
     <record id="ir_cron_auto_lock_daily_logs" model="ir.cron">
@@ -11,5 +13,5 @@
         <field name="interval_type">days</field>
         <field name="active" eval="True"/>
     </record>
-
+    </data>
 </odoo>
