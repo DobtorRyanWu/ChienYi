@@ -709,12 +709,8 @@ class PhotoMapController extends Component {
     }
 
     createPhoto() {
-        this.actionService.doAction({
-            type: "ir.actions.act_window",
-            res_model: "supervision.photo",
-            views: [[false, "form"]],
-            target: "current",
-        });
+        // 照片表單沒有上傳入口，一律走批次上傳精靈
+        this.actionService.doAction("construction_photo.action_photo_upload_wizard");
     }
 
     // =============================================

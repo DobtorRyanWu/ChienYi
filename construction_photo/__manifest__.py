@@ -48,7 +48,7 @@
     #            兩處共用同一份欄位清單（_SEARCH_FIELDS）避免再度漂移；
     #            搜尋欄標籤由「照片」改為「照片／工程／分類」，因為使用者正是
     #            看到「照片」兩字才以為只比對相片名稱。
-    'version': '18.0.3.7.1',
+    'version': '18.0.3.7.2',
     'category': 'Construction/Supervision',
     'summary': '工程照片管理與 GPS 追蹤',
     'description': """

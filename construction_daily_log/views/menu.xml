@@ -47,13 +47,14 @@
         groups="construction_supervision_base.group_supervisor_admin"
     />
 
-    <!-- 契約材料清單 (under 設定)：每案一份，標「重要材料」的會自動帶入新日誌 -->
+    <!-- 契約材料清單 (直接掛在施工日誌下：原本在「設定」底下，會被 construction_menu_profile 連同父層關掉，代操作員進不去)：每案一份，標「重要材料」的會自動帶入新日誌 -->
     <menuitem
         id="menu_contract_material"
         name="契約材料清單"
-        parent="menu_daily_log_config"
+        parent="construction_supervision_base.menu_daily_log"
         action="action_contract_material"
         sequence="5"
+        groups="construction_supervision_base.group_supervisor_admin"
     />
 
     <!-- 日誌明細 (under 設定) -->

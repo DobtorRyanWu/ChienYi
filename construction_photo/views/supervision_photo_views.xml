@@ -149,7 +149,7 @@
                    的 import 與 create 兩個屬性，所以不能寫 create="0"，會連
                    「新增」一起關掉。） -->
             <list string="工程照片" default_order="shot_at desc" editable="bottom"
-                  multi_edit="1" import="0">
+                  multi_edit="1" import="0" create="false">
                 <header>
                     <!-- display="always"：不必勾記錄就常駐在「新增」旁邊。
                          這是代操人員找不到上傳入口、退而去按「匯入記錄」的解法。 -->
@@ -323,7 +323,7 @@
         <field name="arch" type="xml">
             <!-- import="0" 與 <header> 的用意同 list view，見上方註解。
                  看板是本 action 的預設檢視，入口一定要在這裡也看得到。 -->
-            <kanban class="o_kanban_small_column" sample="1" import="0">
+            <kanban class="o_kanban_small_column" sample="1" import="0" create="false">
                 <header>
                     <button name="%(action_photo_upload_wizard)d" type="action"
                             string="批次上傳照片" display="always"
@@ -386,7 +386,7 @@
                       date_start="shot_at"
                       color="project_id"
                       mode="month"
-                      quick_create="0">
+                      quick_create="0" create="false">
                 <field name="name"/>
                 <field name="project_id"/>
                 <field name="tag_ids" widget="many2many_tags"/>

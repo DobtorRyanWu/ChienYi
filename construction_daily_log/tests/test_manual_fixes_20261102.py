@@ -52,3 +52,24 @@ class TestManualFixes20261102(TransactionCase):
             self.assertNotIn('&lt;li&gt;', html, '標籤不可被當文字跳脫')
             self.assertNotIn('<script>', html, '工項名稱的 <script> 必須被跳脫')
             self.assertIn('&lt;script&gt;', html)
+
+    def test_b29_contract_material_menu_visible_to_operator(self):
+        """B29：契約材料清單掛在被選單設定檔關掉的「設定」底下，代操作員進不去。
+        改掛「施工日誌」之下；用代操作員實際載入的選單樹確認看得到。"""
+        operator = self.env['res.users'].create({
+            'name': 'b29_operator', 'login': 'b29_operator',
+            'groups_id': [(6, 0, [
+                self.env.ref('construction_supervision_base.group_operator').id])],
+        })
+        menu = self.env.ref('construction_daily_log.menu_contract_material')
+        self.assertEqual(
+            menu.parent_id, self.env.ref('construction_supervision_base.menu_daily_log'))
+
+        # load_menus 回傳 {id: 節點}，節點的 children 是 id 清單；從 root 走得到才算看得見
+        tree = self.env['ir.ui.menu'].with_user(operator).load_menus(False)
+        reachable, stack = set(), ['root']
+        while stack:
+            node_id = stack.pop()
+            reachable.add(node_id)
+            stack.extend(tree[node_id].get('children', []))
+        self.assertIn(menu.id, reachable, '代操作員的選單樹要看得到契約材料清單')

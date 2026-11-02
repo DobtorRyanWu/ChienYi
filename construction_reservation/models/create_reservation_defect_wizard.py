@@ -69,6 +69,11 @@ class CreateReservationDefectWizard(models.TransientModel):
                 'defect_description': f'{item.check_item}\n實際情形: {item.actual_result or ""}',
                 'defect_location': inspection.inspection_location or inspection.slip_id.location,
                 'notification_date': fields.Date.today(),
+                # 來源資訊比照一般式 create_defect_wizard：沒帶的話來源會是預設的「通報單」、
+                # 發現人空白、發現日期變成建立當天
+                'source_type': 'self_inspection',
+                'discovery_user_id': inspection.inspector_id.id if inspection.inspector_id else self.env.uid,
+                'found_date': inspection.inspection_date,
             })
             item.defect_improvement_id = defect.id
             created |= defect

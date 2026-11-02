@@ -9,7 +9,7 @@
     #        升級指令：有社區資料的庫要 -u construction_water_level -i community_water_level
     #        同一次跑（migrations/18.0.3.0.0 與核心的 pre_init_hook 都會擋）。
     #        2026-10-21 起社區模組移到獨立專案 water-odoo、不在本 repo：ChienYi 的庫（8069、jt）只裝核心＋本模組。
-    'version': '18.0.3.0.0',
+    'version': '18.0.3.0.1',
     'category': 'Construction/Supervision',
     'summary': '水位監測接上工程案件：場域綁工程、前台依工程成員看水位',
     'description': """

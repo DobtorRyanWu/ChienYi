@@ -8,7 +8,7 @@
     #        有值者的最早日期（新增 slip._get_earliest_start_date）
     # 1.3.0: 通報單新增「停工」「退單」狀態（construction_notification_slip 18.0.3.0.0）——
     #        停工的通報單照常可掛／新增自主檢查與缺失改善；退單的不可再掛
-    'version': '18.0.1.3.0',
+    'version': '18.0.1.3.1',
     'category': 'Construction/Reservation',
     'summary': '預約式工程通報單整合自主檢查與缺失改善',
     'description': """

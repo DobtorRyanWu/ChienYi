@@ -25,7 +25,7 @@
     #         完全不受影響）。日誌新增「帶入重要材料」按鈕；清單新增「套用到未鎖定日誌」。
     #         清單有全域公司隔離規則、前台群組沒有讀權（前台一律 sudo 讀）：jt 是多家公司共用的庫，
     #         清單含契約單價。
-    "version": "18.0.2.10.1",
+    "version": "18.0.2.10.2",
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """

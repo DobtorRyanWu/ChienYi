@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 import os
 import zipfile
+from markupsafe import Markup
+
 from odoo import models, fields, api
 from odoo.exceptions import UserError
 
@@ -1105,10 +1107,10 @@ img {{ max-width: 100%; height: auto; }}
         self.versions_data = versions
 
         # 摘要訊息送 chatter（不含 content，只當 audit trail）
-        summary = (
-            f'<p><strong>版本 v{version_no}</strong>'
-            + (f' — {label}' if label else '')
-            + '</p>'
+        # Markup：message_post 傳純字串會被 escape 成可見的標籤；label 是使用者輸入，要跳脫
+        summary = Markup('<p><strong>版本 v%s</strong>%s</p>') % (
+            version_no,
+            Markup(' — %s') % label if label else '',
         )
         msg = self.message_post(
             body=summary,

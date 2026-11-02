@@ -58,7 +58,7 @@
         <field name="arch" type="xml">
             <field name="site_id" position="after">
                 <!-- 由場域帶入，社區場域為空 -->
-                <field name="project_id" readonly="1" invisible="not project_id"/>
+                <field name="project_id" readonly="1" force_save="1" invisible="not project_id"/>
             </field>
         </field>
     </record>

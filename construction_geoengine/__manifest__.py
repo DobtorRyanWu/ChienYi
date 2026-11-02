@@ -25,7 +25,7 @@
     #        (c) 工程／標籤／分類三個 chip 的 popover 加關鍵字過濾（生產站
     #            187 個工程案件，平鋪清單捲不完）；材料分類 chip 從已停用的
     #            category Selection 改綁 category_id 主檔。
-    'version': '18.0.1.3.0',
+    'version': '18.0.1.3.1',
     'category': 'Construction/Supervision',
     'summary': '將工程照片整合至 GeoEngine 地圖視圖',
     'license': 'LGPL-3',

@@ -366,7 +366,9 @@ class ProjectTask(models.Model):
         回傳 uom_id 或 False。"""
         if not display_unit:
             return False
-        Uom = self.env['uom.uom']
+        # sudo：uom 為全域參照資料，這裡只查詢（建立在下方也是 sudo）；前台角色是 portal 型使用者，
+        # 沒有 uom.uom 的讀取權。範圍：呼叫端（匯入精靈／契約變更核定）已判過權限。
+        Uom = self.env['uom.uom'].sudo()
         norm_key = lambda x: re.sub(r'\s+', '', (x or '').lower())
         # 1. 精確比對
         uom = Uom.search([('name', '=', display_unit)], limit=1)
@@ -387,7 +389,7 @@ class ProjectTask(models.Model):
         # sudo：uom 為全域參照資料。原本無 sudo 會要求「Administration/Settings」群組，
         # 導致非管理員（如代操帳號）建含新單位的工項或套用引進新單位的契約變更時 AccessError。
         category = self.env['uom.category'].sudo().create({'name': display_unit})
-        new_uom = Uom.sudo().create({
+        new_uom = Uom.create({
             'name': display_unit,
             'category_id': category.id,
             'uom_type': 'reference',
