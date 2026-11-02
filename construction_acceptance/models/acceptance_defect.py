@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from markupsafe import Markup
+
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 
@@ -301,10 +303,15 @@ class AcceptanceDefect(models.Model):
                 partner = record.responsible_user_id.partner_id
                 record.message_subscribe(partner_ids=partner.ids)
                 record.message_post(
-                    body=(
-                        f'驗收缺失 <b>{record.name}</b> 已指派給您處理，'
-                        f'請於 <b>{record.effective_deadline}</b> 前完成改善。<br/>'
-                        f'缺失說明：{record.description or "（無）"}'
+                    # Markup 的 % 會把動態值自動跳脫，標籤才不會被顯示成原始文字
+                    body=Markup(
+                        '驗收缺失 <b>%s</b> 已指派給您處理，'
+                        '請於 <b>%s</b> 前完成改善。<br/>'
+                        '缺失說明：%s'
+                    ) % (
+                        record.name,
+                        record.effective_deadline,
+                        record.description or '（無）',
                     ),
                     partner_ids=partner.ids,
                     message_type='notification',
@@ -328,7 +335,7 @@ class AcceptanceDefect(models.Model):
             if notify_user:
                 partner = notify_user.partner_id
                 record.message_post(
-                    body=f'驗收缺失 <b>{record.name}</b> 已完成改善，請複查。',
+                    body=Markup('驗收缺失 <b>%s</b> 已完成改善，請複查。') % record.name,
                     partner_ids=partner.ids,
                     message_type='notification',
                     subtype_xmlid='mail.mt_comment',

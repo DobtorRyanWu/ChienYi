@@ -14,7 +14,7 @@
                 <field name="unit"/>
                 <field name="unit_price" sum="總計"/>
                 <field name="suggested_unit_price" optional="show"/>
-                <field name="price_cv" widget="percentage" optional="show"/>
+                <field name="price_cv" optional="show"/>
                 <field name="source_count" optional="show"/>
                 <field name="price_date"/>
                 <field name="active" column_invisible="1"/>
@@ -92,7 +92,7 @@
                             <group>
                                 <group string="統計指標">
                                     <field name="suggested_unit_price" widget="monetary"/>
-                                    <field name="price_cv" widget="percentage"/>
+                                    <field name="price_cv"/>
                                     <field name="price_std_dev"/>
                                     <field name="source_count"/>
                                 </group>
@@ -129,7 +129,7 @@
                                     <field name="old_price"/>
                                     <field name="new_price"/>
                                     <field name="price_change"/>
-                                    <field name="price_change_rate" widget="percentage"/>
+                                    <field name="price_change_rate"/>
                                     <field name="change_reason"/>
                                     <field name="user_id"/>
                                 </list>
@@ -265,7 +265,7 @@
                 <field name="new_price"/>
                 <field name="price_change" decoration-success="price_change &lt; 0"
                        decoration-danger="price_change &gt; 0"/>
-                <field name="price_change_rate" widget="percentage"
+                <field name="price_change_rate"
                        decoration-success="price_change_rate &lt; 0"
                        decoration-danger="price_change_rate &gt; 0"/>
                 <field name="change_reason"/>
@@ -298,7 +298,7 @@
                             <field name="old_price"/>
                             <field name="new_price"/>
                             <field name="price_change"/>
-                            <field name="price_change_rate" widget="percentage"/>
+                            <field name="price_change_rate"/>
                         </group>
                         <group string="說明">
                             <field name="change_reason"/>

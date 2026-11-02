@@ -77,6 +77,7 @@ class TaiwanHolidayWizard(models.TransientModel):
 
         return {
             'type': 'ir.actions.act_window',
+            'name': '建立台灣國定假日',
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',

@@ -624,6 +624,12 @@ class ContractChangeWizard(models.TransientModel):
     _name = 'contract.change.wizard'
     _description = '匯入工程案件精靈'
 
+    @api.depends()
+    def _compute_display_name(self):
+        """精靈沒有名稱欄位，麵包屑改顯示模型描述（含尚未存檔的 NewId）"""
+        for rec in self:
+            rec.display_name = rec._description
+
     change_order_id = fields.Many2one(
         'contract.change.order',
         string='契約變更單',
@@ -872,6 +878,7 @@ class ContractChangeWizard(models.TransientModel):
         max_seq = max(self.wizard_line_ids.mapped('sequence') or [0])
         return {
             'type': 'ir.actions.act_window',
+            'name': '新增工項',
             'res_model': 'contract.change.wizard.line',
             'view_mode': 'form',
             'target': 'new',

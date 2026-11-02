@@ -123,6 +123,12 @@ class TestFrequencyCondition(models.Model):
             else:
                 cond.condition_summary = ''
     
+    @api.depends('condition_summary')
+    def _compute_display_name(self):
+        """以條件摘要顯示；摘要為空（新建未選類型）時用描述，避免露出 NewId"""
+        for cond in self:
+            cond.display_name = cond.condition_summary or cond._description
+
     # ===================================================================
     # 約束條件
     # ===================================================================

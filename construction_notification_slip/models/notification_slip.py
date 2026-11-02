@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from markupsafe import Markup
+
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 from datetime import timedelta
@@ -478,10 +480,12 @@ class ReservationNotificationSlip(models.Model):
                 partner = site_manager.partner_id
                 rec.message_subscribe(partner_ids=partner.ids)
                 rec.message_post(
-                    body=(
-                        f'通報單 <b>{rec.slip_number}</b> 已確認，'
-                        f'預定開工：{rec.planned_start_date or "未設定"}，'
-                        f'地點：{rec.location}。'
+                    body=Markup(
+                        '通報單 <b>%s</b> 已確認，預定開工：%s，地點：%s。'
+                    ) % (
+                        rec.slip_number,
+                        rec.planned_start_date or '未設定',
+                        rec.location,
                     ),
                     partner_ids=partner.ids,
                     message_type='notification',

@@ -152,6 +152,7 @@ class PriceLibraryImportWizard(models.TransientModel):
 
         return {
             'type': 'ir.actions.act_window',
+            'name': '從價格庫匯入工項',
             'res_model': 'price.library.import.wizard',
             'res_id': self.id,
             'view_mode': 'form',
@@ -165,6 +166,7 @@ class PriceLibraryImportWizard(models.TransientModel):
 
         return {
             'type': 'ir.actions.act_window',
+            'name': '從價格庫匯入工項',
             'res_model': 'price.library.import.wizard',
             'res_id': self.id,
             'view_mode': 'form',

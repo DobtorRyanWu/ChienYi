@@ -211,6 +211,7 @@ class ContractChangeFileImportWizard(models.TransientModel):
 
         return {
             'type': 'ir.actions.act_window',
+            'name': '從檔案匯入契約變更',
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',

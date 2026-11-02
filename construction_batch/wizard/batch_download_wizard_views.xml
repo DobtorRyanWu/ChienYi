@@ -55,7 +55,7 @@
 
                 <div class="alert alert-info" role="status"
                      invisible="state != 'draft' or download_type != 'contract_form'">
-                    契約附表（新北市政府工程契約附的空白表單）<strong>只自動帶入表頭</strong>：
+                    契約附表（工程契約附的空白表單）<strong>只自動帶入表頭</strong>：
                     工程名稱、契約編號、工程地點、開竣工日期、決標金額、主辦機關、監造單位、承攬廠商等；
                     人員、審查意見、評分等欄位現場手填。案件有專用版樣板時優先使用。
                 </div>

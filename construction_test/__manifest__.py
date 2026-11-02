@@ -20,7 +20,7 @@
     #        混凝土澆置位置、試驗機構、試驗報告編號（不沿用歸檔編號，那欄實際存的是簽核紀錄）；
     #        新子表 supervision.test.record.value（試驗項目／合格值／試驗值），只給後台、
     #        全域公司隔離規則。全部可空，免 migration。後台表單新增「抽(查)驗紀錄表」頁籤。
-    'version': '18.0.2.7.0',
+    'version': '18.0.2.7.1',
     'category': 'Construction/Test',
     'summary': '工程監造檢試驗項目管理與管制記錄',
     'description': """

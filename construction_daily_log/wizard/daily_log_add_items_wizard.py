@@ -64,6 +64,7 @@ class DailyLogAddItemsWizard(models.TransientModel):
             view_id = view.id if view else False
         action = {
             'type': 'ir.actions.act_window',
+            'name': '新增施工項目',
             'res_model': 'daily.log.add.items.wizard',
             'view_mode': 'form',
             'res_id': new_wizard.id,

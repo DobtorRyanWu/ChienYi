@@ -173,7 +173,7 @@ class SupervisionReviewApplication(models.Model):
     review_document_no = fields.Char(
         string='審查函號',
         tracking=True,
-        help='監造單位審查完發文的公文字號（例：110任泰顧字第0601051501號）')
+        help='監造單位審查完發文的公文字號（例：110某顧字第0000000001號）')
 
     # === 廠驗 (舊系統欄位) ===
     is_factory_inspection = fields.Boolean(

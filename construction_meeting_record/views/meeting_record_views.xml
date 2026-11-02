@@ -44,7 +44,7 @@
                 <sheet>
                     <div class="oe_title">
                         <h1>
-                            <field name="name" placeholder="例：磺港溪 C 段第 5 次監造會議"/>
+                            <field name="name" placeholder="例：第 5 次監造會議"/>
                         </h1>
                     </div>
                     <group>

@@ -3,6 +3,8 @@
 
 from datetime import timedelta
 
+from markupsafe import Markup
+
 from odoo import models, fields, api
 from odoo.exceptions import UserError
 
@@ -109,7 +111,13 @@ class ConstructionWeeklySchedule(models.Model):
     def _compute_display_name(self):
         for rec in self:
             project_name = rec.supervision_project_id.name or ''
-            rec.display_name = f'{project_name} - {rec.week_display}' if rec.week_display else f'排程 #{rec.id}'
+            if rec.week_display:
+                rec.display_name = f'{project_name} - {rec.week_display}'
+            elif isinstance(rec.id, int):
+                rec.display_name = f'排程 #{rec.id}'
+            else:
+                # 新建未存檔時 id 是 NewId，不可露出
+                rec.display_name = '新排程'
 
     # =========================================================================
     # 動作方法
@@ -142,12 +150,13 @@ class ConstructionWeeklySchedule(models.Model):
             type_info = f'（檢查類型：{type_names}）' if type_names else ''
             note_lines.append(f'[{item_no}] {task_name} {type_info}')
 
-        items_html = ''.join(f'<li>{nl}</li>' for nl in note_lines)
-        note = (
-            f'<p><strong>{self.week_display}</strong> 排程中，'
-            f'以下工項需安排自主檢查：</p>'
-            f'<ul>{items_html}</ul>'
-        )
+        # 動態值（工項名稱等）一律 escape，標籤部分用 Markup 才會被當成標籤
+        items_html = Markup('').join(
+            Markup('<li>%s</li>') % nl for nl in note_lines)
+        note = Markup(
+            '<p><strong>%s</strong> 排程中，以下工項需安排自主檢查：</p>'
+            '<ul>%s</ul>'
+        ) % (self.week_display, items_html)
 
         # 建立活動
         self.activity_schedule(

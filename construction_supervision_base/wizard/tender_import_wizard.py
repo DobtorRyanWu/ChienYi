@@ -482,6 +482,7 @@ class TenderImportWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_window',
+            'name': '匯入契約標單',
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',
@@ -503,6 +504,7 @@ class TenderImportWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_window',
+            'name': '匯入契約標單',
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',
@@ -574,6 +576,7 @@ class TenderImportWizard(models.TransientModel):
             }
         return {
             'type': 'ir.actions.act_window',
+            'name': '匯入契約標單',
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',
@@ -734,7 +737,7 @@ class TenderImportWizard(models.TransientModel):
         subtotal_tasks = created_tasks.filtered('exclude_from_contract_amount')
         if subtotal_tasks:
             notes.append(
-                '標單的小計列（itemKind="subtotal"）%d 筆已自動勾「不計入契約金額」：%s'
+                '標單的小計列 %d 筆已自動勾「不計入契約金額」：%s'
                 % (len(subtotal_tasks),
                    '、'.join('%s %s' % (t.item_no or '', t.name) for t in subtotal_tasks)))
 

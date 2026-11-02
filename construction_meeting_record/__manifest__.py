@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 監造會議記錄',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.0.1',
     'category': 'Construction',
     'summary': '監造會議記錄管理（Sprint 24 新增；可選 dobtor_doc_editor_chienyi 啟用線上協作）',
     'description': """

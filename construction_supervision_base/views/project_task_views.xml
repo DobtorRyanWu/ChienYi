@@ -57,7 +57,7 @@
                        options="{'no_create': True}"
                        readonly="is_project_approved"
                        help="有子項次的彙總項目才可作為父工項"/>
-                <field name="item_no" required="1" placeholder="自動產生" readonly="is_project_approved"/>
+                <field name="item_no" required="1" placeholder="請輸入工項編號" readonly="is_project_approved"/>
                 <field name="display_item_no" readonly="1" string="顯示項次"/>
                 <field name="item_level" readonly="1"/>
             </xpath>

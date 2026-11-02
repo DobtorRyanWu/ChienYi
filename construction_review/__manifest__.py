@@ -6,7 +6,7 @@
     # 1.4.0: 新增 review_document_no（審查函號）——來源管制表的「審查日期」格子
     #        是「日期＋監造審查發文字號」兩行，舊版只接得住日期，
     #        文號只能擠進審查意見（把真正的審查意見擠掉）或丟掉。
-    'version': '18.0.1.4.0',
+    'version': '18.0.1.4.1',
     'category': 'Construction/Review',
     'summary': '工程監造材料送審管制與追蹤',
     'description': """

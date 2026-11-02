@@ -83,6 +83,15 @@ class ProgressScheduleLine(models.Model):
         store=True,
     )
 
+    @api.depends('schedule_id.name', 'period_display')
+    def _compute_display_name(self):
+        """進度表名稱加區間日期；新建未填時以描述代替，避免露出 NewId"""
+        for line in self:
+            if line.schedule_id.name and line.period_display:
+                line.display_name = f'{line.schedule_id.name} {line.period_display}'
+            else:
+                line.display_name = line.schedule_id.name or line._description
+
     @api.depends('date_start', 'date_end')
     def _compute_period_display(self):
         """計算期間顯示文字"""

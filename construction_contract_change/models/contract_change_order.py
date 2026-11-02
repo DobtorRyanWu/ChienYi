@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from markupsafe import Markup
+
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 from datetime import timedelta
@@ -913,11 +915,11 @@ class ContractChangeOrder(models.Model):
                 (project.contract_amount_adjustment or 0.0)
                 + self.lump_adjust_amount),
         })
-        project.message_post(body=(
-            f'契約變更單 <b>{self.name}</b> 套用發包工程費調整：'
-            f'{self.lump_adjust_amount:+,.0f}'
-            + (f'（{self.lump_adjust_reason}）' if self.lump_adjust_reason else '')
-        ))
+        reason = (Markup('（%s）') % self.lump_adjust_reason
+                  if self.lump_adjust_reason else '')
+        project.message_post(body=Markup(
+            '契約變更單 <b>%s</b> 套用發包工程費調整：%s%s'
+        ) % (self.name, f'{self.lump_adjust_amount:+,.0f}', reason))
 
     # === CRUD 覆寫 ===
     def _generate_change_order_name(self):

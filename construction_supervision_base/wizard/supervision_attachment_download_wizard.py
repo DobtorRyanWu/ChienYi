@@ -120,6 +120,7 @@ class SupervisionAttachmentDownloadWizard(models.TransientModel):
     def _reopen(self):
         return {
             'type': 'ir.actions.act_window',
+            'name': '批次下載',
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',

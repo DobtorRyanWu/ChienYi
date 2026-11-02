@@ -61,6 +61,8 @@ class TestContractChangeDeleteLifecycle(TransactionCase):
         order, wizard = self._build_delete_wizard()
         wizard.action_confirm()
         self.assertTrue(self.task.active, "套用前工項仍在")
+        # 只有一個工項，刪掉必超過 50% 累計上限；這裡驗封存時點，走豁免
+        order.write({'is_limit_exempt': True, 'exempt_reason': '測試封存時點'})
         order.action_submit()
         order.action_review()
         order.action_approve()

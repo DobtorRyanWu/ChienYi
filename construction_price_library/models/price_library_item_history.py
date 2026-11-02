@@ -95,10 +95,11 @@ class PriceLibraryItemHistory(models.Model):
         help='執行價格變更的使用者')
 
     # === 顯示名稱 ===
-    def name_get(self):
-        """顯示項目名稱和變更日期"""
-        result = []
+    @api.depends('item_id.name', 'change_date')
+    def _compute_display_name(self):
+        """顯示項目名稱和變更日期（沿用原 name_get 的格式；未填時以描述代替，避免露出 NewId）"""
         for record in self:
-            name = f'{record.item_id.name} - {record.change_date}'
-            result.append((record.id, name))
-        return result
+            if record.item_id and record.change_date:
+                record.display_name = f'{record.item_id.name} - {record.change_date}'
+            else:
+                record.display_name = record._description

@@ -112,7 +112,7 @@
                                     <field name="review_date"/>
                                     <field name="final_review_result"/>
                                     <field name="review_document_no"
-                                           placeholder="例：110任泰顧字第0601051501號"/>
+                                           placeholder="例：110某顧字第0000000001號"/>
                                 </group>
                             </group>
                             <group>
