@@ -33,8 +33,11 @@ class PaymentEstimate(models.Model):
 
     @api.depends("spreadsheet_ids")
     def _compute_spreadsheet_count(self):
+        # 估驗單表單一律會讀這個數字，但沒有 spreadsheet_oca.group_user 的帳號
+        # 對 spreadsheet.spreadsheet 沒有 ACL，直接讀 spreadsheet_ids 會讓整張單打不開。
+        # sudo 只用來計數（不回傳記錄）；入口按鈕另以 groups 隱藏，開啟清單仍受 ACL 管。
         for rec in self:
-            rec.spreadsheet_count = len(rec.spreadsheet_ids)
+            rec.spreadsheet_count = len(rec.sudo().spreadsheet_ids)
 
     def action_open_spreadsheets(self):
         """開啟本估驗關聯的試算表清單。"""

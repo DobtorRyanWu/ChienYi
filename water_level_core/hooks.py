@@ -42,6 +42,11 @@ CORE_MODULE = 'water_level_core'
 ENGINEERING_MODULE = 'construction_water_level'
 COMMUNITY_MODULE = 'community_water_level'
 
+# web_leaflet_lib 沒裝 demo 資料時，leaflet.tile_url 是字串 'False'，後台地圖沒有底圖。
+TILE_URL_PARAM = 'leaflet.tile_url'
+TILE_URL_UNSET = 'False'
+DEFAULT_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+
 CRON_STASH_PARAM = 'water_level_core.split_cron_state'
 # 等線上正在執行的水位排程跑完的上限。ir.cron.write() 一律先 FOR NO KEY UPDATE NOWAIT，
 # 線上伺服器剛好在跑某支排程時，安裝模式重寫 cron 會直接失敗；先「等待式」鎖住就不會撞。
@@ -251,7 +256,16 @@ def _lock_crons(cr, cron_ids):
     cr.execute("SELECT set_config('lock_timeout', %s, true)", [previous])
 
 
+def ensure_default_tile_url(env):
+    """底圖網址是空的或字串 'False' 才補成 OSM；已經設過（含自訂）的不動。"""
+    Param = env['ir.config_parameter'].sudo()
+    current = Param.get_param(TILE_URL_PARAM)
+    if not current or current.strip() == TILE_URL_UNSET:
+        Param.set_param(TILE_URL_PARAM, DEFAULT_TILE_URL)
+
+
 def post_init_hook(env):
+    ensure_default_tile_url(env)
     # 接手舊資料（例如 jt 從 construction_water_level 2.x 升上來）：核心是「新裝」，
     # 自己的 migrations 不會跑，所以舊的 UTC 日摘要在這裡整批換成台灣日。空庫是 no-op。
     env['water.level.monitor']._rollup_all()

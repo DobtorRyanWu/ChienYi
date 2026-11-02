@@ -10,3 +10,4 @@ from . import test_ntpc_new_forms  # 新北附表11、估驗附件（進度報�
 from . import test_seed_guard  # 升級不覆蓋被人換過的系統預設樣板
 from . import test_template_probe_item_no  # 硬編樣板第二欄是「項次」時，項目名稱取下一欄
 from . import test_ntpc_contract_forms  # 契約附表 10 種（只帶表頭；附表6-2、附表7）
+from . import test_seed_self_inspection_migration  # 3.8.1 升級補灌自主檢查表樣板

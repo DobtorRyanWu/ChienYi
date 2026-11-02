@@ -308,7 +308,10 @@ class DocRenderMixin(models.AbstractModel):
 
     def _get_fields_for_model(self, model_name, max_depth=2, current_depth=0):
         """遞迴取得模型欄位，限制深度以防止無限遞迴。"""
-        IrModelFields = self.env['ir.model.fields']
+        # ir.model.fields 一般帳號沒有讀權，search 會空（插入欄位清單空白）。
+        # sudo 只用在這一次 search；可看哪個模型由呼叫端
+        # （get_available_fields 與下方 many2one 遞迴）的 check_access_rights('read') 決定。
+        IrModelFields = self.env['ir.model.fields'].sudo()
         fields = IrModelFields.search([
             ('model', '=', model_name),
             ('store', '=', True),

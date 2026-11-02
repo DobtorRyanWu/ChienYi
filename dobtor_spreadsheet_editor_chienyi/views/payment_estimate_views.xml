@@ -26,6 +26,7 @@
                             type="object"
                             class="oe_stat_button"
                             icon="fa-table"
+                            groups="spreadsheet_oca.group_user"
                             invisible="spreadsheet_count == 0">
                         <field name="spreadsheet_count" widget="statinfo" string="關聯試算表"/>
                     </button>

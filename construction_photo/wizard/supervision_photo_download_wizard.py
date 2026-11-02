@@ -284,6 +284,16 @@ class SupervisionPhotoDownloadWizard(models.TransientModel):
         if self.source_model != 'defect':
             self.photo_stage = False
 
+    @staticmethod
+    def _total_bytes(photos):
+        """照片附件的合計大小。
+
+        附件 res_id=0（見上傳精靈的 _detach_attachment），核心只讓建立者與
+        group_system 讀，代操作員會 AccessError。sudo 只讀 file_size；
+        哪些照片會被算進來，由 _get_photos() 以使用者自己的權限決定。
+        """
+        return sum(photos.sudo().mapped('attachment_id.file_size'))
+
     @api.depends('project_id', 'selected_photo_ids', 'date_from', 'date_to',
                  'category_id', 'tag_ids', 'source_model', 'photo_stage')
     def _compute_summary(self):
@@ -291,7 +301,7 @@ class SupervisionPhotoDownloadWizard(models.TransientModel):
             photos = wizard._get_photos()
             # file_size 是 related 到 ir.attachment 的非儲存欄位，不能 read_group；
             # mapped 會一次把附件 prefetch 起來，455 張是一個查詢的事。
-            total = sum(photos.mapped('attachment_id.file_size'))
+            total = wizard._total_bytes(photos)
             wizard.photo_count = len(photos)
             wizard.total_size = total / 1048576.0
             if total > MAX_TOTAL_BYTES:
@@ -331,7 +341,7 @@ class SupervisionPhotoDownloadWizard(models.TransientModel):
             'photo_ids': [(6, 0, photos.ids)],
             'summary': '共 %s 張，合計 %.1f MB' % (
                 len(photos),
-                sum(photos.mapped('attachment_id.file_size')) / 1048576.0),
+                self._total_bytes(photos) / 1048576.0),
         })
         return {
             'type': 'ir.actions.act_window',
@@ -352,7 +362,7 @@ class SupervisionPhotoDownloadWizard(models.TransientModel):
         if not photos:
             raise UserError('目前的條件沒有符合的照片。請放寬條件後再試。')
 
-        total = sum(photos.mapped('attachment_id.file_size'))
+        total = self._total_bytes(photos)
         if total > MAX_TOTAL_BYTES:
             # 設定畫面已經用 size_warning 提醒過，這裡是真的擋下來
             raise UserError(
@@ -408,8 +418,9 @@ class SupervisionPhotoDownloadWizard(models.TransientModel):
         with zipfile.ZipFile(output, 'w', zipfile.ZIP_STORED) as zf:
             for photo in photos:
                 # 附件的 res_id 是 0（見上傳精靈的 _detach_attachment），
-                # ir.attachment.check() 對 res_id=0 不會擋，這裡 sudo 只是
-                # 讓權限判斷單一化：能不能拿到這張照片，前面 search 已經決定了。
+                # 核心 ir.attachment.check() 對 res_id 為空的附件只讓建立者與
+                # group_system 讀，所以這裡必須 sudo；能不能拿到這張照片，
+                # 前面 _get_photos() 以使用者權限已經決定了。
                 raw = photo.attachment_id.sudo().raw
                 if not raw:
                     skipped.append('#%s %s（檔案內容遺失）' % (
@@ -485,7 +496,7 @@ class SupervisionPhotoDownloadWizard(models.TransientModel):
         """
         local = self._to_local(photo.shot_at)
         original = self._sanitize(
-            photo.attachment_id.name or ('photo_%s' % photo.id))
+            photo.attachment_id.sudo().name or ('photo_%s' % photo.id))
         if not original:
             original = 'photo_%s' % photo.id
         if not local:
@@ -558,6 +569,7 @@ class SupervisionPhotoDownloadWizard(models.TransientModel):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
+            'name': '批次下載照片',
             'res_model': self._name,
             'res_id': self.id,
             'view_mode': 'form',
