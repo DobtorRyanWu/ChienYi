@@ -111,10 +111,12 @@ class PriceLibraryImportWizard(models.TransientModel):
         # 取得數量
         qty = self.default_qty if self.import_qty else 0
 
-        # 準備工項資料
-        task_vals_list = []
+        # 價格庫項目只有分類、沒有項次與層級，所以匯入的工項一律是頂層。
+        # 項次與排序序號由 project.task.create() 依工程現有同層工項產生（接在既有項次之後）；
+        # 必須逐筆建立：整批一次 create 時每筆都看不到彼此，會全部拿到同一個項次。
+        created_tasks = self.env['project.task']
         for item in self.item_ids:
-            task_vals_list.append({
+            created_tasks |= self.env['project.task'].create({
                 'project_id': self.project_id.id,
                 'name': item.name,
                 'unit': item.unit,
@@ -124,21 +126,17 @@ class PriceLibraryImportWizard(models.TransientModel):
                 'construction_notes': item.description or '',
             })
 
-        # 批次建立工項
-        created_tasks = self.env['project.task'].create(task_vals_list)
-
-        # 返回已建立的工項清單
-        return {
-            'type': 'ir.actions.act_window',
+        # 返回契約工項畫面（自訂的列表欄位與表單），範圍限於這次匯入的工項。
+        # 不沿用動作預設的「依工程分組」，匯入的工項直接平鋪
+        action = self.env['ir.actions.act_window']._for_xml_id(
+            'construction_supervision_base.action_supervision_task')
+        action.update({
             'name': '已匯入的工項',
-            'res_model': 'project.task',
-            'view_mode': 'list,form',
             'domain': [('id', 'in', created_tasks.ids)],
-            'context': {
-                'default_project_id': self.project_id.id,
-            },
+            'context': {'default_project_id': self.project_id.id},
             'target': 'current',
-        }
+        })
+        return action
 
     def action_select_all(self):
         """選擇所有項目（依目前篩選條件）"""

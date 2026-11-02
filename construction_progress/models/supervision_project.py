@@ -206,7 +206,7 @@ class SupervisionProjectProgress(models.Model):
 
     def _interpolate_progress(self, target_date, lines, period_start):
         """
-        線性內插法計算指定日期的進度
+        線性內插法計算指定日期的進度（今天之後的實際進度回傳 None：還沒發生，圖上不畫）
 
         Args:
             target_date: 目標日期
@@ -214,10 +214,16 @@ class SupervisionProjectProgress(models.Model):
             period_start: 版本期間開始日期
 
         Returns:
-            (planned_progress, actual_progress) 元組
+            (planned_progress, actual_progress) 元組；actual_progress 在今天之後為 None
         """
-        from datetime import timedelta
+        planned, actual = self._interpolate_cumulative(target_date, lines, period_start)
+        if target_date > fields.Date.today():
+            # 未來區間的累計實際值是 0，內插下去曲線會掉到 0
+            actual = None
+        return (planned, actual)
 
+    def _interpolate_cumulative(self, target_date, lines, period_start):
+        """線性內插累計值（不處理未來日期）"""
         # 找到目標日期所在的區間
         prev_cumulative_planned = 0.0
         prev_cumulative_actual = 0.0
@@ -289,7 +295,17 @@ class SupervisionProjectProgress(models.Model):
                 'version_changes': [],
             }
 
-        all_schedules = self.schedule_ids.sorted('version')
+        # 草稿版本還沒啟用，不進圖表；已歸檔版本是歷史基準，照舊保留
+        all_schedules = self.schedule_ids.filtered(
+            lambda s: s.state != 'draft').sorted('version')
+        if not all_schedules:
+            return {
+                'dates': [],
+                'planned': [],
+                'actual': [],
+                'today': fields.Date.today().isoformat(),
+                'version_changes': [],
+            }
 
         # === 步驟 1：確定每個版本的有效期間 ===
         # 使用 effective_change_date（有校正時 = correction_date，否則 = change_date）
@@ -379,7 +395,9 @@ class SupervisionProjectProgress(models.Model):
         # 直接使用 ISO 日期格式（供 Chart.js 時間軸使用）
         dates = [point['date'].isoformat() for point in data_points]
         planned = [round(point['planned'], 2) for point in data_points]
-        actual = [round(point['actual'], 2) for point in data_points]
+        # 今天之後的實際值為 None（前端 Chart.js 對 null 不畫點）
+        actual = [None if point['actual'] is None else round(point['actual'], 2)
+                  for point in data_points]
         point_types = ['key' if point['is_key'] else 'normal' for point in data_points]
 
         return {

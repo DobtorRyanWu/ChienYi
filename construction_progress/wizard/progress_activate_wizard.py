@@ -57,7 +57,7 @@ class ProgressActivateWizard(models.TransientModel):
         compute='_compute_log_counts',
     )
 
-    @api.depends('start_date', 'end_date', 'employee_id')
+    @api.depends('start_date', 'end_date')
     def _compute_log_counts(self):
         for wiz in self:
             if not wiz.start_date or not wiz.end_date:
@@ -73,12 +73,14 @@ class ProgressActivateWizard(models.TransientModel):
             #     已足以保護既有/鎖定的歷史日誌；用今天夾住反而會漏建「完工日已過但
             #     尚未建立」的延伸期日誌（例如以過去時間軸補登時）。一律用進度表起日。
             # 查詢範圍內已存在的日誌
+            # 同工程同日只能有一張日誌，不分填表人：換填表人再啟用不該建出重複日誌。
+            # sudo 只用來讀（算有幾天已存在），不寫；範圍由進度表的工程與目前公司決定，
+            # 不加這個的話 record rule 會讓別人名下的日誌「看不到」而被誤判為不存在。
             existing_dates = set()
-            if sup_project and wiz.employee_id:
+            if sup_project:
                 existing_dates = set(
-                    self.env['daily.log.sheet'].search([
+                    self.env['daily.log.sheet'].sudo().search([
                         ('supervision_project_id', '=', sup_project.id),
-                        ('employee_id', '=', wiz.employee_id.id),
                         ('company_id', '=', self.env.company.id),
                         ('log_date', '>=', start),
                         ('log_date', '<=', end),
@@ -145,9 +147,9 @@ class ProgressActivateWizard(models.TransientModel):
             return 0
 
         # 查詢範圍內已存在的日誌
-        existing_logs = self.env['daily.log.sheet'].search([
+        # 不分填表人、sudo 只讀（理由見 _compute_log_counts）；建立仍用呼叫者權限
+        existing_logs = self.env['daily.log.sheet'].sudo().search([
             ('supervision_project_id', '=', sup_project.id),
-            ('employee_id', '=', self.employee_id.id),
             ('company_id', '=', self.env.company.id),
             ('log_date', '>=', start),
             ('log_date', '<=', end),

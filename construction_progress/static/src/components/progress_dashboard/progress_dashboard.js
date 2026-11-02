@@ -352,6 +352,10 @@ export class ProgressDashboard extends Component {
                                 if (label) {
                                     label += ": ";
                                 }
+                                // 今天之後的實際進度是 null，不顯示數值
+                                if (context.parsed.y === null || Number.isNaN(context.parsed.y)) {
+                                    return label + "-";
+                                }
                                 label += context.parsed.y.toFixed(2) + "%";
                                 return label;
                             },

@@ -249,11 +249,12 @@ class GeneralProgressReport(models.Model):
         if not self.project_id or not self.period_end:
             return
 
+        # 不看 is_latest_version：有新版草稿時最新版是草稿，會查不到使用中的那張。
+        # 改取使用中的最高版本。
         schedule = self.env['progress.schedule'].search([
             ('project_id', '=', self.project_id.id),
-            ('is_latest_version', '=', True),
             ('state', '=', 'active'),
-        ], limit=1)
+        ], order='version desc', limit=1)
 
         if not schedule:
             return

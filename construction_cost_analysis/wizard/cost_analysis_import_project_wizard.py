@@ -110,8 +110,12 @@ class CostAnalysisImportProjectWizard(models.TransientModel):
             'state': 'draft',
         })
 
-        # 2. 取得所有工項（包含彙總項）
-        tasks = self.source_project_id.task_ids.sorted(lambda t: (t.sequence, t.item_no or '', t.id))
+        # 2. 取得所有工項（包含彙總項），略過「不計入契約金額」的列（例如總計列）：
+        #    招標總價是加總明細，留著會把它再算一次
+        tasks = self.source_project_id.task_ids.filtered(
+            lambda t: not t.exclude_from_contract_amount
+        ).sorted(lambda t: (t.sequence, t.item_no or '', t.id))
+        skipped = self.source_project_id.task_ids - tasks
 
         if not tasks:
             raise UserError(_('來源專案沒有工項'))
@@ -122,9 +126,13 @@ class CostAnalysisImportProjectWizard(models.TransientModel):
         # 4. 遍歷所有工項並建立 cost.analysis.line
         for task in tasks:
             # 決定 parent_id
+            # 上層被略過時往上找最近一層有建明細的祖先，找不到就掛頂層（不斷鏈）
             parent_line_id = False
-            if task.parent_id and task.parent_id.id in task_to_line:
-                parent_line_id = task_to_line[task.parent_id.id].id
+            ancestor = task.parent_id
+            while ancestor in skipped:
+                ancestor = ancestor.parent_id
+            if ancestor and ancestor.id in task_to_line:
+                parent_line_id = task_to_line[ancestor.id].id
 
             # 建立 cost.analysis.line
             line = self.env['cost.analysis.line'].create({

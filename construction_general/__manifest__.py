@@ -16,7 +16,7 @@
     #        但精靈只能從檢查項目建（量測列沒有項目名稱可當缺失描述）。
     #        原本會回「所有缺失項目皆已建立缺失改善單」，與事實不符。
     # 3.5.2: 序列 data 加 noupdate：-u 不再把序列重置成 1（當月靜默重號）
-    'version': '18.0.3.5.2',
+    'version': '18.0.3.5.3',
     'category': 'Construction/General',
     'summary': '一般式工程專用管理模組',
     'description': """

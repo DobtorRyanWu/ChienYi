@@ -162,6 +162,7 @@ class ProgressScheduleLine(models.Model):
         string='實際進度 (%)',
         digits=(5, 2),
         default=0.0,
+        copy=False,   # 新版本的實際進度從 0 開始；非零值複製會被 create 守衛擋下
         help='本區間實際完成進度百分比（可手動填寫或從施工日誌帶入）',
     )
     cumulative_actual = fields.Float(
@@ -174,11 +175,13 @@ class ProgressScheduleLine(models.Model):
         string='已從日誌同步',
         default=False,
         readonly=True,
+        copy=False,   # 隨實際進度一起歸零
         help='標記此進度是否從施工日誌同步',
     )
     last_sync_date = fields.Datetime(
         string='最後同步時間',
         readonly=True,
+        copy=False,
     )
 
     @api.depends('schedule_id.line_ids.actual_progress', 'sequence', 'actual_progress')

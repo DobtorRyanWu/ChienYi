@@ -386,8 +386,10 @@ class DailyLogLineTestExtension(models.Model):
             return
 
         # 取得指派對象
-        # TODO: 權限設計完成後改回 sup_project._get_activity_user('test')
-        user = self.env.ref('base.user_admin')
+        # 依工程設定：檢試驗負責人 > 預設負責人 > 監造工程師 > 專案負責人；
+        # 查不到（沒有 sup_project 或回傳空）才退回原本的 admin
+        user = (sup_project._get_activity_user('test') if sup_project else False) \
+            or self.env.ref('base.user_admin')
 
         warning.activity_schedule(
             activity_type_id=activity_type.id,
@@ -455,8 +457,10 @@ class DailyLogLineTestExtension(models.Model):
         )
 
         # 取得指派對象
-        # TODO: 權限設計完成後改回 sup_project._get_activity_user('test')
-        user = self.env.ref('base.user_admin')
+        # 依工程設定：檢試驗負責人 > 預設負責人 > 監造工程師 > 專案負責人；
+        # 查不到（沒有 sup_project 或回傳空）才退回原本的 admin
+        user = (sup_project._get_activity_user('test') if sup_project else False) \
+            or self.env.ref('base.user_admin')
 
         summary = f'{activity_type.summary} [{task.id}]'
 
