@@ -5,7 +5,6 @@
 - T12 只有「代操作員」群組的新帳號要能跑標單匯入（建 project.task、product.product、uom）。
 """
 import base64
-import unittest
 
 from odoo.tests.common import TransactionCase, tagged
 
@@ -64,9 +63,6 @@ class TestManualFixes20261102(TransactionCase):
             'name': 'T12 工項', 'project_id': project.id, 'item_no': '1'})
         self.assertTrue(task.exists())
 
-    # 整段匯入還卡在 product.product 建立權限（需要 product.group_product_manager「Product Creation」），
-    # 這個群組超出「最小群組」範圍，等總控決定；加上後移除這行 skip。
-    @unittest.skip('待決定：代操作員是否加 product.group_product_manager')
     def test_t12_operator_can_import_tender(self):
         operator = self._mk_user('t12_operator', OPERATOR)
         project = self.env['project.project'].create({
