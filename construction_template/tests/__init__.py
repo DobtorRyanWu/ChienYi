@@ -11,3 +11,8 @@ from . import test_seed_guard  # 升級不覆蓋被人換過的系統預設樣�
 from . import test_template_probe_item_no  # 硬編樣板第二欄是「項次」時，項目名稱取下一欄
 from . import test_ntpc_contract_forms  # 契約附表 10 種（只帶表頭；附表6-2、附表7）
 from . import test_seed_self_inspection_migration  # 3.8.1 升級補灌自主檢查表樣板
+from . import test_authority_blank  # 機關沒填印空白（T5-1）
+from . import test_material_test_letterhead  # 送審函抬頭不印死某一家的人與信箱（T5-2）
+from . import test_template_metadata_clean  # 預設樣板 metadata／內網路徑清乾淨（T5-3）
+from . import test_seed_3_8_2_migration  # 3.8.2 舊版換新版、客製不覆蓋（T5-4）
+from . import test_template_attachment_private  # 預設樣板附件不公開（T7）

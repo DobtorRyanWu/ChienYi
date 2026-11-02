@@ -140,7 +140,10 @@ def seed_default_templates(env, types=None, replaceable=None):
             'name': fname,
             'datas': data_b64,
             'mimetype': MIME[ext],
-            'public': True,
+            # 不公開：public=True 讓未登入的人用 /web/content/<連號 id> 就能下載每一份預設樣板。
+            # 非公開附件的存取看 res_model/res_id 指到的 document.template，所以下面建好
+            # 樣板後一定要回填 res_id，否則變孤兒附件（只有建立者與 base.group_system 讀得到）
+            'public': False,
             'res_model': 'document.template',
         })
 
