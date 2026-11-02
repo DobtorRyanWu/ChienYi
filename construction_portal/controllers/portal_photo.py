@@ -105,6 +105,8 @@ class PhotoRoutesMixin:
                 'project.project', log.supervision_project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：刪除照片限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可刪除照片'))
         if log.is_locked:
             return request.redirect(
                 f'/construction/{project.id}/daily-log/{log.id}?error=locked'
@@ -155,6 +157,8 @@ class PhotoRoutesMixin:
                 'general.self.inspection', inspection_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：刪除照片限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可刪除照片'))
         # 同施工日誌：比對附件 id 而非照片 id
         if att_id in inspection.photo_ids.attachment_id.ids:
             _portal_delete_photo(request.env, inspection, att_id)
@@ -203,6 +207,8 @@ class PhotoRoutesMixin:
                 'project.project', inspection.project_id.id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：刪除照片限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可刪除照片'))
         # 同施工日誌：比對附件 id 而非照片 id
         if att_id in inspection.photo_ids.attachment_id.ids:
             _portal_delete_photo(request.env, inspection, att_id)
@@ -342,7 +348,7 @@ class PhotoRoutesMixin:
                  fallback_latitude=project.latitude,
                  fallback_longitude=project.longitude))
         return request.redirect(
-            f'/construction/{project.id}/photos?message=signboard_added')
+            f'/construction/{project.id}/photos/grid?message=signboard_added')
 
     @http.route(['/construction/photo/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
@@ -397,7 +403,7 @@ class PhotoRoutesMixin:
             Photo = request.env['supervision.photo']
             photo = Photo.create_from_portal(vals, partner, file_data)
 
-            return request.redirect(f'/construction/{project_id}/photos?message=uploaded')
+            return request.redirect(f'/construction/{project_id}/photos/grid?message=uploaded')
 
         return request.redirect(f'/construction/{project_id}/photo/upload?error=no_file')
 
@@ -412,6 +418,12 @@ class PhotoRoutesMixin:
         try:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
+            return {'success': False, 'error': 'access_denied'}
+
+        # P7：閱覽角色不可上傳（json 路由回 success=False，同上方 access_denied 的寫法）
+        try:
+            self._require_write()
+        except AccessError:
             return {'success': False, 'error': 'access_denied'}
 
         photo_data = post.get('photo_data')
@@ -491,6 +503,8 @@ class PhotoRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：上傳照片限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可上傳照片'))
         if 'supervision.test.record' not in request.env:
             return request.redirect(f'/construction/{project_id}')
         test = request.env['supervision.test.record'].search(
@@ -524,6 +538,8 @@ class PhotoRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：上傳照片限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可上傳照片'))
         slip = request.env['reservation.notification.slip'].search(
             [('id', '=', slip_id), ('project_id', '=', project.id)], limit=1)
         if not slip:

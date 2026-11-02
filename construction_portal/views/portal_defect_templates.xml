@@ -66,7 +66,7 @@
                     </t>
 
                     <t t-foreach="defects" t-as="d">
-                        <a t-attf-href="/construction/defect/#{d.id}" class="cy-defect-card"
+                        <a t-attf-href="/construction/defect/#{d.id}#{'?model=reservation' if d._name == 'reservation.defect.improvement' else ''}" class="cy-defect-card"
                            t-att-data-state="d.state">
                             <div class="cy-defect-card-header">
                                 <div class="cy-defect-card-title">
@@ -109,6 +109,8 @@
 
             <div class="cy-v10-app">
                 <t t-call="construction_portal.portal_v10_header"/>
+                <!-- 預約式帶 model：兩種缺失的 id 會撞，表單送出要落在同一筆（見 _browse_defect） -->
+                <t t-set="defect_q" t-value="'?model=reservation' if defect._name == 'reservation.defect.improvement' else ''"/>
                 <div class="cy-breadcrumb">
                     <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
                     <a t-attf-href="/construction/#{project.id}/defects" class="cy-breadcrumb-item">缺失</a>
@@ -127,7 +129,7 @@
                     </t>
 
                     <!-- 逾期警告 -->
-                    <t t-if="defect.is_overdue and defect.state == 'open'">
+                    <t t-if="defect.is_overdue">
                         <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                             <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-exclamation-circle"/></span>
                             <div class="cy-event-body">
@@ -158,17 +160,22 @@
                         <!-- 通知改善（draft → notified）：監造/主管。C2：用 portal_workflow_state
                              統一詞彙（supervision 起始為 open→'notified'，不會走 draft 通知步驟）-->
                         <t t-if="defect.portal_workflow_state == 'draft'">
-                            <form t-attf-action="/construction/defect/#{defect.id}/notify" method="post" style="margin-bottom: 16px;">
+                            <form t-attf-action="/construction/defect/#{defect.id}/notify#{defect_q}" method="post" style="margin-bottom: 16px;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <!-- P10：提報沒填期限時在這裡補；有值就帶入 -->
+                                <label for="notify_deadline" style="display:block; font-weight:600; margin-bottom:4px;">改善期限</label>
+                                <input type="date" name="deadline" id="notify_deadline" required="required"
+                                       t-att-value="defect.deadline and defect.deadline.strftime('%Y-%m-%d') or ''"
+                                       class="form-control" style="margin-bottom:8px;"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-bullhorn"/> 通知改善</button>
                             </form>
                         </t>
                         <div style="display: flex; gap: 8px; margin-bottom: 16px;" t-if="defect.portal_workflow_state in ('improved', 'verified')">
-                            <form t-if="defect.portal_workflow_state == 'improved'" t-attf-action="/construction/defect/#{defect.id}/verify" method="post" style="flex:1;">
+                            <form t-if="defect.portal_workflow_state == 'improved'" t-attf-action="/construction/defect/#{defect.id}/verify#{defect_q}" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-check"/> 驗證通過</button>
                             </form>
-                            <form t-if="defect.portal_workflow_state == 'verified'" t-attf-action="/construction/defect/#{defect.id}/close" method="post" style="flex:1;">
+                            <form t-if="defect.portal_workflow_state == 'verified'" t-attf-action="/construction/defect/#{defect.id}/close#{defect_q}" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-flag-checkered"/> 結案</button>
                             </form>
@@ -322,7 +329,7 @@
                                     <!-- 刪除鈕：photo 是照片行時才有 line id 可刪 -->
                                     <t t-if="photo_deletable">
                                         <form method="post" class="cy-thumb-del-form"
-                                              t-attf-action="/construction/defect/#{defect.id}/photo/#{photo.id}/delete"
+                                              t-attf-action="/construction/defect/#{defect.id}/photo/#{photo.id}/delete#{defect_q}"
                                               onsubmit="return confirm('確定刪除這張照片？照片管理中的同一張也會一併刪除。');">
                                             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                             <button type="submit" class="cy-thumb-del" title="刪除照片" aria-label="刪除照片">
@@ -346,7 +353,7 @@
                                     <img t-attf-src="/construction/img/#{att_id}/160x160" alt="改善後"/>
                                     <t t-if="photo_deletable">
                                         <form method="post" class="cy-thumb-del-form"
-                                              t-attf-action="/construction/defect/#{defect.id}/photo/#{photo.id}/delete"
+                                              t-attf-action="/construction/defect/#{defect.id}/photo/#{photo.id}/delete#{defect_q}"
                                               onsubmit="return confirm('確定刪除這張照片？照片管理中的同一張也會一併刪除。');">
                                             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                             <button type="submit" class="cy-thumb-del" title="刪除照片" aria-label="刪除照片">
@@ -367,7 +374,7 @@
                             <div class="cy-event-body"><div class="cy-event-desc">照片已上傳</div></div>
                         </div>
                     </t>
-                    <form t-attf-action="/construction/defect/#{defect.id}/photo/upload"
+                    <form t-attf-action="/construction/defect/#{defect.id}/photo/upload#{defect_q}"
                           method="post" enctype="multipart/form-data" style="margin-bottom: 14px;">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                         <input type="file" name="photos" accept="image/*" capture="environment"
@@ -383,7 +390,7 @@
                          統一詞彙（supervision open→'notified'、investigating→'improving' 皆顯示）-->
                     <t t-if="defect.portal_workflow_state in ('notified', 'improving')">
                         <div class="cy-section-title">提交改善</div>
-                        <form t-attf-action="/construction/defect/#{defect.id}/improve" method="post" enctype="multipart/form-data">
+                        <form t-attf-action="/construction/defect/#{defect.id}/improve#{defect_q}" method="post" enctype="multipart/form-data">
                             <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
 
                             <!-- 改善說明（defaultOpen）-->

@@ -172,6 +172,8 @@ class InspectionRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：匯入檢查限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可匯入檢查'))
 
         values = {
             'project': project,
@@ -196,6 +198,8 @@ class InspectionRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：匯入檢查限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可匯入檢查'))
 
         from ..utils.inspection_xlsm_parser import parse_inspection_summary_xlsm
         from ..utils.inspection_b_xlsm_parser import parse_inspection_b_xlsx

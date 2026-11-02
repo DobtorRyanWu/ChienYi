@@ -93,10 +93,10 @@
                                 <div style="margin-bottom: 10px;">
                                     <div style="font-size: 0.8rem; font-weight: 600; color: var(--wb-t3); margin-bottom: 4px;">來源</div>
                                     <div class="cy-filter-pills">
-                                        <a t-attf-href="/construction/#{project.id}/photos#{category_filter and '?category=' + category_filter or ''}"
+                                        <a t-attf-href="/construction/#{project.id}/photos/grid#{category_filter and '?category=' + category_filter or ''}"
                                            t-attf-class="cy-filter-pill #{not source_filter and 'active' or ''}">全部</a>
                                         <t t-foreach="source_options" t-as="opt">
-                                            <a t-attf-href="/construction/#{project.id}/photos?source=#{opt[0]}#{category_filter and '&amp;category=' + category_filter or ''}"
+                                            <a t-attf-href="/construction/#{project.id}/photos/grid?source=#{opt[0]}#{category_filter and '&amp;category=' + category_filter or ''}"
                                                t-attf-class="cy-filter-pill #{source_filter == opt[0] and 'active' or ''}">
                                                 <t t-esc="opt[1]"/>
                                             </a>
@@ -107,10 +107,10 @@
                                 <div>
                                     <div style="font-size: 0.8rem; font-weight: 600; color: var(--wb-t3); margin-bottom: 4px;">分類</div>
                                     <div class="cy-filter-pills">
-                                        <a t-attf-href="/construction/#{project.id}/photos#{source_filter and '?source=' + source_filter or ''}"
+                                        <a t-attf-href="/construction/#{project.id}/photos/grid#{source_filter and '?source=' + source_filter or ''}"
                                            t-attf-class="cy-filter-pill #{not category_filter and 'active' or ''}">全部</a>
                                         <t t-foreach="category_options" t-as="opt">
-                                            <a t-attf-href="/construction/#{project.id}/photos?category=#{opt[0]}#{source_filter and '&amp;source=' + source_filter or ''}"
+                                            <a t-attf-href="/construction/#{project.id}/photos/grid?category=#{opt[0]}#{source_filter and '&amp;source=' + source_filter or ''}"
                                                t-attf-class="cy-filter-pill #{category_filter == opt[0] and 'active' or ''}">
                                                 <t t-esc="opt[1]"/>
                                             </a>

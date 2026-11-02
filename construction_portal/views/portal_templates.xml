@@ -367,9 +367,11 @@
                                 <a t-attf-href="/construction/#{project.id}/documents" class="cy-quick-add-item">
                                     <span>📂</span><span>檔案管理</span>
                                 </a>
-                                <a t-attf-href="/construction/#{project.id}/schedule/extend" class="cy-quick-add-item">
-                                    <span>📅</span><span>工期展延</span>
-                                </a>
+                                <t t-if="can_manage">
+                                    <a t-attf-href="/construction/#{project.id}/schedule/extend" class="cy-quick-add-item">
+                                        <span>📅</span><span>工期展延</span>
+                                    </a>
+                                </t>
                             </div>
                         </div>
                         <!-- 待改缺失 -->
@@ -396,7 +398,7 @@
                                         <t t-esc="od.name if 'name' in od._fields else od.display_name"/> <t t-esc="od.defect_description or ''"/> 逾期 <t t-esc="od.overdue_days"/> 天
                                     </div>
                                 </div>
-                                <a t-attf-href="/construction/defect/#{od.id}"
+                                <a t-attf-href="/construction/defect/#{od.id}#{'?model=reservation' if od._name == 'reservation.defect.improvement' else ''}"
                                    style="padding: 10px 16px; border-radius: 10px; border: none; background: var(--wb-red); color: #fff; font-size: 0.9rem; font-weight: 700; text-decoration: none; min-height: 44px; white-space: nowrap; display: flex; align-items: center;">
                                     立即處理 →
                                 </a>

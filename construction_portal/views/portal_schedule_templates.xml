@@ -105,7 +105,7 @@
                                     本次核准展延工期（日）
                                 </label>
                                 <input type="number" name="current_extension" id="current_extension"
-                                       t-att-value="schedule.current_extension or 0"
+                                       t-att-value="str(schedule.current_extension or 0)"
                                        min="0" step="1" required="required"
                                        class="cy-input" style="width: 100%; padding: 10px; border: 1px solid var(--wb-bdr); border-radius: var(--wb-radius-sm); font-size: 1rem;"/>
                                 <div style="color: var(--wb-t3); font-size: 0.85rem; margin-top: 6px;">

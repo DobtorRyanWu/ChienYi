@@ -84,6 +84,8 @@ class DefectRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：匯入缺失限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可匯入缺失'))
 
         values = {
             'project': project,
@@ -109,6 +111,8 @@ class DefectRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：匯入缺失限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可匯入缺失'))
 
         from ..utils.defect_xlsm_parser import parse_defect_tracking_xlsx_verbose
 
@@ -399,6 +403,8 @@ class DefectRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：匯入缺失限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可匯入缺失'))
 
         values = {
             'project': project,
@@ -424,6 +430,8 @@ class DefectRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：匯入缺失限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可匯入缺失'))
 
         from ..utils.defect_docx_parser import parse_defect_zip
 
@@ -679,7 +687,7 @@ class DefectRoutesMixin:
             request.httprequest.files.getlist('photo'), 'before',
             self._defect_photo_meta(post))
 
-        return request.redirect(f'/construction/defect/{defect.id}?message=created')
+        return request.redirect(self._defect_url(defect, message='created'))
 
     @http.route(['/construction/defect/<int:defect_id>'],
                 type='http', auth='user', website=True)
@@ -733,7 +741,7 @@ class DefectRoutesMixin:
         # 補充，改由後台處理。
         if defect.state in DEFECT_LOCKED_STATES:
             return request.redirect(
-                f'/construction/defect/{defect_id}?error=improve_locked')
+                self._defect_url(defect, error='improve_locked'))
 
         # 收齊文字欄位
         improvement_text = post.get('improvement_description', '').strip()
@@ -755,7 +763,7 @@ class DefectRoutesMixin:
         if defect.state in ('notified', 'improving') and not (
                 corrective_action or defect.improvement_action):
             return request.redirect(
-                f'/construction/defect/{defect_id}?error=need_corrective_action')
+                self._defect_url(defect, error='need_corrective_action'))
 
         # 收改善後照片（走共用 helper，stage=after）
         _defect_save_photos(
@@ -778,6 +786,9 @@ class DefectRoutesMixin:
                 wvals['improvement_result'] = improvement_text
             if corrective_action:
                 wvals['improvement_action'] = corrective_action
+            # P8：預防措施（表單有填，原本讀了沒寫）
+            if preventive_action:
+                wvals['prevention_action'] = preventive_action
             if wvals:
                 defect.sudo().write(wvals)
 
@@ -790,11 +801,9 @@ class DefectRoutesMixin:
                 if defect_sudo.state == 'improving':
                     defect_sudo.action_complete_improvement()
             except (UserError, ValidationError) as e:
-                from urllib.parse import quote
-                return request.redirect(
-                    f'/construction/defect/{defect_id}?error={quote(str(e))}')
+                return request.redirect(self._defect_url(defect, error=str(e)))
 
-        return request.redirect(f'/construction/defect/{defect_id}?message=success')
+        return request.redirect(self._defect_url(defect, message='success'))
 
     @http.route(['/construction/defect/<int:defect_id>/photo/upload'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
@@ -824,7 +833,7 @@ class DefectRoutesMixin:
             request.env, defect,
             request.httprequest.files.getlist('photos'), stage,
             self._defect_photo_meta(post))
-        return request.redirect(f'/construction/defect/{defect_id}?message=photo_added')
+        return request.redirect(self._defect_url(defect, message='photo_added'))
 
     @http.route(['/construction/defect/<int:defect_id>/photo/<int:line_id>/delete'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
@@ -849,7 +858,7 @@ class DefectRoutesMixin:
         # 增加證據無害，移除證據破壞稽核軌跡。
         if defect.state in DEFECT_LOCKED_STATES:
             return request.redirect(
-                f'/construction/defect/{defect_id}?error=photo_locked')
+                self._defect_url(defect, error='photo_locked'))
 
         photo = request.env['supervision.photo'].sudo().with_context(
             active_test=False).browse(line_id)
@@ -857,11 +866,11 @@ class DefectRoutesMixin:
         # 兩種缺失各有自己的來源欄位，用 photo_ids 反查最不會寫錯。
         if not photo.exists() or photo.id not in defect.photo_ids.ids:
             return request.redirect(
-                f'/construction/defect/{defect_id}?error=photo_not_found')
+                self._defect_url(defect, error='photo_not_found'))
 
         photo.unlink()
         return request.redirect(
-            f'/construction/defect/{defect_id}?message=photo_deleted')
+            self._defect_url(defect, message='photo_deleted'))
 
     @http.route(['/construction/defect/<int:defect_id>/verify'],
                 type='http', auth='user', website=True, methods=['POST'])
@@ -873,7 +882,7 @@ class DefectRoutesMixin:
             return request.redirect('/my')
         return self._run_review_action(
             defect, 'action_verify_pass',
-            f'/construction/defect/{defect_id}', f'/construction/defect/{defect_id}')
+            self._defect_url(defect), self._defect_url(defect))
 
     @http.route(['/construction/defect/<int:defect_id>/close'],
                 type='http', auth='user', website=True, methods=['POST'])
@@ -885,7 +894,7 @@ class DefectRoutesMixin:
             return request.redirect('/my')
         return self._run_review_action(
             defect, 'action_close',
-            f'/construction/defect/{defect_id}', f'/construction/defect/{defect_id}')
+            self._defect_url(defect), self._defect_url(defect))
 
     @http.route(['/construction/defect/<int:defect_id>/notify'],
                 type='http', auth='user', website=True, methods=['POST'])
@@ -895,6 +904,25 @@ class DefectRoutesMixin:
             defect = self._browse_defect(defect_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P10：提報時沒填改善期限，手機上沒地方補；在詳情頁帶期限進來，先寫再通知。
+        # 先過管理守衛才寫入（_run_review_action 內也會守一次，這裡必須在寫入之前）。
+        raw_deadline = (post.get('deadline') or '').strip()
+        # 只有草稿才寫期限；其他狀態交給下面的 action_notify 回「只有草稿狀態可以通知改善」
+        if raw_deadline and defect.state == 'draft':
+            self._require_manage(_('僅老闆或主管可審核'))
+            try:
+                deadline = datetime.strptime(raw_deadline, '%Y-%m-%d').date()
+            except ValueError:
+                return request.redirect(
+                    self._defect_url(defect, error='改善期限格式不正確，請重新選擇日期'))
+            # 期限與通知同進退：通知失敗不留下改到一半的期限
+            try:
+                with request.env.cr.savepoint():
+                    defect.sudo().write({'deadline': deadline})
+                    defect.action_notify()
+            except (UserError, ValidationError) as e:
+                return request.redirect(self._defect_url(defect, error=str(e)))
+            return request.redirect(self._defect_url(defect, msg='reviewed'))
         return self._run_review_action(
             defect, 'action_notify',
-            f'/construction/defect/{defect_id}', f'/construction/defect/{defect_id}')
+            self._defect_url(defect), self._defect_url(defect))

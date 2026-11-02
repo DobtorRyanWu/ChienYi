@@ -76,8 +76,9 @@ class SupervisionPhotoPortal(models.Model):
             'attachment_id': attachment.id,
             'portal_uploader_id': partner.id,
             'is_portal_uploaded': True,
-            'source_model': 'other',
         })
+        # P9：呼叫端有指定來源分類就尊重（原本無條件蓋成 other）
+        vals.setdefault('source_model', 'other')
 
         if shot_date:
             vals['shot_date'] = shot_date

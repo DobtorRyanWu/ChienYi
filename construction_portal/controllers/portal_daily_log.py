@@ -332,6 +332,8 @@ class DailyLogRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：匯入日誌限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可匯入日誌'))
 
         values = {
             'project': project,
@@ -356,6 +358,8 @@ class DailyLogRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：匯入日誌限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可匯入日誌'))
 
         from ..utils.daily_log_xlsm_parser import parse_daily_log_xlsm
         from ..utils.daily_log_b_xlsx_parser import parse_daily_log_b_xlsx

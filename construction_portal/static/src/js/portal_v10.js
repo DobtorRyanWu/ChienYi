@@ -418,6 +418,8 @@
 
     // === 自主檢查：三按鈕 toggle (pass/defect/na) + 計數更新 ===
     function updateInspCounts() {
+        // 詳情頁沒有按鈕，計數由模板依 check_result 算好；這裡不能覆蓋成 0
+        if (!document.querySelector('.insp-check-btn')) return;
         var passCount = document.querySelectorAll('.insp-check-btn.active[data-result="pass"]').length;
         var defectCount = document.querySelectorAll('.insp-check-btn.active[data-result="defect"]').length;
         var naCount = document.querySelectorAll('.insp-check-btn.active[data-result="na"]').length;
@@ -863,7 +865,7 @@
 
                 if (failedFiles.length === 0) {
                     // 全部成功 → 跳轉
-                    window.location.href = '/construction/' + metadata.project_id + '/photos?message=uploaded&count=' + successCount;
+                    window.location.href = '/construction/' + metadata.project_id + '/photos/grid?message=uploaded&count=' + successCount;
                 } else {
                     // 部分失敗
                     if (overlay) overlay.style.display = 'none';

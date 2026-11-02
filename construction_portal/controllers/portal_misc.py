@@ -336,6 +336,8 @@ class MiscRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # P7：上傳檔案限現場人員以上，閱覽角色不可操作
+        self._require_write(_('權限不足：閱覽角色不可上傳檔案'))
 
         uploaded_file = post.get('file')
         if not uploaded_file:
@@ -437,6 +439,8 @@ class MiscRoutesMixin:
                 type='http', auth='user', website=True)
     def portal_schedule_extend_page(self, project_id, **kw):
         """工期展延頁面：顯示 draft 進度表並提供展延輸入"""
+        # P5：展延會改進度表，限老闆／主管（現場人員、閱覽者不該看到表單）
+        self._require_manage(_('僅老闆或主管可設定工期展延'))
         try:
             project = request.env['project.project'].browse(project_id)
             project.check_access_rule('read')
@@ -465,6 +469,8 @@ class MiscRoutesMixin:
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_schedule_extend_submit(self, project_id, schedule_id, **post):
         """提交工期展延：寫入 current_extension 並呼叫 action_extend_lines"""
+        # P5：同 GET，限老闆／主管（下面 schedule 用 sudo 寫，守衛只能靠這裡）
+        self._require_manage(_('僅老闆或主管可設定工期展延'))
         try:
             project = request.env['project.project'].browse(project_id)
             project.check_access_rule('write')

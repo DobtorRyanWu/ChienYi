@@ -5,6 +5,7 @@ import json
 import logging
 import math
 from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
 from odoo import http, _, fields
 from odoo.http import request
 from odoo.addons.portal.controllers.portal import CustomerPortal, pager as portal_pager
@@ -27,6 +28,13 @@ from .portal_misc import MiscRoutesMixin
 from .portal_water_level import WaterLevelRoutesMixin
 
 _logger = logging.getLogger(__name__)
+
+
+# 缺失網址 ?model= 的對照（P11）：一般式與預約式的 id 各自編號會撞
+DEFECT_MODEL_PARAMS = {
+    'general': 'general.defect.improvement',
+    'reservation': 'reservation.defect.improvement',
+}
 
 
 class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMixin,
@@ -253,6 +261,9 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
                                          'reservation.defect.improvement'):
                             # 前台缺失模型無 access_url，照 _browse_defect 的 /construction/defect/<id>
                             url = '/construction/defect/%s' % m.res_id
+                            # P11：預約式帶 ?model=，避免 id 撞到同號的一般式缺失
+                            if m.model == 'reservation.defect.improvement':
+                                url += '?model=reservation'
                 except Exception:
                     url = None
             items.append({
@@ -598,6 +609,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             # 底部導航 badge
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
+            # P5：工期展延入口只給老闆／主管（與路由 _require_manage 同一把尺）
+            'can_manage': self._can_manage(),
         }
 
         return request.render('construction_portal.portal_construction_project_detail', values)
@@ -1172,6 +1185,13 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             return 'reservation.defect.improvement'
         return 'general.defect.improvement'
 
+    def _defect_url(self, defect, suffix='', **params):
+        """缺失網址。預約式一律帶 model，兩模型 id 會撞（見 _browse_defect）。"""
+        if defect._name == 'reservation.defect.improvement':
+            params = {'model': 'reservation', **params}
+        query = f'?{urlencode(params)}' if params else ''
+        return f'/construction/defect/{defect.id}{suffix}{query}'
+
     def _browse_defect(self, defect_id, access_token=None):
         """以 id 取缺失（先一般式、後預約式）並做存取檢查。
 
@@ -1179,9 +1199,13 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         沒有 access_token 欄位，故不把 token 傳進 `_document_check_access`（改名解除撞名後
         本呼叫會落到 Odoo 原生版，帶 token 又缺欄位會 AttributeError）。access_token 參數
         保留簽章相容但不使用。
+
+        P11：兩個模型的 id 各自編號會撞。網址帶 ?model=general／reservation 時只查指定的
+        那個模型；沒帶（或值不認得）維持舊行為先一般式後預約式，已發出的舊連結不會壞。
         """
-        for model in ('general.defect.improvement',
-                      'reservation.defect.improvement'):
+        models = ('general.defect.improvement', 'reservation.defect.improvement')
+        hint = DEFECT_MODEL_PARAMS.get(request.httprequest.args.get('model'))
+        for model in ((hint,) if hint else models):
             if request.env[model].sudo().browse(defect_id).exists():
                 return self._document_check_access(model, defect_id)
         raise MissingError(_('找不到缺失紀錄'))
@@ -1218,7 +1242,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     @http.route(['/construction/project/new'],
                 type='http', auth='user', website=True)
     def portal_construction_project_new(self, **kw):
-        """新增工程專案表單"""
+        """新增工程專案表單（限老闆或主管，與 POST 同一把尺）"""
+        self._require_manage(_('僅老闆或主管可新增工程專案'))
         # 從 query string 取得來源專案 ID，讓 breadcrumb 可以回首頁
         from_project_id = kw.get('from_project')
         back_url = '/construction'
@@ -1251,19 +1276,23 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         if not name:
             return request.redirect('/construction/project/new?error=no_name')
 
-        # 建立 Odoo 原生專案
-        Project = request.env['project.project'].sudo()
-        odoo_project = Project.create({
-            'name': name,
-        })
-
-        # 建立監造專案
+        # 工程案件＝原生 project.project（監造欄位直接擴充在上面，沒有另一層「監造專案」）。
+        # 原本先建一筆原生專案、再用 project_id 建「監造專案」，合併後 project.project 沒有
+        # project_id 欄位，這條路由整個 ValueError（P4 實測發現）。
         SuperProject = request.env['project.project'].sudo()
         vals = {
-            'project_id': odoo_project.id,
+            'name': name,
             'project_type': post.get('project_type', 'general'),
             'location': post.get('location', ''),
         }
+
+        # P4：業主機關、承包廠商（表單欄位 owner_org／contractor，純文字）
+        owner_org = post.get('owner_org', '').strip()
+        if owner_org:
+            vals['authority_name'] = owner_org
+        contractor = post.get('contractor', '').strip()
+        if contractor:
+            vals['contractor_company_name'] = contractor
 
         # 管理公司（自由輸入）
         management_company_name = post.get('management_company_name', '').strip()
@@ -1338,8 +1367,10 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             getattr(record, method)()
         except (UserError, ValidationError) as e:
             from urllib.parse import quote
-            return request.redirect(f'{err_url}?error={quote(str(e))}')
-        return request.redirect(f'{ok_url}?msg=reviewed')
+            sep = '&' if '?' in err_url else '?'
+            return request.redirect(f'{err_url}{sep}error={quote(str(e))}')
+        sep = '&' if '?' in ok_url else '?'
+        return request.redirect(f'{ok_url}{sep}msg=reviewed')
 
 
 

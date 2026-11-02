@@ -241,13 +241,13 @@
                         <!-- 計數統計列 -->
                         <div class="cy-insp-counts" style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
                             <span class="cy-badge" style="background: rgba(34,179,87,0.12); color: var(--wb-green);">
-                                ✓ 合格 <span class="insp-count-pass">0</span>
+                                ✓ 合格 <span class="insp-count-pass"><t t-esc="len(inspection.checklist_ids.filtered(lambda l: l.check_result == 'pass'))"/></span>
                             </span>
                             <span class="cy-badge" style="background: rgba(232,54,79,0.12); color: var(--wb-red);">
-                                ✗ 缺失 <span class="insp-count-defect">0</span>
+                                ✗ 缺失 <span class="insp-count-defect"><t t-esc="len(inspection.checklist_ids.filtered(lambda l: l.check_result == 'defect'))"/></span>
                             </span>
                             <span class="cy-badge" style="background: rgba(139,144,160,0.12); color: var(--wb-t3);">
-                                — N/A <span class="insp-count-na">0</span>
+                                — N/A <span class="insp-count-na"><t t-esc="len(inspection.checklist_ids.filtered(lambda l: l.check_result == 'na'))"/></span>
                             </span>
                         </div>
 
