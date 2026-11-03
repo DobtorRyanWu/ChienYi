@@ -26,8 +26,8 @@ export class ProfitLossDashboard extends Component {
 
         onWillStart(async () => {
             await loadJS("/web/static/lib/Chart/Chart.js");
-            await loadJS("https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js");
-            await loadJS("https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js");
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/chartjs-adapter-date-fns.bundle.min.js");
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/chartjs-plugin-annotation.min.js");
             await this.loadProjects();
         });
 

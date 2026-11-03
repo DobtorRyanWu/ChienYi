@@ -18,7 +18,7 @@
                 <field name="defect_location"/>
                 <field name="found_date"/>
                 <field name="deadline"/>
-                <field name="is_overdue" invisible="1"/>
+                <field name="is_overdue" column_invisible="1"/>
                 <field name="overdue_days"
                        decoration-danger="overdue_days > 0"/>
                 <field name="responsible_company_id"/>

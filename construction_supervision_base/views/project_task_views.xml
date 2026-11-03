@@ -42,6 +42,12 @@
                 <attribute name="invisible">True</attribute>
             </xpath>
             
+            <!-- 契約工項一定屬於某個工程案件；空著會被當成「私人」工項 -->
+            <xpath expr="//div[@name='project']/field[@name='project_id']" position="attributes">
+                <attribute name="required">1</attribute>
+                <attribute name="placeholder">請選擇工程案件</attribute>
+            </xpath>
+
             <!-- 修改必填欄位 -->
             <xpath expr="//field[@name='name']" position="attributes">
                 <attribute name="required">1</attribute>
@@ -285,9 +291,9 @@
                   decoration-info="item_level == 1"
                   decoration-muted="item_level >= 2"
                   editable="bottom">
-                <!-- 排序控制 -->
-                <field name="sequence" widget="handle"/>
-                
+                <!-- 不放拖曳把手：本清單順序由模型 _order／default_order 的項次（item_no_sort）決定，
+                     拖了寫進 sequence 也不會改變顯示順序，Odoo 在這種排序下根本不開放拖曳 -->
+
                 <!-- 父工項 (編輯用，隱藏) -->
                 <field name="parent_id"
                        column_invisible="1"

@@ -30,10 +30,10 @@ export class ProgressDashboard extends Component {
         onWillStart(async () => {
             // 載入 Chart.js 及相關外掛
             await loadJS("/web/static/lib/Chart/Chart.js");
-            await loadJS("https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js");
-            await loadJS("https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js");
-            await loadJS("https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js");
-            await loadJS("https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js");
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/chartjs-adapter-date-fns.bundle.min.js");
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/chartjs-plugin-annotation.min.js");
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/hammer.min.js");
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/chartjs-plugin-zoom.min.js");
 
             // 載入有進度表的工程列表
             await this.loadProjects();

@@ -19,12 +19,12 @@ export class ProgressChartWidget extends Component {
         onWillStart(async () => {
             await loadJS("/web/static/lib/Chart/Chart.js");
             // 載入 Chart.js 日期適配器（用於時間軸）
-            await loadJS("https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js");
-            // 載入 Chart.js annotation plugin（從 CDN）
-            await loadJS("https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js");
-            // 載入 Chart.js zoom plugin（從 CDN）
-            await loadJS("https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js");
-            await loadJS("https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js");
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/chartjs-adapter-date-fns.bundle.min.js");
+            // 載入 Chart.js annotation plugin（本機內建）
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/chartjs-plugin-annotation.min.js");
+            // 載入 Chart.js zoom plugin（本機內建）
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/hammer.min.js");
+            await loadJS("/construction_supervision_base/static/lib/chartjs_plugins/chartjs-plugin-zoom.min.js");
         });
 
         onMounted(() => {

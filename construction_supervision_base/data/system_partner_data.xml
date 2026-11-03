@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 非 noupdate：每次安裝／升級都跑，把 OdooBot 改成「系統」（使用者改過的名稱不動） -->
+<odoo>
+    <function model="res.partner" name="_rename_system_partner"/>
+</odoo>
