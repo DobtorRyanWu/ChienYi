@@ -85,8 +85,8 @@
 /* 警戒線橫跨整個 hero：水尺內是實線段、右側延伸成虛線 */
 .wl-hero-lines {
   position: absolute;
-  left: 0; right: 0; top: 0;
-  height: 220px;                 /* 與 .wl-gauge 同高，兩者共用同一套座標 */
+  left: 0; right: 0; top: 1px;
+  height: 218px;                 /* 與 .wl-gauge 的內側（扣掉 1px 邊框）同高同位置，刻度與警戒線才對得齊 */
   pointer-events: none;
   z-index: 0;
 }
@@ -96,8 +96,7 @@
   opacity: 0.85;
 }
 .wl-hero-line-label {
-  position: absolute; right: 0;
-  transform: translateY(-100%);
+  position: absolute; right: 0;     /* bottom 由 JS 設定：底邊貼在自己的警戒線上 */
   background: var(--wb-bg2);
   font-size: 9px;
   font-weight: 700;
@@ -150,7 +149,7 @@
 .wl-gauge-tick-label {
   position: absolute;
   left: 22px;
-  transform: translateY(-50%);
+  transform: translateY(50%);    /* bottom 對齊刻度線，再往下移半個字高＝字的中線對齊刻度 */
   font-size: 9px;
   color: var(--wb-t2);
   font-variant-numeric: tabular-nums;

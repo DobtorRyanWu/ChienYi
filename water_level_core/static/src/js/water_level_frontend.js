@@ -25,6 +25,7 @@
     var MINOR_TICK_M = 0.1;         // 10 公分一格
     var MAJOR_TICK_M = 1.0;         // 1 公尺一個數字
     var MAX_TICKS = 120;            // 量程太大時不要畫到瀏覽器跪下
+    var TICK_LABEL_CLEAR_PX = 9;    // 警戒線距水尺數字小於此值（像素）就不畫該數字，免得虛線穿過數字
     var TILE_PRIMARY = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     var TILE_FALLBACK = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
     var TILE_FAIL_THRESHOLD = 3;
@@ -114,6 +115,16 @@
         var top = gaugeTop(device);
         var pct = function (v) { return Math.max(0, Math.min(100, (v / top) * 100)); };
 
+        // 三條警戒線的位置（像素，距底部）：水尺數字離任何一條太近就不畫，避免虛線穿過數字
+        var levels = device.levels || {};
+        var gaugeH = linesEl.offsetHeight || ticksEl.offsetHeight;
+        var lineKeys = ['lv3', 'lv2', 'lv1'].filter(function (key) { return levels[key]; });
+        var nearLine = function (v) {
+            return lineKeys.some(function (key) {
+                return Math.abs(pct(v) - pct(levels[key])) / 100 * gaugeH < TICK_LABEL_CLEAR_PX;
+            });
+        };
+
         // 刻度
         var html = '';
         var stepCount = Math.round(top / MINOR_TICK_M);
@@ -123,25 +134,31 @@
             var width = isMajor ? 18 : 10;
             html += '<div class="wl-gauge-tick' + (isMajor ? ' is-major' : '') +
                     '" style="bottom:' + pct(v) + '%;width:' + width + 'px"></div>';
-            if (isMajor && v > 0) {
+            if (isMajor && v > 0 && !nearLine(v)) {
                 html += '<div class="wl-gauge-tick-label" style="bottom:' + pct(v) + '%">' +
                         v.toFixed(0) + '</div>';
             }
         }
         ticksEl.innerHTML = html;
 
-        // 三條警戒線：橫穿水尺再延伸到右邊，右端標等級與數值
-        var levels = device.levels || {};
+        // 三條警戒線：橫穿水尺再延伸到右邊，右端標等級與數值。
+        // 先畫完所有線再畫標籤，標籤的底色才蓋得住線；標籤底邊貼在自己的線上，
+        // 線距太近時往上疊開（以像素算），不互相壓住。
         var lineLabel = { lv3: '三級', lv2: '二級', lv1: '一級' };
         var lineHtml = '';
-        ['lv3', 'lv2', 'lv1'].forEach(function (key) {
-            if (!levels[key]) { return; }
-            var bottom = pct(levels[key]);
-            lineHtml += '<div class="wl-hero-line is-' + key + '" style="bottom:' + bottom + '%"></div>' +
-                        '<div class="wl-hero-line-label is-' + key + '" style="bottom:' + bottom + '%">' +
-                        lineLabel[key] + ' ' + levels[key].toFixed(2) + '</div>';
+        var labelHtml = '';
+        lineKeys.slice().sort(function (x, y) { return levels[x] - levels[y]; }).forEach(function (key) {
+            lineHtml += '<div class="wl-hero-line is-' + key + '" style="bottom:' + pct(levels[key]) + '%"></div>';
+            labelHtml += '<div class="wl-hero-line-label is-' + key + '" data-bottom="' + pct(levels[key]) +
+                         '">' + lineLabel[key] + ' ' + levels[key].toFixed(2) + '</div>';
         });
-        linesEl.innerHTML = lineHtml;
+        linesEl.innerHTML = lineHtml + labelHtml;
+        var stackTop = 0;
+        Array.prototype.forEach.call(linesEl.querySelectorAll('.wl-hero-line-label'), function (el) {
+            var bottomPx = Math.max(parseFloat(el.getAttribute('data-bottom')) / 100 * gaugeH, stackTop);
+            el.style.bottom = bottomPx + 'px';
+            stackTop = bottomPx + el.offsetHeight;
+        });
 
         // 水面（斷線時不要畫出一個看起來很正常的水位）
         var hasValue = device.value !== null && device.value !== undefined;
