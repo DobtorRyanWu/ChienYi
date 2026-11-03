@@ -847,7 +847,7 @@
                     </div>
 
                     <!-- 結果 banner -->
-                    <t t-if="imported or skipped or failed">
+                    <t t-if="imported or replaced or skipped or failed">
                         <div style="margin-bottom: 14px; padding: 12px 14px; background: rgba(59,141,224,0.10); border-radius: 8px; font-size: 0.95rem; line-height: 1.7;">
                             <div style="font-weight: 700; margin-bottom: 6px;">
                                 <i class="fa fa-info-circle"/> 匯入結果
@@ -855,9 +855,14 @@
                             <div style="color: var(--wb-green); font-weight: 700;">
                                 <i class="fa fa-check-circle"/> 成功：<t t-esc="imported"/> 筆
                             </div>
+                            <t t-if="replaced">
+                                <div style="color: var(--wb-green); font-weight: 700;">
+                                    <i class="fa fa-refresh"/> 取代既有日誌：<t t-esc="replaced"/> 筆
+                                </div>
+                            </t>
                             <t t-if="skipped">
                                 <div style="color: var(--wb-amber); font-weight: 700;">
-                                    <i class="fa fa-forward"/> 跳過（重複日期）：<t t-esc="skipped"/> 筆
+                                    <i class="fa fa-forward"/> 跳過（內容與既有日誌相同）：<t t-esc="skipped"/> 筆
                                 </div>
                             </t>
                             <t t-if="failed">
@@ -902,6 +907,25 @@
                                 </small>
                             </div>
 
+                            <!-- 同一天已有日誌時怎麼處理（使用者 11-03 決定：不再整份跳過） -->
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">同一天已經有日誌時</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="same_day"
+                                           id="same_day_add" value="add" checked="checked"/>
+                                    <label class="form-check-label" for="same_day_add">另建一張（兩張都保留）</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="same_day"
+                                           id="same_day_replace" value="replace"/>
+                                    <label class="form-check-label" for="same_day_replace">用檔案內容取代那天的日誌</label>
+                                </div>
+                                <small style="color: var(--wb-t3); display: block; margin-top: 6px;">
+                                    另建一張時，工項與本日數量和既有日誌相同的檔案會跳過，累計數量不會重複算；
+                                    取代時只換人工填的材料列，系統帶入的重要材料列保留。
+                                </small>
+                            </div>
+
                             <div style="font-size: 0.85rem; color: var(--wb-t2); line-height: 1.6; margin-top: 12px; padding: 10px; background: rgba(0,0,0,0.12); border-radius: 6px;">
                                 <div style="font-weight: 700; margin-bottom: 4px;">解析規則</div>
                                 <ul style="margin: 0; padding-left: 20px;">
@@ -910,7 +934,7 @@
                                     <li>工項進度取自「一、」段落下的 data rows（R12+）</li>
                                     <li>材料管理取自「二、」段落</li>
                                     <li>日誌的工項名稱若找不到對應契約工項，會自動建 stub project.task</li>
-                                    <li>同日期已有日誌會 skip</li>
+                                    <li>同日期已有日誌：依上面的選擇另建一張（工項與數量相同就跳過）或取代（內容完全相同就跳過；只限自己的日誌，已鎖定的要先解鎖）</li>
                                     <li><strong style="color: var(--wb-amber);">log_date 超過 14 天的日誌建立後會自動鎖定</strong></li>
                                 </ul>
                             </div>

@@ -26,7 +26,8 @@
     #         清單有全域公司隔離規則、前台群組沒有讀權（前台一律 sudo 讀）：jt 是多家公司共用的庫，
     #         清單含契約單價。
     # 2.10.4: 日誌標題固定用中文日期格式，不再因重算當下沒帶語言變成英文；migration 重算既有日誌標題；完整名稱的工程名稱固定讀中文那格
-    "version": "18.0.2.10.4",
+    # 2.10.5: 同一人同一天的重疊檢查讓前台匯入補傳放行（context DAILY_LOG_IMPORT_ALLOW_SAME_DAY）
+    "version": "18.0.2.10.5",
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """

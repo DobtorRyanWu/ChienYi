@@ -14,6 +14,8 @@ _logger = logging.getLogger(__name__)
 
 # 日誌標題固定用中文日期格式（如「11月3日 週二」），不隨建立者的語言變動
 SHEET_NAME_LOCALE = 'zh_TW'
+# 前台匯入補傳：放行「同一人同一天」的重疊檢查（見 _check_overlapping_sheets）
+DAILY_LOG_IMPORT_ALLOW_SAME_DAY = 'daily_log_import_allow_same_day'
 
 
 class DailyLogSheet(models.Model):
@@ -642,7 +644,15 @@ class DailyLogSheet(models.Model):
 
     @api.constrains('log_date', 'company_id', 'employee_id', 'supervision_project_id')
     def _check_overlapping_sheets(self):
-        """Check for overlapping sheets（需求三：改為檢查同一天）"""
+        """Check for overlapping sheets（需求三：改為檢查同一天）
+
+        前台匯入補傳時同一天可以有多張（使用者 11-03 決定），由匯入路由帶
+        DAILY_LOG_IMPORT_ALLOW_SAME_DAY；內容完全相同的檔由匯入那邊略過。
+        RPC 呼叫者也帶得進這個 key，但結果只是多一張同日日誌（與補傳允許的相同），
+        不會多拿到任何權限，所以不另外擋。
+        """
+        if self.env.context.get(DAILY_LOG_IMPORT_ALLOW_SAME_DAY):
+            return
         for sheet in self:
             domain = [
                 ('id', '!=', sheet.id),

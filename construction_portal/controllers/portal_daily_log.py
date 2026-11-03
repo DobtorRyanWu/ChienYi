@@ -12,6 +12,7 @@ from odoo.http import request
 from odoo.addons.portal.controllers.portal import pager as portal_pager
 from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
 from odoo.addons.construction_daily_log.models.daily_log_material import MAX_MATERIAL_DAILY_QTY
+from odoo.addons.construction_daily_log.models.daily_log_sheet import DAILY_LOG_IMPORT_ALLOW_SAME_DAY
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
@@ -37,6 +38,17 @@ KEY_MATERIAL_QTY_PREFIX = 'key_material_qty_'
 MATERIAL_QTY_PREFIX = 'material_qty_'
 # id 只認 ASCII 數字、長度有上限（str.isdigit() 會把「²」當數字，int() 再丟例外 → 500）
 MATERIAL_ID_RE = re.compile(r'[0-9]{1,12}')
+# 日誌匯入「同一天已有日誌時」的選項值（匯入頁 radio same_day）；預設另建一張
+SAME_DAY_REPLACE = 'replace'
+# 比對內容時要一致的表頭欄位（工項與材料另外比）
+IMPORT_COMPARE_FIELDS = (
+    'weather_am', 'weather_pm', 'has_technician_requirement',
+    'safety_pre_work_education', 'safety_labor_insurance_check', 'safety_ppe_check',
+)
+IMPORT_COMPARE_TEXT_FIELDS = (
+    'safety_other_matters', 'sampling_test_record', 'subcontractor_notification',
+    'important_matters',
+)
 
 
 def _parse_material_qtys(post, prefix):
@@ -344,6 +356,7 @@ class DailyLogRoutesMixin:
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
             'imported': int(kw.get('imported', 0) or 0),
+            'replaced': int(kw.get('replaced', 0) or 0),
             'skipped': int(kw.get('skipped', 0) or 0),
             'failed': int(kw.get('failed', 0) or 0),
             'failed_details': request.session.pop('daily_log_import_failed_details', []),
@@ -371,9 +384,12 @@ class DailyLogRoutesMixin:
         _logger.warning('[IMPORT] POST handler entered, files count=%s, post keys=%s',
                         len(files), list(post.keys()))
         imported = 0
+        replaced = 0
         skipped = 0
         failed = 0
         failed_details = []
+        # 同一天已有（內容不同的）日誌時：另建一張（預設）或取代那天的日誌
+        replace_mode = post.get('same_day') == SAME_DAY_REPLACE
 
         env = request.env
         DailyLog = env['daily.log.sheet'].sudo()
@@ -400,87 +416,127 @@ class DailyLogRoutesMixin:
                     else:
                         raise
 
-                # 日期重複檢查
+                # 同一天已有日誌（使用者 11-03 決定不再整份跳過），依匯入頁的選項：
+                #   另建一張（預設）：工項與本日數量和既有某張相同就跳過——同一個檔再傳一次、
+                #     或既有那張之後被補過文字／重要材料，都不可以再建一張讓累計數量加倍；
+                #   取代：內容（含文字、材料）完全相同才跳過，否則用檔案內容覆蓋那天的日誌。
                 existing = DailyLog.search([
                     ('supervision_project_id', '=', supervision_project_id),
                     ('log_date', '=', parsed['log_date']),
-                ], limit=1)
-                if existing:
+                ])
+                same = existing.filtered(
+                    lambda s: self._daily_log_same_content(s, parsed, strict=replace_mode))
+                if same:
                     skipped += 1
+                    what = '內容' if replace_mode else '工項與數量'
                     failed_details.append({
                         'filename': fname,
-                        'error': f"{parsed['log_date']} 已有日誌 (id={existing.id})，跳過",
+                        'error': f"{parsed['log_date']} 已有{what}相同的日誌 (id={same[0].id})，跳過",
                     })
                     continue
-
-                # 解析工項行 → 對應 / 建立 stub project.task
-                line_cmds = []
-                for lr in parsed['line_rows']:
-                    task_name = lr['name']
-                    if not task_name:
+                target = False
+                if existing and replace_mode:
+                    target, reason = self._daily_log_import_target(existing, project)
+                    if not target:
+                        failed += 1
+                        failed_details.append({'filename': fname, 'error': reason})
                         continue
-                    task = ProjectTask.search([
-                        ('project_id', '=', project_record_id),
-                        ('name', '=', task_name),
-                    ], limit=1)
-                    if not task:
-                        task = ProjectTask.with_context(
-                            tracking_disable=True, mail_create_nolog=True
-                        ).create({
-                            'name': task_name,
-                            'project_id': project_record_id,
-                            'unit': lr['unit'] or '式',
-                            'planned_qty': lr['planned_qty'] or 0.0,
-                            'unit_price': 0.0,
-                        })
-                    line_cmds.append((0, 0, {
-                        'work_item_id': task.id,
-                        'daily_qty': lr['daily_qty'] or 0.0,
-                        'work_description': lr.get('note') or '',
-                    }))
 
-                # 材料行（daily.log.material 欄位：name / unit / contract_qty / daily_qty / cumulative_qty / note）
-                material_cmds = []
-                for mr in parsed['material_rows']:
-                    if not mr['name']:
-                        continue
-                    material_cmds.append((0, 0, {
-                        'name': mr['name'],
-                        'unit': mr['unit'] or '',
-                        'contract_qty': mr['contract_qty'] or 0.0,
-                        'daily_qty': mr['daily_qty'] or 0.0,
-                        'cumulative_qty': mr['cumulative_qty'] or 0.0,
-                        'note': mr.get('note') or '',
-                    }))
+                # savepoint 從補建工項包到寫入：這個檔失敗時，補建的 stub 工項一起退回；
+                # 取代時先清舊明細才寫新的，中途失敗也要整筆退回
+                with env.cr.savepoint():
+                    # 解析工項行 → 對應 / 建立 stub project.task
+                    line_cmds = []
+                    for lr in parsed['line_rows']:
+                        task_name = lr['name']
+                        if not task_name:
+                            continue
+                        task = ProjectTask.search([
+                            ('project_id', '=', project_record_id),
+                            ('name', '=', task_name),
+                        ], limit=1)
+                        if not task:
+                            task = ProjectTask.with_context(
+                                tracking_disable=True, mail_create_nolog=True
+                            ).create({
+                                'name': task_name,
+                                'project_id': project_record_id,
+                                'unit': lr['unit'] or '式',
+                                'planned_qty': lr['planned_qty'] or 0.0,
+                                'unit_price': 0.0,
+                            })
+                        line_cmds.append((0, 0, {
+                            'work_item_id': task.id,
+                            'daily_qty': lr['daily_qty'] or 0.0,
+                            'work_description': lr.get('note') or '',
+                        }))
 
-                sheet_vals = {
-                    'supervision_project_id': supervision_project_id,
-                    'log_date': parsed['log_date'],
-                    'weather_am': parsed['weather_am'] or False,
-                    'weather_pm': parsed['weather_pm'] or False,
-                    'actual_progress': parsed.get('actual_progress') or 0.0,
-                    'has_technician_requirement': parsed['has_technician_requirement'] or False,
-                    'safety_pre_work_education': parsed.get('safety_pre_work_education') or False,
-                    'safety_labor_insurance_check': parsed.get('safety_labor_insurance_check') or False,
-                    'safety_ppe_check': parsed.get('safety_ppe_check') or False,
-                    'safety_other_matters': parsed['safety_other_matters'] or '',
-                    'sampling_test_record': parsed['sampling_test_record'] or '',
-                    'subcontractor_notification': parsed['subcontractor_notification'] or '',
-                    'important_matters': parsed['important_matters'] or '',
-                    'line_ids': line_cmds,
-                }
-                if material_cmds:
-                    sheet_vals['material_ids'] = material_cmds
+                    # 材料行（daily.log.material 欄位：name / unit / contract_qty / daily_qty / cumulative_qty / note）
+                    material_cmds = []
+                    for mr in parsed['material_rows']:
+                        if not mr['name']:
+                            continue
+                        material_cmds.append((0, 0, {
+                            'name': mr['name'],
+                            'unit': mr['unit'] or '',
+                            'contract_qty': mr['contract_qty'] or 0.0,
+                            'daily_qty': mr['daily_qty'] or 0.0,
+                            'cumulative_qty': mr['cumulative_qty'] or 0.0,
+                            'note': mr.get('note') or '',
+                        }))
 
-                DailyLog.with_context(
-                    allowed_company_ids=[project.company_id.id],
-                    company_id=project.company_id.id,
-                    tracking_disable=True,
-                    mail_create_nolog=True,
-                    # 歷史日誌匯入：材料照 xlsm 原樣（人工列，帶實際數量），不再補 0 數量的重要材料列
-                    skip_key_material_autofill=True,
-                ).create(sheet_vals)
-                imported += 1
+                    sheet_vals = {
+                        'supervision_project_id': supervision_project_id,
+                        'log_date': parsed['log_date'],
+                        'weather_am': parsed['weather_am'] or False,
+                        'weather_pm': parsed['weather_pm'] or False,
+                        'actual_progress': parsed.get('actual_progress') or 0.0,
+                        'has_technician_requirement': parsed['has_technician_requirement'] or False,
+                        'safety_pre_work_education': parsed.get('safety_pre_work_education') or False,
+                        'safety_labor_insurance_check': parsed.get('safety_labor_insurance_check') or False,
+                        'safety_ppe_check': parsed.get('safety_ppe_check') or False,
+                        'safety_other_matters': parsed['safety_other_matters'] or '',
+                        'sampling_test_record': parsed['sampling_test_record'] or '',
+                        'subcontractor_notification': parsed['subcontractor_notification'] or '',
+                        'important_matters': parsed['important_matters'] or '',
+                        'line_ids': line_cmds,
+                    }
+                    if material_cmds:
+                        sheet_vals['material_ids'] = material_cmds
+
+                    Importer = DailyLog.with_context(
+                        allowed_company_ids=[project.company_id.id],
+                        company_id=project.company_id.id,
+                        tracking_disable=True,
+                        mail_create_nolog=True,
+                        # 歷史日誌匯入：材料照 xlsm 原樣（人工列，帶實際數量），不再補 0 數量的重要材料列
+                        skip_key_material_autofill=True,
+                        # 補傳：同一人同一天可以再多一張（工項與數量相同的上面已跳過）
+                        **{DAILY_LOG_IMPORT_ALLOW_SAME_DAY: True},
+                    )
+                    if target:
+                        # 取代＝用檔案內容覆蓋那張日誌（照片、訊息記錄、id 都保留）；
+                        # 走 write()，14 天鎖定照樣擋得到
+                        sheet_vals.pop('supervision_project_id')
+                        sheet_vals['line_ids'] = [(5, 0, 0)] + line_cmds
+                        # 只換人工材料列。連到契約材料清單的重要材料列（含已填的本日數量）保留：
+                        # 刪掉的話契約材料累計會掉，之後前台也補不回來（前台只收已連結列的 id）
+                        manual = target.material_ids.filtered(lambda m: not m.catalog_item_id)
+                        sheet_vals['material_ids'] = [(2, m.id) for m in manual] + material_cmds
+                        Importer.browse(target.id).write(sheet_vals)
+                        # tracking_disable 讓欄位變更不留紀錄，主管取代別人的日誌時至少留一筆誰換的
+                        target.message_post(body=_('以匯入檔「%(file)s」取代日誌內容（%(user)s）',
+                                                   file=fname, user=request.env.user.name))
+                    else:
+                        Importer.create(sheet_vals)
+                if target:
+                    replaced += 1
+                    failed_details.append({
+                        'filename': fname,
+                        'error': f"{parsed['log_date']} 已取代既有日誌 (id={target.id})",
+                    })
+                else:
+                    imported += 1
 
             except ValueError as e:
                 failed += 1
@@ -499,7 +555,7 @@ class DailyLogRoutesMixin:
             request.session['daily_log_import_failed_details'] = failed_details
 
         return request.redirect(
-            f'{base_url}?imported={imported}&skipped={skipped}&failed={failed}'
+            f'{base_url}?imported={imported}&replaced={replaced}&skipped={skipped}&failed={failed}'
         )
 
     @http.route(['/construction/<int:project_id>/daily-log/new'],
@@ -546,6 +602,74 @@ class DailyLogRoutesMixin:
 
         values['error_message'] = _portal_error_message(request.params.get('error'))
         return request.render('construction_portal.portal_construction_daily_log_form', values)
+
+    @staticmethod
+    def _daily_log_same_content(sheet, parsed, strict=False):
+        """既有日誌與匯入檔是否算「同一份」。
+
+        一律比工項（名稱＋本日數量）——這是會被加總成累計、拿去算估驗的部分。
+        strict（取代模式）時再比表頭欄位、文字、實際進度、工項說明與人工材料列；
+        連到契約材料清單的重要材料列不比（匯入檔不會有，是系統自動帶入的）。
+
+        數值先經過欄位自己的轉換（依 digits 捨入）再比：解析器給到小數 4 位、實際進度
+        欄只存 2 位，直接比會把同一個檔判成不同，預設「另建一張」下數量就加倍。"""
+        Line = sheet.env['daily.log.line']
+        Material = sheet.env['daily.log.material']
+
+        def conv(model, field_name, value):
+            return model._fields[field_name].convert_to_cache(value or 0.0, model)
+
+        file_lines = sorted(
+            (r['name'], conv(Line, 'daily_qty', r['daily_qty']))
+            + ((r.get('note') or '',) if strict else ())
+            for r in parsed['line_rows'] if r['name'])
+        sheet_lines = sorted(
+            (ln.work_item_id.name or ln.custom_name or '', ln.daily_qty)
+            + ((ln.work_description or '',) if strict else ())
+            for ln in sheet.line_ids)
+        if file_lines != sheet_lines:
+            return False
+        if not strict:
+            return True
+        if any((parsed.get(k) or False) != (sheet[k] or False) for k in IMPORT_COMPARE_FIELDS):
+            return False
+        if any((parsed.get(k) or '').strip() != (sheet[k] or '').strip()
+               for k in IMPORT_COMPARE_TEXT_FIELDS):
+            return False
+        if conv(sheet, 'actual_progress', parsed.get('actual_progress')) != sheet.actual_progress:
+            return False
+        file_mats = sorted(
+            (r['name'], r['unit'] or '', conv(Material, 'contract_qty', r['contract_qty']),
+             conv(Material, 'daily_qty', r['daily_qty']),
+             conv(Material, 'cumulative_qty', r['cumulative_qty']), r.get('note') or '')
+            for r in parsed['material_rows'] if r['name'])
+        sheet_mats = sorted(
+            (m.name, m.unit or '', m.contract_qty, m.daily_qty, m.cumulative_qty, m.note or '')
+            for m in sheet.material_ids if not m.catalog_item_id)
+        return file_mats == sheet_mats
+
+    def _daily_log_import_target(self, existing, project):
+        """取代模式要覆蓋哪一張：那天只有一張就是它；多張時只認目前使用者自己（提交人）
+        的那一張。權限與鎖定比照前台編輯。回傳 (日誌, '') 或 (False, 失敗原因)。
+
+        existing 是匯入路由用 sudo 查的，範圍限定在已 _document_check_access 過的工程。
+        提交人照匯入建日誌時的取法：工程所屬公司的員工。"""
+        day = existing[0].log_date
+        target = existing
+        if len(existing) > 1:
+            employee = existing.env['daily.log.sheet'].with_company(
+                project.company_id)._default_employee()
+            target = existing.filtered(lambda s: employee and s.employee_id == employee)
+            if len(target) != 1:
+                return False, (f'{day} 有 {len(existing)} 張日誌，無法判斷要取代哪一張；'
+                               '請改選「另建一張」')
+        try:
+            self._require_owner_or_manager(target)
+        except AccessError:
+            return False, f'{day} 的日誌 (id={target.id}) 不是你建立的，只能取代自己的日誌'
+        if target._is_edit_locked():
+            return False, f'{day} 的日誌 (id={target.id}) 已鎖定（超過 14 天），請先解鎖再取代'
+        return target, ''
 
     @staticmethod
     def _daily_log_has_overlap(DailyLog, project, vals, sheet=None):
@@ -860,13 +984,21 @@ class DailyLogRoutesMixin:
         if material_cmds:
             # 併進同一次 write：14 天鎖定在 write() 判斷，材料指令也要被它擋得到
             vals['material_ids'] = material_cmds
+        edit_url = f'/construction/{project_id}/daily-log/{log.id}/edit'
+        try:
+            new_date = fields.Date.to_date(vals['log_date'])
+        except ValueError:
+            return request.redirect(f'{edit_url}?error=invalid_date')
+        if new_date == log.log_date:
+            # 日期沒改就不寫：寫了會觸發同一人同一天的重疊檢查，而匯入補傳允許同日多張，
+            # 那種日誌會變成怎麼存都被當成重複
+            vals.pop('log_date')
         try:
             with request.env.cr.savepoint():
                 log.write(vals)
         except (ValidationError, UserError) as e:
             # 同新增：改日期撞到同提交人同日的日誌才提示重複，其他原因走 session 顯示（原本直接 500）
-            edit_url = f'/construction/{project_id}/daily-log/{log.id}/edit'
-            if isinstance(e, ValidationError) and self._daily_log_has_overlap(
+            if 'log_date' in vals and isinstance(e, ValidationError) and self._daily_log_has_overlap(
                     DailyLog, project, vals, sheet=log):
                 return request.redirect(f'{edit_url}?error=duplicate_log')
             return request.redirect(_portal_flash_url(edit_url, e))

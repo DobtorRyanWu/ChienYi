@@ -9,7 +9,7 @@
 """
 
 from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from odoo import fields
 from odoo.addons.website.tools import MockRequest
@@ -390,3 +390,131 @@ class TestPortalManualFixesBatch3(TransactionCase):
             self.project.id, other.id, log_date=today.isoformat())
         self.assertIn(f'/daily-log/{other.id}/edit?error=duplicate_log', loc)
         self.assertEqual(other.log_date, today - timedelta(days=1), '整筆不可存進去')
+
+    # ═══ B3-10 日誌匯入：同一天已有日誌不再整份跳過（使用者 11-03 決定）═══════
+    def _parsed(self, day, qty=2.0, note=''):
+        """解析器的輸出（patch 掉真的 xlsm 解析，只測匯入路由怎麼處理同一天）。"""
+        return {
+            'log_date': day, 'weather_am': False, 'weather_pm': False,
+            'actual_progress': 0.0, 'has_technician_requirement': False,
+            'safety_pre_work_education': False, 'safety_labor_insurance_check': False,
+            'safety_ppe_check': False, 'safety_other_matters': '',
+            'sampling_test_record': '', 'subcontractor_notification': '',
+            'important_matters': note,
+            'line_rows': [{'name': 'B3 匯入工項', 'unit': '式', 'planned_qty': 10.0,
+                           'daily_qty': qty, 'note': ''}],
+            'material_rows': [],
+        }
+
+    def _import(self, user, parsed, same_day=None):
+        """以 user 身分跑真實的匯入 POST 路由，回傳 (Location, 處理明細)。"""
+        self.env.flush_all()
+        self.env.invalidate_all()
+        upload = MagicMock(filename='b3.xlsm')
+        upload.read.return_value = b'xlsm'
+        post = {'same_day': same_day} if same_day else {}
+        with MockRequest(self.env(user=user)) as req, patch(
+                'odoo.addons.construction_portal.utils.daily_log_xlsm_parser.parse_daily_log_xlsm',
+                return_value=parsed):
+            req.httprequest.files.getlist.return_value = [upload]
+            res = self.ctrl.portal_construction_daily_logs_import_submit(self.project.id, **post)
+            details = req.session.get('daily_log_import_failed_details', [])
+        return res.headers.get('Location', ''), details
+
+    def _day_sheets(self, day):
+        return self.env['daily.log.sheet'].search([
+            ('supervision_project_id', '=', self.project.id), ('log_date', '=', day)])
+
+    def test_b3_10_import_same_day_different_content_adds_sheet(self):
+        """同一個人、同一天、內容不同：另建一張（原本整份跳過）。"""
+        day = fields.Date.today()
+        self._log(self.emp_a)
+        loc, details = self._import(self.worker_a, self._parsed(day))
+        self.assertIn('imported=1', loc, details)
+        self.assertEqual(len(self._day_sheets(day)), 2)
+
+    def test_b3_10_import_identical_content_is_skipped(self):
+        day = fields.Date.today() - timedelta(days=2)
+        self._import(self.worker_a, self._parsed(day))
+        loc, details = self._import(self.worker_a, self._parsed(day))
+        self.assertIn('imported=0', loc)
+        self.assertIn('skipped=1', loc)
+        self.assertEqual(len(self._day_sheets(day)), 1, '同一個檔再傳一次不可多一張')
+        self.assertIn('相同的日誌', details[-1]['error'])
+
+    def test_b3_10_import_replace_overwrites_that_day(self):
+        day = fields.Date.today() - timedelta(days=2)
+        self._import(self.worker_a, self._parsed(day, qty=2.0))
+        sheet = self._day_sheets(day)
+        loc, details = self._import(self.leader, self._parsed(day, qty=5.0), same_day='replace')
+        self.assertIn('replaced=1', loc, details)
+        self.assertEqual(self._day_sheets(day), sheet, '取代＝覆蓋同一張，不可多建')
+        self.assertEqual(sheet.line_ids.mapped('daily_qty'), [5.0], '明細要換成檔案內容、舊的不留')
+
+    def test_b3_10_import_replace_refuses_others_log_for_field_worker(self):
+        day = fields.Date.today() - timedelta(days=2)
+        self._import(self.worker_a, self._parsed(day, qty=2.0))
+        sheet = self._day_sheets(day)
+        loc, details = self._import(self.worker_b, self._parsed(day, qty=5.0), same_day='replace')
+        self.assertIn('failed=1', loc)
+        self.assertIn('只能取代自己的日誌', details[-1]['error'])
+        self.assertEqual(sheet.line_ids.mapped('daily_qty'), [2.0], '被擋時原日誌不可被改')
+
+    # ── 審查補充（匯入同日） ─────────────────────────────────────────────
+    def test_b3_10_reimport_with_progress_decimals_is_skipped(self):
+        """實際進度欄只存 2 位小數、解析器給 4 位：同一個檔再傳一次仍要判成相同（不可多一張讓數量加倍）。"""
+        day = fields.Date.today() - timedelta(days=2)
+        parsed = dict(self._parsed(day), actual_progress=4.0712)
+        self._import(self.worker_a, parsed)
+        for mode in (None, 'replace'):
+            loc, details = self._import(self.worker_a, parsed, same_day=mode)
+            self.assertIn('skipped=1', loc, (mode, details))
+        self.assertEqual(len(self._day_sheets(day)), 1)
+
+    def test_b3_10_add_mode_skips_same_quantities_even_if_text_was_added(self):
+        """既有那張後來被補過文字：預設「另建一張」下，工項與數量相同仍跳過，不可讓累計加倍。"""
+        day = fields.Date.today() - timedelta(days=2)
+        self._import(self.worker_a, self._parsed(day))
+        self._day_sheets(day).write({'important_matters': '事後補充'})
+        loc, details = self._import(self.worker_a, self._parsed(day))
+        self.assertIn('skipped=1', loc, details)
+        self.assertEqual(len(self._day_sheets(day)), 1)
+
+    def test_b3_10_replace_with_text_change_replaces_and_leaves_a_note(self):
+        day = fields.Date.today() - timedelta(days=2)
+        self._import(self.worker_a, self._parsed(day))
+        sheet = self._day_sheets(day)
+        loc, details = self._import(self.leader, self._parsed(day, note='修正後'), same_day='replace')
+        self.assertIn('replaced=1', loc, details)
+        self.assertEqual(sheet.important_matters, '修正後')
+        self.assertTrue(any('取代日誌內容' in (m.body or '') for m in sheet.message_ids),
+                        '主管取代別人的日誌要留下紀錄')
+
+    def test_b3_10_edit_after_same_day_import_still_saves(self):
+        """匯入補傳讓同一人同一天有兩張後，前台編輯其中一張（日期沒改）不可被當成重複。"""
+        day = fields.Date.today()
+        first = self._log(self.emp_a)
+        self._import(self.worker_a, self._parsed(day))
+        self.assertEqual(len(self._day_sheets(day)), 2, '前提：同一人同一天兩張')
+        vals, loc = self._drive(
+            self.leader, self.ctrl.portal_construction_daily_log_update,
+            self.project.id, first.id, log_date=day.isoformat(), work_summary='編輯後')
+        self.assertNotIn('error=', loc)
+        self.assertEqual(first.work_summary, '編輯後')
+
+    def test_b3_10_replace_keeps_linked_key_material_rows(self):
+        """取代只換人工材料列；連到契約材料清單的重要材料列（含已填數量）要留著。"""
+        self.env['construction.contract.material'].create({
+            'project_id': self.project.id, 'name': 'B3 重要材料', 'unit': 'm3', 'is_key': True})
+        sheet = self._log(self.emp_a)
+        linked = sheet.material_ids.filtered('catalog_item_id')
+        self.assertEqual(len(linked), 1, '前提：建日誌時自動帶入一列重要材料')
+        linked.daily_qty = 3.0
+        parsed = dict(self._parsed(fields.Date.today()), material_rows=[{
+            'name': '檔案裡的材料', 'unit': 'kg', 'contract_qty': 0.0, 'daily_qty': 1.0,
+            'cumulative_qty': 1.0, 'note': ''}])
+        loc, details = self._import(self.leader, parsed, same_day='replace')
+        self.assertIn('replaced=1', loc, details)
+        self.assertTrue(linked.exists(), '重要材料列不可被刪')
+        self.assertEqual(linked.daily_qty, 3.0)
+        self.assertIn('檔案裡的材料', sheet.material_ids.mapped('name'))
