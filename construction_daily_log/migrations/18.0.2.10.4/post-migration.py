@@ -6,6 +6,7 @@
 # 走 add_to_compute 而不是 write：重算不經過 write()，不受 14 天鎖定的守門擋，
 # 也不留訊息記錄。complete_name 依賴 name，要在 name 落庫後另外排程（理由同
 # 18.0.2.6.0：同一輪 flush 中才被標記的下游欄位不保證會處理）。
+# complete_name 含工程名稱（多語欄位），compute 本身已固定讀中文那格，不靠這裡的 env 語言。
 
 from odoo import api, SUPERUSER_ID
 

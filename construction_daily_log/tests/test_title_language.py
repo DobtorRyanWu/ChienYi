@@ -61,3 +61,17 @@ class TestSheetTitleLanguage(TransactionCase):
         en = self._create_as(self._user('ttl_en', 'en_US'))
         self.assertEqual(zh.name, EXPECTED_NAME)
         self.assertEqual(en.name, EXPECTED_NAME, '英文使用者建的日誌標題不該是英文格式')
+
+    def test_complete_name_uses_chinese_project_name(self):
+        """完整名稱裡的工程名稱是多語欄位：在中文介面改過名的工程，en_US 那格仍是舊名。
+        沒帶語言重算（升級 migration、排程）時不可讀到舊名。"""
+        project = self.projects['zh_TW']
+        project.with_context(lang='en_US').write({'name': 'Old Project Name'})
+        project.with_context(lang='zh_TW').write({'name': '新的中文工程名'})
+        sheet = self.env['daily.log.sheet'].with_context(lang='en_US').create({
+            'supervision_project_id': project.id,
+            'employee_id': self.employee.id,
+            'log_date': LOG_DATE,
+        })
+        self.assertIn('新的中文工程名', sheet.complete_name)
+        self.assertNotIn('Old Project Name', sheet.complete_name)

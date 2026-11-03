@@ -5,7 +5,7 @@
     # 2.4.0: 支援紙張方向 —— doc.document 新增 page_orientation；載入文件時真的把
     #        紙張格式/方向套到 canvas（以前 page_format 讀了卻沒作用），匯出四處
     #        （列印 HTML／LO 中介 HTML／表格寬度修正／python-docx fallback）一併吃方向
-    # 0.2.4.4: 範本頁籤拿掉 Phase 8；5 個預設範本說明改成中文（migration 只改仍含內部名稱的）；批次匯入視窗的上限改寫成實際值
+    # 2.4.4: 範本頁籤拿掉 Phase 8；5 個預設範本說明改成中文（migration 只改仍含內部名稱的）；批次匯入視窗的上限改寫成實際值
     'version': '18.0.2.4.4',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """

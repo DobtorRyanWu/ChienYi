@@ -548,24 +548,31 @@ class DailyLogRoutesMixin:
         return request.render('construction_portal.portal_construction_daily_log_form', values)
 
     @staticmethod
-    def _daily_log_has_overlap(DailyLog, project, vals):
+    def _daily_log_has_overlap(DailyLog, project, vals, sheet=None):
         """是否已有「同日、同提交人、同公司、同專案」的日誌——與
         construction_daily_log 的 _check_overlapping_sheets 同一組條件。
 
         sudo 只讀：DailyLog 是呼叫端已用 sudo 的 env，範圍限定 project（呼叫端前面
-        已 _document_check_access 過）。提交人與公司的取法跟 create() 一致：
+        已 _document_check_access 過）。新增時提交人與公司的取法跟 create() 一致：
         提交人＝目前使用者的預設員工；公司＝專案公司，沒有才用目前公司。
+        編輯時（傳 sheet）用那張日誌自己的提交人與公司，並排除它自己。
         """
-        employee = DailyLog._default_employee()
+        if sheet:
+            employee, company = sheet.employee_id, sheet.company_id
+        else:
+            employee = DailyLog._default_employee()
+            company = project.company_id or DailyLog.env.company
         if not employee:
             return False
-        company = project.company_id or DailyLog.env.company
-        return bool(DailyLog.search([
+        domain = [
             ('log_date', '=', vals['log_date']),
             ('employee_id', '=', employee.id),
             ('company_id', '=', company.id),
             ('supervision_project_id', '=', project.id),
-        ], limit=1))
+        ]
+        if sheet:
+            domain.append(('id', '!=', sheet.id))
+        return bool(DailyLog.search(domain, limit=1))
 
     @http.route(['/construction/daily-log/create'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
@@ -853,7 +860,16 @@ class DailyLogRoutesMixin:
         if material_cmds:
             # 併進同一次 write：14 天鎖定在 write() 判斷，材料指令也要被它擋得到
             vals['material_ids'] = material_cmds
-        log.write(vals)
+        try:
+            with request.env.cr.savepoint():
+                log.write(vals)
+        except (ValidationError, UserError) as e:
+            # 同新增：改日期撞到同提交人同日的日誌才提示重複，其他原因走 session 顯示（原本直接 500）
+            edit_url = f'/construction/{project_id}/daily-log/{log.id}/edit'
+            if isinstance(e, ValidationError) and self._daily_log_has_overlap(
+                    DailyLog, project, vals, sheet=log):
+                return request.redirect(f'{edit_url}?error=duplicate_log')
+            return request.redirect(_portal_flash_url(edit_url, e))
 
         # 編輯時若有上傳新照片
         meta = _post_photo_meta(post)

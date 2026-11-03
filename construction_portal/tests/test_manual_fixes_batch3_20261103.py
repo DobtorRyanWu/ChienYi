@@ -5,9 +5,10 @@
 - B3-2 前台存日誌：只有真的重疊才說「已有日誌」，其他驗證錯誤顯示真正原因（走 session，不經網址）
 - B3-3 日誌／缺失／檢查／通報單詳情頁不把網址 error 參數原樣印出
 - B3-4 首頁自主檢查卡片文字（無指派概念，不可寫「已指派給你」）
-- B3-5 刪除照片：只有上傳者本人與管理層級可刪（四條刪除路由）
+- B3-5 刪除照片：只有上傳者本人與管理層級可刪（四條刪除路由；前台群組也不能直接 ORM unlink）
 """
 
+from datetime import timedelta
 from unittest.mock import patch
 
 from odoo import fields
@@ -362,3 +363,30 @@ class TestPortalManualFixesBatch3(TransactionCase):
             with self.assertRaises(AccessError, msg=f'{label}：閱覽者不可刪'):
                 self._try_delete(self.observer, method, kw, arg, photo)
             self.assertTrue(photo.exists())
+
+    # ═══ 審查補充（11-03）═══════════════════════════════════════════════════
+    def test_b3_5_rpc_unlink_of_others_photo_is_blocked(self):
+        """刪照片的限制不能只裝在前台路由：前台帳號直接呼叫 ORM（/web/dataset/call_kw）
+        刪照片也要被擋。前台刪照片一律走 sudo 路由，所以前台群組不需要 unlink 權。"""
+        boss = self._mk_user('b3_boss', 'construction_supervision_base.group_portal_subscriber')
+        log = self._log(self.emp_a)
+        for user in (self.worker_b, self.leader, boss, self.worker_a):
+            photo = self._photo(self.worker_a, log, self.project)
+            with self.assertRaises(AccessError, msg=f'{user.login}：前台帳號不可直接 unlink 照片'):
+                photo.with_user(user).unlink()
+            self.assertTrue(photo.exists())
+
+    def test_b3_2_edit_to_same_day_shows_duplicate_not_500(self):
+        """編輯日誌把日期改成同填表人另一張日誌的日期：導回編輯頁提示重複（原本直接 500）。"""
+        today = fields.Date.today()
+        self._log(self.emp_a)
+        other = self.env['daily.log.sheet'].create({
+            'supervision_project_id': self.project.id,
+            'company_id': self.env.company.id,
+            'employee_id': self.emp_a.id,
+            'log_date': today - timedelta(days=1)})
+        vals, loc = self._drive(
+            self.leader, self.ctrl.portal_construction_daily_log_update,
+            self.project.id, other.id, log_date=today.isoformat())
+        self.assertIn(f'/daily-log/{other.id}/edit?error=duplicate_log', loc)
+        self.assertEqual(other.log_date, today - timedelta(days=1), '整筆不可存進去')

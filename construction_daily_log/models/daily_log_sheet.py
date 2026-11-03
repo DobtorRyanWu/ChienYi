@@ -475,7 +475,10 @@ class DailyLogSheet(models.Model):
         for sheet in self:
             parts = [sheet.name or 'New']
             if sheet.supervision_project_id:
-                parts.append(sheet.supervision_project_id.name)
+                # 工程名稱是多語欄位：沒帶語言重算時會讀到 en_US 那格（可能是改名前的舊名），
+                # 跟標題一樣固定讀中文
+                parts.append(sheet.supervision_project_id.with_context(
+                    lang=SHEET_NAME_LOCALE).name)
             if sheet.employee_id:
                 parts.append(sheet.employee_id.name)
             sheet.complete_name = ' - '.join(parts)

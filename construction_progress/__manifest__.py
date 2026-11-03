@@ -8,7 +8,7 @@
     #        列印取當天或之前最後一次有填的值，見 construction_template 3.6.0）
     # 1.5.0: 撤回 1.4.0——實際進度照說明書填「本日實際進度」（每日增量），累計由進度表加總；
     #        actual_progress 回到只給舊系統 xlsm 匯入存累計值（後台不顯示），見 construction_template 3.8.0
-    # 0.1.5.3: 進度圖表、進度看板的 Chart.js 外掛改用 construction_supervision_base 內建檔，客戶擋外網也畫得出來
+    # 1.5.3: 進度圖表、進度看板的 Chart.js 外掛改用 construction_supervision_base 內建檔，客戶擋外網也畫得出來
     "version": "18.0.1.5.3",
     "category": "Construction/Supervision",
     "summary": "工程進度表管理 - 支援每周/每兩周/自訂計算模式",
