@@ -54,3 +54,12 @@ class TestReservationDefectWizardSource(TransactionCase):
         self.assertEqual(defect.source_type, 'self_inspection')
         self.assertEqual(defect.found_date, INSPECTION_DATE)
         self.assertEqual(defect.discovery_user_id, self.inspector)
+
+    def test_slip_button_defect_carries_source_info(self):
+        """通報單上「從自主檢查建立缺失」按鈕建出的缺失也要帶來源、發現人、發現日期"""
+        self.slip.action_create_defect_from_inspection()
+        defect = self.inspection.checklist_ids.defect_improvement_id
+        self.assertTrue(defect, '應建立缺失改善單')
+        self.assertEqual(defect.source_type, 'self_inspection')
+        self.assertEqual(defect.found_date, INSPECTION_DATE)
+        self.assertEqual(defect.discovery_user_id, self.inspector)

@@ -52,3 +52,22 @@ class TestEstimateNoSpreadsheetGroup(TransactionCase):
         self.assertNotIn('action_open_spreadsheets', arch)
         # 並且真的能讀表單用到的欄位
         est.read(['spreadsheet_count'])
+
+    def test_import_and_generate_buttons_group_gated(self):
+        """匯入／產生試算表兩顆入口按鈕：無 Spreadsheet 群組看不到，有群組看得到"""
+        est = self.est.with_user(self.user)
+        arch = est.get_views([(False, 'form')])['views']['form']['arch']
+        self.assertNotIn('匯入估驗試算表', arch)
+        self.assertNotIn('action_generate_spreadsheet', arch)
+        sse_user = self.env['res.users'].create({
+            'name': 'with_sse_group',
+            'login': 'with_sse_group',
+            'groups_id': [(6, 0, [
+                self.env.ref('base.group_user').id,
+                self.env.ref('construction_supervision_base.group_operator').id,
+                self.env.ref('spreadsheet_oca.group_user').id,
+            ])],
+        })
+        arch = self.est.with_user(sse_user).get_views([(False, 'form')])['views']['form']['arch']
+        self.assertIn('匯入估驗試算表', arch)
+        self.assertIn('action_generate_spreadsheet', arch)

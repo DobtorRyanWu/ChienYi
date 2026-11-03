@@ -208,6 +208,8 @@ class SupervisionPhoto(models.Model):
         compute='_compute_gps_coordinates',
         inverse='_inverse_gps_coordinates',
         store=True,
+        # Float 預設 aggregator='sum'，清單分組列會把經緯度加總成無意義的數字
+        aggregator=None,
         help='GPS 緯度座標')
 
     longitude = fields.Float(
@@ -216,6 +218,8 @@ class SupervisionPhoto(models.Model):
         compute='_compute_gps_coordinates',
         inverse='_inverse_gps_coordinates',
         store=True,
+        # Float 預設 aggregator='sum'，清單分組列會把經緯度加總成無意義的數字
+        aggregator=None,
         help='GPS 經度座標')
 
     # === 來源掛載（照片資料表收斂）===

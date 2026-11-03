@@ -22,7 +22,7 @@
             <field name="name">監造會議記錄樣板</field>
             <field name="category">report</field>
             <field name="page_format">A4</field>
-            <field name="description">用於監造會議記錄的文件範本，含會議資訊、出席者、議題、結論等段落。可由 construction.meeting.record 透過 doc.linked.mixin 自動建立並填充。</field>
+            <field name="description">用於監造會議記錄的文件範本，含會議資訊、出席者、議題、結論等段落。可由會議記錄自動建立並填入內容。</field>
             <field name="content_html"><![CDATA[
 <h1 style="text-align:center">監造會議記錄</h1>
 <table style="width:100%;border-collapse:collapse">
@@ -46,7 +46,7 @@
             <field name="name">自主檢查表樣板</field>
             <field name="category">report</field>
             <field name="page_format">A4</field>
-            <field name="description">承包商自主檢查表，可由 general.self.inspection 或 reservation.self.inspection 透過 doc.linked.mixin 整合。</field>
+            <field name="description">承包商自主檢查表，可由一般式或預約式的自主檢查自動建立並填入內容。</field>
             <field name="content_html"><![CDATA[
 <h1 style="text-align:center">自主檢查表</h1>
 <table style="width:100%;border-collapse:collapse">
@@ -219,7 +219,7 @@
             <field name="name">缺失改善通知樣板</field>
             <field name="category">letter</field>
             <field name="page_format">A4</field>
-            <field name="description">缺失改善通知書，可由 general.defect.improvement 或 reservation.defect.improvement 透過 doc.linked.mixin 整合。</field>
+            <field name="description">缺失改善通知書，可由一般式或預約式的缺失改善自動建立並填入內容。</field>
             <field name="content_html"><![CDATA[
 <h1 style="text-align:center">缺失改善通知書</h1>
 <p style="text-align:right">通知編號：{{ notice_no }}</p>
@@ -329,7 +329,7 @@
             <field name="name">估驗計價單樣板</field>
             <field name="category">contract</field>
             <field name="page_format">A4</field>
-            <field name="description">估驗計價單線上協作版本（補充既有 QWeb 報表，供協商階段使用）。範本內 {{ var }} 預先建為 doc.template.field text placeholder；要綁實際資料，請在後台 doc.template 設 model_id = payment.estimate（需裝 construction_payment 模組），再把對應欄位 field_type 改 odoo_field 並填 odoo_field_name（如 estimate_no / project_id.name / subtotal）。可由 payment.estimate 透過 doc.linked.mixin 整合。</field>
+            <field name="description">估驗計價單線上協作版本（補充既有報表，供協商階段使用）。範本內的 {{ var }} 預先建為文字填寫欄位；要綁實際資料，請在後台把這份範本的適用模型設為估驗計價（需已安裝估驗計價模組），再把對應欄位的類型改為「系統欄位」並填入欄位名稱（如 estimate_no / project_id.name / subtotal）。可由估驗計價單自動建立並填入內容。</field>
             <field name="content_html"><![CDATA[
 <h1 style="text-align:center">估驗計價單</h1>
 <!-- Sprint Y12.2：所有 row 統一 4 欄、不用 colspan
@@ -434,7 +434,7 @@
             <field name="name">材料／設備送審管制表樣板</field>
             <field name="category">report</field>
             <field name="page_format">A4</field>
-            <field name="description">材料／設備送審文件審核表，可由 supervision.review.application 透過 doc.linked.mixin 整合。</field>
+            <field name="description">材料／設備送審文件審核表，可由送審申請自動建立並填入內容。</field>
             <field name="content_html"><![CDATA[
 <h1 style="text-align:center">材料／設備送審管制表</h1>
 <p style="text-align:right">送審編號：{{ review_no }}</p>

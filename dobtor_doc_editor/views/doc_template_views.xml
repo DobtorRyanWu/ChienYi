@@ -85,7 +85,7 @@
                                    options="{'resizable': true}"
                                    style="min-height: 400px;"/>
                         </page>
-                        <page string="簽約人角色 (Phase 8)">
+                        <page string="簽約人角色">
                             <div class="alert alert-light mb-2" role="alert">
                                 <i class="fa fa-info-circle me-1"/>
                                 簽約人是「範本欄位」的填寫對象。在文件編輯器拖入欄位前，請先在此定義角色（例：房東 / 業務 / 見證人）。
@@ -99,7 +99,7 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="範本欄位 (Phase 8)">
+                        <page string="填寫欄位">
                             <div class="alert alert-light mb-2" role="alert">
                                 <i class="fa fa-info-circle me-1"/>
                                 範本欄位通常在文件編輯器（後台 client action）以拖曳方式新增；此處列出僅供檢視 / 微調。

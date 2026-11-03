@@ -71,7 +71,10 @@ class DocBulkImportWizard(models.TransientModel):
             raise UserError(_('檔案解碼失敗：%s') % e)
 
         # 套用 zip_guard 安全檢查（沿用 W1 的 doc_zip_guard）
-        # 對 archive 用較寬的限制：解壓 500MB / 5000 entry（批次匯入合理量）
+        # 對 archive 用較寬的限制：解壓 500MB / 5000 entry（批次匯入合理量）；壓縮比沿用預設 100x。
+        # 注意：這裡不檢查上傳檔的原始大小（assert_input_size 的 50MB 沒有套用在批次匯入），
+        # 上傳大小只受 Odoo 本身的上傳限制約束。
+        # 壓縮檔裡每個 .docx 之後再用 inspect_zip_safe 預設值檢查（1000 entry / 200MB）。
         try:
             inspect_zip_safe(
                 raw,

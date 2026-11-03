@@ -75,7 +75,7 @@ def undated_warning(env, model_name, field, label, project_id=None, extra_domain
         return []
     names = records[:_PREVIEW_LIMIT].mapped('display_name')
     more = ('等 %s 筆' % len(records)) if len(records) > _PREVIEW_LIMIT else ''
-    return ['有 %s 筆沒有填「%s」。這些記錄**已一併列入**本次匯出（日期區間不會'
+    return ['有 %s 筆沒有填「%s」。這些記錄已一併列入本次匯出（日期區間不會'
             '排除它們），但如果你要的是「這段期間」的資料，請確認是否該補上日期：\n'
             '%s%s' % (len(records), label, '、'.join(names), more)]
 

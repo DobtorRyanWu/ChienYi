@@ -193,7 +193,7 @@
         <field name="name">supervision.photo.view.form</field>
         <field name="model">supervision.photo</field>
         <field name="arch" type="xml">
-            <form string="工程照片">
+            <form string="工程照片" create="false">
                 <!-- action_download() 從 3.0.0 起就存在，但整個 views/ 沒有任何
                      地方呼叫得到它（死碼）。單張下載本來就該有，接在這裡。
                      多張一次下載走「批次下載」精靈。 -->

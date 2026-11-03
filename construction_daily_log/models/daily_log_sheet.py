@@ -12,6 +12,9 @@ from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
+# 日誌標題固定用中文日期格式（如「11月3日 週二」），不隨建立者的語言變動
+SHEET_NAME_LOCALE = 'zh_TW'
+
 
 class DailyLogSheet(models.Model):
     """
@@ -453,8 +456,8 @@ class DailyLogSheet(models.Model):
 
     @api.depends('log_date', 'employee_id')
     def _compute_name(self):
-        """Compute sheet name based on log date"""
-        locale = self.env.context.get('lang') or self.env.user.lang or 'en_US'
+        """Compute sheet name based on log date（固定中文格式，不看使用者語言）"""
+        locale = SHEET_NAME_LOCALE
         for sheet in self:
             if not sheet.log_date:
                 sheet.name = 'New'
