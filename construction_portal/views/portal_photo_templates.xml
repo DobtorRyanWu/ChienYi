@@ -43,10 +43,8 @@
                             <span class="cy-event-icon" style="color: var(--wb-green);"><i class="fa fa-check-circle"/></span>
                             <div class="cy-event-body">
                                 <div class="cy-event-title" style="color: var(--wb-green);">
-                                    <t t-if="request.params.get('count')">
-                                        已上傳 <t t-esc="request.params.get('count')"/> 張照片
-                                    </t>
-                                    <t t-else="">照片上傳成功</t>
+                                    <!-- 不印網址的 count 參數（可被偽造成任意文字）；也沒有路由會帶它 -->
+                                    照片上傳成功
                                 </div>
                             </div>
                         </div>

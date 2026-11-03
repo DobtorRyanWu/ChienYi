@@ -19,6 +19,7 @@ from .portal_utils import (
     _photo_category_options, _photo_category_to_id, _post_photo_meta,
     _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
+    _portal_flash_url, _portal_flash_code, _portal_error_message,
     _haversine_km, resolve_record_type,
 )
 
@@ -644,6 +645,7 @@ class DefectRoutesMixin:
             'today': date.today().isoformat(),
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
+            'error_message': _portal_error_message(request.params.get('error')),
         }
 
         return request.render('construction_portal.portal_construction_defect_form', values)
@@ -663,6 +665,16 @@ class DefectRoutesMixin:
         # H1：建立缺失限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可建立缺失'))
 
+        # 日期先驗證：表單字串壞了（手動改過、舊瀏覽器）直接丟給 create 會 500、
+        # 且錯誤文字不該經網址。壞了就導回新增頁，帶固定代碼，畫面由對照表顯示。
+        try:
+            found_date = (fields.Date.to_date(post.get('found_date') or '')
+                          or date.today())
+            deadline = fields.Date.to_date(post.get('deadline') or '') or False
+        except (ValueError, TypeError):
+            return request.redirect(
+                f'/construction/{project_id}/defect/new?error=invalid_date')
+
         model = self._defect_model(project)
         # portal 反推：依所選缺失類別自動決定檢查類型（影響缺失編號首字 施/安）
         category = post.get('defect_type') or 'workmanship'
@@ -673,8 +685,8 @@ class DefectRoutesMixin:
             'defect_category': category,
             'check_type': CATEGORY_TO_CHECK_TYPE.get(category, 'construction'),
             'source_type': post.get('source') or 'daily_check',
-            'found_date': post.get('found_date') or date.today().isoformat(),
-            'deadline': post.get('deadline') or False,
+            'found_date': found_date,
+            'deadline': deadline,
         }
 
         Defect = request.env[model].sudo()
@@ -720,6 +732,8 @@ class DefectRoutesMixin:
             'message_per_page': 10,
         }
 
+        # 錯誤提示：只印對照表查到的固定訊息（網址參數原文不印）
+        values['error_message'] = _portal_error_message(request.params.get('error'))
         return request.render('construction_portal.portal_construction_defect_detail', values)
 
     @http.route(['/construction/defect/<int:defect_id>/improve'],
@@ -801,7 +815,8 @@ class DefectRoutesMixin:
                 if defect_sudo.state == 'improving':
                     defect_sudo.action_complete_improvement()
             except (UserError, ValidationError) as e:
-                return request.redirect(self._defect_url(defect, error=str(e)))
+                return request.redirect(
+                    self._defect_url(defect, error=_portal_flash_code(e)))
 
         return request.redirect(self._defect_url(defect, message='success'))
 
@@ -868,6 +883,8 @@ class DefectRoutesMixin:
             return request.redirect(
                 self._defect_url(defect, error='photo_not_found'))
 
+        # 只有上傳者本人與管理層級可刪別人上傳的照片
+        self._require_photo_deleter(photo)
         photo.unlink()
         return request.redirect(
             self._defect_url(defect, message='photo_deleted'))
@@ -914,14 +931,15 @@ class DefectRoutesMixin:
                 deadline = datetime.strptime(raw_deadline, '%Y-%m-%d').date()
             except ValueError:
                 return request.redirect(
-                    self._defect_url(defect, error='改善期限格式不正確，請重新選擇日期'))
+                    self._defect_url(defect, error='invalid_date'))
             # 期限與通知同進退：通知失敗不留下改到一半的期限
             try:
                 with request.env.cr.savepoint():
                     defect.sudo().write({'deadline': deadline})
                     defect.action_notify()
             except (UserError, ValidationError) as e:
-                return request.redirect(self._defect_url(defect, error=str(e)))
+                return request.redirect(
+                    self._defect_url(defect, error=_portal_flash_code(e)))
             return request.redirect(self._defect_url(defect, msg='reviewed'))
         return self._run_review_action(
             defect, 'action_notify',

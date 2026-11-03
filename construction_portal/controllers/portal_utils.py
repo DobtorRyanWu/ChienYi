@@ -10,6 +10,7 @@ import logging
 import math
 
 from odoo import fields
+from odoo.http import request
 
 _logger = logging.getLogger(__name__)
 
@@ -26,6 +27,46 @@ GROUP_OBSERVER = 'construction_supervision_base.group_portal_viewer'
 # 監造代操作員（內部）→ 前台管理權比照老闆/主管：可建案/審核/樣板 CRUD（_can_manage）。
 # 註：可見範圍由內部使用者的核心多公司 rule 決定（見 supervision_project._get_portal_projects_domain）。
 GROUP_OPERATOR = 'construction_supervision_base.group_operator'
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 錯誤提示：網址只帶「代碼」，畫面只印對照表查到的固定中文
+# ─────────────────────────────────────────────────────────────────────
+# 網址參數誰都能偽造；模板若把 ?error=xxx 原樣印出，就能做一個連結讓使用者
+# 在可信的頁面上看到任意文字。所以：固定訊息走代碼對照表；需要顯示
+# 「系統當下產生的原因」（UserError／ValidationError）的，文字先放 session，
+# 網址只帶 PORTAL_FLASH_ERROR_CODE，顯示時取出並清掉（只顯示一次）。
+PORTAL_FLASH_ERROR_CODE = 'flash'
+PORTAL_FLASH_SESSION_KEY = 'portal_flash_error'
+PORTAL_FLASH_MAX_LEN = 600      # 訊息長度上限，避免 session 被撐大
+# 注意：有專屬提示區塊的代碼（photo_locked、no_file…）不放這裡，避免同一頁顯示兩次
+PORTAL_ERROR_MESSAGES = {
+    'locked': '此日誌已鎖定，無法修改。',
+    'not_owner': '您只能編輯自己建立的單據。',
+    'no_unlock_permission': '您沒有解鎖此日誌的權限。',
+    'photo_not_found': '找不到這張照片。',
+    'invalid_date': '日期格式不正確，請重新選擇日期。',
+}
+
+
+def _portal_flash_code(text):
+    """把錯誤原因放進 session，回傳要放進網址 error= 的代碼（文字不經網址）。"""
+    request.session[PORTAL_FLASH_SESSION_KEY] = (str(text) or '')[:PORTAL_FLASH_MAX_LEN]
+    return PORTAL_FLASH_ERROR_CODE
+
+
+def _portal_flash_url(url, text):
+    """同 _portal_flash_code，直接回傳已附上 error= 的網址。"""
+    sep = '&' if '?' in url else '?'
+    return f'{url}{sep}error={_portal_flash_code(text)}'
+
+
+def _portal_error_message(code):
+    """代碼 → 固定中文訊息；flash 代碼取出 session 暫存文字（取後清掉）。
+    不認得的代碼回空字串（模板不顯示）。"""
+    if code == PORTAL_FLASH_ERROR_CODE:
+        return request.session.pop(PORTAL_FLASH_SESSION_KEY, '') or ''
+    return PORTAL_ERROR_MESSAGES.get(code, '')
 
 
 # ─────────────────────────────────────────────────────────────────────

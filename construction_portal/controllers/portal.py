@@ -18,6 +18,7 @@ from .portal_utils import (  # M4-a：共用工具抽出
     _photo_category_options, _photo_category_to_id, _post_photo_meta,
     _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
+    _portal_flash_url, _portal_flash_code, _portal_error_message,
     _haversine_km,
 )
 from .portal_defect import DefectRoutesMixin  # M4-a：缺失路由 mixin
@@ -93,6 +94,33 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
                 or user.has_group(GROUP_FIELD)):
             return
         raise AccessError(msg or _('權限不足：閱覽角色不可建立或修改資料'))
+
+    def _require_photo_deleter(self, photos, msg=None):
+        """刪除照片：只有上傳者本人與管理層級可以刪（閱覽者已被 _require_write 擋在前面）。
+
+        管理層級＝_can_manage()（老闆／主管／系統管理者／代操作員）；內部使用者
+        （base.group_user，監造單位員工）比照 _require_write 放行。其餘（現場人員）
+        只能刪自己上傳的：supervision.photo／ir.attachment 的 create_uid 就是上傳者
+        （前台上傳雖用 sudo，sudo 不改 uid）。
+        photos 可為多筆，必須全部是自己上傳的；空集合視為沒有東西要刪，放行。
+        sudo 只讀 create_uid，範圍是呼叫端已通過 _document_check_access 的那張單據上的照片。
+        """
+        user = request.env.user
+        if self._can_manage() or user.has_group('base.group_user'):
+            return
+        if all(p.sudo().create_uid.id == user.id for p in photos):
+            return
+        raise AccessError(msg or _('權限不足：只有上傳者本人或老闆／主管可以刪除照片'))
+
+    def _require_attachment_photo_deleter(self, attachment_id):
+        """同 _require_photo_deleter，但以附件 id 指定（日誌／檢查的刪除路由用附件 id）。
+        對應到 supervision.photo 就看照片的上傳者；沒有照片行的孤兒附件看附件的建立者。"""
+        photos = request.env['supervision.photo'].sudo().with_context(
+            active_test=False).search([('attachment_id', '=', attachment_id)])
+        if photos:
+            return self._require_photo_deleter(photos)
+        att = request.env['ir.attachment'].sudo().browse(attachment_id).exists()
+        return self._require_photo_deleter(att)
 
     # ==================== 帶權限的照片供圖（M0.6） ====================
     # 取代 public=True 的裸 /web/content：附件不再 public，改由本端點以
@@ -1366,9 +1394,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         try:
             getattr(record, method)()
         except (UserError, ValidationError) as e:
-            from urllib.parse import quote
-            sep = '&' if '?' in err_url else '?'
-            return request.redirect(f'{err_url}{sep}error={quote(str(e))}')
+            return request.redirect(_portal_flash_url(err_url, e))
         sep = '&' if '?' in ok_url else '?'
         return request.redirect(f'{ok_url}{sep}msg=reviewed')
 

@@ -116,6 +116,7 @@ class PhotoRoutesMixin:
         # 但本路由的 att_id 來自模板組出的 /photo/<att_id>/delete（附件 id），
         # 兩者對不上會讓守衛永遠不成立、刪除靜默失效。
         if att_id in log.photo_ids.attachment_id.ids:
+            self._require_attachment_photo_deleter(att_id)
             _portal_delete_photo(request.env, log, att_id)
 
         return request.redirect(
@@ -161,6 +162,7 @@ class PhotoRoutesMixin:
         self._require_write(_('權限不足：閱覽角色不可刪除照片'))
         # 同施工日誌：比對附件 id 而非照片 id
         if att_id in inspection.photo_ids.attachment_id.ids:
+            self._require_attachment_photo_deleter(att_id)
             _portal_delete_photo(request.env, inspection, att_id)
         return request.redirect(
             f'/construction/inspection/{inspection.id}?message=photo_deleted'
@@ -211,6 +213,7 @@ class PhotoRoutesMixin:
         self._require_write(_('權限不足：閱覽角色不可刪除照片'))
         # 同施工日誌：比對附件 id 而非照片 id
         if att_id in inspection.photo_ids.attachment_id.ids:
+            self._require_attachment_photo_deleter(att_id)
             _portal_delete_photo(request.env, inspection, att_id)
         return request.redirect(
             f'/construction/reservation-inspection/{inspection.id}?message=photo_deleted'

@@ -26,6 +26,7 @@ from .portal_utils import (
     _photo_category_options, _photo_category_to_id, _post_photo_meta,
     _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
+    _portal_flash_url, _portal_flash_code, _portal_error_message,
     _haversine_km,
 )
 
@@ -322,6 +323,8 @@ class DailyLogRoutesMixin:
             'message_per_page': 10,
         }
 
+        # 錯誤提示：只印對照表查到的固定訊息（網址參數原文不印）
+        values['error_message'] = _portal_error_message(request.params.get('error'))
         return request.render('construction_portal.portal_construction_daily_log_detail', values)
 
     @http.route(['/construction/<int:project_id>/daily-logs/import'],
@@ -541,7 +544,28 @@ class DailyLogRoutesMixin:
             'nav_badges': self._get_nav_badges(project),
         }
 
+        values['error_message'] = _portal_error_message(request.params.get('error'))
         return request.render('construction_portal.portal_construction_daily_log_form', values)
+
+    @staticmethod
+    def _daily_log_has_overlap(DailyLog, project, vals):
+        """是否已有「同日、同提交人、同公司、同專案」的日誌——與
+        construction_daily_log 的 _check_overlapping_sheets 同一組條件。
+
+        sudo 只讀：DailyLog 是呼叫端已用 sudo 的 env，範圍限定 project（呼叫端前面
+        已 _document_check_access 過）。提交人與公司的取法跟 create() 一致：
+        提交人＝目前使用者的預設員工；公司＝專案公司，沒有才用目前公司。
+        """
+        employee = DailyLog._default_employee()
+        if not employee:
+            return False
+        company = project.company_id or DailyLog.env.company
+        return bool(DailyLog.search([
+            ('log_date', '=', vals['log_date']),
+            ('employee_id', '=', employee.id),
+            ('company_id', '=', company.id),
+            ('supervision_project_id', '=', project.id),
+        ], limit=1))
 
     @http.route(['/construction/daily-log/create'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
@@ -596,10 +620,13 @@ class DailyLogRoutesMixin:
         try:
             with request.env.cr.savepoint():
                 log = DailyLog.create(vals)
-        except ValidationError:
-            # 同專案同一天已有日誌（唯一性由 daily.log.sheet 的 constraint 擋）：導回新增頁並提示
-            return request.redirect(
-                f'/construction/{project_id}/daily-log/new?error=duplicate_log')
+        except ValidationError as e:
+            new_url = f'/construction/{project_id}/daily-log/new'
+            # 只有「真的重疊」才提示重複；其他驗證錯誤把真正原因給使用者看，
+            # 文字走 session（不經網址）。不比對例外訊息，改用 constraint 的同一組條件查。
+            if self._daily_log_has_overlap(DailyLog, project, vals):
+                return request.redirect(f'{new_url}?error=duplicate_log')
+            return request.redirect(_portal_flash_url(new_url, e))
 
         # 約定重要材料本日數量：create() 已依案件清單自動帶入材料列，這裡只填數量。
         # 只認「這張日誌自己、對應到該清單項」的列（外來的清單項 id 找不到列就略過）。
@@ -725,6 +752,7 @@ class DailyLogRoutesMixin:
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
         }
+        values['error_message'] = _portal_error_message(request.params.get('error'))
         return request.render('construction_portal.portal_construction_daily_log_form', values)
 
     @http.route(['/construction/<int:project_id>/daily-log/<int:log_id>/unlock'],

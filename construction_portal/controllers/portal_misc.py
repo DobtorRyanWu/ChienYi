@@ -24,6 +24,7 @@ from .portal_utils import (
     _photo_category_options, _photo_category_to_id, _post_photo_meta,
     _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
+    _portal_error_message,
     _haversine_km,
 )
 
@@ -173,6 +174,8 @@ class MiscRoutesMixin:
             'message_per_page': 10,
         }
 
+        # 錯誤提示：只印對照表查到的固定訊息（網址參數原文不印）
+        values['error_message'] = _portal_error_message(request.params.get('error'))
         return request.render('construction_portal.portal_construction_slip_detail', values)
 
     @http.route(['/construction/<int:project_id>/tests',

@@ -151,10 +151,10 @@
 
                     <!-- 審核動作（限老闆/主管） -->
                     <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')">
-                        <t t-if="request.params.get('error')">
+                        <t t-if="error_message">
                             <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
-                                <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="request.params.get('error')"/></div></div>
+                                <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="error_message"/></div></div>
                             </div>
                         </t>
                         <!-- 通知改善（draft → notified）：監造/主管。C2：用 portal_workflow_state
@@ -482,6 +482,13 @@
                         <div style="font-size: 1.5rem; font-weight: 900; color: var(--wb-amber);">提報新缺失</div>
                         <div style="font-size: 0.9rem; color: var(--wb-t2); margin-top: 4px;">填寫缺失資訊並上傳照片</div>
                     </div>
+
+                    <t t-if="error_message">
+                        <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                            <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="error_message"/>整筆未儲存。</div></div>
+                        </div>
+                    </t>
 
                     <form action="/construction/defect/create" method="post" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>

@@ -405,13 +405,15 @@
                             </div>
                         </t>
                     </t>
+                    <!-- 自主檢查沒有「指派給誰」：inspector_id 是填表人（預設建立者），不是被指派者，
+                         所以列的是整個工程尚未完成的草稿，文字不能暗示是某人被指派。 -->
                     <t t-if="draft_inspections">
                         <t t-foreach="draft_inspections" t-as="di">
                             <div class="cy-event-card cy-event-warn">
                                 <div style="flex: 1;">
-                                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--wb-amber); margin-bottom: 4px;">自主檢查指派</div>
+                                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--wb-amber); margin-bottom: 4px;">待完成的自主檢查</div>
                                     <div style="font-size: 1rem; font-weight: 700;">
-                                        <t t-esc="di.inspection_type_id.name or di.name"/> 已指派給你
+                                        <t t-esc="di.inspection_type_id.name or di.name"/> 尚未完成
                                     </div>
                                 </div>
                                 <a t-attf-href="/construction/inspection/#{di.id}"
