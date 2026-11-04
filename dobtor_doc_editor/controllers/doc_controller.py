@@ -18,7 +18,7 @@ from ..models.doc_zip_guard import (
     inspect_zip_safe,
     ZipBombError,
 )
-from ..models.doc_render_mixin import _SafeRecordProxy
+from ..models.doc_render_mixin import _DocSandboxedEnvironment, _SafeRecordProxy
 
 _logger = logging.getLogger(__name__)
 
@@ -1129,7 +1129,9 @@ class DocEditorController(http.Controller):
 
         raw_bytes = base64.b64decode(doc.template_docx)
         tpl = DocxTemplate(io.BytesIO(raw_bytes))
-        tpl.render(context or {})
+        # 加固沙箱：docxtpl 預設的 Jinja2 沒有沙箱，上傳的樣板能走到 Python 內部在主機上執行
+        # （construction_template/utils/docx_render.py 10-25 同款修正）。回歸：tests/test_internal_expression_sandbox.py
+        tpl.render(context or {}, jinja_env=_DocSandboxedEnvironment())
 
         filled_buf = io.BytesIO()
         tpl.save(filled_buf)
@@ -1344,16 +1346,17 @@ class DocEditorController(http.Controller):
             else:
                 token_alias[ks] = vs
 
-        # 準備 Jinja2 環境（含 helper）
-        from jinja2.sandbox import SandboxedEnvironment
-        env_j = SandboxedEnvironment()
+        # 準備 Jinja2 環境（含 helper）——與匯出（doc.render.mixin._render_template）同一套加固沙箱＋唯讀代理。
+        # 原本用一般 SandboxedEnvironment 又傳活的 record/user：別名寫 user.sudo().write(...) 按預覽就能提權
+        # （內部編輯者不必是系統管理者）。回歸：tests/test_internal_expression_sandbox.py
+        env_j = _DocSandboxedEnvironment()
         for name, fn in doc._get_render_helpers(record).items():
             env_j.globals[name] = fn
 
         def _eval(expression):
             try:
                 tpl = env_j.from_string('{{ ' + expression + ' }}')
-                return tpl.render(object=record, user=request.env.user)
+                return tpl.render(object=_SafeRecordProxy(record), user=_SafeRecordProxy(request.env.user))
             except Exception:
                 return ''
 
@@ -2267,9 +2270,8 @@ body {{
         rendered_body = content_html
         if ctx:
             try:
-                from jinja2.sandbox import SandboxedEnvironment
                 from jinja2 import StrictUndefined, UndefinedError
-                env = SandboxedEnvironment(undefined=StrictUndefined)
+                env = _DocSandboxedEnvironment(undefined=StrictUndefined)
                 tpl = env.from_string(content_html)
                 # 防 SSTI：以唯讀代理取代活 ORM 物件（與 doc.render.mixin 一致）
                 safe_object = _SafeRecordProxy(doc)
@@ -2278,7 +2280,7 @@ body {{
                     rendered_body = tpl.render(**ctx, object=safe_object, user=safe_user)
                 except UndefinedError as ue:
                     warnings.append(f'缺少變數：{ue}（已用空白替代）')
-                    env_lax = SandboxedEnvironment()
+                    env_lax = _DocSandboxedEnvironment()
                     rendered_body = env_lax.from_string(content_html).render(
                         **ctx, object=safe_object, user=safe_user
                     )

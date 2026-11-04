@@ -194,6 +194,127 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
+    <!-- 子表成員制可見性（2026-11-04 補）：表頭有成員規則還不夠，子表沒規則照樣經 RPC 讀全庫（第三輪審查拷貝庫實測：日誌工項 5361/5361、通報單細項 5524/5524 含單價）。寫法同表頭：所有前台帳號只看參與的工程，老闆另加公司範圍。回歸：construction_portal/tests/test_portal_orm_readonly.py 的 D 段 -->
+    <record id="daily_log_line_portal_member_rule" model="ir.rule">
+        <field name="name">Portal: 日誌工項 - 成員專案讀取（預設）</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_line"/>
+        <field name="domain_force">[('sheet_id.supervision_project_id.member_user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="daily_log_line_portal_boss_rule" model="ir.rule">
+        <field name="name">Portal老闆: 日誌工項 - 公司範圍</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_line"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="daily_log_weather_portal_member_rule" model="ir.rule">
+        <field name="name">Portal: 日誌天氣 - 成員專案讀取（預設）</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_weather"/>
+        <field name="domain_force">[('sheet_id.supervision_project_id.member_user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="daily_log_weather_portal_boss_rule" model="ir.rule">
+        <field name="name">Portal老闆: 日誌天氣 - 公司範圍</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_weather"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="daily_log_material_portal_member_rule" model="ir.rule">
+        <field name="name">Portal: 日誌材料 - 成員專案讀取（預設）</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_material"/>
+        <field name="domain_force">[('daily_log_id.supervision_project_id.member_user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="daily_log_material_portal_boss_rule" model="ir.rule">
+        <field name="name">Portal老闆: 日誌材料 - 公司範圍</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_material"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="daily_log_specific_item_portal_member_rule" model="ir.rule">
+        <field name="name">Portal: 日誌特定項目 - 成員專案讀取（預設）</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_specific_item"/>
+        <field name="domain_force">[('daily_log_id.supervision_project_id.member_user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="daily_log_specific_item_portal_boss_rule" model="ir.rule">
+        <field name="name">Portal老闆: 日誌特定項目 - 公司範圍</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_specific_item"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="notification_slip_line_portal_member_rule" model="ir.rule">
+        <field name="name">Portal: 通報單細項 - 成員專案讀取（預設）</field>
+        <field name="model_id" ref="construction_notification_slip.model_reservation_notification_slip_line"/>
+        <field name="domain_force">[('slip_id.project_id.member_user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="notification_slip_line_portal_boss_rule" model="ir.rule">
+        <field name="name">Portal老闆: 通報單細項 - 公司範圍</field>
+        <field name="model_id" ref="construction_notification_slip.model_reservation_notification_slip_line"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="notification_slip_suspension_portal_member_rule" model="ir.rule">
+        <field name="name">Portal: 通報單停工紀錄 - 成員專案讀取（預設）</field>
+        <field name="model_id" ref="construction_notification_slip.model_reservation_notification_slip_suspension"/>
+        <field name="domain_force">[('slip_id.project_id.member_user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="notification_slip_suspension_portal_boss_rule" model="ir.rule">
+        <field name="name">Portal老闆: 通報單停工紀錄 - 公司範圍</field>
+        <field name="model_id" ref="construction_notification_slip.model_reservation_notification_slip_suspension"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
     <!-- ============================================================ -->
     <!-- 缺失改善（前台實際使用的模型）+ 預約式自主檢查：成員制可見性    -->
     <!-- 這些模型原本只有 base.group_user 公司隔離 rule、無 portal rule，-->

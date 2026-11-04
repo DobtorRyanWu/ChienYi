@@ -1,6 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
+        <!-- 子表成員制可見性（2026-11-04 補）：表頭有成員規則還不夠，子表沒規則照樣經 RPC 讀全庫（第三輪審查拷貝庫實測：日誌工項 5361/5361、通報單細項 5524/5524 含單價）。寫法同表頭：所有前台帳號只看參與的工程，老闆另加公司範圍。回歸：construction_portal/tests/test_portal_orm_readonly.py 的 D 段 -->
+        <record id="daily_log_man_machine_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 人機項目主檔 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_daily_log_man_machine"/>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="daily_log_man_machine_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 人機項目主檔 - 公司範圍</field>
+            <field name="model_id" ref="model_daily_log_man_machine"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="daily_log_man_machine_detail_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 日誌人機使用明細 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_daily_log_man_machine_detail"/>
+            <field name="domain_force">[('daily_log_id.supervision_project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="daily_log_man_machine_detail_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 日誌人機使用明細 - 公司範圍</field>
+            <field name="model_id" ref="model_daily_log_man_machine_detail"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
         <!-- 舊版遷移清理已移除（記錄從未被建立，ref() 會報錯） -->
     </data>
 

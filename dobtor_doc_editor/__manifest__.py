@@ -8,7 +8,9 @@
     # 2.4.4: 範本頁籤拿掉 Phase 8；5 個預設範本說明改成中文（migration 只改仍含內部名稱的）；批次匯入視窗的上限改寫成實際值
     # 2.4.5: 前台協作者（share 帳號）不能改文件的別名運算式、docx 樣板、綁定的模型／紀錄／範本、協作者
     #        （PORTAL_PROTECTED_FIELDS）：原本經 RPC 寫別名可在預覽時自升系統管理者、換 docx 樣板可在伺服器執行程式
-    'version': '18.0.2.4.5',
+    # 2.4.6: 預覽別名（preview_content_json）、範本預覽、套印 docx（fill_template）改用匯出同款的加固沙箱＋唯讀代理：
+    #        原本內部編輯者（不必是系統管理者）寫別名 user.sudo().write(...) 按預覽就能提權，上傳的 docx 樣板能在主機上執行程式
+    'version': '18.0.2.4.6',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1

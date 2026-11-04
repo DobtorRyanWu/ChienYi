@@ -311,6 +311,67 @@ class TestPortalOrmReadonly(TransactionCase):
             'project_id': self.other_project.id, 'standard_id': standard.id})
         self._assert_member_scope(record, self._member_of(self.other_project), self.field)
 
+    # 子表：表頭有成員規則還不夠，子表沒規則照樣經 RPC 讀全庫（2026-11-04 第三輪審查實測）。
+    # 值＝定義它的模組；不是本模組的依賴時那個模組可能沒裝，沒裝就不驗。
+    CHILD_MODELS = {
+        'daily.log.line': 'construction_daily_log',
+        'daily.log.weather': 'construction_daily_log',
+        'daily.log.material': 'construction_daily_log',
+        'daily.log.specific.item': 'construction_daily_log',
+        'reservation.notification.slip.line': 'construction_notification_slip',
+        'reservation.notification.slip.suspension': 'construction_notification_slip',
+        'daily.log.man.machine': 'construction_equipment',
+        'daily.log.man.machine.detail': 'construction_equipment',
+        'supervision.test.standard': 'construction_test',
+        'supervision.test.task.statistics': 'construction_test',
+        'supervision.test.warning': 'construction_test',
+        'supervision.test.formula.variable': 'construction_test',
+        'supervision.test.frequency.condition': 'construction_test',
+    }
+
+    def test_d_child_models_have_portal_member_rule(self):
+        portal = self.env.ref('base.group_portal')
+        Rule = self.env['ir.rule'].sudo()
+        checked, missing = 0, []
+        for model, module in self.CHILD_MODELS.items():
+            if model not in self.env:
+                self.assertNotEqual(module, 'construction_daily_log', '%s 應該存在' % model)
+                self.assertNotEqual(module, 'construction_notification_slip', '%s 應該存在' % model)
+                continue
+            rules = Rule.search([('model_id.model', '=', model), ('groups', 'in', portal.ids),
+                                 ('perm_read', '=', True)])
+            if not any('member_user_ids' in (r.domain_force or '') for r in rules):
+                missing.append(model)
+            checked += 1
+        self.assertFalse(missing, '這些子表沒有前台成員讀取規則：%s' % missing)
+        self.assertGreaterEqual(checked, 6, '日誌與通報單的子表一定要驗到')
+
+    def test_d_daily_log_line_member_scope(self):
+        self.env['progress.schedule'].create({
+            'project_id': self.other_project.id,
+            'change_date': fields.Date.today()}).write({'state': 'active'})
+        emp = self.env['hr.employee'].create({'name': 'ro_emp_line', 'company_id': self.env.company.id})
+        log = self.env['daily.log.sheet'].create({
+            'supervision_project_id': self.other_project.id, 'company_id': self.env.company.id,
+            'employee_id': emp.id, 'log_date': fields.Date.today()})
+        line = self.env['daily.log.line'].create({'sheet_id': log.id, 'name': '他案工項', 'entry_type': 'extra', 'custom_name': '工區復舊'})
+        self._assert_member_scope(line, self._member_of(self.other_project), self.field)
+
+    def test_d_slip_line_member_scope(self):
+        slip = self.env['reservation.notification.slip'].create({
+            'project_id': self.other_res_project.id, 'location': '他案地點', 'slip_no': 8})
+        task = self.env['project.task'].create({'name': '他案契約工項', 'project_id': self.other_res_project.id})
+        line = self.env['reservation.notification.slip.line'].create({
+            'slip_id': slip.id, 'task_id': task.id, 'item_no': '1', 'unit': '式'})
+        self._assert_member_scope(line, self._member_of(self.other_res_project), self.field)
+
+    def test_d_test_standard_member_scope(self):
+        if 'supervision.test.standard' not in self.env:
+            self.skipTest('construction_test 沒裝')
+        standard = self.env['supervision.test.standard'].create({
+            'name': '他案抗壓強度', 'material': '預拌混凝土', 'project_id': self.other_project.id})
+        self._assert_member_scope(standard, self._member_of(self.other_project), self.field)
+
     def _save_type(self, user, **post):
         with MockRequest(self.env(user=user)) as req:
             req.httprequest.files.get.return_value = None

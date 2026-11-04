@@ -14,7 +14,8 @@
     #        新建預設也改成共用（不再帶建立者當下的公司），要限定公司才明確選。
     #        序列 data 加 noupdate：-u 不再把機具設備序列重置成 1。
     # 1.4.1: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
-    "version": "18.0.1.4.1",
+    # 1.4.2: 人機項目主檔、日誌人機使用明細補前台成員讀取規則（原本前台帳號讀得到全庫 23545 筆明細）
+    "version": "18.0.1.4.2",
     "category": "Construction/Equipment",
     "summary": "機具設備管理、維護請求與 MTBF/MTTR 效能指標",
     "description": """
