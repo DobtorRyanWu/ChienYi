@@ -15,3 +15,4 @@ from . import test_template_field  # Phase 8 ADR-022 — doc.template.signer/fie
 from . import test_portal_home_counter  # /my 首頁 doc_count counter 權限保護
 from . import test_available_fields_access
 from . import test_manual_fixes_20261102  # 版本訊息 Markup、B25 預設篩選（2026-11-02）
+from . import test_portal_protected_fields  # 前台協作者不能改別名運算式、樣板檔、綁定對象、協作者（2026-11-04）

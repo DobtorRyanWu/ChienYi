@@ -2,6 +2,32 @@
 <odoo>
     <data>
         <!-- 舊版遷移清理已移除（記錄從未被建立，ref() 會報錯） -->
+
+        <!-- 檢(試)驗記錄：前台成員制可見性（2026-11-04 補）。原本沒有任何套到前台的規則，
+             庫內前台帳號讀得到每個工程的檢試驗記錄、也能在上面留言。照 construction_portal
+             security.xml 的寫法：所有前台帳號只看參與的工程，老闆另加公司範圍（OR）。
+             放在 noupdate 區塊外，既有的庫 -u 時才會建出來。
+             回歸：construction_portal/tests/test_portal_orm_readonly.py 的 D 段 -->
+        <record id="rule_test_record_portal_member" model="ir.rule">
+            <field name="name">Portal: 檢(試)驗記錄 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_supervision_test_record"/>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="rule_test_record_portal_boss" model="ir.rule">
+            <field name="name">Portal老闆: 檢(試)驗記錄 - 公司範圍</field>
+            <field name="model_id" ref="model_supervision_test_record"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
     </data>
 
     <data noupdate="1">

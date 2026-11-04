@@ -6,7 +6,9 @@
     #        紙張格式/方向套到 canvas（以前 page_format 讀了卻沒作用），匯出四處
     #        （列印 HTML／LO 中介 HTML／表格寬度修正／python-docx fallback）一併吃方向
     # 2.4.4: 範本頁籤拿掉 Phase 8；5 個預設範本說明改成中文（migration 只改仍含內部名稱的）；批次匯入視窗的上限改寫成實際值
-    'version': '18.0.2.4.4',
+    # 2.4.5: 前台協作者（share 帳號）不能改文件的別名運算式、docx 樣板、綁定的模型／紀錄／範本、協作者
+    #        （PORTAL_PROTECTED_FIELDS）：原本經 RPC 寫別名可在預覽時自升系統管理者、換 docx 樣板可在伺服器執行程式
+    'version': '18.0.2.4.5',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1

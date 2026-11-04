@@ -273,6 +273,44 @@ class TestPortalOrmReadonly(TransactionCase):
         stranger = self._mk_user('ro_stranger', [FIELD])
         self.assertFalse(self._post_comment(stranger, defect), '不是成員的人不能留言')
 
+    # ═══ D. 讀取範圍：日誌、通報單、檢試驗只看得到參與的工程（2026-11-04 補成員規則）══════
+    def _assert_member_scope(self, record, member, outsider):
+        self.env.invalidate_all()
+        self.assertTrue(record.with_user(member).has_access('read'), '成員要讀得到 %s' % record._name)
+        self.assertTrue(record.with_user(self.boss).has_access('read'), '老闆是公司範圍，要讀得到 %s' % record._name)
+        self.assertFalse(record.with_user(outsider).has_access('read'),
+                         '不是成員的前台帳號不可讀 %s' % record._name)
+        self.assertNotIn(record, self.env[record._name].with_user(outsider).search([('id', '=', record.id)]))
+
+    def _member_of(self, project):
+        user = self._mk_user('ro_member_%s' % project.code.lower(), [FIELD])
+        self.env['supervision.project.member'].create({'project_id': project.id, 'user_id': user.id})
+        return user
+
+    def test_d_daily_log_member_scope(self):
+        self.env['progress.schedule'].create({
+            'project_id': self.other_project.id,
+            'change_date': fields.Date.today()}).write({'state': 'active'})
+        emp = self.env['hr.employee'].create({'name': 'ro_emp_other', 'company_id': self.env.company.id})
+        log = self.env['daily.log.sheet'].create({
+            'supervision_project_id': self.other_project.id, 'company_id': self.env.company.id,
+            'employee_id': emp.id, 'log_date': fields.Date.today()})
+        self._assert_member_scope(log, self._member_of(self.other_project), self.field)
+
+    def test_d_notification_slip_member_scope(self):
+        slip = self.env['reservation.notification.slip'].create({
+            'project_id': self.other_res_project.id, 'location': '他案地點', 'slip_no': 7})
+        self._assert_member_scope(slip, self._member_of(self.other_res_project), self.field)
+
+    def test_d_test_record_member_scope(self):
+        if 'supervision.test.record' not in self.env:
+            self.skipTest('construction_test 沒裝')
+        standard = self.env['supervision.test.standard'].create({
+            'name': '混凝土抗壓強度', 'material': '預拌混凝土', 'project_id': self.other_project.id})
+        record = self.env['supervision.test.record'].create({
+            'project_id': self.other_project.id, 'standard_id': standard.id})
+        self._assert_member_scope(record, self._member_of(self.other_project), self.field)
+
     def _save_type(self, user, **post):
         with MockRequest(self.env(user=user)) as req:
             req.httprequest.files.get.return_value = None

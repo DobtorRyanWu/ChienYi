@@ -149,6 +149,51 @@
         <field name="perm_unlink" eval="False"/>
     </record>
 
+    <!-- 施工日誌 daily.log.sheet、通報單 reservation.notification.slip：成員制可見性
+         （2026-11-04 補：原本沒有任何套到前台的規則，庫內前台帳號讀得到每個工程的日誌與通報單、
+         也能在上面留言。檢試驗記錄的同款規則在 construction_test，本模組沒有依賴它。
+         回歸：tests/test_portal_orm_readonly.py 的 D 段） -->
+    <record id="daily_log_sheet_portal_member_rule" model="ir.rule">
+        <field name="name">Portal: 施工日誌 - 成員專案讀取（預設）</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_sheet"/>
+        <field name="domain_force">[('supervision_project_id.member_user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="daily_log_sheet_portal_boss_rule" model="ir.rule">
+        <field name="name">Portal老闆: 施工日誌 - 公司範圍</field>
+        <field name="model_id" ref="construction_daily_log.model_daily_log_sheet"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="notification_slip_portal_member_rule" model="ir.rule">
+        <field name="name">Portal: 通報單 - 成員專案讀取（預設）</field>
+        <field name="model_id" ref="construction_notification_slip.model_reservation_notification_slip"/>
+        <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+    <record id="notification_slip_portal_boss_rule" model="ir.rule">
+        <field name="name">Portal老闆: 通報單 - 公司範圍</field>
+        <field name="model_id" ref="construction_notification_slip.model_reservation_notification_slip"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
     <!-- ============================================================ -->
     <!-- 缺失改善（前台實際使用的模型）+ 預約式自主檢查：成員制可見性    -->
     <!-- 這些模型原本只有 base.group_user 公司隔離 rule、無 portal rule，-->

@@ -6,8 +6,8 @@ import os
 import zipfile
 from markupsafe import Markup
 
-from odoo import models, fields, api
-from odoo.exceptions import UserError
+from odoo import _, api, fields, models
+from odoo.exceptions import AccessError, UserError
 
 
 # ─── python-docx HTML 轉換輔助函式 ────────────────────────────────────────────
@@ -116,6 +116,15 @@ def _html_node_to_docx(doc, node):
 
 # 超過此大小（bytes）自動存入 ir.attachment
 CONTENT_SIZE_THRESHOLD = 500 * 1024  # 500 KB
+
+# 前台帳號（share）不可寫的欄位：會被當程式執行（別名運算式、docx 樣板的 Jinja2）、
+# 決定運算式對哪筆資料執行（model_id／res_id／template_id）、或決定誰能編輯（collaborator_ids）。
+# 內部帳號與 sudo 路徑不受限。回歸：tests/test_portal_protected_fields.py
+PORTAL_PROTECTED_FIELDS = frozenset({
+    'field_aliases', 'template_docx', 'template_filename', 'template_variables',
+    'model_id', 'model_name', 'res_id', 'template_id', 'collaborator_ids', 'company_id',
+    'content_attachment_id', 'is_large_document',
+})
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -437,6 +446,11 @@ class DocDocument(models.Model):
                 rec.page_format = tpl.page_format
 
     def write(self, vals):
+        if self.env.user.share and not self.env.su:
+            blocked = PORTAL_PROTECTED_FIELDS.intersection(vals)
+            if blocked:
+                raise AccessError(_('前台帳號不能修改文件的%s（由監造／代操設定）')
+                                  % '、'.join(self._fields[f].string for f in sorted(blocked)))
         sanitizer = self.env['doc.sanitizer']
         for field in self._HTML_FIELDS:
             if vals.get(field):
