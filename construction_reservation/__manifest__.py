@@ -9,7 +9,8 @@
     # 1.3.0: 通報單新增「停工」「退單」狀態（construction_notification_slip 18.0.3.0.0）——
     #        停工的通報單照常可掛／新增自主檢查與缺失改善；退單的不可再掛
     # 1.3.2: 通報單「從自主檢查建缺失」補帶來源、發現人、發現日期
-    'version': '18.0.1.3.2',
+    # 1.3.3: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
+    'version': '18.0.1.3.3',
     'category': 'Construction/Reservation',
     'summary': '預約式工程通報單整合自主檢查與缺失改善',
     'description': """

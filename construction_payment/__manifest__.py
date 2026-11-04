@@ -193,7 +193,8 @@
     # 1.8.3: 「同步估驗計價工項」的預設基準日改成變更單的「變更日期」（＝工項版本的生效日期，
     #        施工日誌的當時契約數量也以它為界），以前是套用日 —— 補建歷史資料時套用日遠晚於
     #        變更日期，變更後的舊期別預設全部同步不到。沒填變更日期才退回套用日。使用者 2026-10-19 裁示。
-    'version': '18.0.1.8.3',
+    # 1.8.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
+    'version': '18.0.1.8.4',
     # 1.7.2: 效能：`payment.estimate.line._compute_previous_approved_qty` 與
     #        `extra.line._compute_previous_approved` 加 before_cache ——
     #        原本每一列都要重跑一次 `_estimates_before()`，一張估驗單查上百次。

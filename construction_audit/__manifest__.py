@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 稽核模組',
-    'version': '18.0.1.0.0',
+    # 1.0.1: log_operation 標 @api.private——裡面 sudo 建稽核紀錄、內容由呼叫端給，公開的話任何登入帳號都能經 RPC 偽造稽核軌跡
+    'version': '18.0.1.0.1',
     'category': 'Construction/Audit',
     'summary': '操作軌跡記錄與稽核追蹤',
     'description': """

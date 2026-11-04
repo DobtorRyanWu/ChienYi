@@ -474,10 +474,10 @@ class MiscRoutesMixin:
         """提交工期展延：寫入 current_extension 並呼叫 action_extend_lines"""
         # P5：同 GET，限老闆／主管（下面 schedule 用 sudo 寫，守衛只能靠這裡）
         self._require_manage(_('僅老闆或主管可設定工期展延'))
+        # 只確認讀得到工程（成員／老闆公司範圍）：前台角色沒有工程的 ORM 寫入權
+        # （2026-11-04 收回），原本以本人身分查 write 會讓每個前台帳號都被導回 /my
         try:
-            project = request.env['project.project'].browse(project_id)
-            project.check_access_rule('write')
-            project.check_access_rights('write')
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
 

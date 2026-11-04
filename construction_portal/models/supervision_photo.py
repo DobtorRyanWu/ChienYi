@@ -40,6 +40,9 @@ class SupervisionPhotoPortal(models.Model):
             domain.append(('project_id', 'in', project_ids))
         return domain
 
+    # @api.private：RPC 不能呼叫（裡面 sudo 寫入、值由呼叫端給；公開的話營造廠帳號
+    # 打 /web/dataset/call_kw 就能繞過前台守衛，見 construction_portal/tests/test_portal_orm_readonly.py）
+    @api.private
     @api.model
     def create_from_portal(self, vals, partner, attachment_data):
         """

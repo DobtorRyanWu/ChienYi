@@ -42,7 +42,9 @@
     #        日摘要改用台灣日切分、每天重算最近 7 天，升級時整批重算（migrations/18.0.3.2.0）
     # 3.2.1: 後台地圖底圖網址（leaflet.tile_url）是空的或字串 False 時補成 OSM，已設定的不動
     # 3.2.2: 前台水尺的警戒標籤對齊自己的虛線，不再被穿過或互相疊住；太靠近警戒線的刻度數字不畫
-    'version': '18.0.3.2.2',
+    # 3.2.3: update_health、ingest_readings 標 @api.private——裡面不查權限就 sudo 寫，公開時任何登入帳號
+    #        （含自行註冊的前台帳號）都能經 RPC 偽造設備健康與水位、觸發告警（tests/test_rpc_private.py）
+    'version': '18.0.3.2.3',
     'category': 'Services/Water Level',
     'summary': '監測場域、監測站、時序水位紀錄、雜湊鏈稽核、告警與設備上報端點',
     'description': """

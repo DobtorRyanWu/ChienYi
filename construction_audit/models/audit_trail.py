@@ -148,6 +148,9 @@ class AuditTrail(models.Model):
         raise UserError('操作軌跡記錄不可刪除')
 
     # === 建立方法 ===
+    # @api.private：RPC 不能呼叫（裡面 sudo 寫入、值由呼叫端給；公開的話營造廠帳號
+    # 打 /web/dataset/call_kw 就能繞過前台守衛，見 construction_portal/tests/test_portal_orm_readonly.py）
+    @api.private
     @api.model
     def log_operation(self, model_name, res_id, operation_type,
                       old_values=None, new_values=None,

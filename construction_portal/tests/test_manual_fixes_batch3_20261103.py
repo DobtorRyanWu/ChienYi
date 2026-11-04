@@ -276,6 +276,13 @@ class TestPortalManualFixesBatch3(TransactionCase):
         reason = 'B3 審核失敗原因RRR'
 
         class _Rec:
+            # _run_review_action 一律以本人身分 sudo 執行（前台角色 ORM 寫入權已收回）
+            def with_user(self_, user):
+                return self_
+
+            def sudo(self_):
+                return self_
+
             def boom(self_):
                 raise UserError(reason)
 

@@ -429,7 +429,7 @@ class InspectionRoutesMixin:
             'cur_category': category or '',
             'cur_scope': scope or '',
             'search': search or '',
-            'can_manage': self._can_manage(),
+            'can_manage': self._can_manage_inspection_types(),
             'page_name': 'inspection_types',
         }
         return request.render('construction_portal.portal_inspection_type_list', values)
@@ -438,7 +438,7 @@ class InspectionRoutesMixin:
                 type='http', auth='user', website=True)
     def portal_inspection_type_new(self, **kw):
         """新增樣板表單（限管理者）"""
-        self._require_manage()
+        self._require_manage_inspection_types()
         values = {
             'rec': False,
             'categories': self._inspection_type_categories(),
@@ -453,7 +453,7 @@ class InspectionRoutesMixin:
                 type='http', auth='user', website=True)
     def portal_inspection_type_edit(self, type_id, **kw):
         """編輯樣板表單（限管理者）"""
-        self._require_manage()
+        self._require_manage_inspection_types()
         rec = self._get_visible_inspection_type(type_id)
         if not rec:
             return request.redirect('/construction/inspection-types')
@@ -469,7 +469,7 @@ class InspectionRoutesMixin:
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_inspection_type_save(self, **post):
         """新增 / 編輯儲存（含 items 增刪改、docx 上傳）。限管理者。"""
-        self._require_manage()
+        self._require_manage_inspection_types()
         InspType = request.env['self.inspection.type'].sudo()
         type_id = int(post.get('type_id') or 0)
 
@@ -514,7 +514,7 @@ class InspectionRoutesMixin:
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_inspection_type_delete(self, type_id, **post):
         """刪除樣板；被檢查記錄引用則改停用（archive）。限管理者。"""
-        self._require_manage()
+        self._require_manage_inspection_types()
         rec = self._get_visible_inspection_type(type_id)
         if not rec:
             return request.redirect('/construction/inspection-types')
@@ -530,7 +530,7 @@ class InspectionRoutesMixin:
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_inspection_type_toggle(self, type_id, **post):
         """切換啟用 / 停用。限管理者。"""
-        self._require_manage()
+        self._require_manage_inspection_types()
         rec = self._get_visible_inspection_type(type_id)
         if not rec:
             return request.redirect('/construction/inspection-types')
@@ -566,7 +566,7 @@ class InspectionRoutesMixin:
             'rec': rec,
             'categories_map': dict(self._inspection_type_categories()),
             'stage_groups': self._inspection_type_stage_groups(rec),
-            'can_manage': self._can_manage(),
+            'can_manage': self._can_manage_inspection_types(),
             'page_name': 'inspection_types',
         }
         return request.render('construction_portal.portal_inspection_type_detail', values)

@@ -13,3 +13,4 @@ from . import test_inspection_result_layout  # 自主檢查依結果欄位畫按
 from . import test_manual_fixes_20261102  # 說明書修正回歸：P1 詳情頁照片、P2 檢試驗工項、本週目標、P17 同日重複日誌
 from . import test_manual_fixes_batch2_20261102  # 第 2 批：P4 P8-P16 回歸
 from . import test_manual_fixes_batch3_20261103  # 第 3 批線 1：缺失日期、日誌存檔錯誤、error 參數、刪照片權限
+from . import test_portal_orm_readonly  # 前台角色 ORM 寫入權收回：權限表、RPC 被擋、正當入口仍可用

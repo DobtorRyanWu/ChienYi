@@ -9,10 +9,12 @@ from urllib.parse import urlencode
 from odoo import http, _, fields
 from odoo.http import request
 from odoo.addons.portal.controllers.portal import CustomerPortal, pager as portal_pager
+from odoo.addons.portal.controllers.thread import ThreadController as PortalThreadController
 from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
+from ..models.mail_thread import PORTAL_COMMENTER_GROUP, PORTAL_COMMENT_MODELS
 from .portal_utils import (  # M4-a：共用工具抽出
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
     _photo_category_options, _photo_category_to_id, _post_photo_meta,
@@ -1055,7 +1057,16 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
     # ==================== 自主檢查樣板庫管理（v11） ====================
     # 管理 self.inspection.type：全域樣板庫（project_id=False）+ 各工程專案層級樣板。
-    # 瀏覽 / 下載 docx：全角色；新增 / 編輯 / 刪除 / 停用：限 _can_manage()（老闆 / 主管 / 內部）。
+    # 瀏覽 / 下載 docx：全角色；新增 / 編輯 / 刪除 / 停用：限內部帳號（千溢／代操）。
+    # 2026-11-04 使用者裁示：前台帳號（含營造廠老闆／主管）只能看和下載——全域樣板
+    # 全庫的工程共用，不能交給其中一家營造廠改。
+
+    def _can_manage_inspection_types(self):
+        return self._can_manage() and not request.env.user.share
+
+    def _require_manage_inspection_types(self):
+        if not self._can_manage_inspection_types():
+            raise AccessError(_('權限不足：自主檢查樣板由監造／代操管理，前台帳號只能檢視與下載'))
 
     def _inspection_type_categories(self):
         """工程類別 Selection 從 fields_get 拉（不寫死）"""
@@ -1381,10 +1392,11 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
     # ==================== 前台審核（限老闆 + 主管，v11） ====================
     # 每個審核動作 = 一條 POST route → _require_manage() 守 → 呼叫 model 的 action 方法。
-    # 以建立者本人身分呼叫（boss/manager 透過 implied 舊群組已具寫入 ACL），
-    # 故 action 內 self.env.uid 設定的審核人欄位（verifier_id/supervisor_id…）歸屬正確。
     # 範圍：先以可存取的工程/單據過濾（_document_check_access / search by project），
     # 非成員專案的單據抓不到 → 自然擋住。
+    # 2026-11-04 前台角色的 ORM 寫入權全部收回（tests/test_portal_orm_readonly.py），
+    # 所以動作一律 sudo 執行。先 with_user(本人)：_document_check_access 回傳的是系統帳號的
+    # record（Odoo 核心 portal.py），不換回來的話審核人、結案人欄位（self.env.uid）都記成「系統」。
 
     def _run_review_action(self, record, method, ok_url, err_url):
         """共用：守門 + 呼叫審核動作 + 導回（攔 UserError/ValidationError 顯示訊息）"""
@@ -1392,7 +1404,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         if not record:
             return request.redirect(err_url)
         try:
-            getattr(record, method)()
+            getattr(record.with_user(request.env.user).sudo(), method)()
         except (UserError, ValidationError) as e:
             return request.redirect(_portal_flash_url(err_url, e))
         sep = '&' if '?' in ok_url else '?'
@@ -1512,3 +1524,23 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
     # ==================== 工期展延（action_extend_lines）====================
 
+
+class ConstructionThreadController(PortalThreadController):
+    """前台留言者照舊自動關注那筆紀錄，之後的回覆才會進他的通知中心。
+
+    核心留言路由（mail/controllers/thread.py mail_message_post）看到留言者沒有寫入權，
+    就帶 mail_create_nosubscribe 不讓他關注；2026-11-04 前台角色的寫入權收回後，
+    每個前台帳號都會被這樣處理。這裡只在「本人讀得到這筆紀錄」時把本人加回關注者
+    （拿分享 token 但讀不到的人不加），留言裡提及的人不跟著關注。
+    回歸：tests/test_portal_orm_readonly.py 的留言測試。
+    """
+
+    @http.route()
+    def mail_message_post(self, thread_model, thread_id, post_data, context=None, **kwargs):
+        result = super().mail_message_post(thread_model, thread_id, post_data, context=context, **kwargs)
+        user = request.env.user
+        if thread_model in PORTAL_COMMENT_MODELS and user.has_group(PORTAL_COMMENTER_GROUP):
+            record = request.env[thread_model].browse(int(thread_id))
+            if record.has_access('read'):
+                record.sudo().message_subscribe(partner_ids=user.partner_id.ids)
+        return result

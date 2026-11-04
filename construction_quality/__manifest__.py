@@ -132,7 +132,8 @@
     #        「有缺失也可結案」；檢查項目加「勾選」，非標準樣式時由它換算檢查結果（models/self_inspection_mark.py）
     # 6.6.1（2026-11-02）：預約式缺失顯示名稱改缺失編號（_rec_name）；編號前綴設定改 _compute_display_name；
     #        缺失通知 chatter 改 Markup 並跳脫使用者輸入（原本畫面顯示原始 <b>）
-    'version': '18.0.6.6.2',
+    # 6.6.3: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
+    'version': '18.0.6.6.3',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """

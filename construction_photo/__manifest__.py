@@ -51,7 +51,8 @@
     # 3.7.3: 照片完整表單關閉「新增」（上傳一律走批次上傳精靈）；緯度、經度不在分組列加總；
     #        前台三個群組拿掉照片的 unlink 權（前台刪照片一律走 sudo 路由並檢查上傳者，
     #        原本可直接呼叫 ORM 刪掉全庫任何一張）
-    'version': '18.0.3.7.3',
+    # 3.7.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
+    'version': '18.0.3.7.4',
     'category': 'Construction/Supervision',
     'summary': '工程照片管理與 GPS 追蹤',
     'description': """

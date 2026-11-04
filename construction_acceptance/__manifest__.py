@@ -2,7 +2,8 @@
 {
     'name': '工程驗收與結案管理',
     # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
-    'version': '18.0.1.1.1',
+    # 1.1.2: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
+    'version': '18.0.1.1.2',
     'category': 'Construction',
     'summary': '初驗、正驗、驗收缺失追蹤、結案處理',
     'description': """

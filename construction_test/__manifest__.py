@@ -20,7 +20,8 @@
     #        混凝土澆置位置、試驗機構、試驗報告編號（不沿用歸檔編號，那欄實際存的是簽核紀錄）；
     #        新子表 supervision.test.record.value（試驗項目／合格值／試驗值），只給後台、
     #        全域公司隔離規則。全部可空，免 migration。後台表單新增「抽(查)驗紀錄表」頁籤。
-    'version': '18.0.2.7.2',
+    # 2.7.3: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
+    'version': '18.0.2.7.3',
     'category': 'Construction/Test',
     'summary': '工程監造檢試驗項目管理與管制記錄',
     'description': """

@@ -9,7 +9,8 @@
     # 1.5.0: 撤回 1.4.0——實際進度照說明書填「本日實際進度」（每日增量），累計由進度表加總；
     #        actual_progress 回到只給舊系統 xlsm 匯入存累計值（後台不顯示），見 construction_template 3.8.0
     # 1.5.3: 進度圖表、進度看板的 Chart.js 外掛改用 construction_supervision_base 內建檔，客戶擋外網也畫得出來
-    "version": "18.0.1.5.3",
+    # 1.5.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
+    "version": "18.0.1.5.4",
     "category": "Construction/Supervision",
     "summary": "工程進度表管理 - 支援每周/每兩周/自訂計算模式",
     "description": """

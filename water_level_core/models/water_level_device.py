@@ -397,6 +397,9 @@ class WaterLevelDevice(models.Model):
 
     # ==================== 對外／對內共用的寫入路徑 ====================
 
+    # @api.private：RPC 不能呼叫——裡面不查權限就 sudo 寫設備狀態／讀數，公開的話任何登入帳號
+    # （含自行註冊的前台帳號）都能偽造設備健康與水位。只給 controllers/ingest.py 與排程用。
+    @api.private
     def ingest_readings(self, rows):
         """寫入一批水位讀值，回傳寫入結果與要請設備補送的區間。
 
@@ -549,6 +552,9 @@ class WaterLevelDevice(models.Model):
         if vals:
             self.sudo().write(vals)
 
+    # @api.private：RPC 不能呼叫——裡面不查權限就 sudo 寫設備狀態／讀數，公開的話任何登入帳號
+    # （含自行註冊的前台帳號）都能偽造設備健康與水位。只給 controllers/ingest.py 與排程用。
+    @api.private
     def update_health(self, health):
         """設備隨上報帶回來的韌性狀態。欄位缺就不動，不要用預設值覆蓋掉既有資訊。"""
         self.ensure_one()
