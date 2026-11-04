@@ -53,6 +53,19 @@ class TestPortalManualFixes(TransactionCase):
             'name': 'MF 本週目標工項', 'project_id': cls.project.id})
 
     def _assert_task_unreadable(self):
+        """前提：頁面不能靠前台帳號自己的工項讀取權（P1／P2 的 403 就是這樣來的）。
+
+        2026-11-04 起成員讀得到本案工項（project_task_portal_member_rule），所以先把它換成
+        「前台一律讀不到工項」，頁面照樣得靠 sudo 才渲染得出來，這組測試的鑑別力不變。"""
+        self.env.ref('construction_portal.project_task_portal_member_rule').active = False
+        self.env['ir.rule'].create({
+            'name': '測試：前台一律讀不到工項',
+            'model_id': self.env['ir.model']._get('project.task').id,
+            'domain_force': "[(0, '=', 1)]",
+            'groups': [(4, self.env.ref('base.group_portal').id)],
+            'perm_read': True, 'perm_write': False, 'perm_create': False, 'perm_unlink': False,
+        })
+        self.env.invalidate_all()
         with self.assertRaises(AccessError, msg='前提：前台帳號沒有 project.task 讀權'):
             self.task.with_user(self.worker).name
 

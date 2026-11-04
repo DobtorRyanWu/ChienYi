@@ -54,5 +54,146 @@
             <field name="groups" eval="[(4, ref('base.group_user'))]"/>
         </record>
 
+        <!-- 掛在工程底下的業務資料：前台成員制可見性（2026-11-04 補）。原本前台讀得到、卻沒有任何前台規則，非成員經 RPC 讀得到別案（第四輪審查實測估驗單、契約變更、工程資料夾）。寫法同照片、缺失、日誌：所有前台帳號只看參與的工程，老闆另加公司範圍。回歸：construction_portal/tests/test_portal_orm_readonly.py 的 D 段 -->
+        <record id="acceptance_preliminary_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 初驗 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_acceptance_preliminary"/>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_preliminary_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 初驗 - 公司範圍</field>
+            <field name="model_id" ref="model_acceptance_preliminary"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_preliminary_line_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 初驗明細 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_acceptance_preliminary_line"/>
+            <field name="domain_force">[('acceptance_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_preliminary_line_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 初驗明細 - 公司範圍</field>
+            <field name="model_id" ref="model_acceptance_preliminary_line"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_final_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 正驗 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_acceptance_final"/>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_final_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 正驗 - 公司範圍</field>
+            <field name="model_id" ref="model_acceptance_final"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_final_line_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 正驗明細 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_acceptance_final_line"/>
+            <field name="domain_force">[('acceptance_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_final_line_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 正驗明細 - 公司範圍</field>
+            <field name="model_id" ref="model_acceptance_final_line"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_defect_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 驗收缺失 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_acceptance_defect"/>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="acceptance_defect_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 驗收缺失 - 公司範圍</field>
+            <field name="model_id" ref="model_acceptance_defect"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="project_closure_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 結案 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_project_closure"/>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="project_closure_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 結案 - 公司範圍</field>
+            <field name="model_id" ref="model_project_closure"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="project_closure_document_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 結案文件 - 成員專案讀取（預設）</field>
+            <field name="model_id" ref="model_project_closure_document"/>
+            <field name="domain_force">[('closure_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="project_closure_document_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 結案文件 - 公司範圍</field>
+            <field name="model_id" ref="model_project_closure_document"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
     </data>
 </odoo>

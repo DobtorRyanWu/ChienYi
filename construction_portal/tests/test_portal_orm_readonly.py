@@ -328,23 +328,63 @@ class TestPortalOrmReadonly(TransactionCase):
         'supervision.test.formula.variable': 'construction_test',
         'supervision.test.frequency.condition': 'construction_test',
     }
+    # 掛在工程底下、前台讀得到、原本沒有任何前台規則的業務資料（2026-11-04 第四輪審查：估驗、契約變更、文件實測讀得到別案）。
+    # 共用主檔（分類、標籤、樣板段落、文件範本、公式範本…）不屬任何工程，刻意不列。
+    PROJECT_MODELS = {
+        'construction.weekly.schedule': 'construction_daily_log',
+        'construction.weekly.schedule.line': 'construction_daily_log',
+        'general.progress.report': 'construction_general',
+        'general.progress.report.line': 'construction_general',
+        'general.realtime.profit': 'construction_general',
+        'general.realtime.profit.cost': 'construction_general',
+        'profit.loss.entry': 'construction_general',
+        'general.self.inspection.measure.line': 'construction_quality',
+        'reservation.self.inspection.measure.line': 'construction_quality',
+        'reservation.self.inspection.item': 'construction_quality',
+        'supervision.document': 'construction_supervision_base',
+        'supervision.folder': 'construction_supervision_base',
+        'acceptance.preliminary': 'construction_acceptance',
+        'acceptance.preliminary.line': 'construction_acceptance',
+        'acceptance.final': 'construction_acceptance',
+        'acceptance.final.line': 'construction_acceptance',
+        'acceptance.defect': 'construction_acceptance',
+        'project.closure': 'construction_acceptance',
+        'project.closure.document': 'construction_acceptance',
+        'contract.change.order': 'construction_contract_change',
+        'contract.change.order.line': 'construction_contract_change',
+        'supervision.equipment': 'construction_equipment',
+        'supervision.equipment.request': 'construction_equipment',
+        'payment.claim': 'construction_payment',
+        'payment.estimate': 'construction_payment',
+        'payment.estimate.line': 'construction_payment',
+        'payment.estimate.extra.item': 'construction_payment',
+        'payment.estimate.extra.line': 'construction_payment',
+        'work.acceptance': 'construction_payment',
+        'work.acceptance.line': 'construction_payment',
+        'progress.schedule': 'construction_progress',
+        'progress.schedule.line': 'construction_progress',
+        'supervision.plan.control': 'construction_review',
+        'supervision.review.application': 'construction_review',
+    }
+    # 本模組依賴的模組：它們的模型一定要在
+    PORTAL_DEPENDS = ('construction_daily_log', 'construction_notification_slip', 'construction_general',
+                      'construction_quality', 'construction_supervision_base')
 
-    def test_d_child_models_have_portal_member_rule(self):
+    def test_d_project_data_models_have_portal_member_rule(self):
         portal = self.env.ref('base.group_portal')
         Rule = self.env['ir.rule'].sudo()
         checked, missing = 0, []
-        for model, module in self.CHILD_MODELS.items():
+        for model, module in dict(self.CHILD_MODELS, **self.PROJECT_MODELS).items():
             if model not in self.env:
-                self.assertNotEqual(module, 'construction_daily_log', '%s 應該存在' % model)
-                self.assertNotEqual(module, 'construction_notification_slip', '%s 應該存在' % model)
+                self.assertNotIn(module, self.PORTAL_DEPENDS, '%s 應該存在' % model)
                 continue
             rules = Rule.search([('model_id.model', '=', model), ('groups', 'in', portal.ids),
                                  ('perm_read', '=', True)])
             if not any('member_user_ids' in (r.domain_force or '') for r in rules):
                 missing.append(model)
             checked += 1
-        self.assertFalse(missing, '這些子表沒有前台成員讀取規則：%s' % missing)
-        self.assertGreaterEqual(checked, 6, '日誌與通報單的子表一定要驗到')
+        self.assertFalse(missing, '這些模型沒有前台成員讀取規則：%s' % missing)
+        self.assertGreaterEqual(checked, 16, '本模組依賴的模組裡的模型一定要驗到')
 
     def test_d_daily_log_line_member_scope(self):
         self.env['progress.schedule'].create({
@@ -371,6 +411,40 @@ class TestPortalOrmReadonly(TransactionCase):
         standard = self.env['supervision.test.standard'].create({
             'name': '他案抗壓強度', 'material': '預拌混凝土', 'project_id': self.other_project.id})
         self._assert_member_scope(standard, self._member_of(self.other_project), self.field)
+
+    def test_d_colleague_following_does_not_open_other_project(self):
+        """Odoo 核心 project 的前台規則「同公司聯絡人在關注者裡就放行」與成員規則 OR：
+        營造廠同事當負責人（自動關注）時，同公司不是成員的前台帳號就讀得到那個工程與工項，
+        前台頁的工程閘門 _document_check_access 也跟著放行（第五輪審查實測）。"""
+        contractor = self.env['res.partner'].create({'name': '唯讀測試營造', 'is_company': True})
+        self.field.partner_id.parent_id = contractor
+        colleague = self.env['res.partner'].create({'name': '同公司同事', 'parent_id': contractor.id})
+        self.other_project.privacy_visibility = 'portal'
+        task = self.env['project.task'].create({'name': '他案工項', 'project_id': self.other_project.id})
+        self.other_project.message_subscribe(partner_ids=colleague.ids)
+        task.message_subscribe(partner_ids=colleague.ids)
+        self.env.invalidate_all()
+        self.assertFalse(self.other_project.with_user(self.field).has_access('read'), '同事關注不可讓非成員讀到工程')
+        self.assertFalse(task.with_user(self.field).has_access('read'), '同事關注不可讓非成員讀到工項')
+        with MockRequest(self.env(user=self.field)):
+            with self.assertRaises(AccessError):
+                self.ctrl._document_check_access('project.project', self.other_project.id)
+        # 成員照常讀得到自己工程的工項（不必是關注者）
+        own_task = self.env['project.task'].create({'name': '本案工項', 'project_id': self.project.id})
+        self.assertTrue(own_task.with_user(self.field).has_access('read'), '成員要讀得到本案工項')
+
+    def test_d_project_data_member_scope(self):
+        """第四輪審查實測讀得到別案的三種：估驗單、契約變更、工程資料夾。"""
+        member = self._member_of(self.other_project)
+        cases = [('supervision.folder', {'name': '他案資料夾'})]
+        if 'payment.estimate' in self.env:
+            cases.append(('payment.estimate', {}))
+        if 'contract.change.order' in self.env:
+            cases.append(('contract.change.order', {}))
+        for model, vals in cases:
+            with self.subTest(model=model):
+                record = self.env[model].create(dict(vals, project_id=self.other_project.id))
+                self._assert_member_scope(record, member, self.field)
 
     def _save_type(self, user, **post):
         with MockRequest(self.env(user=user)) as req:

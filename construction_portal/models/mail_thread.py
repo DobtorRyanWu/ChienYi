@@ -31,8 +31,7 @@ class MailThread(models.AbstractModel):
 
         Odoo 預設發留言要對那筆紀錄有寫入權。2026-11-04 前台角色的 ORM 寫入權全部收回
         （tests/test_portal_orm_readonly.py），不改這裡前台留言會全部失效。
-        誰讀得到由各模型的讀取規則決定：缺失、自主檢查有成員規則；日誌、通報單、檢試驗目前
-        沒有前台成員規則（庫內前台帳號都讀得到），與改動前「有寫入權就能留言」的範圍相同。
+        誰讀得到由各模型的前台成員讀取規則決定（成員看參與的工程、老闆看公司範圍；security.xml）。
         留言附檔（mail/controllers/attachment.py）走同一個判斷。
         """
         access = super()._get_mail_message_access(res_ids, operation, model_name=model_name)

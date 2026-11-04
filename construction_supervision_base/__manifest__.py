@@ -39,7 +39,8 @@
     #         計數欄改非儲存並移除 ir.attachment 的三個補算覆寫、post-migrate 修 20 筆孤兒附件
     # 5.11.0: 「工程文件」改名「應交文件管制表」並隱藏所有入口（模型與資料保留）
     # 6.2.5: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
-    'version': '18.0.6.2.5',  # 6.2.4: 系統帳號 OdooBot 改名「系統」（名字仍是 OdooBot 才改）；內建 Chart.js 外掛四支（static/lib/chartjs_plugins）；契約工項表單工程案件必填；專案契約工項清單拿掉拖了也不會改順序的把手。6.2.3: 代操作員再帶 product.group_product_manager（標單匯入建品項）。6.2.2: 代操作員加 project.group_project_user（標單匯入要建 project.task）；_resolve_uom_id 查詢改 sudo（前台角色讀不到 uom）。6.2.0: 權限群組調整——新增「工程管理者」(＝代操作員＋設定)，原下拉的「系統管理者」(group_supervisor_admin，xmlid 不變、190 處引用不動) 改名「工程後台使用者」並移出特殊權限分類；下拉變成「代操作員／工程管理者」。使用者表單加「降級為代操作員」按鈕（只改下拉會殘留設定與它帶入的 6 個群組）。migration 把「設定＋系統管理者、非代操作員」的帳號遷為工程管理者，首頁維持原狀。 6.1.3: 文件分類的 display_name 補宣告 recursive=True（依賴上層 display_name 的自我遞迴依賴；消除載入時的 UserWarning，並讓上層改名時失效一路傳到所有下層）。⚠️ display_name 是魔法欄位，覆寫時要完整寫出 compute/search，只寫 recursive=True 會把它變成沒有 compute 的 stored 欄位。 6.1.2: 覆蓋確認的提示文字精簡（拿掉「否則工項會整套重複，契約金額變成兩倍」）。 6.1.1: 覆蓋確認的勾選框補 <label>（原本是沒有文字的裸方框，使用者找不到）。 6.1.0: 標單匯入精靈四項修正——重複匯入防呆（偵測既有工項→檢查下游引用→勾「確認覆蓋」才刪舊重建）、itemKind="subtotal" 小計列自動勾「不計入契約金額」、依 <Remark> 公式回填「比例基數」、補寫 description。 6.0.0: 契約工項加「整包費用項」旗標（金額走 xml_amount，不被寫髒的 unit_price 影響）與「比例基數」多選（基數限同層前置工項，故不需循環偵測）；整包項的實際金額改跟基數完成比例走。 5.14.0: 契約工項加「不計入契約金額」（預備單價項目），工程加「契約金額調整」——契約金額＝頂層工項合計＋調整累計。 5.13.0: 檔案總覽/資料夾加單檔下載鈕、勾選後可打包 zip
+    # 6.2.6: 前台成員讀取規則補到掛在工程底下的業務資料（老闆另加公司範圍）：原本前台讀得到、沒有任何前台規則，非成員經 RPC 讀得到別案：工程文件、資料夾（不屬任何工程的照常可讀；新檔 security/portal_rules.xml，要排在前台群組定義之後）
+    'version': '18.0.6.2.6',  # 6.2.4: 系統帳號 OdooBot 改名「系統」（名字仍是 OdooBot 才改）；內建 Chart.js 外掛四支（static/lib/chartjs_plugins）；契約工項表單工程案件必填；專案契約工項清單拿掉拖了也不會改順序的把手。6.2.3: 代操作員再帶 product.group_product_manager（標單匯入建品項）。6.2.2: 代操作員加 project.group_project_user（標單匯入要建 project.task）；_resolve_uom_id 查詢改 sudo（前台角色讀不到 uom）。6.2.0: 權限群組調整——新增「工程管理者」(＝代操作員＋設定)，原下拉的「系統管理者」(group_supervisor_admin，xmlid 不變、190 處引用不動) 改名「工程後台使用者」並移出特殊權限分類；下拉變成「代操作員／工程管理者」。使用者表單加「降級為代操作員」按鈕（只改下拉會殘留設定與它帶入的 6 個群組）。migration 把「設定＋系統管理者、非代操作員」的帳號遷為工程管理者，首頁維持原狀。 6.1.3: 文件分類的 display_name 補宣告 recursive=True（依賴上層 display_name 的自我遞迴依賴；消除載入時的 UserWarning，並讓上層改名時失效一路傳到所有下層）。⚠️ display_name 是魔法欄位，覆寫時要完整寫出 compute/search，只寫 recursive=True 會把它變成沒有 compute 的 stored 欄位。 6.1.2: 覆蓋確認的提示文字精簡（拿掉「否則工項會整套重複，契約金額變成兩倍」）。 6.1.1: 覆蓋確認的勾選框補 <label>（原本是沒有文字的裸方框，使用者找不到）。 6.1.0: 標單匯入精靈四項修正——重複匯入防呆（偵測既有工項→檢查下游引用→勾「確認覆蓋」才刪舊重建）、itemKind="subtotal" 小計列自動勾「不計入契約金額」、依 <Remark> 公式回填「比例基數」、補寫 description。 6.0.0: 契約工項加「整包費用項」旗標（金額走 xml_amount，不被寫髒的 unit_price 影響）與「比例基數」多選（基數限同層前置工項，故不需循環偵測）；整包項的實際金額改跟基數完成比例走。 5.14.0: 契約工項加「不計入契約金額」（預備單價項目），工程加「契約金額調整」——契約金額＝頂層工項合計＋調整累計。 5.13.0: 檔案總覽/資料夾加單檔下載鈕、勾選後可打包 zip
     # 5.4.0: 營造廠商移到基本資訊區
     # 5.3.0: 契約工項選取對話框
     #        顯示欄位改為 項次/父工項/項目及說明/單位/契約數量/契約單價/備註——代操回報
@@ -92,6 +93,7 @@
         'security/security.xml',
         'security/portal_groups.xml',  # 包含 group_operator 定義
         'security/new_portal_groups.xml',  # 前台四角色（老闆/主管/現場人員/定期閱覽者）+ 2 個組織類型
+        'security/portal_rules.xml',  # 前台成員讀取規則（引用上面的群組）
         'security/ir.model.access.csv',
         # Data
         'data/ir_sequence_data.xml',
