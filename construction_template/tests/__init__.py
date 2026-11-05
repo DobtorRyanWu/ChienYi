@@ -16,3 +16,8 @@ from . import test_material_test_letterhead  # 送審函抬頭不印死某一家
 from . import test_template_metadata_clean  # 預設樣板 metadata／內網路徑清乾淨（T5-3）
 from . import test_seed_3_8_2_migration  # 3.8.2 舊版換新版、客製不覆蓋（T5-4）
 from . import test_template_attachment_private  # 預設樣板附件不公開（T7）
+from . import test_docx_photo_layout  # 照片段落不固定行高、不超出格子（11-05）
+from . import test_xlsx_template_fixes  # 日報表（一）施工項目列高、calcChain、3.9.0 換樣板（11-05）
+from . import test_defect_outcome  # 缺失改善成果確認只勾一格（11-05）
+from . import test_self_inspection_timing  # 複製的檢查類型也印得出檢查時機（11-05）
+from . import test_estimate_report_categories  # 估驗計價單分類＝最上層大類、累計、合計僅合約項（11-05）

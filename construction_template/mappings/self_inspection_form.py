@@ -42,6 +42,8 @@ from types import SimpleNamespace
 
 from odoo import fields
 
+from odoo.addons.construction_quality.models.self_inspection_type import DEFAULT_TIMINGS
+
 from ..utils import photo_stamp
 from ..utils.formatters import roc_date_cn
 
@@ -116,8 +118,29 @@ def _inspection_no(record):
             else record.name) or ''
 
 
+# 時機名稱 → 代碼：legacy_code 沒有值時用。construction_quality 的設計是 legacy_code
+# 「只給資料遷移用，匯入與日常操作一律以名稱為準」，而且它 copy=False——「複製到工程」
+# 複製出來的類型時機代碼全空，只認代碼的話四格都印空白（2026-11-05 簡報示範庫 95 筆）。
+# 名稱取自系統預設的 DEFAULT_TIMINGS，外加該檔說明裡寫明的紙本變體（川易「施工後檢查」）。
+TIMING_NAME_CODES = {name: code for code, name, _seq in DEFAULT_TIMINGS}
+TIMING_NAME_CODES['施工後檢查'] = 'after'
+
+
+def timing_code(timing):
+    """一個檢查時機對應的代碼（hold_point/random/before/during/after）；認不得回 None。
+
+    套印與檢查類型的「測試樣板」預覽共用這一支。
+    """
+    return timing.legacy_code or TIMING_NAME_CODES.get((timing.name or '').strip())
+
+
+def timing_codes(timings):
+    """一組檢查時機的代碼集合；套印（紀錄勾的時機）與「測試樣板」（類型上全部時機）共用"""
+    return {timing_code(t) for t in timings} - {None}
+
+
 def _timing_codes(record):
-    return set(record.inspection_timing_ids.mapped('legacy_code')) - {False, ''}
+    return timing_codes(record.inspection_timing_ids)
 
 
 # 結果欄位不是「合格／缺失／無此項目」時，勾選印在哪一欄（construction_quality self_inspection_mark.py）：

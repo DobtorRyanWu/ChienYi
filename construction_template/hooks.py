@@ -162,7 +162,16 @@ def seed_default_templates(env, types=None, replaceable=None):
             existing.write(vals)
             att.write({'res_id': existing.id})
             if old_att:
-                old_att.unlink()
+                # 🔴 「複製樣板」（action_duplicate 用 copy()）的副本與系統預設共用同一個附件。
+                # 還有樣板指著它就不能刪——外鍵是 SET NULL，副本會靜靜變空，而匯出優先挑
+                # 公司／專案層的副本，整家公司都會失敗（2026-11-05 red-team 實證）。
+                # 不刪，改掛到還在用它的樣板上（非公開附件的存取看 res_id 指的那筆）。
+                users = Template.with_context(active_test=False).search(
+                    [('attachment_id', '=', old_att.id)])
+                if users:
+                    old_att.write({'res_id': users[0].id})
+                else:
+                    old_att.unlink()
             updated += 1
         else:
             tmpl = Template.create(vals)

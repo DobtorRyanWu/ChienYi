@@ -115,7 +115,8 @@ class SelfInspectionType(models.Model):
             from ..mappings.self_inspection_form import _merge_measures_into_stages
             stages = _merge_measures_into_stages(stages, measures, probe_result)
 
-        codes = set(self.timing_ids.mapped('legacy_code')) - {False, ''}
+        # 與實際套印同一套判斷：沒有舊代碼（複製出來的類型）就看名稱
+        codes = mapping.timing_codes(self.timing_ids)
         return {
             'contractor': TEST_WORD,
             'projectName': self.project_id.name or TEST_WORD,

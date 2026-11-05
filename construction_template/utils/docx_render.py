@@ -80,6 +80,9 @@ IMAGE_RE = re.compile(
     r'\+{3}IMAGE\s+imageGenerator\(\s*\$?(\w+)\.images\[([^\]]+)\]\.src.*?\+{3,4}')
 IMAGE_KEY = '__image__'          # context 裡的圖片佔位標記
 
+# 原生 Jinja 寫法的照片格：`{{ page.first.image }}`（系統預設的自主檢查表單張）
+IMAGE_JINJA_RE = re.compile(r'\{\{[^{}]*\.image\s*\}\}')
+
 # 帶索引的取值：+++INS $record.images[0].description+++
 # 既有轉換器的 _INS 只認 `[A-Za-z_][\w]*` 加點號，不支援 [0]，
 # 這類標記會原樣留在報表上，所以自己先轉掉。
@@ -90,11 +93,33 @@ INDEXED_INS_RE = re.compile(
     r'(?:\s*\.\s*[A-Za-z_]\w*|\s*\[\s*\d+\s*\])*)\s*\+{3,4}')
 
 
+def _unclip_image_paragraph(para):
+    """照片格的段落不能是固定行高。
+
+    🔴 樣板的照片格段落常直接設 `w:spacing w:lineRule="exact"`（矯正與預防處理紀錄
+    16pt、使用者上傳的 117 份自主檢查樣板 25pt；2026-11-05 實查，都寫在段落本身、
+    不是 style 繼承）。InlineImage 放進同一段後段落仍是那個高度 → LibreOffice 把照片
+    裁成一條（Word 實印不裁，但兩邊都要能用）。所以照片格把固定行高拿掉、改回自動，
+    段前段後距離照留。
+
+    只動照片格：一般文字段落的固定行高是版面設計；附表12 標題段雖然含 drawing
+    （anchor 文字方塊）也是 exact，所以判斷依據是「段落裡有照片標記」，不是「含 drawing」。
+    只改 pPr、不重寫 run——原生 Jinja 的照片段落裡還有 `w:br` 與說明文字。
+    """
+    from docx.oxml.ns import qn
+
+    p_pr = para._p.pPr
+    spacing = p_pr.find(qn('w:spacing')) if p_pr is not None else None
+    if spacing is not None and spacing.get(qn('w:lineRule')) == 'exact':
+        spacing.attrib.pop(qn('w:line'), None)
+        spacing.attrib.pop(qn('w:lineRule'), None)
+
+
 def _strip_conditionals(raw_bytes):
     """移除 +++IF+++ / +++END-IF+++ 標記，保留中間內容。
 
     與既有轉換器同樣在段落層級操作（para.text 已拼接所有 run），
-    才不會被 Word 的 run 切割弄壞。
+    才不會被 Word 的 run 切割弄壞。照片格的固定行高也在這裡拿掉（_unclip_image_paragraph）。
     """
     import docx as python_docx
 
@@ -103,6 +128,8 @@ def _strip_conditionals(raw_bytes):
     def clean(paragraphs):
         for para in paragraphs:
             text = para.text
+            if IMAGE_RE.search(text) or IMAGE_JINJA_RE.search(text):
+                _unclip_image_paragraph(para)
             if '+++' not in text:
                 continue
             # 相鄰標記會黏成一長串加號：`+++END-IF++++++INS x+++` 中間是 6 個
