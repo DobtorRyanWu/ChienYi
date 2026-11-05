@@ -64,3 +64,19 @@ class TestSelfInspectionTiming(TransactionCase):
         self.assertEqual(marks, {'arbitrary': 'V', 'beforeConstruction': 'V',
                                  'constructing': 'V', 'afterConstruction': 'V'},
                          '預覽應把類型上每個時機都勾起來（複製的類型也一樣）')
+
+    def test_short_and_variant_names(self):
+        """紙本常見的簡寫與別名也要對得到（2026-11-06）：段落預設就叫「施工前／施工中／施工後」，
+        生態檢核表印「完工後」，監造抽查類寫「查驗停留」。認不得的名稱回 None（不硬猜）。"""
+        Timing = self.env['self.inspection.type.timing']
+        cases = {
+            '施工前': 'before', '施工前檢查': 'before',
+            '施工中': 'during', '施工中檢查': 'during',
+            '施工後': 'after', '施工後檢查': 'after', '施工完成': 'after', '完工後': 'after',
+            '查驗停留': 'hold_point', '查驗停留點': 'hold_point',
+            '隨機抽查': 'random',
+            '進場檢驗': None,
+            '完工前檢查': None,      # 不能被「完工」判成施工完成
+        }
+        got = {name: self_inspection_form.timing_code(Timing.new({'name': name})) for name in cases}
+        self.assertEqual(got, cases)

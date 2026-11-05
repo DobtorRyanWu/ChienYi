@@ -134,8 +134,15 @@ def _posted_timing_ids(post):
     表單欄位名一律 inspection_timing_ids，值是 self.inspection.type.timing 的 id。
     完全沒勾＝這張表沒填檢查時機，就寫空的（不要偷偷塞預設值 —— 舊版
     default='during' 正是「沒填」被靜靜翻譯成「施工中檢查」的來源）。
+
+    🔴 多選要從原始請求讀（網址參數＋表單，與 post 同範圍）：Odoo 18 的 get_http_params() 用
+    `{**httprequest.form}` 合併參數，werkzeug MultiDict 用 ** 展開時同名欄位只留第一個值 →
+    `**post` 裡永遠只有一個時機（2026-11-06 實測：勾「施工中＋施工完成」只存進施工中）。
+    讀不到（直接呼叫、測試的 MockRequest）才退回 post。
     """
-    raw = post.get('inspection_timing_ids')
+    raw = request.httprequest.values.getlist('inspection_timing_ids')
+    if not isinstance(raw, list) or not raw:      # MockRequest 的 httprequest 是 Mock
+        raw = post.get('inspection_timing_ids')
     if raw is None:
         values = []
     elif isinstance(raw, (list, tuple)):

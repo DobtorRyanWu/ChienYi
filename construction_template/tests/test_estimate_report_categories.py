@@ -170,3 +170,50 @@ class TestEstimateReportCategories(TransactionCase):
         self.assertEqual(rows[0][2], money(2 * 10 + 1 * 20))
         self.assertEqual(rows[0][1], money(10 * 10 + 5 * 20),
                          '併進來的孤兒工項契約金額也要算進該類')
+
+    def test_rows_add_up_to_total_after_rounding(self):
+        """各列四捨五入後加起來要等於合計（尾差調整，2026-11-06）。
+
+        money() 逐格四捨五入：10.5、20.5 各印 10、20（Python 的 .0f 是銀行家捨入），合計卻印 31，
+        送機關的紙本對不起來（dev 3 張估驗單差 1～2 元）。"""
+        project = self.env['project.project'].create({
+            'name': '尾差測試工程', 'code': 'TPL-ESTRND',
+            'state': 'construction', 'company_id': self.env.company.id})
+        Task = self.env['project.task']
+        tasks = [Task.create({'name': name, 'project_id': project.id, 'item_no': no, 'unit': '式',
+                              'planned_qty': 1.0, 'unit_price': price, 'sequence': seq})
+                 for seq, (no, name, price) in enumerate(
+                     [('1', '假設工程', 10.5), ('2', '雜項工程', 20.5)], start=1)]
+        est = self.env['payment.estimate'].create({
+            'project_id': project.id, 'estimate_date': self.d0})
+        Line = self.env['payment.estimate.line']
+        for seq, tsk in enumerate(tasks, start=1):
+            vals = Line._prepare_line_vals(tsk, seq)
+            vals.update({'estimate_id': est.id, 'estimate_qty': 1.0})
+            Line.create(vals)
+        ctx = estimate_report.build_context(est)
+
+        def total(key):
+            return sum(int(c[key].replace(',', '')) for c in ctx['categories'])
+        self.assertEqual(est.contract_subtotal, 31.0, '測資前提')
+        self.assertEqual(total('currentAmount'), 31, '本次各列加總對不上合計')
+        self.assertEqual(ctx['totalCurrentAmount'], money(31))
+        self.assertEqual(total('totalAmount'), int(ctx['totalCumulativeAmount'].replace(',', '')),
+                         '累計各列加總對不上合計')
+
+    def test_warns_when_cumulative_exceeds_contract(self):
+        """累計超過契約要在匯出時提醒（2026-11-06）：Mongo 遷移把「累計」寫成「本次」時，
+        各期加總會是契約的好幾倍（dev 524：5,878 萬對 405 萬），表單照印、使用者看不出來。"""
+        normal = self._estimate(0, {self.leaf_a: 10.0})
+        self.assertFalse([m for m in estimate_report.WARNINGS(normal) if '超過契約' in m])
+        over = self._estimate(30, {self.leaf_a: 150.0})      # 契約 100 單位，估了 150
+        msgs = [m for m in estimate_report.WARNINGS(over) if '超過契約' in m]
+        self.assertEqual(len(msgs), 1, '累計 1,500 超過契約 1,000，應提醒')
+        self.assertIn('施工圍籬', msgs[0], '要指出是哪一類')
+
+    def test_balanced_leaves_integer_rows_and_real_gaps_alone(self):
+        """尾差只補給捨入吃虧的列；差額不是捨入造成的（資料不一致）就不調（2026-11-06 審查）"""
+        self.assertEqual(estimate_report._balanced([10.5, 20.5], 31), ([10, 21], 31))
+        self.assertEqual(estimate_report._balanced([0, 0, 100.4], 103), ([0, 0, 100], 103),
+                         '0 元列不能被加成 1 元；3 元差額不是捨入造成的，照實印')
+        self.assertEqual(estimate_report._round(1234.4999999999998), 1235, '浮點累積誤差不能吃掉 .5')

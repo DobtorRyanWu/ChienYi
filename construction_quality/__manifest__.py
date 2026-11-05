@@ -133,7 +133,10 @@
     # 6.6.1（2026-11-02）：預約式缺失顯示名稱改缺失編號（_rec_name）；編號前綴設定改 _compute_display_name；
     #        缺失通知 chatter 改 Markup 並跳脫使用者輸入（原本畫面顯示原始 <b>）
     # 6.6.3: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
-    'version': '18.0.6.6.3',
+    # 6.6.4（2026-11-06）：缺失「驗證不通過」時清掉手填過的「複查結果：通過」（以驗證結果為準）；
+    #        「重新開啟」一併清複查日期／結果／說明（預約式本來就清，一般式沒清，改放 mixin）——
+    #        殘留的「通過」會讓退回／重開的缺失在矯正與預防處理紀錄印成「符合要求」（construction_template _outcome）
+    'version': '18.0.6.6.4',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """

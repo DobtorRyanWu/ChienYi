@@ -9,6 +9,7 @@
 """
 
 import base64
+import hashlib
 import logging
 import os
 
@@ -109,7 +110,8 @@ def seed_default_templates(env, types=None, replaceable=None):
             skipped += 1
             continue
         with open(path, 'rb') as fp:
-            data_b64 = base64.b64encode(fp.read())
+            raw = fp.read()
+        data_b64 = base64.b64encode(raw)
         fname = f'{label}（空白範本）.{ext}'
 
         existing = Template.search([
@@ -117,6 +119,11 @@ def seed_default_templates(env, types=None, replaceable=None):
             ('is_default', '=', True),
             ('company_id', '=', company.id),
         ], limit=1)
+
+        # 已經是磁碟上的新檔 → 安靜跳過（2026-11-06）：新檔本來就不在「出貨過的舊版」清單裡，
+        # 不先擋的話會被當成「可能有人換過」記假警告（一次升好幾版、或 migration 重跑時）
+        if existing and existing.attachment_id.checksum == hashlib.sha1(raw).hexdigest():
+            continue
 
         if replaceable is not None:
             # 已封存的也要算：不然封存的那筆會讓 create 撞 UNIQUE、整個 -u 中止

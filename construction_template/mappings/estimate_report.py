@@ -24,8 +24,38 @@
 ——payment.estimate 沒有這些欄位，硬湊會產生假數字。
 """
 
+from odoo.tools import float_round
+
 from ..utils.formatters import contractor_name, money, roc_date
-from .progress_report import _leaf_contract_amount
+from .progress_report import _contract_qty, _leaf_contract_amount, estimate_warnings
+
+# 累計超過契約數量的提醒最多列幾項（其餘只給總數）
+OVER_CONTRACT_SAMPLES = 3
+# 「超過」的相對容差：數量是浮點，累計加總會有 1e-9 級的誤差，不能直接比大小
+OVER_CONTRACT_TOLERANCE = 1e-6
+
+
+def WARNINGS(estimate):
+    """估驗單的資料提醒（匯出時跳通知、檔照樣下載）：前期未核定等（同估驗詳細表），
+    再加「累計估驗數量超過契約數量」。
+
+    後者不一定是錯（可能還沒辦契約變更），但 dev 的 Mongo 遷移資料把「累計」寫成「本次」時，
+    各期加總是契約的好幾倍（524：5,878 萬對 405 萬；2026-11-06），表單照印、使用者看不出來。
+    """
+    messages = estimate_warnings(estimate)
+    over = []
+    for line in estimate.line_ids.filtered(lambda ln: not ln.is_summary_item):
+        contract = _contract_qty(line)
+        if contract > 0 and line.cumulative_estimate_qty > contract * (1 + OVER_CONTRACT_TOLERANCE):
+            over.append((line.description or line.item_no or '', line.cumulative_estimate_qty, contract))
+    if over:
+        samples = '、'.join('%s（%g／%g）' % item for item in over[:OVER_CONTRACT_SAMPLES])
+        messages.append(
+            '有 %s 個工項的累計估驗數量超過契約數量（累計／契約），例：%s。'
+            '若沒有辦理契約變更，可能是估驗資料重複計算（例如匯入時把累計當成本次），請先確認再送出。'
+            % (len(over), samples))
+    return messages
+
 
 MODEL = 'payment.estimate'
 MODE = 'placeholder'
@@ -134,8 +164,39 @@ def _categories(estimate):
             for entry in rows.values()]
 
 
-def _category(category):
-    """明細大類一列。保留金額與核發金額模型沒有對應欄位，留白由人工填。"""
+def _round(value):
+    """四捨五入到元（float_round 預設 HALF-UP）。不用 format 的 .0f：那是銀行家捨入（10.5 → 10）。
+
+    先到分再到元：加總累積的浮點誤差（1234.4999999999998）不能把 .5 吃掉。
+    """
+    return int(float_round(float_round(value, precision_digits=2), precision_digits=0))
+
+
+def _balanced(values, total):
+    """(各列整數, 合計整數)：各列四捨五入後加起來要等於合計（尾差調整，最大餘數法）。
+
+    逐列四捨五入的加總會跟合計差 1～2 元（dev 3 張估驗單），送機關的紙本對不起來
+    （2026-11-06）。差額只補給「捨入時往反方向吃虧」的列（整數列不動、0 元列不會變 1）。
+    候選列不夠就不是捨入造成的，而是資料本身不一致——不調，照實印，不要把真的差異抹平。
+    """
+    target = _round(total)
+    rounded = [_round(v) for v in values]
+    diff = target - sum(rounded)
+    if diff:
+        step = 1 if diff > 0 else -1
+        candidates = sorted((i for i in range(len(values)) if (values[i] - rounded[i]) * step > 0),
+                            key=lambda i: (values[i] - rounded[i]) * step, reverse=True)
+        if len(candidates) >= abs(diff):
+            for i in candidates[:abs(diff)]:
+                rounded[i] += step
+    return rounded, target
+
+
+def _category(category, current_printed, cumulative_printed):
+    """明細大類一列。保留金額與核發金額模型沒有對應欄位，留白由人工填。
+
+    金額欄印尾差調整過的整數；百分率用原值算。
+    """
     contract, current, cumulative = (
         category['contract'], category['current'], category['cumulative'])
     return {
@@ -143,8 +204,8 @@ def _category(category):
         'contractAmount': money(contract),
         'donePercent': _pct(current, contract),
         'totalPercent': _pct(cumulative, contract),
-        'currentAmount': money(current),
-        'totalAmount': money(cumulative),
+        'currentAmount': money(current_printed),
+        'totalAmount': money(cumulative_printed),
         'currentRetention': '',
         'totalRetention': '',
         'currentIssued': '',
@@ -156,6 +217,10 @@ def build_context(estimate):
     project = estimate.project_id
     categories = _categories(estimate)
     contract_amount = estimate.contract_amount or 0
+    current, current_total = _balanced(
+        [c['current'] for c in categories], estimate.contract_subtotal)
+    cumulative, cumulative_total = _balanced(
+        [c['cumulative'] for c in categories], sum(c['cumulative'] for c in categories))
     return {
         'project.name': project.name or '',
         'project.code': project.code or '',
@@ -178,11 +243,11 @@ def build_context(estimate):
         # 合計列（僅合約項）：本次用契約工項小計——subtotal 含有勾「計入估驗總額」的
         # 非契約工項（物價調整等），印在「僅合約項」這一列是錯的
         'totalContractAmount': money(contract_amount),
-        'totalCurrentAmount': money(estimate.contract_subtotal),
-        'totalCumulativeAmount': money(sum(c['cumulative'] for c in categories)),
+        'totalCurrentAmount': money(current_total),
+        'totalCumulativeAmount': money(cumulative_total),
         'totalIssuedAmount': '',
 
-        'categories': [_category(category) for category in categories],
+        'categories': [_category(*row) for row in zip(categories, current, cumulative)],
     }
 
 

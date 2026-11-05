@@ -428,12 +428,17 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
         for record in self:
             if record.state != 'improved':
                 raise UserError('只有已改善狀態可以驗證')
-            record.write({
+            vals = {
                 'state': 'improving',
                 'verifier_id': self.env.uid,
                 'verify_date': fields.Date.today(),
                 'verify_result': 'fail',
-            })
+            }
+            # 手填過「複查結果：通過／待複查」又被驗證退回：以驗證結果為準，不然表單會照舊印
+            # 「符合要求」或三格都不勾（construction_template 的 _outcome，2026-11-06）
+            if record.recheck_result in ('pass', 'pending'):
+                vals['recheck_result'] = False
+            record.write(vals)
 
     def action_close(self):
         """結案"""
@@ -459,6 +464,12 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
             vals = {
                 'state': 'improving',
                 'closure_date': False,
+                # 複查資訊一併清掉（2026-11-06）：殘留的「複查結果：通過」會讓重開的缺失在
+                # 矯正與預防處理紀錄印成「符合要求」、附表12 印「改善完成」。預約式本來就清，
+                # 一般式沒清——放在 mixin，兩邊同一份
+                'recheck_date': False,
+                'recheck_result': False,
+                'recheck_note': False,
             }
             vals.update(record._reopen_extra_vals())
             record.write(vals)

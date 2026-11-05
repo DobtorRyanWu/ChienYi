@@ -16,6 +16,7 @@ import base64
 
 from ..utils import photo_stamp, record_filter
 from ..utils.formatters import contractor_name, roc_date
+from .self_inspection_form import ordered_photos
 
 MODEL = 'project.project'
 MODE = 'docx'
@@ -102,17 +103,33 @@ def _photo(photos):
     }
 
 
+def _photo_pages(defect):
+    """照片紀錄表的每一頁：[{no, total, images:[前, 中, 後]}]。
+
+    樣板每個階段只有一格；同一階段不只一張時，第 2 張起印在續頁（使用者 2026-11-06 裁示），
+    續頁上沒有照片的階段留白。每階段依拍攝先後（原本取 _order＝最新的那張）。
+    """
+    stages = [ordered_photos(photos) for photos in (
+        defect.before_photo_ids, defect.during_photo_ids, defect.after_photo_ids)]
+    total = max([len(photos) for photos in stages] + [1])
+    return [{'no': n + 1, 'total': total,
+             'images': [_photo(photos[n:n + 1]) for photos in stages]}
+            for n in range(total)]
+
+
 def _record(defect):
     outcome = _outcome(defect)
+    photo_pages = _photo_pages(defect)
     return {
         'no': defect.defect_no or defect.name or '',
         # 樣板第二頁（照片紀錄表）用的是大寫 No，與第一頁的 no 並存
         'No': defect.defect_no or defect.name or '',
         'isOther': '',
-        # 前 / 中 / 後三張照片，對應樣板的 images[0] / [1] / [2]
-        'images': [_photo(defect.before_photo_ids),
-                   _photo(defect.during_photo_ids),
-                   _photo(defect.after_photo_ids)],
+        # 前 / 中 / 後三張照片，對應樣板的 images[0] / [1] / [2]——第一頁那三張；
+        # 舊樣板（$record.images、新北附表12）照舊只印這三張
+        'images': photo_pages[0]['images'],
+        # 系統預設樣板的照片紀錄表依這個迴圈印續頁（$page.images、page.no／page.total）
+        'photoPages': photo_pages,
         'isConstruction': MARK if defect.check_type == 'construction' else '',
         'isHealthAndSafety': MARK if defect.check_type == 'safety_env' else '',
         'notifiedAt': roc_date(defect.notification_date),

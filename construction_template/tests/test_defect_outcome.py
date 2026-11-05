@@ -103,3 +103,28 @@ class TestDefectOutcome(TransactionCase):
             defect = self._defect(state='improved', recheck_result=result,
                                   defect_description='手填複查 %s' % result)
             self.assertEqual(self._marks(defect), expected, result)
+
+    def test_reopened_defect_drops_stale_recheck(self):
+        """手填過「複查結果：通過」，結案後又重新開啟：不能再印符合要求（2026-11-06）。
+
+        預約式的 action_reopen 本來就清複查日期／結果／說明，一般式只清結案人與驗證結果，
+        殘留的「通過」會讓重開（改善中）的缺失印成「符合要求」＋「改善完成」。
+        """
+        defect = self._defect(state='improved', recheck_result='pass')
+        defect.action_verify_pass()
+        defect.action_close()
+        defect.action_reopen()
+        self.assertEqual(defect.state, 'improving')
+        self.assertEqual(self._marks(defect), (('isUncorrected',), ('□', '■')))
+
+    def test_verify_fail_drops_stale_recheck_pass(self):
+        """先手填「複查通過」，監造按「驗證不通過」退回改善：以驗證結果為準"""
+        defect = self._defect(state='improved', recheck_result='pass')
+        defect.action_verify_fail()
+        self.assertEqual(self._marks(defect), (('isUncorrected',), ('□', '■')))
+
+    def test_verify_fail_drops_stale_pending(self):
+        """殘留「待複查」又被驗證退回：改善中的缺失要印未矯正，不是三格都不勾"""
+        defect = self._defect(state='improved', recheck_result='pending')
+        defect.action_verify_fail()
+        self.assertEqual(self._marks(defect), (('isUncorrected',), ('□', '■')))

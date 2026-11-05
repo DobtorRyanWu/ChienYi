@@ -155,3 +155,86 @@ class TestDefectImprovementPhotoFits(TransactionCase):
             cx, cy = int(extent.get('cx')), int(extent.get('cy'))
             self.assertLessEqual(cx, usable, '照片比格子寬 → Word 上右邊被切掉')
             self.assertLessEqual(cy, 6 * EMU_PER_CM, '照片高度沒照樣板的 {height:6}')
+
+
+@tagged('post_install', '-at_install', 'construction_template')
+class TestDefectImprovementPhotoContinuation(TransactionCase):
+    """同一階段不只一張照片：多的接在照片紀錄表的續頁，依拍攝先後（2026-11-06 使用者裁示）。
+
+    樣板每個階段只有一格，原本只印第一張——而且「第一張」取的是 supervision.photo 的
+    _order（shot_at desc），印出來的是最新那張。499 有 14 張照片只印出 13 張。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        if 'general.defect.improvement' not in cls.env:
+            cls.skipTest(cls, 'construction_general 沒有安裝')
+        cls.project = cls.env['project.project'].create({
+            'name': '缺失照片續頁測試', 'code': 'TPL-DICONT',
+            'project_type': 'general', 'state': 'construction',
+            'company_id': cls.env.company.id})
+        cls.env['defect.improvement.prefix.config'].create({
+            'project_id': cls.project.id, 'supervision_prefix': 'TCQA', 'contractor_prefix': 'TCQR'})
+        cls.defect = cls.env['general.defect.improvement'].create({
+            'project_id': cls.project.id, 'record_type': 'supervision',
+            'check_type': 'construction', 'defect_category': 'workmanship',
+            'defect_description': '護欄鬆脫', 'source_type': 'daily_check', 'state': 'notified'})
+        # 改善前兩張：先拍的是橫的、後拍的是直的（用長寬分辨印在哪一頁）
+        shots = [('before', (800, 600), '2026-10-01 08:00:00'),
+                 ('before', (600, 800), '2026-10-02 08:00:00'),
+                 ('during', (800, 600), '2026-10-03 08:00:00')]
+        for stage, size, shot_at in shots:
+            att = cls.env['ir.attachment'].create({
+                'name': '%s.png' % stage, 'mimetype': 'image/png',
+                'datas': base64.b64encode(_png(*size))})
+            cls.env['supervision.photo'].create({
+                'project_id': cls.project.id, 'attachment_id': att.id, 'shot_at': shot_at,
+                'general_defect_id': cls.defect.id, 'photo_stage': stage})
+
+    def test_extra_photo_goes_to_continuation_page(self):
+        with open(blank_template('defect_improvement.docx'), 'rb') as fp:
+            raw = fp.read()
+        out = docx_render.render(raw, defect_improvement.build_context(self.project))
+        root = _body(out)
+        extents = [(int(e.get('cx')), int(e.get('cy'))) for e in root.iter(WP + 'extent')
+                   if next(e.iterancestors(W + 'p')).find('.//' + WP + 'inline') is not None]
+        self.assertEqual(len(extents), 3, '三張照片都要印出來（原本只印每階段第一張）')
+        text = ''.join(root.itertext())
+        self.assertIn('第 1 頁 共 2 頁', text.replace('  ', ' '))
+        self.assertIn('第 2 頁 共 2 頁', text.replace('  ', ' '))
+        # 第一頁：改善前（先拍的、橫的）＋改善中；續頁：改善前第二張（後拍的、直的）
+        self.assertGreater(extents[0][0], extents[0][1], '第一頁要印先拍的那張（原本印最新的）')
+        self.assertLess(extents[2][0], extents[2][1], '後拍的那張應在續頁')
+
+
+@tagged('post_install', '-at_install', 'construction_template')
+class TestSeed3110Migration(TransactionCase):
+    """3.11.0 換系統預設的矯正與預防處理紀錄（照片續頁）：只換出貨過的版本"""
+
+    def _load(self):
+        import importlib.util
+        import os
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            'migrations', '18.0.3.11.0', 'post-migrate.py')
+        spec = importlib.util.spec_from_file_location('mig_3_11_0', path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_shipped_version_replaced_new_not_listed(self):
+        import hashlib
+        mod = self._load()
+        with open(blank_template('defect_improvement.docx'), 'rb') as fp:
+            new_sum = hashlib.sha1(fp.read()).hexdigest()
+        self.assertNotIn(new_sum, mod.REPLACEABLE['defect_improvement'])
+        tmpl = self.env['document.template'].search([
+            ('template_type', '=', 'defect_improvement'), ('is_default', '=', True)], limit=1)
+        self.assertTrue(tmpl, '測資前提：有系統預設')
+        fake = b'fake shipped defect_improvement'
+        tmpl.attachment_id.write({'datas': base64.b64encode(fake)})
+        mod.REPLACEABLE['defect_improvement'].add(hashlib.sha1(fake).hexdigest())
+        self.env.flush_all()
+        mod.migrate(self.env.cr, '18.0.3.10.0')
+        self.env.invalidate_all()
+        self.assertEqual(tmpl.attachment_id.checksum, new_sum)

@@ -32,6 +32,8 @@ class TestSeedGuard(TransactionCase):
 
     def test_shipped_default_is_replaced(self):
         tmpl = self._default()
+        # 先換成一份「出貨過的舊版」：系統裡已經是新檔時 seed 會安靜跳過（3.11.0）
+        tmpl.attachment_id.write({'datas': base64.b64encode(b'an older shipped version')})
         old_att = tmpl.attachment_id
         seed_default_templates(self.env, types=(TTYPE,),
                                replaceable={TTYPE: {old_att.checksum}})

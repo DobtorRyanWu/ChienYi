@@ -15,6 +15,7 @@
 import importlib
 import logging
 import os
+import re
 import tempfile
 import zipfile
 
@@ -30,6 +31,38 @@ from .xlsx_fill import fill
 _logger = logging.getLogger(__name__)
 
 MAPPING_PACKAGE = 'odoo.addons.construction_template.mappings'
+
+CALC_CHAIN = 'xl/calcChain.xml'
+# 指向 calcChain 的兩行：[Content_Types].xml 的 Override、workbook.xml.rels 的 Relationship
+CALC_CHAIN_REFS = (
+    ('[Content_Types].xml', re.compile(
+        rb'<Override\b[^>]*PartName=["\']/xl/calcChain\.xml["\'][^>]*?(?:/>|>\s*</Override>)')),
+    ('xl/_rels/workbook.xml.rels', re.compile(
+        rb'<Relationship\b[^>]*/calcChain["\'][^>]*?(?:/>|>\s*</Relationship>)')),
+)
+
+
+def _drop_calc_chain(src, updates):
+    """套印出來的 xlsx 一律不帶 calcChain：回傳要移除的 entry，並把指向它的兩行從 updates 拿掉。
+
+    calcChain 是選用的計算順序快取（Excel 開檔會自己重建，openpyxl 存檔也從來不寫）。
+    但它記著「哪些儲存格有公式」——樣板改過、公式刪掉了它卻還在，Excel 正常模式就打不開
+    （估驗計價表 e9ae543 起實測：「無法取得類別 Workbooks 的 Open 屬性」）。3.9.0 換掉了
+    系統預設，工程／公司層自己上傳的樣板仍可能帶著，所以在套印這一關統一拿掉（2026-11-06）。
+    兩行要從「這次的最新內容」拿掉：分頁時 build_pages() 可能已經改過這兩個檔。
+    """
+    with zipfile.ZipFile(src) as zf:
+        if CALC_CHAIN not in zf.namelist():
+            return ()
+        names = set(zf.namelist())
+        for part, pattern in CALC_CHAIN_REFS:
+            if part not in updates and part not in names:
+                continue            # 少了這個檔就沒有指向 calcChain 的那一行可拿
+            xml = updates[part] if part in updates else zf.read(part)
+            if isinstance(xml, str):
+                xml = xml.encode('utf-8')
+            updates[part] = pattern.sub(b'', xml)
+    return (CALC_CHAIN,)
 
 
 def get_mapping(template_type):
@@ -180,7 +213,7 @@ def _render_placeholder(src, dst, mapping, record):
         _logger.warning('樣板 %s 有 %s 個佔位符沒有對應資料：%s',
                         mapping.__name__, len(leftover), '、'.join(sorted(leftover)[:12]))
 
-    zip_patch.patch(src, dst, updates, additions)
+    zip_patch.patch(src, dst, updates, additions, removals=_drop_calc_chain(src, updates))
     with open(dst, 'rb') as fp:
         return fp.read()
 
@@ -200,7 +233,8 @@ def _render_cells(src, dst, mapping, record, template):
             % (template.display_name, len(missing), '、'.join(missing[:10]),
                template.template_type))
 
-    zip_patch.patch(src, dst, {mapping.SHEET: new_xml.encode('utf-8')})
+    updates = {mapping.SHEET: new_xml.encode('utf-8')}
+    zip_patch.patch(src, dst, updates, removals=_drop_calc_chain(src, updates))
     with open(dst, 'rb') as fp:
         return fp.read()
 

@@ -11,6 +11,7 @@
 import base64
 import hashlib
 import importlib.util
+import io
 import os
 import re
 import zipfile
@@ -150,6 +151,8 @@ class TestSeedKeepsSharedAttachment(TransactionCase):
             ('attachment_id', '=', default.attachment_id.id)])
         self.assertEqual(len(copy), 1, '測資前提：副本與預設共用同一個附件')
         shared = copy.attachment_id
+        # 舊版要是合法的 xlsx（副本換附件時有格式檢查）：用帶殘留 calcChain 的那一版
+        shared.write({'datas': base64.b64encode(_with_stale_calc_chain(blank_template('estimate_report.xlsx')))})
         old_checksum = shared.checksum
         self._seed('estimate_report', old_checksum)
         self.assertNotEqual(default.attachment_id, shared, '預設應換成新檔')
@@ -172,6 +175,8 @@ class TestSeedKeepsSharedAttachment(TransactionCase):
                 'name': '%s使用者' % name, 'login': 'tpl_reader_%s' % company.id,
                 'company_id': company.id, 'company_ids': [(6, 0, company.ids)],
                 'groups_id': [(6, 0, [self.env.ref('base.group_user').id])]})
+        # 共用的那份是「出貨過的舊版」（系統裡已經是新檔時 seed 會安靜跳過）
+        default.attachment_id.write({'datas': base64.b64encode(_with_stale_calc_chain(blank_template('estimate_report.xlsx')))})
         old_checksum = default.attachment_id.checksum
         self.assertEqual(copies.mapped('attachment_id'), default.attachment_id, '測資前提：共用同一個附件')
         self._seed('estimate_report', old_checksum)
@@ -184,3 +189,82 @@ class TestSeedKeepsSharedAttachment(TransactionCase):
             self.assertEqual(att.checksum, old_checksum)
         self.assertNotEqual(copies[0].attachment_id, copies[1].attachment_id,
                             '兩家公司的副本不能共用同一個附件（權限只能跟著其中一家）')
+
+
+def _with_stale_calc_chain(path):
+    """把空白樣板加上一份「記著不存在公式」的 calcChain（重現使用者自己上傳的舊版樣板）"""
+    out = io.BytesIO()
+    with zipfile.ZipFile(path) as src, zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if item.filename == '[Content_Types].xml':
+                data = data.replace(b'</Types>', (
+                    b'<Override PartName="/xl/calcChain.xml" ContentType="application/vnd.'
+                    b'openxmlformats-officedocument.spreadsheetml.calcChain+xml"/></Types>'))
+            elif item.filename == 'xl/_rels/workbook.xml.rels':
+                data = data.replace(b'</Relationships>', (
+                    b'<Relationship Id="rIdStale" Type="http://schemas.openxmlformats.org/'
+                    b'officeDocument/2006/relationships/calcChain" Target="calcChain.xml"/>'
+                    b'</Relationships>'))
+            dst.writestr(item, data)
+        dst.writestr('xl/calcChain.xml', (
+            b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<calcChain xmlns="http://'
+            b'schemas.openxmlformats.org/spreadsheetml/2006/main"><c r="E24" i="1"/></calcChain>'))
+    return out.getvalue()
+
+
+@tagged('post_install', '-at_install', 'construction_template')
+class TestRenderDropsCalcChain(TransactionCase):
+    """套印出來的 xlsx 一律不帶 calcChain（2026-11-06）。
+
+    3.9.0 只換了系統預設的估驗計價表；工程／公司層自己上傳的樣板若帶著同樣的殘留，
+    產出來的檔 Excel 正常模式照樣打不開。calcChain 是選用的快取（Excel 開檔會自己重建，
+    openpyxl 存檔也從來不寫），套印時直接拿掉最保險。
+    """
+
+    def test_uploaded_template_with_stale_calc_chain(self):
+        from odoo.addons.construction_template.utils import template_render
+        project = self.env['project.project'].create({
+            'name': 'calcChain 測試工程', 'code': 'TPL-CALC', 'state': 'construction',
+            'company_id': self.env.company.id})
+        estimate = self.env['payment.estimate'].create({
+            'project_id': project.id, 'estimate_date': '2026-10-31'})
+        att = self.env['ir.attachment'].create({
+            'name': '自己上傳的估驗計價單.xlsx',
+            'datas': base64.b64encode(_with_stale_calc_chain(blank_template('estimate_report.xlsx'))),
+            'res_model': 'document.template'})
+        tmpl = self.env['document.template'].create({
+            'name': '工程專屬估驗計價單', 'template_type': 'estimate_report',
+            'project_id': project.id, 'attachment_id': att.id})
+        self.assertEqual(self.env['document.template'].get_template_for_report(
+            'estimate_report', project_id=project.id), tmpl, '測資前提：選到工程專屬樣板')
+        content, _name = template_render.render(tmpl, estimate)
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            self.assertNotIn('xl/calcChain.xml', zf.namelist(), '產出的檔還帶著 calcChain')
+            self.assertNotIn(b'calcChain', zf.read('[Content_Types].xml'))
+            self.assertNotIn(b'calcChain', zf.read('xl/_rels/workbook.xml.rels'))
+            self.assertIsNone(zf.testzip())
+
+
+@tagged('post_install', '-at_install', 'construction_template')
+class TestSeedSkipsAlreadyNew(TransactionCase):
+    """系統預設已經是磁碟上的新檔時，seed 安靜跳過（2026-11-06 審查）。
+
+    原本只看 checksum 在不在「出貨過的舊版」清單：新檔本來就不在清單裡 → 被當成
+    「可能有人換過」記 WARNING。從舊版一次升好幾版（前一支 migration 已經灌了新檔）、
+    或同一支 migration 重跑時都會出現，誤導看 log 的人去查一個不存在的客製。
+    """
+
+    def test_no_false_warning_when_default_is_current(self):
+        import hashlib
+        from odoo.addons.construction_template.hooks import seed_default_templates
+        tmpl = self.env['document.template'].search([
+            ('template_type', '=', 'estimate_report'), ('is_default', '=', True)], limit=1)
+        with open(blank_template('estimate_report.xlsx'), 'rb') as fp:
+            new_sum = hashlib.sha1(fp.read()).hexdigest()
+        self.assertEqual(tmpl.attachment_id.checksum, new_sum, '測資前提：dev 已經是新檔')
+        att = tmpl.attachment_id
+        with self.assertNoLogs('odoo.addons.construction_template.hooks', level='WARNING'):
+            seed_default_templates(self.env, types=('estimate_report',),
+                                   replaceable={'estimate_report': {'0' * 40}})
+        self.assertEqual(tmpl.attachment_id, att, '已經是新檔，不必換附件')

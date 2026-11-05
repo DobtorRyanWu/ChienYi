@@ -42,7 +42,6 @@ from types import SimpleNamespace
 
 from odoo import fields
 
-from odoo.addons.construction_quality.models.self_inspection_type import DEFAULT_TIMINGS
 
 from ..utils import photo_stamp
 from ..utils.formatters import roc_date_cn
@@ -122,8 +121,19 @@ def _inspection_no(record):
 # 「只給資料遷移用，匯入與日常操作一律以名稱為準」，而且它 copy=False——「複製到工程」
 # 複製出來的類型時機代碼全空，只認代碼的話四格都印空白（2026-11-05 簡報示範庫 95 筆）。
 # 名稱取自系統預設的 DEFAULT_TIMINGS，外加該檔說明裡寫明的紙本變體（川易「施工後檢查」）。
-TIMING_NAME_CODES = {name: code for code, name, _seq in DEFAULT_TIMINGS}
-TIMING_NAME_CODES['施工後檢查'] = 'after'
+# 時機名稱依序比關鍵字（第一個命中的為準）。涵蓋 construction_quality DEFAULT_TIMINGS 的五個
+# 預設全名，以及紙本常見寫法（2026-11-06）：段落預設就叫「施工前／施工中／施工後」、川易
+# 「施工後檢查」、生態檢核表「完工後」、監造抽查類「查驗停留」。DEFAULT_TIMINGS 加新名稱時要補這裡。
+# 認不得就回 None——寧可不勾，也不要勾錯格。
+TIMING_KEYWORDS = (
+    ('查驗停留', 'hold_point'),
+    ('隨機', 'random'),
+    ('施工前', 'before'),
+    ('施工中', 'during'),
+    ('施工後', 'after'),
+    ('施工完成', 'after'),
+    ('完工後', 'after'),
+)
 
 
 def timing_code(timing):
@@ -131,7 +141,10 @@ def timing_code(timing):
 
     套印與檢查類型的「測試樣板」預覽共用這一支。
     """
-    return timing.legacy_code or TIMING_NAME_CODES.get((timing.name or '').strip())
+    if timing.legacy_code:
+        return timing.legacy_code
+    name = timing.name or ''
+    return next((code for keyword, code in TIMING_KEYWORDS if keyword in name), None)
 
 
 def timing_codes(timings):
@@ -267,11 +280,19 @@ def _images(record):
     拍攝日期可能沒填（前台補傳的照片常常沒有），所以用 id 當最後的排序依據——
     id 遞增就是建立順序，與「先拍先傳」一致。
     """
-    photos = record.photo_ids.sorted(
-        key=lambda p: (p.shot_date or fields.Date.today(),
+    return [_photo(p) for p in ordered_photos(record.photo_ids)]
+
+
+def ordered_photos(photos):
+    """照片依拍攝先後（舊到新）；矯正與預防處理紀錄也用這一支（2026-11-06）。
+
+    沒有拍攝日期就用拍攝時間的日期（dev 121 張缺失照片只有 shot_at），兩者都沒有的排在後面，
+    最後以 id（＝建立順序）定序。理由見 _images()。
+    """
+    return photos.sorted(
+        key=lambda p: (p.shot_date or (p.shot_at.date() if p.shot_at else fields.Date.today()),
                        p.shot_at or fields.Datetime.now(),
                        p.id))
-    return [_photo(p) for p in photos]
 
 
 def _blank_photo():
