@@ -131,23 +131,56 @@ class TestSeedKeepsSharedAttachment(TransactionCase):
     整家公司的匯出都會失敗。
     """
 
-    def test_duplicated_default_keeps_its_file(self):
-        from odoo.addons.construction_template.hooks import seed_default_templates
-        ttype = 'estimate_report'
+    def _default(self, ttype='estimate_report'):
         default = self.env['document.template'].search([
             ('template_type', '=', ttype), ('is_default', '=', True)], limit=1)
-        self.assertTrue(default, '測資前提：有系統預設的估驗計價表')
+        self.assertTrue(default, '測資前提：有系統預設的 %s' % ttype)
+        return default
+
+    def _seed(self, ttype, checksum):
+        from odoo.addons.construction_template.hooks import seed_default_templates
+        seed_default_templates(self.env, types=(ttype,), replaceable={ttype: {checksum}})
+        self.env.invalidate_all()
+
+    def test_duplicated_default_keeps_its_file(self):
+        default = self._default()
         default.action_duplicate()
         copy = self.env['document.template'].search([
-            ('template_type', '=', ttype), ('is_default', '=', False),
+            ('template_type', '=', 'estimate_report'), ('is_default', '=', False),
             ('attachment_id', '=', default.attachment_id.id)])
         self.assertEqual(len(copy), 1, '測資前提：副本與預設共用同一個附件')
         shared = copy.attachment_id
-        seed_default_templates(self.env, types=(ttype,),
-                               replaceable={ttype: {shared.checksum}})
-        self.env.invalidate_all()
+        old_checksum = shared.checksum
+        self._seed('estimate_report', old_checksum)
         self.assertNotEqual(default.attachment_id, shared, '預設應換成新檔')
-        self.assertTrue(shared.exists(), '副本還在用的舊附件被刪了')
-        self.assertEqual(copy.attachment_id, shared)
-        self.assertTrue(copy.attachment_id.datas, '副本的樣板檔變成空的')
-        self.assertEqual(shared.res_id, copy.id, '舊附件應改掛在還在用它的副本上（權限跟著副本走）')
+        self.assertTrue(copy.attachment_id, '副本的樣板檔變成空的')
+        self.assertEqual(copy.attachment_id.checksum, old_checksum, '副本要留著它原本的那份檔')
+        self.assertEqual(copy.attachment_id.res_id, copy.id, '附件要掛在副本自己身上（權限跟著副本走）')
+
+    def test_copies_in_two_companies_each_keep_readable_file(self):
+        """多公司庫（jt）：共用同一附件的副本分屬不同公司（UNIQUE(type, is_default, company)）。
+        舊附件只改掛到其中一份的話，另一家的使用者讀自己那份副本時權限照別家的判 → AccessError
+        （2026-11-05 另一個 session 的 red-team 在 dev 交易內重現）。每份副本要有自己的附件。"""
+        default = self._default()
+        copies = self.env['document.template']
+        users = self.env['res.users']
+        for name in ('共用附件測試乙公司', '共用附件測試丙公司'):
+            company = self.env['res.company'].create({'name': name})
+            copies |= default.copy({'name': '%s的估驗計價表' % name, 'is_default': False,
+                                    'project_id': False, 'company_id': company.id})
+            users |= self.env['res.users'].create({
+                'name': '%s使用者' % name, 'login': 'tpl_reader_%s' % company.id,
+                'company_id': company.id, 'company_ids': [(6, 0, company.ids)],
+                'groups_id': [(6, 0, [self.env.ref('base.group_user').id])]})
+        old_checksum = default.attachment_id.checksum
+        self.assertEqual(copies.mapped('attachment_id'), default.attachment_id, '測資前提：共用同一個附件')
+        self._seed('estimate_report', old_checksum)
+        for tmpl, user in zip(copies, users):
+            att = tmpl.with_user(user).attachment_id
+            # 附件自己的權限閘（/web/content 下載、文件編輯器開檔走這道）。用 raw／read 讀不會擋，
+            # 只量那兩個的話舊寫法照樣綠（2026-11-05 shell 實測：丙公司 check 會 AccessError、raw 不會）
+            att.check('read')
+            self.assertTrue(att.raw, '%s 讀不到自己那份樣板檔' % user.name)
+            self.assertEqual(att.checksum, old_checksum)
+        self.assertNotEqual(copies[0].attachment_id, copies[1].attachment_id,
+                            '兩家公司的副本不能共用同一個附件（權限只能跟著其中一家）')

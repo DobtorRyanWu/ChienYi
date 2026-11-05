@@ -163,15 +163,17 @@ def seed_default_templates(env, types=None, replaceable=None):
             att.write({'res_id': existing.id})
             if old_att:
                 # 🔴 「複製樣板」（action_duplicate 用 copy()）的副本與系統預設共用同一個附件。
-                # 還有樣板指著它就不能刪——外鍵是 SET NULL，副本會靜靜變空，而匯出優先挑
-                # 公司／專案層的副本，整家公司都會失敗（2026-11-05 red-team 實證）。
-                # 不刪，改掛到還在用它的樣板上（非公開附件的存取看 res_id 指的那筆）。
-                users = Template.with_context(active_test=False).search(
-                    [('attachment_id', '=', old_att.id)])
-                if users:
-                    old_att.write({'res_id': users[0].id})
-                else:
-                    old_att.unlink()
+                # 直接刪掉的話外鍵是 SET NULL，副本靜靜變空，而匯出優先挑公司／專案層的副本，
+                # 整家公司都會失敗（2026-11-05 red-team 實證）。
+                # 也不能只把舊附件改掛到其中一份副本：多公司庫裡共用它的副本分屬不同公司，
+                # 非公開附件的權限跟著 res_id 那一筆走 → 別家公司讀自己的副本會 AccessError
+                # （同日另一輪 red-team 重現）。所以每份還在用它的樣板各複製一份、掛在自己身上。
+                for user in Template.with_context(active_test=False).search(
+                        [('attachment_id', '=', old_att.id)]):
+                    # 檔案內容沒變：version_notes 照舊（write() 改 attachment_id 會自動寫「檔案已更新」）
+                    user.write({'attachment_id': old_att.copy({'res_id': user.id}).id,
+                                'version_notes': user.version_notes})
+                old_att.unlink()
             updated += 1
         else:
             tmpl = Template.create(vals)
