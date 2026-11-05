@@ -32,6 +32,16 @@ SHEET_RE = re.compile(r'<sheet\s[^>]*?name="([^"]*)"[^>]*?sheetId="(\d+)"[^>]*?'
 RELS_END_RE = re.compile(r'</Relationships>')
 CT_END_RE = re.compile(r'</Types>')
 RID_RE = re.compile(r'Id="rId(\d+)"')
+DEFINED_NAME_RE = re.compile(r'<definedName\b([^>]*)>(.*?)</definedName>', re.DOTALL)
+# 每一頁都要有的列印設定（Excel 的內建名稱，以 localSheetId 綁在單一工作表上）
+PAGE_PRINT_NAMES = ('_xlnm.Print_Area', '_xlnm.Print_Titles')
+# 單純的範圍參照：'名稱'!$A$1:$N$17、名稱!$1:$5、名稱!$A:$B，可用逗號串多段。
+# 含函數（OFFSET(…)）、#REF!、字串常數的一律不碰——2026-11-05 抗辯審查實測：
+# 用通吃的正規式改寫 OFFSET(表!$A$1,…) 會產生語法錯誤，Excel 正常模式直接打不開。
+_SHEET = r"(?:'(?:[^']|'')+'|[^!,'()\"\s#]+)"
+_RANGE = r'\$?[A-Z]{0,3}\$?\d*(?::\$?[A-Z]{0,3}\$?\d*)?'
+REF_RE = re.compile(r'(%s)!(%s)' % (_SHEET, _RANGE))
+SIMPLE_REFS_RE = re.compile(r'^%s!%s(?:,%s!%s)*$' % (_SHEET, _RANGE, _SHEET, _RANGE))
 
 
 def first_sheet(workbook_xml):
@@ -106,12 +116,14 @@ def build_pages(base_parts, page_sheets):
         next_sheet_id += 1
         next_file_no += 1
 
+    existing_count = len(SHEET_RE.findall(workbook))
     # 第一張的名稱也要正規化成「第1頁」，否則多頁時命名不一致
     workbook = SHEETS_RE.sub(
         lambda m: m.group(1) + m.group(2) + ''.join(new_sheet_tags) + m.group(3),
         workbook, count=1)
     if name0 != '第1頁':
         workbook = workbook.replace('name="%s"' % name0, 'name="第1頁"', 1)
+    workbook = _copy_print_names(workbook, len(page_sheets) - 1, existing_count, name0)
 
     workbook_rels = RELS_END_RE.sub(''.join(new_rel_tags) + '</Relationships>',
                                     workbook_rels, count=1)
@@ -122,3 +134,45 @@ def build_pages(base_parts, page_sheets):
     updates['xl/_rels/workbook.xml.rels'] = workbook_rels.encode('utf-8')
     updates['[Content_Types].xml'] = content_types.encode('utf-8')
     return updates, additions
+
+
+def _copy_print_names(workbook, new_pages, existing_count, old_name):
+    """把第一張（localSheetId=0）的列印範圍／列印標題複製給每一張新頁。
+
+    2026-11-05 跑版檢查：自主檢查總表第 2、3 張沒有列印範圍，Excel 印整個使用範圍 A:O，
+    多出來的 O 欄自己成一頁（每隔一頁多一張只有一條直線的紙）。
+    只處理「單純的範圍參照、而且指的是第一張工作表」的名稱：第一張改名成「第1頁」後跟著改，
+    新頁各複製一份指向自己。其他名稱（含函數、指向別張、全域名稱）原樣保留、不複製。
+    新頁接在 <sheets> 最後，所以第 k 張新頁的 localSheetId＝原本的張數＋k。
+    """
+    first_names = {old_name, '第1頁'}
+
+    def unquote(sheet):
+        return sheet[1:-1].replace("''", "'") if sheet.startswith("'") else sheet
+
+    def retarget(body, sheet_name):
+        def one(m):
+            if unquote(m.group(1)) not in first_names:
+                return m.group(0)
+            return '%s!%s' % (sheet_name, m.group(2))
+        return REF_RE.sub(one, body)
+
+    copies = []
+
+    def visit(dm):
+        attrs, body = dm.groups()
+        local = re.search(r'localSheetId="(\d+)"', attrs)
+        if not (local and local.group(1) == '0' and SIMPLE_REFS_RE.match(body.strip())):
+            return dm.group(0)
+        body = retarget(body, '第1頁')
+        name = re.search(r'name="([^"]+)"', attrs)
+        if name and name.group(1) in PAGE_PRINT_NAMES:
+            copies.extend('<definedName name="%s" localSheetId="%s">%s</definedName>' % (
+                name.group(1), existing_count + k, retarget(body, '第%s頁' % (k + 2)))
+                for k in range(new_pages))
+        return '<definedName%s>%s</definedName>' % (attrs, body)
+
+    workbook = DEFINED_NAME_RE.sub(visit, workbook)
+    if copies:
+        workbook = workbook.replace('</definedNames>', ''.join(copies) + '</definedNames>', 1)
+    return workbook

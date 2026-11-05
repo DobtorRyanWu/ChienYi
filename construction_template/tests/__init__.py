@@ -21,3 +21,4 @@ from . import test_xlsx_template_fixes  # 日報表（一）施工項目列高�
 from . import test_defect_outcome  # 缺失改善成果確認只勾一格（11-05）
 from . import test_self_inspection_timing  # 複製的檢查類型也印得出檢查時機（11-05）
 from . import test_estimate_report_categories  # 估驗計價單分類＝最上層大類、累計、合計僅合約項（11-05）
+from . import test_layout_fixes_20261105  # 跑版檢查：結尾空白頁、日報二工程名稱、c1 縮頁、c2 百分比等（11-05）

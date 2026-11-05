@@ -54,6 +54,11 @@ class SelfInspectionExportMixin(models.AbstractModel):
             return (base64.b64decode(itype.template_file),
                     itype.template_filename or '%s.docx' % (itype.name or ''),
                     _('檢查類型「%s」上傳的樣板') % (itype.name or ''))
+        if itype and itype.template_filename:
+            # 上傳過但讀不到：不能靜默改用系統預設（見 self_inspection_type._form_template）
+            raise UserError(_(
+                '檢查類型「%s」上傳的樣板「%s」讀不到檔案內容（可能已遺失）。\n'
+                '請到「自主檢查類型」重新上傳 Word 樣板。') % (itype.name or '', itype.template_filename))
 
         template = self.env['document.template'].get_template_for_report(
             TEMPLATE_TYPE, project_id=self.project_id.id or None)

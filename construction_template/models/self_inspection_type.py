@@ -56,6 +56,13 @@ class SelfInspectionType(models.Model):
             return (base64.b64decode(self.template_file),
                     self.template_filename or '%s.docx' % (self.name or ''),
                     _('本檢查類型上傳的樣板'))
+        if self.template_filename:
+            # 🔴 上傳過、但檔案讀不到（filestore 檔案遺失、附件被清掉）：不能靜默改用系統預設——
+            # 系統預設是動態表格、守門一律放行，「測試樣板」會顯示成功，套的卻不是這份樣板
+            # （2026-11-05 修自主檢查類型時實際撞到：114 份樣板檔被清掉，全部默默換成預設）。
+            raise UserError(_(
+                '這個檢查類型上傳的樣板「%s」讀不到檔案內容（可能已遺失）。\n'
+                '請在本頁重新上傳 Word 樣板。') % self.template_filename)
         template = self.env['document.template'].get_template_for_report(
             TEMPLATE_TYPE, project_id=self.project_id.id or None)
         if not template or not template.attachment_id:

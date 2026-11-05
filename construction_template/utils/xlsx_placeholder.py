@@ -23,6 +23,7 @@
 * `<dimension ref>` 要更新
 """
 
+import math
 import re
 
 CELL_RE = re.compile(r'<c\s+r="([A-Z]+)(\d+)"([^>]*?)(?:/>|>(.*?)</c>)', re.DOTALL)
@@ -65,6 +66,25 @@ def render_cell(col, row, style_attr, text):
     space = ' xml:space="preserve"' if re.search(r'^\s|\s$|\n', str(text)) else ''
     return '<c r="%s%s"%s t="inlineStr"><is><t%s>%s</t></is></c>' % (
         col, row, style_attr, space, escape(text))
+
+
+def fill_cell(col, row, style_attr, text, getter):
+    """填一格：整格只有一個 ${...} 而且值是數字 → 寫成數值儲存格，其餘一律 inlineStr。
+
+    2026-11-05 跑版檢查：營造版施工日誌（二）的完成百分率印成「0.20989999999999998」、
+    累計印成「1.5262」。對照表照 EAGLE 給 0~1 的小數（儲存格本身是 0.00% 格式），
+    但 render_cell() 一律寫成文字，文字不吃數字格式。進度報告的百分比同一個寫法。
+    寫成數值後由樣板自己的格式決定外觀（0.00%、千分位）；<v> 裡的字與原本的文字相同，
+    只讀儲存格文字的地方（測試、守門）看到的值不變。
+    布林、None、NaN／無限大、混在文字裡的 ${...}（「第${n}頁」）照舊。
+    """
+    whole = TOKEN_RE.fullmatch(text.strip())
+    if whole:
+        value = getter(whole.group(1))
+        if (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and math.isfinite(value)):
+            return '<c r="%s%s"%s><v>%s</v></c>' % (col, row, style_attr, value)
+    return render_cell(col, row, style_attr, substitute(text, getter))
 
 
 def substitute(text, getter):
@@ -130,7 +150,7 @@ def _rewrite_row(row_body, new_row_num, getter, shared):
         style_attr = ' s="%s"' % style_m.group(1) if style_m else ''
         text = cell_text(attrs, body, shared)
         if '${' in text:
-            out.append(render_cell(col, new_row_num, style_attr, substitute(text, getter)))
+            out.append(fill_cell(col, new_row_num, style_attr, text, getter))
         else:
             # 沒有佔位符的儲存格：原樣保留，只換列號
             out.append(m.group(0).replace('r="%s%s"' % (col, _old_row),
@@ -252,7 +272,7 @@ def _fill_scalars(sheet_xml, getter, shared):
             return m.group(0)
         style_m = STYLE_RE.search(attrs or '')
         style_attr = ' s="%s"' % style_m.group(1) if style_m else ''
-        return render_cell(col, row, style_attr, substitute(text, getter))
+        return fill_cell(col, row, style_attr, text, getter)
     return CELL_RE.sub(one, sheet_xml)
 
 

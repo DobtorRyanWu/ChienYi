@@ -45,9 +45,14 @@ def _mark(value):
     return YES if value else ''
 
 
-def _item(app):
+def _item(app, seq):
+    """seq：列出順序（1 起）。送審單沒填編號時「項次」印流水號。
+
+    2026-11-05 跑版檢查：原本沒編號時退回印「名稱」，長名稱塞進只有一字寬的
+    「項次」欄，整列一字一行、撐得很高（真實資料 40 筆印成 12 頁）。
+    """
     return {
-        'no': app.no or app.name or '',
+        'no': app.no or str(seq),
         # 材料(設備)名稱——樣板的 ${item.name}，先前沒提供、該欄一直印空白
         'name': app.name or '',
         'number': app.number or '',
@@ -77,7 +82,8 @@ def build_context(project):
         [('project_id', '=', project.id)]
         + record_filter.date_domain(project.env, DATE_FIELD),
         order='expected_review_date, id')
-    pages = docx_render.paginate_plain([_item(a) for a in apps], ROWS_PER_PAGE)
+    pages = docx_render.paginate_plain(
+        [_item(a, seq) for seq, a in enumerate(apps, 1)], ROWS_PER_PAGE)
     return {
         'projectName': project.name or '',
         'projectConstructionNo': project.contract_no or '',

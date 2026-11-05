@@ -232,9 +232,205 @@ def render(raw_bytes, context):
     # 一般的取值、for、if 照常；dev 117 份自主檢查樣板與系統預設樣板回歸比對產出相同。
     tpl.render(_swap_images(context, tpl),
                jinja_env=SandboxedEnvironment(autoescape=True), autoescape=True)
+    strip_trailing_blank(tpl.docx.element.body)
+    breaks_to_page_break_before(tpl.docx.element.body)
     out = io.BytesIO()
     tpl.save(out)
     return out.getvalue()
+
+
+# ---------------------------------------------------------------- 結尾空白頁
+# 2026-11-05 跑版檢查（Word 16 實印）：套印後文件結尾常多一頁白紙，三種樣子——
+#   A. 每頁結尾放「分頁符號」的迴圈（管制表、矯正與預防處理紀錄）：最後一頁後面還有分頁＋空段落
+#   B. 照片頁迴圈每頁結尾是「分節（下一頁）」（使用者上傳的自主檢查樣板 89／93 種、自主檢查表單張）：
+#      最後一個分節後面只剩空段落，Word 為它們開一整頁
+#   C. 第一頁剛好排滿，結尾的空段落被推到第二頁（估驗照片該期沒有照片時）
+# 樣板本身多半沒有空白頁，是迴圈展開後才出現的，所以在套印完成後統一處理，不逐份改樣板。
+_W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+_M = '{http://schemas.openxmlformats.org/officeDocument/2006/math}'
+# 有這些元素的段落算「有內容」，不能刪（功能變數的 fldChar 也算：刪掉會留下有頭沒尾的欄位）
+_CONTENT_TAGS = tuple(_W + t for t in (
+    'drawing', 'pict', 'object', 'fldSimple', 'fldChar', 'instrText', 'sym',
+    'footnoteReference', 'endnoteReference', 'commentReference')) + (_M + 'oMath', _M + 'oMathPara')
+# 段落本身看得見的格式：框線（分隔線）、網底、框架
+_VISIBLE_PPR_TAGS = (_W + 'pBdr', _W + 'framePr')
+# body 層不佔版面的標記，往回找最後一塊內容時跳過（不刪）
+_INVISIBLE_TAGS = (_W + 'bookmarkStart', _W + 'bookmarkEnd', _W + 'proofErr',
+                   _W + 'permStart', _W + 'permEnd')
+# 會讓 Word 規定「後面要接一段」的區塊（表格、包著表格的內容控制項）
+_TABLE_LIKE_TAGS = (_W + 'tbl', _W + 'sdt')
+# Word 規定文件最後一塊要是段落：表格後面留的那一段縮成 1pt，避免它自己又被擠到下一頁
+_TAIL_FONT_HALF_PT = '2'
+_TAIL_LINE_TWIP = '20'
+# 結尾可能連著好幾個空節，一輪只併一個；上限只是保險，實務上 1～2 輪就穩定
+_MAX_TRAILING_PASSES = 5
+_FALSE_VALUES = ('0', 'false', 'off')
+
+
+def _is_on(el):
+    """w:val 省略＝開；0／false／off＝關（例：<w:pageBreakBefore w:val="0"/>）"""
+    return el is not None and (el.get(_W + 'val') or '1').lower() not in _FALSE_VALUES
+
+
+def _underlined(run):
+    rpr = run.find(_W + 'rPr')
+    u = rpr.find(_W + 'u') if rpr is not None else None
+    return u is not None and (u.get(_W + 'val') or 'single') != 'none'
+
+
+def _paragraph_has_content(para):
+    """這一段印出來看不看得到東西。
+
+    2026-11-05 抗辯審查：只看 w:t 會把結尾的「底線全形空白」（簽名線）、框線段（分隔線）、
+    方程式、功能變數的結束標記當成空段落刪掉。
+    """
+    if any(t.text and t.text.strip() for t in para.iter(_W + 't')):
+        return True
+    if any(para.find('.//' + tag) is not None for tag in _CONTENT_TAGS):
+        return True
+    ppr = para.find(_W + 'pPr')
+    if ppr is not None:
+        if any(ppr.find(tag) is not None for tag in _VISIBLE_PPR_TAGS):
+            return True
+        shd = ppr.find(_W + 'shd')
+        if shd is not None and (shd.get(_W + 'fill') or 'auto').lower() not in ('auto', 'ffffff'):
+            return True
+    # 加底線的空白或定位字元＝簽名線
+    for run in para.iter(_W + 'r'):
+        if _underlined(run) and (run.find(_W + 'tab') is not None
+                                 or any(t.text for t in run.iter(_W + 't'))):
+            return True
+    return False
+
+
+def _section_props(para):
+    ppr = para.find(_W + 'pPr')
+    return ppr.find(_W + 'sectPr') if ppr is not None else None
+
+
+def _drop_trailing_page_breaks(para):
+    """只拿掉段落「最後一個看得見的東西之後」的分頁符號（結尾分頁＝多一頁白紙）。
+
+    段落中間的分頁（例：「附件：照片」另起一頁）與段落本身的「段落前分頁」都不能動
+    ——2026-11-05 抗辯審查實測：整段全拿掉會把附件內容拉回前一頁（Word 2 頁變 1 頁）。
+    """
+    last_content = -1
+    nodes = list(para.iter())
+    for idx, el in enumerate(nodes):
+        if ((el.tag == _W + 't' and el.text and el.text.strip())
+                or el.tag in _CONTENT_TAGS or el.tag == _W + 'tab'):
+            last_content = idx
+    for idx, el in enumerate(nodes):
+        if idx > last_content and el.tag == _W + 'br' and el.get(_W + 'type') == 'page':
+            el.getparent().remove(el)
+
+
+def _tiny_paragraph():
+    """表格後面必留的那一段：行距固定 1pt、字 1pt、前後距 0。
+
+    新建的 pPr 只有 spacing、rPr 兩個子元素（順序合乎 schema）——在既有 pPr 裡追加 spacing
+    可能排到 rPr 後面，Word 會判定內容有問題、跳修復提示。
+    """
+    from lxml import etree
+    para = etree.Element(_W + 'p')
+    ppr = etree.SubElement(para, _W + 'pPr')
+    etree.SubElement(ppr, _W + 'spacing', {
+        _W + 'before': '0', _W + 'after': '0',
+        _W + 'line': _TAIL_LINE_TWIP, _W + 'lineRule': 'exact'})
+    rpr = etree.SubElement(ppr, _W + 'rPr')
+    for tag in ('sz', 'szCs'):
+        etree.SubElement(rpr, _W + tag, {_W + 'val': _TAIL_FONT_HALF_PT})
+    return para
+
+
+def _visible_blocks(body):
+    return [el for el in body if el.tag not in _INVISIBLE_TAGS and el.tag != _W + 'sectPr']
+
+
+def _strip_once(body):
+    """一輪：拿掉結尾空段落；最後一塊若是「帶分節的段落」（＝最後一節是空的）就併回前一節。
+    回傳這一輪有沒有改東西。"""
+    changed = False
+    # 1) 從後往前拿掉空段落（只有分頁符號的段落也算空）；帶分節的段落另外處理
+    for el in reversed(_visible_blocks(body)):
+        if el.tag == _W + 'p' and _section_props(el) is None and not _paragraph_has_content(el):
+            body.remove(el)
+            changed = True
+            continue
+        break
+    blocks = _visible_blocks(body)
+    if not blocks:
+        return changed
+    last = blocks[-1]
+    sect = _section_props(last) if last.tag == _W + 'p' else None
+    if sect is not None:
+        # 2) B：把該段落的分節設定搬到 body 層（取代空節的設定）＝最後一節併回前一節
+        last.find(_W + 'pPr').remove(sect)
+        body_sect = body.find(_W + 'sectPr')
+        if body_sect is not None:
+            body.replace(body_sect, sect)
+        else:
+            body.append(sect)
+        if not _paragraph_has_content(last):
+            body.remove(last)            # 表格後面需要的那一段，最後統一補
+        changed = True
+    return changed
+
+
+def strip_trailing_blank(body):
+    """拿掉文件結尾的空白頁來源（就地修改 body）。
+
+    只動「最後一塊有內容的區塊」之後的東西；文件中間的空行一律不碰。
+    """
+    for _ in range(_MAX_TRAILING_PASSES):
+        if not _strip_once(body):
+            break
+    blocks = _visible_blocks(body)
+    if not blocks:
+        return
+    last = blocks[-1]
+    if last.tag == _W + 'p':
+        _drop_trailing_page_breaks(last)          # A：最後一段結尾的分頁符號
+    elif last.tag in _TABLE_LIKE_TAGS:
+        last.addnext(_tiny_paragraph())           # Word 規定最後一塊要是段落
+
+
+# pPr 子元素裡排在 pageBreakBefore 前面的（schema 規定順序）
+_PPR_BEFORE_PBB = (_W + 'pStyle', _W + 'keepNext', _W + 'keepLines')
+
+
+def _only_page_break(para):
+    return (para.tag == _W + 'p' and _section_props(para) is None
+            and not _paragraph_has_content(para)
+            and any(br.get(_W + 'type') == 'page' for br in para.iter(_W + 'br')))
+
+
+def breaks_to_page_break_before(body):
+    """「只有分頁符號的段落」→ 拿掉，改在下一段設「段落前分頁」（就地修改 body）。
+
+    2026-11-05 跑版檢查：管制表每一頁結尾是一個只有分頁符號的段落。前一頁剛好排滿到底時，
+    這個段落被擠到新的一頁、再分一次頁 → 中間多一張白紙（缺失管制表 15 頁裡的第 12 頁）。
+    「段落前分頁」在段落本來就位於頁首時不會再多分一頁。
+    只處理 body 這一層（表格裡的不動）。下一塊是表格、或下一段也只有分頁符號
+    （連續兩個分頁＝刻意留的空白頁）時，保留原本的分頁符號。下一段是空白間隔段照樣轉
+    （缺失管制表就是「分頁 → 空白段 → 標題」）。
+    """
+    from lxml import etree
+    blocks = _visible_blocks(body)
+    for el, nxt in zip(blocks, blocks[1:]):
+        if not _only_page_break(el) or nxt.tag != _W + 'p' or _only_page_break(nxt):
+            continue
+        ppr = nxt.find(_W + 'pPr')
+        if ppr is None:
+            ppr = etree.Element(_W + 'pPr')
+            nxt.insert(0, ppr)
+        pbb = ppr.find(_W + 'pageBreakBefore')
+        if pbb is None:
+            pos = sum(1 for child in ppr if child.tag in _PPR_BEFORE_PBB)
+            ppr.insert(pos, etree.Element(_W + 'pageBreakBefore'))
+        elif not _is_on(pbb):
+            pbb.attrib.pop(_W + 'val', None)       # <w:pageBreakBefore w:val="0"/> → 打開
+        body.remove(el)
 
 
 def _chunks(records, page_size):

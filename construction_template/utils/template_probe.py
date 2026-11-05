@@ -48,6 +48,9 @@ ITEM_NO_RE = re.compile(r'\d{1,3}')
 # 任何一種佔位符：用來判斷「這一格是不是純佔位符」
 TOKEN_RE = re.compile(r'\+{3}[^+]{0,160}\+{3,4}|\{\{.*?\}\}|\{%.*?%\}', re.S)
 
+# 檢查項目的位置：stages[...] 索引，或「for/FOR <變數> in/IN …stages／…items」迴圈（Jinja 與 EAGLE 兩種寫法）
+ITEM_SLOT_RE = re.compile(
+    r'stages\s*\[|\b(?:for|FOR)\s+\$?\w+\s+(?:in|IN)\s+\$?[\w.]*\b(?:stages|items)\b')
 KIND_INDEXED = 'indexed'
 KIND_DYNAMIC = 'dynamic'
 KIND_UNKNOWN = 'unknown'
@@ -110,6 +113,19 @@ class Probe(object):
     @property
     def is_indexed(self):
         return self.kind == KIND_INDEXED
+
+    def has_item_slots(self):
+        """樣板有沒有地方印檢查項目的結果：硬編 stages[i]…，或走訪 stages／items 的迴圈。
+
+        不能用 kind 判斷（2026-11-05 抗辯審查實證兩個方向都錯）：
+        ① `+++FOR stage IN inspection.stages+++`、`{%p for item in stage.items %}` 這類合法的
+          動態寫法 DYNAMIC_RE 認不得，會被判成 unknown 而誤擋；
+        ② 只要有任何 Jinja for（例如只跑照片的 inspection.imagePages）就判成 dynamic，
+          沒有任何項目標記的樣板照樣放行。
+        """
+        if self.is_indexed:
+            return True
+        return bool(ITEM_SLOT_RE.search(re.sub(r'<[^>]+>', '', self.xml or '')))
 
     def capacity(self):
         """硬編樣板每一段能放幾項：{段索引: 列數}"""
@@ -269,6 +285,13 @@ def check_fit(probe_result, groups, strict_names=True):
     :param groups: [(段落名稱, [項目名稱, ...]), ...] —— 依畫面順序
     :param strict_names: 是否逐列比對名稱（只對硬編樣板有意義）
     """
+    if not probe_result.has_item_slots():
+        # 🔴 沒有任何檢查項目的標記（既不是硬編 stages[i].items[j]、也沒有項目迴圈）：
+        # 表頭照樣套得進去，檢查結果卻一格都印不出來，看起來還很正常。
+        # 2026-11-05 實例：40 種上傳樣板（06-24 程式生成時把結果欄清空）。
+        return ['這份樣板沒有任何檢查項目的欄位標記（inspection.stages[…] 或檢查項目迴圈），'
+                '匯出時「實際檢查情形／檢查結果／備註」會整欄空白。'
+                '請到檢查類型換上有結果欄位的樣板（系統預設的自主檢查表樣板就有）。']
     if not probe_result.is_indexed:
         return []                      # 動態樣板不限項目數
 
@@ -279,15 +302,20 @@ def check_fit(probe_result, groups, strict_names=True):
     for row in rows:
         by_stage[row.stage_index][row.item_index] = row
 
-    if len(groups) > len(capacity):
+    # 🔴 段數要用「最大段落索引＋1」算，不能用 len(capacity)：樣板可能跳號。
+    # 2026-11-05 實例「復舊工程」：樣板只用 stages[0] 與 stages[2]（作者從底稿刪掉施工中
+    # 兩列後沒改段號），len(capacity)＝2 剛好等於資料的 2 段 → 守門放行，
+    # 套印才爆 jinja2 的英文錯誤「list object has no element 2」。
+    stage_count = max(capacity) + 1 if capacity else 0
+    if len(groups) > stage_count:
         problems.append(
             '這份樣板只有 %d 個查驗段落，目前的資料有 %d 個段落，'
             '第 %d 段之後的項目不會印出來。'
-            % (len(capacity), len(groups), len(groups)))
+            % (stage_count, len(groups), stage_count + 1))
     # 反過來也要擋：樣板要第 3 段而資料只有 2 段，套印會直接崩潰
     # （UndefinedError: list object has no element 2）。2026-09-11 實測——
     # 反推出來的檢查類型第 3 段只有量測區塊、沒有檢查項目時就會撞上。
-    for missing in range(len(groups), len(capacity)):
+    for missing in sorted(i for i in capacity if i >= len(groups)):
         problems.append(
             '樣板的第 %d 段有 %d 列，但目前的資料只有 %d 個查驗段落，'
             '套印會因為找不到第 %d 段而失敗。'
@@ -296,7 +324,14 @@ def check_fit(probe_result, groups, strict_names=True):
     for index, (stage_name, item_names) in enumerate(groups):
         room = capacity.get(index)
         if room is None:
-            continue               # 上面那條已經整段報過了
+            # 跳過的那段在資料裡是 0 項（例：量測區塊併出來的空段）→ 沒有東西會漏印，不報
+            if index < stage_count and item_names:
+                # 樣板跳過了這一段（前後段都有、這段沒有任何列）
+                problems.append(
+                    '樣板沒有第 %d 段的列（段落編號跳號），目前資料第 %d 段「%s」的 %d 項不會印出來；'
+                    '請把樣板的段落編號改成連號。'
+                    % (index + 1, index + 1, stage_name or '', len(item_names)))
+            continue               # 超出樣板段數的，上面已經整段報過了
         label = stage_name or '第 %d 段' % (index + 1)
         if len(item_names) > room:
             problems.append(
