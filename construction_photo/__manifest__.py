@@ -52,7 +52,7 @@
     #        前台三個群組拿掉照片的 unlink 權（前台刪照片一律走 sudo 路由並檢查上傳者，
     #        原本可直接呼叫 ORM 刪掉全庫任何一張）
     # 3.7.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
-    'version': '18.0.3.7.4',
+    'version': '18.0.3.8.0',  # 3.8.0: shot_date 改台灣日期（原本是 UTC 日期，台灣 00:00–07:59 上傳的落到前一天），migration 補空值與改舊公式算錯的（公司儀表板合約 §5.3）
     'category': 'Construction/Supervision',
     'summary': '工程照片管理與 GPS 追蹤',
     'description': """

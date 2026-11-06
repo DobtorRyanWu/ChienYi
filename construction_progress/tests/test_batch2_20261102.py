@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from odoo import fields
 from odoo.tests.common import TransactionCase, tagged
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
 
 LINE_DAYS = 10          # 每個區間的天數
 PLANNED_V1 = (10.0, 20.0)
@@ -70,7 +71,8 @@ class TestBatch2Progress(TransactionCase):
     def test_future_actual_is_none(self):
         self._schedule(PLANNED_V1, state='active', actual_first=ACTUAL_FIRST)
         data = self.project.get_progress_chart_data()
-        today = fields.Date.today().isoformat()
+        # 圖表的「今天」是台灣日期（公司儀表板合約 §1-6），切分過去／未來要用同一個來源，否則台灣 00:00–07:59 會錯一天
+        today = local_today().isoformat()
         past = [a for d, a in zip(data['dates'], data['actual']) if d <= today]
         future = [a for d, a in zip(data['dates'], data['actual']) if d > today]
         self.assertTrue(future, '測試資料要有今天之後的日期')

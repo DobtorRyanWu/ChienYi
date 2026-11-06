@@ -10,6 +10,12 @@ from .defect_constants import (
     CHECK_TYPE_TO_CATEGORIES,
     CHECK_TYPE_DEFAULT_CATEGORY,
 )
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
+
+# 「待改」以外的狀態：已驗證、結案（公司儀表板合約 §5.2 dash_open_defect_count；草稿與監造內部視角都算待改）
+DEFECT_DONE_STATES = ('verified', 'closed')
+# 不算逾期的狀態：已改善之後（與 _compute_overdue 一致）
+DEFECT_NOT_OVERDUE_STATES = ('improved', 'verified', 'closed')
 
 
 class ConstructionDailyDefectMixin(models.AbstractModel):
@@ -304,9 +310,10 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
     # === 逾期計算 ===
     @api.depends('deadline', 'state', 'closure_date')
     def _compute_overdue(self):
-        today = fields.Date.today()
+        # 台灣日期（fields.Date.today() 是 UTC 日期，台灣早上 8 點才翻轉；合約 §5.3）
+        today = local_today()
         for record in self:
-            if record.state in ('improved', 'verified', 'closed'):
+            if record.state in DEFECT_NOT_OVERDUE_STATES:
                 # 已結案，不算逾期
                 record.is_overdue = False
                 record.overdue_days = 0
@@ -328,6 +335,25 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
             else:
                 record.is_overdue = False
                 record.overdue_days = 0
+
+    # === 公司儀表板的條件（合約 §5.1、§5.2；計數與下鑽共用同一份）===
+    @api.model
+    def _dash_open_domain(self):
+        """待改缺失：狀態不是已驗證、結案（含草稿、含監造內部視角 record_type=supervision）。"""
+        return [('state', 'not in', DEFECT_DONE_STATES)]
+
+    @api.model
+    def _dash_overdue_domain(self):
+        """逾期缺失：還沒改善完成、有期限、期限早於台灣的今天。
+
+        不讀儲存的 is_overdue：它只在期限／狀態變動與每日排程時重算（見下方 _cron_check_overdue），
+        排程跑之前會停在昨天的判斷。這裡用日期直接判斷，與 _compute_overdue 對「沒有結案日期」的未改善缺失結果相同。
+        """
+        return [
+            ('state', 'not in', DEFECT_NOT_OVERDUE_STATES),
+            ('deadline', '!=', False),
+            ('deadline', '<', local_today()),
+        ]
 
     # === 逾期排程（一般式/預約式共用）===
     # 上面的 is_overdue / overdue_days 是 store=True 的計算欄位，但 @api.depends 只有

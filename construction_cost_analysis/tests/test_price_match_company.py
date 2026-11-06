@@ -21,7 +21,9 @@ class TestPriceMatchSameCompany(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.company_a = cls.env.company
-        cls.company_b = cls.env['res.company'].create({'name': '價格比對測試 B 公司'})
+        # B 是 jt 那樣共用一庫的另一家監造公司：公司類型要明寫。res.company 的類型預設是「施工廠商」，
+        # 不寫的話代操的主要公司就成了營造廠 → 被公司儀表板判成營造方唯讀帳號（合約 §0b-5），建不了分析
+        cls.company_b = cls.env['res.company'].create({'name': '價格比對測試 B 公司', 'company_type': 'supervision'})
         Cat, Item = cls.env['price.library.category'], cls.env['price.library.item']
         cls.item_a = Item.create({
             'name': NAME, 'unit': UNIT, 'unit_price': 100.0, 'company_id': cls.company_a.id,

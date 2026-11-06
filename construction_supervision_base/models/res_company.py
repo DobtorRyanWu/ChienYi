@@ -66,6 +66,14 @@ class ResCompany(models.Model):
         string='承包專案數',
         compute='_compute_project_counts')
 
+    def write(self, vals):
+        res = super().write(vals)
+        # 營造方的讀取範圍看「範圍公司是不是營造廠」，而 ir.rule._compute_domain 以 uid 快取：
+        # 公司類型一改就要清快取，否則已快取的範圍會沿用舊判定（合約 §2）
+        if 'company_type' in vals:
+            self.env.registry.clear_cache()
+        return res
+
     @api.depends('supervised_project_ids', 'contracted_project_ids')
     def _compute_project_counts(self):
         for company in self:

@@ -548,13 +548,15 @@ class DailyLogSheet(models.Model):
             sheet.is_locked = (days >= sheet.LOCK_DAYS) and not sheet._is_validly_unlocked(now)
     
     def _compute_can_unlock(self):
-        """計算使用者是否有解鎖權限"""
+        """計算使用者是否有解鎖權限
+
+        不含 hr.group_hr_manager（人資管理群組與解鎖日誌無關；公司儀表板合約 §13-8）。
+        """
         for sheet in self:
             user = self.env.user
             sheet.can_unlock = (
                 user.has_group('base.group_system') or
                 user.has_group('construction_supervision_base.group_supervision_manager') or
-                user.has_group('hr.group_hr_manager') or
                 # 前台老闆/主管 + 監造代操：可直接解鎖（限時、有記錄）
                 user.has_group('construction_supervision_base.group_portal_subscriber') or
                 user.has_group('construction_supervision_base.group_portal_leader') or

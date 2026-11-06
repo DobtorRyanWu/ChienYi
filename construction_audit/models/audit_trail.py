@@ -4,6 +4,22 @@ from odoo import models, fields, api
 from odoo.exceptions import UserError
 import json
 
+# 「本模組內部建立操作軌跡」的 context 旗標：只認 AUDIT_CREATE_TOKEN 這個物件本身（`is` 比對）。
+# 原本用真假值判定，RPC 的 context 由呼叫端給 → 任何登入帳號帶 {'audit_trail_create': True} 就能以 sudo
+# 偽造任意操作者、任意紀錄的軌跡（11-06 抗辯 F4）。寫法同 construction_company_dashboard rule_scope 的 CORE_PARENT_TOKEN。
+AUDIT_CREATE_CTX = 'audit_trail_create'
+
+
+class _AuditCreateToken:
+    """本模組內部建立操作軌跡的憑證（不可序列化成 RPC 值，外部偽造不了）。"""
+    __slots__ = ()
+
+    def __repr__(self):
+        return '<audit_trail_create token>'
+
+
+AUDIT_CREATE_TOKEN = _AuditCreateToken()
+
 
 class AuditTrail(models.Model):
     """
@@ -203,12 +219,12 @@ class AuditTrail(models.Model):
         }
 
         # 直接使用 SQL 插入，繞過 ORM 限制
-        return self.sudo().with_context(audit_trail_create=True).create(vals)
+        return self.sudo().with_context(**{AUDIT_CREATE_CTX: AUDIT_CREATE_TOKEN}).create(vals)
 
     @api.model_create_multi
     def create(self, vals_list):
         """覆寫建立方法，只允許內部建立"""
-        if not self.env.context.get('audit_trail_create'):
+        if self.env.context.get(AUDIT_CREATE_CTX) is not AUDIT_CREATE_TOKEN:
             raise UserError('請使用 log_operation 方法記錄操作軌跡')
         # 繞過 write 限制
         return super(AuditTrail, self.sudo()).create(vals_list)

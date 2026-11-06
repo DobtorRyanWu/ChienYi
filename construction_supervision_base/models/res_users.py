@@ -5,7 +5,7 @@
 from datetime import timedelta
 
 from odoo import models, fields, api, SUPERUSER_ID
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 # 定期閱覽者（臨時帳號）預設有效天數：
 # 頂層角色為「定期閱覽者」(group_portal_viewer 但無 group_portal_user)
@@ -17,6 +17,16 @@ OPERATOR_GROUP_XMLID = 'construction_supervision_base.group_operator'
 OPERATOR_HOME_ACTION_XMLID = 'construction_supervision_base.action_supervision_project'
 # 工程管理者 = 代操作員 ＋ base.group_system（工程師）
 MANAGER_GROUP_XMLID = 'construction_supervision_base.group_engineering_manager'
+
+# ── 公司儀表板：身分判定（合約 docs/architecture/dashboard/實作合約_v2.md §2）──
+# 兩個群組定義在新模組 construction_company_dashboard；未安裝時 env.ref 回 None → 判定為否
+DASH_CONTRACTOR_MANAGER_XMLID = 'construction_company_dashboard.group_contractor_manager'
+DASH_CONSOLE_READER_XMLID = 'construction_company_dashboard.group_console_reader'
+CONTRACTOR_ORG_GROUP_XMLID = 'construction_supervision_base.group_contractor_org'
+# res.company.company_type 的營造廠值（與 res_company.py 的 Selection 一致）
+COMPANY_TYPE_CONTRACTOR = 'contractor'
+# 本庫主公司：本產品裡一定是監造公司或千溢，永遠不當營造廠（見 _dash_company_is_contractor）
+MAIN_COMPANY_XMLID = 'base.main_company'
 
 
 class ResUsers(models.Model):
@@ -31,6 +41,19 @@ class ResUsers(models.Model):
     is_contractor_org = fields.Boolean(
         string='營造組織',
         help='勾選此項表示用戶屬於營造方組織',
+    )
+
+    # 營造方的「我的公司」（合約 §2、§1-7）：只看這個欄位，不看使用者自己改得到的 company_id。
+    # groups='base.group_system'：只有系統管理者讀寫得到（工程管理者隱含此群組）；不在可自改欄位內。
+    dash_scope_company_id = fields.Many2one(
+        'res.company',
+        string='範圍公司',
+        index=True,
+        groups='base.group_system',
+        domain="[('company_type', '=', 'contractor')]",
+        help='營造方帳號（營造廠主管、前台營造組織）在公司儀表板與讀取範圍裡的「我的公司」，必須是營造廠。\n'
+             '營造方帳號（營造標記之一，或主要公司是營造廠）範圍公司空白時，這個帳號什麼都看不到（預設拒絕）。\n'
+             '建立帳號時主要公司是營造廠會自動帶入；之後只有系統管理者能改。',
     )
 
     portal_valid_until = fields.Date(
@@ -161,6 +184,8 @@ class ResUsers(models.Model):
     @api.model
     def create(self, vals):
         """建立用戶時同步群組"""
+        # 範圍公司要在 super().create() 之前帶入：約束在 create 內就會檢查
+        vals = self._dash_prefill_scope_company(vals)
         user = super().create(vals)
 
         # 同步監造組織群組
@@ -221,6 +246,104 @@ class ResUsers(models.Model):
             self._apply_operator_home_action()
 
         return res
+
+    # ── 公司儀表板：身分判定與範圍公司（合約 §2）────────────────────────
+    @api.model
+    def _dash_prefill_scope_company(self, vals):
+        """建立帳號時：沒指定範圍公司、而主要公司是營造廠 → 範圍公司帶主要公司。
+
+        主要公司沒填時用 res.users.company_id 的預設值（env.company）。
+        帶不到（主要公司是監造公司）就留空：營造方而範圍公司空白＝什麼都看不到（預設拒絕，合約 §0b-4）。
+        預帶的意義：company_id 使用者自己改得到，範圍公司才是耐久的營造方標記（合約 §0b-5）。
+        """
+        if vals.get('dash_scope_company_id'):
+            return vals
+        company_id = vals.get('company_id') or self.env.company.id
+        company = self.env['res.company'].sudo().browse(company_id).exists()
+        if company and self._dash_company_is_contractor(company):
+            vals = dict(vals, dash_scope_company_id=company.id)
+        return vals
+
+    @api.model
+    def _dash_company_is_contractor(self, company):
+        """公司算不算營造廠：公司類型是施工廠商，而且不是本庫主公司（base.main_company）。
+
+        company_type 的預設值是「施工廠商」（res_company.py，18.0 既有），新庫的 1 號公司一開始就是施工廠商；
+        不排除主公司的話，裝上儀表板後所有主要公司是 1 號公司的帳號（含管理員）都被判成營造方、什麼都看不到
+        （線 F2 乾淨庫全模組測試實測：候選 126 支紅、基準 0 支）。本產品一庫屬於一家（或幾家）監造公司，
+        主公司是該監造公司或千溢，不會是營造廠。
+        """
+        company = company.sudo()
+        if not company or company.company_type != COMPANY_TYPE_CONTRACTOR:
+            return False
+        main = self.env.ref(MAIN_COMPANY_XMLID, raise_if_not_found=False)
+        return company != main
+
+    def _dash_in_group(self, xmlid):
+        """是否帶某群組（含隱含群組）。
+
+        不用 has_group：它讀 ormcache（_get_group_ids），在 write 的約束裡會讀到寫入前的群組；
+        groups_id 本身已含隱含群組（核心 UsersImplied）。群組不存在（模組未裝）→ False。
+        """
+        self.ensure_one()
+        group = self.env.ref(xmlid, raise_if_not_found=False)
+        return bool(group) and group in self.sudo().groups_id
+
+    def _dash_is_contractor_side(self):
+        """營造方使用者（合約 §2、§0b-5）：帶營造廠主管群組、或勾營造組織、或屬營造組織群組、
+        或範圍公司是營造廠、或主要公司是營造廠。
+
+        判定只看帳號本身（呼叫端用 env.user，不因 env.su 跳過）；任何一個營造標記成立就是營造方。
+        主要公司（company_id）使用者自己改得到，所以不能只靠它：建帳號預帶與 migration 會把它寫進
+        範圍公司，之後改主要公司仍是營造方。
+        """
+        self.ensure_one()
+        user = self.sudo()
+        return bool(
+            user._dash_in_group(DASH_CONTRACTOR_MANAGER_XMLID)
+            or user.is_contractor_org
+            or user._dash_in_group(CONTRACTOR_ORG_GROUP_XMLID)
+            or self._dash_company_is_contractor(user.dash_scope_company_id)
+            or self._dash_company_is_contractor(user.company_id)
+        )
+
+    def _dash_scope_ok(self):
+        """範圍公司有值且是營造廠。營造方而這裡為 False → 預設拒絕（合約 §1-7）。"""
+        self.ensure_one()
+        return self._dash_company_is_contractor(self.sudo().dash_scope_company_id)
+
+    def _dash_is_console_reader(self):
+        """控台讀取帳號（合約 §3.1、§8.1）。"""
+        self.ensure_one()
+        return self._dash_in_group(DASH_CONSOLE_READER_XMLID)
+
+    def _is_supervision_side(self):
+        """監造方使用者（合約 §2）：內部帳號、不是營造方、也不是控台讀取。"""
+        self.ensure_one()
+        return bool(
+            self._is_internal()
+            and not self._dash_is_contractor_side()
+            and not self._dash_is_console_reader()
+        )
+
+    @api.constrains('dash_scope_company_id')
+    def _check_dash_scope_company(self):
+        """範圍公司可以空白，有值時必須是營造廠（合約 §0b-4）。
+
+        營造方而範圍公司空白不擋：讀取規則預設拒絕（什麼都看不到），已是 fail-closed；
+        若改成必填，監造方就建不了任何前台帳號（既有程式會把沒勾監造組織的前台帳號預設成營造組織）。
+        """
+        for user in self:
+            scope = user.sudo().dash_scope_company_id
+            if scope and not self._dash_company_is_contractor(scope):
+                raise ValidationError(
+                    '帳號「%s」的範圍公司「%s」不是營造廠（公司類型必須是施工廠商，且不能是本庫主公司）。'
+                    % (user.display_name, scope.display_name))
+
+    @api.model
+    def _get_invalidation_fields(self):
+        """範圍公司與營造組織旗標改變時清規則快取（ir.rule._compute_domain 以 uid 快取）。"""
+        return super()._get_invalidation_fields() | {'dash_scope_company_id', 'is_contractor_org'}
 
     def _apply_observer_default_validity(self):
         """定期閱覽者帳號未填到期日時，自動帶今日 + DEFAULT_OBSERVER_VALIDITY_DAYS

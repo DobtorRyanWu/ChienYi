@@ -13,6 +13,8 @@ Bug：`_get_documents_domain_count` 直接 search_count(doc.document)，
 from odoo.exceptions import AccessError
 from odoo.tests.common import HttpCase, new_test_user, tagged
 
+from .scope_fixture import scope_portal_as_contractor
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestPortalHomeDocCounter(HttpCase):
@@ -63,6 +65,8 @@ class TestPortalHomeDocCounter(HttpCase):
             password='dobtor_counter_portal',
             groups='dobtor_doc_editor.group_doc_portal,base.group_portal',
         )
+        # 裝了範圍欄位的庫：前台帳號照真實營造方設定範圍公司（見 scope_fixture）
+        scope_portal_as_contractor(self.env, portal)
         Doc = self.env['doc.document']
         doc_invited = Doc.with_user(owner).create({
             'name': '受邀文件', 'content_html': '<p>x</p>',

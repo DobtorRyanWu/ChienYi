@@ -168,7 +168,9 @@ class TestSeedKeepsSharedAttachment(TransactionCase):
         copies = self.env['document.template']
         users = self.env['res.users']
         for name in ('共用附件測試乙公司', '共用附件測試丙公司'):
-            company = self.env['res.company'].create({'name': name})
+            # jt 那樣多家監造公司共用一庫：公司類型要明寫。res.company 類型預設是「施工廠商」，不寫的話
+            # 這家公司的內部帳號會被公司儀表板判成營造方唯讀帳號（合約 §0b-5），連自己公司的樣板都讀不到
+            company = self.env['res.company'].create({'name': name, 'company_type': 'supervision'})
             copies |= default.copy({'name': '%s的估驗計價表' % name, 'is_default': False,
                                     'project_id': False, 'company_id': company.id})
             users |= self.env['res.users'].create({

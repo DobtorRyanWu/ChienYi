@@ -14,6 +14,8 @@ from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 from odoo.addons.dobtor_doc_editor.models.doc_document import PORTAL_PROTECTED_FIELDS
 
+from .scope_fixture import scope_portal_as_contractor
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestPortalProtectedFields(TransactionCase):
@@ -23,6 +25,8 @@ class TestPortalProtectedFields(TransactionCase):
         self.portal = new_test_user(
             self.env, login='doc_protect_portal',
             groups='dobtor_doc_editor.group_doc_portal,base.group_portal')
+        # 裝了範圍欄位的庫：前台帳號照真實營造方設定範圍公司（見 scope_fixture）
+        scope_portal_as_contractor(self.env, self.portal)
         self.internal = new_test_user(
             self.env, login='doc_protect_internal',
             groups='dobtor_doc_editor.group_doc_editor,base.group_user')

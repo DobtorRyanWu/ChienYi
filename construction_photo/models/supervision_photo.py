@@ -7,6 +7,8 @@ from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 from odoo.osv import expression
 
+from odoo.addons.construction_supervision_base.utils.local_date import to_local_date
+
 _logger = logging.getLogger(__name__)
 
 # Pillow 是官方 odoo:18.0 image 內建（實測 10.2.0），不需額外安裝。
@@ -144,16 +146,17 @@ class SupervisionPhoto(models.Model):
         string='拍攝日期(日)',
         compute='_compute_shot_date',
         store=True,
-        help='用於按日期分組查詢')
+        help='用於按日期分組查詢（台灣日期）')
 
     @api.depends('shot_at')
     def _compute_shot_date(self):
-        """計算拍攝日期 (僅日期部分)"""
+        """拍攝日期（台灣日期）。
+
+        shot_at 存 naive UTC；原本取 shot_at.date() 是 UTC 日期，台灣 00:00–07:59 上傳的照片會落到前一天
+        （公司儀表板合約 §5.3；既有資料由 migrations/18.0.3.8.0 重算）。
+        """
         for photo in self:
-            if photo.shot_at:
-                photo.shot_date = photo.shot_at.date()
-            else:
-                photo.shot_date = False
+            photo.shot_date = to_local_date(photo.shot_at) or False
     
     @api.depends('description', 'attachment_id.name')
     def _compute_name(self):

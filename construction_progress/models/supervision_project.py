@@ -7,7 +7,17 @@ from datetime import date, datetime
 
 from odoo import api, fields, models
 
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
+
 _logger = logging.getLogger(__name__)
+
+# 進度差異超過這個百分點判定超前／落後（與 progress.schedule.line._compute_variance 相同）
+VARIANCE_TOLERANCE = 1.0
+VARIANCE_STATUS_LABELS = {
+    'ahead': '超前',
+    'on_track': '正常',
+    'delayed': '落後',
+}
 
 
 class SupervisionProjectProgress(models.Model):
@@ -55,7 +65,7 @@ class SupervisionProjectProgress(models.Model):
     @api.depends('active_schedule_id', 'active_schedule_id.line_ids')
     def _compute_daily_progress(self):
         """計算本日進度（從施工日誌取得）"""
-        today = fields.Date.today()
+        today = local_today()
         DailyLogSheet = self.env['daily.log.sheet']
         
         for project in self:
@@ -217,7 +227,7 @@ class SupervisionProjectProgress(models.Model):
             (planned_progress, actual_progress) 元組；actual_progress 在今天之後為 None
         """
         planned, actual = self._interpolate_cumulative(target_date, lines, period_start)
-        if target_date > fields.Date.today():
+        if target_date > local_today():
             # 未來區間的累計實際值是 0，內插下去曲線會掉到 0
             actual = None
         return (planned, actual)
@@ -285,13 +295,16 @@ class SupervisionProjectProgress(models.Model):
         from datetime import timedelta
 
         self.ensure_one()
+        # 「今天」＝台灣日期（公司儀表板合約 §1-6、§5.3）
+        today = local_today()
 
         if not self.schedule_ids:
             return {
                 'dates': [],
                 'planned': [],
                 'actual': [],
-                'today': fields.Date.today().isoformat(),
+                'versions': [],
+                'today': today.isoformat(),
                 'version_changes': [],
             }
 
@@ -303,7 +316,8 @@ class SupervisionProjectProgress(models.Model):
                 'dates': [],
                 'planned': [],
                 'actual': [],
-                'today': fields.Date.today().isoformat(),
+                'versions': [],
+                'today': today.isoformat(),
                 'version_changes': [],
             }
 
@@ -356,7 +370,7 @@ class SupervisionProjectProgress(models.Model):
                     'date': boundary.isoformat() if boundary else None,
                     'version': version,
                     'reason': schedule.change_reason or f'進度表版本 v{version}',
-                    'change_orders': [co.name for co in schedule.related_change_order_ids] if schedule.related_change_order_ids else [],
+                    'change_orders': self._progress_readable_change_order_names(schedule),
                 })
 
             # 排序明細行
@@ -368,7 +382,6 @@ class SupervisionProjectProgress(models.Model):
             key_dates.add(end_date)    # 版本結束日
 
             # 今日（如果在範圍內）
-            today = fields.Date.today()
             if start_date <= today <= end_date:
                 key_dates.add(today)
 
@@ -399,25 +412,84 @@ class SupervisionProjectProgress(models.Model):
         actual = [None if point['actual'] is None else round(point['actual'], 2)
                   for point in data_points]
         point_types = ['key' if point['is_key'] else 'normal' for point in data_points]
+        # 每個點屬於哪一版（版本更迭那天有兩個點）；給「今天的累計值」取最新版用
+        versions = [point['version'] for point in data_points]
 
         return {
             'dates': dates,
             'planned': planned,
             'actual': actual,
+            'versions': versions,
             'point_types': point_types,
-            'today': fields.Date.today().isoformat(),
+            'today': today.isoformat(),
             'version_changes': version_changes,
+        }
+
+    def _progress_readable_change_order_names(self, schedule):
+        """進度表對應的變更單名稱，只列看的人讀得到的（公司儀表板合約 §5.3）。
+
+        Many2many 讀取只套記錄規則、不查 ACL，而且快取不分 sudo：同一個交易先以 sudo 讀過，
+        本人讀到的就是 sudo 的值。所以讀名稱之前一定要以本人身分過一次讀取權，
+        看不到的不帶名稱（也不報 AccessError）。
+        """
+        orders = schedule.related_change_order_ids
+        if not orders:
+            return []
+        return [order.name for order in orders._filtered_access('read')]
+
+    @api.model
+    def _progress_values_on(self, chart_data, day):
+        """從 get_progress_chart_data() 的結果取某一天的累計預定／實際進度（跨版拼接後的同一份數字）。
+
+        取「日期 ≤ day」的最後一點（版本更迭那天取新版）；day 在第一點之前 → 0（還沒開始）；
+        沒有任何點（沒建進度表或只有草稿）→ None。
+        回傳 {'planned', 'actual', 'variance', 'variance_status', 'version'}。
+        """
+        dates = chart_data.get('dates') or []
+        if not dates:
+            return None
+        day_iso = day.isoformat()
+        versions = chart_data.get('versions') or [None] * len(dates)
+        index = None
+        for i, point_date in enumerate(dates):
+            if point_date <= day_iso:
+                index = i
+            else:
+                break
+        if index is None:
+            planned = actual = 0.0
+            version = versions[0]
+        else:
+            planned = chart_data['planned'][index] or 0.0
+            actual = chart_data['actual'][index] or 0.0
+            version = versions[index]
+        variance = round(actual - planned, 2)
+        if variance > VARIANCE_TOLERANCE:
+            status = 'ahead'
+        elif variance < -VARIANCE_TOLERANCE:
+            status = 'delayed'
+        else:
+            status = 'on_track'
+        return {
+            'planned': planned,
+            'actual': actual,
+            'variance': variance,
+            'variance_status': status,
+            'version': version,
         }
 
     # =========================================================================
     # 儀表板 API
     # =========================================================================
 
-    def get_project_dashboard_data(self):
-        """取得單一案件的儀表板統合資料（各區塊獨立錯誤隔離）"""
+    def _dashboard_blocks(self):
+        """單一案件儀表板的區塊清單 [(key, 方法)]，依序執行。
+
+        其他模組要加、減、換區塊時覆寫這個方法（例：公司儀表板 construction_company_dashboard 在後面
+        加今日照片、今日日誌、估驗三塊，並改寫錯誤處理），不要另外複製一份清單（公司儀表板合約 §0b-18）。
+        """
         self.ensure_one()
-        result = {}
-        for key, method in [
+        return [
             ('basic_info', self._dashboard_basic_info),
             ('duration_info', self._dashboard_duration_info),
             ('progress_summary', self._dashboard_progress_summary),
@@ -425,7 +497,13 @@ class SupervisionProjectProgress(models.Model):
             ('defect_summary', self._dashboard_defect_summary),
             ('test_summary', self._dashboard_test_summary),
             ('review_summary', self._dashboard_review_summary),
-        ]:
+        ]
+
+    def get_project_dashboard_data(self):
+        """取得單一案件的儀表板統合資料（各區塊獨立錯誤隔離）"""
+        self.ensure_one()
+        result = {}
+        for key, method in self._dashboard_blocks():
             try:
                 result[key] = method()
             except Exception as e:
@@ -445,27 +523,21 @@ class SupervisionProjectProgress(models.Model):
         }
 
     def _dashboard_progress_summary(self):
-        """進度摘要（從使用中進度表）"""
-        schedule = self.active_schedule_id
-        if not schedule:
+        """進度摘要：與圖表、公司儀表板卡片同一份數字（get_progress_chart_data() 跨版拼接的今天值）。
+
+        不再呼叫會寫入的 schedule._compute_current_progress()，也不讀已存的 current_* 值
+        （只在明細被改時重算、會過時；公司儀表板合約 §5.3）。
+        """
+        values = self._progress_values_on(self.get_progress_chart_data(), local_today())
+        if values is None:
             return None
-
-        # 強制重算（stored computed 不會因日期改變自動觸發）
-        schedule._compute_current_progress()
-
-        status_labels = {
-            'ahead': '超前',
-            'on_track': '正常',
-            'delayed': '落後',
-        }
         return {
-            'cumulative_planned': schedule.current_cumulative_planned,
-            'cumulative_actual': schedule.current_cumulative_actual,
-            'variance': schedule.current_variance,
-            'variance_status': schedule.current_variance_status,
-            'variance_status_label': status_labels.get(
-                schedule.current_variance_status, ''),
-            'schedule_version': schedule.version,
+            'cumulative_planned': values['planned'],
+            'cumulative_actual': values['actual'],
+            'variance': values['variance'],
+            'variance_status': values['variance_status'],
+            'variance_status_label': VARIANCE_STATUS_LABELS.get(values['variance_status'], ''),
+            'schedule_version': values['version'],
         }
 
     def _dashboard_duration_info(self):
@@ -524,9 +596,8 @@ class SupervisionProjectProgress(models.Model):
         improved_count = Defect.search_count(
             domain + [('state', 'in', ('verified', 'closed'))])
 
-        # 未改善（draft, notified, improving, improved）
-        unimproved_count = Defect.search_count(
-            domain + [('state', 'not in', ('verified', 'closed'))])
+        # 未改善（draft, notified, improving, improved）：與公司儀表板「待改缺失」同一個條件
+        unimproved_count = Defect.search_count(domain + Defect._dash_open_domain())
 
         return {
             'total_count': total_count,

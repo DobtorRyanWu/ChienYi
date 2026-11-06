@@ -9,6 +9,8 @@
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
+from .scope_fixture import scope_portal_as_contractor
+
 
 @tagged('post_install', '-at_install', 'dobtor_doc_editor')
 class TestPortalSecurity(TransactionCase):
@@ -38,6 +40,8 @@ class TestPortalSecurity(TransactionCase):
             login='dobtor_portal_test',
             groups='dobtor_doc_editor.group_doc_portal,base.group_portal',
         )
+        # 裝了範圍欄位的庫：前台帳號照真實營造方設定範圍公司（見 scope_fixture）
+        scope_portal_as_contractor(self.env, self.user_portal)
 
         # 把 portal user 加為 doc_a 的協作者
         self.doc_a.collaborator_ids = [(4, self.user_portal.id)]
@@ -103,8 +107,13 @@ class TestPortalCrossCompanyCollaboration(TransactionCase):
         self.Company = self.env['res.company']
 
         # 兩家公司：監造公司 + 承包商公司
-        self.company_supervisor = self.Company.create({'name': 'Sprint117 監造公司'})
-        self.company_contractor = self.Company.create({'name': 'Sprint117 承包商'})
+        # 裝了 construction_supervision_base 的庫，公司有「公司類型」且預設是施工廠商：監造公司要明寫類型，
+        # 否則監造公司的內部帳號會被當成營造方（公司儀表板唯讀帳號，合約 §0b-5），連建文件都被擋
+        sup_vals, con_vals = {'name': 'Sprint117 監造公司'}, {'name': 'Sprint117 承包商'}
+        if 'company_type' in self.Company._fields:
+            sup_vals['company_type'], con_vals['company_type'] = 'supervision', 'contractor'
+        self.company_supervisor = self.Company.create(sup_vals)
+        self.company_contractor = self.Company.create(con_vals)
 
         # 監造公司的內部 user 建立文件（doc.company_id = 監造公司）
         self.user_supervisor = new_test_user(
@@ -134,6 +143,9 @@ class TestPortalCrossCompanyCollaboration(TransactionCase):
             company_ids=[(6, 0, [self.company_contractor.id])],
         )
 
+        # 裝了範圍欄位的庫：承包商前台帳號的範圍公司＝承包商（見 scope_fixture）
+        scope_portal_as_contractor(self.env, self.user_portal_contractor, self.company_contractor)
+
         # 監造公司管理員把承包商 portal user 加為 doc_invited 的協作者
         self.doc_invited.collaborator_ids = [(4, self.user_portal_contractor.id)]
 
@@ -151,7 +163,9 @@ class TestPortalCrossCompanyCollaboration(TransactionCase):
             '若 fail、表示有人加了 company filter 到 rule_doc_document_portal、'
             '請先讀 docs/sprint117_portal_company_rule_closure.md',
         )
-        _ = existing.name  # 觸發實際讀
+        # 觸發實際讀：先清快取——name 在建立時已進同一交易的快取，Odoo 18 讀快取不查權限
+        existing.invalidate_recordset(['name'])
+        self.assertEqual(existing.name, 'Sprint117 跨公司邀請文件')
 
     def test_portal_can_write_cross_company_invited_doc(self):
         """Lock-in：portal user（承包商）能寫被邀請的跨公司文件。"""

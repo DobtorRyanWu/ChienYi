@@ -78,10 +78,31 @@ class SupervisionFolderUploadWizard(models.TransientModel):
                 wizard.folder_id._inherited_category() if wizard.folder_id
                 else self.env['supervision.document.category'])
 
+    def _check_upload_access(self):
+        """下面以 sudo 改寫附件歸屬之前，先以本人身分確認（11-06 抗辯 F5／skeptic F1：原本任何內部帳號
+        把全庫任一附件 id 勾進精靈，就能把它從原單據拔走、改掛到自己看得到的資料夾，之後再讀走內容）。
+
+        - 附件：本人要有寫入權。附件的權限依它掛的單據判定（掛在單據上＝要能寫那張單據；沒掛單據＝只有
+          上傳者本人），這是 ``ir.attachment.check('write')`` 的規則——只用 ``check_access('write')`` 不夠，
+          ``ir.attachment`` 沒有覆寫 ``_check_access``，內部帳號對任何附件都會通過。精靈自己剛上傳的檔是
+          本人建的、還沒掛單據，照樣通過。
+        - 目標：本人讀得到資料夾與它的工程。資料夾的寫入權只有代操作員／工程後台使用者有，一般內部帳號
+          只有讀取（``security/ir.model.access.csv``），而精靈原本就開放給一般內部帳號上傳——這裡不收緊。
+        """
+        if self.env.su:
+            return
+        attachments = self.attachment_ids
+        attachments.check_access('write')
+        attachments.check('write')
+        self.folder_id.check_access('read')
+        if self.folder_id.project_id:
+            self.folder_id.project_id.check_access('read')
+
     def action_upload(self):
         self.ensure_one()
         if not self.attachment_ids:
             raise UserError('請至少選擇一個檔案。')
+        self._check_upload_access()
 
         # 四個欄位一次補齊：放在哪(folder_id)、是什麼(document_category_id)、
         # 哪個案子(supervision_project_id)、來源(res_model/res_id)。

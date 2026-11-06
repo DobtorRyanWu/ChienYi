@@ -11,7 +11,8 @@
     # 1.5.3: 進度圖表、進度看板的 Chart.js 外掛改用 construction_supervision_base 內建檔，客戶擋外網也畫得出來
     # 1.5.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 1.5.5: 前台成員讀取規則補到掛在工程底下的業務資料（老闆另加公司範圍）：原本前台讀得到、沒有任何前台規則，非成員經 RPC 讀得到別案：進度表與區間
-    "version": "18.0.1.5.5",
+    # 1.6.0: 「今天」改台灣日期（local_today）；圖表看不到的變更單不帶名稱；單一工程頁進度摘要改用圖表同一份數字（不再呼叫會寫入的 _compute_current_progress）；缺失摘要改用 _dash_open_domain（公司儀表板合約 §5.3）
+    "version": "18.0.1.6.1",
     "category": "Construction/Supervision",
     "summary": "工程進度表管理 - 支援每周/每兩周/自訂計算模式",
     "description": """
