@@ -22,6 +22,9 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import file_open
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    SUPERVISION_USER_VALS, contractor_project_vals, contractor_user_vals, make_contractor)
 
 FIELD = 'construction_supervision_base.group_portal_user'      # 現場人員
 LEADER = 'construction_supervision_base.group_portal_leader'   # 主管
@@ -43,30 +46,35 @@ class TestPortalManualFixesBatch2(TransactionCase):
         super().setUpClass()
         env = cls.env
         cls.ctrl = ConstructionPortal()
+        # 夾具：現場人員是營造方帳號（範圍公司＝工程的承攬廠商）；主管代表監造方前台人員
+        # （本類別的主管會做新增工程、工期展延，這兩個動作營造方不能做——合約 §3.6）
+        cls.contractor = make_contractor(env, 'B2 測試營造')
         cls.project = env['project.project'].create({
             'name': 'B2 一般式工程', 'code': 'B2-GEN', 'project_type': 'general',
-            'state': 'construction', 'company_id': env.company.id})
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
         cls.res_project = env['project.project'].create({
             'name': 'B2 預約式工程', 'code': 'B2-RSV', 'project_type': 'reservation',
-            'state': 'construction', 'company_id': env.company.id})
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
         env['defect.improvement.prefix.config'].create({
             'project_id': cls.project.id, 'supervision_prefix': 'B2QA',
             'contractor_prefix': 'B2QR'})
         cls.env['defect.improvement.prefix.config'].create({
             'project_id': cls.res_project.id, 'supervision_prefix': 'B2RS',
             'contractor_prefix': 'B2RC'})
-        cls.worker = cls._mk_user('b2_worker', FIELD)
-        cls.leader = cls._mk_user('b2_leader', LEADER)
+        cls.worker = cls._mk_user('b2_worker', FIELD, contractor_user_vals(cls.contractor))
+        cls.leader = cls._mk_user('b2_leader', LEADER, SUPERVISION_USER_VALS)
         for u in (cls.worker, cls.leader):
             for p in (cls.project, cls.res_project):
                 env['supervision.project.member'].create({
                     'project_id': p.id, 'user_id': u.id})
 
     @classmethod
-    def _mk_user(cls, login, group_xmlid):
+    def _mk_user(cls, login, group_xmlid, side_vals):
         return cls.env['res.users'].create({
             'name': login, 'login': login,
-            'groups_id': [(6, 0, [cls.env.ref(group_xmlid).id])]})
+            'groups_id': [(6, 0, [cls.env.ref(group_xmlid).id])], **side_vals})
 
     def _drive(self, user, method, *args, params=None, args_qs=None, **kw):
         """同 test_manual_fixes_20261102._drive：真實使用者跑真實路由，模板真的渲染。
@@ -294,10 +302,11 @@ class TestPortalManualFixesBatch2(TransactionCase):
         self.assertEqual(got, {'pass': '2', 'defect': '1', 'na': '3'})
 
     # P13 ---------------------------------------------------------------
+    # 逾期天數的「今天」是台灣日期（公司儀表板合約 §1-6），夾具日期要用同一個來源，否則台灣 00:00–07:59 會差一天
     def test_p13_overdue_card_shows_for_overdue_defect(self):
         defect = self._general_defect(
-            found_date=fields.Date.today() - timedelta(days=10),
-            deadline=fields.Date.today() - timedelta(days=3))
+            found_date=local_today() - timedelta(days=10),
+            deadline=local_today() - timedelta(days=3))
         self.assertTrue(defect.is_overdue, '前提：逾期缺失 is_overdue 為真')
         vals, html = self._drive(
             self.worker, self.ctrl.portal_construction_defect_detail, defect.id)
@@ -306,7 +315,7 @@ class TestPortalManualFixesBatch2(TransactionCase):
 
     def test_p13_no_overdue_card_for_on_time_defect(self):
         defect = self._general_defect(
-            deadline=fields.Date.today() + timedelta(days=3))
+            deadline=local_today() + timedelta(days=3))
         vals, html = self._drive(
             self.worker, self.ctrl.portal_construction_defect_detail, defect.id)
         self.assertIsNotNone(vals, html)
@@ -314,8 +323,8 @@ class TestPortalManualFixesBatch2(TransactionCase):
 
     def test_p13_reservation_defect_has_is_overdue(self):
         defect = self._reservation_defect(
-            notification_date=fields.Date.today() - timedelta(days=10),
-            deadline=fields.Date.today() - timedelta(days=2))
+            notification_date=local_today() - timedelta(days=10),
+            deadline=local_today() - timedelta(days=2))
         self.assertTrue(defect.is_overdue)
 
     # P14／P15 ----------------------------------------------------------

@@ -116,24 +116,42 @@ class DailyLogRoutesMixin:
                 ('is_key', '=', True),
                 ('active', '=', True),
             ])
-            totals = {}
-            if items:
-                groups = request.env['daily.log.material'].sudo()._read_group(
-                    [('catalog_item_id', 'in', items.ids)],
-                    ['catalog_item_id'], ['daily_qty:sum'])
-                totals = {item.id: total for item, total in groups}
+            totals = self._daily_log_material_totals(items) if items else {}
             return [SimpleNamespace(
                 name=i.name or '', unit=i.unit or '',
                 contract_qty=i.contract_qty or 0.0,
                 cumulative_qty=totals.get(i.id, 0.0), daily_qty=0.0,
                 input_name='%s%s' % (KEY_MATERIAL_QTY_PREFIX, i.id),
             ) for i in items]
+        rows = log.sudo().material_ids.filtered('catalog_item_id')
+        own = (self._daily_log_material_totals(rows.catalog_item_id, upto=log.log_date)
+               if rows and self._dash_is_contractor() else None)
         return [SimpleNamespace(
             name=m.name or '', unit=m.unit or '',
             contract_qty=m.contract_qty or 0.0,
-            cumulative_qty=m.cumulative_qty or 0.0, daily_qty=m.daily_qty or 0.0,
+            cumulative_qty=(own.get(m.catalog_item_id.id, 0.0) if own is not None
+                            else m.cumulative_qty or 0.0),
+            daily_qty=m.daily_qty or 0.0,
             input_name='%s%s' % (MATERIAL_QTY_PREFIX, m.id),
-        ) for m in log.sudo().material_ids.filtered('catalog_item_id')]
+        ) for m in rows]
+
+    def _daily_log_material_totals(self, items, upto=None):
+        """契約材料清單項的本日數量加總 {清單項 id: 合計}；upto＝只算該日（含）以前的日誌。
+
+        監造方：照原本 sudo 加總全部日誌。
+        營造方（公司儀表板合約 §3.6）：只算本人讀得到的日誌（日誌的營造廠範圍規則），
+        不用 sudo 把別家營造廠的數量算進來（合約 §1-5）。用日誌判定、不以本人身分讀材料列：
+        後台營造廠主管沒有材料列的讀取權，以本人身分讀會讓日誌頁整頁 403。
+        """
+        domain = [('catalog_item_id', 'in', items.ids)]
+        if upto:
+            domain.append(('daily_log_id.log_date', '<=', upto))
+        Material = request.env['daily.log.material'].sudo()
+        if self._dash_is_contractor():
+            own_logs = self._dash_visible(Material.search(domain).daily_log_id)
+            domain.append(('daily_log_id', 'in', own_logs.ids))
+        groups = Material._read_group(domain, ['catalog_item_id'], ['daily_qty:sum'])
+        return {item.id: total for item, total in groups}
 
     @http.route(['/construction/<int:project_id>/daily-logs', '/construction/<int:project_id>/daily-logs/page/<int:page>'],
                 type='http', auth='user', website=True)
@@ -281,14 +299,22 @@ class DailyLogRoutesMixin:
                 issue_description=ln.issue_description or '',
             ))
         log_materials = []
+        # 營造方：連到契約材料清單的列，累計改成只算自家日誌（與編輯頁同一個算法，合約 §3.6）；
+        # 人工列的累計是匯入時照原檔寫的值，不是加總，照舊顯示
+        linked = log_su.material_ids.filtered('catalog_item_id')
+        own_totals = (self._daily_log_material_totals(linked.catalog_item_id, upto=log.log_date)
+                      if linked and self._dash_is_contractor() else {})
         for mat in log_su.material_ids:
+            cumulative = (own_totals.get(mat.catalog_item_id.id, 0.0)
+                          if mat.catalog_item_id and self._dash_is_contractor()
+                          else mat.cumulative_qty or 0.0)
             log_materials.append(SimpleNamespace(
                 id=mat.id,
                 name=mat.name or '',
                 unit=mat.unit or '',
                 contract_qty=mat.contract_qty or 0.0,
                 daily_qty=mat.daily_qty or 0.0,
-                cumulative_qty=mat.cumulative_qty or 0.0,
+                cumulative_qty=cumulative,
                 note=mat.note or '',
             ))
         log_specific_items = []
@@ -394,6 +420,7 @@ class DailyLogRoutesMixin:
         env = request.env
         DailyLog = env['daily.log.sheet'].sudo()
         ProjectTask = env['project.task'].sudo()
+        contractor = self._dash_is_contractor()
         base_url = f'/construction/{project_id}/daily-logs/import'
         project_record_id = project.id
         supervision_project_id = project.id
@@ -420,10 +447,12 @@ class DailyLogRoutesMixin:
                 #   另建一張（預設）：工項與本日數量和既有某張相同就跳過——同一個檔再傳一次、
                 #     或既有那張之後被補過文字／重要材料，都不可以再建一張讓累計數量加倍；
                 #   取代：內容（含文字、材料）完全相同才跳過，否則用檔案內容覆蓋那天的日誌。
-                existing = DailyLog.search([
+                # 營造方只比對、只取代自家讀得到的日誌（合約 §3.6 表外通則）：sudo 查出來的
+                # 會含別家營造廠同一天的日誌，取代模式下「那天只有一張」就會覆蓋到別家
+                existing = self._dash_visible(DailyLog.search([
                     ('supervision_project_id', '=', supervision_project_id),
                     ('log_date', '=', parsed['log_date']),
-                ])
+                ]))
                 same = existing.filtered(
                     lambda s: self._daily_log_same_content(s, parsed, strict=replace_mode))
                 if same:
@@ -440,6 +469,17 @@ class DailyLogRoutesMixin:
                     if not target:
                         failed += 1
                         failed_details.append({'filename': fname, 'error': reason})
+                        continue
+
+                # 營造方不自動補建契約工項（工項是工程層級主檔，由監造方維護；合約 §0b-12）：
+                # 缺的工項列出來、整個檔不匯入
+                if contractor:
+                    missing = self._daily_log_import_missing_tasks(ProjectTask, project_record_id, parsed)
+                    if missing:
+                        failed += 1
+                        failed_details.append({'filename': fname, 'error': _(
+                            '契約工項不存在：%(names)s。營造廠帳號匯入不會自動補建工項，請監造方補建後再匯入',
+                            names='、'.join(missing))})
                         continue
 
                 # savepoint 從補建工項包到寫入：這個檔失敗時，補建的 stub 工項一起退回；
@@ -647,6 +687,21 @@ class DailyLogRoutesMixin:
             (m.name, m.unit or '', m.contract_qty, m.daily_qty, m.cumulative_qty, m.note or '')
             for m in sheet.material_ids if not m.catalog_item_id)
         return file_mats == sheet_mats
+
+    @staticmethod
+    def _daily_log_import_missing_tasks(ProjectTask, project_id, parsed):
+        """匯入檔裡有、本工程卻沒有的契約工項名稱（依檔案順序、不重複）。
+
+        比對方式與匯入時對應工項相同（同工程、名稱完全相同）。ProjectTask 是呼叫端的 sudo env，
+        範圍限定在已 _document_check_access 過的工程。"""
+        missing = []
+        for row in parsed['line_rows']:
+            name = row['name']
+            if not name or name in missing:
+                continue
+            if not ProjectTask.search_count([('project_id', '=', project_id), ('name', '=', name)], limit=1):
+                missing.append(name)
+        return missing
 
     def _daily_log_import_target(self, existing, project):
         """取代模式要覆蓋哪一張：那天只有一張就是它；多張時只認目前使用者自己（提交人）
@@ -901,7 +956,8 @@ class DailyLogRoutesMixin:
         ], limit=1)
         if not log:
             return request.redirect(f'/construction/{project_id}/daily-logs')
-        if not log.can_unlock:
+        # 營造方不能解鎖（公司儀表板合約 §3.6）：鎖定是給監造方的稽核保護，營造方自己解鎖等於沒鎖
+        if self._dash_is_contractor() or not log.can_unlock:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}?error=no_unlock_permission')
         log.sudo().portal_unlock(hours=72, reason='前台解鎖')
@@ -922,10 +978,12 @@ class DailyLogRoutesMixin:
         self._require_write(_('權限不足：閱覽角色不可修改施工日誌'))
 
         DailyLog = request.env['daily.log.sheet'].sudo()
-        log = DailyLog.search([
+        # 營造方只能改自家的日誌（合約 §3.6 表外通則）：sudo 查詢不走範圍規則，
+        # 不過濾的話同一工程別家營造廠的日誌 id 也改得到；看不到就當作不存在（不洩漏存在性）
+        log = self._dash_visible(DailyLog.search([
             ('id', '=', log_id),
             ('supervision_project_id', '=', project.id),
-        ], limit=1)
+        ], limit=1))
         if not log:
             return request.redirect(f'/construction/{project_id}/daily-logs')
         # 鎖定用即時判斷：stored is_locked 會 stale（H2）。下面的 log.write() 也會擋（材料指令併在同一次

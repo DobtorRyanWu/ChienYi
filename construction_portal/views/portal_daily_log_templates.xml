@@ -195,7 +195,7 @@
                             </div>
                         </div>
                         <!-- 老闆/主管/代操：前台直接解鎖（限時 3 天，有解鎖記錄） -->
-                        <t t-if="log.can_unlock">
+                        <t t-if="log.can_unlock and not request.env.user._dash_is_contractor_side()">
                             <form t-attf-action="/construction/#{project.id}/daily-log/#{log.id}/unlock"
                                   method="post" style="margin-bottom: 12px;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>

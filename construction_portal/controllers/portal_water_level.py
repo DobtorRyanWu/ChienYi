@@ -54,6 +54,9 @@ STAMP_FORMAT = '%m/%d %H:%M'      # 逐筆表用（手機兩欄，不放年）
 CSV_STAMP_FORMAT = '%Y-%m-%d %H:%M:%S'   # 匯出檔用（完整，給 Excel）
 FILENAME_STAMP_FORMAT = '%Y%m%d%H%M'
 
+# 營造方（後台營造廠主管、前台營造組織帳號）看不到水位（公司儀表板合約 §3.2「其他」類）
+WATER_LEVEL_DENIED_MSG = '權限不足：水位監測資料不開放營造廠帳號查看'
+
 
 class WaterLevelRoutesMixin:
 
@@ -68,6 +71,8 @@ class WaterLevelRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # 水位屬「其他」類：營造方看不到（公司儀表板合約 §3.2、§3.6）
+        self._require_not_contractor(WATER_LEVEL_DENIED_MSG)
 
         devices = request.env['water.level.device'].sudo().search(
             [('project_id', '=', project_id)], order='seq, id')
@@ -102,6 +107,9 @@ class WaterLevelRoutesMixin:
         try:
             self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
+            return {'error': 'Access denied'}
+        if self._dash_is_contractor():
+            # 水位屬「其他」類：營造方看不到（合約 §3.6）；json 路由比照上面回錯誤而不丟例外
             return {'error': 'Access denied'}
 
         window = self._water_level_window(hours, date_from, hour_from, date_to, hour_to)
@@ -138,6 +146,7 @@ class WaterLevelRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        self._require_not_contractor(WATER_LEVEL_DENIED_MSG)
 
         devices = request.env['water.level.device'].sudo().search(
             [('project_id', '=', project_id)], order='seq, id')

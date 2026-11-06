@@ -16,6 +16,8 @@ from odoo.addons.website.tools import MockRequest
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, tagged
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    SUPERVISION_USER_VALS, contractor_project_vals, contractor_user_vals, make_contractor)
 
 VIEWER = 'construction_supervision_base.group_portal_viewer'   # 定期閱覽者（唯讀）
 FIELD = 'construction_supervision_base.group_portal_user'      # 現場人員
@@ -30,17 +32,20 @@ class TestPortalRoleGuards(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.ctrl = ConstructionPortal()
+        # 夾具：三個前台帳號是營造方帳號（範圍公司＝工程的承攬廠商）
+        cls.contractor = make_contractor(cls.env, 'H1 測試營造')
         cls.project = cls.env['project.project'].create({
             'name': 'H1 Guard 測試工程',
             'code': 'H1-GUARD',
             'state': 'construction',  # 非 draft/terminated → 成員可讀
             'company_id': cls.env.company.id,
+            **contractor_project_vals(cls.contractor),
         })
-        cls.observer = cls._mk_user('h1_observer', VIEWER)
-        cls.field = cls._mk_user('h1_field', FIELD)
-        cls.leader = cls._mk_user('h1_leader', LEADER)
+        cls.observer = cls._mk_user('h1_observer', VIEWER, contractor_user_vals(cls.contractor))
+        cls.field = cls._mk_user('h1_field', FIELD, contractor_user_vals(cls.contractor))
+        cls.leader = cls._mk_user('h1_leader', LEADER, contractor_user_vals(cls.contractor))
         # 純內部使用者（監造單位員工）：無任何前台角色群組，仍應可寫入（放寬後）
-        cls.internal = cls._mk_user('h1_internal', 'base.group_user')
+        cls.internal = cls._mk_user('h1_internal', 'base.group_user', {})
         # 三人皆設為專案參與成員 → 滿足 read ir.rule（member_user_ids in [user.id]）
         for u in (cls.observer, cls.field, cls.leader):
             cls.env['supervision.project.member'].create({
@@ -49,11 +54,12 @@ class TestPortalRoleGuards(TransactionCase):
             })
 
     @classmethod
-    def _mk_user(cls, login, group_xmlid):
+    def _mk_user(cls, login, group_xmlid, side_vals):
         return cls.env['res.users'].create({
             'name': login,
             'login': login,
             'groups_id': [(6, 0, [cls.env.ref(group_xmlid).id])],
+            **side_vals,
         })
 
     # ── 前置健全性：viewer 確實「可讀但不可直接寫」專案 ──────────────
@@ -144,15 +150,20 @@ class TestPortalRoleGuardsTable(TransactionCase):
         super().setUpClass()
         cls.ctrl = ConstructionPortal()
         env = cls.env
+        # 夾具：閱覽者、現場人員是營造方帳號（範圍公司＝工程的承攬廠商）；主管代表監造方前台人員
+        # （表裡有工期展延、新增工程，這兩個動作營造方不能做——合約 §3.6）
+        cls.contractor = make_contractor(env, 'P7 測試營造')
         cls.project = env['project.project'].create({
             'name': 'P7 表驅動工程', 'code': 'P7-TBL', 'project_type': 'general',
-            'state': 'construction', 'company_id': env.company.id})
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
         cls.res_project = env['project.project'].create({
             'name': 'P7 表驅動工程（預約式）', 'code': 'P7-TBL-R', 'project_type': 'reservation',
-            'state': 'construction', 'company_id': env.company.id})
-        cls.observer = cls._mk_user('p7_observer', VIEWER)
-        cls.field = cls._mk_user('p7_field', FIELD)
-        cls.leader = cls._mk_user('p7_leader', LEADER)
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
+        cls.observer = cls._mk_user('p7_observer', VIEWER, contractor_user_vals(cls.contractor))
+        cls.field = cls._mk_user('p7_field', FIELD, contractor_user_vals(cls.contractor))
+        cls.leader = cls._mk_user('p7_leader', LEADER, SUPERVISION_USER_VALS)
         for u in (cls.observer, cls.field, cls.leader):
             for p in (cls.project, cls.res_project):
                 env['supervision.project.member'].create({
@@ -178,10 +189,10 @@ class TestPortalRoleGuardsTable(TransactionCase):
             'sub_project_name': 'P7', 'inspection_date': fields.Date.today()})
 
     @classmethod
-    def _mk_user(cls, login, group_xmlid):
+    def _mk_user(cls, login, group_xmlid, side_vals):
         return cls.env['res.users'].create({
             'name': login, 'login': login,
-            'groups_id': [(6, 0, [cls.env.ref(group_xmlid).id])]})
+            'groups_id': [(6, 0, [cls.env.ref(group_xmlid).id])], **side_vals})
 
     def _table(self):
         """(標籤, 路由方法, 參數 dict, 通過守衛所需的最低角色 'write'／'manage')"""

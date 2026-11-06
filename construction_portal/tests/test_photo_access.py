@@ -16,6 +16,8 @@ from werkzeug.exceptions import NotFound
 from odoo.addons.website.tools import MockRequest
 from odoo.tests.common import TransactionCase, tagged
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    SUPERVISION_USER_VALS, contractor_project_vals, contractor_user_vals, make_contractor)
 
 VIEWER = 'construction_supervision_base.group_portal_viewer'
 
@@ -27,11 +29,14 @@ class TestPhotoAccess(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.ctrl = ConstructionPortal()
+        # 夾具：前台帳號是營造方帳號（範圍公司＝工程的承攬廠商）
+        cls.contractor = make_contractor(cls.env, 'M0.6 照片測試營造')
         cls.project = cls.env['project.project'].create({
             'name': 'M0.6 照片權限測試工程',
             'code': 'M06-IMG',
             'state': 'construction',
             'company_id': cls.env.company.id,
+            **contractor_project_vals(cls.contractor),
         })
         # 一張綁定到 supervision.photo 的附件（模擬 _portal_save_photos 產物）
         cls.att = cls.env['ir.attachment'].create({
@@ -48,10 +53,12 @@ class TestPhotoAccess(TransactionCase):
         cls.member = cls.env['res.users'].create({
             'name': 'm06_member', 'login': 'm06_member',
             'groups_id': [(6, 0, [cls.env.ref(VIEWER).id])],
+            **contractor_user_vals(cls.contractor),
         })
         cls.outsider = cls.env['res.users'].create({
             'name': 'm06_outsider', 'login': 'm06_outsider',
             'groups_id': [(6, 0, [cls.env.ref(VIEWER).id])],
+            **contractor_user_vals(cls.contractor),
         })
         cls.env['supervision.project.member'].create({
             'project_id': cls.project.id, 'user_id': cls.member.id,
@@ -128,9 +135,13 @@ class TestDocumentAccess(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.ctrl = ConstructionPortal()
+        # 夾具：前台帳號代表監造方前台人員（_member_vals）；營造方版本見下面的 TestDocumentAccessContractor
+        # （工程文件 supervision.document 歸工程層級，合約 §0b-10）。本類別驗的是 M0.6 允許清單與成員範圍。
+        cls.contractor = make_contractor(cls.env, 'M0.6 文件測試營造')
         cls.project = cls.env['project.project'].create({
             'name': 'M0.6 文件權限測試工程', 'code': 'M06-DOC',
             'state': 'construction', 'company_id': cls.env.company.id,
+            **contractor_project_vals(cls.contractor),
         })
         cls.att = cls.env['ir.attachment'].create({
             'name': 'contract.pdf', 'datas': b'aGVsbG8=',
@@ -148,14 +159,21 @@ class TestDocumentAccess(TransactionCase):
         cls.member = cls.env['res.users'].create({
             'name': 'm06d_member', 'login': 'm06d_member',
             'groups_id': [(6, 0, [cls.env.ref(VIEWER).id])],
+            **cls._member_vals(),
         })
         cls.outsider = cls.env['res.users'].create({
             'name': 'm06d_outsider', 'login': 'm06d_outsider',
             'groups_id': [(6, 0, [cls.env.ref(VIEWER).id])],
+            **cls._member_vals(),
         })
         cls.env['supervision.project.member'].create({
             'project_id': cls.project.id, 'user_id': cls.member.id,
         })
+
+    @classmethod
+    def _member_vals(cls):
+        """前台帳號是哪一方：本類別＝監造方前台人員。"""
+        return SUPERVISION_USER_VALS
 
     def test_resolve_document_project(self):
         with MockRequest(self.env):
@@ -185,3 +203,45 @@ class TestDocumentAccess(TransactionCase):
         with MockRequest(self.env(user=self.member)):
             with self.assertRaises(NotFound):
                 self.ctrl.portal_construction_document_serve(rogue.id)
+
+
+@tagged('post_install', '-at_install', 'construction_portal')
+class TestDocumentAccessContractor(TestDocumentAccess):
+    """同 TestDocumentAccess，前台帳號換成營造方（範圍公司＝工程的承攬廠商）：自己承攬工程的工程文件
+    下載得到、成員以外照樣 404（父類別的三支照跑）；別家營造廠就算是成員也看不到（合約 §0b-10）。"""
+
+    # Odoo 18 的測試載入器預設只跑類別自己定義的方法（odoo/tests/loader.py），不開這個父類別的三支不會跑
+    allow_inherited_tests_method = True
+
+    @classmethod
+    def _member_vals(cls):
+        return contractor_user_vals(cls.contractor)
+
+    def test_contractor_member_served_other_contractor_denied(self):
+        """承攬營造廠的成員下載得到；別家營造廠（不在工程承攬廠商內）就算是成員也 404，ORM 也讀不到文件。"""
+        if not self.env.ref('construction_company_dashboard.group_contractor_manager', raise_if_not_found=False):
+            # ORM 層的營造方範圍規則在 construction_company_dashboard；沒裝就沒有可驗的東西
+            self.skipTest('construction_company_dashboard 沒裝：營造方 ORM 範圍不能驗（不是通過）')
+        other = make_contractor(self.env, 'M0.6 別家營造')
+        stranger = self.env['res.users'].create({
+            'name': 'm06d_stranger', 'login': 'm06d_stranger',
+            'groups_id': [(6, 0, [self.env.ref(VIEWER).id])],
+            **contractor_user_vals(other),
+        })
+        self.env['supervision.project.member'].create({
+            'project_id': self.project.id, 'user_id': stranger.id,
+        })
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertEqual((self.att.res_model, self.att.res_id), ('supervision.document', self.doc.id),
+                         '前提：附件的來源是工程文件')
+        Doc = self.env['supervision.document']
+        self.assertEqual(Doc.with_user(self.member).search([('id', '=', self.doc.id)]), self.doc,
+                         '承攬營造廠的成員讀得到工程文件')
+        self.assertFalse(Doc.with_user(stranger).search([('id', '=', self.doc.id)]),
+                         '別家營造廠讀不到')
+        with MockRequest(self.env(user=self.member)):
+            self.assertIsNotNone(self.ctrl.portal_construction_document_serve(self.att.id))
+        with MockRequest(self.env(user=stranger)):
+            with self.assertRaises(NotFound):
+                self.ctrl.portal_construction_document_serve(self.att.id)

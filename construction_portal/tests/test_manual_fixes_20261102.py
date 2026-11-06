@@ -16,6 +16,8 @@ from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    contractor_project_vals, contractor_user_vals, make_contractor)
 
 FIELD = 'construction_supervision_base.group_portal_user'   # 現場人員
 PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
@@ -29,9 +31,12 @@ class TestPortalManualFixes(TransactionCase):
         super().setUpClass()
         cls.ctrl = ConstructionPortal()
         cls.company = cls.env.company
+        # 夾具：前台現場人員是營造方帳號（範圍公司＝工程的承攬廠商）
+        cls.contractor = make_contractor(cls.env, '說明書修正測試營造')
         cls.project = cls.env['project.project'].create({
             'name': '說明書修正測試工程', 'code': 'MF-1102',
             'state': 'construction', 'company_id': cls.company.id,
+            **contractor_project_vals(cls.contractor),
         })
         cls.env['progress.schedule'].create({
             'project_id': cls.project.id,
@@ -40,6 +45,7 @@ class TestPortalManualFixes(TransactionCase):
         cls.worker = cls.env['res.users'].create({
             'name': 'mf_worker', 'login': 'mf_worker',
             'groups_id': [(6, 0, [cls.env.ref(FIELD).id])],
+            **contractor_user_vals(cls.contractor),
         })
         cls.env['supervision.project.member'].create({
             'project_id': cls.project.id, 'user_id': cls.worker.id})

@@ -16,6 +16,8 @@ from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    contractor_project_vals, contractor_user_vals, make_contractor)
 
 VIEWER = 'construction_supervision_base.group_portal_viewer'
 LEADER = 'construction_supervision_base.group_portal_leader'
@@ -29,9 +31,12 @@ class TestPortalDailyLogMaterials(TransactionCase):
         super().setUpClass()
         cls.ctrl = ConstructionPortal()
         cls.company = cls.env.company
+        # 夾具：前台帳號是營造方帳號（範圍公司＝工程的承攬廠商）
+        cls.contractor = make_contractor(cls.env, '前台材料測試營造')
         cls.project = cls.env['project.project'].create({
             'name': '前台材料測試工程', 'code': 'PM-MAT',
             'state': 'construction', 'company_id': cls.company.id,
+            **contractor_project_vals(cls.contractor),
         })
         cls.env['progress.schedule'].create({
             'project_id': cls.project.id,
@@ -59,6 +64,7 @@ class TestPortalDailyLogMaterials(TransactionCase):
         return cls.env['res.users'].create({
             'name': login, 'login': login,
             'groups_id': [(6, 0, [cls.env.ref(group_xmlid).id])],
+            **contractor_user_vals(cls.contractor),
         })
 
     def _sheet(self, days_ago):

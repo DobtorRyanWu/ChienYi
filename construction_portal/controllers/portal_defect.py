@@ -179,7 +179,8 @@ class DefectRoutesMixin:
 
                 try:
                     # duplicate check: (register_no + description) 或 (found_date + description)
-                    existing = Defect.search([
+                    # 營造方只比對自家讀得到的缺失（合約 §3.6 表外通則；別家的不能讓它跳過、也不回報 id）
+                    existing = self._dash_search(Defect._name, [
                         ('project_id', '=', supervision_project_id),
                         ('found_date', '=', found_date),
                         ('defect_description', '=', description),
@@ -202,6 +203,16 @@ class DefectRoutesMixin:
                     # 不用 draft —— general 的防竄改邏輯以離開草稿為界，
                     # 且匯入的歷史缺失本來就已經通知過了。
                     state = 'closed' if improvement_date else 'notified'
+                    if state == 'closed' and self._dash_is_contractor():
+                        # 匯入成「已結案」等於結案：缺失驗證與結案限監造方（合約 §3.6 寫入矩陣）
+                        failed += 1
+                        failed_details.append({
+                            'filename': fname,
+                            'error': (f'{register_no or found_date}: {description[:30]} '
+                                      f'已有改善完成日期＝會以「已結案」建立；結案由監造單位處理，'
+                                      f'營造廠帳號不能匯入已結案的缺失'),
+                        })
+                        continue
 
                     category = row.get('defect_category') or 'other'
                     vals = {
@@ -313,8 +324,10 @@ class DefectRoutesMixin:
         # 建分層索引（登錄編號 → 編號推出的日期 → 發現日期），docx 那側也產生
         # 一組鍵，由精確到寬鬆逐層比對。這取代舊版「把檔名日期捏造成 Q01-xxx
         # 再做等值比對」的 A 標專屬做法。
-        defects = Defect.search([('project_id', '=', supervision_project_id)])
+        # 營造方只能補自家的缺失（合約 §3.6 表外通則）：sudo 查詢會把別家營造廠的缺失也放進比對索引
+        defects = self._dash_visible(Defect.search([('project_id', '=', supervision_project_id)]))
         idx, ambiguous = build_defect_index(defects)
+        is_contractor = self._dash_is_contractor()
 
         updated = 0
         unmatched = 0
@@ -369,7 +382,14 @@ class DefectRoutesMixin:
                     if row.get('improvement'):
                         write_vals['improvement_result'] = row['improvement']
                     if row.get('close_comment'):
-                        write_vals['close_comment'] = row['close_comment']
+                        if is_contractor:
+                            # 結案說明屬監造方（合約 §3.6：缺失驗證與結案營造方不能做）；其他欄位照寫
+                            failed_details.append({
+                                'filename': inner_fn,
+                                'error': f'{label}: 結案說明由監造單位填寫，營造廠帳號匯入時略過這一欄',
+                            })
+                        else:
+                            write_vals['close_comment'] = row['close_comment']
                     if row.get('location') and not target.defect_location:
                         write_vals['defect_location'] = row['location']
                     if not write_vals:
@@ -501,15 +521,16 @@ class DefectRoutesMixin:
                 # 每筆包 savepoint，單筆失敗不影響其它
                 try:
                     with env.cr.savepoint():
+                        # 營造方只比對自家讀得到的缺失（合約 §3.6 表外通則）
                         existing = False
                         if reg:
-                            existing = Defect.search([
+                            existing = self._dash_search(Defect._name, [
                                 ('project_id', '=', supervision_project_id),
                                 ('source_description', '=', reg),
                                 ('defect_description', '=', description),
                             ], limit=1)
                         if not existing:
-                            existing = Defect.search([
+                            existing = self._dash_search(Defect._name, [
                                 ('project_id', '=', supervision_project_id),
                                 ('found_date', '=', found_date),
                                 ('defect_description', '=', description),
@@ -524,6 +545,15 @@ class DefectRoutesMixin:
 
                         state = 'closed' if close_comment else (
                             'improved' if improvement else 'notified')
+                        if state == 'closed' and self._dash_is_contractor():
+                            # 有結案說明＝以「已結案」建立；結案限監造方（合約 §3.6 寫入矩陣）
+                            failed += 1
+                            failed_details.append({
+                                'filename': inner_fn,
+                                'error': (f'{reg or found_date}: 檔案有結案說明＝會以「已結案」建立；'
+                                          f'結案由監造單位處理，營造廠帳號不能匯入已結案的缺失'),
+                            })
+                            continue
 
                         vals = {
                             'project_id': supervision_project_id,
@@ -897,9 +927,10 @@ class DefectRoutesMixin:
             defect = self._browse_defect(defect_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # 缺失驗證：監造查驗判定（合約 §3.6 寫入矩陣；契約「工程品管」）→ 營造方不能
         return self._run_review_action(
             defect, 'action_verify_pass',
-            self._defect_url(defect), self._defect_url(defect))
+            self._defect_url(defect), self._defect_url(defect), supervision_only=True)
 
     @http.route(['/construction/defect/<int:defect_id>/close'],
                 type='http', auth='user', website=True, methods=['POST'])
@@ -909,18 +940,22 @@ class DefectRoutesMixin:
             defect = self._browse_defect(defect_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # 缺失結案：同驗證，限監造方（合約 §3.6 寫入矩陣）
         return self._run_review_action(
             defect, 'action_close',
-            self._defect_url(defect), self._defect_url(defect))
+            self._defect_url(defect), self._defect_url(defect), supervision_only=True)
 
     @http.route(['/construction/defect/<int:defect_id>/notify'],
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_defect_notify(self, defect_id, **post):
-        """缺失：通知改善（draft → notified）。限老闆/主管。"""
+        """缺失：通知改善（draft → notified）。限老闆/主管，且限監造方（合約 §0b-12）。"""
         try:
             defect = self._browse_defect(defect_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # 通知改善＝監造通知乙方限期改善（契約「工程品管」）→ 營造方不能（合約 §0b-12）。
+        # 擋在任何寫入之前（下面補期限的分支會先寫期限）
+        self._require_not_contractor(_('權限不足：通知改善由監造單位發出，營造廠帳號不能執行'))
         # P10：提報時沒填改善期限，手機上沒地方補；在詳情頁帶期限進來，先寫再通知。
         # 先過管理守衛才寫入（_run_review_action 內也會守一次，這裡必須在寫入之前）。
         raw_deadline = (post.get('deadline') or '').strip()

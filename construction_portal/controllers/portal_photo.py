@@ -49,6 +49,8 @@ class PhotoRoutesMixin:
         project = self._resolve_photo_project(att)
         if not self._user_can_see_project(project):
             raise NotFound()  # 404，不洩漏附件存在性
+        if not self._dash_photo_attachment_visible(att):
+            raise NotFound()  # 營造方：照片本身也要看得到（別家營造廠的照片 404，合約 §3.6）
         try:
             w, h = int(width or 0), int(height or 0)
         except (TypeError, ValueError):
@@ -65,8 +67,9 @@ class PhotoRoutesMixin:
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_daily_log_photo_upload(self, log_id, **post):
         """詳情頁追加上傳照片"""
-        log = request.env['daily.log.sheet'].sudo().browse(log_id)
-        if not log.exists():
+        # 營造方只能在自家的日誌上加照片（合約 §3.6 表外通則：只檢查工程不算數）
+        log = self._dash_visible(request.env['daily.log.sheet'].sudo().browse(log_id).exists())
+        if not log:
             return request.redirect('/my')
         try:
             project = self._document_check_access(
@@ -97,8 +100,9 @@ class PhotoRoutesMixin:
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_daily_log_photo_delete(self, log_id, att_id, **post):
         """從詳情頁刪除單張照片"""
-        log = request.env['daily.log.sheet'].sudo().browse(log_id)
-        if not log.exists():
+        # 營造方只能刪自家日誌上的照片（合約 §3.6 表外通則）
+        log = self._dash_visible(request.env['daily.log.sheet'].sudo().browse(log_id).exists())
+        if not log:
             return request.redirect('/my')
         try:
             project = self._document_check_access(
@@ -172,8 +176,10 @@ class PhotoRoutesMixin:
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_reservation_inspection_photo_upload(self, inspection_id, **post):
         """預約式檢查追加照片"""
-        inspection = request.env['reservation.self.inspection'].sudo().browse(inspection_id)
-        if not inspection.exists():
+        # 營造方只能在自家的檢查上加照片（合約 §3.6 表外通則）
+        inspection = self._dash_visible(
+            request.env['reservation.self.inspection'].sudo().browse(inspection_id).exists())
+        if not inspection:
             return request.redirect('/my')
         try:
             project = self._document_check_access(
@@ -201,8 +207,10 @@ class PhotoRoutesMixin:
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_reservation_inspection_photo_delete(self, inspection_id, att_id, **post):
         """預約式檢查刪除照片"""
-        inspection = request.env['reservation.self.inspection'].sudo().browse(inspection_id)
-        if not inspection.exists():
+        # 營造方只能刪自家檢查上的照片（合約 §3.6 表外通則）
+        inspection = self._dash_visible(
+            request.env['reservation.self.inspection'].sudo().browse(inspection_id).exists())
+        if not inspection:
             return request.redirect('/my')
         try:
             self._document_check_access(
@@ -280,6 +288,14 @@ class PhotoRoutesMixin:
         source_options = fields_info['source_model']['selection']
         category_options = _photo_category_options(request.env)
 
+        if self._dash_is_contractor():
+            # 模板直接讀 project.signboard_photo_ids（告示牌照片是 supervision.photo，營造廠層級）。
+            # _document_check_access 回傳 sudo 紀錄，營造方要換回本人身分讀，才不會列出別家營造廠的照片
+            # （合約 §3.6）；這頁模板只讀工程的名稱／年度／id 與告示牌照片，本人身分讀得到。
+            # 先清掉這個欄位的快取：x2many 的快取不分 sudo，同一個請求前面若有人用 sudo 讀過，
+            # 本人身分讀到的會是 sudo 的值
+            project = project.with_user(request.env.user)
+            project.invalidate_recordset(['signboard_photo_ids'])
         values = {
             'project': project,
             'photos': photos,
@@ -580,10 +596,11 @@ class PhotoRoutesMixin:
         Photo = request.env['supervision.photo'].sudo()
         project_domain = [('active', '=', True), ('project_id', '=', project_id)]
 
-        total_photos = Photo.search_count(project_domain)
-        gps_photos = Photo.search_count(
-            project_domain + [('latitude', '!=', 0), ('longitude', '!=', 0)]
-        )
+        # 營造方只數自家的照片（合約 §3.6：照片列表與地圖 API 套營造廠層級）
+        total_photos = self._dash_search('supervision.photo', project_domain, count=True)
+        gps_photos = self._dash_search(
+            'supervision.photo',
+            project_domain + [('latitude', '!=', 0), ('longitude', '!=', 0)], count=True)
 
         # 篩選選項
         fields_info = Photo.fields_get(['source_model', 'category', 'construction_phase'])
@@ -620,14 +637,14 @@ class PhotoRoutesMixin:
         except (AccessError, MissingError):
             return {'error': 'Access denied'}
 
-        Photo = request.env['supervision.photo'].sudo()
         domain = self._portal_map_build_domain(project_id, post, require_gps=True)
-        photos = Photo.search(domain, limit=5000, order='shot_date desc')
+        # 營造方只列自家的照片（合約 §3.6）
+        photos = self._dash_search('supervision.photo', domain, limit=5000, order='shot_date desc')
 
-        total = Photo.search_count([
+        total = self._dash_search('supervision.photo', [
             ('active', '=', True), ('project_id', '=', project_id),
             ('latitude', '!=', 0), ('longitude', '!=', 0),
-        ])
+        ], count=True)
 
         return {
             'markers': [self._portal_map_photo_to_marker(p) for p in photos],
@@ -659,8 +676,10 @@ class PhotoRoutesMixin:
 
         limit = min(int(post.get('limit', 50)), 100)
         offset = int(post.get('offset', 0))
-        total = Photo.search_count(domain)
-        photos = Photo.search(domain, limit=limit, offset=offset, order='shot_date desc')
+        # 營造方只列自家的照片（合約 §3.6）
+        total = self._dash_search('supervision.photo', domain, count=True)
+        photos = self._dash_search('supervision.photo', domain, limit=limit, offset=offset,
+                                   order='shot_date desc')
 
         source_labels = dict(Photo._fields['source_model'].selection)
         category_labels = dict(Photo._fields['category'].selection)
@@ -703,7 +722,8 @@ class PhotoRoutesMixin:
         if post.get('source_model'):
             domain.append(('source_model', '=', post['source_model']))
 
-        photos = Photo.search(domain, limit=200)
+        # 營造方只列自家的照片（合約 §3.6）
+        photos = self._dash_search('supervision.photo', domain, limit=200)
 
         # 精算距離排序
         results = []

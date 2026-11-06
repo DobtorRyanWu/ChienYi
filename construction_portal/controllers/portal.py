@@ -11,6 +11,7 @@ from odoo.http import request
 from odoo.addons.portal.controllers.portal import CustomerPortal, pager as portal_pager
 from odoo.addons.portal.controllers.thread import ThreadController as PortalThreadController
 from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
@@ -86,12 +87,13 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
         前台 create / upload 路由多走 .sudo()（繞過 ir.rule / ir.model.access），
         唯讀 viewer 仍可 POST 進來寫入 → 越權。放行條件：
-        - 內部使用者（base.group_user：監造單位員工 / 系統管理者）一律放行；
+        - 監造方內部帳號（_is_supervision_side()：監造單位員工 / 系統管理者）一律放行；
+          營造廠主管（後台唯讀帳號）與控台讀取帳號雖是內部帳號，不在此列（公司儀表板合約 §3.6）；
         - 前台角色需現場人員（GROUP_FIELD）以上（含主管 / 老闆 / 代操作員）；
         - 僅純前台 viewer（只有 base.group_portal + viewer）被擋。
         """
         user = request.env.user
-        if (user.has_group('base.group_user')
+        if (user._is_supervision_side()
                 or self._can_manage()
                 or user.has_group(GROUP_FIELD)):
             return
@@ -100,15 +102,15 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     def _require_photo_deleter(self, photos, msg=None):
         """刪除照片：只有上傳者本人與管理層級可以刪（閱覽者已被 _require_write 擋在前面）。
 
-        管理層級＝_can_manage()（老闆／主管／系統管理者／代操作員）；內部使用者
-        （base.group_user，監造單位員工）比照 _require_write 放行。其餘（現場人員）
+        管理層級＝_can_manage()（老闆／主管／系統管理者／代操作員）；監造方內部帳號
+        （_is_supervision_side()，監造單位員工）比照 _require_write 放行。其餘（現場人員）
         只能刪自己上傳的：supervision.photo／ir.attachment 的 create_uid 就是上傳者
         （前台上傳雖用 sudo，sudo 不改 uid）。
         photos 可為多筆，必須全部是自己上傳的；空集合視為沒有東西要刪，放行。
         sudo 只讀 create_uid，範圍是呼叫端已通過 _document_check_access 的那張單據上的照片。
         """
         user = request.env.user
-        if self._can_manage() or user.has_group('base.group_user'):
+        if self._can_manage() or user._is_supervision_side():
             return
         if all(p.sudo().create_uid.id == user.id for p in photos):
             return
@@ -124,6 +126,74 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         att = request.env['ir.attachment'].sudo().browse(attachment_id).exists()
         return self._require_photo_deleter(att)
 
+    # ==================== 營造方範圍（公司儀表板合約 §3.6） ====================
+    # 受限帳號＝營造方（res.users._dash_is_contractor_side()：後台營造廠主管、前台營造組織帳號）
+    # ＋控台讀取帳號（_dash_is_console_reader()；隱含 base.group_user，不擋就會被當成監造方，合約 §0b-24）。
+    # 前台路由大量用 sudo 列出、取出、寫入營造廠層級紀錄（日誌、照片、缺失、檢查…），
+    # sudo 不走 ir.rule，營造廠範圍規則（construction_company_dashboard/models/rule_scope.py）
+    # 就被繞過。下面幾個方法讓 sudo 查出來的紀錄對受限帳號「以本人身分再過一次 ir.rule」：
+    # 範圍條件只有規則那一份，這裡不另寫一套（控台讀取帳號在規則裡框架以外全拒＝什麼都看不到）。
+    # 監造方一律原樣放行（行為與原本相同）。
+
+    def _dash_is_contractor(self):
+        """登入者是受限帳號（營造方或控台讀取；判定只看帳號本身，不因 sudo 跳過）。"""
+        user = request.env.user
+        return user._dash_is_contractor_side() or user._dash_is_console_reader()
+
+    def _require_not_contractor(self, msg=None):
+        """審核類動作（合約 §3.6 寫入矩陣）：營造方一律拒；監造方照原本的守衛。"""
+        if self._dash_is_contractor():
+            raise AccessError(msg or _('權限不足：此操作限監造單位，營造廠帳號不能執行'))
+
+    def _dash_visible(self, records):
+        """營造方：只留下本人身分讀得到的紀錄（套 ir.rule 範圍）；監造方原樣回傳。
+
+        回傳的紀錄保留原本的 env（呼叫端通常是 sudo，後續讀關聯欄位照舊），順序不變。
+        """
+        if not records or not self._dash_is_contractor():
+            return records
+        allowed = set(records.with_user(request.env.user)._filtered_access('read').ids)
+        return records.browse([rid for rid in records.ids if rid in allowed])
+
+    def _dash_search(self, model, domain, count=False, **kwargs):
+        """sudo 查詢的營造方版本：營造方改以本人身分查（ir.rule 範圍在資料庫層套用，
+        分頁與筆數才會對），結果再換回 sudo 紀錄；監造方照原本 sudo 查。"""
+        Model = request.env[model].sudo()
+        if self._dash_is_contractor():
+            Scoped = Model.with_user(request.env.user)
+            if count:
+                return Scoped.search_count(domain)
+            return Model.browse(Scoped.search(domain, **kwargs).ids)
+        if count:
+            return Model.search_count(domain)
+        return Model.search(domain, **kwargs)
+
+    def _dash_attachments_visible(self, attachments):
+        """營造方看得到的附件：依來源單據判定（同 ir.attachment 的核心原則）。
+
+        - 沒有來源單據（res_model／res_id 空）＝掛在工程上的文件：看得到工程就看得到
+          （呼叫端已用 _user_can_see_project 確認過工程）；
+        - 有來源單據：以本人身分讀得到那張單據才看得到（營造廠層級單據只有自家的、
+          「其他」類單據一律看不到）；來源模型不存在一律看不到。
+        前台帳號不能直接對 ir.attachment 做存取檢查（核心對非內部帳號一律拒），所以查來源單據。
+        監造方原樣回傳。
+        """
+        if not attachments or not self._dash_is_contractor():
+            return attachments
+        user = request.env.user
+        by_model = {}
+        for att in attachments:
+            if att.res_model and att.res_id:
+                by_model.setdefault(att.res_model, set()).add(att.res_id)
+        allowed = set()
+        for model, res_ids in by_model.items():
+            if model not in request.env:
+                continue
+            sources = request.env[model].sudo().browse(list(res_ids)).exists()
+            allowed |= {(model, rid) for rid in sources.with_user(user)._filtered_access('read').ids}
+        return attachments.filtered(
+            lambda a: not (a.res_model and a.res_id) or (a.res_model, a.res_id) in allowed)
+
     # ==================== 帶權限的照片供圖（M0.6） ====================
     # 取代 public=True 的裸 /web/content：附件不再 public，改由本端點以
     # 「登入者對照片所屬專案的可見範圍」把關，通過後 sudo 委派 Odoo 影像
@@ -136,12 +206,28 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         res_model→project_id 反解——否則本端點會淪為「任意附件下載器」，讓專案成員
         枚舉下載掛在專案上的非照片附件（chatter / 計價 / 簽章）。（M0.6 抗辯 finding）
         """
+        source = self._resolve_photo_source(att)
+        return source.project_id if source else None
+
+    def _dash_photo_attachment_visible(self, att):
+        """取圖端點的營造方檢查（公司儀表板合約 §3.6）：附件的來源紀錄要以本人身分讀得到。
+
+        監造方一律 True（照原本只看工程）。營造方：照片紀錄（營造廠層級）只有自家的看得到；
+        驗收缺失前／後照片（驗收歸「其他」類）一律看不到。
+        """
+        if not self._dash_is_contractor():
+            return True
+        source = self._resolve_photo_source(att)
+        return bool(source) and bool(self._dash_visible(source))
+
+    def _resolve_photo_source(self, att):
+        """反解前台照片附件的來源紀錄（supervision.photo 或驗收缺失），找不到回 None。允許清單同上。"""
         env = request.env
         # 1) supervision.photo 綁定（_portal_save_photos 主流程、slip/test/inspection 關聯）
         photo = env['supervision.photo'].sudo().search(
             [('attachment_id', '=', att.id)], limit=1)
         if photo and photo.project_id:
-            return photo.project_id
+            return photo
         # 2)（已移除）缺失改善照片行的 image 欄位附件。
         #    照片資料表收斂後，缺失照片就是 supervision.photo，第 1 步已涵蓋；
         #    兩個照片行模型與其欄位附件都不存在了。
@@ -153,7 +239,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             if model_name in env and field in env[model_name]._fields:
                 rec = env[model_name].sudo().search([(field, 'in', att.id)], limit=1)
                 if rec:
-                    return rec.project_id
+                    return rec
         return None
 
     def _user_can_see_project(self, project):
@@ -480,7 +566,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        today = date.today()
+        # 台灣日期：今日日誌、今日照片（shot_date 已是台灣日期）、本週排程都用它（公司儀表板合約 §5.3）
+        today = local_today()
 
         # DAY 計數：(today - contract_start_date).days；已竣工凍結至 actual_end_date
         day_count = self._get_project_day_count(project)
@@ -698,6 +785,9 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             )
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # 工程主檔與營造廠清單：營造方不能改（公司儀表板合約 §3.6 寫入矩陣；契約「乙方不得自行變更本契約」）。
+        # 編輯頁也擋：頁上用 sudo 列出全庫內部帳號與公司，營造方存不了就不該看。
+        self._require_not_contractor(_('權限不足：工程資訊由監造單位維護，營造廠帳號不能修改'))
 
         # 僅允許 draft 編輯
         if project.state != 'draft':
@@ -807,6 +897,9 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         # H1：修改工程編號屬專案主檔異動，限老闆 / 主管
         if not self._can_manage():
             return {'success': False, 'error': '權限不足：僅老闆或主管可修改工程編號'}
+        # 工程編號比照工程主檔：營造方不能改（公司儀表板合約 §3.6 寫入矩陣，hypothesis：契約無明文）
+        if self._dash_is_contractor():
+            return {'success': False, 'error': '權限不足：工程編號由監造單位維護，營造廠帳號不能修改'}
 
         code = (kw.get('code') or '').strip()
         if not code:
@@ -849,6 +942,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
         # H1：修改工程資訊限老闆 / 主管（現場人員不得改專案主檔）
         self._require_manage(_('僅老闆或主管可修改工程資訊'))
+        # 工程主檔與營造廠清單：營造方不能改（公司儀表板合約 §3.6 寫入矩陣）
+        self._require_not_contractor(_('權限不足：工程資訊由監造單位維護，營造廠帳號不能修改'))
 
         if project.state != 'draft':
             return request.redirect(
@@ -1062,7 +1157,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     # 全庫的工程共用，不能交給其中一家營造廠改。
 
     def _can_manage_inspection_types(self):
-        return self._can_manage() and not request.env.user.share
+        # 限監造方內部帳號：營造方（含後台營造廠主管）與前台帳號都只能看和下載（公司儀表板合約 §3.6）
+        return self._can_manage() and request.env.user._is_supervision_side()
 
     def _require_manage_inspection_types(self):
         if not self._can_manage_inspection_types():
@@ -1283,6 +1379,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     def portal_construction_project_new(self, **kw):
         """新增工程專案表單（限老闆或主管，與 POST 同一把尺）"""
         self._require_manage(_('僅老闆或主管可新增工程專案'))
+        # 建工程＝建工程主檔：營造方不能（公司儀表板合約 §3.6：營造方只能建立自家的營造廠層級紀錄）
+        self._require_not_contractor(_('權限不足：工程由監造單位建立，營造廠帳號不能新增工程'))
         # 從 query string 取得來源專案 ID，讓 breadcrumb 可以回首頁
         from_project_id = kw.get('from_project')
         back_url = '/construction'
@@ -1310,6 +1408,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
         # 角色 guard：僅老闆/主管/內部可新增專案
         self._require_manage(_('僅老闆或主管可新增工程專案'))
+        self._require_not_contractor(_('權限不足：工程由監造單位建立，營造廠帳號不能新增工程'))
 
         name = post.get('name', '').strip()
         if not name:
@@ -1398,9 +1497,15 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     # 所以動作一律 sudo 執行。先 with_user(本人)：_document_check_access 回傳的是系統帳號的
     # record（Odoo 核心 portal.py），不換回來的話審核人、結案人欄位（self.env.uid）都記成「系統」。
 
-    def _run_review_action(self, record, method, ok_url, err_url):
-        """共用：守門 + 呼叫審核動作 + 導回（攔 UserError/ValidationError 顯示訊息）"""
+    def _run_review_action(self, record, method, ok_url, err_url, supervision_only=False):
+        """共用：守門 + 呼叫審核動作 + 導回（攔 UserError/ValidationError 顯示訊息）
+
+        supervision_only：審核類動作（公司儀表板合約 §3.6 寫入矩陣：缺失驗證與結案、
+        通報單確認與結案、自主檢查結案）→ 營造方一律拒，監造方照 _require_manage。
+        """
         self._require_manage(_('僅老闆或主管可審核'))
+        if supervision_only:
+            self._require_not_contractor(_('權限不足：此審核動作限監造單位，營造廠帳號不能執行'))
         if not record:
             return request.redirect(err_url)
         try:

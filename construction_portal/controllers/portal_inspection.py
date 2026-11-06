@@ -220,6 +220,7 @@ class InspectionRoutesMixin:
         env = request.env
         Insp = env['general.self.inspection'].sudo()
         InspType = env['self.inspection.type'].sudo()
+        contractor = self._dash_is_contractor()
         base_url = f'/construction/{project_id}/inspections/import'
         supervision_project_id = project.id
 
@@ -273,6 +274,17 @@ class InspectionRoutesMixin:
                             ('project_id', '=', supervision_project_id),
                             ('project_id', '=', False),
                         ], limit=1)
+                        if not t and contractor:
+                            # 營造方不自動補建檢查類型（樣板是全庫／工程共用的主檔，由監造方維護；
+                            # 合約 §0b-12）：這一列列出原因、不匯入
+                            failed += 1
+                            failed_details.append({
+                                'filename': fname,
+                                'error': _('%(date)s 檢查類型「%(name)s」不存在。營造廠帳號匯入不會自動補建'
+                                           '檢查類型（樣板），請監造方補建後再匯入',
+                                           date=insp_date, name=type_name),
+                            })
+                            continue
                         if not t:
                             t = InspType.create({
                                 'name': type_name,
@@ -282,8 +294,8 @@ class InspectionRoutesMixin:
                             })
                         type_cache[type_name] = t
 
-                    # 2. duplicate check
-                    existing = Insp.search([
+                    # 2. duplicate check（營造方只比對自家讀得到的檢查，合約 §3.6 表外通則）
+                    existing = self._dash_search(Insp._name, [
                         ('project_id', '=', supervision_project_id),
                         ('inspection_date', '=', insp_date),
                         ('inspection_type_id', '=', t.id),
@@ -691,8 +703,11 @@ class InspectionRoutesMixin:
         if not type_id:
             return {'items': [], 'stages': [], 'timings': [], 'measures': []}
 
-        InspType = request.env['self.inspection.type'].sudo().browse(type_id)
-        if not InspType.exists():
+        # 先確認使用者看得到這個樣板（全域樣板＋可存取工程的樣板，與樣板列表／詳情頁同一個判定），
+        # 再以 sudo 讀項目。原本直接 sudo browse 任意 type_id，讀得到別的工程專屬樣板的項目與標準（11-06 抗辯 F9）。
+        # 看不到與不存在回同一個空結果，不透露樣板存不存在。
+        InspType = self._get_visible_inspection_type(type_id)
+        if not InspType:
             return {'items': [], 'stages': [], 'timings': [], 'measures': []}
 
         items = []
@@ -979,8 +994,9 @@ class InspectionRoutesMixin:
     def portal_construction_reservation_inspection_detail(self, inspection_id, **kw):
         """預約式自主檢查詳情"""
         Inspection = request.env['reservation.self.inspection'].sudo()
-        inspection = Inspection.browse(inspection_id)
-        if not inspection.exists():
+        # 營造方只能看自家的檢查（合約 §3.6）：sudo 取出後只檢查工程不算數，要以本人身分再檢查這一筆
+        inspection = self._dash_visible(Inspection.browse(inspection_id).exists())
+        if not inspection:
             return request.redirect('/my')
         try:
             project = self._document_check_access(
@@ -1087,9 +1103,11 @@ class InspectionRoutesMixin:
             insp = self._document_check_access('general.self.inspection', inspection_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # 自主檢查結案：在監造檢驗之後，歸監造方（合約 §3.6 寫入矩陣，hypothesis；確認不擋）
         return self._run_review_action(
             insp, 'action_close',
-            f'/construction/inspection/{inspection_id}', f'/construction/inspection/{inspection_id}')
+            f'/construction/inspection/{inspection_id}', f'/construction/inspection/{inspection_id}',
+            supervision_only=True)
 
     @http.route(['/construction/inspection/<int:inspection_id>/inspect'],
                 type='http', auth='user', website=True, methods=['POST'])
@@ -1099,6 +1117,9 @@ class InspectionRoutesMixin:
             insp = self._document_check_access('general.self.inspection', inspection_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        # 先擋唯讀角色（合約 §3.6、§13-8）：_require_owner_or_manager 只限制現場人員，
+        # 定期閱覽者與營造廠主管（後台唯讀）原本都會穿過去、直接改狀態
+        self._require_write(_('權限不足：閱覽角色不可完成檢查'))
         try:
             self._require_owner_or_manager(insp)
             insp.action_inspect()

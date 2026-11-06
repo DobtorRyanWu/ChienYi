@@ -21,6 +21,8 @@ from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    SUPERVISION_USER_VALS, contractor_project_vals, contractor_user_vals, make_contractor)
 
 BOSS = 'construction_supervision_base.group_portal_subscriber'     # 老闆
 LEADER = 'construction_supervision_base.group_portal_leader'       # 主管
@@ -42,17 +44,23 @@ class TestPortalOrmReadonly(TransactionCase):
         super().setUpClass()
         env = cls.env
         cls.ctrl = ConstructionPortal()
+        # 夾具：前台帳號是營造方帳號（範圍公司＝工程的承攬廠商）；主管代表監造方前台人員
+        # （本類別的主管會做缺失驗證、工期展延，這兩個動作營造方不能做——合約 §3.6）
+        cls.contractor = make_contractor(env, '唯讀測試營造')
         cls.project = env['project.project'].create({
             'name': '唯讀測試工程', 'code': 'RO-GEN', 'project_type': 'general',
-            'state': 'construction', 'company_id': env.company.id})
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
         # 別人的工程：測試帳號都不是成員
         cls.other_project = env['project.project'].create({
             'name': '唯讀測試他案', 'code': 'RO-OTHER', 'project_type': 'general',
-            'state': 'construction', 'company_id': env.company.id})
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
         # 別人的預約式工程（通報單用）
         cls.other_res_project = env['project.project'].create({
             'name': '唯讀測試他案預約式', 'code': 'RO-RSV', 'project_type': 'reservation',
-            'state': 'construction', 'company_id': env.company.id})
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
         env['defect.improvement.prefix.config'].create({
             'project_id': cls.project.id, 'supervision_prefix': 'ROQA',
             'contractor_prefix': 'ROQR'})
@@ -61,21 +69,24 @@ class TestPortalOrmReadonly(TransactionCase):
             'project_id': cls.project.id,
             'change_date': fields.Date.today()}).write({'state': 'active'})
         cls.boss = cls._mk_user('ro_boss', [BOSS])
-        cls.leader = cls._mk_user('ro_leader', [LEADER])
+        cls.leader = cls._mk_user('ro_leader', [LEADER], SUPERVISION_USER_VALS)
         cls.field = cls._mk_user('ro_field', [FIELD])
         cls.field_b = cls._mk_user('ro_field_b', [FIELD])
         cls.observer = cls._mk_user('ro_observer', [VIEWER])
-        cls.operator = cls._mk_user('ro_operator', ['base.group_user', OPERATOR])
+        cls.operator = cls._mk_user('ro_operator', ['base.group_user', OPERATOR], {})
         for u in (cls.leader, cls.field, cls.field_b, cls.observer):
             env['supervision.project.member'].create({
                 'project_id': cls.project.id, 'user_id': u.id})
         cls.global_type = env['self.inspection.type'].create({'name': '唯讀測試全域樣板'})
 
     @classmethod
-    def _mk_user(cls, login, groups):
+    def _mk_user(cls, login, groups, side_vals=None):
+        # 預設是營造方前台帳號；內部帳號傳 {}、監造方前台帳號傳 SUPERVISION_USER_VALS
+        if side_vals is None:
+            side_vals = contractor_user_vals(cls.contractor)
         return cls.env['res.users'].create({
             'name': login, 'login': login,
-            'groups_id': [(6, 0, [cls.env.ref(g).id for g in groups])]})
+            'groups_id': [(6, 0, [cls.env.ref(g).id for g in groups])], **side_vals})
 
     def _photo(self, uploader, project):
         env_u = self.env(user=uploader)

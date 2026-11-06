@@ -160,7 +160,7 @@
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-check"/> 確認</button>
                             </form>
-                            <form t-if="inspection.state == 'confirmed'" t-attf-action="/construction/inspection/#{inspection.id}/close" method="post" style="flex:1;">
+                            <form t-if="inspection.state == 'confirmed' and not request.env.user._dash_is_contractor_side()" t-attf-action="/construction/inspection/#{inspection.id}/close" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-flag-checkered"/> 結案</button>
                             </form>

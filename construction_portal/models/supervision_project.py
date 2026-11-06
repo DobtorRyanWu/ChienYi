@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api
+from odoo.osv import expression
 
 
 class SupervisionProjectPortal(models.Model):
@@ -54,9 +55,28 @@ class SupervisionProjectPortal(models.Model):
           或自己為監造工程師的案件。僅排除「終止」狀態。
         - Portal 老闆：看全庫所有專案（不分狀態）。
         - Portal 主管/現場/閱覽：看被指派為參與成員的專案，排除草稿/終止。
+        - 控台讀取帳號：什麼都沒有（公司儀表板合約 §0b-24）。
+        - 營造方（後台營造廠主管、前台營造組織帳號；公司儀表板合約 §3.6）：上面依角色的條件
+          再 AND「工程的營造廠含自己的範圍公司」（工程層級條件，同 rule_scope 的 project.project）；
+          範圍公司空白或不是營造廠 → 什麼都沒有。監造方不變。
+        呼叫端（_user_can_see_project）會拿這個條件做 sudo 查詢，所以營造方條件必須寫在這裡，
+        不能只靠 ir.rule。
         """
         user = self.env.user
+        if user._dash_is_console_reader():
+            # 控台讀取帳號（隱含 base.group_user）：前台一個工程都看不到（合約 §0b-24；讀取規則對它框架以外全拒）
+            return [('id', '=', 0)]
+        domain = self._get_portal_projects_domain_by_role(user)
+        if user._dash_is_contractor_side():
+            if not user._dash_scope_ok():
+                return [('id', '=', 0)]
+            scope_id = user.sudo().dash_scope_company_id.id
+            return expression.AND([domain, [('contractor_company_ids', 'in', [scope_id])]])
+        return domain
 
+    @api.model
+    def _get_portal_projects_domain_by_role(self, user):
+        """依角色的可見工程條件（原 _get_portal_projects_domain 的內容，未含營造方範圍）。"""
         # 系統管理者：與後台 Rule 143「管理者: 工程案件完整存取」對齊，
         # 不做公司過濾，只排除「終止」狀態（必須先於 group_user 判斷，
         # 因為 group_system 是 group_user 的超集）

@@ -345,7 +345,7 @@
                             <div class="cy-hud-resbox-label">快速新增</div>
                             <!-- 下拉選單 -->
                             <div class="cy-quick-add-menu" id="quickAddMenu" style="display: none;">
-                                <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')">
+                                <t t-if="(request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')) and not request.env.user._dash_is_contractor_side()">
                                     <a t-attf-href="/construction/project/new?from_project=#{project.id}" class="cy-quick-add-item">
                                         <span>➕</span><span>新增專案</span>
                                     </a>
@@ -367,7 +367,7 @@
                                 <a t-attf-href="/construction/#{project.id}/documents" class="cy-quick-add-item">
                                     <span>📂</span><span>檔案管理</span>
                                 </a>
-                                <t t-if="can_manage">
+                                <t t-if="can_manage and not request.env.user._dash_is_contractor_side()">
                                     <a t-attf-href="/construction/#{project.id}/schedule/extend" class="cy-quick-add-item">
                                         <span>📅</span><span>工期展延</span>
                                     </a>
@@ -599,7 +599,7 @@
                         <span t-attf-class="cy-badge cy-badge-#{project.state}" style="font-size: 0.9rem; padding: 6px 14px;">
                             <t t-esc="dict(project._fields['state'].selection).get(project.state, project.state)"/>
                         </span>
-                        <t t-if="project.state == 'draft'">
+                        <t t-if="project.state == 'draft' and not request.env.user._dash_is_contractor_side()">
                             <a t-attf-href="/construction/#{project.id}/edit"
                                class="cy-btn"
                                style="padding: 6px 14px; border: 1px solid var(--wb-blue); color: var(--wb-blue); font-weight: 700; font-size: 0.9rem; border-radius: 8px; text-decoration: none;">
@@ -938,7 +938,7 @@
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
                     <a class="cy-drawer-item"
-                       t-if="request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')"
+                       t-if="(request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')) and not request.env.user._dash_is_contractor_side()"
                        t-attf-href="/construction/project/new#{project and ('?from_project=' + str(project.id)) or ''}">
                         <span class="cy-drawer-item-icon">➕</span>
                         <span class="cy-drawer-item-label">新增專案</span>
@@ -960,7 +960,8 @@
                         <span class="cy-drawer-item-label">自主檢查樣板庫</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
-                    <a class="cy-drawer-item" t-if="project"
+                    <!-- 營造方看不到水位（公司儀表板合約 §3.2「其他」類、§3.6），入口一併藏起來，免得點了 403 -->
+                    <a class="cy-drawer-item" t-if="project and not request.env.user._dash_is_contractor_side()"
                        t-attf-href="/construction/#{project.id}/water-level">
                         <span class="cy-drawer-item-icon">〰</span>
                         <span class="cy-drawer-item-label">水位監測</span>
@@ -989,11 +990,15 @@
                         <span class="cy-drawer-item-label">使用說明</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
+                    <!-- 營造方不給「意見回饋」：客服回報被公司儀表板拒寫規則擋住（合約 §0b-13、§0b-20），點了只會 403。
+                         外層 t-if 包住佔位連結：construction_helpdesk 以 xpath 換掉裡面的 <a>，條件仍留在外層。 -->
+                    <t t-if="not request.env.user._dash_is_contractor_side()">
                     <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="意見回饋即將推出">
                         <span class="cy-drawer-item-icon">💬</span>
                         <span class="cy-drawer-item-label">意見回饋</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
+                    </t>
                     <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="ChienYi Portal v11.0">
                         <span class="cy-drawer-item-icon">ℹ</span>
                         <span class="cy-drawer-item-label">關於</span>
@@ -1652,6 +1657,17 @@
                 </form>
             </div>
         </t>
+    </template>
+
+    <!-- /my 首頁的文件入口卡（portal.portal_docs_entry）：營造方不給 dobtor「文件」「試算表」兩張卡
+         （營造廠主管沒有那兩個模組的群組，點了只會 403；合約 §0b-20）。
+         繼承核心 portal 的卡片模板而不是 dobtor 的模板：dobtor 不一定每個庫都有裝，繼承不存在的模板會讓安裝失敗；
+         卡片網址與 dobtor_doc_editor／dobtor_spreadsheet_editor 的 portal_templates.xml 相同。 -->
+    <template id="portal_docs_entry_hide_for_contractor" inherit_id="portal.portal_docs_entry"
+              name="Portal：營造方不顯示文件／試算表入口卡">
+        <xpath expr="//div[contains(@t-att-class, 'o_portal_index_card')]" position="attributes">
+            <attribute name="t-if">not (url in ('/my/documents', '/my/spreadsheets') and request.env.user._dash_is_contractor_side())</attribute>
+        </xpath>
     </template>
 
 </odoo>

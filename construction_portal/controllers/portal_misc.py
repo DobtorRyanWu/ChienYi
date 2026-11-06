@@ -46,6 +46,9 @@ class MiscRoutesMixin:
         project = self._resolve_document_project(att)
         if not self._user_can_see_project(project):
             raise NotFound()
+        # 營造方：工程看得到還不夠，附件的來源單據也要看得到（別家營造廠單據上的附件 404，合約 §3.6）
+        if not self._dash_attachments_visible(att):
+            raise NotFound()
         return request.env['ir.binary'].sudo()._get_stream_from(
             att, 'raw').get_response(as_attachment=True)
 
@@ -286,6 +289,10 @@ class MiscRoutesMixin:
         folder_id = int(folder_filter) if folder_filter and folder_filter.isdigit() else 0
         if folder_id:
             domain.append(('folder_id', 'child_of', folder_id))
+        if self._dash_is_contractor():
+            # 營造方：只列來源單據看得到的附件（別家營造廠單據上的附件不列，合約 §3.6）。
+            # 先依來源判定、再把結果併進 domain，分頁與筆數才會對
+            domain.append(('id', 'in', self._dash_attachments_visible(Attachment.search(domain)).ids))
 
         att_count = Attachment.search_count(domain)
         pager = portal_pager(
@@ -385,9 +392,11 @@ class MiscRoutesMixin:
             return request.redirect('/my')
         slip = request.env['reservation.notification.slip'].search(
             [('id', '=', slip_id), ('project_id', '=', project.id)], limit=1)
+        # 通報單確認（核定）：監造確認（舊系統簽章列「承包商｜監造確認｜核准」；合約 §3.6）→ 營造方不能
         return self._run_review_action(
             slip, 'action_confirm',
-            f'/construction/{project_id}/slip/{slip_id}', f'/construction/{project_id}/slip/{slip_id}')
+            f'/construction/{project_id}/slip/{slip_id}', f'/construction/{project_id}/slip/{slip_id}',
+            supervision_only=True)
 
     @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/close'],
                 type='http', auth='user', website=True, methods=['POST'])
@@ -399,9 +408,11 @@ class MiscRoutesMixin:
             return request.redirect('/my')
         slip = request.env['reservation.notification.slip'].search(
             [('id', '=', slip_id), ('project_id', '=', project.id)], limit=1)
+        # 通報單結案：同確認，限監造方（合約 §3.6 寫入矩陣）
         return self._run_review_action(
             slip, 'action_close',
-            f'/construction/{project_id}/slip/{slip_id}', f'/construction/{project_id}/slip/{slip_id}')
+            f'/construction/{project_id}/slip/{slip_id}', f'/construction/{project_id}/slip/{slip_id}',
+            supervision_only=True)
 
     @http.route(['/construction/<int:project_id>/slip/<int:slip_id>/set-geo'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
@@ -444,6 +455,8 @@ class MiscRoutesMixin:
         """工期展延頁面：顯示 draft 進度表並提供展延輸入"""
         # P5：展延會改進度表，限老闆／主管（現場人員、閱覽者不該看到表單）
         self._require_manage(_('僅老闆或主管可設定工期展延'))
+        # 工期展延：乙方申請、甲方核定、監造核轉；系統沒有申請流程，這裡等於核定 → 營造方不能（合約 §3.6）
+        self._require_not_contractor(_('權限不足：工期展延由監造單位設定，營造廠帳號不能執行'))
         try:
             project = request.env['project.project'].browse(project_id)
             project.check_access_rule('read')
@@ -474,6 +487,7 @@ class MiscRoutesMixin:
         """提交工期展延：寫入 current_extension 並呼叫 action_extend_lines"""
         # P5：同 GET，限老闆／主管（下面 schedule 用 sudo 寫，守衛只能靠這裡）
         self._require_manage(_('僅老闆或主管可設定工期展延'))
+        self._require_not_contractor(_('權限不足：工期展延由監造單位設定，營造廠帳號不能執行'))
         # 只確認讀得到工程（成員／老闆公司範圍）：前台角色沒有工程的 ORM 寫入權
         # （2026-11-04 收回），原本以本人身分查 write 會讓每個前台帳號都被導回 /my
         try:

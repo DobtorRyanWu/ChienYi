@@ -18,6 +18,8 @@ from odoo.addons.website.tools import MockRequest
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    SUPERVISION_USER_VALS, contractor_project_vals, contractor_user_vals, make_contractor)
 
 LEADER = 'construction_supervision_base.group_portal_leader'
 
@@ -30,9 +32,12 @@ class TestPortalDailyLogDailyProgress(TransactionCase):
         super().setUpClass()
         cls.ctrl = ConstructionPortal()
         cls.company = cls.env.company
+        # 夾具：前台主管是營造方帳號（範圍公司＝工程的承攬廠商）
+        cls.contractor = make_contractor(cls.env, '前台實際進度測試營造')
         cls.project = cls.env['project.project'].create({
             'name': '前台實際進度測試工程', 'code': 'PM-ACTPROG',
             'state': 'construction', 'company_id': cls.company.id,
+            **contractor_project_vals(cls.contractor),
         })
         cls.env['progress.schedule'].create({
             'project_id': cls.project.id,
@@ -41,6 +46,7 @@ class TestPortalDailyLogDailyProgress(TransactionCase):
         cls.leader = cls.env['res.users'].create({
             'name': 'pa_leader', 'login': 'pa_leader',
             'groups_id': [(6, 0, [cls.env.ref(LEADER).id])],
+            **contractor_user_vals(cls.contractor),
         })
         cls.env['supervision.project.member'].create({
             'project_id': cls.project.id, 'user_id': cls.leader.id})

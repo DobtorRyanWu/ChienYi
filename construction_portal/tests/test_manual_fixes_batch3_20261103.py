@@ -18,6 +18,8 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import file_open
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    contractor_project_vals, contractor_user_vals, make_contractor)
 
 VIEWER = 'construction_supervision_base.group_portal_viewer'   # 定期閱覽者
 FIELD = 'construction_supervision_base.group_portal_user'      # 現場人員
@@ -35,12 +37,16 @@ class TestPortalManualFixesBatch3(TransactionCase):
         super().setUpClass()
         env = cls.env
         cls.ctrl = ConstructionPortal()
+        # 夾具：前台帳號都是營造方帳號（範圍公司＝工程的承攬廠商）
+        cls.contractor = make_contractor(env, 'B3 測試營造')
         cls.project = env['project.project'].create({
             'name': 'B3 一般式工程', 'code': 'B3-GEN', 'project_type': 'general',
-            'state': 'construction', 'company_id': env.company.id})
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
         cls.res_project = env['project.project'].create({
             'name': 'B3 預約式工程', 'code': 'B3-RSV', 'project_type': 'reservation',
-            'state': 'construction', 'company_id': env.company.id})
+            'state': 'construction', 'company_id': env.company.id,
+            **contractor_project_vals(cls.contractor)})
         env['defect.improvement.prefix.config'].create({
             'project_id': cls.project.id, 'supervision_prefix': 'B3QA',
             'contractor_prefix': 'B3QR'})
@@ -50,6 +56,10 @@ class TestPortalManualFixesBatch3(TransactionCase):
         env['progress.schedule'].create({
             'project_id': cls.project.id,
             'change_date': fields.Date.today()}).write({'state': 'active'})
+        # 夾具：匯入檔裡的契約工項由監造方先建好——營造方帳號匯入不再自動補建工項（合約 §0b-12），
+        # 本類別的前台帳號都是營造方。值與原本匯入自動補建的那一筆相同
+        env['project.task'].create({'name': 'B3 匯入工項', 'project_id': cls.project.id,
+                                    'unit': '式', 'planned_qty': 10.0, 'unit_price': 0.0})
         cls.worker_a = cls._mk_user('b3_worker_a', FIELD)
         cls.worker_b = cls._mk_user('b3_worker_b', FIELD)
         cls.leader = cls._mk_user('b3_leader', LEADER)
@@ -66,7 +76,8 @@ class TestPortalManualFixesBatch3(TransactionCase):
     def _mk_user(cls, login, group_xmlid):
         return cls.env['res.users'].create({
             'name': login, 'login': login,
-            'groups_id': [(6, 0, [cls.env.ref(group_xmlid).id])]})
+            'groups_id': [(6, 0, [cls.env.ref(group_xmlid).id])],
+            **contractor_user_vals(cls.contractor)})
 
     @classmethod
     def _mk_employee(cls, user):

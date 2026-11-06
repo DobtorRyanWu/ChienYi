@@ -10,6 +10,8 @@ from odoo.addons.website.tools import MockRequest
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_portal.tests.dash_fixtures import (
+    contractor_project_vals, contractor_user_vals, make_contractor)
 
 LEADER = 'construction_supervision_base.group_portal_leader'
 
@@ -21,12 +23,16 @@ class TestPortalInspectionResultLayout(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.ctrl = ConstructionPortal()
+        # 夾具：前台主管是營造方帳號（範圍公司＝工程的承攬廠商）
+        cls.contractor = make_contractor(cls.env, '前台結果欄位測試營造')
         cls.project = cls.env['project.project'].create({
             'name': '前台結果欄位測試', 'code': 'PM-LAYOUT', 'project_type': 'general',
-            'state': 'construction', 'company_id': cls.env.company.id})
+            'state': 'construction', 'company_id': cls.env.company.id,
+            **contractor_project_vals(cls.contractor)})
         cls.leader = cls.env['res.users'].create({
             'name': 'pl_leader', 'login': 'pl_leader',
-            'groups_id': [(6, 0, [cls.env.ref(LEADER).id])]})
+            'groups_id': [(6, 0, [cls.env.ref(LEADER).id])],
+            **contractor_user_vals(cls.contractor)})
         cls.env['supervision.project.member'].create(
             {'project_id': cls.project.id, 'user_id': cls.leader.id})
         Type, Item = cls.env['self.inspection.type'], cls.env['self.inspection.type.item']

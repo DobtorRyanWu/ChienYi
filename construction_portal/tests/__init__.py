@@ -15,3 +15,5 @@ from . import test_manual_fixes_batch2_20261102  # 第 2 批：P4 P8-P16 回歸
 from . import test_manual_fixes_batch3_20261103  # 第 3 批線 1：缺失日期、日誌存檔錯誤、error 參數、刪照片權限
 from . import test_portal_orm_readonly  # 前台角色 ORM 寫入權收回：權限表、RPC 被擋、正當入口仍可用
 from . import test_inspection_timing_multi  # 前台一次勾多個檢查時機都要存（11-06）
+from . import test_contractor_scope_portal  # 公司儀表板合約 §3.6：營造方範圍與寫入矩陣（線 A2）
+from . import test_portal_get_items_scope  # get-items 只回看得到的樣板（線 H，11-06 抗辯 F9）
