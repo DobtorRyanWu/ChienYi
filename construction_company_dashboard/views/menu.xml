@@ -6,4 +6,12 @@
               parent="construction_supervision_base.menu_project_overview"
               action="action_company_dashboard"
               sequence="5"/>
+
+    <!-- 「儀表板」App（spreadsheet_dashboard）也給一個入口，開同一個看板；夾在 Dashboards(1) 與 Configuration(150) 之間。
+         刻意不列進 models/ir_ui_menu.py 的營造廠主管允許清單：他們從「工程管理」進，不看這個 App（使用者 11-06 決定） -->
+    <menuitem id="menu_company_dashboard_app"
+              name="公司儀表板"
+              parent="spreadsheet_dashboard.spreadsheet_dashboard_menu_root"
+              action="action_company_dashboard"
+              sequence="50"/>
 </odoo>

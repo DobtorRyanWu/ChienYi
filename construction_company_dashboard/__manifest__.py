@@ -1,6 +1,6 @@
 {
     "name": "工程監造系統 - 公司儀表板",
-    "version": "18.0.1.0.0",
+    "version": "18.0.1.2.0",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """
@@ -23,6 +23,8 @@
         "construction_portal",
         "construction_progress",
         "auth_totp",
+        # 「儀表板」App 的選單入口與試算表儀表板（11-06）
+        "spreadsheet_dashboard",
     ],
     # 資料檔由主迴圈依各工作線回報加入（合約 §10）
     "data": [
@@ -54,6 +56,8 @@
         # 線 C：後台畫面
         "views/dashboard_kanban.xml",
         "views/menu.xml",
+        # 「儀表板」App 的試算表儀表板（11-06；群組要在 security 之後、JSON 由 tools/dashboard 產生）
+        "data/spreadsheet_dashboard.xml",
         "views/project_form_rest_days.xml",
         # 線 D：前台公司儀表板頁與抽屜入口
         "views/portal_dashboard_templates.xml",

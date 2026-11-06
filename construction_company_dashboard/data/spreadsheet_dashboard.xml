@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 「儀表板」App（spreadsheet_dashboard）裡的「公司指標（試算表）」（使用者 11-06 決定「兩個都要」：看板留著、另給一張試算表）。
+         JSON 由 odoo18-docker/tools/dashboard/build_company_spreadsheet_dashboard.py 產生，不要手改 data/files/company_dashboard.json。
+         不設 noupdate：每次 -u 重新載入 JSON（和核心 spreadsheet_dashboard_hr_timesheet 一樣）。
+         可見群組明寫「工程後台使用者」（核心預設是所有內部使用者）；營造廠主管沒有這個群組、也看不到這個 App 的選單（ir_ui_menu 允許清單）。 -->
+    <record id="spreadsheet_dashboard_group_construction" model="spreadsheet.dashboard.group">
+        <field name="name">工程</field>
+        <field name="sequence">50</field>
+    </record>
+
+    <record id="spreadsheet_dashboard_company_kpi" model="spreadsheet.dashboard">
+        <field name="name">公司指標（試算表）</field>
+        <field name="spreadsheet_binary_data" type="base64" file="construction_company_dashboard/data/files/company_dashboard.json"/>
+        <field name="dashboard_group_id" ref="spreadsheet_dashboard_group_construction"/>
+        <field name="group_ids" eval="[Command.set([ref('construction_supervision_base.group_supervisor_admin')])]"/>
+        <field name="sequence">10</field>
+        <field name="is_published">True</field>
+    </record>
+</odoo>

@@ -31,3 +31,5 @@ from . import test_restricted_capabilities
 from . import test_method_gate_http
 from . import test_invited_docs  # 合約 §0b-29 受邀協作
 from . import test_company_type_choice  # 合約 §0b-30 新建公司必選類型
+# 主迴圈 11-06：「儀表板」App 的兩個入口（合約 §0b-32）
+from . import test_spreadsheet_dashboard
