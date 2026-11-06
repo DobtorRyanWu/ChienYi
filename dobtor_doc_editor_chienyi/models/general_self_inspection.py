@@ -31,15 +31,16 @@ class GeneralSelfInspection(models.Model):
         self.ensure_one()
         return 'dobtor_doc_editor.template_self_inspection'
 
-    def _create_linked_doc(self):
-        """建立文件後，把檢查清單換成此檢查類型的預設項目（self.inspection.type.item）。"""
-        doc = super()._create_linked_doc()
-        if doc and self.inspection_type_id:
+    def _doc_prepare_content_html(self, html):
+        """把範本的檢查清單換成此檢查類型的預設項目（self.inspection.type.item）。
+
+        建立線上文件與「重新套用範本」都會經過這裡（doc.linked.mixin 的 hook）。
+        """
+        html = super()._doc_prepare_content_html(html)
+        if html and self.inspection_type_id:
             items = _sorted_by_stage(self.inspection_type_id.default_item_ids)
-            new_html = inject_checklist(doc.content_html, items)
-            if new_html != doc.content_html:
-                doc.content_html = new_html
-        return doc
+            html = inject_checklist(html, items)
+        return html
 
     def _doc_initial_name(self):
         """文件命名：檢查編號 + 分項工程名稱（若有）。"""

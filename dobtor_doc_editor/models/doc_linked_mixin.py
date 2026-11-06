@@ -105,6 +105,17 @@ class DocLinkedMixin(models.AbstractModel):
             'record_name': self.display_name or '',
         }
 
+    def _doc_prepare_content_html(self, html):
+        """範本內容套到「這筆記錄的文件」之前，先經過這裡。
+
+        建立線上文件（_create_linked_doc）與文件上的「重新套用範本」
+        （doc.document.action_reapply_template）都走這一支，兩條路的結果才會一致。
+        預設原樣回傳；要依記錄改寫範本的模型覆寫它
+        （例：自主檢查把範本的空白清單換成該檢查類型的項目）。
+        """
+        self.ensure_one()
+        return html
+
     def _doc_initial_name(self):
         """新建立的文件名稱。"""
         self.ensure_one()
@@ -184,6 +195,9 @@ class DocLinkedMixin(models.AbstractModel):
             vals['res_id'] = self.id
 
         doc = Doc.create(vals)
+        prepared = self._doc_prepare_content_html(doc.content_html)
+        if prepared != doc.content_html:
+            doc.content_html = prepared
 
         # 加協作者
         try:

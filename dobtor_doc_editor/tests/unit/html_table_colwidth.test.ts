@@ -124,6 +124,15 @@ describe("computeColWidths", () => {
         expect(w[1]).toBeLessThanOrEqual(MIN_COL_WIDTH_PX);
     });
 
+    it("極大的寬度：乘法溢位成 Infinity 時交回 canvas-editor（不可以無窮迴圈、不可以出現 NaN）", () => {
+        // skeptic r3 實測：1e306px → w*target 溢位 → diff=-Infinity → while 永遠不結束
+        for (const specs of [[{ px: 1e306 }], [{ px: 1e306 }, null], [{ px: 1e308 }, { pct: 50 }], [{ pct: 1e306 }], [{ pct: 1e306 }, null]]) {
+            const w = computeColWidths(specs, A4_INNER);
+            expect(w.every((x) => Number.isFinite(x))).toBe(true);
+            if (w.length) expect(sum(w)).toBe(A4_INNER);
+        }
+    });
+
     it("不合理的輸入回 []", () => {
         expect(computeColWidths([], A4_INNER)).toEqual([]);
         expect(computeColWidths([{ pct: 50 }], 0)).toEqual([]);

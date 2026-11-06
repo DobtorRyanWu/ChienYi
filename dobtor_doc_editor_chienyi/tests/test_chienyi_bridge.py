@@ -221,3 +221,30 @@ class TestChienyiBridge(TransactionCase):
         rec.invalidate_recordset(['linked_doc_id', 'linked_doc_count'])
         self.assertFalse(rec.linked_doc_id)
         self.assertEqual(rec.linked_doc_count, 0)
+
+    # ─── 2026-11-06：重新套用範本要保留注入的檢查項目 ─────────────────
+
+    def test_reapply_template_keeps_injected_checklist(self):
+        """自主檢查的線上文件建立後會注入「該檢查類型的項目」；重新套用範本後也要有。
+
+        以前注入只寫在 _create_linked_doc，doc.document.action_reapply_template 只寫回範本原文
+        → 實際檢查項目被換回範本的三列空白（抗辯 red-team r3）。
+        """
+        itype = self.env['self.inspection.type'].create({
+            'name': '重新套用測試檢查', 'project_id': self.project.id,
+        })
+        self.env['self.inspection.type.item'].create([
+            {'type_id': itype.id, 'name': '鋼筋間距核對', 'sequence': 1},
+            {'type_id': itype.id, 'name': '保護層厚度量測', 'sequence': 2},
+        ])
+        rec = self._make_inspection(inspection_type_id=itype.id)
+        rec.action_open_linked_doc()
+        doc = rec.linked_doc_id
+        self.assertIn('鋼筋間距核對', doc.content_html)   # 建立時就有注入（既有行為）
+
+        doc.write({'content_json': '{"main": [{"value": "編輯過"}]}'})
+        doc.action_reapply_template()
+
+        self.assertFalse(doc.content_json)
+        for item in ('鋼筋間距核對', '保護層厚度量測'):
+            self.assertIn(item, doc.content_html, '重新套用後檢查項目「%s」不見了' % item)

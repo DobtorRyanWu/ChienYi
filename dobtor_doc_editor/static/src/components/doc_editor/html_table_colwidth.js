@@ -90,13 +90,18 @@ export function computeColWidths(specs, targetWidth) {
     }
     const total = widths.reduce((sum, w) => sum + w, 0);
     const scaled = widths.map((w) => (w * target) / total);
+    // 極大的寬度（例如 1e306px）在 w*target 溢位成 Infinity → NaN／無窮迴圈（抗辯 skeptic r3）。
+    // 算不出有限值就交回 canvas-editor 自己平分。
+    if (!Number.isFinite(total) || !scaled.every((w) => Number.isFinite(w))) return [];
 
     // 取整：先全部無條件捨去（每欄至少 1px），差額補給／扣自最寬的欄（視覺上最不明顯）
     const out = scaled.map((w) => Math.max(1, Math.floor(w)));
     const widestIndex = () => out.reduce((best, w, i) => (w > out[best] ? i : best), 0);
     let diff = target - out.reduce((sum, w) => sum + w, 0);
     if (diff > 0) out[widestIndex()] += diff;
-    while (diff < 0) {            // 只有很多欄被墊成 1px 時才會發生；一次扣 1，不讓任何一欄 < 1
+    // 只有很多欄被墊成 1px 時才會發生；一次扣 1，不讓任何一欄 < 1。
+    // 上面已保證都是有限值，|diff| 最多是欄數，所以這個迴圈有界
+    while (diff < 0) {
         const i = widestIndex();
         if (out[i] <= 1) break;
         out[i] -= 1;

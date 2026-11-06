@@ -423,18 +423,13 @@ class DocDocument(models.Model):
 
     @api.onchange('template_id')
     def _onchange_template_id(self):
-        """後台 Form view 選 / 切換範本時，直接覆寫 content_html / page_format。
+        """後台表單選／切換範本。
 
-        為何不保護「已有內容」：在 Form view 顯式切換 template_id 是使用者
-        刻意動作，意圖就是要新範本內容。若怕誤覆寫已編輯文件，使用者應該
-        先儲存版本快照（Ctrl+Shift+S）或不要切 template。
-
-        實際情境（Sprint 16 bug）：使用者建文件 → 選範本 A → 切到範本 B →
-        舊邏輯因 content_html 已有 A 的內容而拒絕覆寫 → 編輯器顯示 A 而非 B
-        → 使用者誤以為「範本沒套用」。
-
-        例外：當前 content_html 看起來是「使用者編輯過」（不等於任何 template
-        的 content_html），仍直接覆寫；保護機制留給「儲存版本快照」工作流。
+        - 還沒存檔（或存檔了但完全沒內容）的文件：換成範本的 content_html／page_format，
+          並清 content_json（編輯器以它為主，不清畫面不會變）。
+          實際情境（Sprint 16 bug）：建文件 → 選範本 A → 切到範本 B，編輯器要顯示 B。
+        - 已存檔、有內容的文件：不覆蓋，只提示改按「重新套用範本」（action_reapply_template
+          會先存版本快照）。onchange 改的值存檔就生效、沒有快照，在這裡覆蓋等於靜默抹掉原稿。
         """
         for rec in self:
             if not rec.template_id:
@@ -460,6 +455,16 @@ class DocDocument(models.Model):
             if tpl.page_format:
                 rec.page_format = tpl.page_format
 
+    def _linked_record(self):
+        """這份文件綁的業務記錄（該模型有 doc.linked.mixin 才回）；沒有回 None。"""
+        self.ensure_one()
+        if not self.model_name or not self.res_id or self.model_name not in self.env:
+            return None
+        Model = self.env[self.model_name]
+        if not hasattr(Model, '_doc_prepare_content_html'):
+            return None
+        return Model.browse(self.res_id).exists() or None
+
     def action_reapply_template(self):
         """用範本「目前」的內容取代文件內容（先存版本快照，可從版本歷史還原）。
 
@@ -476,7 +481,12 @@ class DocDocument(models.Model):
                 # 空範本會把文件清成空白；與 onchange 一致，範本沒內容就不動
                 raise UserError(_('範本「%s」沒有內容，無法重新套用。') % tpl.name)
             rec.action_save_version(label=_('重新套用範本前'))
-            vals = {'content_html': tpl.content_html, 'content_json': False}
+            html = tpl.content_html
+            target = rec._linked_record()
+            if target:
+                # 與建立時同一支 hook（例：自主檢查注入檢查項目），否則重套後項目會不見
+                html = target._doc_prepare_content_html(html)
+            vals = {'content_html': html, 'content_json': False}
             if tpl.page_format:
                 vals['page_format'] = tpl.page_format
             rec.write(vals)

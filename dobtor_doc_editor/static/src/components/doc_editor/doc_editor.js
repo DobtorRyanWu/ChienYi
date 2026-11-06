@@ -4090,6 +4090,14 @@ body { font-family: 'Microsoft JhengHei', 'Noto Sans TC', Arial, sans-serif; pad
         );
         if (this.state.docId) {
             await this._loadDocument(this.state.docId);
+            // 還原的快照沒有 content_json（例如「重新套用範本前」那一份、文件當時還沒開過編輯器）：
+            // 伺服器已經還原，但下面只會用 content_json 重設畫面 → 畫面停在還原前的內容，
+            // 下一次自動存檔就把還原蓋掉（抗辯 skeptic r3）。整頁重新載入，讓初始化流程
+            // 從還原後的 content_html 重新轉換。還原本來就會取代畫面內容，不會多丟東西。
+            if (!this._loadedContentJson) {
+                window.location.reload();
+                return;
+            }
             // 用新內容重新初始化 canvas-editor
             if (this.editor && this._loadedContentJson) {
                 try {
