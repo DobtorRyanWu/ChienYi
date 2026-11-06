@@ -1,5 +1,7 @@
 """doc.document 範本自動填充測試（Sprint 16 補：選範本後內容空白 bug）。"""
 
+from odoo.exceptions import UserError
+from odoo.tests import Form
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -99,3 +101,91 @@ class TestTemplateAutofill(TransactionCase):
         # 應該被新範本覆寫
         self.assertIn('新範本標題', new_doc.content_html or '')
         self.assertNotIn('之前選的或使用者寫的', new_doc.content_html or '')
+
+    # ─── 2026-11-06：範本內容要真的進到編輯器 ──────────────────────────
+    # 編輯器以 content_json 為主、content_html 只在 content_json 空時才拿來轉換
+    # （static/src/components/doc_editor/doc_editor.js 的 executeSetHTML fallback）。
+    # 所以只改 content_html、不清 content_json，畫面永遠是舊的。
+
+    OLD_JSON = '{"main": [{"value": "第一次開啟時轉出來的舊內容"}]}'
+
+    def test_onchange_template_clears_content_json(self):
+        """切換範本要一併清 content_json，否則編輯器照樣讀舊的 content_json。"""
+        new_doc = self.Doc.new({'name': '新建中', 'content_json': self.OLD_JSON})
+        new_doc.template_id = self.tpl
+        new_doc._onchange_template_id()
+        self.assertIn('範本標題', new_doc.content_html or '')
+        self.assertFalse(new_doc.content_json)
+
+    def test_reapply_template_snapshots_then_resets_content(self):
+        """「重新套用範本」：先存版本快照（可還原），再換成範本目前的內容。"""
+        doc = self.Doc.create({'name': '已轉過的文件', 'template_id': self.tpl.id})
+        doc.write({
+            'content_json': self.OLD_JSON,
+            'content_html': '<p>轉換後跑版的內容</p>',
+            'page_format': 'A5',
+        })
+        # 文件建好之後範本才被修改：舊文件不會自己跟著變
+        self.tpl.write({'content_html': '<h1>修改後的範本</h1>', 'page_format': 'A4'})
+        versions_before = len(doc.versions_data or [])
+
+        doc.action_reapply_template()
+
+        self.assertFalse(doc.content_json)
+        self.assertIn('修改後的範本', doc.content_html or '')
+        self.assertEqual(doc.page_format, 'A4')
+        versions = doc.versions_data or []
+        self.assertEqual(len(versions), versions_before + 1)
+        # 快照存的是「套用前」的內容，才能還原
+        self.assertEqual(versions[-1]['content_json'], self.OLD_JSON)
+        self.assertIn('轉換後跑版的內容', versions[-1]['content_html'])
+
+    def test_reapply_template_without_template_raises(self):
+        """沒有範本的文件不能重新套用，且不可動到內容。"""
+        doc = self.Doc.create({'name': '無範本', 'content_json': self.OLD_JSON})
+        with self.assertRaises(UserError):
+            doc.action_reapply_template()
+        self.assertEqual(doc.content_json, self.OLD_JSON)
+        self.assertFalse(doc.versions_data)
+
+    # ─── 2026-11-06 抗辯（red-team）補的三條 ─────────────────────────
+
+    def test_switch_template_on_saved_doc_keeps_content(self):
+        """已存檔、有內容的文件在表單切換範本再儲存：原稿不可以被抹掉（要改用重新套用）。
+
+        走真的表單（view 裡 content_json 是 invisible 宣告，onchange 改了就會被一起存回去）。
+        """
+        tpl_b = self.Template.create({'name': '範本B', 'content_html': '<h1>範本B</h1>'})
+        doc = self.Doc.create({'name': '人工編輯過的文件', 'template_id': self.tpl.id})
+        doc.write({'content_json': self.OLD_JSON, 'content_html': '<p>人工編輯的內容</p>'})
+
+        with Form(doc) as form:
+            form.template_id = tpl_b
+
+        self.assertEqual(doc.template_id, tpl_b)
+        self.assertEqual(doc.content_json, self.OLD_JSON)
+        self.assertIn('人工編輯的內容', doc.content_html or '')
+
+    def test_reapply_template_refuses_empty_template(self):
+        """範本沒有內容時不准重新套用（否則文件被清成空白）。"""
+        empty_tpl = self.Template.create({'name': '空範本', 'content_html': ''})
+        doc = self.Doc.create({'name': '文件', 'template_id': empty_tpl.id})
+        doc.write({'content_json': self.OLD_JSON})
+        with self.assertRaises(UserError):
+            doc.action_reapply_template()
+        self.assertEqual(doc.content_json, self.OLD_JSON)
+
+    def test_restore_after_reapply_brings_back_page_format(self):
+        """重新套用改了紙張格式；從快照還原要連紙張格式一起回去。"""
+        doc = self.Doc.create({'name': '文件', 'template_id': self.tpl.id})
+        doc.write({'content_json': self.OLD_JSON, 'page_format': 'A5', 'page_orientation': 'portrait'})
+        doc.action_reapply_template()
+        self.assertEqual(doc.page_format, 'A4')
+        snapshot = doc.versions_data[-1]
+        # 套用之後使用者又改了方向；還原要回到快照當時的「大小＋方向」，不是拼出 A5 橫向
+        doc.write({'page_orientation': 'landscape'})
+
+        doc.restore_version(snapshot['version_no'])
+        self.assertEqual(doc.page_format, 'A5')
+        self.assertEqual(doc.page_orientation, 'portrait')
+        self.assertEqual(doc.content_json, self.OLD_JSON)

@@ -10,7 +10,7 @@
     #        （PORTAL_PROTECTED_FIELDS）：原本經 RPC 寫別名可在預覽時自升系統管理者、換 docx 樣板可在伺服器執行程式
     # 2.4.6: 預覽別名（preview_content_json）、範本預覽、套印 docx（fill_template）改用匯出同款的加固沙箱＋唯讀代理：
     #        原本內部編輯者（不必是系統管理者）寫別名 user.sudo().write(...) 按預覽就能提權，上傳的 docx 樣板能在主機上執行程式
-    'version': '18.0.2.4.6',
+    'version': '18.0.2.4.7',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1
@@ -83,6 +83,8 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.js',
             # Sprint G/H：jinja2 變數掃描器（純函式 util，必須在 doc_editor.js 之前）
             'dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js',
+            # 範本 HTML 進 canvas-editor 前補欄寬／底色（純函式 util，必須在 doc_editor.js 之前）
+            'dobtor_doc_editor/static/src/components/doc_editor/html_table_colwidth.js',
             # 主編輯器 Component
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.xml',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',
@@ -137,6 +139,8 @@ Dobtor Doc Editor v2.1
             'dobtor_doc_editor/static/src/components/doc_field_picker/doc_field_picker.js',
             # Sprint G/H：jinja2 變數掃描器（純函式 util，必須在 doc_editor.js 之前）
             'dobtor_doc_editor/static/src/components/doc_editor/jinja2_scanner.js',
+            # 範本 HTML 進 canvas-editor 前補欄寬／底色（純函式 util，必須在 doc_editor.js 之前）
+            'dobtor_doc_editor/static/src/components/doc_editor/html_table_colwidth.js',
             # 主編輯器 Component
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.xml',
             'dobtor_doc_editor/static/src/components/doc_editor/doc_editor.js',

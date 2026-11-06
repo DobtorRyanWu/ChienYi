@@ -34,6 +34,7 @@ import {
     rewriteTdValueWithControls,
     flattenElementsToText,
 } from "./jinja2_scanner";
+import { prepareHtmlForCanvas } from "./html_table_colwidth";
 
 /**
  * Phase 8 Template UI Builder（ADR-022）— Phase 1 視覺風格靠攏。
@@ -739,25 +740,6 @@ export class DocEditor extends Component {
         }
         this.editor = new EditorConstructor(container, initialData, editorOptions);
 
-        // Sprint 16：content_json 為空但 content_html 有值（template 自動填充常見情境）
-        // → 用 canvas-editor 的 executeSetHTML 把 HTML 轉成 IElement[] 灌入。
-        // 觸發 contentChange 後 AutoSave 會把產生的 IElement[] 寫回 content_json，
-        // 後續開啟就走 content_json 主路徑，本 fallback 不會重複觸發。
-        const isEmptyJson = !this._loadedContentJson || initialData.length === 0;
-        const html = (this._loadedContentHtml || "").trim();
-        const isPlaceholderHtml = html === "" || html === "<p><br></p>" || html === "<p></p>";
-        if (isEmptyJson && !isPlaceholderHtml) {
-            try {
-                if (typeof this.editor.command.executeSetHTML === "function") {
-                    this.editor.command.executeSetHTML({ main: html });
-                } else {
-                    console.warn("[DocEditor] executeSetHTML 不存在，content_html fallback 失效");
-                }
-            } catch (err) {
-                console.warn("[DocEditor] executeSetHTML 失敗，回退空白：", err);
-            }
-        }
-
         // 注冊繁體中文 locale，再切換（register.langMap 是 registerLangMap 的 bound 版本）
         this.editor.register.langMap("zhTW", {
             contextmenu: {
@@ -798,6 +780,29 @@ export class DocEditor extends Component {
         // _loadDocument() 以前只把 page_format 寫進 state、從沒套到畫布上，
         // 所以匯入的橫向 .docx（例如檢試驗管制表）右半邊會被切掉。
         this._applyPaperFromState();
+
+        // Sprint 16：content_json 為空但 content_html 有值（template 自動填充常見情境）
+        // → 用 canvas-editor 的 executeSetHTML 把 HTML 轉成 IElement[] 灌入。
+        // 觸發 contentChange 後 AutoSave 會把產生的 IElement[] 寫回 content_json，
+        // 後續開啟就走 content_json 主路徑，本 fallback 不會重複觸發。
+        // 2026-11-06：①移到套用紙張設定之後——executeSetHTML 用「當下」的版心寬算表格，
+        //   先轉再換橫向，表格只會佔直向的寬度 ②轉之前先補欄寬與底色
+        //   （canvas-editor 不認 % 欄寬、不認 <tr> 底色，見 html_table_colwidth.js 檔頭）。
+        const isEmptyJson = !this._loadedContentJson || initialData.length === 0;
+        const html = (this._loadedContentHtml || "").trim();
+        const isPlaceholderHtml = html === "" || html === "<p><br></p>" || html === "<p></p>";
+        if (isEmptyJson && !isPlaceholderHtml) {
+            try {
+                if (typeof this.editor.command.executeSetHTML === "function") {
+                    const prepared = prepareHtmlForCanvas(html, this._canvasInnerWidth());
+                    this.editor.command.executeSetHTML({ main: prepared });
+                } else {
+                    console.warn("[DocEditor] executeSetHTML 不存在，content_html fallback 失效");
+                }
+            } catch (err) {
+                console.warn("[DocEditor] executeSetHTML 失敗，回退空白：", err);
+            }
+        }
 
         // 載入 DOCX 匯入/匯出 plugin（window.docx 由 canvas-editor-plugin-docx.umd.js 注入）
         if (window.docx) {
@@ -1244,6 +1249,26 @@ export class DocEditor extends Component {
         letter: [816,  1056],
         legal:  [816,  1344],
     };
+
+    /** canvas-editor executeSetHTML 換算表格用的版心寬（px）。
+     *
+     * 照抄 canvas-editor 的 draw.getOriginalInnerWidth()：橫向時寬高對調、邊界也跟著轉
+     * （getOriginalWidth／getOriginalMargins，canvas-editor.umd.min.js）。
+     * 兩邊算法不一致的話，補上的欄寬加總就會跟它的版心寬對不上。取不到回 0（＝不前處理）。
+     */
+    _canvasInnerWidth() {
+        try {
+            const o = this.editor?.command?.getOptions?.();
+            if (!o || !Array.isArray(o.margins) || o.margins.length !== 4) return 0;
+            const vertical = o.paperDirection !== "horizontal";
+            const width = vertical ? o.width : o.height;
+            const m = vertical ? o.margins : [o.margins[1], o.margins[2], o.margins[3], o.margins[0]];
+            const inner = width - m[1] - m[3];
+            return inner > 0 ? inner : 0;
+        } catch (e) {
+            return 0;
+        }
+    }
 
     /** 把 state 的紙張格式/方向套到 canvas-editor（初始化與載入文件後都要叫）。
      *

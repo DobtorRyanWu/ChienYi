@@ -85,6 +85,13 @@
                             string="匯出 DOCX"
                             type="object"
                             icon="fa-file-word-o"/>
+                    <!-- 文件建立後與範本脫鉤；範本改過或當初轉換跑版時，用這顆重來 -->
+                    <button name="action_reapply_template"
+                            string="重新套用範本"
+                            type="object"
+                            icon="fa-refresh"
+                            invisible="not template_id"
+                            confirm="會先把目前內容存成一個版本快照（可從版本歷史還原），再換成範本目前的內容。確定要重新套用嗎？"/>
                 </header>
                 <sheet>
                     <!-- Sprint 16：content_html 必須在 form view 中宣告（即使隱藏），

@@ -440,10 +440,47 @@ class DocDocument(models.Model):
             if not rec.template_id:
                 continue
             tpl = rec.template_id
+            origin = rec._origin
+            # 只看欄位有沒有值：大文件的內容在附件裡，這裡不必整份解碼
+            if origin.id and (origin.content_json or origin.content_html or origin.content_attachment_id):
+                # 已存檔、有內容的文件：不在這裡覆蓋。表單一儲存，content_json（唯一的原稿）
+                # 就被抹掉，而且這條路不存版本快照、沒有確認（2026-11-06 抗辯 red-team #1）。
+                # 改由「重新套用範本」做：先存快照、再換。
+                return {'warning': {
+                    'title': _('內容還沒換成新範本'),
+                    'message': _('這份文件已經有內容。範本存檔後，請按上方「重新套用範本」：'
+                                 '會先把目前內容存成版本快照（可還原），再換成範本內容。'),
+                }}
             if tpl.content_html:
                 rec.content_html = tpl.content_html
+                # 編輯器以 content_json 為主、content_json 空才轉 content_html
+                # （doc_editor.js 的 executeSetHTML fallback）。不清掉的話，
+                # 切了範本畫面照樣是舊內容。
+                rec.content_json = False
             if tpl.page_format:
                 rec.page_format = tpl.page_format
+
+    def action_reapply_template(self):
+        """用範本「目前」的內容取代文件內容（先存版本快照，可從版本歷史還原）。
+
+        為什麼需要：文件建立時只複製一次範本內容（create()），之後與範本脫鉤；
+        第一次開進編輯器轉出來的結果又存進 content_json、之後一律讀它。
+        所以範本改過、或當初轉換跑版，舊文件都不會自己變——要有一個明確的動作重來。
+        清掉 content_json 之後，下次開編輯器會重新把 content_html 轉一次。
+        """
+        for rec in self:
+            tpl = rec.template_id
+            if not tpl:
+                raise UserError(_('「%s」沒有設定使用範本，無法重新套用。') % rec.name)
+            if not (tpl.content_html or '').strip():
+                # 空範本會把文件清成空白；與 onchange 一致，範本沒內容就不動
+                raise UserError(_('範本「%s」沒有內容，無法重新套用。') % tpl.name)
+            rec.action_save_version(label=_('重新套用範本前'))
+            vals = {'content_html': tpl.content_html, 'content_json': False}
+            if tpl.page_format:
+                vals['page_format'] = tpl.page_format
+            rec.write(vals)
+        return True
 
     def write(self, vals):
         if self.env.user.share and not self.env.su:
@@ -1117,6 +1154,10 @@ img {{ max-width: 100%; height: auto; }}
             'label': label or '',
             'content_html': self.get_content_html() or '',
             'content_json': self.content_json or '',
+            # 「重新套用範本」會改紙張格式；沒記下來的話還原只回得去內容、回不去版面。
+            # 方向一起記：只還原大小會拼出從沒出現過的組合（例如 A4 橫向）
+            'page_format': self.page_format or '',
+            'page_orientation': self.page_orientation or '',
         })
         self.versions_data = versions
 
@@ -1211,6 +1252,11 @@ img {{ max-width: 100%; height: auto; }}
             'content_html': entry.get('content_html') or '',
             'content_json': entry.get('content_json') or '',
         }
+        # 2026-11-06 前存的快照沒有這兩個鍵 → 不動紙張（與以前一樣）
+        if entry.get('page_format'):
+            update_vals['page_format'] = entry['page_format']
+        if entry.get('page_orientation'):
+            update_vals['page_orientation'] = entry['page_orientation']
         self.write(update_vals)
         return {
             'restored_version': target_version,
