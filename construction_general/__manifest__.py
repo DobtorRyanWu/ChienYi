@@ -18,7 +18,7 @@
     # 3.5.2: 序列 data 加 noupdate：-u 不再把序列重置成 1（當月靜默重號）
     # 3.5.4: 一般式缺失清單「已逾期」改 column_invisible（原本整欄空白）；損益看板的圖表外掛改用本機內建，不連外部 CDN
     # 3.5.5: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
-    'version': '18.0.3.5.5',
+    'version': '18.0.3.5.6',  # 3.5.6（2026-11-06）：缺失表單「複查資訊」加「成果確認」（construction_quality 6.7.0 的 outcome_result）
     'category': 'Construction/General',
     'summary': '一般式工程專用管理模組',
     'description': """

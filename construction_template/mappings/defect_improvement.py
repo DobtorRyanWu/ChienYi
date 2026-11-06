@@ -9,7 +9,8 @@ EAGLE token → Odoo general.defect.improvement：
     notifiedAt      notification_date  deadLine                          deadline
     description     defect_description reason                            defect_cause
     improvements    improvement_action finishedAt                        improvement_date
-    isQualified／isTimeout／isUncorrected   三格只勾一格，見 _outcome()（state、recheck_result、is_overdue）
+    isQualified／isTimeout／isUncorrected／isOther   只勾一格，見 _outcome()（outcome_result 優先；
+                    沒填才看 state、recheck_result、is_overdue）
 """
 
 import base64
@@ -41,8 +42,8 @@ MARK = 'ˇ'          # 樣板既有的勾選符號慣例（見送審管制「是
 CLOSED_STATES = ('verified', 'closed')
 BOX_ON, BOX_OFF = '■', '□'   # 新北版樣板的勾選框（舊樣板用上面的 MARK 慣例）
 
-# 「缺失改善成果確認」的結果（_outcome），樣板上 □符合要求 □逾時未矯正 □未矯正 只勾一格
-QUALIFIED, TIMEOUT, UNCORRECTED = 'qualified', 'timeout', 'uncorrected'
+# 「缺失改善成果確認」的結果（_outcome），樣板上 □符合要求 □逾時未矯正 □未矯正 □其他 只勾一格
+QUALIFIED, TIMEOUT, UNCORRECTED, OTHER = 'qualified', 'timeout', 'uncorrected', 'other'
 
 # 照片尺寸上限（公分）：樣板標記寫的是 imageGenerator(…, {height:6}, …)，EAGLE 原系統
 # 是 `maxHeight = opts.height || 10`、`maxWidth = opts.width || 14` → 高 6 cm。
@@ -53,7 +54,13 @@ PHOTO_MAX_WIDTH_CM = 12
 
 
 def _outcome(defect):
-    """缺失改善成果確認：qualified / timeout / uncorrected，或 None（三格都不勾）。
+    """缺失改善成果確認：qualified / timeout / uncorrected / other，或 None／corrected（都不勾）。
+
+    0. 缺失上有存「成果確認」（construction_quality outcome_result）就照它：值就是上面這幾個常數；
+       「已矯正」（corrected）表單上沒有格子，EAGLE 列印時四格都不勾（methods/errorRecord.js）。
+       2026-11-06 使用者裁示：回填舊資料要照 EAGLE（EAGLE 是監造選的結果、印的時候照勾，例：存「未矯正」
+       但期限已過，EAGLE 印未矯正，自動判斷會印逾時未矯正）。狀態一變存值就被清掉（mixin.write）。
+       沒填才走下面的自動判斷。
 
     EAGLE 原系統是單一 result 欄、四格互斥（main.js `isQualified=result===qualified` …）。
     🔴 原本三格各自判斷（2026-11-05 實查）：
@@ -68,6 +75,8 @@ def _outcome(defect):
       3. 已改善 → 不勾（等監造驗證）
       4. 其餘（草稿、已通知、改善中——含驗證不通過退回的）→ 未矯正（逾期則逾時未矯正）
     """
+    if defect.outcome_result:
+        return defect.outcome_result
     if defect.state in CLOSED_STATES:
         return QUALIFIED
     if defect.recheck_result == 'pass':
@@ -124,7 +133,6 @@ def _record(defect):
         'no': defect.defect_no or defect.name or '',
         # 樣板第二頁（照片紀錄表）用的是大寫 No，與第一頁的 no 並存
         'No': defect.defect_no or defect.name or '',
-        'isOther': '',
         # 前 / 中 / 後三張照片，對應樣板的 images[0] / [1] / [2]——第一頁那三張；
         # 舊樣板（$record.images、新北附表12）照舊只印這三張
         'images': photo_pages[0]['images'],
@@ -138,10 +146,11 @@ def _record(defect):
         'reason': defect.defect_cause or '',
         'improvements': defect.improvement_action or '',
         'finishedAt': roc_date(defect.improvement_date),
-        # 三格只勾一格（_outcome）
+        # 只勾一格（_outcome）
         'isQualified': MARK if outcome == QUALIFIED else '',
         'isTimeout': MARK if outcome == TIMEOUT else '',
         'isUncorrected': MARK if outcome == UNCORRECTED else '',
+        'isOther': MARK if outcome == OTHER else '',
         'result': defect.improvement_result or '',
         # 新北契約附表12「不合格品改正紀錄表」用（2026-10-24 加；舊 key 不動）
         'foundAt': roc_date(defect.found_date),

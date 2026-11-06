@@ -179,6 +179,7 @@
                                 <group string="複查資訊">
                                     <field name="recheck_date"/>
                                     <field name="recheck_result"/>
+                                    <field name="outcome_result"/>
                                 </group>
                             </group>
                             <group string="複查說明">

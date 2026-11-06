@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""矯正與預防處理紀錄「缺失改善成果確認」：□符合要求 □逾時未矯正 □未矯正 只勾一格（2026-11-05）。
+"""矯正與預防處理紀錄「缺失改善成果確認」：□符合要求 □逾時未矯正 □未矯正 □其他 只勾一格（2026-11-05）。
 
 EAGLE 原系統是單一 result 欄位、四格互斥（main.js：`isQualified=result===qualified` …）。
 原本的對照表三格各自判斷：
@@ -18,7 +18,7 @@ from odoo.tests.common import TransactionCase, tagged
 from odoo.addons.construction_template.mappings import defect_improvement
 
 MARK = defect_improvement.MARK
-BOXES = ('isQualified', 'isTimeout', 'isUncorrected')
+BOXES = ('isQualified', 'isTimeout', 'isUncorrected', 'isOther')
 
 
 @tagged('post_install', '-at_install', 'construction_template')
@@ -128,3 +128,54 @@ class TestDefectOutcome(TransactionCase):
         defect = self._defect(state='improved', recheck_result='pending')
         defect.action_verify_fail()
         self.assertEqual(self._marks(defect), (('isUncorrected',), ('□', '■')))
+
+    def test_stored_outcome_wins_over_auto(self):
+        """缺失上存了「成果確認」就照它勾（2026-11-06：回填 EAGLE 資料要照舊系統印）。
+
+        EAGLE 由監造選一個結果存起來、印的時候照勾；例：存「未矯正」但期限已過，
+        EAGLE 印 ■未矯正，自動判斷會印 ■逾時未矯正。
+        """
+        cases = [
+            # (outcome_result, state, 逾期?, 預期勾的格子, 附表12 兩格)
+            ('uncorrected', 'draft', True, ('isUncorrected',), ('□', '■')),     # 自動會是逾時未矯正
+            ('timeout', 'notified', False, ('isTimeout',), ('□', '■')),         # 自動會是未矯正
+            ('other', 'notified', True, ('isOther',), ('□', '□')),              # 自動永遠不勾「其他」
+            ('corrected', 'closed', False, (), ('□', '□')),                     # 已矯正：表單沒有格子
+        ]
+        for outcome, state, overdue, boxes, ntpc in cases:
+            defect = self._defect(state=state, overdue=overdue, outcome_result=outcome,
+                                  defect_description='成果確認 %s' % outcome)
+            self.assertEqual(self._marks(defect), (boxes, ntpc), outcome)
+
+    def test_state_change_clears_stored_outcome(self):
+        """存的成果確認只代表「當時」的結果：之後狀態一變（重開、退回、在 Odoo 走完流程結案）就清掉，
+        改回自動判斷（2026-11-06 red-team F1／F2：重開的缺失原本照舊印「符合要求」；
+        回填成「未矯正」的缺失在 Odoo 結案後原本還印「未矯正」）。"""
+        closed = self._defect(state='closed', outcome_result='qualified', defect_description='重開')
+        closed.action_reopen()
+        self.assertEqual(closed.state, 'improving')
+        self.assertFalse(closed.outcome_result)
+        self.assertEqual(self._marks(closed), (('isUncorrected',), ('□', '■')))
+        old = self._defect(state='draft', overdue=True, outcome_result='uncorrected', defect_description='回填後結案')
+        old.write({'state': 'closed'})
+        self.assertFalse(old.outcome_result)
+        self.assertEqual(self._marks(old), (('isQualified',), ('■', '□')))
+        same = self._defect(state='draft', overdue=True, outcome_result='uncorrected', defect_description='狀態沒變')
+        same.write({'state': 'draft', 'improvement_action': '補說明'})
+        self.assertEqual(same.outcome_result, 'uncorrected', '狀態沒有真的改變就不清')
+
+    def test_outcome_must_match_state(self):
+        """「符合要求」只能配已驗證／結案；已驗證／結案不能配「未矯正／逾時未矯正」（red-team F3）"""
+        from odoo.exceptions import ValidationError
+        draft = self._defect(state='draft', defect_description='不一致')
+        with self.assertRaises(ValidationError):
+            draft.outcome_result = 'qualified'
+            draft.flush_recordset()
+        closed = self._defect(state='closed', defect_description='不一致2')
+        with self.assertRaises(ValidationError):
+            closed.outcome_result = 'uncorrected'
+            closed.flush_recordset()
+
+    def test_outcome_not_copied(self):
+        defect = self._defect(state='draft', overdue=True, outcome_result='uncorrected', defect_description='複製')
+        self.assertFalse(defect.copy({'defect_description': '複製出來的'}).outcome_result)

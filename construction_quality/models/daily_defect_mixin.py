@@ -231,6 +231,20 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
 
     recheck_note = fields.Text(string='複查說明')
 
+    # === 缺失改善成果確認（2026-11-06）===
+    # EAGLE errorRecord.result（0 符合要求／1 已矯正／2 未矯正／3 其他／4 逾時未矯正）：監造選的結果，列印照它勾。
+    # 有填列印照它，沒填自動判斷（construction_template mappings/defect_improvement._outcome）。
+    # 只代表「填的當下」：之後狀態一變就清掉（write），與狀態矛盾的組合不准存（_check_outcome_matches_state）。
+    outcome_result = fields.Selection([
+        ('qualified', '符合要求'),
+        ('corrected', '已矯正'),
+        ('uncorrected', '未矯正'),
+        ('other', '其他'),
+        ('timeout', '逾時未矯正'),
+    ], string='成果確認', tracking=True, copy=False,
+        help='印在「矯正與預防處理紀錄」的缺失改善成果確認。有填照這裡勾；沒填列印時自動判斷。'
+             '「已矯正」表單上沒有格子，都不勾。缺失狀態改變時會自動清空。')
+
     # === 驗證資訊 ===
     verifier_id = fields.Many2one(
         'res.users',
@@ -355,6 +369,34 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
             )
 
     # === 動作方法（6 個逐位相同）===
+    # 「符合要求」只能配已驗證／結案；已驗證／結案不能配未矯正／逾時未矯正（2026-11-06 red-team F3：
+    # 否則前台顯示改善中、紙上印合格）
+    _OUTCOME_NEEDS_CLOSED = ('qualified',)
+    _OUTCOME_NEEDS_OPEN = ('uncorrected', 'timeout')
+    _OUTCOME_CLOSED_STATES = ('verified', 'closed')
+
+    @api.constrains('outcome_result', 'state')
+    def _check_outcome_matches_state(self):
+        for rec in self:
+            closed = rec.state in self._OUTCOME_CLOSED_STATES
+            if rec.outcome_result in self._OUTCOME_NEEDS_CLOSED and not closed:
+                raise ValidationError('成果確認「符合要求」只能用在已驗證或結案的缺失。')
+            if rec.outcome_result in self._OUTCOME_NEEDS_OPEN and closed:
+                raise ValidationError('已驗證或結案的缺失，成果確認不能是「未矯正」或「逾時未矯正」。')
+
+    def write(self, vals):
+        """狀態真的改變時清掉成果確認，改回自動判斷（2026-11-06 red-team F1／F2）。
+
+        存的成果確認只代表填的當下（回填的 EAGLE 值、或監造手選）：重開／驗證退回的缺失照舊印
+        「符合要求」、回填成「未矯正」的缺失在 Odoo 結案後照舊印「未矯正」，都是錯的。
+        同一次 write 同時給了成果確認（例如回填）就照給的值。
+        """
+        if 'state' in vals and 'outcome_result' not in vals:
+            stale = self.filtered(lambda r: r.outcome_result and r.state != vals['state'])
+            if stale:
+                super(ConstructionDailyDefectMixin, stale).write({'outcome_result': False})
+        return super().write(vals)
+
     def action_notify(self):
         """通知改善"""
         for record in self:
