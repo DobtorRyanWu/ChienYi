@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="construction_progress.ProgressDashboard" t-inherit-mode="extension">
+        <!-- 整個單一工程頁讀不到 -->
+        <xpath expr="//div[@t-if='state.error']" position="before">
+            <div t-if="dashExt.fatal" class="alert alert-danger o_dash_fatal" style="margin: 20px 0;">
+                <i class="fa fa-exclamation-triangle"/> 工程資料：<t t-esc="dashExt.fatal"/>
+            </div>
+        </xpath>
+        <!-- 舊版卡片的「沒資料」文字在區塊出錯時不能顯示（會誤導成「尚無進度表」「模組未安裝」） -->
+        <xpath expr="//p[contains(text(), '尚無使用中進度表')]" position="attributes">
+            <attribute name="t-if">!dashExt.blockErrors.progress_summary</attribute>
+        </xpath>
+        <xpath expr="//p[contains(text(), '模組未安裝')]" position="attributes">
+            <attribute name="t-if">!dashExt.blockErrors.change_order_summary</attribute>
+        </xpath>
+        <!-- 失敗的區塊逐一列出原因；其後是新增的三個區塊 -->
+        <xpath expr="//t[@t-if='state.dashboardData and state.selectedProjectId and !state.dashboardLoading']" position="inside">
+            <div t-if="dashExt.failedBlocks.length" class="row g-2 mb-3 o_dash_block_errors">
+                <t t-foreach="dashExt.failedBlocks" t-as="key" t-key="key">
+                    <div class="col-md-4">
+                        <div class="alert alert-warning mb-0 py-2" t-att-data-block="key">
+                            <strong t-esc="blockTitles[key]"/>：<t t-esc="dashExt.blockErrors[key]"/>
+                        </div>
+                    </div>
+                </t>
+            </div>
+            <div class="row g-3 mb-3 o_dash_new_blocks">
+                <!-- 今日日誌 -->
+                <t t-if="!dashExt.blockErrors.today_log and state.dashboardData.today_log">
+                    <div class="col-md-4">
+                        <div class="card h-100 border-top border-3 border-primary" data-block="today_log">
+                            <div class="card-body">
+                                <h6 class="card-title fw-bold"><i class="fa fa-pencil-square-o me-2"/>今日日誌</h6>
+                                <t t-set="log" t-value="state.dashboardData.today_log"/>
+                                <div t-if="log.message" class="text-danger"><t t-esc="log.message"/></div>
+                                <div t-elif="log.log_state === 'filled'" class="mb-1 text-success">今日已填</div>
+                                <div t-elif="log.log_state === 'missing'" class="mb-1 text-danger fw-bold">今日未填</div>
+                                <div t-else="" class="mb-1 text-muted"><t t-esc="log.log_state_label"/></div>
+                                <t t-foreach="log.sheets" t-as="sheet" t-key="sheet.id">
+                                    <div class="small">
+                                        <strong t-esc="sheet.name"/>（<t t-esc="sheet.state_label"/>）
+                                        <div class="text-muted" t-if="sheet.summary" t-esc="sheet.summary"/>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+                <!-- 今日照片 -->
+                <t t-if="!dashExt.blockErrors.today_photos and state.dashboardData.today_photos">
+                    <div class="col-md-4">
+                        <div class="card h-100 border-top border-3 border-success" data-block="today_photos">
+                            <div class="card-body">
+                                <h6 class="card-title fw-bold"><i class="fa fa-camera me-2"/>今日照片</h6>
+                                <t t-set="photos" t-value="state.dashboardData.today_photos"/>
+                                <div t-if="!photos.count" class="text-muted">今日無照片</div>
+                                <t t-else="">
+                                    <div class="mb-1"><t t-esc="photos.count"/> 張</div>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <t t-foreach="photos.photos" t-as="photo" t-key="photo.id">
+                                            <img t-att-src="'/web/image/supervision.photo/' + photo.id + '/image/128x128'"
+                                                 t-att-title="photo.name" alt="今日照片"
+                                                 style="width: 64px; height: 64px; object-fit: cover; border-radius: 4px;"/>
+                                        </t>
+                                    </div>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+                <!-- 估驗 -->
+                <t t-if="!dashExt.blockErrors.estimate and state.dashboardData.estimate">
+                    <div class="col-md-4">
+                        <div class="card h-100 border-top border-3 border-warning" data-block="estimate">
+                            <div class="card-body">
+                                <h6 class="card-title fw-bold"><i class="fa fa-money me-2"/>估驗</h6>
+                                <t t-set="est" t-value="state.dashboardData.estimate"/>
+                                <div t-if="!est.latest" class="text-muted mb-1">尚無估驗</div>
+                                <div t-else="" class="mb-1">
+                                    最近一期：<strong t-esc="est.latest.name"/>（<t t-esc="est.latest.state_label"/>）
+                                    <span class="float-end"><t t-esc="formatCurrency(est.latest.amount)"/></span>
+                                </div>
+                                <div class="small">累計（不含草稿）<span class="float-end"><t t-esc="formatCurrency(est.cumulative_amount)"/></span></div>
+                                <div class="small">本月（不含草稿）<span class="float-end"><t t-esc="formatCurrency(est.month_amount)"/></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </t>
+            </div>
+        </xpath>
+    </t>
+</templates>

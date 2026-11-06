@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 營造廠主管對選裝模組（本模組沒依賴、各租戶不一定裝）白名單模型的讀取 ACL（合約 §0b-10）。
+         CSV 引用不到沒裝的模組的模型，改由程式依 registry 建立；每次安裝／升級本模組都會跑。
+         見 models/optional_access.py。 -->
+    <function model="ir.model.access" name="_dash_sync_optional_manager_access"/>
+</odoo>

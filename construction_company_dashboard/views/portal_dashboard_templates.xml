@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        前台公司儀表板 /construction/dashboard（合約 §7）
+        QWeb server render；CSS 只用 wb 系列變數（static/src/portal/dashboard.css）；不載任何前端框架或圖表套件。
+        小 S 曲線 t-out 的是 project.dash_progress_svg（伺服器端產生，只含數字與固定標記，合約 §5.2）。
+        每個數字都有「無權限查看／讀取失敗／缺日曆／未建進度表」的對應文字，不用 0 冒充（合約 §1-8）。
+    -->
+    <template id="portal_company_dashboard" name="前台公司儀表板">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+
+            <div class="cy-v10-app cy-dash">
+                <t t-call="construction_portal.portal_inspection_type_hud">
+                    <t t-set="back_url" t-value="'/construction?view=list'"/>
+                    <t t-set="back_label" t-value="'工程列表'"/>
+                    <t t-set="hud_title" t-value="'公司儀表板'"/>
+                </t>
+
+                <div class="cy-content">
+                    <!-- 整個帳號被預設拒絕（未啟用兩步驟驗證、範圍公司未設定…）：說原因，不顯示空白 -->
+                    <div t-if="blocked_message" class="cy-dash-blocked" role="alert">
+                        <strong>目前看不到任何資料</strong>
+                        <div><t t-esc="blocked_message"/></div>
+                    </div>
+
+                    <!-- 公司合計（與後台看板同一個 get_dash_company_kpis） -->
+                    <div class="cy-sec-divider"><span>公司合計</span></div>
+                    <div class="cy-dash-kpis">
+                        <t t-foreach="kpi_items" t-as="kpi">
+                            <div t-attf-class="cy-dash-kpi #{'' if kpi['ok'] else 'cy-dash-kpi-off'}"
+                                 t-att-data-kpi="kpi['key']">
+                                <div class="cy-dash-kpi-label"><t t-esc="kpi['label']"/></div>
+                                <t t-if="kpi['ok']">
+                                    <div class="cy-dash-kpi-value"><t t-esc="kpi['value']"/></div>
+                                    <div class="cy-dash-kpi-sub" t-if="kpi['sub']"><t t-esc="kpi['sub']"/></div>
+                                </t>
+                                <t t-else="">
+                                    <div class="cy-dash-kpi-msg"><t t-esc="kpi['message']"/></div>
+                                </t>
+                            </div>
+                        </t>
+                    </div>
+                    <div class="cy-dash-asof">統計日期 <t t-esc="computed_at"/>（台灣日期）</div>
+
+                    <!-- 工程卡片 -->
+                    <div class="cy-sec-divider"><span>工程</span></div>
+                    <div class="cy-dash-filters">
+                        <a href="/construction/dashboard"
+                           t-attf-class="cy-chip #{'cy-chip-on' if state_filter == 'construction' else ''}">施工中</a>
+                        <a href="/construction/dashboard?state=all"
+                           t-attf-class="cy-chip #{'cy-chip-on' if state_filter == 'all' else ''}">全部狀態</a>
+                        <span class="cy-dash-total">共 <t t-esc="total"/> 件</span>
+                    </div>
+
+                    <t t-if="not cards">
+                        <div class="cy-empty cy-dash-empty">
+                            <i class="fa fa-hard-hat"/>
+                            <div class="cy-empty-text">
+                                <t t-if="blocked_message">看不到工程（原因見上方）</t>
+                                <t t-else="">目前沒有符合條件的工程</t>
+                            </div>
+                        </div>
+                    </t>
+
+                    <t t-foreach="cards" t-as="card">
+                        <a t-attf-href="/construction/#{card['id']}" class="cy-dash-card"
+                           t-att-data-project-id="card['id']">
+                            <div class="cy-dash-card-head">
+                                <span class="cy-dash-card-name"><t t-esc="card['name']"/></span>
+                                <span t-attf-class="cy-badge cy-badge-#{card['state']}"><t t-esc="card['state_label']"/></span>
+                            </div>
+                            <div class="cy-dash-card-code" t-if="card['code']"><t t-esc="card['code']"/></div>
+
+                            <!-- 工作天 -->
+                            <div t-attf-class="cy-dash-line cy-dash-tone-#{card['workday']['tone']}" data-field="workday">
+                                <span class="cy-dash-line-label">工期</span>
+                                <span class="cy-dash-line-value"><t t-esc="card['workday']['text']"/></span>
+                            </div>
+                            <div class="cy-dash-note" t-if="card['workday']['note']"><t t-esc="card['workday']['note']"/></div>
+
+                            <!-- 進度 + 小 S 曲線 -->
+                            <div class="cy-dash-progress" data-field="progress">
+                                <t t-if="card['progress']['ok']">
+                                    <div class="cy-dash-progress-nums">
+                                        <div><span class="cy-dash-line-label">預定</span> <strong><t t-esc="card['progress']['planned']"/></strong></div>
+                                        <div><span class="cy-dash-line-label">實際</span> <strong><t t-esc="card['progress']['actual']"/></strong></div>
+                                        <div t-attf-class="#{'cy-dash-tone-bad' if card['progress']['behind'] else 'cy-dash-tone-ok'}">
+                                            <span class="cy-dash-line-label">差</span> <strong><t t-esc="card['progress']['variance']"/></strong>
+                                        </div>
+                                    </div>
+                                    <div class="cy-dash-scurve" t-if="card['progress']['svg']"><t t-out="card['progress']['svg']"/></div>
+                                </t>
+                                <t t-else="">
+                                    <div class="cy-dash-line cy-dash-tone-warn">
+                                        <span class="cy-dash-line-label">進度</span>
+                                        <span class="cy-dash-line-value"><t t-esc="card['progress']['text']"/></span>
+                                    </div>
+                                </t>
+                            </div>
+
+                            <!-- 今日日誌 -->
+                            <div t-attf-class="cy-dash-line cy-dash-tone-#{card['log']['tone']}" data-field="log">
+                                <span class="cy-dash-line-label">日誌</span>
+                                <span class="cy-dash-line-value"><t t-esc="card['log']['text']"/></span>
+                            </div>
+
+                            <!-- 缺失／檢驗 -->
+                            <div class="cy-dash-line" data-field="defect">
+                                <span class="cy-dash-line-label">待改缺失</span>
+                                <span class="cy-dash-line-value">
+                                    <t t-if="card['defect']['ok']">
+                                        <strong><t t-esc="card['defect']['count']"/></strong>
+                                        <span t-attf-class="#{'cy-dash-tone-bad' if card['defect']['overdue'] else 'cy-dash-tone-muted'}">
+                                            （逾期 <t t-esc="card['defect']['overdue']"/>）
+                                        </span>
+                                    </t>
+                                    <span t-else="" class="cy-dash-tone-warn"><t t-esc="card['defect']['text']"/></span>
+                                </span>
+                            </div>
+                            <div class="cy-dash-line" data-field="test">
+                                <span class="cy-dash-line-label">檢驗待補</span>
+                                <span class="cy-dash-line-value">
+                                    <strong t-if="card['test']['ok']"><t t-esc="card['test']['count']"/></strong>
+                                    <span t-else="" class="cy-dash-tone-warn"><t t-esc="card['test']['text']"/></span>
+                                </span>
+                            </div>
+
+                            <!-- 估驗 -->
+                            <div class="cy-dash-line" data-field="estimate">
+                                <span class="cy-dash-line-label">估驗</span>
+                                <span class="cy-dash-line-value">
+                                    <t t-if="card['estimate']['ok']">
+                                        <t t-esc="card['estimate']['latest']"/> · 累計 <strong><t t-esc="card['estimate']['cum']"/></strong>
+                                        <span class="cy-dash-tone-muted">· 本月 <t t-esc="card['estimate']['month']"/></span>
+                                    </t>
+                                    <span t-else="" class="cy-dash-tone-warn"><t t-esc="card['estimate']['text']"/></span>
+                                </span>
+                            </div>
+
+                            <!-- 今日照片 -->
+                            <div class="cy-dash-photos" data-field="photos">
+                                <t t-if="card['photos']['ok']">
+                                    <t t-if="card['photos']['urls']">
+                                        <t t-foreach="card['photos']['urls']" t-as="url">
+                                            <img t-att-src="url" class="cy-dash-thumb" alt="今日照片" loading="lazy"/>
+                                        </t>
+                                        <span class="cy-dash-photo-count">今日 <t t-esc="card['photos']['count']"/> 張</span>
+                                    </t>
+                                    <span t-else="" class="cy-dash-tone-muted"><t t-esc="card['photos']['empty_text']"/></span>
+                                </t>
+                                <span t-else="" class="cy-dash-tone-warn">今日照片：<t t-esc="card['photos']['text']"/></span>
+                            </div>
+                        </a>
+                    </t>
+
+                    <!-- 分頁 -->
+                    <div class="cy-dash-pager" t-if="pages &gt; 1">
+                        <a t-if="page &gt; 1" t-attf-href="/construction/dashboard?state=#{state_filter}&amp;page=#{page - 1}">‹ 上一頁</a>
+                        <span><t t-esc="page"/> / <t t-esc="pages"/></span>
+                        <a t-if="page &lt; pages" t-attf-href="/construction/dashboard?state=#{state_filter}&amp;page=#{page + 1}">下一頁 ›</a>
+                    </div>
+                </div>
+
+                <t t-call="construction_portal.portal_v10_drawer"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- 右側抽屜「工程」組加入口（t-inherit，不改 construction_portal 模板檔） -->
+    <template id="portal_v10_drawer_dashboard" inherit_id="construction_portal.portal_v10_drawer"
+              name="前台抽屜：公司儀表板入口">
+        <xpath expr="//a[@href='/construction?view=list']" position="after">
+            <a class="cy-drawer-item" href="/construction/dashboard">
+                <span class="cy-drawer-item-icon">📊</span>
+                <span class="cy-drawer-item-label">公司儀表板</span>
+                <span class="cy-drawer-item-arrow">›</span>
+            </a>
+        </xpath>
+    </template>
+</odoo>

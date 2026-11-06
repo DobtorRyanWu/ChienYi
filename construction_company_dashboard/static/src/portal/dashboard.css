@@ -1,0 +1,77 @@
+/* 前台公司儀表板（合約 §7）：顏色與尺寸只用 portal_mobile.css 的 wb 系列變數 */
+.cy-dash .cy-dash-blocked {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: var(--wb-radius-sm);
+  border: 1px solid var(--wb-warn);
+  background: var(--wb-bg2);
+  color: var(--wb-t1);
+  font-size: 0.9rem;
+}
+.cy-dash .cy-dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.cy-dash .cy-dash-kpi {
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius-sm);
+  padding: 10px 12px;
+  box-shadow: var(--wb-shadow);
+  min-width: 0;
+}
+.cy-dash .cy-dash-kpi-label { font-size: 0.75rem; color: var(--wb-t3); font-weight: 700; }
+.cy-dash .cy-dash-kpi-value { font-size: 1.2rem; font-weight: 800; color: var(--wb-t1); overflow-wrap: anywhere; }
+.cy-dash .cy-dash-kpi-sub { font-size: 0.72rem; color: var(--wb-t3); }
+.cy-dash .cy-dash-kpi-msg { font-size: 0.85rem; color: var(--wb-warn); font-weight: 700; margin-top: 4px; }
+.cy-dash .cy-dash-kpi-off { border-style: dashed; }
+.cy-dash .cy-dash-asof { margin: 6px 0 4px; font-size: 0.72rem; color: var(--wb-t3); text-align: right; }
+.cy-dash .cy-dash-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.cy-dash .cy-dash-filters a {
+  text-decoration: none; padding: 6px 14px; border-radius: 999px; font-size: 0.85rem; font-weight: 700;
+  border: 1px solid var(--wb-bdr); color: var(--wb-t2); background: var(--wb-bg2);
+}
+.cy-dash .cy-dash-filters a.cy-chip-on { background: var(--wb-brand); border-color: var(--wb-brand); color: #fff; }
+.cy-dash .cy-dash-total { margin-left: auto; font-size: 0.8rem; color: var(--wb-t3); }
+.cy-dash .cy-dash-card {
+  display: block;
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr-soft);
+  border-radius: var(--wb-radius);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  box-shadow: var(--wb-shadow);
+  color: var(--wb-t1);
+  text-decoration: none;
+}
+.cy-dash .cy-dash-card:active { border-color: var(--wb-brand); }
+.cy-dash .cy-dash-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cy-dash .cy-dash-card-name { font-weight: 800; font-size: 1rem; min-width: 0; word-break: break-word; }
+.cy-dash .cy-dash-card-code { font-size: 0.75rem; color: var(--wb-t3); margin-bottom: 6px; }
+.cy-dash .cy-dash-line {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 4px 0; font-size: 0.86rem; border-top: 1px solid var(--wb-bdr-soft);
+}
+.cy-dash .cy-dash-line-label { color: var(--wb-t3); font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+.cy-dash .cy-dash-line-value { text-align: right; min-width: 0; word-break: break-word; }
+.cy-dash .cy-dash-note { font-size: 0.72rem; color: var(--wb-warn); padding-bottom: 2px; }
+.cy-dash .cy-dash-progress { border-top: 1px solid var(--wb-bdr-soft); padding: 6px 0; }
+.cy-dash .cy-dash-progress-nums { display: flex; justify-content: space-between; gap: 6px; font-size: 0.86rem; }
+.cy-dash .cy-dash-scurve { margin-top: 6px; }
+.cy-dash .cy-dash-scurve svg { display: block; width: 100%; height: 56px; }
+.cy-dash .cy-dash-photos {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  border-top: 1px solid var(--wb-bdr-soft); padding-top: 8px; margin-top: 4px; font-size: 0.8rem;
+}
+.cy-dash .cy-dash-thumb {
+  width: 48px; height: 48px; object-fit: cover;
+  border-radius: var(--wb-radius-sm); background: var(--wb-bg3);
+}
+.cy-dash .cy-dash-photo-count { color: var(--wb-t3); margin-left: auto; }
+.cy-dash .cy-dash-tone-ok { color: var(--wb-green); }
+.cy-dash .cy-dash-tone-bad { color: var(--wb-red); }
+.cy-dash .cy-dash-tone-warn { color: var(--wb-warn); }
+.cy-dash .cy-dash-tone-muted { color: var(--wb-t3); }
+.cy-dash .cy-dash-pager { display: flex; justify-content: center; align-items: center; gap: 16px; margin: 12px 0 24px; }
+.cy-dash .cy-dash-pager a { color: var(--wb-brand-dark); font-weight: 700; text-decoration: none; }

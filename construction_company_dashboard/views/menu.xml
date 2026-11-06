@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 工程管理 → 工程總覽 → 公司儀表板（合約 §6）。xmlid 已列在 models/ir_ui_menu.py 的營造廠主管允許清單 -->
+    <menuitem id="menu_company_dashboard"
+              name="公司儀表板"
+              parent="construction_supervision_base.menu_project_overview"
+              action="action_company_dashboard"
+              sequence="5"/>
+</odoo>

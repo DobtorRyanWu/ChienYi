@@ -1,0 +1,15 @@
+id,date,day_type,name
+official_calendar_20220101,2022-01-01,holiday,開國紀念日
+official_calendar_20220122,2022-01-22,makeup_workday,補行上班
+official_calendar_20220131,2022-01-31,holiday,農曆除夕
+official_calendar_20220201,2022-02-01,holiday,春節
+official_calendar_20220202,2022-02-02,holiday,春節
+official_calendar_20220203,2022-02-03,holiday,春節
+official_calendar_20220204,2022-02-04,holiday,調整放假
+official_calendar_20220228,2022-02-28,holiday,和平紀念日
+official_calendar_20220404,2022-04-04,holiday,兒童節
+official_calendar_20220405,2022-04-05,holiday,民族掃墓節
+official_calendar_20220603,2022-06-03,holiday,端午節
+official_calendar_20220909,2022-09-09,holiday,補假
+official_calendar_20220910,2022-09-10,holiday,中秋節
+official_calendar_20221010,2022-10-10,holiday,國慶日

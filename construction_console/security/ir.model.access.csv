@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_console_tenant_user,控台檢視 讀 租戶,model_console_tenant,group_console_user,1,0,0,0
+access_console_tenant_manager,控台管理 管 租戶,model_console_tenant,group_console_manager,1,1,1,1
+access_console_tenant_project_user,控台檢視 讀 工程總覽,model_console_tenant_project,group_console_user,1,0,0,0

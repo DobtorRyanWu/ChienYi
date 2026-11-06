@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="module_category_console" model="ir.module.category">
+            <field name="name">控台</field>
+            <field name="sequence">90</field>
+        </record>
+
+        <!-- 檢視：讀租戶與工程總覽 -->
+        <record id="group_console_user" model="res.groups">
+            <field name="name">控台檢視</field>
+            <field name="category_id" ref="module_category_console"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">看得到所有租戶的工程總覽快照、資料時間與上次失敗。</field>
+        </record>
+
+        <!-- 管理：登錄、修改租戶（庫名、網址）；狀態欄位一樣改不到 -->
+        <record id="group_console_manager" model="res.groups">
+            <field name="name">控台管理</field>
+            <field name="category_id" ref="module_category_console"/>
+            <field name="implied_ids" eval="[(4, ref('group_console_user'))]"/>
+            <field name="users" eval="[(4, ref('base.user_admin'))]"/>
+        </record>
+
+        <!-- 拉資料：tools/console_agent/pull_overview.py 用的帳號，只靠 replace_snapshot／record_pull_failure 寫入 -->
+        <record id="group_console_puller" model="res.groups">
+            <field name="name">控台拉資料</field>
+            <field name="category_id" ref="module_category_console"/>
+            <field name="implied_ids" eval="[(4, ref('group_console_user'))]"/>
+            <field name="comment">拉資料程式的帳號：只能呼叫 replace_snapshot()、record_pull_failure()（方法內部檢查本群組後 sudo 寫入）。</field>
+        </record>
+    </data>
+</odoo>

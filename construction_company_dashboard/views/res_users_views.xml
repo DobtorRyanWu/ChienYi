@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 範圍公司（合約 §2）：只有系統管理者看得到、改得到（欄位 groups=base.group_system）。
+         後台使用者表單＋「建立使用者」的簡易表單（員工頁、延伸 base.view_users_simple_form）都要能填。 -->
+    <record id="view_users_form_dash_scope" model="ir.ui.view">
+        <field name="name">res.users.form.dash.scope</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='access_rights']" position="inside">
+                <group string="營造方範圍（公司儀表板）" name="dash_scope_group" groups="base.group_system">
+                    <field name="dash_scope_company_id" options="{'no_create': True}"
+                           help="營造廠主管與前台營造組織帳號的「我的公司」。填好後可用右上「動作」選單的「設為營造廠主管」。"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_users_simple_form_dash_scope" model="ir.ui.view">
+        <field name="name">res.users.simple.form.dash.scope</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_simple_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='mobile']" position="after">
+                <field name="dash_scope_company_id" options="{'no_create': True}" groups="base.group_system"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 工程表單：重新帶入營造廠歸屬（只限監造方；方法內再檢查） -->
+    <record id="view_supervision_project_form_dash_refill" model="ir.ui.view">
+        <field name="name">supervision.project.form.dash.refill</field>
+        <field name="model">project.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_dash_refill_attribution" type="object"
+                        string="重新帶入營造廠歸屬"
+                        groups="construction_supervision_base.group_supervisor_admin,construction_supervision_base.group_operator"
+                        confirm="工程補了承包廠商之後，把底下「營造廠」空白的單據重算一次（已有值的不動）。確定？"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

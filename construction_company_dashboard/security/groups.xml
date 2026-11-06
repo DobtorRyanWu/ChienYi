@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- 合約 §3.1：兩個群組都只隱含 base.group_user。
+             不設 category_id：不出現在使用者表單的勾選區，指派走線 A1' 的伺服器動作「設為營造廠主管」。
+             讀取範圍與拒寫不靠群組規則記錄，由 models/rule_scope.py 覆寫 ir.rule._compute_domain（合約 §0b-1）。 -->
+
+        <record id="group_contractor_manager" model="res.groups">
+            <field name="name">營造廠主管（唯讀）</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">營造廠總經理的後台唯讀帳號：只看得到自己範圍公司承攬的工程與自家的營造廠層級資料，任何業務資料都不能寫、建、刪。範圍公司（dash_scope_company_id）必填。</field>
+        </record>
+
+        <record id="group_console_reader" model="res.groups">
+            <field name="name">控台讀取</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">千溢控台拉資料用的帳號：只呼叫 dash_console_overview()（方法內部 sudo、只回合計）；除框架必要模型外一律讀不到，任何業務資料都不能寫、建、刪。</field>
+        </record>
+    </data>
+</odoo>

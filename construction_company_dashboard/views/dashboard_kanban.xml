@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 公司儀表板看板（合約 §6）：新 view，不改 view_supervision_project_kanban。
+         limit 必須等於 models/progress_dashboard_ext.py 的 KANBAN_PAGE_SIZE（tests 比對）。 -->
+    <record id="view_company_dashboard_kanban" model="ir.ui.view">
+        <field name="name">project.project.kanban.company.dashboard</field>
+        <field name="model">project.project</field>
+        <field name="arch" type="xml">
+            <kanban js_class="company_dashboard_kanban" limit="24" create="0" edit="0" delete="0"
+                    class="o_dash_kanban" records_draggable="0">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="state"/>
+                <field name="currency_id"/>
+                <field name="dash_log_today"/>
+                <field name="dash_workday_elapsed"/>
+                <field name="dash_workday_total"/>
+                <field name="dash_workday_note"/>
+                <field name="dash_workday_state"/>
+                <field name="dash_today_photo_ids"/>
+                <field name="dash_today_photo_count"/>
+                <field name="dash_open_defect_count"/>
+                <field name="dash_overdue_defect_count"/>
+                <field name="dash_pending_test_count"/>
+                <field name="dash_latest_estimate_id"/>
+                <field name="dash_estimate_cum_amount"/>
+                <field name="dash_estimate_month_amount"/>
+                <field name="dash_progress_planned"/>
+                <field name="dash_progress_actual"/>
+                <field name="dash_progress_variance"/>
+                <field name="dash_has_schedule"/>
+                <field name="dash_denied_keys"/>
+                <field name="dash_error_keys"/>
+                <templates>
+                    <t t-name="card">
+                        <t t-set="denied" t-value="(record.dash_denied_keys.raw_value || '').split(',')"/>
+                        <t t-set="failed" t-value="(record.dash_error_keys.raw_value || '').split(',')"/>
+                        <div class="o_dash_card">
+                            <div class="o_dash_card_head">
+                                <strong class="o_dash_card_title"><field name="name"/></strong>
+                                <span class="text-muted small"><field name="code"/></span>
+                            </div>
+
+                            <!-- 工作天 -->
+                            <div class="o_dash_row o_dash_workday">
+                                <span class="o_dash_label">工作天</span>
+                                <span t-if="failed.includes('workday')" class="o_dash_bad">讀取失敗</span>
+                                <span t-elif="record.dash_workday_state.raw_value == 'no_calendar'" class="o_dash_bad">
+                                    <field name="dash_workday_note"/>
+                                </span>
+                                <span t-elif="record.dash_workday_state.raw_value == 'no_dates'" class="o_dash_bad">
+                                    <field name="dash_workday_note"/>
+                                </span>
+                                <span t-else="">
+                                    第 <t t-esc="record.dash_workday_elapsed.raw_value"/> / <t t-esc="record.dash_workday_total.raw_value"/> 工作天
+                                    <span t-if="record.dash_workday_note.raw_value" class="o_dash_note">
+                                        （<field name="dash_workday_note"/>）
+                                    </span>
+                                </span>
+                            </div>
+
+                            <!-- 進度 -->
+                            <div class="o_dash_row o_dash_progress">
+                                <span class="o_dash_label">進度</span>
+                                <span t-if="denied.includes('progress')" class="o_dash_bad">無權限查看</span>
+                                <span t-elif="failed.includes('progress')" class="o_dash_bad">讀取失敗</span>
+                                <span t-elif="!record.dash_has_schedule.raw_value" class="text-muted">未建進度表</span>
+                                <span t-else="">
+                                    預定 <t t-esc="record.dash_progress_planned.value"/>% ／ 實際 <t t-esc="record.dash_progress_actual.value"/>% ／
+                                    <span t-att-class="record.dash_progress_variance.raw_value &lt; 0 ? 'o_dash_bad' : 'o_dash_good'">
+                                        差 <t t-esc="record.dash_progress_variance.value"/>%
+                                    </span>
+                                </span>
+                            </div>
+                            <div t-if="record.dash_has_schedule.raw_value and !denied.includes('progress') and !failed.includes('progress')"
+                                 class="o_dash_scurve_wrap">
+                                <field name="dash_progress_svg" widget="html"/>
+                            </div>
+
+                            <!-- 今日日誌 -->
+                            <div class="o_dash_row o_dash_log">
+                                <span class="o_dash_label">今日日誌</span>
+                                <span t-if="denied.includes('log')" class="o_dash_bad">無權限查看</span>
+                                <span t-elif="failed.includes('log')" class="o_dash_bad">讀取失敗</span>
+                                <span t-elif="record.dash_log_today.raw_value == 'missing'" class="o_dash_bad"><field name="dash_log_today"/></span>
+                                <span t-else=""><field name="dash_log_today"/></span>
+                            </div>
+
+                            <!-- 缺失 -->
+                            <div class="o_dash_row o_dash_defect">
+                                <span class="o_dash_label">待改缺失</span>
+                                <span t-if="denied.includes('defect')" class="o_dash_bad">無權限查看</span>
+                                <span t-elif="failed.includes('defect')" class="o_dash_bad">讀取失敗</span>
+                                <span t-else="">
+                                    <t t-esc="record.dash_open_defect_count.raw_value"/>
+                                    （逾期 <span t-att-class="record.dash_overdue_defect_count.raw_value &gt; 0 ? 'o_dash_bad' : ''"><t t-esc="record.dash_overdue_defect_count.raw_value"/></span>）
+                                </span>
+                            </div>
+
+                            <!-- 檢驗 -->
+                            <div class="o_dash_row o_dash_test">
+                                <span class="o_dash_label">檢驗待補</span>
+                                <span t-if="denied.includes('test')" class="o_dash_bad">無權限查看</span>
+                                <span t-elif="failed.includes('test')" class="o_dash_bad">讀取失敗</span>
+                                <span t-else=""><t t-esc="record.dash_pending_test_count.raw_value"/></span>
+                            </div>
+
+                            <!-- 估驗 -->
+                            <div class="o_dash_row o_dash_estimate">
+                                <span class="o_dash_label">最近一期估驗</span>
+                                <span t-if="denied.includes('estimate')" class="o_dash_bad">無權限查看</span>
+                                <span t-elif="failed.includes('estimate')" class="o_dash_bad">讀取失敗</span>
+                                <span t-elif="!record.dash_latest_estimate_id.raw_value" class="text-muted">尚無估驗</span>
+                                <span t-else="">
+                                    <field name="dash_latest_estimate_id"/>
+                                    累計 <field name="dash_estimate_cum_amount" widget="monetary"/>
+                                </span>
+                            </div>
+
+                            <!-- 今日照片 -->
+                            <div class="o_dash_row o_dash_photos">
+                                <span class="o_dash_label">今日照片</span>
+                                <span t-if="denied.includes('photo')" class="o_dash_bad">無權限查看</span>
+                                <span t-elif="failed.includes('photo')" class="o_dash_bad">讀取失敗</span>
+                                <span t-elif="!record.dash_today_photo_count.raw_value" class="text-muted">今日無照片</span>
+                                <span t-else="">
+                                    <t t-esc="record.dash_today_photo_count.raw_value"/> 張
+                                </span>
+                            </div>
+                            <div t-if="!denied.includes('photo') and !failed.includes('photo') and record.dash_today_photo_ids.raw_value.length"
+                                 class="o_dash_thumbs">
+                                <t t-foreach="record.dash_today_photo_ids.raw_value" t-as="pid" t-key="pid">
+                                    <img class="o_dash_thumb" loading="lazy" alt="今日照片"
+                                         t-att-src="'/web/image/supervision.photo/' + pid + '/image/96x96'"/>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_company_dashboard_search" model="ir.ui.view">
+        <field name="name">project.project.search.company.dashboard</field>
+        <field name="model">project.project</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" string="工程" filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
+                <filter string="施工中（有效）" name="construction"
+                        domain="[('state', '=', 'construction'), ('active', '=', True)]"/>
+                <separator/>
+                <filter string="已封存" name="archived" domain="[('active', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_company_dashboard" model="ir.actions.act_window">
+        <field name="name">公司儀表板</field>
+        <field name="res_model">project.project</field>
+        <field name="view_mode">kanban</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'sequence': 1, 'view_mode': 'kanban', 'view_id': ref('view_company_dashboard_kanban')})]"/>
+        <field name="search_view_id" ref="view_company_dashboard_search"/>
+        <field name="context">{'search_default_construction': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">沒有符合條件的工程</p>
+            <p>預設只列有效且施工中的工程；把上方「施工中（有效）」篩選拿掉可看全部。</p>
+        </field>
+    </record>
+</odoo>

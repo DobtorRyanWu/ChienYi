@@ -1,0 +1,14 @@
+.o_dash_kanban {
+    .o_dash_card { padding: 10px 12px; min-width: 260px; max-width: 340px; font-size: 13px; }
+    .o_dash_card_head { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .o_dash_row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+    .o_dash_label { color: #6b7280; white-space: nowrap; }
+    .o_dash_scurve_wrap svg { width: 100%; height: 40px; }
+    .o_dash_thumbs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .o_dash_thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; }
+}
+.o_dash_bad { color: #b91c1c; }
+.o_dash_good { color: #15803d; }
+.o_dash_note { color: #b45309; font-size: 12px; }
+.o_dash_kpi { min-width: 130px; cursor: default; }
+.o_dash_kpi_ok { cursor: pointer; }

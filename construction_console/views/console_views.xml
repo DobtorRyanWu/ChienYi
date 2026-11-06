@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── 租戶 ─────────────────────────────────────────────────────── -->
+    <record id="view_console_tenant_list" model="ir.ui.view">
+        <field name="name">console.tenant.list</field>
+        <field name="model">console.tenant</field>
+        <field name="arch" type="xml">
+            <list string="租戶"
+                  decoration-danger="pull_state == 'failed'"
+                  decoration-warning="pull_state in ('stale', 'never')">
+                <field name="name"/>
+                <field name="db_name"/>
+                <field name="url" widget="url"/>
+                <field name="pull_state"/>
+                <field name="snapshot_count"/>
+                <field name="data_computed_at"/>
+                <field name="last_success_at"/>
+                <field name="last_failure_at"/>
+                <field name="last_failure_reason"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_console_tenant_form" model="ir.ui.view">
+        <field name="name">console.tenant.form</field>
+        <field name="model">console.tenant</field>
+        <field name="arch" type="xml">
+            <form string="租戶">
+                <sheet>
+                    <div class="alert alert-danger" role="alert" invisible="pull_state != 'failed'">
+                        上次拉取失敗：下面是<strong>舊快照</strong>（資料時間見右側），原因：<field name="last_failure_reason" readonly="1" nolabel="1"/>
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="pull_state != 'stale'">
+                        資料過時：太久沒有成功拉取，請確認拉資料程式有在跑。
+                    </div>
+                    <div class="alert alert-warning" role="alert" invisible="pull_state != 'never'">
+                        還沒有成功拉取過，沒有任何快照。
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="db_name"/>
+                            <field name="url" widget="url"/>
+                        </group>
+                        <group>
+                            <field name="pull_state"/>
+                            <field name="snapshot_count"/>
+                            <field name="data_computed_at"/>
+                            <field name="last_success_at"/>
+                            <field name="last_failure_at"/>
+                        </group>
+                    </group>
+                    <field name="project_ids" readonly="1">
+                        <list>
+                            <field name="supervision_company_display"/>
+                            <field name="code"/>
+                            <field name="name"/>
+                            <field name="state_label"/>
+                            <field name="remote_active"/>
+                            <field name="open_defect_count" sum="合計"/>
+                            <field name="overdue_defect_count" sum="合計"/>
+                            <field name="pending_test_count" sum="合計"/>
+                            <field name="error_keys"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_console_tenant" model="ir.actions.act_window">
+        <field name="name">租戶</field>
+        <field name="res_model">console.tenant</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <!-- ── 工程總覽（所有租戶；預設依租戶分組，分組列與表尾是合計）──────────── -->
+    <record id="view_console_tenant_project_list" model="ir.ui.view">
+        <field name="name">console.tenant.project.list</field>
+        <field name="model">console.tenant.project</field>
+        <field name="arch" type="xml">
+            <list string="工程總覽" create="0" edit="0" delete="0"
+                  decoration-danger="tenant_pull_state == 'failed' or error_keys"
+                  decoration-warning="tenant_pull_state in ('stale', 'never')"
+                  decoration-muted="not remote_active">
+                <field name="tenant_id"/>
+                <field name="supervision_company_display"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="state_label"/>
+                <field name="remote_active" optional="hide"/>
+                <field name="contractor_display"/>
+                <field name="workday_elapsed"/>
+                <field name="workday_total"/>
+                <field name="workday_note" optional="show"/>
+                <field name="log_today_label"/>
+                <field name="today_photo_count" sum="合計"/>
+                <field name="open_defect_count" sum="合計"/>
+                <field name="overdue_defect_count" sum="合計"/>
+                <field name="pending_test_count" sum="合計"/>
+                <field name="latest_estimate_no" optional="hide"/>
+                <field name="estimate_month_amount" sum="合計"/>
+                <field name="estimate_cum_amount" sum="合計"/>
+                <field name="progress_planned"/>
+                <field name="progress_actual"/>
+                <field name="progress_variance"/>
+                <field name="has_schedule" optional="hide"/>
+                <field name="error_keys"/>
+                <field name="denied_keys" optional="hide"/>
+                <field name="tenant_data_computed_at"/>
+                <field name="tenant_last_failure_at"/>
+                <field name="tenant_pull_state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_console_tenant_project_search" model="ir.ui.view">
+        <field name="name">console.tenant.project.search</field>
+        <field name="model">console.tenant.project</field>
+        <field name="arch" type="xml">
+            <search string="工程總覽">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="contractor_display"/>
+                <field name="supervision_company_display"/>
+                <field name="tenant_id"/>
+                <filter name="filter_construction" string="施工中" domain="[('state', '=', 'construction')]"/>
+                <filter name="filter_remote_active" string="租戶端有效" domain="[('remote_active', '=', True)]"/>
+                <filter name="filter_error" string="有讀取失敗的指標" domain="[('error_keys', '!=', False)]"/>
+                <separator/>
+                <filter name="group_tenant" string="租戶" context="{'group_by': 'tenant_id'}"/>
+                <filter name="group_supervision_company" string="監造公司"
+                        context="{'group_by': 'supervision_company_display'}"/>
+                <filter name="group_state" string="狀態" context="{'group_by': 'state_label'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_console_tenant_project" model="ir.actions.act_window">
+        <field name="name">工程總覽</field>
+        <field name="res_model">console.tenant.project</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_console_tenant_project_search"/>
+        <field name="context">{'search_default_group_tenant': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有任何快照</p>
+            <p>拉資料程式（tools/console_agent/pull_overview.py）成功拉取後才會有資料；請看「租戶」的上次失敗原因。</p>
+        </field>
+    </record>
+
+    <!-- ── 選單 ─────────────────────────────────────────────────────── -->
+    <menuitem id="menu_console_root" name="控台" sequence="5" groups="group_console_user"/>
+    <menuitem id="menu_console_project" name="工程總覽" parent="menu_console_root"
+              action="action_console_tenant_project" sequence="10"/>
+    <menuitem id="menu_console_tenant" name="租戶" parent="menu_console_root"
+              action="action_console_tenant" sequence="20"/>
+</odoo>

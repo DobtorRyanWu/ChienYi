@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 合約 §0b-25（線 I）：每次安裝／升級本模組，把受限帳號（營造方、控台讀取）移出公開頻道（#general 等）。
+         可重跑；之後不會再被自動加入（models/restricted_mail.py）。 -->
+    <function model="res.users" name="_dash_remove_restricted_channel_memberships"/>
+</odoo>

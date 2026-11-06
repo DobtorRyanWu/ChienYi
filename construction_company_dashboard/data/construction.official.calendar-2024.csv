@@ -1,0 +1,16 @@
+id,date,day_type,name
+official_calendar_20240101,2024-01-01,holiday,開國紀念日
+official_calendar_20240208,2024-02-08,holiday,小年夜
+official_calendar_20240209,2024-02-09,holiday,農曆除夕
+official_calendar_20240210,2024-02-10,holiday,春節
+official_calendar_20240211,2024-02-11,holiday,春節
+official_calendar_20240212,2024-02-12,holiday,春節
+official_calendar_20240213,2024-02-13,holiday,補假
+official_calendar_20240214,2024-02-14,holiday,補假
+official_calendar_20240217,2024-02-17,makeup_workday,補行上班
+official_calendar_20240228,2024-02-28,holiday,和平紀念日
+official_calendar_20240404,2024-04-04,holiday,兒童節及民族掃墓節
+official_calendar_20240405,2024-04-05,holiday,補假
+official_calendar_20240610,2024-06-10,holiday,端午節
+official_calendar_20240917,2024-09-17,holiday,中秋節
+official_calendar_20241010,2024-10-10,holiday,國慶日
