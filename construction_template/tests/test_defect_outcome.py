@@ -140,7 +140,9 @@ class TestDefectOutcome(TransactionCase):
             ('uncorrected', 'draft', True, ('isUncorrected',), ('□', '■')),     # 自動會是逾時未矯正
             ('timeout', 'notified', False, ('isTimeout',), ('□', '■')),         # 自動會是未矯正
             ('other', 'notified', True, ('isOther',), ('□', '□')),              # 自動永遠不勾「其他」
-            ('corrected', 'closed', False, (), ('□', '□')),                     # 已矯正：表單沒有格子
+            # 已矯正：上面四格沒有它的格子（照 EAGLE 都不勾）；新北附表12 勾「改善完成」（使用者 2026-11-07 裁示）
+            ('corrected', 'closed', False, (), ('■', '□')),
+            ('corrected', 'improved', True, (), ('■', '□')),                    # 逾期也一樣：存的是監造判定
         ]
         for outcome, state, overdue, boxes, ntpc in cases:
             defect = self._defect(state=state, overdue=overdue, outcome_result=outcome,

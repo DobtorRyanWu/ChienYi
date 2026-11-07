@@ -44,6 +44,8 @@ BOX_ON, BOX_OFF = '■', '□'   # 新北版樣板的勾選框（舊樣板用上
 
 # 「缺失改善成果確認」的結果（_outcome），樣板上 □符合要求 □逾時未矯正 □未矯正 □其他 只勾一格
 QUALIFIED, TIMEOUT, UNCORRECTED, OTHER = 'qualified', 'timeout', 'uncorrected', 'other'
+# 「已矯正」：只會來自存起來的成果確認（outcome_result），上面四格沒有它的格子
+CORRECTED = 'corrected'
 
 # 照片尺寸上限（公分）：樣板標記寫的是 imageGenerator(…, {height:6}, …)，EAGLE 原系統
 # 是 `maxHeight = opts.height || 10`、`maxWidth = opts.width || 14` → 高 6 cm。
@@ -157,8 +159,9 @@ def _record(defect):
         'location': defect.defect_location or '',
         'recheckAt': roc_date(defect.recheck_date),
         # 「□改善完成 □未完成改善」：與上面三格同一套判斷（使用者 2026-11-05 裁示）；
-        # 已改善待驗證、待複查兩格都不勾
-        'doneBox': BOX_ON if outcome == QUALIFIED else BOX_OFF,
+        # 已改善待驗證、待複查兩格都不勾。成果確認存「已矯正」也勾改善完成（使用者 2026-11-07 裁示；
+        # 上面四格照 EAGLE 不勾，附表12 是新北的表、EAGLE 沒有，兩格都空白等於沒交代結果）
+        'doneBox': BOX_ON if outcome in (QUALIFIED, CORRECTED) else BOX_OFF,
         'undoneBox': BOX_ON if outcome in (TIMEOUT, UNCORRECTED) else BOX_OFF,
     }
 
