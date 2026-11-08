@@ -485,6 +485,17 @@ class PaymentEstimate(models.Model):
             before |= est
         return before
 
+    def _approved_estimates_before(self):
+        """「前期」：排在前面、已核定或已歸檔的期別。沒有工程或估驗日期時一律沒有前期。
+
+        明細的「前期已核定累計」與彙總項的累計共用這一份口徑——兩邊各寫一份，遲早各改各的。
+        archived 是「已核定後歸檔」，數量仍是有效核定量，要算進前期。
+        """
+        if not self or not self.project_id or not self.estimate_date:
+            return self.browse()
+        self.ensure_one()
+        return self._estimates_before().filtered(lambda e: e.state in ('approved', 'archived'))
+
     def _previous_estimate(self):
         """緊接在本期之前的那一期（沒有就回空）。"""
         self.ensure_one()
@@ -851,6 +862,31 @@ class PaymentEstimateLine(models.Model):
             lambda l: l.task_id.id in descendant_ids and not l.is_summary_item
         )
 
+    def _earlier_leaf_amount(self, before):
+        """彙總項用：前期各張（before）裡，本彙總項底下所有葉節點的實際金額合計。
+
+        不能用「本張每個葉節點的 previous_approved_amount 相加」：匯入建的估驗單只列本期有填的
+        工項（3.5.4），前期估過、本期沒列的工項在本張沒有明細行，那些錢就整筆消失。
+        2026-11-08 實查 dev：51 張估驗有這種工項，但只有本張也有對應彙總列的接得住（58、59）；
+        其餘整張沒有彙總列，畫面上本來就沒有一列可以顯示（這裡修不到）。
+        口徑與「工程估驗計價單」匯出（construction_template estimate_report._categories）相同；
+        金額照各期當時的實際金額（_get_effective_amount），與葉節點的前期金額同一套。
+        子孫工項含已封存的：契約變更「刪除」是把工項封存（contract_change_order.py 寫 active=False），
+        它前期已核定的錢仍是累計的一部分（匯出也照算）。
+        """
+        self.ensure_one()
+        if not before or not self.task_id:
+            return 0.0
+        descendant_ids = self.env['project.task'].with_context(active_test=False).search([
+            ('id', 'child_of', self.task_id.id),
+        ]).ids
+        prev_lines = self.search([
+            ('estimate_id', 'in', before.ids),
+            ('task_id', 'in', descendant_ids),
+            ('is_summary_item', '=', False),
+        ])
+        return sum(l._get_effective_amount() for l in prev_lines)
+
     def _get_effective_amount(self):
         """本行實際採用的「本次估驗金額」：手動輸入優先於 單價 × 本次估驗數量。
 
@@ -969,8 +1005,7 @@ class PaymentEstimateLine(models.Model):
             # archived 是「已核定後歸檔」，其數量仍為有效核定量，須一併計入前期累計，
             # 否則前期估驗一歸檔，後期累計就會漏掉該期數量。
             if est.id not in before_cache:
-                before_cache[est.id] = est._estimates_before().filtered(
-                    lambda e: e.state in ('approved', 'archived'))
+                before_cache[est.id] = est._approved_estimates_before()
             before = before_cache[est.id]
             if not before:
                 line.previous_approved_qty = 0.0
@@ -1000,8 +1035,9 @@ class PaymentEstimateLine(models.Model):
                 累計金額 = 前期已核定累計金額 + 本次估驗金額
                 （前期金額＝前期各期本次估驗金額相加；本次金額走 _get_effective_amount，
                   故手動金額會反映到累計。單價沒變、沒有手動金額時等同 單價 × 累計數量）。
-        彙總項：數量採「一式」固定 1；金額 = 底下葉節點同式之和
-                （直接讀葉節點原始欄位算術，不讀其計算欄位，避免計算順序造成讀到舊值）。
+        彙總項：數量採「一式」固定 1；金額 = 本張底下葉節點的本次金額
+                ＋ 前期各張底下所有葉節點的金額（_earlier_leaf_amount：含本張沒列、已封存的工項）
+                （直接讀原始欄位算術，不讀葉節點的計算欄位，避免計算順序造成讀到舊值）。
 
         🔴 不可改回 `單價 × 前期數量 + 本次`（18.0.1.8.0 以前的寫法）：
           ・單價是 0 的工項（自主品管費、稅什費等整包項／比例項，金額在 xml_amount）
@@ -1013,14 +1049,17 @@ class PaymentEstimateLine(models.Model):
         三種都不會報錯。非契約工項（payment.estimate.extra.line）同一個理由，
         18.0.1.7.0 起就是前期金額相加。
         """
+        # 前期每張估驗單只查一次（與 _compute_previous_approved_qty 同一個 _approved_estimates_before）
+        before_cache = {}
         for line in self:
             if line.is_summary_item:
-                leaf_lines = line._get_descendant_leaf_lines()
+                est = line.estimate_id
+                if est.id not in before_cache:
+                    before_cache[est.id] = est._approved_estimates_before()
                 line.cumulative_estimate_qty = 1.0
                 line.cumulative_estimate_amount = sum(
-                    l.previous_approved_amount + l._get_effective_amount()
-                    for l in leaf_lines
-                )
+                    l._get_effective_amount() for l in line._get_descendant_leaf_lines()
+                ) + line._earlier_leaf_amount(before_cache[est.id])
                 continue
             line.cumulative_estimate_qty = line.previous_approved_qty + line.estimate_qty
             line.cumulative_estimate_amount = (

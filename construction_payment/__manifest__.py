@@ -195,7 +195,7 @@
     #        變更日期，變更後的舊期別預設全部同步不到。沒填變更日期才退回套用日。使用者 2026-10-19 裁示。
     # 1.8.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 1.8.5: 前台成員讀取規則補到掛在工程底下的業務資料（老闆另加公司範圍）：原本前台讀得到、沒有任何前台規則，非成員經 RPC 讀得到別案：請款、估驗、追加項目、計量驗收與明細（新檔 security/portal_rules.xml）
-    'version': '18.0.1.8.5',
+    'version': '18.0.1.8.6',
     # 1.7.2: 效能：`payment.estimate.line._compute_previous_approved_qty` 與
     #        `extra.line._compute_previous_approved` 加 before_cache ——
     #        原本每一列都要重跑一次 `_estimates_before()`，一張估驗單查上百次。

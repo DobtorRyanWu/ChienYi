@@ -195,3 +195,38 @@ class TestEstimateCumulativeAmount(TransactionCase):
         self._approve(e1)
         self.assertAlmostEqual(
             self._summary(e2).cumulative_estimate_amount, 118.0 + 150000.0, places=2)
+
+    def test_summary_includes_earlier_items_not_listed_this_period(self):
+        """匯入建的估驗單只列本期有填的工項：前期估過、本期沒列的工項，彙總項的累計照樣要算。
+
+        與「工程估驗計價單」匯出（construction_template estimate_report._categories）同一個口徑
+        （2026-11-05 審查：只加本張會把累計印成 2,274 萬，實際約 5.4 億）。
+        """
+        e1, e2 = self._estimate(0), self._estimate(30)
+        self._line(e1, self.normal, 5.0)                       # 50
+        self._line(e1, self.lump, 0.2, amount=100000.0)        # 100,000
+        self._line(e2, self.normal, 3.0)                       # 30，本期沒列整包項
+        self._approve(e1)
+        self.assertAlmostEqual(
+            self._summary(e2).cumulative_estimate_amount, 50.0 + 100000.0 + 30.0, places=2,
+            msg='前期估過、本期沒列的整包項不見了')
+
+    def test_summary_earlier_unapproved_not_counted(self):
+        """本期沒列的工項，前期若沒核定一樣不算（與葉節點的前期口徑相同）。"""
+        e1, e2 = self._estimate(0), self._estimate(30)
+        self._line(e1, self.lump, 0.2, amount=100000.0)        # 草稿 → 不算
+        self._line(e2, self.normal, 3.0)
+        self.assertAlmostEqual(self._summary(e2).cumulative_estimate_amount, 30.0, places=2)
+
+    def test_summary_includes_earlier_items_later_archived(self):
+        """契約變更「刪除」會封存工項：它前期已核定的金額仍是彙總累計的一部分（匯出也照算）。"""
+        e1, e2 = self._estimate(0), self._estimate(30)
+        self._line(e1, self.lump, 0.2, amount=100000.0)
+        self._line(e2, self.normal, 3.0)
+        self._approve(e1)
+        self.lump.active = False
+        self.env.invalidate_all()
+        self.assertFalse(self.lump.active, 'rig：工項要真的被封存')
+        self.assertAlmostEqual(
+            self._summary(e2).cumulative_estimate_amount, 100000.0 + 30.0, places=2,
+            msg='封存工項的前期金額從彙總累計消失')
