@@ -76,6 +76,12 @@ class _SafeRecordProxy:
                     return ''
             # env / sudo / cr / search / write / ... 全部化為空字串
             return ''
+        # 欄位有 groups 限制、而渲染者不在群組：當作沒有。
+        # ORM 讀「非儲存 compute 欄位」時不檢查 groups，代理要自己守——
+        # 2026-11-08 實測：{{ user.totp_secret }}（groups=NO_ACCESS，compute 以 SQL 撈值）
+        # 會把匯出者的兩步驟驗證金鑰印進 PDF。env.user 在 sudo 下仍是實際操作的人。
+        if field.groups and not rec.env.user.has_groups(field.groups):
+            return ''
         try:
             value = rec[name]
         except Exception:

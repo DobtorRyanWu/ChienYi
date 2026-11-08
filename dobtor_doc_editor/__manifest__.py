@@ -10,7 +10,7 @@
     #        （PORTAL_PROTECTED_FIELDS）：原本經 RPC 寫別名可在預覽時自升系統管理者、換 docx 樣板可在伺服器執行程式
     # 2.4.6: 預覽別名（preview_content_json）、範本預覽、套印 docx（fill_template）改用匯出同款的加固沙箱＋唯讀代理：
     #        原本內部編輯者（不必是系統管理者）寫別名 user.sudo().write(...) 按預覽就能提權，上傳的 docx 樣板能在主機上執行程式
-    'version': '18.0.2.4.7',
+    'version': '18.0.2.4.8',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1

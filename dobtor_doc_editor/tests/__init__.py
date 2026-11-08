@@ -17,3 +17,4 @@ from . import test_available_fields_access
 from . import test_manual_fixes_20261102  # 版本訊息 Markup、B25 預設篩選（2026-11-02）
 from . import test_portal_protected_fields  # 前台協作者不能改別名運算式、樣板檔、綁定對象、協作者（2026-11-04）
 from . import test_internal_expression_sandbox  # 預覽別名與套印 docx 改用加固沙箱（內部編輯者不能經運算式提權／執行程式）
+from . import test_render_field_groups  # 匯出沙箱要守欄位 groups（TOTP 金鑰）
