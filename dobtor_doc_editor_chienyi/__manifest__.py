@@ -7,7 +7,7 @@
     #        （與預約式版本一致）
     # 1.4.0: 預約式 render context 移除 subcontractor（協力廠商欄已從模型移除；
     #        已確認 doc_template 內沒有該佔位符）
-    'version': '18.0.1.4.1',
+    'version': '18.0.1.5.0',
     'category': 'Construction/Integration',
     'summary': '把 doc.linked.mixin 真實植入 ChienYi 模型（Sprint 21）',
     'description': """

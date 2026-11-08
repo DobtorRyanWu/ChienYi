@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from . import self_inspection_doc_helper
+from . import payment_estimate_doc_helper
 from . import general_self_inspection
 from . import reservation_self_inspection
 from . import general_defect_improvement
