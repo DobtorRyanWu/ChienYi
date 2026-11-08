@@ -12,14 +12,11 @@
 （查驗停留點／施工前檢查／施工中檢查／施工完成檢查）——只是展開成 HTML 時沒帶出來。
 thead 必須跟著改，否則欄數與資料列對不上、表格會歪掉。
 """
-import re
+from .doc_html_utils import replace_item_table, safe_text
 
-from markupsafe import escape
-
-# 範本清單表格的 thead / tbody（範本中各只有一個，屬於檢查清單那張表；
-# 表頭資訊表與簽名表都是純 <tr> 沒有 thead/tbody，不會被誤傷）
-_CHECKLIST_THEAD_RE = re.compile(r'<thead>.*?</thead>', re.DOTALL)
-_CHECKLIST_TBODY_RE = re.compile(r'<tbody>.*?</tbody>', re.DOTALL)
+# 檢查清單＝範本裡唯一有 <thead> 的表（doc_html_utils.replace_item_table）。
+# ⚠️ 不能再用「第一個 <tbody>」：範本在後台 HTML 編輯器存過，瀏覽器會替表頭資訊表、簽名表
+# 補上 <tbody>，清單就會填進表頭表（2026-11-08）。
 
 _CELL = 'border:1px solid #000;padding:6px'
 
@@ -61,28 +58,23 @@ def sorted_by_stage(items):
     return items.sorted(lambda i: (i.stage_id.sequence or 0, i.sequence or 0, i.id))
 
 
-def inject_checklist(content_html, items):
-    """把 content_html 的清單 thead/tbody 換成 items 展開的列。
+def inject_checklist(content_html, items, label=''):
+    """把 content_html 檢查清單表（唯一有 <thead> 的表）的 thead/tbody 換成 items 展開的列。
 
     items 的順序直接沿用傳進來的順序——呼叫端應保留模型的
     `_order = 'stage_sequence, sequence, id'`，項目才會依段落分群。
 
-    無 content_html、無 items 或找不到 tbody 時原樣回傳（安全降級）。
+    無 content_html、無 items 時原樣回傳；清單表定位不了也原樣回傳（replace_item_table 會記 warning）。
+    資料表換成 5 欄，表頭跟著換，否則欄數對不上。
     """
     if not content_html or not items:
         return content_html
     rows = ''.join(
         _ROW_TMPL % {
             'idx': i,
-            'stage': escape(item.stage_id.name or ''),
-            'name': escape(item.name or ''),
+            'stage': safe_text(item.stage_id.name or ''),
+            'name': safe_text(item.name or ''),
         }
         for i, item in enumerate(items, 1)
     )
-    new_html, n = _CHECKLIST_TBODY_RE.subn(
-        '<tbody>' + rows + '</tbody>', content_html, count=1)
-    if not n:
-        return content_html
-    # 資料列換成 5 欄了，表頭也要跟著換，否則欄數對不上
-    new_html = _CHECKLIST_THEAD_RE.sub(_THEAD, new_html, count=1)
-    return new_html
+    return replace_item_table(content_html, '<tbody>' + rows + '</tbody>', _THEAD, label=label)

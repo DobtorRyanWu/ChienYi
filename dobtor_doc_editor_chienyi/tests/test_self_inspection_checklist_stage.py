@@ -127,3 +127,22 @@ class TestSelfInspectionChecklistStage(TransactionCase):
         for a, b in (('施工前檢查', '施工中檢查'), ('施工中檢查', '查驗停留點')):
             self.assertLess(html.index(a), html.index(b),
                             '段落順序錯誤：「%s」應排在「%s」之前' % (a, b))
+
+    # === 2026-11-08：與估驗文件同一類的兩個洞（抗辯實跑：項目名 {{ 7*7 }} 匯出印 49）===
+    def test_jinja_in_item_name_is_not_executable(self):
+        """項目／段落名稱會寫進 content_html，而匯出 PDF／DOCX 會把它交給 Jinja 渲染。"""
+        Item = self.env['self.inspection.type.item']
+        Item.create({'type_id': self.itype.id, 'stage_id': self.stage_before.id,
+                     'name': '{{ 7*7 }}{% for i in range(3) %}x{% endfor %}{# 吃掉', 'sequence': 1})
+        html = self._render()
+        for opener in ('{{', '{%', '{#'):
+            self.assertNotIn(opener, html)
+        self.assertIn('吃掉', html)
+
+    def test_header_table_with_tbody_is_left_alone(self):
+        """範本在後台 HTML 編輯器存過：瀏覽器替表頭表補 <tbody>。清單要填進有 thead 的那張表。"""
+        header = '<table><tbody><tr><td>工程名稱</td><td>甲工程</td></tr></tbody></table>'
+        html = inject_checklist(header + _SKELETON, self.itype.default_item_ids)
+        self.assertTrue(html.startswith(header), '表頭表被換掉了')
+        self.assertIn('開挖支撐', html)
+        self.assertIn('查驗段落', html)

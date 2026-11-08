@@ -29,7 +29,7 @@ class ReservationSelfInspection(models.Model):
         html = super()._doc_prepare_content_html(html)
         if html and self.inspection_type_id:
             items = _sorted_by_stage(self.inspection_type_id.default_item_ids)
-            html = inject_checklist(html, items)
+            html = inject_checklist(html, items, label='%s,%s' % (self._name, self.id))
         return html
 
     def _doc_initial_name(self):

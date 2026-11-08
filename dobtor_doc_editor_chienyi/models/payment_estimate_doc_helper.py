@@ -12,21 +12,13 @@
 
 範本內容各站不一定相同（範本是 noupdate：dev 是舊版型、jt 是新版型），
 所以只依賴兩件事：{{ 變數名 }} 文字、以及「工項表是範本裡唯一有 <thead> 的表」。
-找不到或不只一張就原樣留著（安全降級），不猜。
-⚠️ 不能用「第一個 <tbody>」認工項表：範本在後台 HTML 編輯器存過一次，瀏覽器會替
-沒寫 tbody 的表頭表補上 <tbody>，表頭就會整張被換成工項列（2026-11-08 抗辯實跑重現）。
-
-⚠️ 填進去的值會變成 Jinja 原始碼：匯出 PDF／DOCX 與快速預覽會把 content_html 整份交給
-Jinja 渲染（doc.render.mixin._render_template）。escape() 只處理 & < > ' "，所以工項名稱裡的
-{{ 7*7 }} 會被求值、{# … #} 會讓中間的工項在 PDF 裡消失。值一律經 _text()：
-跳脫 HTML 之外，把 {{ {% {# 開頭的「{」換成全形「｛」。不用 &#123;：編輯器存檔會把實體還原成 {；
-不用零寬字元：canvas-editor 自己拿 \u200B 當內部記號。
+資料值的處理與資料表的定位在 doc_html_utils（自主檢查共用；兩個洞的來龍去脈寫在那裡）。
 """
 import re
 
-from markupsafe import escape
-
 from odoo.tools.float_utils import float_round
+
+from .doc_html_utils import replace_item_table, safe_text
 
 # 與 construction_template/utils/formatters.py 的 ROC_YEAR_OFFSET 相同
 # （本模組不依賴 construction_template，不能 import）
@@ -37,13 +29,7 @@ PRICE_DIGITS = 4
 
 _CELL = 'border:1px solid #000;padding:6px'
 _NUM_CELL = _CELL + ';text-align:right'
-# 範本沒有巢狀表格；表格與 tbody 都可能帶屬性（瀏覽器／編輯器存過）
-_TABLE_RE = re.compile(r'<table\b[^>]*>.*?</table>', re.DOTALL | re.IGNORECASE)
-_THEAD_RE = re.compile(r'<thead\b', re.IGNORECASE)
-_TBODY_RE = re.compile(r'<tbody\b[^>]*>.*?</tbody>', re.DOTALL | re.IGNORECASE)
 _VAR_RE = re.compile(r'\{\{\s*(\w+)\s*\}\}')
-# Jinja 的三種開頭：{{ 運算式、{% 敘述、{# 註解
-_JINJA_OPEN_RE = re.compile(r'\{(?=[{%#])')
 
 
 def roc_date(value):
@@ -92,44 +78,31 @@ def number(value, digits):
     return text.rstrip('0').rstrip('.') if '.' in text else text
 
 
-def _text(value):
-    """要寫進 content_html 的資料值：跳脫 HTML，並拆掉 Jinja 開頭（見檔頭）。"""
-    return _JINJA_OPEN_RE.sub('｛', str(escape(value)))
-
-
 def fill_vars(content_html, values):
     """把 {{ 變數名 }} 換成處理過的值；values 沒列的變數原樣留著。
 
     用函式當替換值：值裡的反斜線不會被 re 當成跳脫序列。
     """
     return _VAR_RE.sub(
-        lambda m: _text(values[m.group(1)]) if m.group(1) in values else m.group(0),
+        lambda m: safe_text(values[m.group(1)]) if m.group(1) in values else m.group(0),
         str(content_html))
 
 
-def inject_rows(content_html, rows):
+def inject_rows(content_html, rows, label=''):
     """把範本工項表（唯一有 <thead> 的表）的 <tbody> 換成 rows。
 
     每列 6 格：項次、工項名稱、單位、數量、單價、小計。
-    rows 為空、找不到工項表、或有不只一張帶 thead 的表時原樣回傳（保留範本那一列空白）。
+    rows 為空時原樣回傳（保留範本那一列空白）；表定位不了也原樣回傳（replace_item_table 會記 warning）。
     """
     if not content_html or not rows:
         return content_html
-    content_html = str(content_html)
-    item_tables = [m for m in _TABLE_RE.finditer(content_html) if _THEAD_RE.search(m.group(0))]
-    if len(item_tables) != 1:
-        return content_html
     body = ''.join(
         '<tr>'
-        '<td style="%s">%s</td>' % (_CELL, _text(item_no))
-        + '<td style="%s">%s</td>' % (_CELL, _text(name))
-        + '<td style="%s">%s</td>' % (_CELL, _text(unit))
-        + ''.join('<td style="%s">%s</td>' % (_NUM_CELL, _text(v)) for v in (qty, price, amount))
+        '<td style="%s">%s</td>' % (_CELL, safe_text(item_no))
+        + '<td style="%s">%s</td>' % (_CELL, safe_text(name))
+        + '<td style="%s">%s</td>' % (_CELL, safe_text(unit))
+        + ''.join('<td style="%s">%s</td>' % (_NUM_CELL, safe_text(v)) for v in (qty, price, amount))
         + '</tr>'
         for item_no, name, unit, qty, price, amount in rows
     )
-    table = item_tables[0]
-    new_table, n = _TBODY_RE.subn(lambda _m: '<tbody>' + body + '</tbody>', table.group(0), count=1)
-    if not n:
-        return content_html
-    return content_html[:table.start()] + new_table + content_html[table.end():]
+    return replace_item_table(content_html, '<tbody>' + body + '</tbody>', label=label)

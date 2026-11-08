@@ -253,3 +253,40 @@ class TestPaymentEstimateDocFill(TransactionCase):
         rows = _item_rows(doc.content_html)
         self.assertEqual(rows[0][3], '4')
         self.assertEqual(rows[0][5], '40')       # 4 × 10.1 = 40.4 → 40
+
+    # === 2026-11-08 修法複審留下的 low ===
+    def test_nested_item_table_left_untouched(self):
+        """工項表包在排版表裡（DOCX 匯入的範本常見）：分不清楚就不動，並記 warning。"""
+        est = self._estimate(23, [(self.a, 3.5)])
+        tpl = str(self.env.ref('dobtor_doc_editor.template_payment_estimate').content_html)
+        start = tpl.index('<table', tpl.index('<thead') - 400)
+        end = tpl.index('</table>', start) + len('</table>')
+        nested = (tpl[:start] + '<table><tbody><tr><td>' + tpl[start:end]
+                  + '</td></tr></tbody></table>' + tpl[end:])
+        with self.assertLogs('odoo.addons.dobtor_doc_editor_chienyi', level='WARNING'):
+            content = est._doc_prepare_content_html(nested)
+        self.assertNotRegex(content, _HEADER_VAR_RE)
+        self.assertNotIn('混凝土', content)
+        self.assertEqual(content.count('<thead'), nested.count('<thead'))
+        self.assertEqual(content.count('<tbody'), nested.count('<tbody'))
+
+    def test_contractor_partner_without_name(self):
+        """承包廠商聯絡人裡有沒名字的地址（name=False）：不能讓「開啟線上文件」整個失敗。"""
+        project = self.project.copy({'name': '無廠商名稱工程', 'code': 'EST-NONAME',
+                                     'contractor_company_name': False})
+        if 'contractor_partner_ids' not in project._fields:
+            self.skipTest('contractor_partner_ids 由 construction_portal 提供，未安裝')
+        company = self.env['res.partner'].create({'name': '乙營造', 'is_company': True})
+        nameless = self.env['res.partner'].create({'type': 'delivery', 'parent_id': company.id})
+        self.assertFalse(nameless.name, 'rig：要真的有一個沒名字的聯絡人')
+        project.contractor_partner_ids = [(6, 0, (company | nameless).ids)]
+        est = self.env['payment.estimate'].create({
+            'project_id': project.id, 'estimate_date': date(2024, 9, 23)})
+        self.assertEqual(est._doc_contractor_name(), '乙營造')
+
+    def test_adjacent_values_cannot_form_jinja_opener(self):
+        """兩個變數緊貼時，前一個值結尾的 { 與後一個值開頭的 { 不能拼成 {{。"""
+        from ..models import payment_estimate_doc_helper as helper
+        out = helper.fill_vars('<p>{{ a }}{{ b }}</p>', {'a': 'X{', 'b': '{ 7*7 }}'})
+        self.assertNotIn('{{', out)
+        self.assertIn('7*7', out)

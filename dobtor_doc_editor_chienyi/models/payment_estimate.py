@@ -83,13 +83,17 @@ class PaymentEstimate(models.Model):
              helper.money(amount))
             for ln, amount in zip(lines, amounts)
         ]
-        return helper.inject_rows(html, rows)
+        return helper.inject_rows(html, rows, label='%s,%s' % (self._name, self.id))
 
     def _doc_contractor_name(self):
         """工程案件的承包廠商名稱：contractor_company_name（純文字）→ 承包廠商聯絡人。
 
         與 construction_template/utils/formatters.py::contractor_name 同一個取值序。
         contractor_partner_ids 定義在 construction_portal（本模組不依賴它），所以先查欄位在不在。
+        - 沒名字的聯絡人（送貨／帳單地址的 name 是 False）略過：join 遇到 False 會 TypeError，
+          整個「開啟線上文件」失敗（2026-11-08 實測）
+        - 用 sudo 讀名稱：廠商聯絡人可能屬於使用者目前沒選的公司，一般讀取會 AccessError；
+          這裡只取名稱印在表頭，而使用者本來就看得到這張估驗與工程
         """
         self.ensure_one()
         project = self.project_id
@@ -98,7 +102,7 @@ class PaymentEstimate(models.Model):
         if project.contractor_company_name:
             return project.contractor_company_name
         if 'contractor_partner_ids' in project._fields:
-            return '、'.join(project.contractor_partner_ids.mapped('name'))
+            return '、'.join(n for n in project.sudo().contractor_partner_ids.mapped('name') if n)
         return ''
 
     def _doc_collaborators(self):
