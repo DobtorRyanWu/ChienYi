@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="construction_company_dashboard.MapPage">
+        <Layout className="'o_dash_layout'" display="display">
+            <div class="o_dash_page o_dash_map_page">
+                <div class="o_dash_card o_dash_head">
+                    <span class="o_dash_logo" aria-hidden="true"/>
+                    <h1>標案地圖</h1>
+                    <span class="o_dash_sp"/>
+                    <span class="o_dash_date">今日　<t t-esc="todayLabel"/></span>
+                </div>
+                <div t-if="state.error" class="alert alert-danger" role="alert" t-esc="state.error"/>
+                <div t-if="!hasLeaflet" class="alert alert-warning" role="alert">地圖函式庫未載入（web_leaflet_lib），只顯示右側清單。</div>
+                <div class="o_dash_mapwrap">
+                    <div class="o_dash_card o_dash_mapbox">
+                        <div class="o_dash_map" t-ref="map"/>
+                        <div t-if="!state.loading and !state.located.length" class="o_dash_map_empty">尚無工程設定座標（在工程案件表單填經緯度後會出現在這裡）</div>
+                        <div class="o_dash_maplg">
+                            <span><i class="o_dash_mk_dot o_dash_mk_behind"/>進度落後</span>
+                            <span><i class="o_dash_mk_dot o_dash_mk_ahead"/>進度超前</span>
+                            <span><i class="o_dash_mk_dot o_dash_mk_none"/>未建進度表</span>
+                            <span class="o_dash_mute">點標記進入單一工程</span>
+                        </div>
+                    </div>
+                    <div class="o_dash_mlist">
+                        <div t-if="state.loading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入中…</div>
+                        <t t-foreach="state.located" t-as="row" t-key="row.id">
+                            <div class="o_dash_card o_dash_mcard" t-att-data-project="row.id" t-on-click="() => this.openProject(row)">
+                                <div class="o_dash_nm"><t t-esc="row.name"/><small class="o_dash_code"> <t t-esc="row.code"/></small></div>
+                                <div class="o_dash_bars">
+                                    <t t-if="!row.progress.ok"><span class="o_dash_bad" t-esc="row.progress.message"/></t>
+                                    <t t-elif="!row.progress.has"><span class="o_dash_mute">未建進度表</span></t>
+                                    <t t-else="">
+                                        <div class="o_dash_b"><span class="o_dash_mute">預定</span><div class="o_dash_track"><i class="o_dash_fill_planned" t-attf-style="width: {{ Math.min(100, Math.max(0, row.progress.planned)) }}%"/></div><span class="o_dash_n"><t t-esc="formatPercent(row.progress.planned)"/>%</span></div>
+                                        <div class="o_dash_b"><span class="o_dash_mute">實際</span><div class="o_dash_track"><i t-att-class="row.progress.behind ? 'o_dash_fill_behind' : 'o_dash_fill_ahead'" t-attf-style="width: {{ Math.min(100, Math.max(0, row.progress.actual)) }}%"/></div><span class="o_dash_n"><t t-esc="formatPercent(row.progress.actual)"/>%</span></div>
+                                        <span class="o_dash_diff" t-att-class="row.progress.behind ? 'o_dash_diff_neg' : (row.progress.even ? 'o_dash_diff_even' : 'o_dash_diff_pos')"><t t-esc="row.progress.behind ? '落後 ' : (row.progress.even ? '持平 ' : '超前 ')"/><t t-esc="formatPercent(Math.abs(row.progress.variance))"/>%</span>
+                                    </t>
+                                </div>
+                                <div class="o_dash_st">
+                                    <span>今日日誌 <span t-if="row.log.ok" class="o_dash_pill" t-att-class="'o_dash_pill_' + row.log.pill" t-esc="row.log.label"/><span t-else="" class="o_dash_bad" t-esc="row.log.message"/></span>
+                                    <span>待改缺失 <b t-if="row.defects.ok" class="o_dash_ink"><t t-esc="row.defects.open"/></b><span t-else="" class="o_dash_bad" t-esc="row.defects.message"/><t t-if="row.defects.ok">（逾期 <t t-esc="row.defects.overdue"/>）</t></span>
+                                    <span>檢驗待補 <b t-if="row.tests.ok" class="o_dash_ink" t-esc="row.tests.count"/><span t-else="" class="o_dash_bad" t-esc="row.tests.message"/></span>
+                                </div>
+                            </div>
+                        </t>
+                        <t t-if="state.unlocated.length">
+                            <div class="o_dash_sec_t o_dash_mlist_sub">未設座標<small><t t-esc="state.unlocated.length"/> 個工程；在工程案件表單填經緯度後會上圖</small></div>
+                            <t t-foreach="state.unlocated" t-as="p" t-key="p.id">
+                                <div class="o_dash_card o_dash_mcard o_dash_mcard_plain" t-att-data-project="p.id" t-on-click="() => this.openProject(p)">
+                                    <div class="o_dash_nm"><t t-esc="p.name"/><small class="o_dash_code"> <t t-esc="p.code"/></small><span class="o_dash_pill o_dash_pill_muted ms-2">未設座標</span></div>
+                                </div>
+                            </t>
+                        </t>
+                    </div>
+                </div>
+            </div>
+        </Layout>
+    </t>
+</templates>

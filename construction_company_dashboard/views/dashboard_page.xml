@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 公司儀表板（合約 §0b-33）：照雛型做的三頁。總覽是選單指的這個 client action；
+         單一工程（tag company_dashboard_project）與標案地圖（tag company_dashboard_map）由總覽頁以 doAction 開，不需要紀錄。
+         舊的看板 act_window（action_company_dashboard）與 view 已移除：同一個 xmlid 不能換模型，所以用新 xmlid，舊紀錄由 -u 收尾刪。 -->
+    <record id="action_company_dashboard_page" model="ir.actions.client">
+        <field name="name">公司儀表板</field>
+        <field name="tag">company_dashboard_page</field>
+    </record>
+</odoo>

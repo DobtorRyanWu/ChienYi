@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 一張公司合計卡（主卡與小卡共用） -->
+    <t t-name="construction_company_dashboard.KpiCard">
+        <div class="o_dash_card o_dash_kpi" t-att-class="{ o_dash_kpi_ok: card.ok, o_dash_kpi_minor: minor }" t-att-data-kpi="card.key">
+            <div class="o_dash_kpi_l" t-esc="card.label"/>
+            <t t-if="card.ok">
+                <div class="o_dash_kpi_v">
+                    <a href="#" class="o_dash_kpi_link" t-on-click.prevent="() => this.onKpiClick(card.entry)" t-esc="card.value"/>
+                    <small t-if="card.unit" t-esc="card.unit"/>
+                    <t t-if="card.extra">
+                        <small t-if="card.extra.label" t-esc="card.extra.label"/>
+                        <a t-if="card.extra.entry" href="#" class="o_dash_kpi_extra" t-att-class="{ o_dash_bad: card.extra.bad }"
+                           t-on-click.prevent="() => this.onKpiClick(card.extra.entry)" t-esc="card.extra.value"/>
+                        <em t-else="" t-att-class="{ o_dash_bad: card.extra.bad }" t-esc="card.extra.value"/>
+                        <small t-if="card.extra.unit" class="o_dash_kpi_unit_tight" t-esc="card.extra.unit"/>
+                    </t>
+                </div>
+                <div t-if="card.sub" class="o_dash_kpi_sub" t-esc="card.sub"/>
+                <div t-if="kpi.openKey === card.key or (card.extra and card.extra.entry and kpi.openKey === card.extra.entry.key)" class="o_dash_kpi_parts">
+                    <t t-set="openEntry" t-value="kpi.openKey === card.key ? card.entry : card.extra.entry"/>
+                    <t t-foreach="openEntry.parts" t-as="part" t-key="part.model">
+                        <a href="#" t-on-click.prevent.stop="() => this.drilldown(openEntry.key, part.model)">
+                            <t t-esc="part.label"/>：<t t-esc="part.count"/>
+                        </a>
+                    </t>
+                </div>
+            </t>
+            <div t-else="" class="o_dash_kpi_reason o_dash_bad" t-esc="card.message"/>
+        </div>
+    </t>
+
+    <t t-name="construction_company_dashboard.Overview">
+        <Layout className="'o_dash_layout'" display="display">
+            <div class="o_dash_page">
+                <!-- 抬頭 -->
+                <div class="o_dash_card o_dash_head">
+                    <span class="o_dash_logo" aria-hidden="true"/>
+                    <h1>公司儀表板</h1>
+                    <span class="o_dash_sp"/>
+                    <button type="button" class="o_dash_back" t-on-click="openMap"><i class="fa fa-map-marker me-1"/>標案地圖</button>
+                    <span class="o_dash_date">今日　<t t-esc="todayLabel"/></span>
+                </div>
+
+                <!-- 提示：未啟用兩步驟驗證／被擋原因／合計讀取失敗 -->
+                <div t-if="totpMissing" class="alert alert-warning o_dash_totp_alert" role="alert">
+                    <strong>請到「我的偏好」啟用兩步驟驗證後才看得到資料。</strong>（右上角頭像 → 我的偏好 → 帳號安全）
+                </div>
+                <div t-if="blockedMessage and !totpMissing" class="alert alert-warning o_dash_blocked_alert" role="alert" t-esc="blockedMessage"/>
+                <div t-if="kpi.error" class="alert alert-danger o_dash_kpi_error" role="alert">公司合計：<t t-esc="kpi.error"/></div>
+
+                <!-- 公司合計 -->
+                <div t-if="kpi.loading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>公司合計載入中…</div>
+                <t t-elif="kpis">
+                    <div class="o_dash_kpis">
+                        <t t-foreach="mainCards" t-as="card" t-key="card.key">
+                            <t t-call="construction_company_dashboard.KpiCard"><t t-set="minor" t-value="false"/></t>
+                        </t>
+                    </div>
+                    <div class="o_dash_kpis o_dash_kpis_minor">
+                        <t t-foreach="minorCards" t-as="card" t-key="card.key">
+                            <t t-call="construction_company_dashboard.KpiCard"><t t-set="minor" t-value="true"/></t>
+                        </t>
+                    </div>
+                </t>
+
+                <!-- 各工程現況 -->
+                <div class="o_dash_card">
+                    <div class="o_dash_sec_t">
+                        各工程現況<small>點選工程進入單一工程畫面</small>
+                        <span class="o_dash_sp"/>
+                        <input type="search" class="o_dash_search" placeholder="搜尋工程名稱／代號，Enter 篩選"
+                               t-att-value="table.search" t-on-input="onSearchInput" t-on-keydown="onSearchSubmit"/>
+                        <span class="o_dash_pager">
+                            <button type="button" class="o_dash_pager_btn" t-att-disabled="!hasPrev or table.loading" t-on-click="prevPage" title="上一頁"><i class="fa fa-chevron-left"/></button>
+                            <span class="o_dash_pager_label" t-esc="pageLabel"/>
+                            <button type="button" class="o_dash_pager_btn" t-att-disabled="!hasNext or table.loading" t-on-click="nextPage" title="下一頁"><i class="fa fa-chevron-right"/></button>
+                        </span>
+                    </div>
+                    <div class="o_dash_tbl_wrap">
+                        <div class="o_dash_tbl">
+                            <div class="o_dash_tr o_dash_tr_head">
+                                <span>工程</span><span>進度（預定／實際）</span><span>S 曲線（藍：預定）</span><span>今日日誌</span>
+                                <span>今日照片</span><span>待改缺失</span><span>檢驗待補</span><span>最近一期估驗</span>
+                            </div>
+                            <div t-if="table.loading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入中…</div>
+                            <div t-elif="table.error" class="o_dash_empty o_dash_bad" t-esc="table.error"/>
+                            <div t-elif="!table.rows.length" class="o_dash_empty">沒有符合條件的工程</div>
+                            <t t-else="">
+                                <t t-foreach="table.rows" t-as="row" t-key="row.id">
+                                    <div class="o_dash_tr o_dash_tr_p" t-att-data-project="row.id" t-on-click="() => this.openProject(row)">
+                                        <!-- 工程 -->
+                                        <div class="o_dash_pn">
+                                            <t t-esc="row.name"/>
+                                            <small><span class="o_dash_code" t-esc="row.code"/>　<span t-att-class="{ o_dash_bad: !row.workday.ok or row.workday.bad }" t-esc="workdayText(row)"/></small>
+                                        </div>
+                                        <!-- 進度 -->
+                                        <div class="o_dash_bars">
+                                            <t t-if="!row.progress.ok"><span class="o_dash_bad" t-esc="row.progress.message"/></t>
+                                            <t t-elif="!row.progress.has"><span class="o_dash_mute">未建進度表</span></t>
+                                            <t t-else="">
+                                                <div class="o_dash_b"><span class="o_dash_mute">預定</span><div class="o_dash_track"><i class="o_dash_fill_planned" t-attf-style="width: {{ Math.min(100, Math.max(0, row.progress.planned)) }}%"/></div><span class="o_dash_n"><t t-esc="formatPercent(row.progress.planned)"/>%</span></div>
+                                                <div class="o_dash_b"><span class="o_dash_mute">實際</span><div class="o_dash_track"><i t-att-class="row.progress.behind ? 'o_dash_fill_behind' : 'o_dash_fill_ahead'" t-attf-style="width: {{ Math.min(100, Math.max(0, row.progress.actual)) }}%"/></div><span class="o_dash_n"><t t-esc="formatPercent(row.progress.actual)"/>%</span></div>
+                                                <span class="o_dash_diff" t-att-class="row.progress.behind ? 'o_dash_diff_neg' : (row.progress.even ? 'o_dash_diff_even' : 'o_dash_diff_pos')"><t t-esc="row.progress.behind ? '落後 ' : (row.progress.even ? '持平 ' : '超前 ')"/><t t-esc="formatPercent(Math.abs(row.progress.variance))"/>%</span>
+                                            </t>
+                                        </div>
+                                        <!-- 小 S 曲線 -->
+                                        <div class="o_dash_scurve_wrap" t-att-class="row.progress.behind ? 'o_dash_behind' : 'o_dash_ahead'">
+                                            <t t-if="row.progress.ok and row.progress.has and row.progress.svg" t-out="row.progress.svg"/>
+                                            <span t-else="" class="o_dash_mute">—</span>
+                                        </div>
+                                        <!-- 今日日誌 -->
+                                        <div>
+                                            <span t-if="!row.log.ok" class="o_dash_bad" t-esc="row.log.message"/>
+                                            <span t-else="" class="o_dash_pill" t-att-class="'o_dash_pill_' + row.log.pill" t-att-title="row.log.label" t-esc="row.log.shortLabel"/>
+                                        </div>
+                                        <!-- 今日照片 -->
+                                        <div class="o_dash_mute">
+                                            <span t-if="!row.photos.ok" class="o_dash_bad" t-esc="row.photos.message"/>
+                                            <t t-elif="!row.photos.count">今日無照片</t>
+                                            <t t-else="">今日 <b class="o_dash_ink" t-esc="row.photos.count"/> 張</t>
+                                        </div>
+                                        <!-- 待改缺失 -->
+                                        <div class="o_dash_num">
+                                            <span t-if="!row.defects.ok" class="o_dash_bad o_dash_small" t-esc="row.defects.message"/>
+                                            <t t-else=""><t t-esc="row.defects.open"/><small t-if="row.defects.overdue">逾期 <t t-esc="row.defects.overdue"/></small><small t-else="" class="o_dash_mute">無逾期</small></t>
+                                        </div>
+                                        <!-- 檢驗待補 -->
+                                        <div class="o_dash_num">
+                                            <span t-if="!row.tests.ok" class="o_dash_bad o_dash_small" t-esc="row.tests.message"/>
+                                            <t t-else="" t-esc="row.tests.count"/>
+                                        </div>
+                                        <!-- 最近一期估驗 -->
+                                        <div class="o_dash_est">
+                                            <span t-if="!row.estimate.ok" class="o_dash_bad o_dash_small" t-esc="row.estimate.message"/>
+                                            <t t-elif="!row.estimate.latest"><span class="o_dash_mute">尚無估驗</span></t>
+                                            <t t-else="">
+                                                <b>第 <t t-esc="row.estimate.latest.no"/> 期</b>
+                                                <span class="o_dash_pill" t-att-class="'o_dash_pill_' + row.estimate.latest.pill" t-esc="row.estimate.latest.stateLabel"/><br/>
+                                                <span class="o_dash_mute"><t t-esc="row.symbol"/> <t t-esc="formatAmount(row.estimate.latest.amount)"/>　累計 <t t-esc="formatAmount(row.estimate.cum)"/></span>
+                                            </t>
+                                        </div>
+                                    </div>
+                                </t>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 今日現場照片 -->
+                <div class="o_dash_card o_dash_mt">
+                    <div class="o_dash_sec_t">今日現場照片<small><t t-esc="todayLabel"/>・依工程分組（當頁工程）</small></div>
+                    <div t-if="!photoGroups.length" class="o_dash_empty">今日尚無照片</div>
+                    <div t-else="" class="o_dash_photos">
+                        <t t-foreach="photoGroups" t-as="group" t-key="group.id">
+                            <div class="o_dash_pg" t-on-click="() => this.openProject(group)">
+                                <div class="o_dash_pg_t"><t t-esc="group.name"/><small class="o_dash_mute">　今日 <t t-esc="group.count"/> 張</small></div>
+                                <div class="o_dash_ln">
+                                    <t t-foreach="group.ids" t-as="photoId" t-key="photoId">
+                                        <img class="o_dash_th" loading="lazy" alt="今日照片" t-att-src="thumbUrl(photoId)"/>
+                                    </t>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </div>
+        </Layout>
+    </t>
+</templates>

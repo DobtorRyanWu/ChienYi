@@ -18,7 +18,7 @@ GROUP_XMLID = 'construction_company_dashboard.spreadsheet_dashboard_group_constr
 APP_MENU_XMLID = 'construction_company_dashboard.menu_company_dashboard_app'
 APP_ROOT_MENU_XMLID = 'spreadsheet_dashboard.spreadsheet_dashboard_menu_root'
 KANBAN_MENU_XMLID = 'construction_company_dashboard.menu_company_dashboard'
-KANBAN_ACTION_XMLID = 'construction_company_dashboard.action_company_dashboard'
+PAGE_ACTION_XMLID = 'construction_company_dashboard.action_company_dashboard_page'   # 雛型版總覽（合約 §0b-33）
 JSON_PATH = 'construction_company_dashboard/data/files/company_dashboard.json'
 EXPECTED_PIVOTS = 9                      # 與 odoo18-docker/tools/dashboard/build_company_spreadsheet_dashboard.py 同步
 COUNT_MEASURE = '__count'
@@ -124,7 +124,7 @@ class TestSpreadsheetDashboard(DashScopeCase):
         menu = self.env.ref(APP_MENU_XMLID)
         root = self.env.ref(APP_ROOT_MENU_XMLID)
         self.assertEqual(menu.parent_id, root)
-        self.assertEqual(menu.action, self.env.ref(KANBAN_ACTION_XMLID), '開的是同一個看板 action')
+        self.assertEqual(menu.action, self.env.ref(PAGE_ACTION_XMLID), '開的是同一個總覽頁 action')
         visible_sup = self._visible_menus(self.sup)
         self.assertIn(root.id, visible_sup)
         self.assertIn(menu.id, visible_sup)

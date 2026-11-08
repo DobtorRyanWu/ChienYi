@@ -88,6 +88,7 @@ KEY_SEPARATOR = ','
 KPI_LABELS = {
     'construction_project': '施工中工程',
     'log_today': '今日已填日誌',
+    'log_filled': '今日已填日誌的工程',
     'log_missing': '今日未填日誌的工程',
     'today_photo': '今日照片',
     'open_defect': '待改缺失',
@@ -101,6 +102,7 @@ KPI_KEYS = tuple(KPI_LABELS)
 KPI_GROUP = {
     'construction_project': None,
     'log_today': 'log',
+    'log_filled': 'log',
     'log_missing': 'log',
     'today_photo': 'photo',
     'open_defect': 'defect',
@@ -514,6 +516,13 @@ class ProjectProject(models.Model):
             if LOG_NO_CALENDAR in states.values():
                 raise DashMissingCalendar([today.year])
             return [('project.project', [('id', 'in', [pid for pid, s in states.items() if s == LOG_MISSING])])]
+        if key == 'log_filled':
+            # 今日已填日誌的工程數（雛型「已填／應填」的分子；log_today 是張數，一個工程一天可有多張）。
+            # 與 log_missing 同一份狀態表 → 已填＋未填＝今天該填的工程數；已填與日曆無關，缺日曆不擋（合約 §0b-33）
+            projects = self or self.search([('state', '=', PROJECT_STATE_CONSTRUCTION), ('active', '=', True)])
+            index = self.env['construction.official.calendar']._dash_calendar_index()
+            states = projects._dash_log_today_states(today, index)
+            return [('project.project', [('id', 'in', [pid for pid, s in states.items() if s == LOG_FILLED])])]
         if key == 'today_photo':
             return [('supervision.photo', self._dash_scope('supervision.photo') + [
                 ('shot_date', '=', today), ('active', '=', True)])]

@@ -56,6 +56,11 @@ patch(ProgressDashboard.prototype, {
         await this.onProjectChange({ target: { value: String(projectId) } });
     },
 
+    /** 子類（公司儀表板版單一工程頁 dashboard_page/project.js）覆寫，帶 context 旗標多拿三個區塊 */
+    dashboardCallKwargs() {
+        return {};
+    },
+
     isAccessError(error) {
         const name = error && error.data && error.data.name;
         return Boolean(name && name.includes("AccessError"));
@@ -65,7 +70,8 @@ patch(ProgressDashboard.prototype, {
         this.state.dashboardLoading = true;
         this.dashExt.fatal = false;
         try {
-            const raw = await this.orm.call("project.project", "get_project_dashboard_data", [projectId]);
+            const raw = await this.orm.call("project.project", "get_project_dashboard_data", [projectId],
+                this.dashboardCallKwargs());
             const data = {};
             const blockErrors = {};
             for (const [key, block] of Object.entries(raw)) {

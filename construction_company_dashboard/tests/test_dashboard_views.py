@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""後台畫面（合約 §6、§10 C 列）：看板 view、選單、單一工程頁各區塊的三種情況（無權限／出錯／正常）、例假日表單。
+"""後台畫面（合約 §6、§10 C 列）：選單、單一工程頁各區塊的三種情況（無權限／出錯／正常）、例假日表單。
+（看板 view 已退場、雛型版三頁的測試在 test_dashboard_page.py；合約 §0b-33）
 
 沿用線 B 的夾具（凍結在台灣 2026-11-05 12:00）：PA 今天有 8 張照片、1 張日誌、3 期估驗（含 1 期草稿）。
 期望值由測試依資料寫死；斷言打在畫面會看到的區塊內容與狀態。
@@ -18,7 +19,6 @@ from odoo.addons.construction_progress.models.supervision_project import (
     SupervisionProjectProgress as ProgressProject,
 )
 
-from ..models.progress_dashboard_ext import KANBAN_PAGE_SIZE
 from ..models.project_dashboard import TODAY_PHOTO_LIMIT, ProjectProject as DashProject
 from .test_dashboard_indicators import FROZEN_NOW, DashIndicatorCase
 
@@ -36,59 +36,13 @@ REST_DAY_FIELDS = ('rest_day_mon', 'rest_day_tue', 'rest_day_wed', 'rest_day_thu
 @tagged('post_install', '-at_install', MODULE)
 class TestDashboardViews(DashIndicatorCase):
 
-    # ── view 與選單 ─────────────────────────────────────────────────────
-    def _kanban_arch(self):
-        view = self.env.ref(f'{MODULE}.view_company_dashboard_kanban')
-        return etree.fromstring(view.get_combined_arch())
-
-    def test_kanban_view_loads_and_is_a_new_view(self):
-        """看板是新 view（不是改 supervision.project.kanban）；欄位都在模型上；每頁筆數＝常數。"""
-        arch = self._kanban_arch()
-        self.assertEqual(arch.get('js_class'), 'company_dashboard_kanban')
-        self.assertEqual(int(arch.get('limit')), KANBAN_PAGE_SIZE)
-        Project = self.env['project.project']
-        for node in arch.iter('field'):
-            self.assertIn(node.get('name'), Project._fields, node.get('name'))
-        # 真的能以 kanban 取 view（會跑完整的欄位與 modifiers 驗證）
-        result = Project.with_user(self.sup).get_view(self.env.ref(f'{MODULE}.view_company_dashboard_kanban').id,
-                                                      'kanban')
-        self.assertIn('dash_progress_svg', result['arch'])
-        old = self.env.ref('construction_supervision_base.view_supervision_project_kanban')
-        self.assertNotIn('dash_', old.arch_db, '舊的工程看板不能被改')
-
-    def test_kanban_card_shows_reason_for_every_failable_group(self):
-        """卡片上每個可能無權限／失敗的指標群組，都有「無權限查看」「讀取失敗」的文字路徑（不是空白）。"""
-        arch = etree.tostring(self._kanban_arch(), encoding='unicode')
-        for group in ('workday', 'progress', 'log', 'defect', 'test', 'estimate', 'photo'):
-            self.assertIn(f"failed.includes('{group}')", arch, group)
-        for group in ('progress', 'log', 'defect', 'test', 'estimate', 'photo'):
-            self.assertIn(f"denied.includes('{group}')", arch, group)
-        self.assertIn('無權限查看', arch)
-        self.assertIn('讀取失敗', arch)
-
-    def test_action_defaults_to_active_construction_projects(self):
-        action = self.env.ref(f'{MODULE}.action_company_dashboard')
-        self.assertEqual(action.res_model, 'project.project')
-        self.assertEqual(action.view_mode, 'kanban')
-        self.assertIn("'search_default_construction': 1", action.context)
-        search = etree.fromstring(self.env.ref(f'{MODULE}.view_company_dashboard_search').arch_db)
-        flt = search.xpath("//filter[@name='construction']")[0]
-        self.assertIn("('state', '=', 'construction')", flt.get('domain'))
-        self.assertIn("('active', '=', True)", flt.get('domain'))
-        self.assertTrue(search.xpath("//filter[@name='archived']"), '要能切到封存的工程')
-        # 預設條件下只列有效且施工中的；拿掉篩選能看到全部（含未開始、封存）
-        Project = self.env['project.project'].with_user(self.sup)
-        scope = [('id', 'in', (self.pa | self.pn | self.pb).ids)]
-        self.pb.write({'active': False})
-        default = Project.search(scope + [('state', '=', 'construction'), ('active', '=', True)])
-        self.assertEqual(default, self.pa)
-        self.assertEqual(Project.with_context(active_test=False).search(scope), self.pa | self.pn | self.pb)
-
+    # ── view 與選單 ──────────────────────────────────────────────────────
+    # 看板 view 的測試已隨看板退場（合約 §0b-33）；新頁面的測試在 test_dashboard_page.py
     def test_menu_placement(self):
         menu = self.env.ref(f'{MODULE}.menu_company_dashboard')
         self.assertEqual(menu.parent_id, self.env.ref('construction_supervision_base.menu_project_overview'))
         self.assertEqual(menu.sequence, 5)
-        self.assertEqual(menu.action, self.env.ref(f'{MODULE}.action_company_dashboard'))
+        self.assertEqual(menu.action, self.env.ref(f'{MODULE}.action_company_dashboard_page'))
 
     def test_menu_visible_to_supervision_and_manager_only_allowlist(self):
         """真選單：監造方看得到；營造廠主管看得到它與進度表圖表，看不到工程案件。"""

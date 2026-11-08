@@ -1,6 +1,6 @@
 {
     "name": "工程監造系統 - 公司儀表板",
-    "version": "18.0.1.2.0",
+    "version": "18.0.2.0.0",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """
@@ -12,7 +12,7 @@
 * 營造廠主管唯讀群組與範圍規則（§2、§3）
 * 子資料營造廠歸屬（§3.5）
 * 工作天與政府辦公日曆（§4）
-* 指標（§5）、後台看板（§6）、前台頁（§7）
+* 指標（§5）、後台三頁：總覽／單一工程／標案地圖（§6、§0b-33）、前台頁（§7）
     """,
     "author": "Engineering Supervision System",
     "license": "LGPL-3",
@@ -25,6 +25,8 @@
         "auth_totp",
         # 「儀表板」App 的選單入口與試算表儀表板（11-06）
         "spreadsheet_dashboard",
+        # 標案地圖（合約 §0b-33）：OCA 的 Leaflet 函式庫（web.assets_backend 直接載入 window.L）
+        "web_leaflet_lib",
     ],
     # 資料檔由主迴圈依各工作線回報加入（合約 §10）
     "data": [
@@ -53,8 +55,8 @@
         "data/construction.official.calendar-2025.csv",
         "data/construction.official.calendar-2026.csv",
         "data/construction.official.calendar-2027.csv",
-        # 線 C：後台畫面
-        "views/dashboard_kanban.xml",
+        # 線 C：後台畫面（11-07 合約 §0b-33：看板換成雛型版三頁的 client action）
+        "views/dashboard_page.xml",
         "views/menu.xml",
         # 「儀表板」App 的試算表儀表板（11-06；群組要在 security 之後、JSON 由 tools/dashboard 產生）
         "data/spreadsheet_dashboard.xml",
@@ -69,10 +71,15 @@
         ],
         "web.assets_backend": [
             "construction_company_dashboard/static/src/backend/company_service_patch.js",
-            # 線 C
-            "construction_company_dashboard/static/src/backend/company_dashboard_kanban.js",
-            "construction_company_dashboard/static/src/backend/company_dashboard_kanban.xml",
-            "construction_company_dashboard/static/src/backend/company_dashboard.scss",
+            # 線 C → 11-07 合約 §0b-33：雛型版三頁（總覽／單一工程／標案地圖）
+            "construction_company_dashboard/static/src/dashboard_page/dashboard_page.scss",
+            "construction_company_dashboard/static/src/dashboard_page/dash_common.js",
+            "construction_company_dashboard/static/src/dashboard_page/overview.js",
+            "construction_company_dashboard/static/src/dashboard_page/overview.xml",
+            "construction_company_dashboard/static/src/dashboard_page/project.js",
+            "construction_company_dashboard/static/src/dashboard_page/project.xml",
+            "construction_company_dashboard/static/src/dashboard_page/map.js",
+            "construction_company_dashboard/static/src/dashboard_page/map.xml",
             "construction_company_dashboard/static/src/progress_dashboard_ext/progress_dashboard_patch.js",
             "construction_company_dashboard/static/src/progress_dashboard_ext/progress_dashboard_patch.xml",
         ],

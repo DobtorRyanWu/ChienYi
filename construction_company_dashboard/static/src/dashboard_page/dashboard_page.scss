@@ -1,0 +1,239 @@
+// 公司儀表板三頁（合約 §0b-33）：配色與版面照雛型 DM_v2/營造廠簡報/dashboard_prototype/index.html，class 一律 o_dash_*。
+$o-dash-bg: #f8f9fa;
+$o-dash-card: #fff;
+$o-dash-ink: #2b2f36;
+$o-dash-mute: #6c757d;
+$o-dash-line: #e6e8eb;
+$o-dash-blue: #00a5e0;
+$o-dash-blue-soft: #e3f5fc;
+$o-dash-red: #e74c3c;
+$o-dash-red-soft: #fdecea;
+$o-dash-green: #1e9e4a;
+$o-dash-green-soft: #e6f6ec;
+$o-dash-amber: #f39c12;
+$o-dash-amber-soft: #fff4e0;
+$o-dash-amber-ink: #9a5c00;
+$o-dash-purple: #9b59b6;
+$o-dash-back-ink: #5a4d8a;
+$o-dash-back-border: #cfc8e6;
+$o-dash-back-bg: #f4f2fa;
+$o-dash-hover: #f6f4fb;
+$o-dash-track: #eceff2;
+$o-dash-grey: #9aa3ad;
+$o-dash-radius: 10px;
+$o-dash-shadow: 0 1px 4px rgba(20, 30, 50, 0.08);
+$o-dash-table-min-width: 1120px;
+$o-dash-map-height: 720px;
+$o-dash-list-width: 330px;
+
+.o_dash_layout {
+    background: $o-dash-bg;
+}
+
+.o_dash_page {
+    padding: 10px 18px 16px;
+    color: $o-dash-ink;
+    font-size: 13px;
+    line-height: 1.35;
+    min-height: 100%;
+
+    h1 { font-size: 21px; margin: 0; font-weight: 700; }
+    svg { display: block; }
+
+    .o_dash_card { background: $o-dash-card; border-radius: $o-dash-radius; box-shadow: $o-dash-shadow; }
+    .o_dash_mt { margin-top: 10px; }
+    .o_dash_pad { padding-bottom: 6px; }
+    .o_dash_sp { flex: 1; }
+    .o_dash_mute { color: $o-dash-mute; font-size: 12px; }
+    .o_dash_ink { color: $o-dash-ink; }
+    .o_dash_bad { color: $o-dash-red; }
+    .o_dash_good { color: $o-dash-green; }
+    .o_dash_small { font-size: 12px; font-weight: 400; }
+    .o_dash_nowrap { white-space: nowrap; }
+    .o_dash_code { color: $o-dash-mute; font-weight: 400; font-size: 12px; }
+    .o_dash_loading, .o_dash_empty { padding: 18px 14px; color: $o-dash-mute; text-align: center; }
+    .o_dash_more { padding: 4px 10px 6px; font-size: 12px; }
+
+    // 抬頭
+    .o_dash_head {
+        display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 48px; margin-bottom: 10px;
+    }
+    .o_dash_logo {
+        width: 26px; height: 26px; border-radius: 50%; background: $o-dash-blue; flex: none;
+        background-image: radial-gradient(circle at 31% 50%, #fff 1.8px, transparent 2.2px),
+                          radial-gradient(circle at 42% 31%, #fff 1.8px, transparent 2.2px),
+                          radial-gradient(circle at 63% 33%, #fff 1.8px, transparent 2.2px);
+    }
+    .o_dash_date { color: $o-dash-mute; font-size: 14px; }
+    .o_dash_date_right { text-align: right; font-size: 12px; line-height: 1.25; }
+    .o_dash_back {
+        color: $o-dash-back-ink; text-decoration: none; font-size: 13px; border: 1px solid $o-dash-back-border; border-radius: 6px;
+        padding: 3px 10px; background: $o-dash-back-bg; cursor: pointer; white-space: nowrap;
+        &:hover { background: darken($o-dash-back-bg, 4%); }
+    }
+
+    // 公司合計卡
+    .o_dash_kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 10px; }
+    .o_dash_kpis_minor { grid-template-columns: repeat(4, 1fr); }
+    .o_dash_kpi {
+        padding: 8px 14px; min-height: 64px;
+        .o_dash_kpi_l { color: $o-dash-mute; font-size: 12px; }
+        .o_dash_kpi_v { font-size: 25px; font-weight: 700; line-height: 1.15; white-space: nowrap; }
+        .o_dash_kpi_v small { font-size: 12px; font-weight: 500; color: $o-dash-mute; margin-left: 4px; }
+        .o_dash_kpi_v em { font-style: normal; margin-left: 6px; font-size: 16px; font-weight: 600; }
+        .o_dash_kpi_v .o_dash_kpi_unit_tight { margin: 0; }
+        .o_dash_kpi_link, .o_dash_kpi_extra { color: inherit; text-decoration: none; &:hover { text-decoration: underline; } }
+        .o_dash_kpi_extra { margin-left: 4px; }
+        .o_dash_kpi_sub, .o_dash_kpi_reason { font-size: 12px; margin-top: 2px; }
+        .o_dash_kpi_sub { color: $o-dash-mute; }
+        .o_dash_kpi_parts { font-size: 12px; margin-top: 4px; a { display: block; } }
+    }
+    .o_dash_kpi_minor {
+        min-height: 52px; padding: 6px 12px;
+        .o_dash_kpi_v { font-size: 18px; }
+    }
+
+    // 區塊標題
+    .o_dash_sec_t {
+        font-weight: 700; font-size: 14px; padding: 8px 14px 0; display: flex; align-items: center; gap: 8px;
+        small { font-weight: 400; color: $o-dash-mute; font-size: 12px; }
+    }
+    .o_dash_search {
+        border: 1px solid $o-dash-line; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 400; width: 260px;
+    }
+    .o_dash_pager { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; font-size: 12px; color: $o-dash-mute; }
+    .o_dash_pager_btn {
+        border: 1px solid $o-dash-line; background: #fff; border-radius: 6px; width: 26px; height: 24px; cursor: pointer; color: $o-dash-ink;
+        &:disabled { color: #c3c9d0; cursor: default; }
+    }
+
+    // 各工程現況（一列一工程的格線表）
+    .o_dash_tbl_wrap { overflow-x: auto; }
+    .o_dash_tbl { padding: 4px 6px 4px; min-width: $o-dash-table-min-width; }
+    .o_dash_tr {
+        display: grid; grid-template-columns: 2.3fr 1.9fr 128px 80px 100px 90px 80px 1.4fr; gap: 8px; align-items: center;
+        padding: 5px 8px; border-top: 1px solid $o-dash-line;
+    }
+    .o_dash_tr_head { border-top: 0; color: $o-dash-mute; font-size: 12px; padding-top: 2px; padding-bottom: 3px; }
+    .o_dash_tr_p { cursor: pointer; min-height: 84px; &:hover { background: $o-dash-hover; } }
+    .o_dash_pn {
+        font-weight: 700; font-size: 14px; line-height: 1.3;
+        small { display: block; font-weight: 400; color: $o-dash-mute; font-size: 12px; margin-top: 2px; }
+    }
+    .o_dash_bars {
+        .o_dash_b { display: grid; grid-template-columns: 28px 1fr 46px; align-items: center; gap: 5px; font-size: 12px; margin-bottom: 3px; }
+        .o_dash_track { height: 9px; border-radius: 5px; background: $o-dash-track; overflow: hidden; }
+        .o_dash_track i { display: block; height: 100%; border-radius: 5px; }
+        .o_dash_fill_planned { background: $o-dash-blue; }
+        .o_dash_fill_behind { background: $o-dash-red; }
+        .o_dash_fill_ahead { background: $o-dash-green; }
+        .o_dash_n { text-align: right; font-weight: 600; }
+    }
+    .o_dash_bars_head { width: 340px; .o_dash_b { margin: 0 0 2px; } }
+    .o_dash_diff { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 9px; margin-top: 1px; }
+    .o_dash_diff_neg { color: $o-dash-red; background: $o-dash-red-soft; }
+    .o_dash_diff_pos { color: $o-dash-green; background: $o-dash-green-soft; }
+    .o_dash_diff_even { color: $o-dash-mute; background: $o-dash-track; }
+    .o_dash_pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 10px; white-space: nowrap; }
+    .o_dash_pill_ok { color: $o-dash-green; background: $o-dash-green-soft; }
+    .o_dash_pill_no { color: $o-dash-red; background: $o-dash-red-soft; }
+    .o_dash_pill_wait { color: $o-dash-amber-ink; background: $o-dash-amber-soft; }
+    .o_dash_pill_blue { color: #0a7ba3; background: $o-dash-blue-soft; }
+    .o_dash_pill_muted { color: $o-dash-mute; background: $o-dash-track; }
+    .o_dash_pill_bad { color: $o-dash-red; background: $o-dash-red-soft; }
+    .o_dash_num { font-size: 18px; font-weight: 700; small { font-size: 11px; font-weight: 600; color: $o-dash-red; margin-left: 3px; } small.o_dash_mute { color: $o-dash-mute; font-weight: 400; } }
+    .o_dash_est b { font-size: 14px; margin-right: 4px; }
+
+    // 小 S 曲線：伺服器 SVG（顏色照雛型：預定藍、實際依落後／超前紅綠、今日橘）
+    .o_dash_scurve_wrap {
+        svg { width: 120px; height: 66px; border-radius: 3px; background: #fafbfc; }
+        .o_dash_scurve_planned { stroke: $o-dash-blue; stroke-dasharray: none; }
+        .o_dash_scurve_today { stroke: $o-dash-amber; stroke-dasharray: 3 3; }
+        &.o_dash_behind .o_dash_scurve_actual { stroke: $o-dash-red; }
+        &.o_dash_ahead .o_dash_scurve_actual { stroke: $o-dash-green; }
+    }
+
+    // 今日現場照片
+    .o_dash_photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 6px 12px 10px; }
+    .o_dash_pg { border: 1px solid $o-dash-line; border-radius: 8px; padding: 6px 8px; cursor: pointer; &:hover { background: $o-dash-hover; } }
+    .o_dash_pg_t { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+    .o_dash_ln { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .o_dash_th { width: 92px; height: 60px; object-fit: cover; border-radius: 5px; background: #d9dde2; }
+    .o_dash_th_lg { width: 132px; height: 88px; }
+    .o_dash_photos_row { padding: 6px 14px 10px; }
+
+    // 單一工程頁
+    .o_dash_proj_head {
+        display: flex; align-items: center; gap: 14px; padding: 6px 16px; min-height: 54px; margin-bottom: 10px; flex-wrap: nowrap;
+        h1 { font-size: 19px; }
+        // 左半（工程名、代號、工作天與起迄）可換行；右半（長條、日期）固定不動，名稱再長也不截斷
+        .o_dash_head_left { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+        .o_dash_back, .o_dash_date_right, .o_dash_bars_head { flex: none; }
+    }
+    .o_dash_cols { display: grid; gap: 10px; }
+    .o_dash_cols_2 { grid-template-columns: 1.22fr 1fr; }
+    .o_dash_cols_3 { grid-template-columns: 1.5fr 1fr 1fr; }
+    .o_dash_table {
+        border-collapse: collapse; width: 100%;
+        th, td { text-align: left; padding: 4px 10px; border-top: 1px solid $o-dash-line; font-size: 13px; vertical-align: top; }
+        th { color: $o-dash-mute; font-weight: 500; font-size: 12px; border-top: 0; padding-top: 3px; padding-bottom: 3px; white-space: nowrap; }
+        .o_dash_r { text-align: right; }
+        .o_dash_row_issue td:first-child { border-left: 3px solid $o-dash-amber; }
+    }
+    .o_dash_kv {
+        display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; padding: 6px 14px 8px; font-size: 13px;
+        span { color: $o-dash-mute; }
+        b { text-align: right; }
+    }
+    .o_dash_chart { padding: 4px 10px 8px; canvas { max-height: 300px; } }
+    .o_dash_leg {
+        display: flex; gap: 12px; font-size: 12px; color: $o-dash-mute; padding: 6px 4px 0; flex-wrap: wrap;
+        i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; }
+        .o_dash_leg_planned { background: $o-dash-blue; }
+        .o_dash_leg_actual { background: $o-dash-red; }
+        .o_dash_leg_today { background: $o-dash-amber; height: 2px; }
+        .o_dash_leg_change { background: $o-dash-purple; height: 2px; }
+    }
+    .o_dash_block_error { padding: 10px 14px; font-size: 13px; }
+    .o_dash_failed_list { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    // 標案地圖
+    .o_dash_mapwrap { display: grid; grid-template-columns: 1fr $o-dash-list-width; gap: 10px; }
+    .o_dash_mapbox { position: relative; height: $o-dash-map-height; overflow: hidden; border-radius: $o-dash-radius; background: #e8eef3; }
+    .o_dash_map { position: absolute; inset: 0; z-index: 1; }
+    .o_dash_map_empty {
+        position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 2; background: #fff; border-radius: 8px;
+        padding: 6px 12px; font-size: 12px; box-shadow: $o-dash-shadow; color: $o-dash-mute; white-space: nowrap;
+    }
+    .o_dash_maplg {
+        position: absolute; left: 12px; bottom: 12px; background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 12px;
+        box-shadow: 0 1px 6px rgba(20, 30, 50, 0.18); display: flex; gap: 14px; z-index: 2;
+        span { display: flex; align-items: center; gap: 6px; }
+        .o_dash_mk_dot { width: 12px; height: 12px; border: 0; box-shadow: none; }
+    }
+    .o_dash_mk_dot { display: block; width: 100%; height: 100%; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); box-sizing: border-box; }
+    .o_dash_mk_behind { background: $o-dash-red; }
+    .o_dash_mk_ahead { background: $o-dash-green; }
+    .o_dash_mk_none { background: $o-dash-grey; }
+    .o_dash_mlist {
+        .o_dash_mcard { padding: 10px 14px; margin-bottom: 10px; cursor: pointer; &:hover { background: $o-dash-hover; } }
+        .o_dash_mcard_plain { padding: 8px 14px; margin-bottom: 6px; }
+        .o_dash_nm { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+        .o_dash_st { display: flex; gap: 10px; margin-top: 6px; font-size: 12px; color: $o-dash-mute; flex-wrap: wrap; }
+        .o_dash_mlist_sub { padding: 2px 4px 6px; }
+    }
+}
+
+// Leaflet 標記與標籤（在 .leaflet-container 內、不在 .o_dash_page 的子樹裡）
+.o_dash_mk_icon { background: none; border: 0; cursor: pointer; }
+.leaflet-tooltip.o_dash_ml_tip {
+    background: #fff; border: 0; border-radius: 8px; padding: 6px 10px; box-shadow: 0 3px 12px rgba(20, 30, 50, 0.22);
+    font-size: 13px; line-height: 1.35; color: $o-dash-ink; white-space: nowrap; cursor: pointer;
+    &::before { display: none; }
+    .o_dash_ml b { display: block; font-size: 14px; }
+    .o_dash_diff { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 9px; }
+    .o_dash_diff_neg { color: $o-dash-red; background: $o-dash-red-soft; }
+    .o_dash_diff_pos { color: $o-dash-green; background: $o-dash-green-soft; }
+    .o_dash_diff_even { color: $o-dash-mute; background: $o-dash-track; }
+    .o_dash_mute { color: $o-dash-mute; font-size: 12px; }
+}

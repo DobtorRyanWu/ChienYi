@@ -484,6 +484,7 @@ class TestDashboardIndicators(DashIndicatorCase):
                     self.assertEqual(card, self._drill_count(user, project, key), (user.login, project.code, key))
                 log = self._as(user, project).dash_log_today
                 self.assertEqual(self._drill_count(user, project, 'log_today'), 1 if log == 'filled' else 0)
+                self.assertEqual(self._drill_count(user, project, 'log_filled'), 1 if log == 'filled' else 0)
         with self.assertRaisesRegex(Exception, '請指定'):
             self._as(self.sup, self.env['project.project']).action_dash_drilldown('open_defect')
 
@@ -505,7 +506,8 @@ class TestDashboardIndicators(DashIndicatorCase):
         result = Project.get_dash_company_kpis()
         self.assertFalse(result['blocked_reason'])
         kpis = result['kpis']
-        expected = {'construction_project': 4, 'log_today': 1, 'log_missing': 3, 'today_photo': 11,
+        # log_filled＝今日已填日誌的工程數（PA）；log_today 是張數（PA 今天一張）；兩者＋log_missing 見 test_dashboard_page
+        expected = {'construction_project': 4, 'log_today': 1, 'log_filled': 1, 'log_missing': 3, 'today_photo': 11,
                     'open_defect': 9, 'overdue_defect': 5, 'pending_test': 2, 'month_estimate': 1,
                     'estimate_cum': 2, 'unattributed': 2}
         self.assertEqual(set(kpis), set(expected))
@@ -550,7 +552,7 @@ class TestDashboardIndicators(DashIndicatorCase):
         names = [n for c in changes for n in c['change_orders']]
         self.assertEqual(names, [self.co_ps.name], '看不到的變更單不帶名稱')
         kpis = self._as(self.mgr, self.env['project.project']).get_dash_company_kpis()['kpis']
-        expected = {'construction_project': 4, 'log_today': 1, 'log_missing': 3, 'today_photo': 9,
+        expected = {'construction_project': 4, 'log_today': 1, 'log_filled': 1, 'log_missing': 3, 'today_photo': 9,
                     'open_defect': 6, 'overdue_defect': 3, 'pending_test': 2, 'month_estimate': 1,
                     'estimate_cum': 2}
         self.assertEqual({k: kpis[k]['count'] for k in expected}, expected)
@@ -588,7 +590,8 @@ class TestDashboardIndicators(DashIndicatorCase):
         self.assertFalse(pa.dash_error_keys)
         self.assertAlmostEqual(pa.dash_estimate_month_amount, self.est['nov3'].subtotal)
         kpis = self._as(self.plain, self.env['project.project']).get_dash_company_kpis()['kpis']
-        for key in ('log_today', 'log_missing', 'today_photo', 'open_defect', 'overdue_defect', 'pending_test'):
+        for key in ('log_today', 'log_filled', 'log_missing', 'today_photo', 'open_defect', 'overdue_defect',
+                    'pending_test'):
             self.assertEqual(kpis[key]['status'], 'no_access', key)
             self.assertIsNone(kpis[key]['count'], key)
         self.assertEqual(kpis['construction_project']['status'], 'ok')

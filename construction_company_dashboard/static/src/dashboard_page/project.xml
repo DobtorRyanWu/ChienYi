@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!-- 區塊失敗（無權限／讀取失敗）時的一句話 -->
+    <t t-name="construction_company_dashboard.BlockError">
+        <div class="o_dash_block_error o_dash_bad" t-att-data-block="blockKey"><i class="fa fa-exclamation-triangle me-1"/><t t-esc="blockError(blockKey)"/></div>
+    </t>
+
+    <t t-name="construction_company_dashboard.ProjectPage">
+        <Layout className="'o_dash_layout'" display="display">
+            <div class="o_dash_page o_dash_project_page">
+                <!-- 整頁讀不到（別家的工程） -->
+                <div t-if="dashExt.fatal" class="alert alert-danger o_dash_fatal" role="alert">
+                    <i class="fa fa-exclamation-triangle me-1"/>工程資料：<t t-esc="dashExt.fatal"/>
+                </div>
+
+                <!-- 抬頭 -->
+                <div class="o_dash_card o_dash_proj_head">
+                    <button type="button" class="o_dash_back" t-on-click="backToOverview">← 返回總覽</button>
+                    <t t-if="head.loading"><span class="o_dash_mute"><i class="fa fa-spinner fa-spin me-1"/>載入中…</span></t>
+                    <t t-elif="head.error"><span class="o_dash_bad" t-esc="head.error"/></t>
+                    <t t-elif="head.data">
+                        <div class="o_dash_head_left">
+                            <h1><t t-esc="head.data.name"/></h1>
+                            <span class="o_dash_code" t-esc="head.data.code"/>
+                            <span class="o_dash_mute o_dash_head_info">
+                                <span t-att-class="{ o_dash_bad: !head.data.workday.ok or head.data.workday.bad }" t-esc="headWorkdayText()"/>
+                                <t t-if="head.data.start or head.data.end">　<t t-esc="head.data.start || '—'"/> ～ <t t-esc="head.data.end || '—'"/><small t-if="head.data.startIsActual">（實際開工日起算）</small></t>
+                            </span>
+                        </div>
+                        <div class="o_dash_bars o_dash_bars_head">
+                            <t t-if="!head.data.progress.ok"><span class="o_dash_bad" t-esc="head.data.progress.message"/></t>
+                            <t t-elif="!head.data.progress.has"><span class="o_dash_mute">未建進度表</span></t>
+                            <t t-else="">
+                                <div class="o_dash_b"><span class="o_dash_mute">預定</span><div class="o_dash_track"><i class="o_dash_fill_planned" t-attf-style="width: {{ Math.min(100, Math.max(0, head.data.progress.planned)) }}%"/></div><span class="o_dash_n"><t t-esc="formatPercent1(head.data.progress.planned)"/>%</span></div>
+                                <div class="o_dash_b"><span class="o_dash_mute">實際</span><div class="o_dash_track"><i t-att-class="head.data.progress.behind ? 'o_dash_fill_behind' : 'o_dash_fill_ahead'" t-attf-style="width: {{ Math.min(100, Math.max(0, head.data.progress.actual)) }}%"/></div><span class="o_dash_n"><t t-esc="formatPercent1(head.data.progress.actual)"/>%</span></div>
+                            </t>
+                        </div>
+                    </t>
+                    <span class="o_dash_date o_dash_date_right">今日<br/><t t-esc="todayLabel"/></span>
+                </div>
+
+                <div t-if="state.dashboardLoading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入工程資料中…</div>
+
+                <!-- 第一列：今天做什麼｜進度曲線 -->
+                <div class="o_dash_cols o_dash_cols_2">
+                    <div class="o_dash_card o_dash_pad" data-block="today_work">
+                        <t t-set="work" t-value="block('today_work')"/>
+                        <div class="o_dash_sec_t">今天做什麼
+                            <small t-if="work and work.log_state === 'filled'">今日施工日誌（已填）</small>
+                            <small t-elif="work and work.log_state === 'missing'" class="o_dash_bad">今日尚未填寫施工日誌</small>
+                            <small t-elif="work">今日施工日誌</small>
+                        </div>
+                        <t t-if="blockError('today_work')"><t t-call="construction_company_dashboard.BlockError"><t t-set="blockKey" t-value="'today_work'"/></t></t>
+                        <t t-elif="work and work.rows.length">
+                            <table class="o_dash_table">
+                                <tr><th>工項</th><th>單位</th><th class="o_dash_r">今日數量</th><th class="o_dash_r">累計數量</th><th class="o_dash_r">契約數量</th></tr>
+                                <t t-foreach="work.rows" t-as="line" t-key="line.id">
+                                    <tr t-att-class="{ o_dash_row_issue: line.has_issue }">
+                                        <td><t t-if="line.item_no"><span class="o_dash_mute" t-esc="line.item_no"/> </t><t t-esc="line.name"/><small t-if="line.entry_type === 'extra'" class="o_dash_mute">（自填）</small><div t-if="line.location" class="o_dash_mute" t-esc="line.location"/></td>
+                                        <td t-esc="line.unit"/>
+                                        <td class="o_dash_r"><b t-esc="formatQty(line.daily_qty)"/></td>
+                                        <td class="o_dash_r" t-esc="formatQty(line.cumulative_qty)"/>
+                                        <td class="o_dash_r" t-esc="formatQty(line.contract_qty)"/>
+                                    </tr>
+                                </t>
+                            </table>
+                            <div t-if="work.count &gt; work.rows.length" class="o_dash_more o_dash_mute">只顯示前 <t t-esc="work.rows.length"/> 列，共 <t t-esc="work.count"/> 列</div>
+                        </t>
+                        <t t-elif="work"><div class="o_dash_empty" t-att-class="{ o_dash_bad: work.log_state === 'missing' }" t-esc="todayWorkEmptyText(work)"/></t>
+                    </div>
+
+                    <div class="o_dash_card o_dash_pad" data-block="progress_curve">
+                        <div class="o_dash_sec_t">進度曲線<small>預定 vs 實際</small>
+                            <span class="o_dash_sp"/>
+                            <button t-if="!state.noData and !state.chartLoading and !state.error" type="button" class="o_dash_pager_btn" t-on-click="resetZoom" title="重置縮放"><i class="fa fa-refresh"/></button>
+                        </div>
+                        <div t-if="state.chartLoading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入圖表資料中…</div>
+                        <div t-if="state.error" class="o_dash_empty o_dash_bad" t-esc="state.error"/>
+                        <div t-if="state.noData and state.selectedProjectId and !state.chartLoading" class="o_dash_empty">該工程尚無進度表資料</div>
+                        <div class="o_dash_chart" t-att-class="{ 'd-none': state.noData or !state.selectedProjectId or state.chartLoading or state.error }">
+                            <canvas t-ref="chart"/>
+                            <div class="o_dash_leg">
+                                <span><i class="o_dash_leg_planned"/>累計預定<t t-if="block('progress_summary')"> <t t-esc="formatPercent1(block('progress_summary').cumulative_planned)"/>%</t></span>
+                                <span><i class="o_dash_leg_actual"/>累計實際<t t-if="block('progress_summary')"> <t t-esc="formatPercent1(block('progress_summary').cumulative_actual)"/>%（<t t-esc="block('progress_summary').variance_status_label"/> <t t-esc="formatPercent1(Math.abs(block('progress_summary').variance))"/>%）</t></span>
+                                <span><i class="o_dash_leg_today"/>今日</span>
+                                <span><i class="o_dash_leg_change"/>契約變更點</span>
+                            </div>
+                        </div>
+                        <t t-if="blockError('progress_summary')"><t t-call="construction_company_dashboard.BlockError"><t t-set="blockKey" t-value="'progress_summary'"/></t></t>
+                    </div>
+                </div>
+
+                <!-- 第二列：缺失改善｜待補檢驗｜本期估驗摘要 -->
+                <div class="o_dash_cols o_dash_cols_3 o_dash_mt">
+                    <div class="o_dash_card o_dash_pad" data-block="open_defects">
+                        <t t-set="defects" t-value="block('open_defects')"/>
+                        <div class="o_dash_sec_t">交辦進度：缺失改善<small t-if="defects">未結 <t t-esc="defects.count"/> 件，逾期 <t t-esc="defects.overdue_count"/> 件</small></div>
+                        <t t-if="blockError('open_defects')"><t t-call="construction_company_dashboard.BlockError"><t t-set="blockKey" t-value="'open_defects'"/></t></t>
+                        <t t-elif="defects and defects.rows.length">
+                            <table class="o_dash_table">
+                                <tr><th>編號</th><th>內容</th><th>狀態</th><th>改善期限</th><th class="o_dash_r">逾期</th></tr>
+                                <t t-foreach="defects.rows" t-as="row" t-key="row.model + ':' + row.id">
+                                    <tr>
+                                        <td class="o_dash_nowrap" t-esc="row.defect_no"/>
+                                        <td><t t-esc="row.description"/><div t-if="row.location" class="o_dash_mute" t-esc="row.location"/></td>
+                                        <td><span class="o_dash_pill" t-att-class="'o_dash_pill_' + defectPill(row)" t-esc="row.state_label"/></td>
+                                        <td class="o_dash_nowrap" t-esc="row.deadline ? row.deadline.slice(5) : '—'"/>
+                                        <td class="o_dash_r o_dash_nowrap"><b t-if="row.is_overdue" class="o_dash_bad"><t t-esc="row.overdue_days"/> 天</b><t t-else="">—</t></td>
+                                    </tr>
+                                </t>
+                            </table>
+                            <div t-if="defects.count &gt; defects.rows.length" class="o_dash_more o_dash_mute">只顯示前 <t t-esc="defects.rows.length"/> 件，共 <t t-esc="defects.count"/> 件</div>
+                        </t>
+                        <t t-elif="defects"><div class="o_dash_empty">沒有待改缺失</div></t>
+                    </div>
+
+                    <div class="o_dash_card o_dash_pad" data-block="pending_tests">
+                        <t t-set="tests" t-value="block('pending_tests')"/>
+                        <div class="o_dash_sec_t">待補檢驗紀錄<small t-if="tests"><t t-esc="tests.count"/> 件</small></div>
+                        <t t-if="blockError('pending_tests')"><t t-call="construction_company_dashboard.BlockError"><t t-set="blockKey" t-value="'pending_tests'"/></t></t>
+                        <t t-elif="tests and tests.rows.length">
+                            <table class="o_dash_table">
+                                <tr><th>項目</th><th>預計進場</th></tr>
+                                <t t-foreach="tests.rows" t-as="row" t-key="row.id">
+                                    <tr>
+                                        <td><t t-esc="row.name"/><div t-if="row.standard" class="o_dash_mute" t-esc="row.standard"/></td>
+                                        <td class="o_dash_nowrap" t-esc="row.expected_in_site_date ? row.expected_in_site_date.slice(5) : '—'"/>
+                                    </tr>
+                                </t>
+                            </table>
+                            <div t-if="tests.count &gt; tests.rows.length" class="o_dash_more o_dash_mute">只顯示前 <t t-esc="tests.rows.length"/> 件，共 <t t-esc="tests.count"/> 件</div>
+                        </t>
+                        <t t-elif="tests"><div class="o_dash_empty">沒有待補的檢驗</div></t>
+                    </div>
+
+                    <div class="o_dash_card o_dash_pad" data-block="estimate">
+                        <div class="o_dash_sec_t">本期估驗摘要</div>
+                        <t t-if="blockError('estimate')"><t t-call="construction_company_dashboard.BlockError"><t t-set="blockKey" t-value="'estimate'"/></t></t>
+                        <t t-elif="estimateSummary">
+                            <t t-set="est" t-value="estimateSummary"/>
+                            <div t-if="!est.latest" class="o_dash_empty">尚無估驗</div>
+                            <div class="o_dash_kv">
+                                <t t-if="est.latest">
+                                    <span>期別</span><b>第 <t t-esc="est.latest.estimate_no"/> 期</b>
+                                    <span>估驗日期</span><b t-esc="est.latest.estimate_date || '—'"/>
+                                    <span>本期金額</span><b t-esc="formatMoney(est.latest.amount, est.symbol)"/>
+                                </t>
+                                <span>累計估驗</span><b t-esc="formatMoney(est.cumulative, est.symbol)"/>
+                                <span>本月估驗</span><b t-esc="formatMoney(est.month, est.symbol)"/>
+                                <span>契約金額</span><b t-esc="est.contract ? formatMoney(est.contract, est.symbol) : '—'"/>
+                                <span>累計比例</span><b t-esc="est.ratio === null ? '—' : formatPercent1(est.ratio) + '%'"/>
+                                <t t-if="est.latest">
+                                    <span>狀態</span><b><span class="o_dash_pill" t-att-class="'o_dash_pill_' + estimatePill(est.latest)" t-esc="est.latest.state_label"/></b>
+                                </t>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+
+                <!-- 現場照片 -->
+                <div class="o_dash_card o_dash_mt" data-block="today_photos">
+                    <t t-set="photos" t-value="block('today_photos')"/>
+                    <div class="o_dash_sec_t">現場照片<small><t t-esc="todayLabel"/><t t-if="photos">　今日 <t t-esc="photos.count"/> 張</t></small></div>
+                    <t t-if="blockError('today_photos')"><t t-call="construction_company_dashboard.BlockError"><t t-set="blockKey" t-value="'today_photos'"/></t></t>
+                    <div t-elif="photos and photos.count" class="o_dash_ln o_dash_photos_row">
+                        <t t-foreach="photoIds" t-as="photo" t-key="photo.id">
+                            <img class="o_dash_th o_dash_th_lg" loading="lazy" t-att-alt="photo.name" t-att-title="photo.name" t-att-src="thumbUrl(photo.id)"/>
+                        </t>
+                        <span t-if="photos.count &gt; photoIds.length" class="o_dash_mute">…共 <t t-esc="photos.count"/> 張</span>
+                    </div>
+                    <div t-elif="photos" class="o_dash_empty">今日尚無照片</div>
+                </div>
+
+                <!-- 其他區塊失敗的原因（抬頭以外、上面沒逐一顯示的） -->
+                <div t-if="dashExt.failedBlocks.length" class="o_dash_failed_list o_dash_mt">
+                    <t t-foreach="dashExt.failedBlocks" t-as="key" t-key="key">
+                        <span t-if="!['today_work','open_defects','pending_tests','estimate','today_photos','progress_summary'].includes(key)" class="o_dash_pill o_dash_pill_no" t-att-data-block="key">
+                            <t t-esc="blockTitles[key] || key"/>：<t t-esc="dashExt.blockErrors[key]"/>
+                        </span>
+                    </t>
+                </div>
+            </div>
+        </Layout>
+    </t>
+</templates>
