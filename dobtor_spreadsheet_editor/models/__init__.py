@@ -2,6 +2,8 @@
 from . import spreadsheet_spreadsheet
 # §4.5.2 通用 xlsx 連結 mixin
 from . import xlsx_linked_mixin
+# xlsx 附件在瀏覽器唯讀預覽（2026-11-08）
+from . import ir_attachment
 
 # Phase 4.5 啟用後加入：
 # from . import spreadsheet_editor

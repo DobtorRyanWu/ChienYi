@@ -53,12 +53,26 @@ class TemplateExportMixin(models.AbstractModel):
         template[:1].record_usage()
 
         attachment = self._create_export_attachment(filename, content)
-        download = {
+        return self._wrap_with_warnings(template_type, self._export_result_action(attachment))
+
+    def _export_result_action(self, attachment):
+        """產出檔交給使用者的方式。
+
+        xlsx 且裝了試算表預覽（dobtor_spreadsheet_editor 的
+        ir.attachment.action_open_spreadsheet_preview）→ 直接在瀏覽器唯讀打開，
+        上方有「下載原檔」；docx、或沒裝那個模組的站 → 照舊下載。
+        軟判斷、不加 depends：本模組不硬依賴編輯器模組（同 editor_spreadsheet_id）。
+        """
+        Attachment = self.env['ir.attachment']
+        if (attachment.mimetype == XLSX_MIMETYPE
+                and hasattr(Attachment, 'action_open_spreadsheet_preview')):
+            # 附件是 sudo 建的；改回目前使用者的 env，讓預覽照使用者自己的權限判斷
+            return attachment.with_env(self.env).action_open_spreadsheet_preview()
+        return {
             'type': 'ir.actions.act_url',
             'url': '/web/content/%s?download=true' % attachment.id,
             'target': 'self',
         }
-        return self._wrap_with_warnings(template_type, download)
 
     def _wrap_with_warnings(self, template_type, download):
         """對照表若回報資料問題，先跳提示再下載。

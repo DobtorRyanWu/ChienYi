@@ -1,6 +1,6 @@
 {
     'name': 'Dobtor Spreadsheet Editor',
-    'version': '18.0.1.0.0',
+    'version': '18.0.1.1.0',
     'summary': 'Google Sheets / Excel 等級的 xlsx 高保真匯入編輯器',
     'description': """
 Dobtor Spreadsheet Editor v1.0（Sprint 0）
@@ -55,6 +55,8 @@ Dobtor Spreadsheet Editor v1.0（Sprint 0）
             # （原誤置於 web.assets_backend → 該 bundle 未載入 o-spreadsheet → module not defined）
             'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/choose.js',
             'dobtor_spreadsheet_editor/static/src/spreadsheet_functions/extra_functions.js',
+            # xlsx 附件唯讀預覽的控制列（下載原檔／唯讀標示；models/ir_attachment.py）
+            'dobtor_spreadsheet_editor/static/src/attachment_preview/preview_control_panel.xml',
         ],
     },
     'external_dependencies': {

@@ -22,3 +22,4 @@ from . import test_defect_outcome  # 缺失改善成果確認只勾一格（11-0
 from . import test_self_inspection_timing  # 複製的檢查類型也印得出檢查時機（11-05）
 from . import test_estimate_report_categories  # 估驗計價單分類＝最上層大類、累計、合計僅合約項（11-05）
 from . import test_layout_fixes_20261105  # 跑版檢查：結尾空白頁、日報二工程名稱、c1 縮頁、c2 百分比等（11-05）
+from . import test_export_xlsx_preview  # 產出的 xlsx 直接在瀏覽器唯讀預覽、docx 照舊下載（11-08）

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- xlsx 附件唯讀預覽（models/ir_attachment.py）的控制列：標示唯讀、給「下載原檔」。
+     record.dobtor_preview 只有 ir.attachment.get_spreadsheet_data() 會回，
+     一般試算表（spreadsheet.spreadsheet）不受影響。 -->
+<templates xml:space="preserve">
+    <t t-inherit="spreadsheet_oca.SpreadsheetControlPanel" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_control_panel_breadcrumbs')]" position="inside">
+            <t t-set="dobtorPreview" t-value="props.record and props.record.dobtor_preview"/>
+            <div t-if="dobtorPreview" class="o_dobtor_xlsx_preview d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge text-bg-secondary">唯讀預覽</span>
+                <a class="btn btn-primary btn-sm" t-att-href="dobtorPreview.download_url">
+                    <i class="fa fa-download me-1"/>下載原檔
+                </a>
+                <span t-if="dobtorPreview.image_count" class="text-warning small">
+                    <i class="fa fa-exclamation-triangle me-1"/>
+                    檔內有 <t t-esc="dobtorPreview.image_count"/> 張圖片，預覽不顯示，請下載原檔查看
+                </span>
+            </div>
+        </xpath>
+    </t>
+</templates>

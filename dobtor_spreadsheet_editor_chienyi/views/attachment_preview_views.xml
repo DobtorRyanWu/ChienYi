@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 1.1.0（2026-11-08）：資料夾／檔案總覽的 xlsx 加「在瀏覽器預覽」（唯讀，
+     dobtor_spreadsheet_editor 的 ir.attachment.action_open_spreadsheet_preview）。
+     原本只有下載鈕，看一眼 Excel 也得先下載。 -->
+<odoo>
+    <!-- 檔案總覽（清單）：mimetype 已在清單裡（optional hide），按鈕條件可直接用 -->
+    <record id="view_supervision_attachment_tree_xlsx_preview" model="ir.ui.view">
+        <field name="name">ir.attachment.supervision.list.xlsx.preview</field>
+        <field name="model">ir.attachment</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_attachment_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_download_file']" position="before">
+                <button name="action_open_spreadsheet_preview" type="object"
+                        icon="fa-eye" title="在瀏覽器預覽（唯讀）"
+                        invisible="mimetype != 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 檔案總覽（表單） -->
+    <record id="view_supervision_attachment_form_xlsx_preview" model="ir.ui.view">
+        <field name="name">ir.attachment.supervision.form.xlsx.preview</field>
+        <field name="model">ir.attachment</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_attachment_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_download_file']" position="before">
+                <button name="action_open_spreadsheet_preview" type="object"
+                        string="在瀏覽器預覽" class="btn-primary" icon="fa-eye"
+                        invisible="mimetype != 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 資料夾表單：「檔案」與「所有檔案（含子層）」兩個清單 -->
+    <record id="view_supervision_folder_form_xlsx_preview" model="ir.ui.view">
+        <field name="name">supervision.folder.form.xlsx.preview</field>
+        <field name="model">supervision.folder</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_folder_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='attachment_ids']/list/button[@name='action_download_file']" position="before">
+                <field name="mimetype" column_invisible="1"/>
+                <button name="action_open_spreadsheet_preview" type="object"
+                        icon="fa-eye" title="在瀏覽器預覽（唯讀）"
+                        invisible="mimetype != 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'"/>
+            </xpath>
+            <xpath expr="//field[@name='all_attachment_ids']/list/button[@name='action_download_file']" position="before">
+                <field name="mimetype" column_invisible="1"/>
+                <button name="action_open_spreadsheet_preview" type="object"
+                        icon="fa-eye" title="在瀏覽器預覽（唯讀）"
+                        invisible="mimetype != 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -163,14 +163,163 @@ def _safe_format(numfmt):
     if nf in _NUMFMT_ALIAS:
         return _NUMFMT_ALIAS[nf]
     low = nf.lower()
-    # 排除民國/era/文字字面/貨幣locale/條件色/補位符號
-    if any(t in low for t in ('e', 'g', '"', '[$', '[red', '[blue', '*', '_', '@', '?')):
-        return None
+    # 民國紀年／文字字面／地區碼／顏色／留白等交給 _convert_format 逐字元判斷
     if _NUM_ONLY.match(nf):
         return nf
     if _DATE_ONLY.match(nf):
         return low.replace('-', '/')  # o-spreadsheet 接受 yyyy/mm/dd 類
-    return None
+    return _convert_format(nf)
+
+
+# ── 帶文字字面／留白／顏色的格式（2026-11-08 補）─────────────────────────────
+# 監造日報表的 `0_ "天"`、`0_ "次"`、`#,##0_);[Red]\(#,##0\)` 原本整個被丟掉，
+# 預覽上「740 天」變成「740」。o-spreadsheet 其實認得 "字面"、\跳脫字元與
+# 下列單字元（o_spreadsheet.js 的 tokenizeFormat／alwaysEscapedCharsInFormat），
+# 所以逐字元轉寫；遇到它不認得或語意會變的（民國紀年 e/g、科學記號、AM/PM、
+# 條件段 [>=100]、經過時間 [h]）整個格式放棄＝照舊不帶格式，不硬轉。
+_OSS_LITERAL_CHARS = set('$+-/():!^&~{}<>= ')
+_FMT_COLOR = _re.compile(r'(?i)(black|blue|cyan|green|magenta|red|white|yellow|color\s*\d+)')
+_FMT_MAX_SECTIONS = 4   # 正數;負數;零;文字
+
+
+def _split_format_sections(nf):
+    """以 ; 切段，略過 "..." 與 \\x 裡的分號。"""
+    parts, buf, i = [], [], 0
+    while i < len(nf):
+        ch = nf[i]
+        if ch == '"':
+            j = nf.find('"', i + 1)
+            j = len(nf) - 1 if j < 0 else j
+            buf.append(nf[i:j + 1])
+            i = j + 1
+            continue
+        if ch == '\\':
+            buf.append(nf[i:i + 2])
+            i += 2
+            continue
+        if ch == ';':
+            parts.append(''.join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    parts.append(''.join(buf))
+    return parts
+
+
+def _convert_format_section(sec):
+    """單一段 Excel 格式 → (o-spreadsheet 寫法, 種類)；做不到回 None。
+
+    種類：num／date／text／literal（只有字面，沒有數字或日期位置）。
+    """
+    out, kinds, i = [], set(), 0
+    while i < len(sec):
+        ch = sec[i]
+        if ch == '"':
+            j = sec.find('"', i + 1)
+            if j < 0:
+                return None
+            out.append(sec[i:j + 1])
+            i = j + 1
+        elif ch == '\\':
+            if i + 1 >= len(sec):
+                return None
+            out.append(sec[i:i + 2])
+            i += 2
+        elif ch == '[':
+            j = sec.find(']', i)
+            if j < 0:
+                return None
+            inner = sec[i + 1:j]
+            if inner.startswith('$'):
+                # [$NT$-404] → "NT$"；[$-404] 只是地區碼 → 拿掉
+                sym = inner[1:].split('-', 1)[0].replace('"', '')
+                if sym:
+                    out.append('"%s"' % sym)
+            elif not _FMT_COLOR.fullmatch(inner):
+                return None          # 條件段、經過時間等：語意不同，不轉
+            i = j + 1                # 顏色：預覽不上色，數字照樣顯示
+        elif ch == '_':
+            out.append(' ')          # 對齊留白（寬度＝下一個字元）→ 一個空白
+            i += 2
+        elif ch == '*':
+            i += 2                   # 重複填滿字元：預覽用不到
+        elif ch in '0#?':
+            out.append('0' if ch == '0' else '#')
+            kinds.add('num')
+            i += 1
+        elif ch in ',.':
+            out.append(ch)
+            i += 1
+        elif ch == '%':
+            out.append(ch)
+            kinds.add('num')
+            i += 1
+        elif ch == '@':
+            out.append(ch)
+            kinds.add('text')
+            i += 1
+        elif ch.lower() in 'dmyhs':
+            out.append(ch.lower())
+            kinds.add('date')
+            i += 1
+        elif ch in _OSS_LITERAL_CHARS:
+            out.append(ch)
+            i += 1
+        else:
+            return None              # e／g（民國紀年）、E+、AM/PM、General…
+    if len(kinds) > 1:
+        return None
+    return ''.join(out), (kinds.pop() if kinds else 'literal')
+
+
+def _convert_format(nf):
+    """整個 Excel number format → o-spreadsheet 可解析的格式；做不到回 None。
+
+    段落規則照 o-spreadsheet 的 convertFormatToInternalFormat：第一段要是數字或
+    日期（只有一段時可以是文字）、第二／三段數字或日期、第四段文字。
+    """
+    sections = _split_format_sections(nf)
+    if len(sections) > _FMT_MAX_SECTIONS or not sections[0].strip():
+        return None
+    converted = []
+    for idx, sec in enumerate(sections):
+        if not sec:
+            converted.append('')
+            continue
+        res = _convert_format_section(sec)
+        if res is None:
+            return None
+        text, kind = res
+        if idx == 0 and kind == 'text' and len(sections) > 1:
+            return None
+        if idx in (1, 2) and kind == 'text':
+            return None
+        if idx == 3 and kind not in ('text', 'literal'):
+            return None
+        converted.append(text)
+    result = ';'.join(converted).rstrip(';')
+    return result or None
+
+
+# 文字格的內容若長得像數字／日期（'45.60'、'258,923,496'、'2024/12/31'），o-spreadsheet
+# 會把它解析成數值再套格式——jt 監造日報表「實際進度」是文字 '45.60' 配 0.00%，預覽變成
+# 4560.00%。Excel 對文字格不套數字格式，所以這種格改用文字格式 @ 照字面顯示。
+_TEXT_PARSED_AS_VALUE = _re.compile(
+    r'\s*(?:'
+    r'[-+]?\$?(?:\d[\d,]*(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?\s*%?'     # 數字／千分位／百分比
+    r'|\d{1,4}([/\-.])\d{1,2}(?:\1\d{1,4})?(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?'  # 日期
+    r'|\d{1,2}:\d{2}(?::\d{2})?'                                    # 時間
+    r'|true|false'
+    r')\s*', _re.IGNORECASE)
+TEXT_FORMAT = '@'
+
+
+def _text_cell_needs_text_format(cell):
+    value = cell.value
+    return (getattr(cell, 'data_type', None) == 's' and isinstance(value, str)
+            and not value.startswith('=')
+            and bool(_TEXT_PARSED_AS_VALUE.fullmatch(value)))
 
 
 # 圖片錨點座標估算，與前端 image_extractor.ts 一致（COL_PX/ROW_PX）
@@ -281,6 +430,19 @@ def _parse_rels(zf, rels_path):
     return out
 
 
+def _header_footer_rids(zf, sheet_part, names):
+    """工作表 XML 裡 <legacyDrawingHF r:id> 指到的 rel id（頁首／頁尾圖用的 VML）。"""
+    import xml.etree.ElementTree as ET
+    if sheet_part not in names:
+        return set()
+    try:
+        root = ET.fromstring(zf.read(sheet_part))
+    except ET.ParseError:
+        return set()
+    ss_main = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    return {el.get('{%s}id' % _R) for el in root.iter('{%s}legacyDrawingHF' % ss_main)}
+
+
 def extract_images(file_bytes):
     """以 zip 解析 xlsx 內嵌圖片（openpyxl 無法讀既有檔的圖，故自解 drawings）。
 
@@ -325,9 +487,13 @@ def extract_images(file_bytes):
         base = posixpath.dirname(sheet_part)
         sheet_rels = _norm_path(base, '_rels/%s.rels' % posixpath.basename(sheet_part))
         rels = _parse_rels(zf, sheet_rels)
-        # 舊版 VML 內嵌圖（表頭 logo 常見）
-        for vt in [t for (t, typ) in rels.values() if typ.endswith('/vmlDrawing')]:
-            out.extend(_parse_vml_images(zf, _norm_path(base, vt), names, si))
+        # 舊版 VML 內嵌圖。排除頁首／頁尾圖（<legacyDrawingHF>，例如 &C&G 置中頁首浮水印）：
+        # 它只在列印／整頁模式出現、不是貼在儲存格上的圖；當成浮動圖片放左上角會整片
+        # 蓋住表頭（2026-11-08 jt 監造日報表實例；樣板庫 4 個有圖的 xlsx 全是這種）。
+        hf_rids = _header_footer_rids(zf, sheet_part, names)
+        for rid, (vt, typ) in rels.items():
+            if typ.endswith('/vmlDrawing') and rid not in hf_rids:
+                out.extend(_parse_vml_images(zf, _norm_path(base, vt), names, si))
         drawing_targets = [t for (t, typ) in rels.values() if typ.endswith('/drawing')]
         for dt in drawing_targets:
             draw_part = _norm_path(base, dt)
@@ -409,6 +575,8 @@ def _build_sheet(ws, sheet_id, style_pool, border_pool):
                 fmt = _safe_format(getattr(cell, 'number_format', None))
                 if fmt:
                     ocell['format'] = fmt
+            if content != '' and _text_cell_needs_text_format(cell):
+                ocell['format'] = TEXT_FORMAT   # 見 _TEXT_PARSED_AS_VALUE
             # 只在有內容/樣式/邊框時輸出（對齊 to_ospreadsheet.ts L319）
             if ocell:
                 ocell.setdefault('content', '')
@@ -444,15 +612,44 @@ def _build_sheet(ws, sheet_id, style_pool, border_pool):
     }
 
 
+# 防 zip 炸彈（2026-11-08）：openpyxl 把整份 XML 讀進記憶體（每格是一個 Python 物件），
+# 1 MB 的 xlsx 可以宣稱解開有幾 GB。Python zipfile 只會解到 zip 裡宣告的大小
+# （ZipExtFile 以 file_size 截斷），所以加總宣告的 XML 大小就是實際讀取量的上限。
+# 只算 XML 類：圖片 openpyxl 不解析。jt 11-08 實測最大的 xlsx 解開共 11.5 MB（多半是圖）。
+MAX_UNZIPPED_XML_BYTES = 40 * 1024 * 1024
+_XML_PART_SUFFIXES = ('.xml', '.rels', '.vml')
+
+
+class XlsxTooLarge(ValueError):
+    """xlsx 解壓後的 XML 超過 MAX_UNZIPPED_XML_BYTES。"""
+
+
+def _guard_unzipped_size(file_bytes):
+    import io
+    import zipfile
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            total = sum(i.file_size for i in zf.infolist()
+                        if i.filename.lower().endswith(_XML_PART_SUFFIXES))
+    except zipfile.BadZipFile:
+        return              # 不是 zip：交給 openpyxl 照原本的方式報錯
+    if total > MAX_UNZIPPED_XML_BYTES:
+        raise XlsxTooLarge('xlsx 解壓後 XML 共 %d bytes，超過上限 %d'
+                           % (total, MAX_UNZIPPED_XML_BYTES))
+
+
 def xlsx_bytes_to_workbook_data(file_bytes, base):
     """把 xlsx bytes 轉成 o-spreadsheet WorkbookData dict。
 
     :param base: 由 spreadsheet.spreadsheet._empty_spreadsheet_data() 提供的底稿
                  （含正確 version / settings.locale / revisionId），只覆寫 sheets/池。
     :return: (workbook_data:dict, parse_log:str)
+    :raises XlsxTooLarge: 解壓後太大（不解析，避免拖垮 worker）
     """
     import io
     from openpyxl import load_workbook
+
+    _guard_unzipped_size(file_bytes)
 
     wb = load_workbook(io.BytesIO(file_bytes), data_only=False, read_only=False)
     style_pool = _Pool()
