@@ -25,6 +25,8 @@ $o-dash-shadow: 0 1px 4px rgba(20, 30, 50, 0.08);
 $o-dash-table-min-width: 1120px;
 $o-dash-map-height: 720px;
 $o-dash-list-width: 330px;
+$o-dash-narrow: 1100px;        // 低於這個寬度（手機、半個視窗）改成單欄：地圖在上、清單在下
+$o-dash-map-height-narrow: 60vh;
 
 .o_dash_layout {
     background: $o-dash-bg;
@@ -237,3 +239,22 @@ $o-dash-list-width: 330px;
     .o_dash_diff_even { color: $o-dash-mute; background: $o-dash-track; }
     .o_dash_mute { color: $o-dash-mute; font-size: 12px; }
 }
+
+// 窄螢幕：原本的 1fr + 330px 兩欄會把地圖壓到幾乎 0 寬（使用者 11-08 手機開地圖「跑不出來」）
+@media (max-width: $o-dash-narrow) {
+    .o_dash_page {
+        padding: 8px 10px 12px;
+        .o_dash_head { height: auto; min-height: 44px; flex-wrap: wrap; padding: 6px 12px; h1 { font-size: 18px; } }
+        .o_dash_kpis, .o_dash_kpis_minor { grid-template-columns: repeat(2, 1fr); }
+        .o_dash_kpi .o_dash_kpi_v { font-size: 22px; }
+        .o_dash_sec_t { flex-wrap: wrap; }
+        .o_dash_search { width: 100%; }
+        .o_dash_photos { grid-template-columns: 1fr; }
+        .o_dash_proj_head { flex-wrap: wrap; .o_dash_bars_head { width: 100%; } }
+        .o_dash_cols_2, .o_dash_cols_3 { grid-template-columns: 1fr; }
+        .o_dash_mapwrap { grid-template-columns: 1fr; }
+        .o_dash_mapbox { height: $o-dash-map-height-narrow; min-height: 360px; }
+        .o_dash_maplg { gap: 8px; font-size: 11px; padding: 5px 8px; flex-wrap: wrap; }
+    }
+}
+

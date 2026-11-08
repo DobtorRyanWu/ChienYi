@@ -69,6 +69,9 @@ export class CompanyDashboardProject extends ProgressDashboard {
             const denied = splitKeys(record.dash_denied_keys);
             const failed = splitKeys(record.dash_error_keys);
             const variance = Number(record.dash_progress_variance) || 0;
+            if (this.env.config && typeof this.env.config.setDisplayName === "function") {
+                this.env.config.setDisplayName(record.name || "單一工程");
+            }
             this.head.data = {
                 id: record.id,
                 name: record.name || "",

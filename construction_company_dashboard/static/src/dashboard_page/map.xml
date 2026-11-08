@@ -11,6 +11,7 @@
                 </div>
                 <div t-if="state.error" class="alert alert-danger" role="alert" t-esc="state.error"/>
                 <div t-if="!hasLeaflet" class="alert alert-warning" role="alert">地圖函式庫未載入（web_leaflet_lib），只顯示右側清單。</div>
+                <div t-if="state.tileError" class="alert alert-warning" role="alert">底圖載入失敗：這個裝置連不到地圖伺服器（OpenStreetMap）；標記與清單照常。</div>
                 <div class="o_dash_mapwrap">
                     <div class="o_dash_card o_dash_mapbox">
                         <div class="o_dash_map" t-ref="map"/>

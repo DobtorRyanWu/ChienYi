@@ -37,7 +37,10 @@ export class CompanyDashboardMap extends Component {
         this.map = null;
         this.hasLeaflet = Boolean(window.L);
         this.todayLabel = formatDateLabel();
-        this.state = useState({ loading: true, error: false, located: [], unlocated: [] });
+        this.state = useState({ loading: true, error: false, located: [], unlocated: [], tileError: false, tilesLoaded: 0 });
+        if (this.env.config && typeof this.env.config.setDisplayName === "function") {
+            this.env.config.setDisplayName("標案地圖");   // 直接開網址時麵包屑不要顯示「未命名的」
+        }
         onWillStart(() => this.loadProjects());
         onMounted(() => this.initMap());
         onWillUnmount(() => {
@@ -92,7 +95,10 @@ export class CompanyDashboardMap extends Component {
         // 部署方可在系統參數 leaflet.tile_url 換自架瓦片（web_leaflet_lib 放進 session）；沒有就用 OSM
         const tileUrl = session["leaflet.tile_url"] || OSM_TILE_URL;
         const attribution = session["leaflet.copyright"] || OSM_ATTRIBUTION;
-        L.tileLayer(tileUrl, { attribution, maxZoom: MAX_ZOOM, referrerPolicy: "no-referrer" }).addTo(this.map);
+        const tiles = L.tileLayer(tileUrl, { attribution, maxZoom: MAX_ZOOM, referrerPolicy: "no-referrer" }).addTo(this.map);
+        // 連不到瓦片伺服器時畫面只剩一片灰：明講，標記與清單照常
+        tiles.on("tileload", () => { this.state.tilesLoaded += 1; this.state.tileError = false; });
+        tiles.on("tileerror", () => { if (!this.state.tilesLoaded) { this.state.tileError = true; } });
         this.renderMarkers();
         // 容器尺寸是 CSS 給的，掛上去後要重算一次
         setTimeout(() => this.map && this.map.invalidateSize(), 0);
