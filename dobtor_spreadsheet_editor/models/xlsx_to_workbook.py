@@ -306,19 +306,23 @@ def _convert_format(nf):
 # 會把它解析成數值再套格式——jt 監造日報表「實際進度」是文字 '45.60' 配 0.00%，預覽變成
 # 4560.00%。Excel 對文字格不套數字格式，所以這種格改用文字格式 @ 照字面顯示。
 _TEXT_PARSED_AS_VALUE = _re.compile(
-    r'\s*(?:'
-    r'[-+]?\$?(?:\d[\d,]*(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?\s*%?'     # 數字／千分位／百分比
-    r'|\d{1,4}([/\-.])\d{1,2}(?:\1\d{1,4})?(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?'  # 日期
+    r'[-+]?\$?(?:\d[\d,]*(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)? ?%?'        # 數字／千分位／百分比
+    r'|\d{1,4}([/\-.])\d{1,2}(?:\1\d{1,4})?(?: \d{1,2}:\d{2}(?::\d{2})?)?'  # 日期
     r'|\d{1,2}:\d{2}(?::\d{2})?'                                    # 時間
-    r'|true|false'
-    r')\s*', _re.IGNORECASE)
+    r'|true|false', _re.IGNORECASE)
+# 判斷前先 strip、樣式裡不放可重疊的 \s*：原本 `\s*%?\s*` 前後兩段空白可互換，
+# fullmatch 對「1＋一萬個空白＋x」是 O(n²)（紅隊：2KB 檔 25 秒 CPU）。
+_TEXT_LIKE_VALUE_MAX_LEN = 64     # 比這長的字串不可能是要被誤解析的數字／日期
 TEXT_FORMAT = '@'
 
 
 def _text_cell_needs_text_format(cell):
     value = cell.value
-    return (getattr(cell, 'data_type', None) == 's' and isinstance(value, str)
-            and not value.startswith('=')
+    if getattr(cell, 'data_type', None) != 's' or not isinstance(value, str) \
+            or value.startswith('='):
+        return False
+    value = value.strip()
+    return (0 < len(value) <= _TEXT_LIKE_VALUE_MAX_LEN
             and bool(_TEXT_PARSED_AS_VALUE.fullmatch(value)))
 
 
@@ -372,7 +376,7 @@ def _parse_vml_style(style):
     return out
 
 
-def _parse_vml_images(zf, vml_part, names, sheet_index):
+def _parse_vml_images(zf, vml_part, names, sheet_index, cache=None):
     """解析 VML（舊版）內嵌圖：<v:shape style=...><v:imagedata o:relid=.../>。"""
     import base64 as _b64
     import posixpath
@@ -398,8 +402,8 @@ def _parse_vml_images(zf, vml_part, names, sheet_index):
         media_part = _norm_path(vml_base, media_t)
         if media_part not in names:
             continue
-        data = zf.read(media_part)
-        if not data or len(data) > 4 * 1024 * 1024:
+        b64 = _media_b64(zf, media_part, cache)
+        if not b64:
             continue
         ext = media_part.rsplit('.', 1)[-1].lower()
         mimetype = _MIME_BY_EXT.get(ext)
@@ -412,7 +416,7 @@ def _parse_vml_images(zf, vml_part, names, sheet_index):
         height = max(_pt_to_px(st.get('height', '60')) or 60, 32)
         out.append({
             'sheet_index': sheet_index,
-            'base64': _b64.b64encode(data).decode(),
+            'base64': b64,
             'mimetype': mimetype,
             'x': max(x, 0), 'y': max(y, 0), 'width': width, 'height': height,
         })
@@ -443,6 +447,30 @@ def _header_footer_rids(zf, sheet_part, names):
     return {el.get('{%s}id' % _R) for el in root.iter('{%s}legacyDrawingHF' % ss_main)}
 
 
+# 圖片上限：單張宣告大小、總張數（2026-11-08 紅隊）
+MAX_IMAGE_BYTES = 4 * 1024 * 1024
+MAX_IMAGES = 50
+
+
+def _media_b64(zf, media_part, cache):
+    """讀一張圖成 base64；先看 zip 宣告的大小、超過就不讀；同一張只讀一次。"""
+    import base64 as _b64
+    if cache is not None and media_part in cache:
+        return cache[media_part]
+    try:
+        size = zf.getinfo(media_part).file_size
+    except KeyError:
+        return None
+    b64 = None
+    if 0 < size <= MAX_IMAGE_BYTES:
+        data = zf.read(media_part)
+        if data and len(data) <= MAX_IMAGE_BYTES:
+            b64 = _b64.b64encode(data).decode()
+    if cache is not None:
+        cache[media_part] = b64
+    return b64
+
+
 def extract_images(file_bytes):
     """以 zip 解析 xlsx 內嵌圖片（openpyxl 無法讀既有檔的圖，故自解 drawings）。
 
@@ -462,6 +490,7 @@ def extract_images(file_bytes):
     names = set(zf.namelist())
     if 'xl/workbook.xml' not in names:
         return out
+    cache = {}   # 同一張圖被多個錨點指到時只讀、只編碼一次（紅隊：300 錨點 × 4MB → 1.6GB）
 
     wb_rels = _parse_rels(zf, 'xl/_rels/workbook.xml.rels')
     wb_root = ET.fromstring(zf.read('xl/workbook.xml'))
@@ -493,7 +522,7 @@ def extract_images(file_bytes):
         hf_rids = _header_footer_rids(zf, sheet_part, names)
         for rid, (vt, typ) in rels.items():
             if typ.endswith('/vmlDrawing') and rid not in hf_rids:
-                out.extend(_parse_vml_images(zf, _norm_path(base, vt), names, si))
+                out.extend(_parse_vml_images(zf, _norm_path(base, vt), names, si, cache))
         drawing_targets = [t for (t, typ) in rels.values() if typ.endswith('/drawing')]
         for dt in drawing_targets:
             draw_part = _norm_path(base, dt)
@@ -523,8 +552,8 @@ def extract_images(file_bytes):
                 media_part = _norm_path(draw_base, media_t)
                 if media_part not in names:
                     continue
-                data = zf.read(media_part)
-                if not data or len(data) > 4 * 1024 * 1024:
+                b64 = _media_b64(zf, media_part, cache)
+                if not b64:
                     continue
                 ext = media_part.rsplit('.', 1)[-1].lower()
                 mimetype = _MIME_BY_EXT.get(ext)
@@ -544,12 +573,12 @@ def extract_images(file_bytes):
                         width, height = 120, 60
                 out.append({
                     'sheet_index': si,
-                    'base64': _b64.b64encode(data).decode(),
+                    'base64': b64,
                     'mimetype': mimetype,
                     'x': fc * _COL_PX, 'y': fr * _ROW_PX,
                     'width': width, 'height': height,
                 })
-    return out
+    return out[:MAX_IMAGES]
 
 
 def _build_sheet(ws, sheet_id, style_pool, border_pool):
@@ -612,16 +641,19 @@ def _build_sheet(ws, sheet_id, style_pool, border_pool):
     }
 
 
-# 防 zip 炸彈（2026-11-08）：openpyxl 把整份 XML 讀進記憶體（每格是一個 Python 物件），
-# 1 MB 的 xlsx 可以宣稱解開有幾 GB。Python zipfile 只會解到 zip 裡宣告的大小
-# （ZipExtFile 以 file_size 截斷），所以加總宣告的 XML 大小就是實際讀取量的上限。
-# 只算 XML 類：圖片 openpyxl 不解析。jt 11-08 實測最大的 xlsx 解開共 11.5 MB（多半是圖）。
-MAX_UNZIPPED_XML_BYTES = 40 * 1024 * 1024
-_XML_PART_SUFFIXES = ('.xml', '.rels', '.vml')
+# 防 zip 炸彈（2026-11-08，紅隊實測修正）：
+# - 只收 STORED／DEFLATED（Excel 只會用這兩種）。zipfile 對 DEFLATED 會照宣告大小截斷，
+#   但對 BZIP2 是整段解完才截——919 bytes 的檔宣告 100 bytes、實際吃掉 2 GB。
+# - 加總**全部**部件的宣告大小，不看副檔名：openpyxl 照 rels 的 Target 讀工作表，
+#   改名成 sheet1.bin 一樣會被解析。jt 11-08 實測最大的 xlsx 解開共 11.5 MB（多半是圖）。
+# 這兩道只擋「大小」；「小檔展開成巨量儲存格」（巨大合併範圍、極遠的單格）擋不了，
+# 那由 convert_isolated() 的子程序資源上限兜底。
+MAX_UNZIPPED_BYTES = 60 * 1024 * 1024
+_ALLOWED_ZIP_METHODS = (0, 8)     # zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED
 
 
 class XlsxTooLarge(ValueError):
-    """xlsx 解壓後的 XML 超過 MAX_UNZIPPED_XML_BYTES。"""
+    """xlsx 太大／太複雜，不轉換（避免拖垮 worker）。"""
 
 
 def _guard_unzipped_size(file_bytes):
@@ -629,13 +661,15 @@ def _guard_unzipped_size(file_bytes):
     import zipfile
     try:
         with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
-            total = sum(i.file_size for i in zf.infolist()
-                        if i.filename.lower().endswith(_XML_PART_SUFFIXES))
+            infos = zf.infolist()
     except zipfile.BadZipFile:
         return              # 不是 zip：交給 openpyxl 照原本的方式報錯
-    if total > MAX_UNZIPPED_XML_BYTES:
-        raise XlsxTooLarge('xlsx 解壓後 XML 共 %d bytes，超過上限 %d'
-                           % (total, MAX_UNZIPPED_XML_BYTES))
+    odd = sorted({i.compress_type for i in infos} - set(_ALLOWED_ZIP_METHODS))
+    if odd:
+        raise XlsxTooLarge('xlsx 用了不支援的壓縮法 %s' % odd)
+    total = sum(i.file_size for i in infos)
+    if total > MAX_UNZIPPED_BYTES:
+        raise XlsxTooLarge('xlsx 解壓後共 %d bytes，超過上限 %d' % (total, MAX_UNZIPPED_BYTES))
 
 
 def xlsx_bytes_to_workbook_data(file_bytes, base):
@@ -683,3 +717,67 @@ def xlsx_bytes_to_workbook_data(file_bytes, base):
         len(border_pool.to_record()), len(images))
     _logger.info(log)
     return data, log, images
+
+
+# ── 隔離轉換（2026-11-08 紅隊）──────────────────────────────────────────────
+# 任何內部帳號都能對自己讀得到的 xlsx 按預覽，而「1.4 KB 的檔展開成幾百 MB」的寫法
+# 不只一種（巨大合併範圍、極遠的單格、超大欄範圍…），逐一補是打地鼠。改成在子程序裡
+# 轉：子程序先替自己設記憶體／CPU 上限，爆了只死子程序，Odoo worker 不受影響。
+ISOLATED_MEM_BYTES = 1024 * 1024 * 1024      # 子程序位址空間上限
+ISOLATED_CPU_SECONDS = 30
+ISOLATED_WALL_SECONDS = 60
+ISOLATED_MAX_OUTPUT_BYTES = 50 * 1024 * 1024  # 回傳的 JSON 上限（父程序要整份讀進來）
+_CHILD_FLAG = '--dobtor-isolated-child'
+_EXIT_TOO_LARGE = 3
+
+
+def convert_isolated(file_bytes, base):
+    """在有資源上限的子程序裡跑 xlsx_bytes_to_workbook_data。
+
+    :return: (workbook_data, parse_log, image_count)——不回圖片本身（預覽不顯示圖）
+    :raises XlsxTooLarge: 超過大小／記憶體／CPU／時間上限
+    :raises ValueError: 其他轉換失敗（壞檔等）
+    """
+    import os
+    import subprocess
+    import sys
+    stdin = json.dumps(base or {}).encode() + b'\n' + file_bytes
+    try:
+        proc = subprocess.run(
+            [sys.executable, '-I', os.path.abspath(__file__), _CHILD_FLAG],
+            input=stdin, capture_output=True, timeout=ISOLATED_WALL_SECONDS)
+    except subprocess.TimeoutExpired:
+        raise XlsxTooLarge('轉換超過 %d 秒' % ISOLATED_WALL_SECONDS)
+    err = proc.stderr.decode('utf-8', 'replace')[-500:]
+    # 被資源上限砍掉（SIGXCPU／SIGKILL → 負的 returncode）或子程序自己判定太大
+    if proc.returncode == _EXIT_TOO_LARGE or proc.returncode < 0:
+        raise XlsxTooLarge('子程序超過資源上限（rc=%s）%s' % (proc.returncode, err))
+    if proc.returncode != 0:
+        raise ValueError('xlsx 轉換失敗（rc=%s）%s' % (proc.returncode, err))
+    out = json.loads(proc.stdout)
+    return out['data'], out['log'], out['image_count']
+
+
+def _isolated_child_main():
+    import resource
+    import sys
+    resource.setrlimit(resource.RLIMIT_AS, (ISOLATED_MEM_BYTES, ISOLATED_MEM_BYTES))
+    resource.setrlimit(resource.RLIMIT_CPU, (ISOLATED_CPU_SECONDS, ISOLATED_CPU_SECONDS))
+    header, _sep, file_bytes = sys.stdin.buffer.read().partition(b'\n')
+    try:
+        data, log, images = xlsx_bytes_to_workbook_data(file_bytes, json.loads(header))
+        out = json.dumps({'data': data, 'log': log, 'image_count': len(images)},
+                         ensure_ascii=False).encode()
+    except (XlsxTooLarge, MemoryError) as e:
+        sys.stderr.write(repr(e)[:500])
+        sys.exit(_EXIT_TOO_LARGE)
+    if len(out) > ISOLATED_MAX_OUTPUT_BYTES:
+        sys.stderr.write('輸出 %d bytes 超過上限' % len(out))
+        sys.exit(_EXIT_TOO_LARGE)
+    sys.stdout.buffer.write(out)
+
+
+if __name__ == '__main__':
+    import sys as _sys
+    if _CHILD_FLAG in _sys.argv:
+        _isolated_child_main()

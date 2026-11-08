@@ -11,6 +11,9 @@
                 <a class="btn btn-primary btn-sm" t-att-href="dobtorPreview.download_url">
                     <i class="fa fa-download me-1"/>下載原檔
                 </a>
+                <span t-if="dobtorPreview.error" class="text-danger small">
+                    <i class="fa fa-exclamation-circle me-1"/><t t-esc="dobtorPreview.error"/>
+                </span>
                 <span t-if="dobtorPreview.image_count" class="text-warning small">
                     <i class="fa fa-exclamation-triangle me-1"/>
                     檔內有 <t t-esc="dobtorPreview.image_count"/> 張圖片，預覽不顯示，請下載原檔查看

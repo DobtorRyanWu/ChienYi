@@ -171,27 +171,67 @@ class TestAttachmentPreview(TransactionCase):
         with self.assertRaises(AccessError):
             self.att.with_user(self.portal).get_spreadsheet_data()
 
+    def _assert_message_with_download(self, raw, name, expect):
+        """失敗時照樣打開預覽：表上寫說明、上方「下載原檔」還在（不能讓人連檔都拿不到）"""
+        att = self.env['ir.attachment'].create({'name': name, 'raw': raw, 'mimetype': XLSX_MIMETYPE})
+        data = att.get_spreadsheet_data()
+        self.assertEqual(data['mode'], 'readonly')
+        self.assertIn(expect, data['dobtor_preview']['error'])
+        self.assertEqual(data['dobtor_preview']['download_url'], '/web/content/%d?download=true' % att.id)
+        self.assertIn(expect, data['spreadsheet_raw']['sheets'][0]['cells']['A1']['content'])
+
     def test_zip_bomb_is_refused_before_parsing(self):
-        # 一份壓縮後幾十 KB、宣稱解開超過上限的 xlsx：要在 openpyxl 讀之前就擋
+        # 壓縮後幾十 KB、解開超過上限：openpyxl 讀之前就擋
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-            z.writestr('xl/worksheets/sheet1.xml', b' ' * (x2w.MAX_UNZIPPED_XML_BYTES + 1))
+            z.writestr('xl/worksheets/sheet1.xml', b' ' * (x2w.MAX_UNZIPPED_BYTES + 1))
         bomb = buf.getvalue()
         self.assertLess(len(bomb), 1024 * 1024)       # 檔案本身很小，PREVIEW_MAX_BYTES 擋不到
         with self.assertRaises(x2w.XlsxTooLarge):
             x2w.xlsx_bytes_to_workbook_data(bomb, {})
-        att = self.env['ir.attachment'].create({
-            'name': '炸彈.xlsx', 'raw': bomb, 'mimetype': XLSX_MIMETYPE})
-        with self.assertRaisesRegex(UserError, '太大'):
-            att.get_spreadsheet_data()
+        self._assert_message_with_download(bomb, '炸彈.xlsx', '太大或太複雜')
+
+    def test_bzip2_member_is_refused(self):
+        # 紅隊：zipfile 對 BZIP2 不照宣告大小截斷（919 bytes 宣告 100 bytes → 2 GB）；Excel 不會用 bz2
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_BZIP2) as z:
+            z.writestr('xl/worksheets/sheet1.xml', b' ' * 1024)
+        with self.assertRaisesRegex(x2w.XlsxTooLarge, '壓縮法'):
+            x2w.xlsx_bytes_to_workbook_data(buf.getvalue(), {})
+
+    def test_small_file_that_expands_is_contained_in_child(self):
+        # 紅隊：1.5 KB 的檔 <col max=3000000> 在 worker 裡吃 869 MB。大小檢查擋不到，
+        # 要靠子程序的記憶體上限：子程序死掉、這個請求回說明＋下載鈕，worker 本身沒事
+        from openpyxl import Workbook
+        wb = Workbook()
+        wb.active['A1'] = 'x'
+        b = io.BytesIO()
+        wb.save(b)
+        src = zipfile.ZipFile(io.BytesIO(b.getvalue()))
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
+            for n in src.namelist():
+                d = src.read(n)
+                if n == 'xl/worksheets/sheet1.xml':
+                    d = d.replace(b'<sheetData', b'<cols><col min="1" max="3000000" width="9" customWidth="1"/></cols><sheetData')
+                z.writestr(n, d)
+        raw = out.getvalue()
+        self.assertLess(len(raw), 16 * 1024)
+        with self.assertRaises(x2w.XlsxTooLarge):
+            x2w.convert_isolated(raw, {})
+        self._assert_message_with_download(raw, '展開.xlsx', '太大或太複雜')
+
+    def test_long_whitespace_text_is_not_quadratic(self):
+        # 紅隊：原本的樣式對「1＋一萬多個空白＋x」是 O(n²)；現在先 strip、超過長度上限直接不比對
+        cell = type('C', (), {'data_type': 's', 'value': '1' + ' ' * 16000 + 'x'})()
+        self.assertFalse(x2w._text_cell_needs_text_format(cell))
+        cell.value = '  45.60  '
+        self.assertTrue(x2w._text_cell_needs_text_format(cell))
 
     def test_non_xlsx_and_broken_files(self):
         txt = self.env['ir.attachment'].create({'name': 'a.txt', 'raw': b'hello', 'mimetype': 'text/plain'})
         with self.assertRaises(UserError):
             txt.get_spreadsheet_data()
-        broken = self.env['ir.attachment'].create({
-            'name': '壞檔.xlsx', 'raw': b'not a zip', 'mimetype': XLSX_MIMETYPE})
         # 壞檔的細節記 ERROR log（給維運看）——用 assertLogs 接住，同時證明真的有記
-        with self.assertLogs('odoo.addons.dobtor_spreadsheet_editor.models.ir_attachment', 'ERROR'), \
-                self.assertRaisesRegex(UserError, '無法在瀏覽器預覽'):
-            broken.get_spreadsheet_data()
+        with self.assertLogs('odoo.addons.dobtor_spreadsheet_editor.models.ir_attachment', 'ERROR'):
+            self._assert_message_with_download(b'not a zip', '壞檔.xlsx', '無法在瀏覽器預覽')
