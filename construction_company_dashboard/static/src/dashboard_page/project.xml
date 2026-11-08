@@ -7,6 +7,7 @@
     </t>
 
     <t t-name="construction_company_dashboard.ProjectPage">
+        <div class="o_action o_dash_action">
         <Layout className="'o_dash_layout'" display="display">
             <div class="o_dash_page o_dash_project_page">
                 <!-- 整頁讀不到（別家的工程） -->
@@ -182,5 +183,6 @@
                 </div>
             </div>
         </Layout>
+        </div>
     </t>
 </templates>

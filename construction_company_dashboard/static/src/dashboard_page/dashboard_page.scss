@@ -28,6 +28,12 @@ $o-dash-list-width: 330px;
 $o-dash-narrow: 1100px;        // 低於這個寬度（手機、半個視窗）改成單欄：地圖在上、清單在下
 $o-dash-map-height-narrow: 60vh;
 
+// 頁面根節點照核心 view 的結構：.o_action（直式 flex、填滿動作區）> ControlPanel + .o_content（自己捲動）。
+// 少了這層，.o_content 會撐開到動作區外面而動作區 overflow hidden → 整頁不能上下捲（使用者 11-08 回報）
+.o_dash_action {
+    display: flex; flex-direction: column; height: 100%; max-height: 100%; min-height: 0; overflow: hidden;
+    > .o_content { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
+}
 .o_dash_layout {
     background: $o-dash-bg;
 }

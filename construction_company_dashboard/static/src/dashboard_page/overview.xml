@@ -32,6 +32,7 @@
     </t>
 
     <t t-name="construction_company_dashboard.Overview">
+        <div class="o_action o_dash_action">
         <Layout className="'o_dash_layout'" display="display">
             <div class="o_dash_page">
                 <!-- 抬頭 -->
@@ -167,5 +168,6 @@
                 </div>
             </div>
         </Layout>
+        </div>
     </t>
 </templates>

@@ -21,6 +21,11 @@ const FIT_PADDING = [48, 48];
 const SINGLE_MARKER_ZOOM = 14;
 const OSM_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const OSM_ATTRIBUTION = "&copy; OpenStreetMap contributors";
+// OSM 瓦片被對方網路擋（使用者 11-08 手機看到 403）時的備援底圖：CARTO 淺色，免金鑰、要標註
+const FALLBACK_TILE_URL = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+const FALLBACK_SUBDOMAINS = "abcd";
+const FALLBACK_ATTRIBUTION = '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const TILE_PROBE_TIMEOUT_MS = 6000;
 const MARKER_SIZE = 22;
 const MARKER_COLOR = { behind: "o_dash_mk_behind", ahead: "o_dash_mk_ahead", none: "o_dash_mk_none" };
 
@@ -37,7 +42,10 @@ export class CompanyDashboardMap extends Component {
         this.map = null;
         this.hasLeaflet = Boolean(window.L);
         this.todayLabel = formatDateLabel();
-        this.state = useState({ loading: true, error: false, located: [], unlocated: [], tileError: false, tilesLoaded: 0 });
+        this.state = useState({ loading: true, error: false, located: [], unlocated: [], tileError: false, tilesLoaded: 0,
+                                fallback: false, tileStatus: null });
+        this.tiles = null;
+        this.fallbackTried = false;
         if (this.env.config && typeof this.env.config.setDisplayName === "function") {
             this.env.config.setDisplayName("標案地圖");   // 直接開網址時麵包屑不要顯示「未命名的」
         }
@@ -95,13 +103,47 @@ export class CompanyDashboardMap extends Component {
         // 部署方可在系統參數 leaflet.tile_url 換自架瓦片（web_leaflet_lib 放進 session）；沒有就用 OSM
         const tileUrl = session["leaflet.tile_url"] || OSM_TILE_URL;
         const attribution = session["leaflet.copyright"] || OSM_ATTRIBUTION;
-        const tiles = L.tileLayer(tileUrl, { attribution, maxZoom: MAX_ZOOM, referrerPolicy: "no-referrer" }).addTo(this.map);
-        // 連不到瓦片伺服器時畫面只剩一片灰：明講，標記與清單照常
-        tiles.on("tileload", () => { this.state.tilesLoaded += 1; this.state.tileError = false; });
-        tiles.on("tileerror", () => { if (!this.state.tilesLoaded) { this.state.tileError = true; } });
+        this.tiles = L.tileLayer(tileUrl, { attribution, maxZoom: MAX_ZOOM, referrerPolicy: "no-referrer" }).addTo(this.map);
+        this.tiles.on("tileload", () => { this.state.tilesLoaded += 1; this.state.tileError = false; });
+        this.tiles.on("tileerror", (ev) => this.onTileError(ev));
         this.renderMarkers();
         // 容器尺寸是 CSS 給的，掛上去後要重算一次
         setTimeout(() => this.map && this.map.invalidateSize(), 0);
+    }
+
+    /** 第一張瓦片就失敗、而且一張都還沒成功：探 HTTP 狀態，換 CARTO 底圖；備援也失敗才顯示「底圖載入失敗」 */
+    async onTileError(ev) {
+        if (this.state.tilesLoaded || this.fallbackTried || !this.map || !window.L) {
+            return;
+        }
+        this.fallbackTried = true;
+        this.state.tileStatus = await this.probeTile(ev && ev.tile && ev.tile.src);
+        if (!this.map) {
+            return;
+        }
+        this.map.removeLayer(this.tiles);
+        this.tiles = window.L.tileLayer(FALLBACK_TILE_URL, {
+            attribution: FALLBACK_ATTRIBUTION, subdomains: FALLBACK_SUBDOMAINS, maxZoom: MAX_ZOOM, referrerPolicy: "no-referrer",
+        }).addTo(this.map);
+        this.tiles.on("tileload", () => { this.state.tilesLoaded += 1; this.state.tileError = false; this.state.fallback = true; });
+        this.tiles.on("tileerror", () => { if (!this.state.tilesLoaded) { this.state.tileError = true; } });
+    }
+
+    /** 用 fetch 讀同一張瓦片的 HTTP 狀態（img 讀不到狀態碼）；連不上回 "network" */
+    async probeTile(url) {
+        if (!url) {
+            return "unknown";
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), TILE_PROBE_TIMEOUT_MS);
+        try {
+            const response = await fetch(url, { mode: "cors", cache: "no-store", referrerPolicy: "no-referrer", signal: controller.signal });
+            return response.status;
+        } catch (error) {
+            return "network";
+        } finally {
+            clearTimeout(timer);
+        }
     }
 
     markerClass(row) {
