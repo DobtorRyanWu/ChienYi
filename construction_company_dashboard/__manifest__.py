@@ -1,6 +1,6 @@
 {
     "name": "工程監造系統 - 公司儀表板",
-    "version": "18.0.2.0.0",
+    "version": "18.0.2.0.1",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """
