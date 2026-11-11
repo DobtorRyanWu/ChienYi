@@ -15,17 +15,24 @@
 import logging
 from collections import Counter
 
-from odoo import _, api, models
+from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 from odoo.addons.construction_supervision_base.models.res_users import (
     COMPANY_TYPE_CONTRACTOR,
+    CONTRACTOR_ORG_GROUP_XMLID,
     DASH_CONSOLE_READER_XMLID,
     DASH_CONTRACTOR_MANAGER_XMLID,
     MANAGER_GROUP_XMLID,
+    PORTAL_ROLE_GROUP_BY_LEVEL,
     ROLE_BOSS_XMLID,
+    ROLE_LEVEL_BOSS,
+    ROLE_LEVEL_MANAGER,
     ROLE_MANAGER_XMLID,
+    ROLE_SIDE_CONTRACTOR,
+    ROLE_SIDE_SUPERVISION,
     ROLE_SUPERVISION_XMLID,
+    SUPERVISION_ORG_GROUP_XMLID,
 )
 
 COMPANY_TYPE_SUPERVISION = 'supervision'
@@ -61,9 +68,34 @@ class _TemplatePropagationToken:
 
 
 TEMPLATE_PROPAGATION_TOKEN = _TemplatePropagationToken()
+# 營造廠主管與後台角色帳號要不要強制兩步驟驗證（S2 fix2-Z）。**使用者 11-11 暫定：先不強制，之後可能恢復**——
+# 恢復只要改成 True：沒開 TOTP＝範圍不合格（什麼都看不到、手機沒能力、不收業務通知）的判斷都還在，只經 _dash_totp_missing。
+# 控台讀取帳號本來就不看它。測試裡要驗「強制時」的行為就把這個常數 patch 成 True（tests/test_scope_rules.require_totp）。
+DASH_REQUIRE_TOTP = False
 # 寫了這些欄位，帳號可能從此變成受限帳號（群組、營造組織旗標、範圍公司、主要公司：_dash_is_contractor_side 的標記）
 RESTRICTION_MARKER_FIELDS = frozenset({'groups_id', 'is_contractor_org', 'dash_scope_company_id', 'company_id'})
 _logger = logging.getLogger(__name__)
+
+# ── 前台角色帳號 ↔ 後台角色帳號的轉換（S2，2026-11-11）──────────────────────────
+INTERNAL_USER_GROUP_XMLID = 'base.group_user'
+PORTAL_USER_GROUP_XMLID = 'base.group_portal'
+INBOX_GROUP_XMLID = 'mail.group_mail_notification_type_inbox'
+# 層級 → 後台角色群組（老闆 ⊃ 主管兩邊都是繼承鏈，寫最高那一個，隱含的由核心補）。前台角色群組照
+# construction_supervision_base 的 PORTAL_ROLE_GROUP_BY_LEVEL（前台與後台用同一組層級值；S2 fix1-Q）
+LEVEL_TO_ROLE_GROUP = {ROLE_LEVEL_BOSS: ROLE_BOSS_XMLID, ROLE_LEVEL_MANAGER: ROLE_MANAGER_XMLID}
+# 轉換會改到、改回要逐欄寫回的 res.users 欄位（S2 fix1-P）；轉換時原值存進 dash_role_origin
+ROLE_ORIGIN_FIELDS = ('groups_id', 'is_supervision_org', 'is_contractor_org', 'dash_scope_company_id',
+                      'company_id', 'company_ids')
+# 方別：後台方別標記 ↔ 前台組織群組
+SIDE_TO_ROLE_MARKER = {ROLE_SIDE_CONTRACTOR: DASH_CONTRACTOR_MANAGER_XMLID, ROLE_SIDE_SUPERVISION: ROLE_SUPERVISION_XMLID}
+SIDE_TO_ORG_GROUP = {ROLE_SIDE_CONTRACTOR: CONTRACTOR_ORG_GROUP_XMLID, ROLE_SIDE_SUPERVISION: SUPERVISION_ORG_GROUP_XMLID}
+
+
+# 意見回饋（construction_helpdesk，dev 才有裝；S2 fix2-W）：後台角色帳號的讀取權。不寫在 csv：本模組不依賴 construction_helpdesk，
+# 沒裝的庫引用不到它的模型。由升級本模組時的函式（data/feedback_acl.xml）建，模型不存在就略過；之後才裝 helpdesk 的庫
+# 要再 -u 本模組。讀得到哪幾筆由 rule_scope 決定（ROLE_FEEDBACK_OWN：只有自己建的；營造方角色帳號全拒）。
+FEEDBACK_ACL_MODELS = ('construction.service.ticket', 'construction.service.category', 'construction.functional.module')
+FEEDBACK_ACL_NAME = '後台角色帳號 讀 意見回饋（S2 fix2-W）'
 
 
 def _groups_by_xmlid(env, xmlids):
@@ -86,8 +118,11 @@ class ResUsers(models.Model):
 
     def _dash_totp_missing(self):
         """營造廠主管或後台角色帳號（含監造方角色帳號）而沒有啟用 TOTP（合約 §13-6；S1 預設決定監造方也強制）。
-        其他帳號不要求。"""
+        其他帳號不要求。**唯一判斷點**：範圍合格（_dash_scope_ok）、session 的 dash_totp_missing、手機首頁的提示、
+        儀表板的提示都看它。DASH_REQUIRE_TOTP 為 False（S2 fix2-Z，使用者 11-11 暫定）時一律回 False＝不要求。"""
         self.ensure_one()
+        if not DASH_REQUIRE_TOTP:
+            return False
         return ((self._dash_is_contractor_manager() or self._is_role_account())
                 and not self.sudo().totp_enabled)
 
@@ -265,6 +300,199 @@ class ResUsers(models.Model):
                              '、'.join(self.mapped('display_name'))),
                 'sticky': False,
             },
+        }
+
+
+    # ── 伺服器動作「轉成後台角色帳號」「改回前台角色帳號」（S2）──────────────────
+    # 同一個 user id（工程成員、歷史單據、建立者都掛在這個 id 上），群組一次寫成目標集合（(6, 0, ids)）。
+    # 兩步驟驗證（TOTP）兩個方向都**保留**：密鑰綁的是這個人的驗證 App，轉換不換人；前台帳號也能用 TOTP
+    # （auth_totp_portal），保留只是讓改回後仍要驗證碼，不會讓誰多看到東西。沒開過的轉成角色帳號後，
+    # 讀取範圍一律拒（_dash_scope_ok），手機首頁會提示去啟用（views/portal_role_templates.xml）。
+    dash_role_origin = fields.Json(
+        string='轉換前的帳號設定（改回前台帳號用）', groups='base.group_system', copy=False, readonly=True,
+        help='「轉成後台角色帳號」時記下轉換會改到的欄位原值（群組、組織旗標、範圍公司、主要公司、允許公司）；'
+             '「改回前台角色帳號」照它逐欄寫回，之後清空。')
+
+    def _dash_require_engineering_manager(self, action_label):
+        if not (self.env.su or self.env.user.has_group(MANAGER_GROUP_XMLID)):
+            raise AccessError(_('只有工程管理者可以執行「%s」。', action_label))
+
+    def _dash_role_conversion_side(self):
+        """前台帳號轉成角色帳號時的方別：'supervision'／'contractor'；判不出來丟 UserError（說明原因）。
+
+        * 監造方：勾監造組織（或在監造組織群組），而且範圍公司、主要公司都不是營造廠——帳號上的營造組織旗標是
+          建帳號時被自動勾的（_apply_default_contractor_org），轉換時清掉。
+        * 營造方：沒有監造組織標記，範圍公司（或主要公司）是營造廠。
+        * 其他（兩邊都有營造廠公司、或什麼標記都沒有）：拒絕。
+        """
+        self.ensure_one()
+        user = self.sudo()
+        supervision_mark = user.is_supervision_org or user._dash_in_group(SUPERVISION_ORG_GROUP_XMLID)
+        scope = user._dash_role_conversion_scope()
+        if supervision_mark and not scope:
+            return ROLE_SIDE_SUPERVISION
+        if scope and not supervision_mark:
+            return ROLE_SIDE_CONTRACTOR
+        if supervision_mark:
+            raise UserError(_(
+                '帳號「%s」勾了監造組織，但範圍公司或主要公司是營造廠，無法判定是監造方還是營造方，請先修正帳號再轉換。',
+                user.display_name))
+        raise UserError(_(
+            '帳號「%s」無法判定方別：沒有勾監造組織，範圍公司與主要公司也都不是營造廠。', user.display_name))
+
+    def _dash_role_conversion_scope(self):
+        """營造方的範圍公司：範圍公司是營造廠就用它，否則主要公司是營造廠就用主要公司；都不是回空的。"""
+        self.ensure_one()
+        user = self.sudo()
+        for company in (user.dash_scope_company_id, user.company_id):
+            if self._dash_company_is_contractor(company):
+                return company
+        return self.env['res.company']
+
+    def action_convert_to_role_account(self):
+        """前台老闆／主管 → 後台角色帳號（手機能力照舊＋電腦後台唯讀；S2 規格 C）。
+
+        拒絕：不是前台帳號（已經是內部帳號）、層級只有現場人員或定期閱覽者、方別判不出來、自己或系統帳號。
+        監造方：允許公司要有非營造廠的公司（後台範圍＝那些監造公司）。轉完以 _dash_check_account_setup 再驗一次。
+        """
+        self._dash_require_engineering_manager(_('轉成後台角色帳號'))
+        for user in self.sudo():
+            if user.id == self.env.user.id or user._is_superuser():
+                raise UserError(_('不能轉換自己或系統內建帳號。'))
+            if not user.share:
+                raise UserError(_('帳號「%s」已經是內部帳號，不能再轉換（只轉前台帳號）。', user.display_name))
+            level = user._portal_role_level()
+            if level not in LEVEL_TO_ROLE_GROUP:
+                raise UserError(_(
+                    '帳號「%s」的前台角色不是老闆或主管（現場人員、定期閱覽者沒有對應的後台角色帳號），不能轉換。',
+                    user.display_name))
+            side = user._dash_role_conversion_side()
+            vals = {
+                'groups_id': [(6, 0, _groups_by_xmlid(self.env, (
+                    INTERNAL_USER_GROUP_XMLID, SIDE_TO_ROLE_MARKER[side],
+                    LEVEL_TO_ROLE_GROUP[level], INBOX_GROUP_XMLID)).ids)],
+                'dash_role_origin': user._dash_role_origin_values(),
+            }
+            if side == ROLE_SIDE_SUPERVISION:
+                # 監造方：營造組織旗標是營造方標記（_dash_is_contractor_side），一定要清掉
+                vals['is_contractor_org'] = False
+                if not user._role_supervision_company_ids():
+                    raise UserError(_(
+                        '帳號「%s」的允許公司沒有任何一家監造公司（全是營造廠），轉成監造方角色帳號後什麼都看不到。',
+                        user.display_name))
+            else:
+                vals['dash_scope_company_id'] = user._dash_role_conversion_scope().id
+            user.write(vals)
+            if side == ROLE_SIDE_CONTRACTOR:
+                # 允許公司照營造廠主管的同步規則：營造廠＋所承攬工程的監造公司（S1）
+                user._dash_apply_manager_companies(force_main=True)
+            user._dash_check_account_setup()
+            if not user._is_role_account() or user._role_side() != side:
+                raise UserError(_('帳號「%s」轉換後不是預期的角色帳號，已取消。', user.display_name))
+        names = '、'.join(self.mapped('display_name'))
+        if DASH_REQUIRE_TOTP and any(user._dash_totp_missing() for user in self):
+            return self._dash_notify(_('已轉成後台角色帳號：%s。對方登入後要先在手機首頁的提示啟用兩步驟驗證，才看得到資料。', names))
+        return self._dash_notify(_('已轉成後台角色帳號：%s。', names))
+
+    def _dash_role_origin_values(self):
+        """轉換前的原值（ROLE_ORIGIN_FIELDS），存進 dash_role_origin；改回時照它逐欄寫回（S2 fix1-P）。"""
+        self.ensure_one()
+        user = self.sudo()
+        origin = {}
+        for name in ROLE_ORIGIN_FIELDS:
+            value = user[name]
+            if isinstance(value, models.BaseModel):
+                value = value.ids if user._fields[name].type == 'many2many' else (value.id or False)
+            origin[name] = value
+        return origin
+
+    def _dash_revert_vals_from_origin(self, origin):
+        """完整的轉換紀錄 → 改回要寫的值（逐欄原值）；紀錄裡的群組不像前台帳號、或主要公司已不在就 UserError。"""
+        self.ensure_one()
+        Groups, Company = self.env['res.groups'].sudo(), self.env['res.company'].sudo()
+        groups = Groups.browse(origin['groups_id']).exists()
+        if self.env.ref(PORTAL_USER_GROUP_XMLID) not in groups or self.env.ref(INTERNAL_USER_GROUP_XMLID) in groups:
+            raise UserError(_('帳號「%s」的轉換紀錄不是前台帳號的群組，不能照紀錄改回，請洽系統管理者。', self.display_name))
+        companies = Company.browse(origin['company_ids']).exists()
+        main = Company.browse(origin['company_id'] or []).exists()
+        if not main or main not in companies:
+            raise UserError(_('帳號「%s」轉換前的主要公司已不存在，不能照紀錄改回，請洽系統管理者。', self.display_name))
+        return {
+            'groups_id': [(6, 0, groups.ids)],
+            'is_supervision_org': bool(origin['is_supervision_org']),
+            'is_contractor_org': bool(origin['is_contractor_org']),
+            'dash_scope_company_id': Company.browse(origin['dash_scope_company_id'] or []).exists().id or False,
+            'company_ids': [(6, 0, companies.ids)],
+            'company_id': main.id,
+        }
+
+    def _dash_revert_vals_derived(self, origin):
+        """沒有完整轉換紀錄（直接建成角色帳號、或 fix1 以前轉換的只記了公司）→ 照層級／方別推；範圍公司不動。"""
+        self.ensure_one()
+        level, side = self._role_level_raw(), self._role_side()
+        if level not in LEVEL_TO_ROLE_GROUP or not side:
+            raise UserError(_(
+                '帳號「%s」的角色帳號設定不完整（層級或方別不是恰好一個），請先修正再改回。', self.display_name))
+        vals = {
+            'groups_id': [(6, 0, _groups_by_xmlid(self.env, (
+                PORTAL_USER_GROUP_XMLID, PORTAL_ROLE_GROUP_BY_LEVEL[level], SIDE_TO_ORG_GROUP[side])).ids)],
+            'is_supervision_org': side == ROLE_SIDE_SUPERVISION,
+            'is_contractor_org': side == ROLE_SIDE_CONTRACTOR,
+        }
+        Company = self.env['res.company'].sudo()
+        companies = Company.browse(origin.get('company_ids') or []).exists()
+        main = Company.browse(origin.get('company_id') or []).exists()
+        if companies and main and main in companies:
+            vals.update(company_ids=[(6, 0, companies.ids)], company_id=main.id)
+        return vals
+
+    def action_revert_to_portal_role(self):
+        """後台角色帳號 → 前台角色帳號（同一個 user id；S2 規格 C 改回；fix1-P 起逐欄可逆）。
+
+        有完整轉換紀錄（dash_role_origin 含 ROLE_ORIGIN_FIELDS 每一欄）：群組、兩個組織旗標、範圍公司、主要公司、
+        允許公司照紀錄寫回，改回後與轉換前逐欄相同（含「兩個組織旗標都勾」「營造方範圍公司空白」這種轉換會改到
+        旗標或範圍公司的帳號）。沒有完整紀錄：見 _dash_revert_vals_derived。
+        share 變回 True、通知方式由核心回到 email；TOTP 不動（理由見本節開頭）。
+        """
+        self._dash_require_engineering_manager(_('改回前台角色帳號'))
+        for user in self.sudo():
+            if user.id == self.env.user.id or user._is_superuser():
+                raise UserError(_('不能轉換自己或系統內建帳號。'))
+            if not user._is_role_account():
+                raise UserError(_('帳號「%s」不是後台角色帳號，沒有東西可以改回。', user.display_name))
+            origin = user.dash_role_origin or {}
+            if set(ROLE_ORIGIN_FIELDS) <= set(origin):
+                vals = user._dash_revert_vals_from_origin(origin)
+            else:
+                vals = user._dash_revert_vals_derived(origin)
+            vals['dash_role_origin'] = False
+            user.write(vals)
+            if not user.share:
+                raise UserError(_('帳號「%s」改回後不是前台帳號，已取消。', user.display_name))
+        return self._dash_notify(_('已改回前台角色帳號：%s。', '、'.join(self.mapped('display_name'))))
+
+    @api.model
+    def _dash_sync_feedback_acl(self):
+        """建意見回饋的讀取權（FEEDBACK_ACL_MODELS；只讀、給後台角色帳號的層級群組，老闆隱含主管）。可重跑；回傳新建筆數。"""
+        group = self.env.ref(ROLE_MANAGER_XMLID)
+        Access = self.env['ir.model.access'].sudo()
+        created = 0
+        for model_name in FEEDBACK_ACL_MODELS:
+            model = self.env['ir.model'].sudo()._get(model_name)
+            if not model or Access.search_count([('model_id', '=', model.id), ('group_id', '=', group.id),
+                                                 ('name', '=', FEEDBACK_ACL_NAME)]):
+                continue
+            Access.create({'name': FEEDBACK_ACL_NAME, 'model_id': model.id, 'group_id': group.id,
+                           'perm_read': True, 'perm_write': False, 'perm_create': False, 'perm_unlink': False})
+            created += 1
+        return created
+
+    @api.model
+    def _dash_notify(self, message):
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {'type': 'success', 'message': message, 'sticky': False},
         }
 
 

@@ -10,6 +10,7 @@
 import base64
 import importlib.util
 import logging
+from unittest.mock import patch
 import os
 
 from odoo import fields
@@ -35,6 +36,9 @@ DENIED = [('id', '=', 0)]
 MISSING_RECORD_ID = 2 ** 31 - 1
 # 夾具用的 TOTP 密鑰（base32，只用來讓 totp_enabled 為真）
 TOTP_FIXTURE_SECRET = 'JBSWY3DPEHPK3PXP'
+# S2 fix2-Z（使用者 11-11 暫定）：DASH_REQUIRE_TOTP＝False（先不強制兩步驟驗證）。驗「強制時」行為的測試用這個 patch 成 True，
+# 保住之後恢復的路（類別或方法的裝飾器；unittest.mock.patch 當類別裝飾器時套在每一支 test_ 方法上）
+require_totp = patch('odoo.addons.construction_company_dashboard.models.res_users_guard.DASH_REQUIRE_TOTP', True)
 _logger = logging.getLogger(__name__)
 
 # 合約 §3.2 的白名單，在測試這邊獨立寫一份（不 import 實作的常數，常數寫錯才測得出來）：

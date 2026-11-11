@@ -140,7 +140,8 @@
     #        沒填照舊自動判斷；狀態一變自動清空；「符合要求」只配已驗證／結案、已驗證／結案不配未矯正／逾時；複製不帶。
     # 6.7.1（2026-11-06）：缺失逾期判斷改台灣日期（local_today）；加公司儀表板條件 _dash_open_domain／_dash_overdue_domain
     # 6.7.2（2026-11-10，S1 後台角色帳號）：預約式缺失定義欄位鎖改看 _is_backend_staff()（原本看 share）
-    'version': '18.0.6.7.2',
+    # 6.7.3（2026-11-11，S2）：預約式缺失類型改看 res.users._construction_org_side()（角色帳號看方別群組）
+    'version': '18.0.6.7.3',
     'category': 'Construction/Quality',
     'summary': '工程監造品質管理、缺失追蹤與自主檢查',
     'description': """

@@ -39,3 +39,7 @@ from . import test_dashboard_page
 from . import test_role_accounts
 # S1 fix2-X（2026-11-10）：角色帳號匯出估驗四份文件（construction_template 沒裝就略過）
 from . import test_role_estimate_export
+# S2（2026-11-11）：角色帳號的手機能力＝舊前台帳號（能力矩陣）、F5、轉換與改回、沒開 TOTP、登入導向、手機動作的通知、水位
+from . import test_role_phone
+# S2 fix2（2026-11-11）：對話 @ 內部同事（暫定）、意見回饋開給監造方角色帳號、沒開 TOTP 照發通知
+from . import test_role_fix2

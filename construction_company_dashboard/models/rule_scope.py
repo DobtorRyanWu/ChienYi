@@ -225,6 +225,14 @@ SELF_SERVICE_TRANSIENT = frozenset({
 #   沒有任何訊息引用的附件（單據本身的附件），或至少被一則「不是內部備註」的訊息引用（同一份 NOT_INTERNAL_NOTE 判準）。
 #   前台帳號（share）不套：核心對非內部帳號的附件讀取本來就另外擋（ir_attachment check）。
 CHANNEL_TYPE_PUBLIC = 'channel'
+DISCUSS_CHANNEL_MODEL = 'discuss.channel'
+# 意見回饋（construction_helpdesk，dev 才有裝；S2 fix2-W，使用者 11-11）：監造方角色帳號照同方別的舊前台帳號——
+# 讀得到自己建的客服單、建單要選的類別與發生功能（設定資料，照核心值）。寫入照舊全拒：唯一的寫入例外是前台建單路由以 sudo
+# 建本人的單（construction_helpdesk/controllers/portal_feedback.py）。讀取權（ACL）見 res_users_guard._dash_sync_feedback_acl。
+ROLE_FEEDBACK_OWN = 'construction.service.ticket'
+ROLE_FEEDBACK_REFERENCE = frozenset({'construction.service.category', 'construction.functional.module'})
+# OdooBot 的聯絡人（核心 base 資料；見 _dash_with_odoobot）
+ODOOBOT_PARTNER_XMLID = 'base.partner_root'
 INTERNAL_NOTE_KEPT_TYPES = ('notification', 'user_notification')
 NOT_PUBLIC_CHANNEL = (('channel_type', '!=', CHANNEL_TYPE_PUBLIC),)
 NOT_PUBLIC_CHANNEL_MEMBER = (('channel_id.channel_type', '!=', CHANNEL_TYPE_PUBLIC),)
@@ -243,6 +251,14 @@ ROLE_PROJECT_LEVEL = {
     'general.progress.report.line': 'report_id.project_id',
     'general.realtime.profit': 'project_id',
     'general.realtime.profit.cost': 'profit_id.project_id',
+}
+# 「其他」類裡只開給監造方角色帳號、而且只讀的（S2，2026-11-11）：舊的前台監造老闆／主管在手機看得到水位監測，
+# 角色帳號照同方別也要看得到；手機頁以 sudo 讀，這裡讓後台範圍與手機一致（手機看得到的不比後台寬）。
+# 營造方（含營造方角色帳號）照舊落在「其他」＝拒。模型 → 到工程的欄位（construction_water_level：裝置的 project_id 是實體欄位，
+# 量測值的 project_id 是 related store）。
+ROLE_SUPERVISION_ONLY_PROJECT_LEVEL = {
+    'water.level.device': 'project_id',
+    'water.level.reading': 'project_id',
 }
 # 營造方只看「只有一家營造廠（就是自己）」的工程的那幾個（預設決定：多營造廠共用的工程，損益與成本不給營造方看）
 ROLE_SINGLE_CONTRACTOR_ONLY = frozenset({'general.realtime.profit', 'general.realtime.profit.cost'})
@@ -349,12 +365,32 @@ class IrRule(models.Model):
             # 控台讀取帳號同理——登入、啟用兩步驟驗證、建 API key 都以本人身分讀自己，11-06 整合測試實測）
             if model_name not in SELF_ONLY_WHEN_BLOCKED:
                 return list(DENY_DOMAIN)
-            extra = self._dash_self_domain(model_name, user)
+            extra = self._dash_with_odoobot(model_name, user, self._dash_self_domain(model_name, user))
             return expression.AND([core, extra]) if core else extra
         extra = self._dash_scope_read_domain(model_name, user, kind=kind)
         if extra is None:
             return list(DENY_DOMAIN)
+        extra = self._dash_with_odoobot(model_name, user, extra)
         return expression.AND([core, extra]) if core else extra
+
+    @api.model
+    def _dash_with_odoobot(self, model_name, user, extra):
+        """受限的內部帳號讀得到 OdooBot 的聯絡人（S2-D 的根因，審查 review4-skeptic F4）。
+
+        內部帳號第一次打開後台時，核心 mail_bot `_on_webclient_bootstrap` → `_init_odoobot` →
+        `discuss.channel.channel_get([OdooBot, 本人])` 以本人身分讀兩個聯絡人的名稱（mail/models/discuss/discuss_channel.py:1086）。
+        聯絡人規則只剩本人（範圍不合格）或範圍內的人時讀不到 OdooBot → AccessError → 被導回 /web/login?error=access，
+        連啟用兩步驟驗證的畫面都進不去（dev 的 kangyouchuan 從 3c6f188 起就是這樣）。OdooBot（base.partner_root）是系統聯絡人，
+        沒有業務資料。前台帳號（share）不跑 _init_odoobot（核心只對內部帳號），條件逐字不變；控台讀取帳號只呼叫控台取資料方法、
+        不開網頁後台，條件也逐字不變（既有帳號行為不變）。
+        """
+        if (model_name != NARROW_PARTNERS or not user._dash_is_restricted_internal()
+                or user._dash_is_console_reader()):
+            return extra
+        odoobot = self.env.ref(ODOOBOT_PARTNER_XMLID, raise_if_not_found=False)
+        if not odoobot:
+            return extra
+        return expression.OR([extra, [('id', '=', odoobot.id)]])
 
     @api.model
     def _dash_and(self, core, extra):
@@ -371,6 +407,11 @@ class IrRule(models.Model):
         if model_name == 'discuss.channel.member':
             return list(NOT_PUBLIC_CHANNEL_MEMBER)
         if model_name == 'mail.message' and mode == 'read':
+            if user._dash_is_blocked_internal():
+                # S2-D（審查 review5-skeptic F1）：範圍不合格（組合不合法；DASH_REQUIRE_TOTP 為 True 時另含沒開 TOTP）的受限內部帳號，
+                # 業務單據上的訊息一律讀不到——核心准「被通知的人」讀訊息，收件匣就會有業務訊息本文與單據名稱。對話照常（OdooBot 引導、私訊）。
+                # 收件人那一側也拿掉它們（restricted_mail.py 檔頭八），否則別人發訊息時組站內通知會讀不到而失敗。
+                return list(NOT_INTERNAL_NOTE) + [('model', '=', DISCUSS_CHANNEL_MODEL)]
             return list(NOT_INTERNAL_NOTE)
         if model_name == 'ir.attachment' and mode == 'read' and user._dash_is_restricted_internal():
             return list(NOT_ONLY_ON_INTERNAL_NOTES)
@@ -451,6 +492,10 @@ class IrRule(models.Model):
             return self._dash_project_condition(self._dash_prefix(PROJECT_LEVEL[model_name]), user, kind)
         if model_name in INSPECTION_TEMPLATE_LEVEL:
             return self._dash_role_template_condition(INSPECTION_TEMPLATE_LEVEL[model_name], user, kind)
+        if model_name == ROLE_FEEDBACK_OWN:
+            return [('create_uid', '=', user.id)]   # 見 ROLE_FEEDBACK_OWN：只有自己建的
+        if model_name in ROLE_FEEDBACK_REFERENCE:
+            return []
         role_domain = self._dash_role_category_domain(model_name, user, kind)
         if role_domain is not None:
             return role_domain
@@ -487,9 +532,15 @@ class IrRule(models.Model):
 
     @api.model
     def _dash_role_category_domain(self, model_name, user, kind):
-        """角色帳號才有的四類（ROLE_PROJECT_LEVEL／ROLE_ESTIMATE_CHILD／ROLE_COST_ANALYSIS）；不屬於這四類回 None。"""
+        """角色帳號才有的四類（ROLE_PROJECT_LEVEL／ROLE_ESTIMATE_CHILD／ROLE_COST_ANALYSIS）與
+        監造方限定的 ROLE_SUPERVISION_ONLY_PROJECT_LEVEL；不屬於這幾類回 None（營造方對監造方限定類也回 None＝拒）。"""
         contractor = kind == KIND_CONTRACTOR
         scope_id = user.sudo().dash_scope_company_id.id
+        if model_name in ROLE_SUPERVISION_ONLY_PROJECT_LEVEL:
+            if kind != KIND_SUPERVISION_ROLE:
+                return None
+            return self._dash_project_condition(
+                self._dash_prefix(ROLE_SUPERVISION_ONLY_PROJECT_LEVEL[model_name]), user, kind)
         if model_name in ROLE_PROJECT_LEVEL:
             prefix = self._dash_prefix(ROLE_PROJECT_LEVEL[model_name])
             domain = self._dash_project_condition(prefix, user, kind)

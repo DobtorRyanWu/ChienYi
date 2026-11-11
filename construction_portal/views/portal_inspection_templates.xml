@@ -133,8 +133,8 @@
                         </span>
                     </div>
 
-                    <!-- 完成檢查（建立者本人或老闆/主管）：draft → inspected -->
-                    <t t-if="inspection.state == 'draft' and (inspection.create_uid.id == request.env.user.id or request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system') or request.env.user.has_group('construction_supervision_base.group_operator'))">
+                    <!-- 完成檢查：draft → inspected。與 /inspect 路由同一把尺（_require_write＋現場人員限本人：res.users._portal_can_edit_record，S2） -->
+                    <t t-if="inspection.state == 'draft' and request.env.user._portal_can_edit_record(inspection)">
                         <t t-if="error_message">
                             <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
@@ -147,8 +147,8 @@
                         </form>
                     </t>
 
-                    <!-- 審核動作（限老闆/主管） -->
-                    <t t-if="request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')">
+                    <!-- 審核動作（限老闆/主管）：確認＝_portal_can_manage（路由 _run_review_action），結案另限監造單位＝_portal_review_visible（S2） -->
+                    <t t-if="request.env.user._portal_can_manage()">
                         <t t-if="error_message">
                             <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
@@ -160,7 +160,7 @@
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-check"/> 確認</button>
                             </form>
-                            <form t-if="inspection.state == 'confirmed' and not request.env.user._dash_is_contractor_side()" t-attf-action="/construction/inspection/#{inspection.id}/close" method="post" style="flex:1;">
+                            <form t-if="inspection.state == 'confirmed' and request.env.user._portal_review_visible()" t-attf-action="/construction/inspection/#{inspection.id}/close" method="post" style="flex:1;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-flag-checkered"/> 結案</button>
                             </form>

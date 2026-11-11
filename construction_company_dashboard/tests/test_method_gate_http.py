@@ -20,7 +20,7 @@ from odoo.tests import HttpCase, tagged
 
 from odoo.addons.construction_company_dashboard.models.method_gate import GATE_NOTE
 
-from .test_scope_rules import CONSOLE_GROUP, MANAGER_GROUP, PORTAL_LEADER, SUPERVISOR_ADMIN
+from .test_scope_rules import CONSOLE_GROUP, MANAGER_GROUP, PORTAL_LEADER, SUPERVISOR_ADMIN, require_totp
 
 PASSWORD = 'Dash-gate-pass1'
 RPC_FAULT_ACCESS_DENIED = 3       # 核心 base/controllers/rpc.py
@@ -99,6 +99,7 @@ class TestMethodGateHttp(HttpCase):
         self.assertEqual(outcome[0], 'ok', outcome)
         self.assertEqual(outcome[1]['res_model'], 'supervision.photo')
 
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_dashboard_and_read_api_still_work(self):
         """閘門放行儀表板方法與 ORM 讀取（資料本身由啟用 TOTP 的帳號在 test_xmlrpc_gate_api_key_manager 驗：
         HttpCase.authenticate 對啟用 TOTP 的帳號只收 API key，web session 只能用未啟用的帳號——看得到「請啟用」）。"""
@@ -116,6 +117,7 @@ class TestMethodGateHttp(HttpCase):
         outcome = self._web(self.portal, '/web/dataset/call_kw', 'project.project', 'fields_get', [['name']])
         self.assertEqual(outcome[0], 'ok', outcome)
 
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_manager_enables_totp_through_gate(self):
         """偏好設定 →「啟用兩步驟驗證」：身分確認 → 掃碼 → 輸入驗證碼，全部經 call_button／call_kw 走完。"""
         self.assertFalse(self.mgr.totp_enabled)

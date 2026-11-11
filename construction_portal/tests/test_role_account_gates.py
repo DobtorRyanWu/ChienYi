@@ -4,7 +4,9 @@
 角色帳號（營造老闆／營造主管／監造老闆／監造主管）是內部帳號（share=False），沒有前台角色群組。
 原本只看 share 或「內部、不是營造方、不是控台讀取」的閘門，會把它們當成監造方後台人員放行——
 樣板管理、樣板 docx 上傳（套印引擎 docxtpl 的 Jinja2 沒有沙箱）、已提報缺失的定義欄位、工程師下拉。
-這裡逐一驗四種角色帳號都被擋、監造方後台人員（代操作員）照常通過（反證），手機寫入路由在 S1 一律拒。
+這裡逐一驗四種角色帳號都被擋、監造方後台人員（代操作員）照常通過（反證）。
+S2（2026-11-11）：手機寫入照同方別、同層級的舊前台帳號（能力矩陣在 construction_company_dashboard tests/test_role_phone.py）；
+這裡留下「危險閘門照擋」與「範圍不合格（沒開 TOTP）＝手機什麼都不能寫」兩件事。
 
 群組定義在 construction_company_dashboard；那個模組沒裝時整個類別略過（角色帳號不存在）。
 用 website.tools.MockRequest 驅動真實路由方法（同 test_role_guards.py 的做法）。
@@ -175,9 +177,10 @@ class TestRoleAccountGates(TransactionCase):
         self.assertIn(self.contractor_manager, values['all_users'], '工地主任下拉照舊列出營造廠主管')
 
     def test_project_edit_page_requires_manage(self):
-        """工程資訊編輯頁 GET 與存檔 POST 用同一把尺（fix1-F）：角色帳號沒有老闆／主管權限，GET 也打不開。
+        """工程資訊編輯頁 GET 與存檔 POST 用同一把尺（fix1-F、fix3-T；S2 起照同方別同層級的舊前台帳號）。
 
-        主管讀不到未開始的工程（先被導回）；老闆讀得到——監造老闆在 S1 打得開這頁，現在由 _require_manage 擋下。
+        監造老闆：有管理權、不是營造方 → 打得開（舊前台監造老闆也打得開）；營造方：被「營造方不能改」擋下；
+        主管讀不到未開始的工程（先被導回）。
         """
         for user in self.roles:
             rendered = []
@@ -185,14 +188,10 @@ class TestRoleAccountGates(TransactionCase):
                 req.render = lambda template, values=None, **kw: rendered.append(template) or ''
                 try:
                     self.ctrl.portal_construction_project_edit(project_id=self.p_draft.id)
-                except AccessError:
-                    pass
-            self.assertFalse(rendered, f'{user.login}：編輯頁不可渲染')
-        with self._as(self.sb) as req:
-            req.render = lambda template, values=None, **kw: ''
-            with self.assertRaises(AccessError) as ctx:
-                self.ctrl.portal_construction_project_edit(project_id=self.p_draft.id)
-        self.assertIn('僅老闆或主管可修改工程資訊', str(ctx.exception), '擋下監造老闆的是 _require_manage')
+                except AccessError as exc:
+                    self.assertIn(user, self.cb | self.cm, f'{user.login}：只有營造方被擋')
+                    self.assertIn('營造廠帳號不能修改', str(exc))
+            self.assertEqual(bool(rendered), user == self.sb, f'{user.login}：編輯頁')
 
     # ── 已提報缺失的定義欄位鎖 ────────────────────────────────────────
     def test_defect_definition_lock(self):
@@ -205,30 +204,47 @@ class TestRoleAccountGates(TransactionCase):
             defect.with_user(self.operator).sudo().write({'defect_description': 'ROLE 監造方改寫'})
             self.assertEqual(defect.defect_description, 'ROLE 監造方改寫', '反證：監造方後台人員照常可改')
 
-    # ── 手機寫入路由一律拒（S1 手機唯讀）───────────────────────────────
-    def test_phone_write_routes_rejected(self):
+    # ── 手機寫入：S2 起照層級（範圍合格）；沒開 TOTP 一律拒 ─────────────────────
+    def test_phone_write_guards_follow_level(self):
+        """S2：角色帳號（範圍合格）過得了寫入守衛；解鎖日誌限監造方（營造方照擋）。"""
+        pid = self.project.id
+        for user in self.roles:
+            with self._as(user):
+                self.assertTrue(self.ctrl._document_check_access('project.project', pid), '前提：讀得到工程')
+                self.ctrl._require_write()
+                self.assertTrue(self.ctrl._can_manage(), f'{user.login}：老闆／主管有管理權')
+                response = self.ctrl.portal_construction_daily_log_unlock(project_id=pid, log_id=self.log.id)
+            contractor = user in (self.cb | self.cm)
+            self.assertEqual(UNLOCK_DENIED in response.location, contractor, f'{user.login}：解鎖限監造方')
+        with self._as(self.operator):
+            self.ctrl._require_write()   # 反證：監造方後台人員通過寫入守衛
+
+    # S2 fix2-Z：驗「強制兩步驟驗證時」（construction_company_dashboard 的 DASH_REQUIRE_TOTP 預設 False）
+    @patch('odoo.addons.construction_company_dashboard.models.res_users_guard.DASH_REQUIRE_TOTP', True)
+    def test_phone_write_routes_rejected_without_totp(self):
+        """範圍不合格（沒開 TOTP）的角色帳號：手機寫入路由一律拒（S1 的唯讀保證，S2 縮成這個情境）。"""
         pid = self.project.id
         cases = [
             ('portal_construction_defect_create', {'project_id': str(pid)}),
             ('portal_construction_daily_log_create', {'project_id': str(pid)}),
             ('portal_construction_inspection_create', {'project_id': str(pid)}),
             ('portal_construction_photo_upload', {'project_id': str(pid)}),
-            ('portal_construction_daily_log_update', {'project_id': pid, 'log_id': self.log.id}),
+            ('portal_construction_project_create', {'name': 'ROLE 沒開 TOTP 建的工程'}),
         ]
         for user in self.roles:
+            user.sudo().write({'totp_secret': False})
+            self.env.registry.clear_cache()
             with self._as(user):
-                self.assertTrue(self.ctrl._document_check_access('project.project', pid), '前提：讀得到工程')
                 with self.assertRaises(AccessError, msg=f'{user.login}：_require_write'):
                     self.ctrl._require_write()
             for method, kw in cases:
                 with self._as(user):
-                    with self.assertRaises(AccessError, msg=f'{user.login} × {method}'):
-                        getattr(self.ctrl, method)(**kw)
-            with self._as(user):
-                response = self.ctrl.portal_construction_daily_log_unlock(project_id=pid, log_id=self.log.id)
-            self.assertIn(UNLOCK_DENIED, response.location, f'{user.login}：不能解鎖日誌')
-        with self._as(self.operator):
-            self.ctrl._require_write()   # 反證：監造方後台人員通過寫入守衛
+                    try:
+                        response = getattr(self.ctrl, method)(**kw)
+                    except AccessError:
+                        continue
+                self.assertIn('/my', response.location, f'{user.login} × {method}：讀不到工程就導回，不能寫')
+            self.assertFalse(self.env['project.project'].search_count([('name', '=', 'ROLE 沒開 TOTP 建的工程')]))
 
 
 @tagged('post_install', '-at_install', 'construction_portal')
@@ -269,7 +285,8 @@ class TestProjectEditButtonHttp(HttpCase):
 
     def test_edit_button_matches_edit_page(self):
         edit_url = f'/construction/{self.project.id}/edit'
-        for user, can_edit in ((self.sb, False), (self.staff, False), (self.operator, True)):
+        # S2：監造老闆角色帳號照舊前台監造老闆（可以編輯）；沒有管理權的監造人員照舊不行
+        for user, can_edit in ((self.sb, True), (self.staff, False), (self.operator, True)):
             self._login(user)
             page = self.url_open(f'/construction/{self.project.id}/info')
             self.assertEqual(page.status_code, 200, f'{user.login}：工程資訊頁打得開')
@@ -278,24 +295,24 @@ class TestProjectEditButtonHttp(HttpCase):
             self.assertEqual(status == 200, can_edit, f'{user.login}：編輯頁 GET（{status}）')
 
     def test_role_account_hides_entries_backend_denies(self):
-        """r5 N1（2026-11-11）：後端對受限帳號（_dash_is_restricted）擋的前台入口，畫面上也藏起來，免得點了 403。
+        """r5 N1（2026-11-11）：入口顯示＝後端放行（真 HTTP）。
 
-        水位監測、意見回饋（工程頁抽屜），/my 首頁的文件、試算表卡。原本模板只看營造方，監造方角色帳號看得到、點了 403。
+        * 水位監測：S2 起監造方角色帳號照舊前台監造帳號看得到（唯讀）——入口在、頁面 200。
+        * 意見回饋：S2 fix2-W（使用者 11-11）起範圍合格的監造方角色帳號照舊前台監造帳號看得到（建單路由以 sudo 建本人的單）。
+        * /my：角色帳號的 /my 首頁 S2 起跟前台帳號一樣是工程清單，沒有文件、試算表卡。
         監造方後台人員照常看得到（反證：證明這支測試看得到入口，不是頁面本來就沒有）。
         """
         water_url = f'/construction/{self.project.id}/water-level'
         docs_installed = bool(self.env['ir.module.module'].sudo().search_count(
             [('name', '=', 'dobtor_doc_editor'), ('state', '=', 'installed')]))
-        for user, visible in ((self.sb, False), (self.staff, True)):
+        for user, water, feedback, others in ((self.sb, True, True, False), (self.staff, True, True, True)):
             self._login(user)
             page = self.url_open(f'/construction/{self.project.id}/info')
             self.assertEqual(page.status_code, 200, f'{user.login}：工程資訊頁打得開')
-            self.assertEqual(water_url in page.text, visible, f'{user.login}：水位監測入口')
-            self.assertEqual('意見回饋' in page.text, visible, f'{user.login}：意見回饋入口')
-            if not visible:
-                # 入口藏起來的理由：後端確實擋（若哪天後端放行了，這裡會紅，提醒模板一起改回來）
-                self.assertEqual(self.url_open(water_url).status_code, 403, f'{user.login}：水位監測頁')
+            self.assertEqual(water_url in page.text, water, f'{user.login}：水位監測入口')
+            self.assertEqual(self.url_open(water_url).status_code, 200, f'{user.login}：水位監測頁')
+            self.assertEqual('意見回饋' in page.text, feedback, f'{user.login}：意見回饋入口')
             if docs_installed:
                 home = self.url_open('/my')
                 self.assertEqual(home.status_code, 200, f'{user.login}：/my 打得開')
-                self.assertEqual('/my/documents' in home.text, visible, f'{user.login}：/my 文件卡')
+                self.assertEqual('/my/documents' in home.text, others, f'{user.login}：/my 文件卡')

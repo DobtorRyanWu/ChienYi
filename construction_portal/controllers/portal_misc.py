@@ -454,9 +454,10 @@ class MiscRoutesMixin:
     def portal_schedule_extend_page(self, project_id, **kw):
         """工期展延頁面：顯示 draft 進度表並提供展延輸入"""
         # P5：展延會改進度表，限老闆／主管（現場人員、閱覽者不該看到表單）
-        self._require_manage(_('僅老闆或主管可設定工期展延'))
-        # 工期展延：乙方申請、甲方核定、監造核轉；系統沒有申請流程，這裡等於核定 → 營造方不能（合約 §3.6）
-        self._require_not_contractor(_('權限不足：工期展延由監造單位設定，營造廠帳號不能執行'))
+        # 工期展延：乙方申請、甲方核定、監造核轉；系統沒有申請流程，這裡等於核定 → 營造方不能（合約 §3.6）。
+        # 與快速新增選單的「工期展延」入口同一把尺（_require_review＝res.users._portal_review_visible）
+        self._require_review(_('僅老闆或主管可設定工期展延'),
+                             _('權限不足：工期展延由監造單位設定，營造廠帳號不能執行'))
         try:
             project = request.env['project.project'].browse(project_id)
             project.check_access_rule('read')
@@ -486,8 +487,8 @@ class MiscRoutesMixin:
     def portal_schedule_extend_submit(self, project_id, schedule_id, **post):
         """提交工期展延：寫入 current_extension 並呼叫 action_extend_lines"""
         # P5：同 GET，限老闆／主管（下面 schedule 用 sudo 寫，守衛只能靠這裡）
-        self._require_manage(_('僅老闆或主管可設定工期展延'))
-        self._require_not_contractor(_('權限不足：工期展延由監造單位設定，營造廠帳號不能執行'))
+        self._require_review(_('僅老闆或主管可設定工期展延'),
+                             _('權限不足：工期展延由監造單位設定，營造廠帳號不能執行'))
         # 只確認讀得到工程（成員／老闆公司範圍）：前台角色沒有工程的 ORM 寫入權
         # （2026-11-04 收回），原本以本人身分查 write 會讓每個前台帳號都被導回 /my
         try:

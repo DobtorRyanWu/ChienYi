@@ -13,7 +13,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
 
 from .test_scope_rules import (
-    EXPECT_FRAMEWORK, MANAGER_GROUP, TOTP_FIXTURE_SECRET, DashScopeCase,
+    EXPECT_FRAMEWORK, MANAGER_GROUP, TOTP_FIXTURE_SECRET, DashScopeCase, require_totp,
 )
 
 ENGINEERING_MANAGER = 'construction_supervision_base.group_engineering_manager'
@@ -245,6 +245,7 @@ class TestAccountSetup(DashScopeCase):
         env = self.env(user=user, context={'active_test': False, 'allowed_company_ids': user.sudo().company_ids.ids})
         return env['daily.log.sheet'].search_count([])
 
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_totp_required_for_data(self):
         """沒啟用 TOTP＝什麼都看不到（訊息指向「帳戶安全性」）；啟用後同一程序立即看得到；停用又回到 0。"""
         user = self._fresh_manager('dash_totp_user')
@@ -264,6 +265,7 @@ class TestAccountSetup(DashScopeCase):
     def docs_a_sheet(self):
         return self.docs[('daily.log.sheet', self.co_a)][:1]
 
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_totp_missing_manager_logs_in_but_reads_no_business_data(self):
         """合約 §0b-16（線 C、D 真瀏覽器實證：未啟用 TOTP 的營造廠主管一登入就 403，提示永遠看不到）：
         ① 走核心登入（瀏覽器帶 tz cookie：核心 _login 以本人身分讀 user.tz／login_date）不被擋；
@@ -295,7 +297,9 @@ class TestAccountSetup(DashScopeCase):
         self.assertEqual(own[0]['partner_id'][0], user.partner_id.id)
         self.assertEqual(env['res.partner'].browse(user.partner_id.id).read(['name'])[0]['name'], user.name)
         self.assertEqual(set(env['res.users'].search([]).ids), {user.id})
-        self.assertEqual(set(env['res.partner'].search([]).ids), {user.partner_id.id})
+        # S2-D：內部受限帳號另外讀得到 OdooBot 的聯絡人（核心第一次打開後台要讀它，rule_scope._dash_with_odoobot）
+        self.assertEqual(set(env['res.partner'].search([]).ids),
+                         {user.partner_id.id, self.env.ref('base.partner_root').id})
         same_scope = self.mgr_a   # 同範圍公司的另一個主管：範圍合格時看得到，未啟用 TOTP 時看不到
         for other in (same_scope, self.sup):
             with self.assertRaises(AccessError):
@@ -311,6 +315,7 @@ class TestAccountSetup(DashScopeCase):
         self.assertIn('project.project', nonzero, '啟用後同一套列舉要數得到工程（否則上面的 0 可能是沒跑到）')
         self.assertIn(same_scope.id, set(env['res.users'].search([]).ids), '啟用後回到一般的個資收窄')
 
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_totp_not_required_for_other_users(self):
         """監造方、前台營造帳號不要求 TOTP（只對營造廠主管）：筆數不受影響。"""
         self.assertFalse(self.sup.totp_enabled)
@@ -347,6 +352,7 @@ class TestAccountSetup(DashScopeCase):
             self.docs_a_sheet().with_user(user).write({'notes': '不可寫'})
 
     # ── session 旗標 ─────────────────────────────────────────────────────
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_session_flags(self):
         user = self._fresh_manager('dash_sess_user')
         info = self._session_info(user)

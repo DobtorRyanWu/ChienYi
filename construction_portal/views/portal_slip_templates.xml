@@ -111,8 +111,8 @@
                         </span>
                     </div>
 
-                    <!-- 審核動作（限老闆/主管） -->
-                    <t t-if="(request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')) and not request.env.user._dash_is_contractor_side()">
+                    <!-- 審核動作（限老闆/主管、限監造單位）：與核定／結案路由同一把尺（res.users._portal_review_visible，S2） -->
+                    <t t-if="request.env.user._portal_review_visible()">
                         <t t-if="error_message">
                             <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>

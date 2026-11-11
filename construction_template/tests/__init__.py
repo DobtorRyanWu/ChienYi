@@ -23,3 +23,4 @@ from . import test_self_inspection_timing  # 複製的檢查類型也印得出�
 from . import test_estimate_report_categories  # 估驗計價單分類＝最上層大類、累計、合計僅合約項（11-05）
 from . import test_layout_fixes_20261105  # 跑版檢查：結尾空白頁、日報二工程名稱、c1 縮頁、c2 百分比等（11-05）
 from . import test_export_xlsx_preview  # 產出的 xlsx 直接在瀏覽器唯讀預覽、docx 照舊下載（11-08）
+from . import test_restricted_export_gc  # 唯讀帳號的匯出檔每日清理（S2 fix2-V，11-11）

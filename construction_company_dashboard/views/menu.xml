@@ -14,4 +14,17 @@
               parent="spreadsheet_dashboard.spreadsheet_dashboard_menu_root"
               action="action_company_dashboard_page"
               sequence="50"/>
+
+    <!-- S2（2026-11-11）：後台角色帳號回手機首頁的入口（只有角色帳號：層級群組 group_role_manager，老闆隱含它）。
+         xmlid 列在 models/ir_ui_menu.py 的 ROLE_MENU_XMLIDS；營造廠主管、監造方後台人員看不到 -->
+    <record id="action_role_phone_home" model="ir.actions.act_url">
+        <field name="name">手機版</field>
+        <field name="url">/construction</field>
+        <field name="target">self</field>
+    </record>
+    <menuitem id="menu_role_phone_home"
+              name="手機版"
+              action="action_role_phone_home"
+              groups="group_role_manager"
+              sequence="1"/>
 </odoo>

@@ -22,6 +22,7 @@ from ..models.method_gate import DASHBOARD_METHODS, ORM_READ_API
 from ..models.progress_dashboard_ext import DASH_PAGE_SIZE, PAGE_BLOCKS_CONTEXT_KEY
 from .test_dashboard_indicators import FROZEN_NOW, DashIndicatorCase
 from .test_dashboard_views import ALL_BLOCKS
+from .test_scope_rules import require_totp  # S2 fix2-Z
 
 MODULE = 'construction_company_dashboard'
 PAGE_BLOCKS = ['today_work', 'open_defects', 'pending_tests']
@@ -183,6 +184,7 @@ class TestDashboardPage(DashIndicatorCase):
 
     # ── ⑥ 公司合計 log_filled ───────────────────────────────────────────────
     @freeze_time(FROZEN_NOW)
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_log_filled_kpi_counts_projects_not_sheets(self):
         Project = self._as(self.sup, self.env['project.project'])
         kpis = Project.get_dash_company_kpis()['kpis']

@@ -37,11 +37,14 @@ class TestCanUnlockGroups(TransactionCase):
 
     def _user(self, login, xmlids):
         # 前台角色群組隱含 base.group_portal，不能再加內部使用者（核心「不能同時有多個使用者類型」）
-        base = [] if any('portal_' in x for x in xmlids) else [self.env.ref('base.group_user').id]
+        portal = any('portal_' in x for x in xmlids)
+        base = [] if portal else [self.env.ref('base.group_user').id]
         groups = base + [self.env.ref(x).id for x in xmlids]
-        return self.env['res.users'].create({
-            'name': login, 'login': login,
-            'groups_id': [(6, 0, groups)]})
+        vals = {'name': login, 'login': login, 'groups_id': [(6, 0, groups)]}
+        if portal:
+            # 監造方前台帳號（不勾的話建帳號會自動勾營造組織＝營造方；S2 起 can_unlock 與解鎖路由同一把尺，營造方不能解鎖）
+            vals['is_supervision_org'] = True
+        return self.env['res.users'].create(vals)
 
     def test_hr_manager_cannot_unlock(self):
         user = self._user('unlock_hr', [HR_MANAGER])

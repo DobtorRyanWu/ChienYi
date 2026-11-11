@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- S2（2026-11-11）：後台角色帳號在手機（前台）的入口。角色帳號只在本模組裝了才存在，所以畫面放這裡、不改 construction_portal 的模板檔。
+
+         1. 沒開兩步驟驗證的提示（工程列表頁）：營造廠主管與後台角色帳號沒開 TOTP 時讀取範圍一律拒（res_users_guard.py
+            _dash_scope_ok），工程列表是空的；提示連到前台的「帳戶安全性」頁（/my/security，auth_totp_portal 提供啟用流程：
+            身分確認 → 掃 QR → 輸入驗證碼），不必先進後台（後台第一次開啟時核心會初始化 OdooBot，見 rule_scope._dash_with_odoobot）。
+         2. 「電腦版後台」入口（工程列表頁、右側抽屜）：只有後台角色帳號（res.users._is_role_account）。 -->
+    <template id="portal_role_projects_hints" inherit_id="construction_portal.portal_my_construction_projects"
+              name="前台工程列表：角色帳號的兩步驟驗證提示與電腦版後台入口">
+        <xpath expr="//div[hasclass('cy-content')]/h4" position="before">
+            <t t-set="dash_user" t-value="request.env.user"/>
+            <div t-if="dash_user._dash_totp_missing()" class="cy-event-card cy-event-urgent" id="dash_totp_hint"
+                 style="margin-bottom: 12px;">
+                <span class="cy-event-icon" style="color: var(--wb-amber);"><i class="fa fa-shield"/></span>
+                <div class="cy-event-body">
+                    <div class="cy-event-title">請先啟用兩步驟驗證</div>
+                    <div class="cy-event-desc" style="white-space: normal;">您的帳號要先啟用兩步驟驗證（身分驗證 App）才看得到工程資料。</div>
+                    <a href="/my/security" class="cy-btn cy-btn-primary" id="dash_totp_hint_link"
+                       style="margin-top: 8px; display: inline-block;">前往啟用兩步驟驗證</a>
+                </div>
+            </div>
+            <div t-if="dash_user._is_role_account()" style="text-align: right; margin-bottom: 8px;">
+                <a href="/odoo" class="cy-btn cy-btn-outline" id="dash_backend_link"
+                   style="font-size: 0.85rem; padding: 6px 12px;"><i class="fa fa-desktop"/> 電腦版後台</a>
+            </div>
+        </xpath>
+    </template>
+
+    <template id="portal_v10_drawer_role_backend" inherit_id="construction_portal.portal_v10_drawer"
+              name="前台抽屜：角色帳號的電腦版後台入口">
+        <xpath expr="//a[@href='/construction?view=list']" position="after">
+            <a t-if="request.env.user._is_role_account()" class="cy-drawer-item" href="/odoo" id="dash_drawer_backend">
+                <span class="cy-drawer-item-icon">🖥</span>
+                <span class="cy-drawer-item-label">電腦版後台</span>
+                <span class="cy-drawer-item-arrow">›</span>
+            </a>
+        </xpath>
+    </template>
+</odoo>

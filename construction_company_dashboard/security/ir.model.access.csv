@@ -85,3 +85,5 @@ access_role_general_progress_report_line,後台角色帳號 讀 進度報告明�
 access_role_general_realtime_profit,後台角色帳號 讀 即時損益報告,construction_general.model_general_realtime_profit,group_role_manager,1,0,0,0
 access_role_general_realtime_profit_cost,後台角色帳號 讀 即時損益成本列,construction_general.model_general_realtime_profit_cost,group_role_manager,1,0,0,0
 access_role_profit_loss_entry,後台角色帳號 讀 即時損益支出,construction_general.model_profit_loss_entry,group_role_manager,1,0,0,0
+access_role_water_level_device,後台角色帳號 讀 水位監測站（只有監造方角色帳號有範圍；S2）,water_level_core.model_water_level_device,group_role_manager,1,0,0,0
+access_role_water_level_reading,後台角色帳號 讀 水位量測值（只有監造方角色帳號有範圍；S2）,water_level_core.model_water_level_reading,group_role_manager,1,0,0,0

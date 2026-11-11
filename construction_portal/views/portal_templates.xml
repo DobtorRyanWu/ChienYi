@@ -345,7 +345,8 @@
                             <div class="cy-hud-resbox-label">快速新增</div>
                             <!-- 下拉選單 -->
                             <div class="cy-quick-add-menu" id="quickAddMenu" style="display: none;">
-                                <t t-if="(request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')) and not request.env.user._dash_is_contractor_side()">
+                                <!-- 與 /construction/project/new 路由同一把尺（審核類：res.users._portal_review_visible，S2） -->
+                                <t t-if="request.env.user._portal_review_visible()">
                                     <a t-attf-href="/construction/project/new?from_project=#{project.id}" class="cy-quick-add-item">
                                         <span>➕</span><span>新增專案</span>
                                     </a>
@@ -367,7 +368,8 @@
                                 <a t-attf-href="/construction/#{project.id}/documents" class="cy-quick-add-item">
                                     <span>📂</span><span>檔案管理</span>
                                 </a>
-                                <t t-if="can_manage and not request.env.user._dash_is_contractor_side()">
+                                <!-- 與工期展延路由同一把尺（審核類：_portal_review_visible，S2） -->
+                                <t t-if="request.env.user._portal_review_visible()">
                                     <a t-attf-href="/construction/#{project.id}/schedule/extend" class="cy-quick-add-item">
                                         <span>📅</span><span>工期展延</span>
                                     </a>
@@ -633,7 +635,8 @@
                             <span class="cy-info-value">
                                 <span class="cy-code-view">
                                     <span class="cy-code-text"><t t-esc="project.code or '-'"/></span>
-                                    <button type="button" class="cy-code-edit-btn"
+                                    <!-- 與 /code/update 路由同一把尺（審核類：_portal_review_visible，S2；原本人人都看得到、按了才被拒） -->
+                                    <button t-if="request.env.user._portal_review_visible()" type="button" class="cy-code-edit-btn"
                                             title="編輯工程編號"
                                             style="margin-left:8px; background:transparent; border:none; color:var(--wb-blue); cursor:pointer; padding:2px 6px;">
                                         <i class="fa fa-pencil"/>
@@ -939,7 +942,7 @@
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
                     <a class="cy-drawer-item"
-                       t-if="(request.env.user.has_group('construction_supervision_base.group_portal_subscriber') or request.env.user.has_group('construction_supervision_base.group_portal_leader') or request.env.user.has_group('base.group_system')) and not request.env.user._dash_is_contractor_side()"
+                       t-if="request.env.user._portal_review_visible()"
                        t-attf-href="/construction/project/new#{project and ('?from_project=' + str(project.id)) or ''}">
                         <span class="cy-drawer-item-icon">➕</span>
                         <span class="cy-drawer-item-label">新增專案</span>
@@ -961,9 +964,9 @@
                         <span class="cy-drawer-item-label">自主檢查樣板庫</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
-                    <!-- 受限帳號（營造方、控台讀取、後台角色帳號）看不到水位（公司儀表板合約 §3.2「其他」類、§3.6；
-                         後端 portal_water_level.py 的 _dash_is_restricted()），入口一併藏起來，免得點了 403（r5 N1） -->
-                    <a class="cy-drawer-item" t-if="project and not request.env.user._dash_is_restricted()"
+                    <!-- 營造方、控台讀取看不到水位（公司儀表板合約 §3.2「其他」類、§3.6）；監造方（含範圍合格的監造方角色帳號，S2）看得到。
+                         與後端 portal_water_level.py 三條路由同一個判斷：res.users._portal_other_data_visible()（r5 N1：入口與路由不分岔） -->
+                    <a class="cy-drawer-item" t-if="project and request.env.user._portal_other_data_visible()"
                        t-attf-href="/construction/#{project.id}/water-level">
                         <span class="cy-drawer-item-icon">〰</span>
                         <span class="cy-drawer-item-label">水位監測</span>
@@ -992,10 +995,11 @@
                         <span class="cy-drawer-item-label">使用說明</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
-                    <!-- 受限帳號（營造方、控台讀取、後台角色帳號）不給「意見回饋」：客服回報被公司儀表板拒寫規則擋住
-                         （合約 §0b-13、§0b-20；rule_scope 對所有受限帳號拒建），點了只會 403（r5 N1）。
+                    <!-- 「意見回饋」：營造方、控台讀取不給（客服回報被公司儀表板拒寫規則擋住，合約 §0b-13、§0b-20、r5 N1）；
+                         監造方角色帳號（範圍合格）照同方別的舊前台帳號給（S2 fix2-W，使用者 11-11）——與「其他」類前台頁同一個判斷：
+                         res.users._portal_other_data_visible()（非角色帳號＝不是受限帳號，與原本的條件相同）。
                          外層 t-if 包住佔位連結：construction_helpdesk 以 xpath 換掉裡面的 <a>，條件仍留在外層。 -->
-                    <t t-if="not request.env.user._dash_is_restricted()">
+                    <t t-if="request.env.user._portal_other_data_visible()">
                     <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="意見回饋即將推出">
                         <span class="cy-drawer-item-icon">💬</span>
                         <span class="cy-drawer-item-label">意見回饋</span>

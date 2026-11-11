@@ -22,6 +22,7 @@ from odoo.addons.construction_company_dashboard.controllers.portal_dashboard imp
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
 
 from . import test_dashboard_indicators as ind
+from .test_scope_rules import require_totp  # S2 fix2-Z
 
 BOSS = 'construction_supervision_base.group_portal_subscriber'
 LEADER = 'construction_supervision_base.group_portal_leader'
@@ -127,6 +128,7 @@ class TestPortalDashboard(PortalDashCase):
         ids = set(self._card_ids(self.sup_boss, state='all'))
         self.assertTrue({p.id for p in (self.pa, self.ps, self.pb, self.pr, self.pn, self.pe)} <= ids)
 
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_blocked_accounts_get_reason_not_error(self):
         """範圍公司空白的營造方、未啟用兩步驟驗證的營造廠主管：空清單＋原因，不報錯、不顯示 0 冒充。"""
         for user, needle in ((self.blank, '範圍公司'), (self.mgr_nototp, '兩步驟驗證')):

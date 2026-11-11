@@ -26,6 +26,8 @@ from odoo.addons.construction_portal.controllers.portal import ConstructionPorta
 
 from odoo.addons.construction_supervision_base.utils.local_date import local_today, to_local_date
 
+from .test_scope_rules import require_totp
+
 MANAGER_GROUP = 'construction_company_dashboard.group_contractor_manager'
 SUPERVISOR_ADMIN = 'construction_supervision_base.group_supervisor_admin'
 TOTP_FIXTURE_SECRET = 'JBSWY3DPEHPK3PXP'
@@ -569,6 +571,7 @@ class TestDashboardIndicators(DashIndicatorCase):
         self.assertEqual(self._as(self.sup, self.ps).dash_open_defect_count, 3)
 
     @freeze_time(FROZEN_NOW)
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_manager_without_totp_blocked_without_error(self):
         """未啟用兩步驟驗證的營造廠主管：全部「無權限」並附原因，不報錯、不給 0。"""
         result = self._as(self.mgr_nototp, self.env['project.project']).get_dash_company_kpis()

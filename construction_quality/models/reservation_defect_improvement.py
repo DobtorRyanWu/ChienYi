@@ -3,6 +3,8 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 
+from odoo.addons.construction_supervision_base.models.res_users import ROLE_SIDE_CONTRACTOR, ROLE_SIDE_SUPERVISION
+
 
 # 照片資料表收斂（2026-07-31）：原本這裡有兩個類別 ——
 #   ReservationDefectImprovementPhoto（照片行中間表，image=Binary(attachment=True)）
@@ -209,11 +211,12 @@ class ReservationDefectImprovement(models.Model):
     def _resolve_record_type(self, vals):
         """依建立者監造/營造身分自動判定 record_type（同 general.defect.improvement）"""
         user = self.env.user
-        is_sup = user.is_supervision_org
-        is_con = user.is_contractor_org
-        if is_sup and not is_con:
+        # 方別只有 res.users._construction_org_side() 一份（S2）：後台角色帳號看方別群組（帳號上的組織旗標不算），
+        # 其他帳號照組織旗標（兩個都勾或都沒勾＝判不出來）
+        side = user._construction_org_side()
+        if side == ROLE_SIDE_SUPERVISION:
             vals['record_type'] = 'supervision'
-        elif is_con and not is_sup:
+        elif side == ROLE_SIDE_CONTRACTOR:
             vals['record_type'] = 'contractor'
         elif 'record_type' not in vals and self.env.context.get('default_record_type'):
             vals['record_type'] = self.env.context['default_record_type']

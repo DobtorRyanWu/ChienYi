@@ -5,6 +5,10 @@
 
 權限：以前台使用者本人身分建立（不走 sudo），由 ACL＋record rule 把關
 （只看得到、只建得了自己送的；不能改、不能刪）。送出後的補充一律走留言。
+例外（S2 fix2-W，使用者 11-11）：後台角色帳號（後台唯讀，ORM 寫入全拒）照同方別的舊前台帳號——監造方範圍合格的
+（res.users._portal_other_data_visible）由建單路由以 sudo 建「本人的」單（sudo 不換人：建立者、留言作者都是本人；
+欄位只有下面組好的那幾個，表單送來的其他值一律不用）；其他角色帳號照舊建不了。讀自己的單照本人權限
+（construction_company_dashboard rule_scope ROLE_FEEDBACK_OWN）。角色帳號不能在單上留言（後台唯讀），詳情頁不顯示留言框。
 
 【分庫】日後每個客戶一個資料庫時，服務單集中到自家的「客服資料庫」，
 本檔的建單／列表／詳情／對話都要改成透過 API 向客服資料庫讀寫（已決定方向，尚未實作）。
@@ -107,6 +111,10 @@ class HelpdeskPortal(ConstructionPortal):
         project = self._feedback_project(post.get('from_project'))
         back = self._feedback_url('/construction/feedback/new', project)
         sep = '&' if '?' in back else '?'
+        # 見檔頭「例外」：後台角色帳號只有範圍合格的監造方能建（在讀任何資料之前擋）
+        role = env.user._is_role_account()
+        if role and not env.user._portal_other_data_visible():
+            return request.redirect(back + sep + 'error=denied')
 
         category = env['construction.service.category'].browse(
             int(post.get('category_id') or 0)).exists()
@@ -143,12 +151,14 @@ class HelpdeskPortal(ConstructionPortal):
         if project:
             vals.update({'project_name': project.name, 'project_code': project.code or False})
 
+        # 見檔頭「例外」：範圍合格的監造方角色帳號以 sudo 建本人的單（sudo 不換人）
+        Ticket = env[TICKET].sudo() if role else env[TICKET]
         # 【分庫】分庫後這裡改為呼叫客服資料庫的建單 API（附件一併上傳），見 docs/分庫架構_集中客服資料庫.md
-        # 以本人身分建立（不 sudo）：權限由 ACL＋record rule 把關。
+        # 以本人身分建立（不 sudo；角色帳號例外見上）：權限由 ACL＋record rule 把關。
         # mail_create_nosubscribe：客戶不自動成為追蹤者 → 客服回覆時不寄 Email（已決定暫不寄送）。
         # 客戶仍可在前台看到客服的回覆（存取依紀錄讀取權，不依追蹤）。
         try:
-            ticket = env[TICKET].with_context(mail_create_nosubscribe=True).create(vals)
+            ticket = Ticket.with_context(mail_create_nosubscribe=True).create(vals)
             if files:
                 ticket.with_context(mail_post_autofollow=False).message_post(
                     body=_('建單時附上的檔案'),
@@ -178,7 +188,8 @@ class HelpdeskPortal(ConstructionPortal):
             'message': kw.get('message'),
             # 前台 chatter（Odoo 原生 portal.message_thread）
             'object': ticket,
-            'disable_composer': ticket.state == 'cancel',
+            # 角色帳號後台唯讀、不能在單上留言（見檔頭「例外」）：不顯示留言框
+            'disable_composer': ticket.state == 'cancel' or request.env.user._dash_is_restricted_internal(),
             'message_per_page': 20,
         })
         return request.render('construction_helpdesk.portal_feedback_detail', values)

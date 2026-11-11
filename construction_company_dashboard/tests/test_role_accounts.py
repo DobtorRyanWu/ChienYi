@@ -36,7 +36,7 @@ from . import test_scope_rules as scope_tests
 from .test_scope_rules import (
     CONSOLE_GROUP, DENIED, EXPECT_CONTRACTOR_LEVEL, EXPECT_FRAMEWORK, EXPECT_LINES, EXPECT_PROJECT_LEVEL,
     MANAGER_GROUP, SUPERVISOR_ADMIN, TOTP_FIXTURE_SECRET, WHITELIST, DashScopeCase, contractor_definition,
-    project_definition,
+    project_definition, require_totp,
 )
 
 _logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ ROLE_WHITELIST = WHITELIST | EXPECT_ROLE_ONLY
 # 角色帳號的選單（測試獨立寫一份；成本分析是選裝模組）
 EXPECT_ROLE_MENUS = (
     'construction_company_dashboard.menu_company_dashboard',
+    'construction_company_dashboard.menu_role_phone_home',      # S2：後台回手機首頁的「手機版」
     'construction_supervision_base.menu_estimate',
     'construction_cost_analysis.menu_cost_analysis',
     'construction_general.menu_general_realtime_profit',
@@ -79,8 +80,9 @@ ESTIMATE_STATE_APPROVED = 'approved'
 # 損益支出夾具的金額
 EXPENSE_AMOUNT = 1000.0
 SMOKE_LIST_LIMIT = 20
-# 本人以外讀不到東西時，框架以外只剩這兩筆（同 test_scope_rules 的控台讀取帳號）
-SELF_ONLY_COUNTS = {'res.users': 1, 'res.partner': 1}
+# 本人以外讀不到東西時，框架以外只剩本人的使用者與聯絡人——內部受限帳號另外讀得到 OdooBot 的聯絡人
+# （S2-D：核心第一次打開後台要讀它，rule_scope._dash_with_odoobot；_other_counts 不濾封存，所以封存的 OdooBot 也算一筆）
+SELF_ONLY_COUNTS = {'res.users': 1, 'res.partner': 2}
 # 驗證碼（RFC 6238 預設值，與 test_method_gate_http 相同）
 # fix3-S：冒用作者被拒時訊息裡的字（測試獨立寫出，不 import 實作常數）
 SPOOF_AUTHOR_DENY = '不能以別人的名義發訊息'
@@ -352,7 +354,11 @@ class TestRoleAccounts(RoleMatrixCase):
     # ── 2. 「其他」類 0 筆 ─────────────────────────────────────────────
     def test_other_models_all_zero(self):
         for user in self.roles:
-            nonzero, errors = self._other_counts(user, ROLE_WHITELIST | EXPECT_FRAMEWORK)
+            # S2 fix2-W：監造方角色帳號讀得到意見回饋的類別、發生功能（設定資料）與自己的客服單——不算「其他」
+            allowed = ROLE_WHITELIST | EXPECT_FRAMEWORK
+            if user._role_side() == 'supervision':
+                allowed = allowed | {rule_scope.ROLE_FEEDBACK_OWN} | rule_scope.ROLE_FEEDBACK_REFERENCE
+            nonzero, errors = self._other_counts(user, allowed)
             self.assertEqual(errors, {}, f'{user.login}：列舉時不可出錯')
             self.assertEqual(nonzero, {}, f'{user.login}：「其他」類的模型必須一筆都看不到')
 
@@ -403,6 +409,7 @@ class TestRoleAccounts(RoleMatrixCase):
         self.env.registry.clear_cache()
         return user
 
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_fail_closed_invalid_setups(self):
         cases = {
             'level_without_side': (self._crafted('ff_level', [ROLE_BOSS]), 'supervision_role'),
@@ -670,8 +677,11 @@ class TestRoleAccounts(RoleMatrixCase):
         categorized = (set(rule_scope.CONTRACTOR_LEVEL) | set(rule_scope.CONTRACTOR_LEVEL_LINES)
                        | set(rule_scope.PROJECT_LEVEL) | set(rule_scope.INSPECTION_TEMPLATE_LEVEL)
                        | set(rule_scope.ROLE_PROJECT_LEVEL) | set(rule_scope.ROLE_ESTIMATE_CHILD)
-                       | set(rule_scope.ROLE_COST_ANALYSIS) | set(rule_scope.NARROW_BY_COMPANY)
-                       | {rule_scope.NARROW_USERS, rule_scope.NARROW_PARTNERS} | set(rule_scope.FRAMEWORK_READ))
+                       | set(rule_scope.ROLE_COST_ANALYSIS) | set(rule_scope.ROLE_SUPERVISION_ONLY_PROJECT_LEVEL)
+                       | set(rule_scope.NARROW_BY_COMPANY)
+                       | {rule_scope.NARROW_USERS, rule_scope.NARROW_PARTNERS} | set(rule_scope.FRAMEWORK_READ)
+                       # S2 fix2-W：意見回饋（construction_helpdesk 有裝才有 ACL）
+                       | {rule_scope.ROLE_FEEDBACK_OWN} | set(rule_scope.ROLE_FEEDBACK_REFERENCE))
         self.assertEqual(readable - categorized, set(), '有讀取 ACL 卻沒有範圍分類的模型')
         role_models = {m for m in EXPECT_ROLE_ONLY if m in self.env}
         self.assertEqual(role_models - readable, set(), '角色帳號的新分類缺讀取 ACL')
@@ -809,12 +819,14 @@ class TestRoleAccounts(RoleMatrixCase):
         return thread.sudo().message_post(body=body, message_type='comment', subtype_xmlid='mail.mt_comment',
                                           partner_ids=targets, attachment_ids=[att.id])
 
-    def _j_assert_quiet(self, label, message, members, outsiders):
+    def _j_assert_quiet(self, label, message, members, outsiders, colleagues=frozenset()):
+        """colleagues：私訊／群組對話裡讀得到的內部同事（S2 fix2-U，使用者 11-11 暫定：加進 partner_ids、只收站內通知）。"""
         self.assertFalse(self._mails_of(message), f'{label}：不可產生 mail.mail')
         self.assertFalse(self._email_notified(message), f'{label}：不可有 email 型的通知')
-        self.assertTrue(set(message.sudo().partner_ids.ids) <= members, f'{label}：不加入成員以外的人')
+        self.assertTrue(set(message.sudo().partner_ids.ids) <= members | colleagues, f'{label}：不加入成員（與內部同事）以外的人')
         self.assertFalse(self._notified(message) & outsiders, f'{label}：不通知成員以外的人')
 
+    @require_totp   # blocked_mgr＝沒開 TOTP 的營造廠主管（S2 fix2-Z 起預設不強制 TOTP，這裡驗強制時）
     def test_restricted_author_no_email_no_outsider(self):
         outsider_s, staff_s = self._j_targets(self.co_s)
         outsider_a, staff_a = self._j_targets(self.co_a, scope=self.co_a)
@@ -829,19 +841,21 @@ class TestRoleAccounts(RoleMatrixCase):
             channel = env['discuss.channel'].sudo().browse(
                 env['discuss.channel'].channel_get([user.partner_id.id]).id)   # 自己的對話（成員只有本人）
             members = set(channel.channel_member_ids.partner_id.ids)
-            outsiders = {outsider.id, staff.partner_id.id}
-            targets = list(outsiders)
+            # 頻道外的站內帳號（讀得到的內部同事）：S2 fix2-U 起在私訊裡被 @ 會加進 partner_ids、收站內通知（不寄信）；
+            # 外部聯絡人照舊拿掉
+            outsiders, colleagues = {outsider.id}, {staff.partner_id.id}
+            targets = list(outsiders | colleagues)
             label = user.login
             self._j_assert_quiet(f'{label} × 路由', self._j_route_post(user, channel, targets, 'ROLE J route'),
-                                 members, outsiders)
+                                 members, outsiders, colleagues)
             if not orm:
                 continue
             own_channel = env['discuss.channel'].browse(channel.id)
             self._j_assert_quiet(f'{label} × ORM message_post', own_channel.message_post(
                 body='ROLE J ORM', message_type='comment', subtype_xmlid='mail.mt_comment',
-                partner_ids=targets, attachments=[('role-j.txt', b'ROLE J')]), members, outsiders)
+                partner_ids=targets, attachments=[('role-j.txt', b'ROLE J')]), members, outsiders, colleagues)
             self._j_assert_quiet(f'{label} × message_notify', own_channel.message_notify(
-                body='ROLE J notify', subject='ROLE J', partner_ids=targets), members, outsiders)
+                body='ROLE J notify', subject='ROLE J', partner_ids=targets), members, outsiders, colleagues)
             # 私訊對象就是外部聯絡人（建對話時把他加成成員）
             outsider_channel = env['discuss.channel'].channel_get([outsider.id])
             m4 = outsider_channel.message_post(body='ROLE J 外部成員', message_type='comment',
@@ -1198,6 +1212,7 @@ class TestRoleGateHttp(HttpCase):
             return 'error', data.get('name', ''), data.get('message', '')
         return 'ok', body.get('result')
 
+    @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）
     def test_save_expense_blocked_read_passes_gate(self):
         Entry = self.env['profit.loss.entry'].sudo()
         args = [self.project.id, self.estimate.id, 123.0]

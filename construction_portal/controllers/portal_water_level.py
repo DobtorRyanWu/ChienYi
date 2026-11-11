@@ -73,7 +73,7 @@ class WaterLevelRoutesMixin:
         except (AccessError, MissingError):
             return request.redirect('/my')
         # 水位屬「其他」類：營造方看不到（公司儀表板合約 §3.2、§3.6）
-        self._require_not_restricted(WATER_LEVEL_DENIED_MSG)
+        self._require_other_data_visible(WATER_LEVEL_DENIED_MSG)
 
         devices = request.env['water.level.device'].sudo().search(
             [('project_id', '=', project_id)], order='seq, id')
@@ -109,8 +109,8 @@ class WaterLevelRoutesMixin:
             self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return {'error': 'Access denied'}
-        if self._dash_is_restricted():
-            # 水位屬「其他」類：營造方看不到（合約 §3.6）；json 路由比照上面回錯誤而不丟例外
+        if not request.env.user._portal_other_data_visible():
+            # 水位屬「其他」類：營造方、控台讀取看不到（合約 §3.6；與頁面、抽屜入口同一個判斷）；json 路由回錯誤而不丟例外
             return {'error': 'Access denied'}
 
         window = self._water_level_window(hours, date_from, hour_from, date_to, hour_to)
@@ -147,7 +147,7 @@ class WaterLevelRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
-        self._require_not_restricted(WATER_LEVEL_DENIED_MSG)
+        self._require_other_data_visible(WATER_LEVEL_DENIED_MSG)
 
         devices = request.env['water.level.device'].sudo().search(
             [('project_id', '=', project_id)], order='seq, id')

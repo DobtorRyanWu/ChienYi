@@ -20,7 +20,7 @@
     # 3.5.5: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 3.6.0（2026-11-10，S1 後台角色帳號）：即時損益 get_profit_loss_data 先 check_access 工程、回傳 can_edit（畫面支出欄依此唯讀）；
     #        缺失定義欄位鎖改看 _is_backend_staff()（原本看 share，內部唯讀帳號會被放行）
-    'version': '18.0.3.6.0',  # 3.5.6（2026-11-06）：缺失表單「複查資訊」加「成果確認」（construction_quality 6.7.0 的 outcome_result）
+    'version': '18.0.3.6.1',  # 3.6.1（2026-11-11，S2）：缺失類型改看 res.users._construction_org_side()。 3.5.6（2026-11-06）：缺失表單「複查資訊」加「成果確認」（construction_quality 6.7.0 的 outcome_result）
     'category': 'Construction/General',
     'summary': '一般式工程專用管理模組',
     'description': """

@@ -37,10 +37,31 @@ MAIN_COMPANY_XMLID = 'base.main_company'
 ROLE_BOSS_XMLID = 'construction_company_dashboard.group_role_boss'
 ROLE_MANAGER_XMLID = 'construction_company_dashboard.group_role_manager'
 ROLE_SUPERVISION_XMLID = 'construction_company_dashboard.group_role_supervision'
+# 層級的值：後台角色帳號（_role_level_raw）與前台角色（_portal_role_level、portal_role 欄位）共用同一組（S2 fix1-Q）
 ROLE_LEVEL_BOSS = 'boss'
 ROLE_LEVEL_MANAGER = 'manager'
+PORTAL_LEVEL_FIELD = 'field'
+PORTAL_LEVEL_OBSERVER = 'observer'
 ROLE_SIDE_CONTRACTOR = 'contractor'
 ROLE_SIDE_SUPERVISION = 'supervision'
+
+# ── 手機（前台）能力的唯一來源（S2，2026-11-11）──────────────────────────
+# 前台角色 → 群組的**唯一一張表**（高→低；S2 fix1-Q：portal_role 欄位的 _ROLE_KEY_TO_XMLID／_ROLE_KEYS_HIGH_TO_LOW
+# 與手機能力的 _portal_role_level 都由它推出，增減角色只改這裡）。四群組成繼承鏈：老闆 ⊃ 主管 ⊃ 現場人員 ⊃ 定期閱覽者，
+# 都隱含 base.group_portal。前台 controller（construction_portal/controllers/portal_utils.py GROUP_*）是同一組 xmlid。
+PORTAL_ROLE_GROUPS = (
+    (ROLE_LEVEL_BOSS, 'construction_supervision_base.group_portal_subscriber'),
+    (ROLE_LEVEL_MANAGER, 'construction_supervision_base.group_portal_leader'),
+    (PORTAL_LEVEL_FIELD, 'construction_supervision_base.group_portal_user'),
+    (PORTAL_LEVEL_OBSERVER, 'construction_supervision_base.group_portal_viewer'),
+)
+PORTAL_ROLE_GROUP_BY_LEVEL = dict(PORTAL_ROLE_GROUPS)
+# 管理層級（建工程、審核）與寫入層級（建立、修改單據；閱覽者不行）
+PORTAL_MANAGE_LEVELS = frozenset({ROLE_LEVEL_BOSS, ROLE_LEVEL_MANAGER})
+PORTAL_WRITE_LEVELS = frozenset({ROLE_LEVEL_BOSS, ROLE_LEVEL_MANAGER, PORTAL_LEVEL_FIELD})
+SYSTEM_GROUP_XMLID = 'base.group_system'
+# 組織群組（隱含 base.group_portal：只能給前台帳號，F5）
+SUPERVISION_ORG_GROUP_XMLID = 'construction_supervision_base.group_supervision_org'
 
 
 class ResUsers(models.Model):
@@ -76,15 +97,9 @@ class ResUsers(models.Model):
              '留空表示不自動到期。',
     )
 
-    # 前台角色 key → 對應群組 xml_id（單選；四群組成繼承鏈，皆隱含 base.group_portal）
-    _ROLE_KEY_TO_XMLID = {
-        'observer': 'construction_supervision_base.group_portal_viewer',
-        'field': 'construction_supervision_base.group_portal_user',
-        'manager': 'construction_supervision_base.group_portal_leader',
-        'boss': 'construction_supervision_base.group_portal_subscriber',
-    }
-    # 高→低（取最高角色用；老闆 ⊃ 主管 ⊃ 現場人員 ⊃ 定期閱覽者）
-    _ROLE_KEYS_HIGH_TO_LOW = ('boss', 'manager', 'field', 'observer')
+    # 前台角色 key → 對應群組 xml_id、高→低順序：都由模組層的 PORTAL_ROLE_GROUPS 推出（S2 fix1-Q：只留一張表）
+    _ROLE_KEY_TO_XMLID = PORTAL_ROLE_GROUP_BY_LEVEL
+    _ROLE_KEYS_HIGH_TO_LOW = tuple(key for key, _xmlid in PORTAL_ROLE_GROUPS)
 
     is_engineering_manager = fields.Boolean(
         string='是工程管理者',
@@ -153,9 +168,9 @@ class ResUsers(models.Model):
 
     @api.onchange('is_supervision_org')
     def _onchange_is_supervision_org(self):
-        """監造組織欄位變更時，自動同步群組關係（保留現有群組）"""
+        """監造組織欄位變更時，自動同步群組關係（保留現有群組）。只對前台帳號（F5，見 _org_group_sync_targets）。"""
         group_supervision = self.env.ref('construction_supervision_base.group_supervision_org', raise_if_not_found=False)
-        if not group_supervision:
+        if not group_supervision or not self.share:
             return
 
         # 取得當前已有的群組 ID 清單
@@ -175,9 +190,9 @@ class ResUsers(models.Model):
 
     @api.onchange('is_contractor_org')
     def _onchange_is_contractor_org(self):
-        """營造組織欄位變更時，自動同步群組關係（保留現有群組）"""
+        """營造組織欄位變更時，自動同步群組關係（保留現有群組）。只對前台帳號（F5，見 _org_group_sync_targets）。"""
         group_contractor = self.env.ref('construction_supervision_base.group_contractor_org', raise_if_not_found=False)
-        if not group_contractor:
+        if not group_contractor or not self.share:
             return
 
         # 取得當前已有的群組 ID 清單
@@ -201,18 +216,19 @@ class ResUsers(models.Model):
         # 範圍公司要在 super().create() 之前帶入：約束在 create 內就會檢查
         vals = self._dash_prefill_scope_company(vals)
         user = super().create(vals)
+        sync_targets = user._org_group_sync_targets()
 
-        # 同步監造組織群組
-        if vals.get('is_supervision_org'):
+        # 同步監造組織群組（F5：只對前台帳號）
+        if vals.get('is_supervision_org') and sync_targets:
             group_supervision = self.env.ref('construction_supervision_base.group_supervision_org', raise_if_not_found=False)
             if group_supervision:
-                user.groups_id = [(4, group_supervision.id)]
+                sync_targets.groups_id = [(4, group_supervision.id)]
 
-        # 同步營造組織群組
-        if vals.get('is_contractor_org'):
+        # 同步營造組織群組（F5：只對前台帳號）
+        if vals.get('is_contractor_org') and sync_targets:
             group_contractor = self.env.ref('construction_supervision_base.group_contractor_org', raise_if_not_found=False)
             if group_contractor:
-                user.groups_id = [(4, group_contractor.id)]
+                sync_targets.groups_id = [(4, group_contractor.id)]
 
         # 定期閱覽者：未填到期日時自動帶預設天數
         user._apply_observer_default_validity()
@@ -234,24 +250,26 @@ class ResUsers(models.Model):
     def write(self, vals):
         """更新用戶時同步群組"""
         res = super().write(vals)
+        # F5：組織群組只同步給前台帳號（寫入之後的 share；轉換動作一次把群組換成內部帳號時就不會再加回去）
+        sync_targets = self._org_group_sync_targets() if {'is_supervision_org', 'is_contractor_org'} & vals.keys() else self.browse()
 
         # 同步監造組織群組
-        if 'is_supervision_org' in vals:
+        if 'is_supervision_org' in vals and sync_targets:
             group_supervision = self.env.ref('construction_supervision_base.group_supervision_org', raise_if_not_found=False)
             if group_supervision:
                 if vals['is_supervision_org']:
-                    self.groups_id = [(4, group_supervision.id)]
+                    sync_targets.groups_id = [(4, group_supervision.id)]
                 else:
-                    self.groups_id = [(3, group_supervision.id)]
+                    sync_targets.groups_id = [(3, group_supervision.id)]
 
         # 同步營造組織群組
-        if 'is_contractor_org' in vals:
+        if 'is_contractor_org' in vals and sync_targets:
             group_contractor = self.env.ref('construction_supervision_base.group_contractor_org', raise_if_not_found=False)
             if group_contractor:
                 if vals['is_contractor_org']:
-                    self.groups_id = [(4, group_contractor.id)]
+                    sync_targets.groups_id = [(4, group_contractor.id)]
                 else:
-                    self.groups_id = [(3, group_contractor.id)]
+                    sync_targets.groups_id = [(3, group_contractor.id)]
 
         # 群組異動時，若新加入定期閱覽者群組且未填到期日，帶入預設天數
         if 'groups_id' in vals:
@@ -260,6 +278,14 @@ class ResUsers(models.Model):
             self._apply_operator_home_action()
 
         return res
+
+    def _org_group_sync_targets(self):
+        """組織旗標（is_supervision_org／is_contractor_org）要同步成組織群組的帳號：只有前台帳號（share）。
+
+        F5（S2）：組織群組隱含 base.group_portal，內部帳號（含後台角色帳號）被加進去就變成 portal 與 internal 並存、
+        被核心拒絕；角色帳號的方別只看方別群組（_role_side），旗標對內部帳號只是營造方標記（_dash_is_contractor_side）。
+        """
+        return self.filtered(lambda user: user.sudo().share)
 
     # ── 公司儀表板：身分判定與範圍公司（合約 §2）────────────────────────
     @api.model
@@ -412,6 +438,19 @@ class ResUsers(models.Model):
         self.ensure_one()
         return not self.sudo().share and self._dash_is_restricted()
 
+    def _dash_is_blocked_internal(self):
+        """範圍不合格的受限內部帳號（營造廠主管、後台角色帳號；沒開 TOTP、範圍公司或組合不合格）。**全系統只有這一份**（S2-D）。
+
+        讀取規則讓它們讀不到業務單據上的訊息、收件人計算也拿掉它們（construction_company_dashboard rule_scope.py、
+        restricted_mail.py 檔頭八），兩邊看同一個判斷才不會「讀不到卻被通知」而讓別人發訊息時失敗。
+        控台讀取帳號不在內（它本來就只讀控台取資料方法，行為照舊）。
+        """
+        if not self:
+            return False
+        self.ensure_one()
+        return bool(self._dash_is_restricted_internal() and not self._dash_is_console_reader()
+                    and not self._dash_scope_ok())
+
     def _is_backend_staff(self):
         """監造方後台人員：內部帳號、而且不是受限帳號（不是營造方、控台讀取、角色帳號）。
 
@@ -443,6 +482,107 @@ class ResUsers(models.Model):
         角色帳號（含監造方角色帳號）不算——它們在後台唯讀、手機在 S1 也唯讀。
         """
         return self._is_backend_staff()
+
+    # ── 手機（前台）能力：全系統各只有一份（S2，2026-11-11）──────────────────
+    # 前台 controller 的守衛（construction_portal/controllers/portal.py：_can_manage、_is_field_only、_require_write、
+    # _require_photo_deleter、_require_not_contractor、日誌解鎖）與模板裡的按鈕顯示條件都呼叫這裡，畫面與路由不會分岔。
+    # 角色帳號沒有前台角色群組，能力由後台層級（_role_level_raw）推出；範圍不合格（含沒開 TOTP、組合不合法）＝沒有任何手機能力。
+    def _portal_role_level(self):
+        """手機能力的層級：'boss'／'manager'／'field'／'observer'／None（值與 portal_role 欄位同一組，PORTAL_ROLE_GROUPS）。
+
+        * 前台帳號（share）：照前台角色群組取最高的一級。
+        * 後台角色帳號：照後台層級（老闆、主管），而且範圍要合格（_dash_scope_ok：方別、範圍公司、TOTP）——
+          沒開 TOTP 的角色帳號讀不到任何資料，也不能在手機寫入（例：建工程不必先讀任何紀錄）。
+        * 其他內部帳號（監造方後台人員、代操作員、系統管理者）：None，它們另有自己的放行條件（_is_supervision_side 等），照舊。
+        """
+        self.ensure_one()
+        if self.sudo().share:
+            for level, xmlid in PORTAL_ROLE_GROUPS:
+                if self._dash_in_group(xmlid):
+                    return level
+            return None
+        if self._is_role_account():
+            return self._role_level_raw() if self._dash_scope_ok() else None
+        return None
+
+    def _portal_can_manage(self):
+        """手機的管理權（建工程、審核、工期展延…）：老闆、主管、系統管理者、代操作員。"""
+        self.ensure_one()
+        return bool(self._portal_role_level() in PORTAL_MANAGE_LEVELS
+                    or self._dash_in_group(SYSTEM_GROUP_XMLID)
+                    or self._dash_in_group(OPERATOR_GROUP_XMLID))
+
+    def _portal_is_field_only(self):
+        """現場人員（而且不是老闆、主管、系統管理者）：寫入只能限自己建立的單據。"""
+        self.ensure_one()
+        level = self._portal_role_level()
+        if level in PORTAL_MANAGE_LEVELS or self._dash_in_group(SYSTEM_GROUP_XMLID):
+            return False
+        return level == PORTAL_LEVEL_FIELD
+
+    def _portal_can_write(self):
+        """手機能不能建立、修改單據（前台 _require_write 的放行條件）：閱覽者與受限的唯讀帳號不行。
+
+        監造方後台人員（_is_supervision_side）一律可以；前台角色要現場人員以上；管理權（含代操作員）可以。
+        """
+        self.ensure_one()
+        return bool(self._is_supervision_side() or self._portal_can_manage()
+                    or self._portal_role_level() in PORTAL_WRITE_LEVELS)
+
+    def _portal_owns_or_may_edit(self, record):
+        """「現場人員只能改自己建立的單據」**全系統只有這一份**（S2 fix1-R）：不是現場人員、或沒有紀錄（新建，例：匯入時當天還沒有日誌）、
+        或紀錄是本人建立的 → True。前台路由 _require_owner_or_manager 與模板（經 _portal_can_edit_record）都呼叫它。
+        create_uid 是上傳／建立的人（前台以 sudo 建立，sudo 不換人）。"""
+        self.ensure_one()
+        return not self._portal_is_field_only() or not record or record.sudo().create_uid == self
+
+    def _portal_can_edit_record(self, record):
+        """能不能改這一張單據＝能寫入（_portal_can_write），而且通過「現場人員只能改自己建的」（_portal_owns_or_may_edit）：
+        前台 _require_write＋_require_owner_or_manager 兩道的組合；模板的按鈕呼叫它。"""
+        self.ensure_one()
+        return self._portal_can_write() and self._portal_owns_or_may_edit(record)
+
+    def _portal_can_delete_others_photos(self):
+        """刪別人上傳的照片：管理權或監造方後台人員（其餘只能刪自己上傳的）。"""
+        self.ensure_one()
+        return bool(self._portal_can_manage() or self._is_supervision_side())
+
+    def _dash_is_contractor_or_console(self):
+        """營造方或控台讀取帳號（小集合）：「這件事限監造單位」的判斷（審核、結案、解鎖、工程主檔、自動補建樣板／工項）。
+
+        監造方角色帳號不算營造方。和受限帳號（_dash_is_restricted，大集合：要以本人身分再過一次讀取規則）不同。
+        """
+        self.ensure_one()
+        return bool(self._dash_is_contractor_side() or self._dash_is_console_reader())
+
+    def _portal_review_visible(self):
+        """審核類動作（限監造單位的那些：審核、結案、日誌解鎖、工程主檔、工期展延）看得到、做得到：
+        有管理權，而且不是營造方／控台讀取。
+
+        **審核類的判斷全系統只有這一份**：按鈕的顯示條件、路由守衛（前台 _require_review）、
+        日誌的 can_unlock（construction_daily_log；解鎖按鈕與解鎖路由都看那個欄位）都呼叫它。
+        """
+        self.ensure_one()
+        return self._portal_can_manage() and not self._dash_is_contractor_or_console()
+
+    def _portal_other_data_visible(self):
+        """「其他」類前台頁（水位監測、意見回饋）：監造方看得到（含範圍合格的監造方角色帳號；水位唯讀，意見回饋見 S2 fix2-W），
+        營造方、控台讀取看不到。
+
+        舊的前台監造老闆／主管（share）本來就看得到（S1 前的條件是「不是營造方」）；角色帳號照「同方別」。
+        """
+        self.ensure_one()
+        if self._is_role_account():
+            return self._role_side() == ROLE_SIDE_SUPERVISION and bool(self._portal_role_level())
+        return not self._dash_is_restricted()
+
+    def _portal_uses_phone_home(self):
+        """登入後、/my 首頁走手機（/construction）的帳號：前台帳號與後台角色帳號（S2 計畫的預設決定：先到手機）。
+
+        監造方後台人員等其他內部帳號照 Odoo 原本（後台）。
+        """
+        self.ensure_one()
+        return bool(self.sudo().share or self._is_role_account())
 
     @api.constrains('dash_scope_company_id')
     def _check_dash_scope_company(self):

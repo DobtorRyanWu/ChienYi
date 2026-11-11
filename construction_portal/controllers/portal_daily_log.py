@@ -956,8 +956,9 @@ class DailyLogRoutesMixin:
         ], limit=1)
         if not log:
             return request.redirect(f'/construction/{project_id}/daily-logs')
-        # 營造方不能解鎖（公司儀表板合約 §3.6）：鎖定是給監造方的稽核保護，營造方自己解鎖等於沒鎖
-        if self._dash_is_contractor_or_console() or not log.can_unlock:
+        # 營造方不能解鎖（公司儀表板合約 §3.6）：鎖定是給監造方的稽核保護，營造方自己解鎖等於沒鎖。
+        # can_unlock＝res.users._portal_review_visible()（審核類：含「不是營造方／控台讀取」），詳情頁的解鎖按鈕看同一個欄位
+        if not log.can_unlock:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}?error=no_unlock_permission')
         log.sudo().portal_unlock(hours=72, reason='前台解鎖')

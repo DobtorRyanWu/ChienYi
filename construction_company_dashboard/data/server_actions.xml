@@ -10,4 +10,25 @@
         <field name="state">code</field>
         <field name="code">action = records.action_set_contractor_manager()</field>
     </record>
+
+    <!-- S2（2026-11-11）：前台老闆／主管 ↔ 後台角色帳號（同一個 user id；方法內再檢查工程管理者、拒絕的情形與原因） -->
+    <record id="action_convert_to_role_account" model="ir.actions.server">
+        <field name="name">轉成後台角色帳號（手機照舊＋電腦唯讀）</field>
+        <field name="model_id" ref="base.model_res_users"/>
+        <field name="binding_model_id" ref="base.model_res_users"/>
+        <field name="binding_view_types">form</field>
+        <field name="groups_id" eval="[(4, ref('construction_supervision_base.group_engineering_manager'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_convert_to_role_account()</field>
+    </record>
+
+    <record id="action_revert_to_portal_role" model="ir.actions.server">
+        <field name="name">改回前台角色帳號</field>
+        <field name="model_id" ref="base.model_res_users"/>
+        <field name="binding_model_id" ref="base.model_res_users"/>
+        <field name="binding_view_types">form</field>
+        <field name="groups_id" eval="[(4, ref('construction_supervision_base.group_engineering_manager'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_revert_to_portal_role()</field>
+    </record>
 </odoo>

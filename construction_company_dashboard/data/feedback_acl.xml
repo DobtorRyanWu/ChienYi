@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- S2 fix2-W（使用者 11-11）：後台角色帳號讀意見回饋（construction_helpdesk）的讀取權。helpdesk 沒裝就略過；
+         之後才裝 helpdesk 的庫要再 -u 本模組。可重跑（models/res_users_guard.py _dash_sync_feedback_acl）。 -->
+    <function model="res.users" name="_dash_sync_feedback_acl"/>
+</odoo>

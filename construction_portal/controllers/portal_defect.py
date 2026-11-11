@@ -953,15 +953,14 @@ class DefectRoutesMixin:
             defect = self._browse_defect(defect_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
-        # 通知改善＝監造通知乙方限期改善（契約「工程品管」）→ 營造方不能（合約 §0b-12）。
-        # 擋在任何寫入之前（下面補期限的分支會先寫期限）
-        self._require_not_contractor(_('權限不足：通知改善由監造單位發出，營造廠帳號不能執行'))
+        # 通知改善＝監造通知乙方限期改善（契約「工程品管」）→ 營造方不能（合約 §0b-12）；限老闆／主管。
+        # 審核類守衛 _require_review（＝res.users._portal_review_visible，與詳情頁按鈕同一個判斷；S2 fix1-S）擋在任何寫入之前：
+        # 下面補期限的分支會先寫期限再通知，不經 _run_review_action
+        self._require_review(_('僅老闆或主管可審核'), _('權限不足：通知改善由監造單位發出，營造廠帳號不能執行'))
         # P10：提報時沒填改善期限，手機上沒地方補；在詳情頁帶期限進來，先寫再通知。
-        # 先過管理守衛才寫入（_run_review_action 內也會守一次，這裡必須在寫入之前）。
         raw_deadline = (post.get('deadline') or '').strip()
         # 只有草稿才寫期限；其他狀態交給下面的 action_notify 回「只有草稿狀態可以通知改善」
         if raw_deadline and defect.state == 'draft':
-            self._require_manage(_('僅老闆或主管可審核'))
             try:
                 deadline = datetime.strptime(raw_deadline, '%Y-%m-%d').date()
             except ValueError:
@@ -976,6 +975,7 @@ class DefectRoutesMixin:
                 return request.redirect(
                     self._defect_url(defect, error=_portal_flash_code(e)))
             return request.redirect(self._defect_url(defect, msg='reviewed'))
+        # 與詳情頁「通知改善」按鈕同一把尺（審核類：_require_review）
         return self._run_review_action(
             defect, 'action_notify',
-            self._defect_url(defect), self._defect_url(defect))
+            self._defect_url(defect), self._defect_url(defect), supervision_only=True)

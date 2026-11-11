@@ -11,7 +11,8 @@
 * ORM_WRITE_API：寫建刪的名稱照放行，交給拒寫規則（rule_scope）拒。
 * DASHBOARD_METHODS：儀表板自己的方法，(模型, 方法) 逐一列。
 * ROLE_ONLY_METHODS：只放後台角色帳號（_is_role_account）的方法，(模型, 方法) 逐一列；營造廠主管、控台讀取、前台營造帳號照擋。
-* NARROWING_ONLY_OVERRIDES：本模組自己只做收窄的覆寫（message_post、message_notify）不算自訂實作。
+* NARROWING_ONLY_OVERRIDES：本模組自己只做收窄的覆寫（message_post、message_notify）不算自訂實作；
+  USER_DECIDED_OVERRIDES：本模組照使用者決定放寬的覆寫（@ 建議名單，S2 fix2-U）也不算。
 只由 Odoo 官方模組實作的方法不經過這道閘門（照原本的 ACL 與規則；例：啟用兩步驟驗證、改密碼、建 API 金鑰）。
 伺服器動作（/web/action/run、ir.actions.server.run）是第四條路，另見 server_action_gate.py。
 監造方與其他帳號完全不受影響。
@@ -80,6 +81,9 @@ ROLE_ONLY_METHODS = frozenset({
 # 其他自訂模組覆寫同名方法照算（照擋）。業務紀錄上留言、冒用作者，由訊息守衛擋（restricted_mail.py 檔頭二、三），不靠閘門。
 THIS_MODULE = __name__.split('.')[2]
 NARROWING_ONLY_OVERRIDES = frozenset({'message_post', 'message_notify'})
+# 本模組照使用者決定放寬的覆寫（S2 fix2-U，使用者 11-11 暫定）：@ 建議名單在私訊／群組對話另列讀得到的內部同事
+# （restricted_mail.py 檔頭九）。核心的同名方法本來就讓受限帳號呼叫；本模組多一層覆寫不該讓閘門把它擋掉。
+USER_DECIDED_OVERRIDES = frozenset({'get_mention_suggestions_from_channel'})
 # 被拒訊息的開頭（測試與 rpc_scope_check 用它認「是閘門擋的」）
 GATE_NOTE = '公司儀表板方法閘門'
 
@@ -108,7 +112,7 @@ def custom_implementations(model_class, method):
     for cls in model_class.mro():
         if method in vars(cls):
             module = _addon_of(cls)
-            if module == THIS_MODULE and method in NARROWING_ONLY_OVERRIDES:
+            if module == THIS_MODULE and (method in NARROWING_ONLY_OVERRIDES or method in USER_DECIDED_OVERRIDES):
                 continue
             if module and is_custom_module(module) and module not in modules:
                 modules.append(module)

@@ -2,7 +2,8 @@
 """營造廠主管與後台角色帳號的選單允許清單（合約 §3.7；角色帳號 S1，2026-11-10）。
 
 * 營造廠主管：只看得到「公司儀表板」「進度表圖表」與它們的上層選單（不給工程案件選單：工程表單的數量按鈕會讀到看不到的模型而報錯）。
-* 後台角色帳號：公司儀表板、估驗計價、成本分析、即時損益、契約工項、契約變更單、進度表／進度明細／進度表圖表／進度報告。
+* 後台角色帳號：公司儀表板、估驗計價、成本分析、即時損益、契約工項、契約變更單、進度表／進度明細／進度表圖表／進度報告、
+  手機版（S2：回手機首頁）。
   判斷排在營造廠主管之前（營造方角色帳號也帶營造廠主管群組）。
 選單 xmlid 先定成常數：沒裝的模組（成本分析是選裝）或還沒建的選單略過。
 """
@@ -24,6 +25,7 @@ ROLE_MENU_XMLIDS = (
     'construction_progress.menu_progress_schedule_line',            # 進度明細
     'construction_progress.menu_progress_chart_dashboard',          # 進度表圖表
     'construction_general.menu_general_progress_report',            # 進度報告
+    'construction_company_dashboard.menu_role_phone_home',          # 手機版（回 /construction；S2）
 )
 
 

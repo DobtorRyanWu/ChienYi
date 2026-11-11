@@ -547,21 +547,20 @@ class DailyLogSheet(models.Model):
             sheet.days_since_log = days
             sheet.is_locked = (days >= sheet.LOCK_DAYS) and not sheet._is_validly_unlocked(now)
     
+    @api.depends_context('uid')
     def _compute_can_unlock(self):
-        """計算使用者是否有解鎖權限
+        """計算使用者是否有解鎖權限：res.users._portal_review_visible()（S2：解鎖屬審核類，判斷全系統只有那一份；
+        前台解鎖按鈕與解鎖路由都看這個欄位）。
 
-        不含 hr.group_hr_manager（人資管理群組與解鎖日誌無關；公司儀表板合約 §13-8）。
+        系統管理者、前台老闆／主管、代操作員、後台角色帳號（老闆、主管，範圍合格）可以；營造方、控台讀取不行
+        （鎖定是給監造方的稽核保護）。不含 hr.group_hr_manager（人資管理群組與解鎖日誌無關；公司儀表板合約 §13-8）。
+        原本另列的 construction_supervision_base.group_supervision_manager 這個 xmlid 在本 repo 與 dev 庫都不存在
+        （has_group 恆為 False），拿掉不改變結果。
+        depends_context('uid')：非儲存欄位依登入者而不同，同一個交易換帳號時不能沿用上一個帳號算的值。
         """
+        can_unlock = self.env.user._portal_review_visible()
         for sheet in self:
-            user = self.env.user
-            sheet.can_unlock = (
-                user.has_group('base.group_system') or
-                user.has_group('construction_supervision_base.group_supervision_manager') or
-                # 前台老闆/主管 + 監造代操：可直接解鎖（限時、有記錄）
-                user.has_group('construction_supervision_base.group_portal_subscriber') or
-                user.has_group('construction_supervision_base.group_portal_leader') or
-                user.has_group('construction_supervision_base.group_operator')
-            )
+            sheet.can_unlock = can_unlock
 
     def portal_unlock(self, hours=72, reason=None):
         """限時解鎖（前台/後台共用）：寫入解鎖記錄，到期自動重新鎖定。

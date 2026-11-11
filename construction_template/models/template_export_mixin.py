@@ -18,8 +18,9 @@
 """
 
 import logging
+from datetime import timedelta
 
-from odoo import _, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from ..utils import template_render
@@ -30,8 +31,11 @@ XLSX_MIMETYPE = ('application/vnd.openxmlformats-officedocument'
                  '.spreadsheetml.sheet')
 DOCX_MIMETYPE = ('application/vnd.openxmlformats-officedocument'
                  '.wordprocessingml.document')
-# 唯讀帳號匯出檔的標記（ir.attachment.description）：重匯時只刪帶這個標記、本人建立、沒有掛單據的同名檔
+# 匯出檔的標記（ir.attachment.description）：唯讀帳號與後台人員的匯出檔都帶（後台人員自 S2 fix2-Y 起）。
+# 重匯時只刪帶這個標記的同名檔（唯讀帳號：本人建立、沒有掛單據；後台人員：同一筆單據上）——使用者上傳的同名附件沒有標記，永遠不碰
 EXPORT_ATTACHMENT_MARKER = 'document.template.export'
+# 唯讀帳號匯出檔的保留時間：超過就由每日 autovacuum 刪（S2 fix2-V，使用者 11-11「匯出檔沒有排程清理這個 清」）
+RESTRICTED_EXPORT_RETENTION = timedelta(days=1)
 
 
 class TemplateExportMixin(models.AbstractModel):
@@ -122,8 +126,9 @@ class TemplateExportMixin(models.AbstractModel):
     def _create_export_attachment(self, filename, content):
         """建立下載用附件。
 
-        同一筆記錄重複匯出同一份時先清掉上一份，避免附件無限累積
-        （這些是產出的暫存檔，不是使用者上傳的資料）。
+        同一筆記錄重複匯出同一份時先清掉上一份，避免附件無限累積。只刪「同一筆單據上、同名、帶 EXPORT_ATTACHMENT_MARKER」的
+        ——上一次匯出留下的副本（S2 fix2-Y，使用者 11-11「改成只刪上一次匯出留下的副本」）；使用者上傳的同名附件沒有標記，不碰。
+        fix2-Y 之前的匯出副本沒有標記，從此不會被自動刪，會留在單據上。
         唯讀帳號另走 _create_restricted_export_attachment（不掛單據、只清自己的；見檔頭）。
         """
         self.ensure_one()
@@ -134,10 +139,12 @@ class TemplateExportMixin(models.AbstractModel):
             ('res_model', '=', self._name),
             ('res_id', '=', self.id),
             ('name', '=', filename),
+            ('description', '=', EXPORT_ATTACHMENT_MARKER),
         ]).unlink()
         return Attachment.create({
             'name': filename,
             'raw': content,
+            'description': EXPORT_ATTACHMENT_MARKER,
             'res_model': self._name,
             'res_id': self.id,
             'mimetype': DOCX_MIMETYPE if filename.lower().endswith('.docx')
@@ -165,3 +172,26 @@ class TemplateExportMixin(models.AbstractModel):
             'description': EXPORT_ATTACHMENT_MARKER,
             'mimetype': DOCX_MIMETYPE if filename.lower().endswith('.docx') else XLSX_MIMETYPE,
         })
+
+
+class IrAttachment(models.Model):
+    _inherit = 'ir.attachment'
+
+    @api.autovacuum
+    def _gc_restricted_template_exports(self):
+        """唯讀帳號的匯出檔（帶 EXPORT_ATTACHMENT_MARKER、沒有掛單據）建立超過 RESTRICTED_EXPORT_RETENTION 就刪（S2 fix2-V）。
+
+        核心每天的 autovacuum 排程（base.autovacuum_job）會呼叫；不另建排程。掛在單據上的附件（含後台人員的匯出）、
+        沒有標記的附件、保留時間內的匯出檔都不在範圍內。sudo：匯出檔是各唯讀帳號本人的、沒有掛單據（核心只准建立者讀）。
+        """
+        cutoff = fields.Datetime.now() - RESTRICTED_EXPORT_RETENTION
+        expired = self.sudo().search([
+            ('description', '=', EXPORT_ATTACHMENT_MARKER),
+            ('res_model', '=', False),
+            ('res_field', '=', False),
+            ('create_date', '<', cutoff),
+        ])
+        count = len(expired)
+        expired.unlink()
+        _logger.info('唯讀帳號匯出檔清理：刪除 %s 份（建立超過 %s）', count, RESTRICTED_EXPORT_RETENTION)
+        return count

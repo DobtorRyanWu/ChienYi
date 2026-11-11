@@ -15,7 +15,7 @@ from odoo.addons.construction_supervision_base.utils.local_date import local_tod
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
-from ..models.mail_thread import PORTAL_COMMENTER_GROUP, PORTAL_COMMENT_MODELS
+from ..models.mail_thread import PORTAL_COMMENT_MODELS
 from .portal_utils import (  # M4-a：共用工具抽出
     GROUP_BOSS, GROUP_MANAGER, GROUP_FIELD, GROUP_OBSERVER, GROUP_OPERATOR,
     _photo_category_options, _photo_category_to_id, _post_photo_meta,
@@ -58,12 +58,13 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     # 因前台 create/write 多走 .sudo()（會繞過 ir.rule / ir.model.access），
     # 「建專案/審核限老闆+主管」「現場人員只改自己建的」由以下 guard 在 controller 強制。
 
+    # S2（2026-11-11）：下面這些守衛的「誰可以」全部呼叫 res.users 的 _portal_* 函式（construction_supervision_base
+    # models/res_users.py，全系統各只有一份）；模板裡的按鈕顯示條件呼叫同一個函式，畫面與路由不會分岔。
+    # 後台角色帳號（內部帳號、沒有前台角色群組）的手機能力也由那裡推出（範圍合格才有）。
+
     def _can_manage(self):
-        """老闆 / 主管 / 內部系統管理者 / 監造代操作員：可建專案、可審核"""
-        user = request.env.user
-        return (user.has_group(GROUP_BOSS) or user.has_group(GROUP_MANAGER)
-                or user.has_group('base.group_system')
-                or user.has_group(GROUP_OPERATOR))
+        """老闆 / 主管 / 內部系統管理者 / 監造代操作員（含後台角色帳號的老闆、主管）：可建專案、可審核"""
+        return request.env.user._portal_can_manage()
 
     def _require_manage(self, msg=None):
         if not self._can_manage():
@@ -71,46 +72,39 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
     def _is_field_only(self):
         """現場人員（且非老闆/主管/內部）：寫入只能限自己建立的單據"""
-        user = request.env.user
-        if (user.has_group(GROUP_BOSS) or user.has_group(GROUP_MANAGER)
-                or user.has_group('base.group_system')):
-            return False
-        return user.has_group(GROUP_FIELD)
+        return request.env.user._portal_is_field_only()
 
     def _require_owner_or_manager(self, record):
-        """現場人員只能編輯自己建立的記錄；老闆/主管/內部不受限"""
-        if self._is_field_only() and record and record.sudo().create_uid.id != request.env.user.id:
+        """現場人員只能編輯自己建立的記錄；老闆/主管/內部不受限；沒有紀錄（新建）放行。
+        判斷＝res.users._portal_owns_or_may_edit()（全系統一份；模板的按鈕經 _portal_can_edit_record 呼叫同一支）。"""
+        if not request.env.user._portal_owns_or_may_edit(record):
             raise AccessError(_('您只能編輯自己建立的單據'))
 
     def _require_write(self, msg=None):
         """H1：禁止唯讀角色（定期閱覽者 / viewer / observer）建立或寫入單據。
 
         前台 create / upload 路由多走 .sudo()（繞過 ir.rule / ir.model.access），
-        唯讀 viewer 仍可 POST 進來寫入 → 越權。放行條件：
+        唯讀 viewer 仍可 POST 進來寫入 → 越權。放行條件＝res.users._portal_can_write()：
         - 監造方內部帳號（_is_supervision_side()：監造單位員工 / 系統管理者）一律放行；
           營造廠主管（後台唯讀帳號）與控台讀取帳號雖是內部帳號，不在此列（公司儀表板合約 §3.6）；
-        - 前台角色需現場人員（GROUP_FIELD）以上（含主管 / 老闆 / 代操作員）；
+        - 前台角色需現場人員以上（含主管 / 老闆 / 代操作員；後台角色帳號照它的層級，範圍合格才算）；
         - 僅純前台 viewer（只有 base.group_portal + viewer）被擋。
         """
-        user = request.env.user
-        if (user._is_supervision_side()
-                or self._can_manage()
-                or user.has_group(GROUP_FIELD)):
-            return
-        raise AccessError(msg or _('權限不足：閱覽角色不可建立或修改資料'))
+        if not request.env.user._portal_can_write():
+            raise AccessError(msg or _('權限不足：閱覽角色不可建立或修改資料'))
 
     def _require_photo_deleter(self, photos, msg=None):
         """刪除照片：只有上傳者本人與管理層級可以刪（閱覽者已被 _require_write 擋在前面）。
 
         管理層級＝_can_manage()（老闆／主管／系統管理者／代操作員）；監造方內部帳號
-        （_is_supervision_side()，監造單位員工）比照 _require_write 放行。其餘（現場人員）
-        只能刪自己上傳的：supervision.photo／ir.attachment 的 create_uid 就是上傳者
+        （_is_supervision_side()，監造單位員工）比照 _require_write 放行（res.users._portal_can_delete_others_photos）。
+        其餘（現場人員）只能刪自己上傳的：supervision.photo／ir.attachment 的 create_uid 就是上傳者
         （前台上傳雖用 sudo，sudo 不改 uid）。
         photos 可為多筆，必須全部是自己上傳的；空集合視為沒有東西要刪，放行。
         sudo 只讀 create_uid，範圍是呼叫端已通過 _document_check_access 的那張單據上的照片。
         """
         user = request.env.user
-        if self._can_manage() or user._is_supervision_side():
+        if user._portal_can_delete_others_photos():
             return
         if all(p.sudo().create_uid.id == user.id for p in photos):
             return
@@ -146,18 +140,28 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         return request.env.user._dash_is_restricted()
 
     def _dash_is_contractor_or_console(self):
-        """登入者是營造方或控台讀取帳號（小集合；S1 之前舊名 _dash_is_contractor() 的內容）。
+        """登入者是營造方或控台讀取帳號（小集合）＝res.users._dash_is_contractor_or_console()（全系統只有那一份）。
 
         給「這件事限監造單位」的判斷用（審核、結案、解鎖、工程主檔、自動補建樣板／工項）：
-        監造方角色帳號不算營造方，不能在這裡被擋下（S1 規格 §2.9；手機寫入在 S1 另由 _require_write 等擋）。
+        監造方角色帳號不算營造方，不能在這裡被擋下（S1 規格 §2.9）。
         """
-        user = request.env.user
-        return user._dash_is_contractor_side() or user._dash_is_console_reader()
+        return request.env.user._dash_is_contractor_or_console()
 
     def _require_not_contractor(self, msg=None):
         """審核類動作（合約 §3.6 寫入矩陣）：營造方（與控台讀取）一律拒；監造方（含監造方角色帳號）照原本的守衛。"""
         if self._dash_is_contractor_or_console():
             raise AccessError(msg or _('權限不足：此操作限監造單位，營造廠帳號不能執行'))
+
+    def _require_review(self, manage_msg=None, contractor_msg=None):
+        """審核類（限監造單位）路由的守衛：先問管理權、再問是不是營造方／控台讀取（訊息與順序照舊）。
+
+        能不能做＝res.users._portal_review_visible()，按鈕的顯示條件呼叫同一個函式（S2：畫面與路由同一個判斷）。
+        """
+        if request.env.user._portal_review_visible():
+            return
+        self._require_manage(manage_msg)          # 沒有管理權：管理權的訊息
+        self._require_not_contractor(contractor_msg)
+        raise AccessError(contractor_msg or _('權限不足：此操作限監造單位，營造廠帳號不能執行'))
 
     def _require_edit_project_info(self):
         """能不能編輯工程資訊的那把尺（全檔只有這一份；fix3-T）：限老闆／主管，而且不是營造方／控台讀取。
@@ -166,9 +170,9 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         （fix1-F 修的就是 GET 與 POST 分岔：GET 頁以 sudo 列出全庫內部帳號與公司，存不了就不該看）。
         順序與訊息照舊：先問管理權、再問是不是營造方。草稿狀態由呼叫端另外判斷。
         """
-        self._require_manage(_('僅老闆或主管可修改工程資訊'))
         # 工程主檔與營造廠清單：營造方不能改（公司儀表板合約 §3.6 寫入矩陣；契約「乙方不得自行變更本契約」）
-        self._require_not_contractor(_('權限不足：工程資訊由監造單位維護，營造廠帳號不能修改'))
+        self._require_review(_('僅老闆或主管可修改工程資訊'),
+                             _('權限不足：工程資訊由監造單位維護，營造廠帳號不能修改'))
 
     def _can_edit_project_info(self):
         """工程資訊頁的「編輯」按鈕（fix2-O）：與編輯頁 GET 同一把尺（_require_edit_project_info）。"""
@@ -178,9 +182,13 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             return False
         return True
 
-    def _require_not_restricted(self, msg=None):
-        """「其他」類資料的前台頁（rule_scope 對受限帳號整類拒絕，例：水位）：受限帳號一律拒（含監造方角色帳號）。"""
-        if self._dash_is_restricted():
+    def _require_other_data_visible(self, msg=None):
+        """「其他」類資料的前台頁（例：水位）：res.users._portal_other_data_visible() 為否就拒。
+
+        營造方、控台讀取一律拒；監造方（含範圍合格的監造方角色帳號，S2：舊的前台監造帳號本來看得到）放行。
+        抽屜入口（portal_templates.xml）呼叫同一個函式。
+        """
+        if not request.env.user._portal_other_data_visible():
             raise AccessError(msg or _('權限不足：您的帳號看不到這類資料'))
 
     def _dash_visible(self, records):
@@ -432,10 +440,9 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
     @http.route(['/my', '/my/home'], type='http', auth='user', website=True)
     def home(self, **kw):
-        # portal user 看 /my 與 /my/home 等同 /construction(同 controller render v10 列表)
-        # internal user 維持 Odoo 原生卡片牆,確保後台人員 portal 體驗不變
-        user = request.env.user
-        if user.has_group('base.group_portal') or not user.has_group('base.group_user'):
+        # portal user 看 /my 與 /my/home 等同 /construction(同 controller render v10 列表)；
+        # 後台角色帳號（S2）比照前台帳號（手機首頁）。其他 internal user 維持 Odoo 原生卡片牆,確保後台人員 portal 體驗不變
+        if request.env.user._portal_uses_phone_home():
             return self.portal_my_construction_projects(**kw)
         return super().home(**kw)
 
@@ -860,39 +867,12 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             else Partner.browse()
         )
 
-        # 監造 / 承包公司下拉：
-        # 用 company_type 分類過濾；若分類結果為空（master data 尚未分類），
-        # fallback 到所有公司。已綁定的公司不論 domain 結果如何都補進列表。
-        supervision_companies = Company.search(
-            [('company_type', '=', 'supervision')], order='name'
-        )
-        contractor_companies = Company.search(
-            [('company_type', '=', 'contractor')], order='name'
-        )
-        if not supervision_companies:
-            supervision_companies = Company.search([], order='name')
-        if not contractor_companies:
-            contractor_companies = Company.search([], order='name')
-        if project.company_id and project.company_id not in supervision_companies:
-            supervision_companies = supervision_companies | project.company_id
-        if project.contractor_company_ids:
-            missing = project.contractor_company_ids - contractor_companies
-            if missing:
-                contractor_companies = contractor_companies | missing
-
-        # 使用者下拉
-        Users = env['res.users'].sudo()
-        all_users = Users.search([('share', '=', False)], order='name')
-        # 監造工程師下拉：只列監造方後台人員——營造廠主管、控台讀取、後台角色帳號也是內部帳號（share=False），
-        # 不濾掉會被選成監造工程師（S1）。工地主任、活動負責人用 all_users，照 S1 之前（fix1-D：工地主任本來就是營造方的人）
-        if project.company_id:
-            supervision_users = Users.search(
-                [('share', '=', False),
-                 ('company_ids', 'in', project.company_id.ids)],
-                order='name'
-            ).filtered(lambda u: u._is_backend_staff())
-        else:
-            supervision_users = all_users.filtered(lambda u: u._is_backend_staff())
+        # 監造 / 承包公司、使用者下拉：與存檔 POST 的驗證同一份（_project_edit_options；F，S2）
+        options = self._project_edit_options(project)
+        supervision_companies = options['supervision_companies']
+        contractor_companies = options['contractor_companies']
+        all_users = options['all_users']
+        supervision_users = options['supervision_users']
 
         # Year Selection（callable）
         year_field = env['project.project']._fields['year'].selection
@@ -919,6 +899,67 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             'construction_portal.portal_construction_project_edit', values
         )
 
+    # ==================== 工程資訊的可選值（F，S2：jt 共用庫的跨公司寫入） ====================
+    # 編輯頁的下拉與存檔 POST 的驗證都用這一份（畫面與後端同一個判斷）。存檔以 sudo 寫 company_id、承攬廠商、
+    # 使用者 id；jt 是多家監造公司共用一個庫，不驗的話帶別家公司的 id 就寫得進去。
+    # - 監造公司：公司類型＝監造（沒有分類過時退回全部公司），而且在本人的允許公司內；工程目前的公司照留（沒改不算寫入）。
+    # - 承攬廠商（營造廠）：照舊前台規則＝公司類型是營造廠（沒有分類過時退回全部公司）；工程目前的照留。
+    # - 使用者（工地主任、活動負責人）：內部帳號，而且至少有一家允許公司跟本人重疊；目前的值照留。
+    # - 監造工程師：上面那些裡面的監造方後台人員（_is_backend_staff），而且屬於工程（存檔後）的公司。
+    # 前台帳號、後台角色帳號、代操作員都適用。
+    def _project_edit_options(self, project, company=None):
+        env = request.env
+        user = env.user
+        Company = env['res.company'].sudo()
+        allowed_companies = user.sudo().company_ids
+        supervision_companies = Company.search([('company_type', '=', 'supervision')], order='name') \
+            or Company.search([], order='name')
+        supervision_companies = (supervision_companies & allowed_companies) | project.company_id
+        contractor_companies = Company.search([('company_type', '=', 'contractor')], order='name') \
+            or Company.search([], order='name')
+        contractor_companies |= project.contractor_company_ids
+        Users = env['res.users'].sudo()
+        current_users = (project.supervision_engineer_id | project.site_manager_id
+                         | project.activity_default_user_id | project.activity_test_user_id
+                         | project.activity_inspection_user_id).sudo()
+        all_users = Users.search([('share', '=', False), ('company_ids', 'in', allowed_companies.ids)], order='name')
+        # 監造工程師下拉：只列監造方後台人員——營造廠主管、控台讀取、後台角色帳號也是內部帳號（share=False），
+        # 不濾掉會被選成監造工程師（S1）。工地主任、活動負責人用 all_users，照 S1 之前（fix1-D：工地主任本來就是營造方的人）
+        company = company if company is not None else project.company_id
+        supervision_users = all_users.filtered(lambda u: u._is_backend_staff())
+        if company:
+            supervision_users = supervision_users.filtered(lambda u: company in u.company_ids)
+        return {
+            'supervision_companies': supervision_companies,
+            'contractor_companies': contractor_companies,
+            'all_users': all_users | (current_users - project.supervision_engineer_id),
+            'supervision_users': supervision_users | project.supervision_engineer_id.sudo(),
+        }
+
+    def _check_project_edit_vals(self, project, vals):
+        """存檔 POST 的值必須在 _project_edit_options 的可選值內，否則 AccessError（不寫任何東西）。"""
+        company = project.company_id
+        if vals.get('company_id'):
+            company = request.env['res.company'].sudo().browse(vals['company_id'])
+        options = self._project_edit_options(project, company=company)
+        denied = _('權限不足：選的公司或人員不在您帳號的允許範圍內')
+        if vals.get('company_id') and company not in options['supervision_companies']:
+            raise AccessError(denied)
+        for command in vals.get('contractor_company_ids') or []:
+            ids = command[2] if command[0] == 6 else [command[1]]
+            if set(ids) - set(options['contractor_companies'].ids):
+                raise AccessError(denied)
+        user_options = {
+            'supervision_engineer_id': options['supervision_users'],
+            'site_manager_id': options['all_users'],
+            'activity_default_user_id': options['all_users'],
+            'activity_test_user_id': options['all_users'],
+            'activity_inspection_user_id': options['all_users'],
+        }
+        for field_name, allowed in user_options.items():
+            if vals.get(field_name) and vals[field_name] not in allowed.ids:
+                raise AccessError(denied)
+
     @http.route(['/construction/<int:project_id>/code/update'],
                 type='json', auth='user', methods=['POST'])
     def portal_construction_project_code_update(self, project_id, **kw):
@@ -935,12 +976,13 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         except (AccessError, MissingError):
             return {'success': False, 'error': '無權限或案件不存在'}
 
-        # H1：修改工程編號屬專案主檔異動，限老闆 / 主管
-        if not self._can_manage():
-            return {'success': False, 'error': '權限不足：僅老闆或主管可修改工程編號'}
-        # 工程編號比照工程主檔：營造方不能改（公司儀表板合約 §3.6 寫入矩陣，hypothesis：契約無明文）
-        if self._dash_is_contractor_or_console():
-            return {'success': False, 'error': '權限不足：工程編號由監造單位維護，營造廠帳號不能修改'}
+        # H1：修改工程編號屬專案主檔異動，限老闆 / 主管；營造方不能改（公司儀表板合約 §3.6 寫入矩陣，
+        # hypothesis：契約無明文）。與工程資訊頁的「編輯工程編號」按鈕同一把尺：_require_review
+        try:
+            self._require_review(_('權限不足：僅老闆或主管可修改工程編號'),
+                                 _('權限不足：工程編號由監造單位維護，營造廠帳號不能修改'))
+        except AccessError as exc:
+            return {'success': False, 'error': str(exc.args[0])}
 
         code = (kw.get('code') or '').strip()
         if not code:
@@ -954,9 +996,10 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             [('code', '=', code), ('id', '!=', project_id)], limit=1,
         )
         if dup:
+            # G（S2）：只說編號已被使用，不帶出別的工程名稱與公司（jt 共用庫裡那可能是別家的工程，dup 是 sudo 查到的）
             return {
                 'success': False,
-                'error': f'工程編號「{code}」已被案件「{dup.name}」使用',
+                'error': f'工程編號「{code}」已被使用，請換一個編號',
             }
 
         try:
@@ -1032,15 +1075,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         # ---- 基本資訊 ----
         # name 特殊處理：jsonb translation 同時寫 zh_TW + en_US，
         # 避免 session 單一語言造成另一語言 fallback 到舊值
-        if _in('name'):
-            name = _s('name')
-            if name:
-                pp = project.sudo()
-                for _lang in ('zh_TW', 'en_US'):
-                    try:
-                        pp.with_context(lang=_lang).write({'name': name})
-                    except Exception as _e:
-                        _logger.warning('portal update: name lang=%s failed: %s', _lang, _e)
+        # 名稱在下面的驗證（F）通過之後才寫（驗證失敗不能留下改到一半的名稱）
+        pending_name = _s('name') if _in('name') else ''
 
         if _in('code'):
             code = _s('code')
@@ -1151,6 +1187,15 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             )
 
         # ---- 寫入 ----
+        # F（S2）：sudo 寫入前驗證公司、承攬廠商、使用者 id 都在可選值內（與編輯頁下拉同一份），不合就 AccessError
+        self._check_project_edit_vals(project, vals)
+        if pending_name:
+            pp = project.sudo()
+            for _lang in ('zh_TW', 'en_US'):
+                try:
+                    pp.with_context(lang=_lang).write({'name': pending_name})
+                except Exception as _e:
+                    _logger.warning('portal update: name lang=%s failed: %s', _lang, _e)
         try:
             if vals:
                 project.sudo().write(vals)
@@ -1416,10 +1461,10 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     @http.route(['/construction/project/new'],
                 type='http', auth='user', website=True)
     def portal_construction_project_new(self, **kw):
-        """新增工程專案表單（限老闆或主管，與 POST 同一把尺）"""
-        self._require_manage(_('僅老闆或主管可新增工程專案'))
+        """新增工程專案表單（限老闆或主管，與 POST、抽屜／快速新增的「新增專案」入口同一把尺：_require_review）"""
         # 建工程＝建工程主檔：營造方不能（公司儀表板合約 §3.6：營造方只能建立自家的營造廠層級紀錄）
-        self._require_not_contractor(_('權限不足：工程由監造單位建立，營造廠帳號不能新增工程'))
+        self._require_review(_('僅老闆或主管可新增工程專案'),
+                             _('權限不足：工程由監造單位建立，營造廠帳號不能新增工程'))
         # 從 query string 取得來源專案 ID，讓 breadcrumb 可以回首頁
         from_project_id = kw.get('from_project')
         back_url = '/construction'
@@ -1445,9 +1490,9 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         """建立工程專案（限老闆或主管）"""
         from datetime import datetime as dt
 
-        # 角色 guard：僅老闆/主管/內部可新增專案
-        self._require_manage(_('僅老闆或主管可新增工程專案'))
-        self._require_not_contractor(_('權限不足：工程由監造單位建立，營造廠帳號不能新增工程'))
+        # 角色 guard：僅老闆/主管/內部可新增專案，營造方不能（與表單頁同一把尺）
+        self._require_review(_('僅老闆或主管可新增工程專案'),
+                             _('權限不足：工程由監造單位建立，營造廠帳號不能新增工程'))
 
         name = post.get('name', '').strip()
         if not name:
@@ -1457,8 +1502,12 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         # 原本先建一筆原生專案、再用 project_id 建「監造專案」，合併後 project.project 沒有
         # project_id 欄位，這條路由整個 ValueError（P4 實測發現）。
         SuperProject = request.env['project.project'].sudo()
+        # F（S2）：工程的公司明寫成目前選的公司 request.env.company（不靠 sudo 建立時的預設值）。
+        # 它一定在本人的允許公司內：核心 Environment.company 對非 sudo 的環境，選了允許公司以外的公司（cids）直接 AccessError
+        # （odoo/api.py company；tests/test_role_phone_portal.py 實測）。sudo 建立不看任何規則，所以公司只能取自非 sudo 的 env
         vals = {
             'name': name,
+            'company_id': request.env.company.id,
             'project_type': post.get('project_type', 'general'),
             'location': post.get('location', ''),
         }
@@ -1542,9 +1591,10 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         supervision_only：審核類動作（公司儀表板合約 §3.6 寫入矩陣：缺失驗證與結案、
         通報單確認與結案、自主檢查結案）→ 營造方一律拒，監造方照 _require_manage。
         """
-        self._require_manage(_('僅老闆或主管可審核'))
         if supervision_only:
-            self._require_not_contractor(_('權限不足：此審核動作限監造單位，營造廠帳號不能執行'))
+            self._require_review(_('僅老闆或主管可審核'), _('權限不足：此審核動作限監造單位，營造廠帳號不能執行'))
+        else:
+            self._require_manage(_('僅老闆或主管可審核'))
         if not record:
             return request.redirect(err_url)
         try:
@@ -1683,8 +1733,9 @@ class ConstructionThreadController(PortalThreadController):
     def mail_message_post(self, thread_model, thread_id, post_data, context=None, **kwargs):
         result = super().mail_message_post(thread_model, thread_id, post_data, context=context, **kwargs)
         user = request.env.user
-        if thread_model in PORTAL_COMMENT_MODELS and user.has_group(PORTAL_COMMENTER_GROUP):
-            record = request.env[thread_model].browse(int(thread_id))
+        record = request.env[thread_model].browse(int(thread_id)) if thread_model in PORTAL_COMMENT_MODELS else None
+        # 留言者判斷與 _get_mail_message_access 的放寬同一份（MailThread._is_portal_commenter；S2 起含後台角色帳號）
+        if record is not None and record._is_portal_commenter():
             if record.has_access('read'):
                 record.sudo().message_subscribe(partner_ids=user.partner_id.ids)
         return result

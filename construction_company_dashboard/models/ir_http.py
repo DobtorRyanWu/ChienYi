@@ -16,4 +16,7 @@ class IrHttp(models.AbstractModel):
         result['dash_show_all_allowed_companies'] = manager
         # 營造廠主管或後台角色帳號（含監造方）尚未啟用兩步驟驗證：前端提示去「帳戶安全性」啟用（資料在啟用前一律看不到）
         result['dash_totp_missing'] = signed_in and (manager or user._is_role_account()) and user._dash_totp_missing()
+        # 唯讀帳號（營造廠主管、控台讀取、後台角色帳號）：私訊／群組對話的 @ 建議名單另列讀得到的內部同事
+        # （S2 fix2-U，使用者 11-11 暫定；static/src/backend/mention_colleagues_patch.js、restricted_mail.py 檔頭九）
+        result['dash_mention_colleagues'] = signed_in and user._dash_is_restricted_internal()
         return result

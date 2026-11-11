@@ -2,6 +2,8 @@
 
 from odoo import api, models
 
+from odoo.addons.construction_supervision_base.models.res_users import PORTAL_WRITE_LEVELS
+
 # 前台詳情頁有「訊息」留言區（t-call="portal.message_thread"）的模型。
 # 用名稱比對而不是各自 _inherit：supervision.test.record 在 construction_test，
 # 本模組沒有依賴它（檢試驗頁是有裝才顯示）。名單有測試守著（test_c_comment_models_exist）。
@@ -13,17 +15,18 @@ PORTAL_COMMENT_MODELS = frozenset({
     'general.self.inspection',
     'supervision.test.record',
 })
-# 老闆 → 主管 → 現場人員 逐層繼承（new_portal_groups.xml），所以問現場人員群組就涵蓋三個角色；
-# 定期閱覽者在現場人員之下，不在內，維持唯讀不能留言
-PORTAL_COMMENTER_GROUP = 'construction_supervision_base.group_portal_user'
+# 能留言的帳號：現場人員以上（老闆 → 主管 → 現場人員逐層繼承，new_portal_groups.xml）；定期閱覽者維持唯讀不能留言。
+# S2（2026-11-11）：判斷改看 res.users._portal_role_level()（手機能力的唯一來源；原本直接問 group_portal_user 群組）——
+# 前台帳號照前台角色群組鏈，後台角色帳號（老闆、主管，範圍合格）也算。
 
 
 class MailThread(models.AbstractModel):
     _inherit = 'mail.thread'
 
     def _is_portal_commenter(self, model_name=None):
+        """前台留言者：模型在前台留言名單內，而且帳號是現場人員以上（res.users._portal_can_write 的前台角色那一半）。"""
         return ((model_name or self._name) in PORTAL_COMMENT_MODELS
-                and self.env.user.has_group(PORTAL_COMMENTER_GROUP))
+                and self.env.user._portal_role_level() in PORTAL_WRITE_LEVELS)
 
     @api.model
     def _get_mail_message_access(self, res_ids, operation, model_name=None):

@@ -19,3 +19,6 @@ from . import test_contractor_scope_portal  # 公司儀表板合約 §3.6：營�
 from . import test_portal_get_items_scope  # get-items 只回看得到的樣板（線 H，11-06 抗辯 F9）
 # S1（2026-11-10）：後台角色帳號在前台的危險閘門與唯讀
 from . import test_role_account_gates
+# S2（2026-11-11）：F 跨公司寫入驗證、G 工程編號訊息；既有手機測試換成後台角色帳號重跑（規格 I）
+from . import test_role_phone_portal
+from . import test_role_phone_rerun
