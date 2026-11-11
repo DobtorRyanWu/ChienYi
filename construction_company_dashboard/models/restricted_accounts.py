@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """受限帳號唯一清單（S3-C，2026-11-11；S3 fix1 簡化＋fail-closed）：解除安裝硬擋（hooks.uninstall_hook）、
-換版工具 qd.py（換版 session 待改成呼叫本函式）、runbook 共用。
+換版工具 qd.py 的降版硬擋（已改成呼叫本函式，odoo18-docker 34d6265）、runbook 共用。
 
 res.users.dash_restricted_account_logins()：
 * 公開方法（RPC 可呼叫）、@api.model、唯讀；系統管理者或 sudo（hook）才能叫，其他一律 AccessError。

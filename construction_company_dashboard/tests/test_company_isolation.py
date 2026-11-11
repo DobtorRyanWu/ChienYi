@@ -18,19 +18,26 @@ security/company_rules.xml）；測試放這裡，因為要用 RoleMatrixCase �
 前台帳號不當受測者：前台路由都 sudo，前台營造帳號會先被 rule_scope 擋（skeptic F3）。
 
 期望值：每筆紀錄掛哪個工程記在 iso_meta，工程屬哪家公司由夾具的建法獨立寫出（_fixture_company，L3）；
-不 import 實作的常數（規則 xmlid 表在這裡獨立寫一份，照 test_scope_rules.py 的寫法）。
+不 import 實作的常數（規則 xmlid 表在這裡獨立寫一份，照 test_scope_rules.py 的寫法）——唯一的例外是寫後檢查的欄位表
+COMPANY_RULE_FIELDS：它是被測物，鎖定測試拿它跟「從資料庫規則推出來的表」比（期望值來自規則本身，不來自實作）。
 每一個「讀不到 B」都先證明它本來讀得到（M-B）：同一支測試裡把那條規則 active=False → 讀得到 B → 恢復 → 讀不到 B
 ——這同時是 18 條規則的 mutation（不另走 harness）。
 
 寫入面（S3 fix1，實作 construction_supervision_base/models/company_rule_write_guard.py）：核心 write 只在寫入前用舊值
 檢查規則，所以另驗「改掛到別家公司的工程／父單會被拒、資料沒變」「有工程的估驗／變更單（明細）不能變成沒有工程」，
 以及正當流程（匯入工程案件、契約變更精靈、同公司內改掛、sudo）照常。
+S3 fix2：寫後檢查的欄位表以 test_write_guard_table_matches_rules 鎖住（從資料庫規則推、兩個方向比；表上每一格都要有
+REPARENT_CELLS 的一格行為測試）；related 欄位（company_id 等）非 sudo 不能直接寫，連同屬兩家公司的帳號也一樣。
 """
 from contextlib import closing
 
 from odoo import fields
+from odoo.addons.construction_supervision_base.models.company_rule_write_guard import COMPANY_RULE_FIELDS
 from odoo.exceptions import AccessError, UserError
+from odoo.models import LOG_ACCESS_COLUMNS
+from odoo.osv import expression
 from odoo.tests import tagged
+from odoo.tools.safe_eval import safe_eval
 
 from .test_role_accounts import RoleMatrixCase
 from .test_scope_rules import SUPERVISOR_ADMIN
@@ -68,10 +75,15 @@ INTERNAL_USER_MODELS = frozenset({
 })
 # 工程後台使用者沒有讀取 ACL 的模型（核心 project 只給 Project User／Manager）
 PROJECT_USER_ONLY_MODELS = frozenset({'report.project.task.user'})
+# 核心 SQL 檢視（_auto=False，寫不了）：不在寫後檢查的欄位表上
+SQL_VIEW_MODELS = frozenset({'report.project.task.user'})
 PROJECT_MANAGER = 'project.group_project_manager'
-# 寫入面（S3 fix1）：A 的紀錄改掛到 B 的哪一種目標（skeptic F1 的 6 個欄位＋估驗／變更單的工程）
+# 寫入面：A 的紀錄改掛到 B 的哪一種目標（模型名＝B 的那一種父單）。S3 fix1 的 8 格（skeptic F1 的 6 個欄位＋估驗／變更單的
+# 工程）；S3 fix2 補成「規則用得到的每一個欄位一格」（第二輪 skeptic F1：表上一半的欄位沒有行為測試）——
+# test_write_guard_table_matches_rules 驗這張表的 (模型, 欄位) ＝ 從資料庫規則推出來的，兩個方向都比
 TARGET_PROJECT = 'project'
 TARGET_TASK = 'task'
+TARGET_COMPANY = 'company'
 REPARENT_CELLS = (
     ('payment.claim', 'project_id', TARGET_PROJECT),
     ('work.acceptance', 'project_id', TARGET_PROJECT),
@@ -81,7 +93,32 @@ REPARENT_CELLS = (
     ('project.task.version', 'task_id', TARGET_TASK),
     ('payment.estimate', 'project_id', TARGET_PROJECT),
     ('contract.change.order', 'project_id', TARGET_PROJECT),
+    # S3 fix2
+    ('payment.estimate.line', 'estimate_id', 'payment.estimate'),
+    ('payment.estimate.extra.line', 'estimate_id', 'payment.estimate'),
+    ('payment.estimate.extra.line', 'project_id', TARGET_PROJECT),
+    ('contract.change.order', 'company_id', TARGET_COMPANY),
+    ('contract.change.order.line', 'change_order_id', 'contract.change.order'),
+    ('contract.change.order.line', 'company_id', TARGET_COMPANY),
+    ('progress.schedule', 'project_id', TARGET_PROJECT),
+    ('progress.schedule', 'company_id', TARGET_COMPANY),
+    ('progress.schedule.line', 'schedule_id', 'progress.schedule'),
+    ('progress.schedule.line', 'company_id', TARGET_COMPANY),
+    ('general.progress.report', 'project_id', TARGET_PROJECT),
+    ('general.progress.report', 'company_id', TARGET_COMPANY),
+    ('general.realtime.profit', 'project_id', TARGET_PROJECT),
+    ('general.realtime.profit', 'company_id', TARGET_COMPANY),
+    ('general.realtime.profit.cost', 'profit_id', 'general.realtime.profit'),
+    ('profit.loss.entry', 'project_id', TARGET_PROJECT),
+    ('profit.loss.entry', 'company_id', TARGET_COMPANY),
 )
+# related 欄位（company_id＝工程的公司、非契約工項明細的 project_id＝估驗的工程）非 sudo 不能直接寫：訊息片段（測試獨立寫出）
+# 與格數（上游說有幾格就要有幾格，M-C）
+RELATED_FIELD_HINT = '不能直接改'
+RELATED_CELL_COUNT = 8
+# 正當流程：同公司內改掛工程照常的模型（S3 fix1 那 5 格）
+SAME_COMPANY_REPARENT_MODELS = frozenset({
+    'payment.claim', 'work.acceptance', 'payment.estimate.extra.item', 'payment.estimate', 'contract.change.order'})
 # 規則對工程空白放行建立者的兩種單（清空工程要被擋）
 BLANK_FALLBACK_MODELS = ('payment.estimate', 'contract.change.order')
 # 「有工程的單不能變成沒有工程」的訊息片段（測試獨立寫出）。只比例外型別不夠：核心 AccessError 是 UserError 的子類別，
@@ -243,6 +280,49 @@ class TestCompanyIsolation(RoleMatrixCase):
                                 f'{xmlid}：讀寫建刪都要套')
                 self.assertIn('company_ids', rule.domain_force, xmlid)
 
+    # ── 3b. 寫後檢查的欄位表＝從資料庫規則推出來的表（兩個方向都比；S3 fix2，第二輪 simplifier medium／skeptic F1）──
+    def _rule_fields(self):
+        """{模型: 規則用得到、寫得進去的欄位}，從資料庫裡的規則推：domain 每個 leaf 路徑的第一段，扣掉 LOG_ACCESS_COLUMNS
+        （核心 write 會把它們拿掉，寫不進去），stored related 欄位再展開到它的來源欄位（related 的 readonly 只是畫面屬性，
+        ORM write 寫得進去；改來源也會讓它跟著變）。SQL 檢視（_auto=False）寫不了，跳過。"""
+        context = dict(self.env['ir.rule']._eval_context(), company_ids=[])
+        derived = {}
+        for model, xmlid in EXPECT_COMPANY_MODELS.items():
+            Model = self.env[model]
+            if not Model._auto:
+                continue
+            todo = [leaf[0].split('.', 1)[0]
+                    for leaf in safe_eval(self.env.ref(xmlid).domain_force, context) if expression.is_leaf(leaf)]
+            names = derived.setdefault(model, set())
+            while todo:
+                name = todo.pop()
+                if name in LOG_ACCESS_COLUMNS or name in names:
+                    continue
+                names.add(name)
+                field = Model._fields[name]
+                if field.related and field.store:
+                    todo.append(field.related.split('.', 1)[0])
+        return derived
+
+    def test_write_guard_table_matches_rules(self):
+        """COMPANY_RULE_FIELDS 是規則 domain 的第二份：少一列（或一個欄位）寫入洞就悄悄打開，多一列只是多查。
+        這裡把它鎖在資料庫的規則上；另外要求每一個 (模型, 欄位) 都有一格行為測試（REPARENT_CELLS）。"""
+        derived = self._rule_fields()
+        self.assertEqual(set(derived), set(EXPECT_COMPANY_MODELS) - SQL_VIEW_MODELS,
+                         '推得出欄位的模型要是 18 個減 SQL 檢視（_auto 判斷壞掉時這裡要紅，不是兩邊都空而恆真）')
+        table = {model: set(names) for model, names in COMPANY_RULE_FIELDS.items()}
+        self.assertEqual(set(table), set(derived),
+                         f'表上多 {sorted(set(table) - set(derived))}、少 {sorted(set(derived) - set(table))}')
+        for model in sorted(derived):
+            with self.subTest(model=model):
+                self.assertTrue(derived[model], f'{model}：規則推不出任何欄位')
+                self.assertEqual(table[model], derived[model],
+                                 f'{model}：表上多 {sorted(table[model] - derived[model])}、少 {sorted(derived[model] - table[model])}')
+        pairs = {(model, name) for model, names in derived.items() for name in names}
+        cells = {(model, field) for model, field, _kind in REPARENT_CELLS}
+        self.assertEqual(len(cells), len(REPARENT_CELLS), 'REPARENT_CELLS 有重複的格')
+        self.assertEqual(cells, pairs, f'行為測試多 {sorted(cells - pairs)}、少 {sorted(pairs - cells)}')
+
     # ── 4. 工程空白的草稿（#2 估驗、#8 變更單、#9 變更明細）：本人存得進、讀得回；別人讀不到 ──
     def _make_blank_drafts(self, user):
         """以 user 本人身分（非 sudo）走畫面上的正當入口：先存工程空白的估驗、變更單，再在空工程變更單上加一筆明細。"""
@@ -290,18 +370,29 @@ class TestCompanyIsolation(RoleMatrixCase):
             return project
         if kind == TARGET_TASK:
             return self.tasks[project]
+        if kind == TARGET_COMPANY:
+            return self._fixture_company(project)
         return self._iso_one(kind, project)
+
+    def _is_related(self, model, field):
+        """欄位是不是 stored related（看模型的欄位定義，不看寫入面實作）。"""
+        return bool(self.env[model]._fields[field].related)
 
     def _assert_unchanged(self, record, field, before):
         record.invalidate_recordset()
         self.assertEqual(record.sudo()[field], before, f'{record._name}.{field}：被拒之後資料不可以變')
 
     def test_reparent_to_other_company_refused(self):
-        """每一格在自己的、一定回滾的 savepoint 裡跑：沒擋住時（修正前）那一格寫進去的改動不會連累下一格。
+        """只屬 A 的工程後台使用者把 A 的紀錄改掛到 B（每一個規則欄位一格）→ 被拒、資料沒變。
 
+        每一格在自己的、一定回滾的 savepoint 裡跑：沒擋住時那一格寫進去的改動不會連累下一格。
+        期望：related 欄位（8 格）→ UserError「不能直接改」（寫入前就拒）；其餘 17 格 → AccessError。
+        擋下的不一定是寫後檢查：25 格裡只有 5 格（請款、計量驗收、非契約工項的工程，進度報告明細的報告，工項版本的工項）
+        只靠它——拿掉寫後檢查（mutation W1）時正是這 5 格紅。另外 11 格的欄位由 relational_input_guard 守
+        （呼叫端給的 id 自己要讀得到，B 的工程／父單讀不到），related 的 8 格由「不能直接改」擋；
         work.acceptance.line 那一格另有附帶的擋：work_acceptance.py 的 write 覆寫寫完後以本人身分算超約
-        （_is_over_contract 讀新父單）→ 讀不到 B 的驗收就 AccessError。那是附帶效果、不是設計好的防線，
-        所以拿掉寫後檢查（mutation W1）時這一格仍綠、其餘 5 格紅（S3_fix1_report.md §7）。
+        （_is_over_contract 讀新父單）→ 讀不到 B 的驗收就 AccessError——那是附帶效果、不是設計好的防線。
+        拿掉表上任一列時，那一列至少有一格會紅（只有 relational_input_guard 守的欄位除外，那幾格靠鎖定測試）。
         """
         env = self._env_of(self.sa_a)
         for model, field, kind in REPARENT_CELLS:
@@ -315,10 +406,40 @@ class TestCompanyIsolation(RoleMatrixCase):
                     record.sudo().write({'version': max(target.sudo().version_ids.mapped('version') or [0]) + 1})
                 # 寫前檢查過得了：被拒不是因為本來就不能寫這筆（M-B）
                 env[model].browse(record.id).check_access('write')
-                with self.assertRaises(AccessError, msg=f'{model}.{field} 改掛到 B 要被拒'):
+                if self._is_related(model, field):
+                    with self.assertRaises(UserError, msg=f'{model}.{field} 直接改成 B 要被拒') as ctx:
+                        env[model].browse(record.id).write({field: target.id})
+                        env.flush_all()
+                    self.assertIn(RELATED_FIELD_HINT, str(ctx.exception), '擋下它的要是「related 不能直接改」')
+                else:
+                    with self.assertRaises(AccessError, msg=f'{model}.{field} 改掛到 B 要被拒'):
+                        env[model].browse(record.id).write({field: target.id})
+                        env.flush_all()
+                self._assert_unchanged(record, field, before)
+
+    def test_related_field_not_writable_even_for_two_company_user(self):
+        """同屬 A＋B 的帳號把 A 工程單據的 related 欄位直接改成 B → UserError、資料沒變（第二輪 skeptic F2）。
+
+        寫後檢查擋不到這種人：B 也在他的允許公司裡。沒擋時值就和工程脫鉤——只屬 A 的同事看不到、只屬 B 的人看得到。
+        """
+        env = self.env(user=self.sa_ab, context={'allowed_company_ids': (self.co_iso_a | self.co_iso_b).ids})
+        checked = 0
+        for model, field, kind in REPARENT_CELLS:
+            if not self._is_related(model, field):
+                continue
+            with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()):
+                record = self._iso_one(model, self.p_iso_a)
+                before = record.sudo()[field]
+                target = self._target(kind, self.p_iso_b)
+                self.assertNotEqual(before, target, '夾具：目標要是另一筆')
+                env[model].browse(record.id).check_access('write')
+                with self.assertRaises(UserError, msg=f'{model}.{field}：兩家都屬的帳號直接改成 B 也要被拒') as ctx:
                     env[model].browse(record.id).write({field: target.id})
                     env.flush_all()
+                self.assertIn(RELATED_FIELD_HINT, str(ctx.exception), '擋下它的要是「related 不能直接改」')
                 self._assert_unchanged(record, field, before)
+                checked += 1
+        self.assertEqual(checked, RELATED_CELL_COUNT, 'related 欄位的格數不對（欄位定義或表改了要回頭看）')
 
     # ── 6. 有工程的單不能變成沒有工程（估驗、變更單、變更明細的工程空白退路）──────
     def test_blank_project_cannot_be_reached_by_clearing_others(self):
@@ -395,7 +516,8 @@ class TestCompanyIsolation(RoleMatrixCase):
         same_company = self.p_b
         self.assertEqual(self._fixture_company(same_company), self.co_iso_a, '夾具：同公司的另一個工程')
         for model, field, kind in REPARENT_CELLS:
-            if kind != TARGET_PROJECT:
+            # S3 fix1 的 5 格（fix2 補的格不在這裡：related 欄位本來就不能直接寫，其餘另有唯一鍵等與本題無關的條件）
+            if kind != TARGET_PROJECT or model not in SAME_COMPANY_REPARENT_MODELS:
                 continue
             with self.subTest(model=model, mode='同公司'):
                 record = self._iso_one(model, self.p_iso_a)

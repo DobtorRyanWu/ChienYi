@@ -10,9 +10,10 @@
 
 ## 1. 列出受限帳號（唯一清單）
 
-hook 與本 runbook 用這個函式：`res.users.dash_restricted_account_logins()`（`models/restricted_accounts.py`）。
-換版工具 `tools/qytech_deploy/qd.py` 的降版硬擋改成呼叫它，是**換版 session 的待辦**；在那之前 qd.py 仍自己查群組
-（只看啟用中的內部帳號，不含前台營造帳號與已封存的），降版前請另外手動跑本節。
+hook、換版工具與本 runbook 用同一個函式：`res.users.dash_restricted_account_logins()`（`models/restricted_accounts.py`）。
+換版工具 `tools/qytech_deploy/qd.py` 的降版硬擋已經改成呼叫它（odoo18-docker `34d6265`）：先判斷有沒有降版，有才呼叫；
+清單任一桶非空、呼叫失敗（非系統管理者、群組定義不完整、舊版站沒有這個方法）或回傳格式不對一律擋。
+控台「下載」、NAS 手動換包不經 qd.py，那兩條路降版前仍要手動跑本節。
 
 - 只有系統管理者能呼叫，其他人一律 AccessError；唯讀。
 - 回傳 `{'internal': [login, …], 'portal': [login, …]}`：`res.users._dash_is_restricted()`（全系統唯一一份判斷，含前台營造帳號）
@@ -39,15 +40,15 @@ python3 -c "import os,xmlrpc.client as x; u='https://<站>'; db='<DB>'; who=os.e
 **清單（含已封存）必須是空的。** 不空時：
 
 - 解除安裝：`uninstall_hook` 直接拒絕（UserError 會列出兩段 login 與本檔路徑），不會替人封存；清單本身 UserError（群組定義不完整）也拒絕。
-- 降版：**換版 session 待辦**——qd.py 的 `downgrade_block` 改成「先判斷有沒有降版，有才呼叫本函式；清單非空或呼叫失敗一律擋」之後，
-  才會自動擋。在那之前請手動跑第 1 節，清單（含已封存）為空才降版。
+- 降版：qd.py 的 `downgrade_block` 會自動擋（先判斷有沒有降版，有才呼叫本函式；清單非空或呼叫失敗一律擋，見第 1 節）。
+  不經 qd.py 的降版（控台「下載」、NAS 手動換包）請手動跑第 1 節，清單（含已封存）為空才降版。
 
 逐一處置：
 
 | 帳號 | 處置 |
 |---|---|
 | 後台角色帳號（`demo_role_*` 這類，內部） | 使用者表單 → 動作 →「改回前台角色帳號」（S2 的伺服器動作，同一個 user id 逐欄寫回轉換前設定、清掉 `dash_role_origin`）。改回後若是**營造方**前台帳號，仍會列在 portal（見下一列）；監造方改回後不再列出。 |
-| 營造廠主管、控台讀取（內部） | 移除載體群組並清掉範圍公司（等於收回這個帳號的身分，先跟使用者確認），或刪除帳號。**只封存不夠**（見下）。 |
+| 營造廠主管、控台讀取（內部） | 移除載體群組並清掉範圍公司（等於收回這個帳號的身分，先跟使用者確認），或刪除帳號。**只封存不夠**（見下）。<br>判斷依據是 `res.users._dash_is_restricted()`（`construction_supervision_base/models/res_users.py`）：控台讀取、營造方、後台角色帳號任一成立就受限；營造方是「營造廠主管群組、勾營造組織（`is_contractor_org`）、營造組織群組（`group_contractor_org`）、範圍公司是營造廠、**主要公司（`company_id`）是營造廠**」任一個成立。所以**主要公司本身是營造廠**的營造廠主管，只移除群組、清掉範圍公司**仍會被列出**——要一併把主要公司（與允許公司）改成非營造廠、取消勾選營造組織。處置完再跑第 1 節確認不在清單上。 |
 | 前台營造帳號（portal） | 沒有安全的「轉換」：拿掉營造標記等於把它變成另一種帳號。實務上**只要庫裡還有營造廠前台帳號，儀表板模組就不能解除安裝**——這是刻意的。真的要拆，先和使用者確認每個帳號要刪除或改成監造方。 |
 | 已封存的受限帳號 | 照它原本的種類處置（上面三列）；**只封存不夠**（見下）。 |
 
@@ -63,10 +64,17 @@ python3 -c "import os,xmlrpc.client as x; u='https://<站>'; db='<DB>'; who=os.e
 - 載入失敗時核心呼叫 `reset_modules_state()`（`odoo/modules/registry.py` 的 `Registry.new` → `loading.py` `reset_modules_state`），
   把「待解除安裝」「待升級」一律改回「已安裝」：**只失敗這一次**，模組不會卡在待解除安裝，之後的 `-u` 不會因為這道檢查失敗，
   也沒有「取消解除安裝」要按。
-- 同一輪若也升級了其他模組：各模組的資料在載入時**逐模組 commit**（`loading.py` 每個模組載完 `env.cr.commit()`），
-  但每個模組的「已安裝＋新版本號」標記是在它自己 commit **之後**才寫、要等下一個模組 commit 才落地
-  ——所以**最後一個**被升級的模組，資料已寫入、版本標記被回滾（`latest_version` 停在舊版，`check_schema_sync`／qd.py 會判它落後）。
-  處理完帳號後再跑一次那個模組的 `-u`。
+- **只有「同一輪同時有 `-u` 與待解除安裝」時**另有副作用（從介面單純解除安裝、沒有同時升級時，這一輪沒有被升級的模組，下面這些都不會跑）。
+  行號是 Odoo 18 核心 `odoo/modules/loading.py`：各模組的資料在載入時**逐模組 commit**（`:255`），但每個模組的「已安裝＋新版本號」
+  標記（`:297`）寫在它自己 commit 之後、要等下一個模組 commit 才落地。hook 在 STEP 5（`:569`）raise 時，**最後一次逐模組 commit
+  之後**做的事一起回滾：
+  - 最後一個被升級模組的版本標記（`latest_version` 停在舊版，`check_schema_sync`／qd.py 會判它落後）；
+  - STEP 3.5 各模組的 end-migration（`:523`）；
+  - STEP 3.6 `registry.finalize_constraints()`（`:532`，升級時延後套用的資料庫約束）；
+  - STEP 4 整輪的 `ir.model.data._process_end(processed_modules)`（`:545`）：**這一輪所有被升級的模組**從資料檔拿掉的
+    紀錄（規則、ACL、選單、視圖……）的清理。
+  其他模組的版本標記已經 commit 成新版，之後只 `-u` 最後那個模組不會替它們重跑 `_process_end`——處理完帳號後，
+  **把這一輪 `-u` 的模組全部再 `-u` 一次**。
 
 ## 3. 上 S3 之前各站要查（換版 precheck 也會擋）
 
@@ -122,10 +130,14 @@ FROM project_task t WHERE t.company_id IS NULL AND t.project_id IS NOT NULL;
 ## 4. 已知限制
 
 - **兩步驟驗證目前不強制**：使用者 11-11 暫定（`res_users_guard.DASH_REQUIRE_TOTP = False`）；改回 True 即恢復。
-- **受限內部帳號的程式介面只收 API key**（S2 fix3，使用者 11-11）：營造廠主管、後台角色帳號、控台讀取走 XML-RPC（`/xmlrpc/2`）、
-  JSON-RPC（`/jsonrpc`）用密碼一律被拒（`res_users_guard._rpc_api_keys_only`，與核心對「開了 TOTP 的帳號」同一個機制）；
-  瀏覽器、手機登入照常只要密碼，不要求開兩步驟驗證。要讓這些帳號跑程式（例：控台拉資料）就替它在偏好設定建一把 API key
-  （dev 的 `console_reader` 本來就是用 API key）。上站前若有人用這類帳號＋密碼跑腳本，換版後會登入失敗——先查、改用 API key。
+- **受限內部帳號的 XML-RPC／JSON-RPC 外部 API 只收 API key**（S2 fix3，使用者 11-11）：營造廠主管、後台角色帳號、控台讀取走
+  XML-RPC（`/xmlrpc/2`）、JSON-RPC（`/jsonrpc`）用密碼一律被拒（`res_users_guard._rpc_api_keys_only`，與核心對「開了 TOTP 的帳號」
+  同一個機制）；瀏覽器、手機登入照常只要密碼，不要求開兩步驟驗證。要讓這些帳號跑程式（例：控台拉資料）就替它在偏好設定建一把
+  API key（dev 的 `console_reader` 本來就是用 API key）。上站前若有人用這類帳號＋密碼跑腳本，換版後會登入失敗——先查、改用 API key。
+  **這不是「密碼不能跑程式」**（S2 第三輪審查 red-team F1）：`/web/session/authenticate`、`/web/login` 是互動式登入，
+  程式可以用密碼模仿網頁登入取得 session，再打 `/web/dataset/call_kw`，做到網頁上這個帳號能做的一切。
+  在不開兩步驟驗證的前提下這是本質限制（互動式登入本來就只要密碼）；完整防護只有恢復兩步驟驗證
+  （`DASH_REQUIRE_TOTP`，使用者 11-11 決定先不強制，見上一條）。
 - **意見回饋的讀取權（ACL）是升級本模組時建的**（`res_users_guard._dash_sync_feedback_acl`，`data/feedback_acl.xml`）：
   本模組不依賴 construction_helpdesk，所以**之後才裝 construction_helpdesk 的庫，要再 `-u construction_company_dashboard` 一次**，
   監造方角色帳號才讀得到自己的客服單（沒做：入口看得到、建單後列表是空的）。
@@ -142,4 +154,6 @@ FROM project_task t WHERE t.company_id IS NULL AND t.project_id IS NOT NULL;
   （dev 的 contract.change.order id=27 就是工程空白的草稿）。有工程的估驗、變更單不能再改成工程空白，變更明細也不能改掛到
   沒有工程的變更單（S3 fix1，非 sudo 一律 UserError；建立者自己也一樣）。
 - 工項版本掛在「沒有工程的工項」（私人任務）時規則放行所有人（定案表 #17）；把工項版本改掛到這種工項不會被寫後檢查擋。
+- 跟著工程走的 related 欄位（變更單、變更明細、預定進度（明細）、進度報告、即時損益、損益支出的 `company_id`，
+  非契約工項明細的 `project_id`）非 sudo 不能直接寫，同屬兩家公司的帳號也一樣（S3 fix2，UserError）；要換請改工程或父單。
 - 受限帳號清單是 fail-closed：受限群組 xmlid 不完整時函式直接 UserError（見第 1 節），不會回一份漏人的清單。

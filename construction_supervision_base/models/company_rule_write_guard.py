@@ -17,18 +17,23 @@ construction_progress／construction_general／construction_supervision_base 的
 2. **有工程的單不能變成沒有工程**（UserError）：估驗、變更單、變更明細的規則對「工程空白」放行建立者
    （先存空單再「匯入工程案件」），所以把有工程的單清空工程、或把明細改掛到自己的空工程變更單上，
    第 1 點照樣會過，但同事從此看不到它（S3 審查 red-team F1）。建立者自己清也一樣擋。
+3. **表上的 related 欄位不能直接寫**（UserError，S3 fix2）：company_id（工程的公司）、非契約工項明細的 project_id
+   （估驗的工程）跟著來源走。同屬兩家公司的帳號直接改它，第 1 點會過（新公司也在他的公司裡），但值就和工程對不上：
+   原公司的同事看不到、另一家公司的人看得到（S3 第二輪審查 skeptic F2）。要換請改來源（工程、父單）。
 
 sudo（系統內部流程）不檢查。正當的非 sudo 改寫（grep 全 repo，S3_fix1_report.md W-3）只有「匯入工程案件」
 （estimate.import.wizard 替工程空白的估驗設工程）與契約變更精靈（contract.change.wizard 替變更單設工程），
 都是「空白 → 自己公司的工程」，兩道檢查都會過。
 測試：construction_company_dashboard/tests/test_company_isolation.py（TestCompanyIsolation 的 test_reparent_*、
-test_blank_project_*、test_legit_*）。
+test_related_*、test_blank_project_*、test_line_*、test_legit_*；下表由 test_write_guard_table_matches_rules
+從資料庫的規則推出來兩個方向比，表上每一格另有一格行為測試）。
 """
 from odoo import _, models
 from odoo.exceptions import UserError
 
-# 模型 → 全域公司規則用得到、而且寫得進去的欄位。規則用 stored related company_id 的，同時列來源欄位與
-# company_id 本身（related 欄位的 readonly 只是畫面屬性，ORM write 照樣把值寫進欄位）。
+# 模型 → 全域公司規則用得到、而且寫得進去的欄位。規則用 stored related 欄位（company_id 等）的，同時列來源欄位與
+# related 欄位本身（related 欄位的 readonly 只是畫面屬性，ORM write 照樣把值寫進欄位；非 sudo 直接寫由第 3 點擋）。
+# 這張表是規則 domain 的第二份：改規則就要改這裡，test_write_guard_table_matches_rules 會紅。
 # report.project.task.user 是核心 SQL 檢視（寫不了），不在表上。
 COMPANY_RULE_FIELDS = {
     'payment.claim': frozenset({'project_id'}),
@@ -64,6 +69,16 @@ class Base(models.AbstractModel):
         watched = COMPANY_RULE_FIELDS.get(self._name)
         if not self or not watched or self.env.su or watched.isdisjoint(vals):
             return super().write(vals)
+        # 第 3 點：related 欄位（例 company_id＝工程的公司）跟著來源走，寫入前就拒（不會先寫進去再回滾）
+        related = [name for name in sorted(watched.intersection(vals)) if self._fields[name].related]
+        if related:
+            raise UserError(_(
+                '%(model)s：「%(fields)s」跟著「%(sources)s」帶出來，不能直接改——改了會和上層對不上，'
+                '同事可能從此看不到。要換請改「%(sources)s」。',
+                model=self._description,
+                fields='、'.join(self._fields[name].string for name in related),
+                sources='、'.join(dict.fromkeys(
+                    self._fields[self._fields[name].related.split('.', 1)[0]].string for name in related))))
         path = PROJECT_PATHS.get(self._name)
         # 以寫入者身分讀（讀不到的紀錄在這裡就 AccessError，與 write 本身的寫前檢查同結果）
         had_project = self.filtered(path) if path else self.browse()

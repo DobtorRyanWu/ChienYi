@@ -161,6 +161,8 @@ def post_init_hook(env):
 # 結果是：**只要庫裡還有營造廠前台帳號，儀表板模組就解除安裝不了**，這是刻意的（README_ROLE_ACCOUNTS.md）。
 # 核心在刪模組資料之前呼叫 hook（odoo/modules/loading.py STEP 5），hook raise 會讓這次解除安裝回滾；
 # 載入失敗時核心把「待解除安裝」改回「已安裝」（odoo/modules/registry.py → loading.reset_modules_state），只失敗這一次。
+# 同一輪同時有 -u 與待解除安裝時，最後一次逐模組 commit（loading.py:255）之後的收尾也一起回滾：最後一個模組的版本標記、
+# end-migration（:523）、finalize_constraints（:532）、整輪的 _process_end（:545）——runbook 第 2 節「hook 拒絕之後」。
 # 清單本身 raise（受限群組 xmlid 不完整，restricted_accounts.py）時例外原樣往上丟，同樣拒絕。
 RUNBOOK_PATH = 'construction_company_dashboard/README_ROLE_ACCOUNTS.md'
 MODULE_TITLE = '工程監造系統 - 公司儀表板'
@@ -189,5 +191,6 @@ def uninstall_hook(env):
         f'前台營造帳號（{len(portal)} 個）：{_login_lines(env, portal)}\n'
         f'處理方式見 {RUNBOOK_PATH}：清單（含已封存）為空才能解除安裝；'
         f'還有營造廠前台帳號的庫實際上不能解除安裝本模組（刻意的）。\n'
-        f'這次解除安裝已取消，模組維持「已安裝」。同一輪若也升級了其他模組：它們的資料已逐模組寫入，'
-        f'但最後一個模組的版本標記沒寫進去，處理完帳號後再跑一次升級（-u）。')
+        f'這次解除安裝已取消，模組維持「已安裝」。只有同一輪也升級（-u）了其他模組時另有副作用：各模組的資料已逐模組寫入，'
+        f'但最後一次逐模組寫入之後的收尾（最後一個模組的版本標記、整輪的約束補套與已移除資料的清理）一起被取消；'
+        f'處理完帳號後，把這一輪升級的模組全部再 -u 一次（見 {RUNBOOK_PATH} 第 2 節）。')

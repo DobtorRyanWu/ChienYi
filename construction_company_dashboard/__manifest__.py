@@ -27,7 +27,10 @@
     #        _dash_colleagues 一份（前端只顯示後端回的）、編輯訊息也收窄 partner_ids、受限內部帳號（營造廠主管、後台角色帳號、
     #        控台讀取）的 XML-RPC／JSON-RPC 只收 API key（_rpc_api_keys_only；瀏覽器登入照常只要密碼）、改回前台帳號拿掉
     #        舊格式紀錄的相容路徑、意見回饋 ACL 模型名從 rule_scope 匯入、過時的 TOTP 註解。沒有新欄位。
-    "version": "18.0.2.3.2",
+    #        2.3.3（2026-11-12，S3 fix2）：寫入面測試補齊（寫後檢查的欄位表鎖在資料庫規則上、每個規則欄位一格行為測試、
+    #        related 欄位不能直接寫）；runbook／hook 訊息更正（回滾範圍、qd.py 已改呼叫清單函式、營造廠主管的處置、
+    #        XML-RPC／JSON-RPC 只收 API key 不等於密碼不能跑程式）。沒有新欄位。
+    "version": "18.0.2.3.3",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """

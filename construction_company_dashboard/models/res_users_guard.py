@@ -10,8 +10,10 @@
 * 兩步驟驗證（auth_totp）：要不要強制看 DASH_REQUIRE_TOTP（S2 fix2-Z，使用者 11-11 暫定：先不強制），唯一判斷點
   _dash_totp_missing；範圍不合格見 _dash_scope_ok。啟用／改密碼／改語言時區走核心 self-writeable 的 sudo，不受拒寫規則影響
   （見 tests/test_account_setup.py）。
-* 程式介面只收 API key（S2 fix3-9，使用者 11-11）：受限內部帳號（營造廠主管、後台角色帳號、控台讀取）走 XML-RPC／JSON-RPC
-  不收密碼（_rpc_api_keys_only）；瀏覽器、手機登入照常只要密碼。
+* XML-RPC／JSON-RPC 外部 API 只收 API key（S2 fix3-9，使用者 11-11）：受限內部帳號（營造廠主管、後台角色帳號、控台讀取）
+  走 /xmlrpc、/jsonrpc 不收密碼（_rpc_api_keys_only）；瀏覽器、手機登入照常只要密碼。這不是「密碼不能跑程式」：
+  程式可用密碼走互動式登入（/web/session/authenticate）取得 session 再打 /web/dataset/call_kw（S2 第三輪 red-team F1；
+  不開兩步驟驗證時的本質限制，見 README_ROLE_ACCOUNTS.md 已知限制）。
 """
 import logging
 from collections import Counter
@@ -139,11 +141,12 @@ class ResUsers(models.Model):
         return super()._dash_scope_ok() and not self._dash_totp_missing()
 
     def _rpc_api_keys_only(self):
-        """S2 fix3-9（使用者 11-11「關」；審查 s2review2-redteam F1）：受限內部帳號（營造廠主管、後台角色帳號、控台讀取）走程式介面
-        （XML-RPC /xmlrpc/2、JSON-RPC /jsonrpc：核心的非互動式登入）只收 API key、不收密碼——與核心 auth_totp 對「開了 TOTP 的帳號」
+        """S2 fix3-9（使用者 11-11「關」；審查 s2review2-redteam F1）：受限內部帳號（營造廠主管、後台角色帳號、控台讀取）的
+        XML-RPC／JSON-RPC 外部 API（/xmlrpc/2、/jsonrpc：核心的非互動式登入）只收 API key、不收密碼——與核心 auth_totp 對「開了 TOTP 的帳號」
         同一個機制（auth_totp/models/res_users.py 覆寫的就是這一支；判斷在 base/models/res_users.py _check_credentials 的
         非互動式分支）。瀏覽器／手機登入（/web/login、/web/session/authenticate，互動式）不看這裡，照常只要密碼，
-        **不要求任何人開兩步驟驗證**（使用者 11-11：「大家用兩步驟驗證太麻煩」）。控台讀取帳號本來就用 API key
+        **不要求任何人開兩步驟驗證**（使用者 11-11：「大家用兩步驟驗證太麻煩」）。所以程式仍可用密碼模仿網頁登入取得 session、
+        再打 /web/dataset/call_kw（S2 第三輪 red-team F1）——不開兩步驟驗證時的本質限制，完整防護只有恢復 DASH_REQUIRE_TOTP。控台讀取帳號本來就用 API key
         （tools/console_agent/pull_overview.py；dev 的 console_reader 有一把 scope=rpc 的 key）。self＝要登入的那個帳號。"""
         return self._dash_is_restricted_internal() or super()._rpc_api_keys_only()
 
