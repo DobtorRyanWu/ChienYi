@@ -10,6 +10,8 @@
 
 不一致就丟例外讓安裝失敗（不可以「裝起來了但沒填」）。log 印每個模型的筆數。
 明細（日誌明細、估驗明細）不加欄位，走父單路徑，不需回填。
+
+解除安裝前硬擋（S3-B，2026-11-11）：uninstall_hook 見檔尾。
 """
 import logging
 
@@ -149,3 +151,43 @@ def post_init_hook(env):
     env.invalidate_all()
     if problems:
         raise UserError('營造廠歸屬回填驗算不一致，安裝中止：\n' + '\n'.join(problems))
+
+
+# ── 解除安裝前硬擋（S3-B，2026-11-11）────────────────────────────────────────
+# 解除安裝會刪掉本模組的群組、ACL、規則與 rule_scope 覆寫：受限帳號（營造廠主管、控台讀取、後台角色帳號）
+# 只剩隱含的 base.group_user，變成**不受限的內部帳號**；前台營造帳號回到「Portal 老闆 (1=1)」看整家監造公司；
+# 已封存的受限帳號之後被解封也一樣。所以只要庫裡還有任何受限帳號（含前台營造帳號與已封存的），就拒絕解除安裝
+# ——不替人封存（解除安裝當下沒有可靠資料決定該怎麼處置，也不該默默把人鎖在外面；simplifier 1、red-team F1/F4、skeptic F1/F10）。
+# 結果是：**只要庫裡還有營造廠前台帳號，儀表板模組就解除安裝不了**，這是刻意的（README_ROLE_ACCOUNTS.md）。
+# 核心在刪模組資料之前呼叫 hook（odoo/modules/loading.py STEP 5），hook raise 會讓這次解除安裝回滾；
+# 載入失敗時核心把「待解除安裝」改回「已安裝」（odoo/modules/registry.py → loading.reset_modules_state），只失敗這一次。
+# 清單本身 raise（受限群組 xmlid 不完整，restricted_accounts.py）時例外原樣往上丟，同樣拒絕。
+RUNBOOK_PATH = 'construction_company_dashboard/README_ROLE_ACCOUNTS.md'
+MODULE_TITLE = '工程監造系統 - 公司儀表板'
+
+
+def _login_lines(env, logins):
+    if not logins:
+        return '（無）'
+    archived = set(env['res.users'].sudo().with_context(active_test=False).search(
+        [('login', 'in', logins), ('active', '=', False)]).mapped('login'))
+    return '、'.join(f'{login}（已封存）' if login in archived else login for login in logins)
+
+
+def uninstall_hook(env):
+    """受限帳號清單（res.users.dash_restricted_account_logins，與 runbook 同一份）非空 → UserError；清單 raise 也拒絕。"""
+    accounts = env['res.users'].dash_restricted_account_logins()
+    internal, portal = accounts['internal'], accounts['portal']
+    if not internal and not portal:
+        _logger.info('解除安裝檢查：沒有受限帳號，放行')
+        return
+    _logger.warning('解除安裝檢查：還有受限帳號，拒絕解除安裝（內部 %d、前台 %d）', len(internal), len(portal))
+    raise UserError(
+        f'不能解除安裝「{MODULE_TITLE}」：庫裡還有受限帳號。解除安裝後它們會失去讀取範圍限制'
+        f'（內部帳號變成不受限的內部帳號、前台帳號回到看整家監造公司），已封存的之後被解封也一樣。\n'
+        f'內部受限帳號（營造廠主管／控台讀取／後台角色帳號，{len(internal)} 個）：{_login_lines(env, internal)}\n'
+        f'前台營造帳號（{len(portal)} 個）：{_login_lines(env, portal)}\n'
+        f'處理方式見 {RUNBOOK_PATH}：清單（含已封存）為空才能解除安裝；'
+        f'還有營造廠前台帳號的庫實際上不能解除安裝本模組（刻意的）。\n'
+        f'這次解除安裝已取消，模組維持「已安裝」。同一輪若也升級了其他模組：它們的資料已逐模組寫入，'
+        f'但最後一個模組的版本標記沒寫進去，處理完帳號後再跑一次升級（-u）。')

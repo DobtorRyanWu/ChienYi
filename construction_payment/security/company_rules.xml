@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S3（2026-11-11）全域公司隔離。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在 construction_supervision_base/models/company_rule_write_guard.py。
+-->
+<odoo>
+    <data>
+        <!-- 請款：company_id 是「請款公司」（可能是營造廠，payment_claim.py:41-48），不能用；以工程公司為準 -->
+        <record id="rule_company_global_payment_claim" model="ir.rule">
+            <field name="name">請款 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_payment_claim"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 估驗：先存空單再「匯入工程案件」（payment_estimate_views.xml），工程空白的草稿只給建立者 -->
+        <record id="rule_company_global_payment_estimate" model="ir.rule">
+            <field name="name">估驗計價 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_payment_estimate"/>
+            <field name="domain_force">['|', ('project_id.company_id', 'in', company_ids), '&amp;', ('project_id', '=', False), ('create_uid', '=', user.id)]</field>
+        </record>
+        <!-- 估驗明細：畫面 create="false"，只由精靈在設好工程後建；跟父單的工程 -->
+        <record id="rule_company_global_payment_estimate_line" model="ir.rule">
+            <field name="name">估驗明細 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_payment_estimate_line"/>
+            <field name="domain_force">[('estimate_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_payment_estimate_extra_item" model="ir.rule">
+            <field name="name">非契約工項 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_payment_estimate_extra_item"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 非契約工項明細：stored project_id（related estimate_id.project_id，payment_estimate_extra.py:293-297） -->
+        <record id="rule_company_global_payment_estimate_extra_line" model="ir.rule">
+            <field name="name">非契約工項明細 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_payment_estimate_extra_line"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_work_acceptance" model="ir.rule">
+            <field name="name">計量驗收 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_work_acceptance"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_work_acceptance_line" model="ir.rule">
+            <field name="name">計量驗收明細 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_work_acceptance_line"/>
+            <field name="domain_force">[('acceptance_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

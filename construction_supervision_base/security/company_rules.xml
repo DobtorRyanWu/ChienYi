@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S3（2026-11-11）：估驗、變更、進度、損益類 18 個模型的全域公司隔離（global ir.rule，不掛群組、讀寫建刪都套）。
+    本檔是 5 份 security/company_rules.xml 共用的說明（construction_payment／contract_change／progress／general 那 4 份只留指路）。
+
+    為什麼是全域規則：這些模型原本沒有公司規則，或只有「群組＝Internal User」的公司規則——
+    同一模型另有「工程後台使用者 (1=1)」「Portal 老闆 (1=1)」群組規則，群組規則之間是 OR，
+    公司隔離被 OR 掉（dev 實測：只屬公司 4 的內部帳號讀得到全部 107 張估驗，含公司 1 工程的）。
+    全域規則彼此 AND、再 AND 群組規則：非 sudo 的讀取、刪除、建立都由規則擋住。
+    寫法照 construction_cost_analysis.rule_cost_analysis_company。
+
+    寫入另外擋（S3 fix1）：核心 write 只在寫入「前」用舊值檢查規則、寫完不再檢查（create 才有寫後檢查），
+    所以規則本身擋不住「把自己公司的紀錄改掛到別家公司的工程／父單」，也擋不住「把有工程的估驗／變更單（明細）改成工程空白」
+    （下面的建立者退路會放行）。這兩件由 construction_supervision_base/models/company_rule_write_guard.py 擋：
+    非 sudo 的 write 改到規則用得到的欄位時，寫完以寫入者身分再檢查一次（AccessError）；有工程的單不能變成沒有工程（UserError）。
+
+    語意：「紀錄所屬工程的公司」在目前選取的公司（company_ids）裡。規則 domain 裡的關聯路徑以 sudo 求值，
+    不會再套 project.project 自己的規則（核心 models.py _apply_ir_rules），所以就是「公司符合」，不含工程隱私。
+    工程公司空白不放行（fail-closed；上線前各站先查 project_project.company_id IS NULL＝0，見
+    construction_company_dashboard/README_ROLE_ACCOUNTS.md）。
+    noupdate 不設（＝0）：-u 時與程式同步；模組降版到沒有這個檔的版本，規則會被刪掉、洞回來（runbook 已知限制）。
+    測試：construction_company_dashboard/tests/test_company_isolation.py（表驅動＋逐條關掉規則再打開；
+    寫入面 test_reparent_*、test_blank_project_*、test_line_*、test_legit_*）。
+-->
+<odoo>
+    <data>
+        <!-- 工項版本：原本完全沒有規則、Internal User 可讀寫（核心 ACL）。沒有工程的工項（私人任務）維持原狀 -->
+        <record id="rule_company_global_project_task_version" model="ir.rule">
+            <field name="name">工項版本 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_project_task_version"/>
+            <field name="domain_force">['|', ('task_id.project_id', '=', False), ('task_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 工項分析（核心 SQL 檢視）：核心規則 91 放行公司空白的列，dev 有 2924 列是別家公司工程的工項（公司空白）。以工程公司為準 -->
+        <record id="rule_company_global_report_project_task_user" model="ir.rule">
+            <field name="name">工項分析 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="project.model_report_project_task_user"/>
+            <field name="domain_force">['|', ('project_id', '=', False), ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

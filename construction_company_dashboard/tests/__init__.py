@@ -43,3 +43,7 @@ from . import test_role_estimate_export
 from . import test_role_phone
 # S2 fix2（2026-11-11）：對話 @ 內部同事（暫定）、意見回饋開給監造方角色帳號、沒開 TOTP 照發通知
 from . import test_role_fix2
+# S3（2026-11-11）：估驗類 18 個模型的全域公司隔離（規則在各模組 security/company_rules.xml）
+from . import test_company_isolation
+# S3：受限帳號唯一清單（dash_restricted_account_logins）與解除安裝硬擋（uninstall_hook）
+from . import test_restricted_account_list

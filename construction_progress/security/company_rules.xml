@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S3（2026-11-11）全域公司隔離。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在 construction_supervision_base/models/company_rule_write_guard.py。
+-->
+<odoo>
+    <data>
+        <record id="rule_company_global_progress_schedule" model="ir.rule">
+            <field name="name">預定進度表 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_progress_schedule"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 明細自己有 stored company_id（related schedule_id.company_id） -->
+        <record id="rule_company_global_progress_schedule_line" model="ir.rule">
+            <field name="name">預定進度表明細 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_progress_schedule_line"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

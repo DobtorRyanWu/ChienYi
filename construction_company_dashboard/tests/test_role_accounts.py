@@ -91,6 +91,17 @@ TOTP_STEP_SECONDS = 30
 TOTP_DIGITS = 6
 
 
+def _fixture_admin(env, *companies):
+    """S3（2026-11-11）：在夾具監造公司的估驗上貼訊息的 admin，要是那家公司的成員（交易內，測試結束回滾）。
+
+    估驗等改成全域公司規則（紀錄所屬工程的公司要在使用者的允許公司裡）之後，admin（dev 只屬五家真實公司）讀不到
+    夾具新建公司的估驗，貼不了訊息。真實站上貼訊息的人本來就屬於該監造公司；S3 之前估驗沒有公司規則才沒現形。
+    """
+    admin = env.ref('base.user_admin')
+    admin.sudo().write({'company_ids': [(4, company.id) for company in companies]})
+    return admin
+
+
 class RoleMatrixCase(DashScopeCase):
     """共用夾具（本類別沒有測試）。"""
 
@@ -618,7 +629,7 @@ class TestRoleAccounts(RoleMatrixCase):
         followers = self.sm | self.mgr_a | self.sup
         estimate.message_subscribe(partner_ids=followers.partner_id.ids,
                                    subtype_ids=(note_subtype | comment_subtype).ids)
-        author = self.env.ref('base.user_admin')
+        author = _fixture_admin(self.env, self.co_s)
         poster = estimate.with_user(author)
 
         def notified(message):
@@ -1084,7 +1095,7 @@ class TestRoleAccounts(RoleMatrixCase):
         note_subtype, comment_subtype = self.env.ref('mail.mt_note'), self.env.ref('mail.mt_comment')
         estimate.message_subscribe(partner_ids=(self.sm | self.sup).partner_id.ids,
                                    subtype_ids=(note_subtype | comment_subtype).ids)
-        poster = estimate.with_user(self.env.ref('base.user_admin'))
+        poster = estimate.with_user(_fixture_admin(self.env, self.co_s))
         cases = []
         for message_type in ('comment', 'notification'):
             for subtype in ('mail.mt_note', 'mail.mt_comment'):
@@ -1110,7 +1121,7 @@ class TestRoleAccounts(RoleMatrixCase):
     # ── fix1-B：內部備註的附件，受限內部帳號讀不到 ───────────────────────────
     def _note_attachments(self, record):
         """在 record 上造四種附件：只掛內部備註、只掛一般留言、兩種都掛、單據本身（沒有訊息）。"""
-        admin = self.env.ref('base.user_admin')
+        admin = _fixture_admin(self.env, self.co_s)
         poster = record.with_user(admin)
         note = poster.message_post(body='ROLE 內部備註附件', message_type='comment', subtype_xmlid='mail.mt_note',
                                    attachments=[('role-note-secret.txt', b'ROLE NOTE SECRET')])
@@ -1272,7 +1283,7 @@ class TestRoleMailHttp(HttpCase):
         # 既有的營造廠主管（不是角色帳號；dev 的 kangyouchuan 這一型）
         cls.mgr = user('role_mh_mgr', [MANAGER_GROUP], cls.co_s | cls.co_a, dash_scope_company_id=cls.co_a.id)
         # 內部備註附件與一般留言附件（fix1-B）
-        admin = env.ref('base.user_admin')
+        admin = _fixture_admin(env, cls.co_s)
         cls.note_att = cls.estimate.with_user(admin).message_post(
             body='ROLE 內部備註', message_type='comment', subtype_xmlid='mail.mt_note',
             attachments=[('role-mh-note.txt', b'ROLE MH NOTE')]).attachment_ids

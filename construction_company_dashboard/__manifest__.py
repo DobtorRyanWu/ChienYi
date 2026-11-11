@@ -18,7 +18,12 @@
     #        S2 fix2（同日，未換版號；使用者 11-11 追加）：U 唯讀帳號在私訊／群組對話 @ 讀得到的內部同事（站內通知、不寄信；暫定）；
     #        W 意見回饋開給範圍合格的監造方角色帳號（data/feedback_acl.xml 讀取權）；Z 先不強制兩步驟驗證
     #        （res_users_guard.DASH_REQUIRE_TOTP＝False，使用者 11-11 暫定；改回 True 即恢復）。
-    "version": "18.0.2.2.0",
+    #        2.3.0（2026-11-11，S3）：受限帳號唯一清單 res.users.dash_restricted_account_logins()（多訊號聯集，系統管理者限定；
+    #        qd.py 與 runbook 共用）、uninstall_hook 有受限帳號（含前台營造帳號、已封存）就拒絕解除安裝、
+    #        runbook README_ROLE_ACCOUNTS.md。A 的 18 條全域公司規則在各模型所屬模組（測試在本模組 tests/test_company_isolation.py）。
+    #        2.3.1（2026-11-11，S3 fix1）：受限帳號清單簡化成只看 _dash_is_restricted()（拿掉群組 SQL 與 origin／scope 兩個訊號），
+    #        5 個受限群組 xmlid 任一個找不到就 UserError（fail-closed）；hook 訊息與 runbook 更正（解除安裝失敗只失敗一次）；寫入面測試。
+    "version": "18.0.2.3.1",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """
@@ -110,6 +115,8 @@
     },
     # 線 A1：營造廠歸屬回填＋驗算（合約 §3.5）
     "post_init_hook": "post_init_hook",
+    # S3-B：有受限帳號就拒絕解除安裝（hooks.py 檔尾；runbook README_ROLE_ACCOUNTS.md）
+    "uninstall_hook": "uninstall_hook",
     "installable": True,
     "application": False,
 }

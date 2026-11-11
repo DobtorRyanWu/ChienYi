@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S3（2026-11-11）全域公司隔離。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在 construction_supervision_base/models/company_rule_write_guard.py。
+-->
+<odoo>
+    <data>
+        <!-- 變更單：company_id 是 stored related project_id.company_id；先存空單再「匯入工程案件」，工程空白的草稿只給建立者 -->
+        <record id="rule_company_global_contract_change_order" model="ir.rule">
+            <field name="name">契約變更單 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_contract_change_order"/>
+            <field name="domain_force">['|', ('company_id', 'in', company_ids), '&amp;', ('project_id', '=', False), ('create_uid', '=', user.id)]</field>
+        </record>
+        <!-- 變更明細：可直接在變更單上新增（contract_change_order_views.xml 明細頁 editable），工程空白的草稿上本人要能加明細 -->
+        <record id="rule_company_global_contract_change_order_line" model="ir.rule">
+            <field name="name">契約變更明細 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_contract_change_order_line"/>
+            <field name="domain_force">['|', ('company_id', 'in', company_ids), '&amp;', ('change_order_id.project_id', '=', False), ('change_order_id.create_uid', '=', user.id)]</field>
+        </record>
+    </data>
+</odoo>

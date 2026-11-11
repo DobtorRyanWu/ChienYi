@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S3（2026-11-11）全域公司隔離。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在 construction_supervision_base/models/company_rule_write_guard.py。
+-->
+<odoo>
+    <data>
+        <record id="rule_company_global_general_progress_report" model="ir.rule">
+            <field name="name">一般式進度報告 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_general_progress_report"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_general_progress_report_line" model="ir.rule">
+            <field name="name">一般式進度報告明細 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_general_progress_report_line"/>
+            <field name="domain_force">[('report_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_general_realtime_profit" model="ir.rule">
+            <field name="name">即時損益 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_general_realtime_profit"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_general_realtime_profit_cost" model="ir.rule">
+            <field name="name">即時損益成本列 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_general_realtime_profit_cost"/>
+            <field name="domain_force">[('profit_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_profit_loss_entry" model="ir.rule">
+            <field name="name">損益支出記錄 - 公司隔離（全域，S3）</field>
+            <field name="model_id" ref="model_profit_loss_entry"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

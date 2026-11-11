@@ -195,7 +195,10 @@
     #        變更日期，變更後的舊期別預設全部同步不到。沒填變更日期才退回套用日。使用者 2026-10-19 裁示。
     # 1.8.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 1.8.5: 前台成員讀取規則補到掛在工程底下的業務資料（老闆另加公司範圍）：原本前台讀得到、沒有任何前台規則，非成員經 RPC 讀得到別案：請款、估驗、追加項目、計量驗收與明細（新檔 security/portal_rules.xml）
-    'version': '18.0.1.8.6',
+    # 1.9.0（2026-11-11，S3）：請款、估驗、估驗明細、非契約工項（＋明細）、計量驗收（＋明細）補全域公司規則（security/company_rules.xml）——
+    #        原本沒有任何內部帳號的公司規則，只屬一家公司的內部帳號讀得到全部估驗。估驗工程空白的草稿只給建立者。
+    # 1.9.1（2026-11-11，S3 fix1）：公司規則檔頭註解收成一份（說明在 construction_supervision_base/security/company_rules.xml），規則本體不變；寫入面（改掛別家、清空工程）由 construction_supervision_base 擋。
+    'version': '18.0.1.9.1',
     # 1.7.2: 效能：`payment.estimate.line._compute_previous_approved_qty` 與
     #        `extra.line._compute_previous_approved` 加 before_cache ——
     #        原本每一列都要重跑一次 `_estimates_before()`，一張估驗單查上百次。
@@ -281,6 +284,7 @@
         # Security
         'security/ir.model.access.csv',
         'security/portal_rules.xml',  # 前台成員讀取規則
+        'security/company_rules.xml',  # 全域公司隔離（S3）
         # Data
         'data/ir_sequence_data.xml',
         # Wizard

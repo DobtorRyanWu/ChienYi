@@ -14,3 +14,4 @@ from . import supervision_attachment_mixin  # 附件自動歸類（各業務模�
 from . import product_product
 from . import res_partner  # 系統帳號 OdooBot 改名「系統」
 from . import relational_input_guard  # 呼叫端給的關聯 id 不能拿來以 sudo 讀資料（合約 §0b-23，線 H）
+from . import company_rule_write_guard  # S3 全域公司規則的寫入面：改工程／父單後再檢查、有工程的單不能變沒有工程（S3 fix1）

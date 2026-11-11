@@ -23,3 +23,5 @@ from . import restricted_mail
 from . import server_action_gate
 # 主迴圈 11-06：新建公司的畫面必選公司類型（合約 §0b-30）
 from . import company_type_choice
+# S3（2026-11-11）：受限帳號唯一清單（解除安裝硬擋、換版工具 qd.py、runbook 共用）
+from . import restricted_accounts
