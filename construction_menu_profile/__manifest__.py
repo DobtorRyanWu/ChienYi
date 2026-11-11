@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 選單設定檔',
-    'version': '18.0.1.0.0',
+    # 1.1.0: 新增 MENUS_ON（強制開啟）；2026-11-11 使用者決定開回頂層 App「Spreadsheets」
+    'version': '18.0.1.1.0',
     'category': 'Construction/Configuration',
     'summary': '集中管理後台選單的顯示與隱藏',
     'description': """

@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
-"""後台選單設定檔 —— 唯一的「哪些選單要關掉」清單。
+"""後台選單設定檔 —— 唯一的「哪些選單要關掉／要開著」清單（MENUS_OFF／MENUS_ON）。
 
-清單依 2026-08-10 使用者確認的「預期看到的選單」整理。要把某個選單開回來，
-把對應那一行刪掉再 `-u construction_menu_profile` 即可；只在後台勾回 active
+清單依 2026-08-10 使用者確認的「預期看到的選單」整理。只在後台勾回 active
 是撐不住的——下次升級 `<function>` 會重新套用整份設定檔（這是刻意的，
 讓「預設關閉」在每個站台都是一致狀態）。
+
+要把某個選單開回來：從 MENUS_OFF 刪掉那一行，**並且**加進 MENUS_ON，再升級本模組。
+只刪 MENUS_OFF 那一行不夠——套用時只會照 MENUS_OFF 去關，不會主動打開，
+已經被關掉的站會一直停用（2026-11-11 開回 Spreadsheets 時查到的）。
 """
 
 import logging
@@ -18,7 +21,8 @@ _logger = logging.getLogger(__name__)
 # 格式：(xml_id, 顯示位置說明, 連帶消失的子項數)
 MENUS_OFF = [
     # ---------------------------------------------------------------
-    # Odoo 原生／第三方（2026-08-10 使用者點名關閉的 4 個）
+    # Odoo 原生／第三方（2026-08-10 使用者點名關閉 4 個；其中 Spreadsheets
+    # 2026-11-11 使用者決定開回，移到下面的 MENUS_ON）
     # 討論 / 待辦事項 / Dashboards / 員工 / 測試 依使用者決定**保留**；
     # 應用程式(base.menu_management) 與 設定(base.menu_administration)
     # 絕對不能關，關了就無法管理系統。
@@ -26,8 +30,6 @@ MENUS_OFF = [
     ('contacts.menu_contacts', '頂層 App「聯絡人」', 0),
     ('maintenance.menu_maintenance_title', '頂層 App「保養」', 0),
     ('base_geoengine.geoengine_base_menu', '頂層 App「GeoEngine Backend」', 4),
-    # dobtor_spreadsheet_editor.menu_xlsx_import 掛在這支底下，父關即消失
-    ('spreadsheet_oca.spreadsheet_spreadsheet_menu', '頂層 App「Spreadsheets」', 1),
 
     # ---------------------------------------------------------------
     # 本專案：整支關掉的頂層 App
@@ -77,6 +79,16 @@ MENUS_OFF = [
     ('construction_supervision_base.menu_audit_config', '系統設定 > 稽核管理', 4),
 ]
 
+# 強制開啟：套用時若是停用就打開。曾經在 MENUS_OFF、後來決定開回的選單一定要列在這裡，
+# 否則已經被關掉的站不會恢復（見檔頭）。同一個 xml_id 不可同時出現在兩份清單。
+# 格式同 MENUS_OFF：(xml_id, 顯示位置說明, 連帶出現的子項數)
+MENUS_ON = [
+    # 2026-11-11 使用者決定開回（推翻 08-10 的關閉）。選單本身要求 spreadsheet_oca.group_user，
+    # 工程後台使用者由 dobtor_spreadsheet_editor_chienyi 的 security/groups.xml 自動帶這個群組。
+    # dobtor_spreadsheet_editor.menu_xlsx_import 掛在這支底下，一起出現。
+    ('spreadsheet_oca.spreadsheet_spreadsheet_menu', '頂層 App「Spreadsheets」', 1),
+]
+
 # 這些在各自模組裡已經是 active=False，不重複處理，列在這裡只為了讓
 # 「後台看不到的東西」有完整交代：
 #   construction_timeline.menu_task_timeline           工程管理 > 進度管理 > 工項時程
@@ -93,9 +105,9 @@ class IrUiMenu(models.Model):
 
     @api.model
     def _apply_chienyi_menu_profile(self):
-        """套用 MENUS_OFF。由 data/menu_profile.xml 的 <function> 在每次
+        """套用 MENUS_OFF 與 MENUS_ON。由 data/menu_profile.xml 的 <function> 在每次
         install / upgrade 呼叫。"""
-        turned_off, missing = [], []
+        turned_off, turned_on, missing = [], [], []
         for xml_id, label, _children in MENUS_OFF:
             menu = self.env.ref(xml_id, raise_if_not_found=False)
             if not menu:
@@ -105,10 +117,21 @@ class IrUiMenu(models.Model):
             if menu.active:
                 menu.active = False
                 turned_off.append('%s（%s）' % (xml_id, label))
+        for xml_id, label, _children in MENUS_ON:
+            menu = self.env.ref(xml_id, raise_if_not_found=False)
+            if not menu:
+                missing.append(xml_id)
+                continue
+            if not menu.active:
+                menu.active = True
+                turned_on.append('%s（%s）' % (xml_id, label))
 
         if turned_off:
             _logger.info('選單設定檔：關閉 %d 個選單\n  %s',
                          len(turned_off), '\n  '.join(turned_off))
+        if turned_on:
+            _logger.info('選單設定檔：開啟 %d 個選單\n  %s',
+                         len(turned_on), '\n  '.join(turned_on))
         if missing:
             _logger.warning('選單設定檔：找不到這些 xml_id，已略過 → %s',
                             ', '.join(missing))

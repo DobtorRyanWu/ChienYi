@@ -25,12 +25,14 @@ class TestEstimateNoSpreadsheetGroup(TransactionCase):
         self.env['spreadsheet.spreadsheet'].create({
             'name': 'linked', 'payment_estimate_id': self.est.id})
         sse_group = self.env.ref('spreadsheet_oca.group_user')
+        # 不能用代操作員／工程後台使用者：18.0.1.2.0 起它們自動帶 Spreadsheet 群組（security/groups.xml），
+        # 「沒有試算表群組的內部帳號」只剩沒有這兩個群組的人（例如只有專案使用者）
         self.user = self.env['res.users'].create({
             'name': 'no_sse_group',
             'login': 'no_sse_group',
             'groups_id': [(6, 0, [
                 self.env.ref('base.group_user').id,
-                self.env.ref('construction_supervision_base.group_operator').id,
+                self.env.ref('project.group_project_user').id,
             ])],
         })
         self.assertNotIn(sse_group, self.user.groups_id)

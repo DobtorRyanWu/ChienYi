@@ -1,11 +1,13 @@
 # construction_menu_profile — 後台選單設定檔
 
 把「後台要看到哪些選單」集中成一份清單。實際開關表在
-[`models/ir_ui_menu.py`](models/ir_ui_menu.py) 的 `MENUS_OFF`。
+[`models/ir_ui_menu.py`](models/ir_ui_menu.py) 的 `MENUS_OFF`（關）與 `MENUS_ON`（強制開）。
 
 ## 怎麼改
 
-**要把某個選單開回來** → 從 `MENUS_OFF` 刪掉那一行，然後：
+**要把某個選單開回來** → 從 `MENUS_OFF` 刪掉那一行，**並且加進 `MENUS_ON`**，然後升級本模組。
+只刪 `MENUS_OFF` 那一行不夠：套用時只照 `MENUS_OFF` 去關、不會主動打開，已經被關掉的站會一直停用。
+（以下是 2026-08 的舊指令範例，本機請改用 `tools/test_on_dev.sh construction_menu_profile` 或升級 SOP。）
 
 ```bash
 docker exec pg18-odoo bash -lc 'odoo -u construction_menu_profile -d system_development --db_host="$HOST" --db_user="$USER" --db_password="$PASSWORD" --stop-after-init' && docker restart pg18-odoo
@@ -82,14 +84,19 @@ docker exec pg18-odoo bash -lc 'odoo -u construction_menu_profile -d system_deve
 
 ## 關閉的選單
 
-### 由本模組關閉（`MENUS_OFF`，19 個父層 → 約 45 個入口）
+### 由本模組強制開啟（`MENUS_ON`）
+
+| xml_id | 位置 | 帶出子項 | 為什麼 |
+|---|---|---|---|
+| `spreadsheet_oca.spreadsheet_spreadsheet_menu` | 頂層 App「Spreadsheets」（`dobtor_spreadsheet_editor.menu_xlsx_import` 掛在其下） | 1 | 2026-08-10 關閉，2026-11-11 使用者決定開回；看得到的人＝Spreadsheet 使用者群組，工程後台使用者由 `dobtor_spreadsheet_editor_chienyi` 自動帶 |
+
+### 由本模組關閉（`MENUS_OFF`，18 個父層 → 約 44 個入口）
 
 | xml_id | 位置 | 帶走子項 |
 |---|---|---|
 | `contacts.menu_contacts` | 頂層 App「聯絡人」 | 0 |
 | `maintenance.menu_maintenance_title` | 頂層 App「保養」 | 0 |
 | `base_geoengine.geoengine_base_menu` | 頂層 App「GeoEngine Backend」 | 4 |
-| `spreadsheet_oca.spreadsheet_spreadsheet_menu` | 頂層 App「Spreadsheets」（`dobtor_spreadsheet_editor.menu_xlsx_import` 掛在其下） | 1 |
 | `construction_supervision_base.menu_acceptance_root` | 頂層 App「驗收結案」 | 12 |
 | `construction_supervision_base.menu_standard_work_item_root` | 頂層 App「標準工項管理」 | 0 |
 | `construction_supervision_base.menu_resource_management` | 工程管理 > 資源管理 | 7 |

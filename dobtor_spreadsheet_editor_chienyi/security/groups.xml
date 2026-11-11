@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 2026-11-11 使用者決定：所有「工程後台使用者」都能用試算表（頂層 App「Spreadsheets」由 construction_menu_profile 的 MENUS_ON 開回）。
+         - 代操作員（construction_supervision_base.group_operator）imply 工程後台使用者，所以也會有。
+         - 公司儀表板的角色帳號（construction_company_dashboard.group_role_*）只 imply base.group_user，不受影響、維持唯讀。
+         - spreadsheet_oca 對 group_user 的讀取規則只限自己建的／被分享的（加全域公司規則），看不到別人的試算表。
+         - 核心 res.groups.write 改 implied_ids 時會把既有成員一起補進新群組，-u 就生效，不需要遷移。
+           反過來：日後拿掉這段，已經補進去的人不會自動被移除，要另外處理。 -->
+    <record id="construction_supervision_base.group_supervisor_admin" model="res.groups">
+        <field name="implied_ids" eval="[Command.link(ref('spreadsheet_oca.group_user'))]"/>
+    </record>
+</odoo>
