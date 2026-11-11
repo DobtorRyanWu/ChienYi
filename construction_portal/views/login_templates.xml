@@ -76,4 +76,13 @@
             </div>
         </xpath>
     </template>
+
+    <!-- 前台頁尾的「版權所有 ©」（使用者 11-12：系統主控是千溢，只是開站給監造公司用）：一律寫千溢科技有限公司。
+         核心 web.frontend_layout 寫的是「目前公司」（res_company.name），開給監造公司的站（例：th 的主公司是廷暉）
+         就變成那家公司的名字。「Copyright ©」字樣照核心（中文介面翻成「版權所有 ©」），只換公司名。 -->
+    <template id="footer_copyright_qytech" inherit_id="web.frontend_layout" name="前台頁尾版權：千溢科技">
+        <xpath expr="//span[hasclass('o_footer_copyright_name')]/span[@itemprop='name']" position="replace">
+            <span itemprop="name">千溢科技有限公司</span>
+        </xpath>
+    </template>
 </odoo>
