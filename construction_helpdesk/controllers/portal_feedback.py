@@ -5,10 +5,11 @@
 
 權限：以前台使用者本人身分建立（不走 sudo），由 ACL＋record rule 把關
 （只看得到、只建得了自己送的；不能改、不能刪）。送出後的補充一律走留言。
-例外（S2 fix2-W，使用者 11-11）：後台角色帳號（後台唯讀，ORM 寫入全拒）照同方別的舊前台帳號——監造方範圍合格的
-（res.users._portal_other_data_visible）由建單路由以 sudo 建「本人的」單（sudo 不換人：建立者、留言作者都是本人；
-欄位只有下面組好的那幾個，表單送來的其他值一律不用）；其他角色帳號照舊建不了。讀自己的單照本人權限
-（construction_company_dashboard rule_scope ROLE_FEEDBACK_OWN）。角色帳號不能在單上留言（後台唯讀），詳情頁不顯示留言框。
+例外（S2 fix2-W、fix3，使用者 11-11）：後台角色帳號（後台唯讀，ORM 寫入全拒）照同方別的舊前台帳號——能用的是範圍合格的監造方
+（construction.service.ticket._role_feedback_allowed），其他角色帳號照舊建不了、讀不到。寫入例外有三個、都只限本人的單：
+建單（下面的建單路由以 sudo 建「本人的」單：sudo 不換人，建立者、留言作者都是本人；欄位只有下面組好的那幾個，表單送來的
+其他值一律不用）、在自己的單上留言（核心 /mail/message/post，詳情頁照舊前台帳號顯示留言框）、驗證（下面的驗證路由）。
+讀自己的單照本人權限（construction_company_dashboard rule_scope ROLE_FEEDBACK_OWN）。
 
 【分庫】日後每個客戶一個資料庫時，服務單集中到自家的「客服資料庫」，
 本檔的建單／列表／詳情／對話都要改成透過 API 向客服資料庫讀寫（已決定方向，尚未實作）。
@@ -113,7 +114,7 @@ class HelpdeskPortal(ConstructionPortal):
         sep = '&' if '?' in back else '?'
         # 見檔頭「例外」：後台角色帳號只有範圍合格的監造方能建（在讀任何資料之前擋）
         role = env.user._is_role_account()
-        if role and not env.user._portal_other_data_visible():
+        if role and not env[TICKET]._role_feedback_allowed():
             return request.redirect(back + sep + 'error=denied')
 
         category = env['construction.service.category'].browse(
@@ -188,8 +189,9 @@ class HelpdeskPortal(ConstructionPortal):
             'message': kw.get('message'),
             # 前台 chatter（Odoo 原生 portal.message_thread）
             'object': ticket,
-            # 角色帳號後台唯讀、不能在單上留言（見檔頭「例外」）：不顯示留言框
-            'disable_composer': ticket.state == 'cancel' or request.env.user._dash_is_restricted_internal(),
+            # 受限內部帳號（後台唯讀）不顯示留言框；能用意見回饋的角色帳號照舊前台帳號可以留言（見檔頭「例外」，S2 fix3 W2）
+            'disable_composer': ticket.state == 'cancel' or (
+                request.env.user._dash_is_restricted_internal() and not ticket._role_feedback_allowed()),
             'message_per_page': 20,
         })
         return request.render('construction_helpdesk.portal_feedback_detail', values)
@@ -200,7 +202,8 @@ class HelpdeskPortal(ConstructionPortal):
     @http.route(['/construction/feedback/<int:ticket_id>/verify'], type='http', auth='user',
                 website=True, methods=['POST'])
     def portal_feedback_verify(self, ticket_id, result=None, **post):
-        # 先以本人身分確認看得到這張（record rule：只看得到自己送的），寫入再由模型以 sudo 處理
+        # 先以本人身分確認看得到這張（record rule：只看得到自己送的），寫入再由模型以 sudo 處理。
+        # 角色帳號也走這裡（見檔頭「例外」：寫入例外之三，只限本人的單）
         try:
             ticket = request.env[TICKET].browse(ticket_id).exists()
             if not ticket:

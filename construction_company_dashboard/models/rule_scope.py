@@ -6,15 +6,15 @@
 * 其他使用者（監造方、一般前台、管理者、超級使用者）：**直接回傳核心的值**，與原本完全相同。
 * 營造方（res.users._dash_is_contractor_side()）：
   - 讀：營造廠層級 AND 營造條件；工程層級 AND 工程條件；自主檢查樣板 AND 樣板條件；個資收窄 AND 收窄條件；
-        框架照舊原樣；其他 → 拒（[('id', '=', 0)]）。範圍不合格（範圍公司空白或不是營造廠、
-        營造廠主管未啟用兩步驟驗證）→ 框架以外只剩本人的使用者與聯絡人（合約 §0b-16），其餘全拒。
+        框架照舊原樣；其他 → 拒（[('id', '=', 0)]）。範圍不合格（見 res.users._dash_scope_ok）
+        → 框架以外只剩本人的使用者與聯絡人（合約 §0b-16），其餘全拒。
   - 寫、建、刪：只放「框架的使用者自有狀態模型」，其他全拒。
   - 受邀協作（dobtor 線上文件，合約 §0b-29）：範圍合格時讀得到協作者含自己的那幾份（前台帳號也寫得到）；建、刪照拒；
     dobtor 範本照核心值讀（受邀文件開檔要用）。
 * 控台讀取（group_console_reader）：讀只放框架照舊＋本人的使用者與聯絡人（合約 §0b-28）；寫建刪同上。同時是營造方時以控台讀取為準（較嚴）。
 * 後台角色帳號（S1，2026-11-10；res.users._is_role_account()）：營造方角色帳號帶營造方標記，kind 照舊是 'contractor'；
   其餘角色帳號（監造方，以及組合不合法的）kind＝'supervision_role'。**有任何角色群組就絕不會是 None**——
-  組合不合法、範圍不合格、沒開 TOTP 只會讓 _dash_scope_ok() 為 False（框架以外只剩本人）。
+  組合不合法、範圍不合格（見 _dash_scope_ok）只會讓 _dash_scope_ok() 為 False（框架以外只剩本人）。
   讀取：工程條件 _dash_project_condition（營造方＝營造廠含範圍公司；監造方＝工程公司在監造公司內；主管再 AND
   參與成員、工程本身另排除未開始／終止；老闆不加狀態條件）；另外多看四類（ROLE_PROJECT_LEVEL、ROLE_ESTIMATE_CHILD、
   ROLE_COST_ANALYSIS）；多營造廠共用的工程，即時損益、損益支出、成本分析不給營造方看。寫建刪照舊全拒。
@@ -140,7 +140,7 @@ NARROW_BY_COMPANY = frozenset({
 # 個資收窄（聯絡人、使用者）：自己＋自己範圍公司（合約 §13-3；細節見 _dash_scope_read_domain）
 NARROW_USERS = 'res.users'
 NARROW_PARTNERS = 'res.partner'
-# 範圍不合格（範圍公司空白或不是營造廠、營造廠主管未啟用兩步驟驗證）時仍讀得到的「本人」資料（合約 §0b-16）：
+# 範圍不合格（見 res.users._dash_scope_ok）時仍讀得到的「本人」資料（合約 §0b-16）：
 # 只有自己的使用者與聯絡人。登入（核心第一次登入以本人身分讀 tz：odoo/addons/base/models/res_users.py
 # _login 的 `not user.tz or not user.login_date`）、頭像選單、偏好設定、啟用兩步驟驗證都以本人身分讀它們；
 # 拒掉就連登入都 403，「請啟用兩步驟驗證」的提示永遠看不到（線 C、D 真瀏覽器實測）。
@@ -227,8 +227,10 @@ SELF_SERVICE_TRANSIENT = frozenset({
 CHANNEL_TYPE_PUBLIC = 'channel'
 DISCUSS_CHANNEL_MODEL = 'discuss.channel'
 # 意見回饋（construction_helpdesk，dev 才有裝；S2 fix2-W，使用者 11-11）：監造方角色帳號照同方別的舊前台帳號——
-# 讀得到自己建的客服單、建單要選的類別與發生功能（設定資料，照核心值）。寫入照舊全拒：唯一的寫入例外是前台建單路由以 sudo
-# 建本人的單（construction_helpdesk/controllers/portal_feedback.py）。讀取權（ACL）見 res_users_guard._dash_sync_feedback_acl。
+# 讀得到自己建的客服單、建單要選的類別與發生功能（設定資料，照核心值）。ORM／RPC 寫入照舊全拒；寫入例外有三個、都只限本人的單
+# （S2 fix3-5 更正「唯一」的說法）：前台建單（以 sudo 建本人的單）、在自己的單上留言、驗證（問題已解決／仍有問題），
+# 見 construction_helpdesk models/service_ticket.py _role_feedback_allowed。「只限本人的單」就是這裡的 ROLE_FEEDBACK_OWN：
+# 留言與驗證都先以本人權限讀單。讀取權（ACL）見 res_users_guard._dash_sync_feedback_acl。
 ROLE_FEEDBACK_OWN = 'construction.service.ticket'
 ROLE_FEEDBACK_REFERENCE = frozenset({'construction.service.category', 'construction.functional.module'})
 # OdooBot 的聯絡人（核心 base 資料；見 _dash_with_odoobot）

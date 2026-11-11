@@ -72,6 +72,32 @@ class ConstructionServiceTicket(models.Model):
     # 欄位鎖定後，建單人仍要能補充資訊。
     _mail_post_access = 'read'
 
+    # ------------------------------------------------------------------
+    # 後台角色帳號（construction_company_dashboard；S2 fix2-W、fix3，使用者 11-11）
+    # ------------------------------------------------------------------
+    @api.model
+    def _role_feedback_allowed(self):
+        """後台角色帳號（後台唯讀、ORM 寫入全拒）能不能用意見回饋：照同方別的舊前台帳號——範圍合格的監造方
+        （res.users._portal_other_data_visible：舊前台帳號只有監造方看得到意見回饋入口）。其他角色帳號一律不行。
+
+        寫入例外有三個，**都只限本人的單**（S2 fix3-5 更正「建單是唯一寫入例外」的說法）：
+        1. 建單：controllers/portal_feedback.py 以 sudo 建本人的單（sudo 不換人，欄位只有路由組好的那幾個）；
+        2. 留言：在自己的單上留言、附檔（_is_portal_commenter；作者本人、partner_ids 只留追蹤者——
+           construction_company_dashboard controllers/role_thread.py，收件人照核心——restricted_mail.py 檔頭七）；
+        3. 驗證：「問題已解決／仍有問題」（路由先以本人權限讀單，寫入由 _register_confirmation／_register_not_resolved 以 sudo 做）。
+        「只限本人的單」靠讀取規則（construction_company_dashboard rule_scope ROLE_FEEDBACK_OWN：角色帳號只讀得到自己建的）：
+        留言（本模型 _mail_post_access＝'read'）與驗證（check_access('read')）都先以本人權限讀單。"""
+        user = self.env.user
+        return user._is_role_account() and user._portal_other_data_visible()
+
+    def _is_portal_commenter(self, model_name=None):
+        """前台留言者（construction_portal models/mail_thread.py）：本模型另含能用意見回饋的角色帳號（_role_feedback_allowed）。
+        受限內部帳號在業務紀錄上建立訊息原本要寫入權（construction_company_dashboard restricted_mail.py 檔頭二），留言者例外讓它
+        回到本模型的「讀得到就能留言」——與舊前台帳號同一個判斷（讀得到＝本人的單）。"""
+        if (model_name or self._name) == self._name and self._role_feedback_allowed():
+            return True
+        return super()._is_portal_commenter(model_name)
+
     name = fields.Char(string='單號', required=True, readonly=True, copy=False, default='新增')
     subject = fields.Char(string='主旨', required=True)
     description = fields.Html(string='詳細說明')

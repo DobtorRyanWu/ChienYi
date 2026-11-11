@@ -42,7 +42,8 @@
    → `_notify_get_recipients`（mail.thread 與 discuss.channel 兩份核心實作都接）：收件人只留「對話成員、而且是站內類通知」
      （MEMBER_NOTIFICATION_TYPES 白名單：inbox、web_push；fix3-V 起推播照常）；不是對話的單據一個都不留。
      email（_notify_thread_by_email 只寄給收件人裡 notif='email' 的）、簡訊都跟著收件人走。
-   → MailMessage.create：訊息的 partner_ids 只留對話成員（partner_ids 也是讀取權：被列在上面的人讀得到這則訊息）。
+   → MailMessage.create：訊息的 partner_ids 只留對話成員（partner_ids 也是讀取權：被列在上面的人讀得到這則訊息）；
+     例外見九（可 @ 的同事）。write 改 partner_ids 也照同一條（S2 fix3-3，見九）。
    → message_post／message_notify：拿掉 sms 模組的 sms_numbers／sms_pid_to_number（傳簡訊到任意號碼，不經收件人）。
    涵蓋：/mail/message/post（含 /mail/attachment/upload 上傳到對話的附件）、ORM message_post、message_notify、
    私訊對象本身就是外部聯絡人、message_post_with_source（走 message_post）、排程通知（到時重算收件人）。
@@ -89,18 +90,36 @@
 
 九、唯讀帳號在私訊／群組對話裡 @ 對話外的內部同事（S2 fix2-U；**使用者 11-11 暫定，之後會再改**）：
    * 「內部同事」＝啟用中的內部使用者（share=False）的聯絡人，而且**發訊息的唯讀帳號以自己的權限讀得到**
-     （非 sudo；rule_scope 決定範圍：監造方看得到監造公司的人，營造方看不到監造方的人）——`_dash_colleagues`，全檔只有這一份。
+     （非 sudo；rule_scope 決定範圍：監造方看得到監造公司的人，營造方看不到監造方的人）——`_dash_colleagues`，**只有這一份**
+     （S2 fix3-2，審查 s2review2 simplifier U-1、skeptic F5）：送出時的收窄（建立、編輯）與後端 @ 建議名單都呼叫它，
+     前端只顯示後端回的聯絡人。
    * 被 @ 到的同事加進訊息的 partner_ids（讀得到那一則）、收**站內**通知：對方偏好 email 也改成站內，絕不產生 mail.mail、
-     不寄簡訊（`_dash_filter_recipients`）；不加入對話成員。前台帳號、沒有帳號的聯絡人、讀不到的內部使用者照三拿掉。
+     不寄簡訊；不加入對話成員。前台帳號、沒有帳號的聯絡人、讀不到的內部使用者照三拿掉。
+   * 同事的那一列通知自己組（`_dash_colleague_recipients`，S2 fix3-1）：核心的對話收件人 SQL 只取 email 不是空的聯絡人
+     （mail/models/discuss/discuss_channel.py:566 `partner.email != %s`，NULL 比較為假），沒有 email 的同事整個收不到
+     （dev 啟用中的內部帳號 11 個有 10 個沒 email）。核心那一列（有 email 的同事才有）不沿用，一律在這裡組 notif='inbox'；
+     只對使用者發的訊息（與核心同一個判斷，:545-546）。
+   * 編輯訊息（/mail/message/update_content 以 sudo 寫 partner_ids，mail/models/mail_thread.py:4698-4705）照建立時同一條收窄
+     （S2 fix3-3，審查 skeptic F4）：MailMessage.write 寫完 partner_ids 之後，不在「成員＋可 @ 的同事」裡的拿掉。
    * 只限私訊（chat）、群組對話（group）；業務紀錄照二全拒；手機動作（七）的收件人不變。
    * @ 建議名單：核心在私訊／群組對話只列成員（所有人都一樣；mail/static/src/core/common/suggestion_service.js
      getPartnerSuggestions 的 isNonPublicChannel、res.partner.get_mention_suggestions_from_channel）。唯讀帳號另外列同一份
-     「內部同事」（ResPartner.get_mention_suggestions_from_channel；前端 static/src/backend/mention_colleagues_patch.js，
-     session 旗標 dash_mention_colleagues）。後台人員與其他帳號照核心。
+     「內部同事」（ResPartner.get_mention_suggestions_from_channel；前端 static/src/backend/mention_colleagues_patch.js 只加
+     後端對這個對話回過的聯絡人，session 旗標 dash_mention_colleagues）。後台人員與其他帳號照核心。
+   * 作者自己重新載入那則訊息：見十。
    * 查證（核心對非成員 partner_ids 沒有第二道收窄）：mail/controllers/thread.py:101-102 只對非內部帳號以
      _filter_message_post_partners（discuss 版 mail/controllers/discuss/thread.py:8-13 只留成員）過濾；
      discuss.channel.message_post（mail/models/discuss/discuss_channel.py:714-731）不動 partner_ids；
      對話的收件人（:529-631）＝partner_ids 依偏好通知＋成員推播。
+
+十、受限的內部帳號看自己發的訊息時，讀不到的通知不給網頁（S2 fix3，驗收真瀏覽器時發現）。
+   核心組訊息給網頁時，對內部帳號會帶上訊息的通知（mail/models/mail_message.py:1093-1094、:1182
+   `message.notification_ids._filtered_for_web_client()`），逐筆讀通知的欄位。而 dev 的「mail.notifications: group_user」規則
+   是 noupdate 的舊資料、perm_read＝True（核心 XML 是 False）：內部帳號只讀得到通知到自己的那幾筆，讀到別人的就 AccessError——
+   作者 @ 了同事（九）、在意見回饋單上留言通知了客服之後，**自己打不開那個私訊／那張單**（一般內部帳號在這個規則狀態下也一樣，
+   這是資料的狀態，不是本模組造成的；本模組只處理受限內部帳號這一側）。
+   → MailNotification._filtered_for_web_client：受限內部帳號（非 sudo）先濾成讀得到的再交給核心。只是「不顯示讀不到的」，
+     沒有放寬任何讀取權（規則是核心值時本來就全讀得到，濾了等於沒濾）。
 """
 import logging
 
@@ -135,6 +154,8 @@ NOTIFICATION_TYPE_EMAIL = 'email'
 # 檔頭九（使用者 11-11 暫定）：@ 得到對話外內部同事的對話類型，與同事收到的通知方式（一律站內）
 MENTION_CHANNEL_TYPES = frozenset({'chat', 'group'})
 COLLEAGUE_NOTIFICATION_TYPE = 'inbox'
+# 核心對話只通知使用者發的訊息（mail/models/discuss/discuss_channel.py:545-546）；同事那一列照同一個判斷（S2 fix3-1）
+CHANNEL_NOTIFIED_MESSAGE_TYPES = frozenset({'comment', 'email', 'email_outgoing', 'whatsapp_message'})
 
 _logger = logging.getLogger(__name__)
 
@@ -184,14 +205,24 @@ def _blocked_partner_ids(env, partner_ids):
     return set(users.filtered(lambda user: user._dash_is_blocked_internal()).partner_id.ids)
 
 
-def _dash_colleagues(env, author, domain):
-    """檔頭九（使用者 11-11 暫定）：author（res.users）以自己的權限讀得到的、啟用中內部使用者的聯絡人。全檔只有這一份。
+def _dash_internal_user(partner):
+    """partner 的啟用中內部帳號（sudo；沒有回空的 recordset）。檔頭九「內部同事」的帳號判斷與同事通知的 uid 都用它。"""
+    users = partner.sudo().with_context(active_test=False).user_ids
+    return users.filtered(lambda user: user.active and not user.share)[:1]
 
-    domain＝額外條件（指定的聯絡人 id，或建議名單的名稱搜尋）。讀得到＝非 sudo 搜尋（rule_scope 決定範圍）；
-    是不是內部使用者以 sudo 判斷（作者不一定讀得到對方的 res.users 紀錄，營造方就讀不到監造方人員的帳號）。
+
+def _dash_colleagues(env, author, domain, limit=None):
+    """檔頭九（使用者 11-11 暫定）：author（res.users）以自己的權限讀得到的、啟用中內部使用者的聯絡人。**只有這一份**
+    （S2 fix3-2）：訊息建立與編輯的 partner_ids 收窄、同事的通知、後端 @ 建議名單都呼叫它。
+
+    domain＝額外條件（指定的聯絡人 id，或建議名單的名稱搜尋）；limit＝最多幾筆（建議名單用）。
+    讀得到＝非 sudo 搜尋（rule_scope 決定範圍）。是不是啟用中的內部使用者：搜尋時先以儲存欄位 partner_share 縮小
+    （與 limit 一起才拿得到「前 N 位同事」），再以 sudo 逐一確認帳號（作者不一定讀得到對方的 res.users，營造方就讀不到
+    監造方人員的帳號；OdooBot 的聯絡人 partner_share 也是 False，但它的帳號是停用的，這一步把它拿掉）。
     """
-    readable = env['res.partner'].with_user(author).search(list(domain))
-    return readable.filtered(lambda partner: any(not user.share for user in partner.sudo().user_ids))
+    readable = env['res.partner'].with_user(author).search(
+        expression.AND([list(domain), [('partner_share', '=', False)]]), limit=limit)
+    return readable.filtered(lambda partner: bool(_dash_internal_user(partner)))
 
 
 def _dash_colleague_ids(env, author_id, partner_ids):
@@ -209,9 +240,34 @@ def _dash_mention_channel(thread):
     return bool(thread) and thread._name == DISCUSS_MODEL and thread.sudo().channel_type in MENTION_CHANNEL_TYPES
 
 
+def _dash_colleague_recipients(thread, message, msg_vals, author_id, members):
+    """檔頭九（使用者 11-11 暫定；S2 fix3-1）：私訊／群組對話裡，訊息 partner_ids 中作者讀得到的內部同事（不是成員、不是作者），
+    各一列站內通知（核心收件人資料的格式，mail/models/discuss/discuss_channel.py:571-582）。不靠核心那一列：核心只取有 email 的聯絡人。"""
+    if not _dash_mention_channel(thread):
+        return []
+    # 只通知使用者發的訊息（核心同一個判斷：msg_vals 沒給類型時當 comment）
+    message_type = msg_vals.get('message_type', 'comment') if msg_vals else message.message_type
+    if message_type not in CHANNEL_NOTIFIED_MESSAGE_TYPES:
+        return []
+    # 訊息上存的 partner_ids（建立時已收窄成成員＋同事，見 MailMessage.create）；msg_vals 裡的是呼叫端原本送來的
+    mentioned = set(message.sudo().partner_ids.ids) if message else {
+        pid for pid in msg_vals.get('partner_ids') or [] if isinstance(pid, int)}
+    colleague_ids = _dash_colleague_ids(thread.env, author_id, mentioned - members - {author_id})
+    rows = []
+    for partner in thread.env['res.partner'].sudo().browse(sorted(colleague_ids)):
+        user = _dash_internal_user(partner)
+        rows.append({
+            'active': True, 'id': partner.id, 'is_follower': False, 'groups': [], 'lang': partner.lang,
+            'notif': COLLEAGUE_NOTIFICATION_TYPE, 'share': partner.partner_share, 'type': 'user',
+            'uid': user.id, 'ushare': user.share,
+        })
+    return rows
+
+
 def _dash_filter_recipients(thread, message, msg_vals, recipients):
     """收件人計算的收窄（檔頭三、五、七、八、九）。thread＝發訊息的單據或對話（可能是空的 recordset：沒有單據的通知）。"""
-    if not recipients:
+    # 私訊／群組對話：核心沒有算出任何收件人（例：被 @ 的同事都沒有 email、成員都靜音）時，同事那一列仍要組（檔頭九）
+    if not recipients and not _dash_mention_channel(thread):
         return recipients
     env = thread.env
     msg_vals = msg_vals or {}
@@ -219,14 +275,12 @@ def _dash_filter_recipients(thread, message, msg_vals, recipients):
     is_discuss = thread._name == DISCUSS_MODEL
     # 沒有單據（空的 recordset）不算業務單據：手機動作的例外（檔頭七）不適用
     if _dash_narrow_recipients(env, author_id, thread._name if thread else False):
-        members = colleagues = set()
+        members = set()
         if is_discuss and thread:
             members = set(thread.sudo().channel_member_ids.partner_id.ids)
-        if _dash_mention_channel(thread):
-            # 見檔頭九（使用者 11-11 暫定）：讀得到的內部同事一律站內通知
-            colleagues = _dash_colleague_ids(env, author_id, {r['id'] for r in recipients} - members)
-        recipients = ([r for r in recipients if r['notif'] in MEMBER_NOTIFICATION_TYPES and r['id'] in members]
-                      + [dict(r, notif=COLLEAGUE_NOTIFICATION_TYPE) for r in recipients if r['id'] in colleagues])
+        recipients = [r for r in recipients if r['notif'] in MEMBER_NOTIFICATION_TYPES and r['id'] in members]
+        # 見檔頭九（使用者 11-11 暫定）：讀得到的內部同事一律一列站內通知（S2 fix3-1：自己組，沒有 email 也收得到）
+        recipients += _dash_colleague_recipients(thread, message, msg_vals, author_id, members)
     # 見檔頭八：業務單據上的訊息不通知範圍不合格的受限內部帳號（對話照常）
     if recipients and not is_discuss:
         blocked = _blocked_partner_ids(env, {r['id'] for r in recipients})
@@ -276,6 +330,17 @@ class MailThread(models.AbstractModel):
         # 見檔頭三、五
         recipients = super()._notify_get_recipients(message, msg_vals, **kwargs)
         return _dash_filter_recipients(self, message, msg_vals, recipients)
+
+
+class MailNotification(models.Model):
+    _inherit = 'mail.notification'
+
+    def _filtered_for_web_client(self):
+        # 見檔頭十：受限內部帳號讀不到的通知（別人的）先拿掉，核心才不會逐筆讀它們的欄位而 AccessError
+        records = self
+        if not self.env.su and self.env.user._dash_is_restricted_internal():
+            records = self._filtered_access('read')
+        return super(MailNotification, records)._filtered_for_web_client()
 
 
 class IrAttachment(models.Model):
@@ -359,8 +424,8 @@ class ResPartner(models.Model):
         channel = self.env[DISCUSS_MODEL].search([('id', '=', channel_id)])
         if not _dash_mention_channel(channel):
             return result
-        colleagues = _dash_colleagues(self.env, user, expression.AND([
-            self._get_mention_suggestions_domain(search), [('partner_share', '=', False)]]))[:limit]
+        # 與送出時保留的是同一份（S2 fix3-2）：送出時 partner_ids 收窄也只呼叫 _dash_colleagues
+        colleagues = _dash_colleagues(self.env, user, self._get_mention_suggestions_domain(search), limit=limit)
         # sudo 組資料：同事是本人讀得到的，但它們的 res.users 紀錄本人不一定讀得到（_to_store 要讀主帳號判斷是不是內部使用者）
         extra = Store(colleagues.sudo()).get_result()
         for key, rows in extra.items():
@@ -434,7 +499,24 @@ class MailMessage(models.Model):
         self._dash_deny_business_message_change()
         if 'author_id' in vals:
             self._dash_check_own_author([vals['author_id']])   # 見檔頭三（fix3-S 保證 1）
-        return super().write(vals)
+        result = super().write(vals)
+        if 'partner_ids' in vals:
+            self._dash_narrow_written_partners()
+        return result
+
+    def _dash_narrow_written_partners(self):
+        """見檔頭三、九（S2 fix3-3，審查 skeptic F4）：寫了 partner_ids（編輯訊息 /mail/message/update_content 以 sudo 寫）之後，
+        照建立時同一條收窄（_dash_narrow_recipients ＋ _dash_member_partner_commands：成員＋可 @ 的同事）。
+        寫完才收窄：寫入值可以是 id 清單或任何 x2many 指令，看結果才不必逐種解讀。"""
+        for message in self.sudo():
+            if not _dash_narrow_recipients(self.env, message.author_id.id, message.model):
+                continue
+            current = message.partner_ids.ids
+            [(_cmd, _zero, kept)] = self._dash_member_partner_commands({
+                'model': message.model, 'res_id': message.res_id, 'author_id': message.author_id.id,
+                'partner_ids': [(6, 0, current)]})
+            if set(kept) != set(current):
+                super(MailMessage, message).write({'partner_ids': [(6, 0, kept)]})
 
     def unlink(self):
         self._dash_deny_business_message_change()

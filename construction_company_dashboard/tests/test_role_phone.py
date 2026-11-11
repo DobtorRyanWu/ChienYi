@@ -730,17 +730,20 @@ class TestRoleConversion(RolePhoneCase):
         self.assertFalse(user.sudo().dash_role_origin, f'{user.login}：改回後清掉轉換紀錄')
 
     def test_revert_without_full_origin_and_bad_origin(self):
-        """S2 fix1-P 的另外兩條路：沒有完整轉換紀錄（直接建成的角色帳號、fix1 以前轉換的只記了公司）照層級／方別推，
-        公司照紀錄寫回；紀錄的群組不像前台帳號、或主要公司不在允許公司裡 → 拒絕，帳號照舊是角色帳號（沒有改到一半）。"""
+        """S2 fix1-P 的另外兩條路：沒有轉換紀錄（直接建成的角色帳號）照層級／方別推，範圍公司與公司不動；
+        紀錄的群組不像前台帳號、或主要公司不在允許公司裡 → 拒絕，帳號照舊是角色帳號（沒有改到一半）。
+        S2 fix3-7：拿掉「只記了公司」的舊格式相容路徑，改測「沒有紀錄」那格。"""
         admin = self._engineering_manager()
-        legacy = self.new[(SIDE_CONTRACTOR, LEVEL_MANAGER)]
-        legacy.sudo().write({'dash_role_origin': {'company_id': self.co_a.id, 'company_ids': self.co_a.ids}})
-        legacy.with_user(admin).action_revert_to_portal_role()
-        self.assertTrue(legacy.share)
-        self.assertEqual(legacy.portal_role, LEVEL_MANAGER)
-        self.assertEqual((legacy.is_contractor_org, legacy.is_supervision_org), (True, False), '組織旗標照方別')
-        self.assertEqual((legacy.company_id, legacy.company_ids), (self.co_a, self.co_a), '公司照舊紀錄寫回')
-        self.assertFalse(legacy.sudo().dash_role_origin)
+        direct = self.new[(SIDE_CONTRACTOR, LEVEL_MANAGER)]
+        self.assertFalse(direct.sudo().dash_role_origin, '前提：直接建成的角色帳號沒有轉換紀錄')
+        companies_before = (direct.company_id, direct.company_ids, direct.sudo().dash_scope_company_id)
+        direct.with_user(admin).action_revert_to_portal_role()
+        self.assertTrue(direct.share)
+        self.assertEqual(direct.portal_role, LEVEL_MANAGER)
+        self.assertEqual((direct.is_contractor_org, direct.is_supervision_org), (True, False), '組織旗標照方別')
+        self.assertEqual((direct.company_id, direct.company_ids, direct.sudo().dash_scope_company_id), companies_before,
+                         '沒有紀錄：範圍公司、主要公司、允許公司都不動')
+        self.assertFalse(direct.sudo().dash_role_origin)
 
         user = self.old[(SIDE_SUPERVISION, LEVEL_BOSS)]
         user.sudo().write({'totp_secret': MANAGER_TOTP_SECRET})

@@ -23,7 +23,11 @@
     #        runbook README_ROLE_ACCOUNTS.md。A 的 18 條全域公司規則在各模型所屬模組（測試在本模組 tests/test_company_isolation.py）。
     #        2.3.1（2026-11-11，S3 fix1）：受限帳號清單簡化成只看 _dash_is_restricted()（拿掉群組 SQL 與 origin／scope 兩個訊號），
     #        5 個受限群組 xmlid 任一個找不到就 UserError（fail-closed）；hook 訊息與 runbook 更正（解除安裝失敗只失敗一次）；寫入面測試。
-    "version": "18.0.2.3.1",
+    #        2.3.2（2026-11-11，S2 fix3）：@ 對話外內部同事沒有 email 也收站內通知（同事那一列自己組）、可 @ 的同事只留
+    #        _dash_colleagues 一份（前端只顯示後端回的）、編輯訊息也收窄 partner_ids、受限內部帳號（營造廠主管、後台角色帳號、
+    #        控台讀取）的 XML-RPC／JSON-RPC 只收 API key（_rpc_api_keys_only；瀏覽器登入照常只要密碼）、改回前台帳號拿掉
+    #        舊格式紀錄的相容路徑、意見回饋 ACL 模型名從 rule_scope 匯入、過時的 TOTP 註解。沒有新欄位。
+    "version": "18.0.2.3.2",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """

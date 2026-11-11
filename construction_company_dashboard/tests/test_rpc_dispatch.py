@@ -15,7 +15,9 @@
 """
 import inspect
 import xmlrpc.client
+from datetime import timedelta
 
+from odoo import fields
 from odoo.tests import HttpCase, TransactionCase, tagged
 
 CONSOLE_GROUP = 'construction_company_dashboard.group_console_reader'
@@ -50,9 +52,14 @@ class TestRpcCreateProject(HttpCase):
 
     def _rpc(self, user, method, args, kw=None):
         db = self.env.cr.dbname
-        uid = self.xmlrpc_common.authenticate(db, user.login, PASSWORD, {})
+        # S2 fix3-9：受限內部帳號（控台讀取）打程式介面只收 API key；監造方照常用密碼
+        secret = PASSWORD
+        if user._dash_is_restricted_internal():
+            secret = self.env['res.users.apikeys'].with_user(user)._generate(
+                'rpc', 'DASH RPC 測試', fields.Datetime.now() + timedelta(days=1))
+        uid = self.xmlrpc_common.authenticate(db, user.login, secret, {})
         self.assertEqual(uid, user.id, '登入失敗：%s' % user.login)
-        return self.xmlrpc_object.execute_kw(db, uid, PASSWORD, 'project.project', method, args, kw or {})
+        return self.xmlrpc_object.execute_kw(db, uid, secret, 'project.project', method, args, kw or {})
 
     def _vals(self, code):
         return {'name': f'{code} RPC 建立的工程', 'code': code, 'project_type': 'general',

@@ -33,7 +33,7 @@ MAIN_COMPANY_XMLID = 'base.main_company'
 # 組合：層級（老闆 ROLE_BOSS 隱含主管 ROLE_MANAGER）＋方別標記恰好一個——
 # 營造方標記＝DASH_CONTRACTOR_MANAGER_XMLID（沿用「營造廠主管」群組），監造方標記＝ROLE_SUPERVISION_XMLID。
 # 判定只看原始群組成員資格（不看 TOTP、不看範圍）：有任何角色群組就是角色帳號＝受限帳號，
-# 組合不合法、範圍不合格、沒開 TOTP 只會讓 _dash_scope_ok() 為 False（什麼都看不到），絕不會變回不受限的內部帳號。
+# 組合不合法、範圍不合格（見 _dash_scope_ok）只會讓 _dash_scope_ok() 為 False（什麼都看不到），絕不會變回不受限的內部帳號。
 ROLE_BOSS_XMLID = 'construction_company_dashboard.group_role_boss'
 ROLE_MANAGER_XMLID = 'construction_company_dashboard.group_role_manager'
 ROLE_SUPERVISION_XMLID = 'construction_company_dashboard.group_role_supervision'
@@ -439,7 +439,7 @@ class ResUsers(models.Model):
         return not self.sudo().share and self._dash_is_restricted()
 
     def _dash_is_blocked_internal(self):
-        """範圍不合格的受限內部帳號（營造廠主管、後台角色帳號；沒開 TOTP、範圍公司或組合不合格）。**全系統只有這一份**（S2-D）。
+        """範圍不合格的受限內部帳號（營造廠主管、後台角色帳號；範圍不合格見 _dash_scope_ok）。**全系統只有這一份**（S2-D）。
 
         讀取規則讓它們讀不到業務單據上的訊息、收件人計算也拿掉它們（construction_company_dashboard rule_scope.py、
         restricted_mail.py 檔頭八），兩邊看同一個判斷才不會「讀不到卻被通知」而讓別人發訊息時失敗。
@@ -486,13 +486,13 @@ class ResUsers(models.Model):
     # ── 手機（前台）能力：全系統各只有一份（S2，2026-11-11）──────────────────
     # 前台 controller 的守衛（construction_portal/controllers/portal.py：_can_manage、_is_field_only、_require_write、
     # _require_photo_deleter、_require_not_contractor、日誌解鎖）與模板裡的按鈕顯示條件都呼叫這裡，畫面與路由不會分岔。
-    # 角色帳號沒有前台角色群組，能力由後台層級（_role_level_raw）推出；範圍不合格（含沒開 TOTP、組合不合法）＝沒有任何手機能力。
+    # 角色帳號沒有前台角色群組，能力由後台層級（_role_level_raw）推出；範圍不合格（見 _dash_scope_ok）＝沒有任何手機能力。
     def _portal_role_level(self):
         """手機能力的層級：'boss'／'manager'／'field'／'observer'／None（值與 portal_role 欄位同一組，PORTAL_ROLE_GROUPS）。
 
         * 前台帳號（share）：照前台角色群組取最高的一級。
-        * 後台角色帳號：照後台層級（老闆、主管），而且範圍要合格（_dash_scope_ok：方別、範圍公司、TOTP）——
-          沒開 TOTP 的角色帳號讀不到任何資料，也不能在手機寫入（例：建工程不必先讀任何紀錄）。
+        * 後台角色帳號：照後台層級（老闆、主管），而且範圍要合格（範圍不合格見 _dash_scope_ok）——
+          範圍不合格的角色帳號讀不到任何資料，也不能在手機寫入（例：建工程不必先讀任何紀錄）。
         * 其他內部帳號（監造方後台人員、代操作員、系統管理者）：None，它們另有自己的放行條件（_is_supervision_side 等），照舊。
         """
         self.ensure_one()

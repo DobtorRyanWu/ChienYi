@@ -7,6 +7,8 @@
 * XML-RPC（/xmlrpc/2/object）、JSON-RPC（/jsonrpc）的 object 服務：控台讀取帳號呼叫自訂方法 → AccessError（fault 4）；
   帳密錯 → AccessDenied（fault 3，不是閘門訊息：沒登入的人不能拿它探測）；dash_console_overview 照常。
   營造廠主管（已啟用兩步驟驗證）用 API key 一樣被擋。
+  S2 fix3-9（使用者 11-11）：受限內部帳號（控台讀取、營造廠主管）打程式介面只收 API key，這裡一律用 API key；
+  密碼被拒那一面在 test_role_fix3.TestRestrictedRpcApiKeyOnlyHttp。web session 用 login_as_browser（當成瀏覽器登入）。
 """
 import base64
 import datetime
@@ -20,7 +22,9 @@ from odoo.tests import HttpCase, tagged
 
 from odoo.addons.construction_company_dashboard.models.method_gate import GATE_NOTE
 
-from .test_scope_rules import CONSOLE_GROUP, MANAGER_GROUP, PORTAL_LEADER, SUPERVISOR_ADMIN, require_totp
+from .test_scope_rules import (
+    CONSOLE_GROUP, MANAGER_GROUP, PORTAL_LEADER, SUPERVISOR_ADMIN, login_as_browser, require_totp,
+)
 
 PASSWORD = 'Dash-gate-pass1'
 RPC_FAULT_ACCESS_DENIED = 3       # 核心 base/controllers/rpc.py
@@ -68,7 +72,7 @@ class TestMethodGateHttp(HttpCase):
         """以瀏覽器 session 打 /web/dataset/*；回 ('ok', 結果) 或 ('error', 例外名稱, 訊息)。
         login=False：沿用目前的 session（身分確認的時效記在 session 裡，多步驟流程要同一個 session）。"""
         if login:
-            self.authenticate(user.login, PASSWORD)
+            login_as_browser(self, user.login, PASSWORD)
         payload = {'jsonrpc': '2.0', 'method': 'call', 'id': 1, 'params': {
             'model': model, 'method': method, 'args': args, 'kwargs': dict(kwargs or {}, context={
                 'allowed_company_ids': user.company_ids.ids})}}
@@ -82,6 +86,11 @@ class TestMethodGateHttp(HttpCase):
     def _xmlrpc(self, user, secret, model, method, args, kw=None):
         db = self.env.cr.dbname
         return self.xmlrpc_object.execute_kw(db, user.id, secret, model, method, args, kw or {})
+
+    def _api_key(self, user):
+        """S2 fix3-9：受限內部帳號打程式介面只收 API key（密碼被拒）。"""
+        return self.env['res.users.apikeys'].with_user(user)._generate(
+            'rpc', 'DASH 閘門測試', fields.Datetime.now() + datetime.timedelta(days=1))
 
     def _assert_gate(self, outcome, who):
         self.assertEqual(outcome[0], 'error', f'{who}：自訂方法應被拒，卻回 {outcome!r}'[:300])
@@ -149,8 +158,9 @@ class TestMethodGateHttp(HttpCase):
     # ── XML-RPC／JSON-RPC ─────────────────────────────────────────────────
     def test_xmlrpc_gate(self):
         model, method = CUSTOM_METHOD
+        key = self._api_key(self.console)
         with self.assertRaises(xmlrpc.client.Fault) as ctx:
-            self._xmlrpc(self.console, PASSWORD, model, method, [[self.p_a.id]])
+            self._xmlrpc(self.console, key, model, method, [[self.p_a.id]])
         self.assertEqual(ctx.exception.faultCode, RPC_FAULT_ACCESS_ERROR, ctx.exception.faultString[:300])
         self.assertIn(GATE_NOTE, ctx.exception.faultString)
         # 帳密錯：照核心回 AccessDenied，不洩漏閘門訊息
@@ -158,8 +168,8 @@ class TestMethodGateHttp(HttpCase):
             self._xmlrpc(self.console, 'wrong-password', model, method, [[self.p_a.id]])
         self.assertEqual(ctx.exception.faultCode, RPC_FAULT_ACCESS_DENIED)
         self.assertNotIn(GATE_NOTE, ctx.exception.faultString)
-        # 控台取資料方法照常
-        overview = self._xmlrpc(self.console, PASSWORD, 'project.project', 'dash_console_overview', [])
+        # 控台取資料方法照常（控台實際也是用 API key：tools/console_agent/pull_overview.py）
+        overview = self._xmlrpc(self.console, key, 'project.project', 'dash_console_overview', [])
         self.assertIn('projects', overview)
         # 監造方：同一個自訂方法照常
         result = self._xmlrpc(self.sup, PASSWORD, model, method, [[self.p_a.id]])
@@ -168,8 +178,7 @@ class TestMethodGateHttp(HttpCase):
     def test_xmlrpc_gate_api_key_manager(self):
         """已啟用兩步驟驗證的營造廠主管只能用 API key 打 RPC：一樣被閘門擋，ORM 讀取照常。"""
         self.mgr.sudo().write({'totp_secret': 'JBSWY3DPEHPK3PXP'})
-        key = self.env['res.users.apikeys'].with_user(self.mgr)._generate(
-            'rpc', 'DASH 閘門測試', fields.Datetime.now() + datetime.timedelta(days=1))
+        key = self._api_key(self.mgr)
         model, method = CUSTOM_METHOD
         with self.assertRaises(xmlrpc.client.Fault) as ctx:
             self._xmlrpc(self.mgr, key, model, method, [[self.p_a.id]])
@@ -182,10 +191,10 @@ class TestMethodGateHttp(HttpCase):
         model, method = CUSTOM_METHOD
         payload = {'jsonrpc': '2.0', 'method': 'call', 'id': 1, 'params': {
             'service': 'object', 'method': 'execute_kw',
-            'args': [self.env.cr.dbname, self.console.id, PASSWORD, model, method, [[self.p_a.id]], {}]}}
+            'args': [self.env.cr.dbname, self.console.id, self._api_key(self.console), model, method, [[self.p_a.id]], {}]}}
         body = self.url_open('/jsonrpc', data=json.dumps(payload), headers={'Content-Type': 'application/json'}).json()
         self.assertIn('error', body, body)
         self.assertIn(GATE_NOTE, body['error']['data']['message'])
-        payload['params']['args'][1] = self.sup.id
+        payload['params']['args'][1:3] = [self.sup.id, PASSWORD]
         body = self.url_open('/jsonrpc', data=json.dumps(payload), headers={'Content-Type': 'application/json'}).json()
         self.assertEqual(body.get('result', {}).get('res_model'), 'supervision.photo', body)

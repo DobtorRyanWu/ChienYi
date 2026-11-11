@@ -7,10 +7,11 @@
 * 伺服器動作「設為營造廠主管」（工程管理者限定）：一次寫好群組、主要公司、允許公司。
 * 允許公司的計算（動作與自動同步共用）：營造公司（範圍公司）＋所承攬工程的所有監造公司；
   主公司＝承攬工程最多的監造公司。
-* 兩步驟驗證（auth_totp）：Odoo 18 原生只有 auth_totp_mail_enforce（寄信驗證碼、全站或全員工的設定，
-  不分群組、不擋資料），不符合「只對營造廠主管強制、沒設就什麼都看不到」，所以自己做：
-  營造廠主管沒有啟用 TOTP 時 _dash_scope_ok() 為 False → rule_scope 對他預設拒絕（框架以外只剩本人的使用者與聯絡人，合約 §0b-16）。
-  啟用／改密碼／改語言時區走核心 self-writeable 的 sudo，不受拒寫規則影響（見 tests/test_account_setup.py）。
+* 兩步驟驗證（auth_totp）：要不要強制看 DASH_REQUIRE_TOTP（S2 fix2-Z，使用者 11-11 暫定：先不強制），唯一判斷點
+  _dash_totp_missing；範圍不合格見 _dash_scope_ok。啟用／改密碼／改語言時區走核心 self-writeable 的 sudo，不受拒寫規則影響
+  （見 tests/test_account_setup.py）。
+* 程式介面只收 API key（S2 fix3-9，使用者 11-11）：受限內部帳號（營造廠主管、後台角色帳號、控台讀取）走 XML-RPC／JSON-RPC
+  不收密碼（_rpc_api_keys_only）；瀏覽器、手機登入照常只要密碼。
 """
 import logging
 from collections import Counter
@@ -34,6 +35,8 @@ from odoo.addons.construction_supervision_base.models.res_users import (
     ROLE_SUPERVISION_XMLID,
     SUPERVISION_ORG_GROUP_XMLID,
 )
+
+from .rule_scope import ROLE_FEEDBACK_OWN, ROLE_FEEDBACK_REFERENCE
 
 COMPANY_TYPE_SUPERVISION = 'supervision'
 # 通知類與介面類群組，不算越權：內部帳號預設站內通知（construction_supervision_base 建帳號時自動補）、
@@ -93,8 +96,9 @@ SIDE_TO_ORG_GROUP = {ROLE_SIDE_CONTRACTOR: CONTRACTOR_ORG_GROUP_XMLID, ROLE_SIDE
 
 # 意見回饋（construction_helpdesk，dev 才有裝；S2 fix2-W）：後台角色帳號的讀取權。不寫在 csv：本模組不依賴 construction_helpdesk，
 # 沒裝的庫引用不到它的模型。由升級本模組時的函式（data/feedback_acl.xml）建，模型不存在就略過；之後才裝 helpdesk 的庫
-# 要再 -u 本模組。讀得到哪幾筆由 rule_scope 決定（ROLE_FEEDBACK_OWN：只有自己建的；營造方角色帳號全拒）。
-FEEDBACK_ACL_MODELS = ('construction.service.ticket', 'construction.service.category', 'construction.functional.module')
+# 要再 -u 本模組（README_ROLE_ACCOUNTS.md §4）。讀得到哪幾筆由 rule_scope 決定（ROLE_FEEDBACK_OWN：只有自己建的；營造方角色帳號全拒）。
+# 模型名只有 rule_scope 那一份（S2 fix3-8，審查 simplifier W-1）
+FEEDBACK_ACL_MODELS = (ROLE_FEEDBACK_OWN, *sorted(ROLE_FEEDBACK_REFERENCE))
 FEEDBACK_ACL_NAME = '後台角色帳號 讀 意見回饋（S2 fix2-W）'
 
 
@@ -127,11 +131,21 @@ class ResUsers(models.Model):
                 and not self.sudo().totp_enabled)
 
     def _dash_scope_ok(self):
-        """範圍公司合格，且（營造廠主管）已啟用兩步驟驗證。
+        """範圍合格：base 的判斷（範圍公司、方別、層級；construction_supervision_base res.users._dash_scope_ok），
+        強制兩步驟驗證時（DASH_REQUIRE_TOTP）另要已啟用——經 _dash_totp_missing，常數為 False 時不看。
 
         False → 讀取規則預設拒絕（框架以外只剩本人的使用者與聯絡人，合約 §0b-16）。判定只看帳號本身，不因 env.su 跳過。
         """
         return super()._dash_scope_ok() and not self._dash_totp_missing()
+
+    def _rpc_api_keys_only(self):
+        """S2 fix3-9（使用者 11-11「關」；審查 s2review2-redteam F1）：受限內部帳號（營造廠主管、後台角色帳號、控台讀取）走程式介面
+        （XML-RPC /xmlrpc/2、JSON-RPC /jsonrpc：核心的非互動式登入）只收 API key、不收密碼——與核心 auth_totp 對「開了 TOTP 的帳號」
+        同一個機制（auth_totp/models/res_users.py 覆寫的就是這一支；判斷在 base/models/res_users.py _check_credentials 的
+        非互動式分支）。瀏覽器／手機登入（/web/login、/web/session/authenticate，互動式）不看這裡，照常只要密碼，
+        **不要求任何人開兩步驟驗證**（使用者 11-11：「大家用兩步驟驗證太麻煩」）。控台讀取帳號本來就用 API key
+        （tools/console_agent/pull_overview.py；dev 的 console_reader 有一把 scope=rpc 的 key）。self＝要登入的那個帳號。"""
+        return self._dash_is_restricted_internal() or super()._rpc_api_keys_only()
 
     # ── 群組允許清單 ──────────────────────────────────────────────────
     def _dash_allowed_groups(self):
@@ -291,23 +305,17 @@ class ResUsers(models.Model):
             user.write({'groups_id': [(6, 0, (manager_group | notification.filtered(
                 lambda g: g.get_external_id()[g.id] != 'base.group_multi_company')).ids)]})
             user._dash_apply_manager_companies(force_main=True)
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'type': 'success',
-                'message': _('已設為營造廠主管：%s。提醒對方登入後先啟用兩步驟驗證。',
-                             '、'.join(self.mapped('display_name'))),
-                'sticky': False,
-            },
-        }
+        names = '、'.join(self.mapped('display_name'))
+        # 強制兩步驟驗證時才提醒（只經 _dash_totp_missing 看 DASH_REQUIRE_TOTP；S2 fix3 Z-1）
+        if any(user._dash_totp_missing() for user in self):
+            return self._dash_notify(_('已設為營造廠主管：%s。提醒對方登入後先啟用兩步驟驗證。', names))
+        return self._dash_notify(_('已設為營造廠主管：%s。', names))
 
 
     # ── 伺服器動作「轉成後台角色帳號」「改回前台角色帳號」（S2）──────────────────
     # 同一個 user id（工程成員、歷史單據、建立者都掛在這個 id 上），群組一次寫成目標集合（(6, 0, ids)）。
     # 兩步驟驗證（TOTP）兩個方向都**保留**：密鑰綁的是這個人的驗證 App，轉換不換人；前台帳號也能用 TOTP
-    # （auth_totp_portal），保留只是讓改回後仍要驗證碼，不會讓誰多看到東西。沒開過的轉成角色帳號後，
-    # 讀取範圍一律拒（_dash_scope_ok），手機首頁會提示去啟用（views/portal_role_templates.xml）。
+    # （auth_totp_portal），保留只是讓改回後仍要驗證碼，不會讓誰多看到東西。範圍不合格見 _dash_scope_ok。
     dash_role_origin = fields.Json(
         string='轉換前的帳號設定（改回前台帳號用）', groups='base.group_system', copy=False, readonly=True,
         help='「轉成後台角色帳號」時記下轉換會改到的欄位原值（群組、組織旗標、範圍公司、主要公司、允許公司）；'
@@ -390,7 +398,7 @@ class ResUsers(models.Model):
             if not user._is_role_account() or user._role_side() != side:
                 raise UserError(_('帳號「%s」轉換後不是預期的角色帳號，已取消。', user.display_name))
         names = '、'.join(self.mapped('display_name'))
-        if DASH_REQUIRE_TOTP and any(user._dash_totp_missing() for user in self):
+        if any(user._dash_totp_missing() for user in self):   # 常數只經 _dash_totp_missing 看（S2 fix3 Z-1）
             return self._dash_notify(_('已轉成後台角色帳號：%s。對方登入後要先在手機首頁的提示啟用兩步驟驗證，才看得到資料。', names))
         return self._dash_notify(_('已轉成後台角色帳號：%s。', names))
 
@@ -426,32 +434,27 @@ class ResUsers(models.Model):
             'company_id': main.id,
         }
 
-    def _dash_revert_vals_derived(self, origin):
-        """沒有完整轉換紀錄（直接建成角色帳號、或 fix1 以前轉換的只記了公司）→ 照層級／方別推；範圍公司不動。"""
+    def _dash_revert_vals_derived(self):
+        """沒有完整轉換紀錄（直接建成的角色帳號）→ 照層級／方別推；範圍公司、主要公司、允許公司不動。
+        S2 fix3-7（審查 simplifier P-1）：拿掉「只記了公司」的舊格式相容路徑（只在 S2 未 commit 時期產生、只有 dev 的測試帳號）。"""
         self.ensure_one()
         level, side = self._role_level_raw(), self._role_side()
         if level not in LEVEL_TO_ROLE_GROUP or not side:
             raise UserError(_(
                 '帳號「%s」的角色帳號設定不完整（層級或方別不是恰好一個），請先修正再改回。', self.display_name))
-        vals = {
+        return {
             'groups_id': [(6, 0, _groups_by_xmlid(self.env, (
                 PORTAL_USER_GROUP_XMLID, PORTAL_ROLE_GROUP_BY_LEVEL[level], SIDE_TO_ORG_GROUP[side])).ids)],
             'is_supervision_org': side == ROLE_SIDE_SUPERVISION,
             'is_contractor_org': side == ROLE_SIDE_CONTRACTOR,
         }
-        Company = self.env['res.company'].sudo()
-        companies = Company.browse(origin.get('company_ids') or []).exists()
-        main = Company.browse(origin.get('company_id') or []).exists()
-        if companies and main and main in companies:
-            vals.update(company_ids=[(6, 0, companies.ids)], company_id=main.id)
-        return vals
 
     def action_revert_to_portal_role(self):
         """後台角色帳號 → 前台角色帳號（同一個 user id；S2 規格 C 改回；fix1-P 起逐欄可逆）。
 
         有完整轉換紀錄（dash_role_origin 含 ROLE_ORIGIN_FIELDS 每一欄）：群組、兩個組織旗標、範圍公司、主要公司、
         允許公司照紀錄寫回，改回後與轉換前逐欄相同（含「兩個組織旗標都勾」「營造方範圍公司空白」這種轉換會改到
-        旗標或範圍公司的帳號）。沒有完整紀錄：見 _dash_revert_vals_derived。
+        旗標或範圍公司的帳號）。沒有完整紀錄（直接建成的角色帳號）：見 _dash_revert_vals_derived。
         share 變回 True、通知方式由核心回到 email；TOTP 不動（理由見本節開頭）。
         """
         self._dash_require_engineering_manager(_('改回前台角色帳號'))
@@ -464,7 +467,7 @@ class ResUsers(models.Model):
             if set(ROLE_ORIGIN_FIELDS) <= set(origin):
                 vals = user._dash_revert_vals_from_origin(origin)
             else:
-                vals = user._dash_revert_vals_derived(origin)
+                vals = user._dash_revert_vals_derived()
             vals['dash_role_origin'] = False
             user.write(vals)
             if not user.share:

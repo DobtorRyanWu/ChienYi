@@ -21,7 +21,7 @@ from odoo.exceptions import AccessError, UserError
 from odoo.modules.module import get_manifest, get_module_path
 from odoo.tests import HttpCase, TransactionCase, tagged
 
-from .test_scope_rules import CONSOLE_GROUP, PORTAL_LEADER, SUPERVISOR_ADMIN
+from .test_scope_rules import CONSOLE_GROUP, PORTAL_LEADER, SUPERVISOR_ADMIN, login_as_browser
 
 MODULE = 'construction_company_dashboard'
 ROLE_BOSS = f'{MODULE}.group_role_boss'
@@ -227,7 +227,7 @@ class TestRestrictedListHttp(HttpCase):
         cls.console = user('s3c_http_console', [CONSOLE_GROUP])
 
     def _call(self, user):
-        self.authenticate(user.login, PASSWORD)
+        login_as_browser(self, user.login, PASSWORD)   # S2 fix3-9：控台讀取是受限內部帳號，非互動式只收 API key
         payload = {'jsonrpc': '2.0', 'method': 'call', 'id': 1, 'params': {
             'model': 'res.users', 'method': METHOD, 'args': [], 'kwargs': {}}}
         response = self.url_open(f'/web/dataset/call_kw/res.users/{METHOD}', data=json.dumps(payload),

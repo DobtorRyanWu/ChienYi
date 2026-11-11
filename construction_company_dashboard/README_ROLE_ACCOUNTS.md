@@ -122,6 +122,15 @@ FROM project_task t WHERE t.company_id IS NULL AND t.project_id IS NOT NULL;
 ## 4. 已知限制
 
 - **兩步驟驗證目前不強制**：使用者 11-11 暫定（`res_users_guard.DASH_REQUIRE_TOTP = False`）；改回 True 即恢復。
+- **受限內部帳號的程式介面只收 API key**（S2 fix3，使用者 11-11）：營造廠主管、後台角色帳號、控台讀取走 XML-RPC（`/xmlrpc/2`）、
+  JSON-RPC（`/jsonrpc`）用密碼一律被拒（`res_users_guard._rpc_api_keys_only`，與核心對「開了 TOTP 的帳號」同一個機制）；
+  瀏覽器、手機登入照常只要密碼，不要求開兩步驟驗證。要讓這些帳號跑程式（例：控台拉資料）就替它在偏好設定建一把 API key
+  （dev 的 `console_reader` 本來就是用 API key）。上站前若有人用這類帳號＋密碼跑腳本，換版後會登入失敗——先查、改用 API key。
+- **意見回饋的讀取權（ACL）是升級本模組時建的**（`res_users_guard._dash_sync_feedback_acl`，`data/feedback_acl.xml`）：
+  本模組不依賴 construction_helpdesk，所以**之後才裝 construction_helpdesk 的庫，要再 `-u construction_company_dashboard` 一次**，
+  監造方角色帳號才讀得到自己的客服單（沒做：入口看得到、建單後列表是空的）。
+- 意見回饋是角色帳號「後台唯讀」原則下的寫入例外（使用者 11-11）：前台建單、在自己的單上留言、驗證（問題已解決／仍有問題），
+  三個都只限本人的單；ORM／RPC 直接寫照舊全拒（`construction_helpdesk/models/service_ticket.py` `_role_feedback_allowed`）。
 - **A 的規則所在模組降版會把洞放回來**：18 條規則分在 construction_payment、construction_contract_change、construction_progress、
   construction_general、construction_supervision_base 的 `security/company_rules.xml`（noupdate＝0）。任一個降版到 S3 之前的版本，
   `-u` 會把它那幾條規則刪掉，公司隔離的洞回來、沒有任何 log（red-team F2）。qd.py 目前不擋這種降版（待使用者決定）；

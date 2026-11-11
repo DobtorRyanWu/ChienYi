@@ -204,7 +204,7 @@ class TestRoleAccountGates(TransactionCase):
             defect.with_user(self.operator).sudo().write({'defect_description': 'ROLE 監造方改寫'})
             self.assertEqual(defect.defect_description, 'ROLE 監造方改寫', '反證：監造方後台人員照常可改')
 
-    # ── 手機寫入：S2 起照層級（範圍合格）；沒開 TOTP 一律拒 ─────────────────────
+    # ── 手機寫入：S2 起照層級（範圍合格；範圍不合格見 _dash_scope_ok）─────────────────────
     def test_phone_write_guards_follow_level(self):
         """S2：角色帳號（範圍合格）過得了寫入守衛；解鎖日誌限監造方（營造方照擋）。"""
         pid = self.project.id

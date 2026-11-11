@@ -47,3 +47,5 @@ from . import test_role_fix2
 from . import test_company_isolation
 # S3：受限帳號唯一清單（dash_restricted_account_logins）與解除安裝硬擋（uninstall_hook）
 from . import test_restricted_account_list
+# S2 fix3（2026-11-11）：@ 沒有 email 的同事、可 @ 同事一份定義、編輯訊息收窄、意見回饋留言與驗證、受限內部帳號 RPC 只收 API key
+from . import test_role_fix3

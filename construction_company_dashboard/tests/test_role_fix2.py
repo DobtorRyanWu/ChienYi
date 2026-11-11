@@ -4,7 +4,8 @@
 * U：唯讀帳號（監造方角色帳號、既有營造廠主管型）在私訊裡 @ 對話外的人：讀得到的內部同事加進 partner_ids、收站內通知
   （對方偏好 email 也改站內），讀不到的內部使用者、前台帳號、沒有帳號的聯絡人照舊拿掉；後台人員照核心。@ 建議名單同一個判斷。
   **使用者 11-11 暫定**，之後會再改（restricted_mail.py 檔頭九）。
-* W：監造方角色帳號的意見回饋＝同方別的舊前台帳號（入口、建單、看自己的單）；寫入只有前台建單這一條（sudo 建本人的單）。
+* W：監造方角色帳號的意見回饋＝同方別的舊前台帳號（入口、建單、看自己的單）；寫入例外都只限本人的單：前台建單（sudo 建本人的單）、
+  留言、驗證（S2 fix3 更正「只有建單這一條」；留言與驗證的測試在 test_role_fix3）。
 * Z：DASH_REQUIRE_TOTP＝False（使用者 11-11 暫定：先不強制）——沒開 TOTP 的營造廠主管、四種角色帳號與開了 TOTP 的同一帳號
   讀取範圍、手機能力、通知都相同。強制時（常數 patch 成 True）的舊行為由 test_scope_rules／test_role_phone 等標了
   require_totp 的測試保住。（原本的 X「沒開 TOTP 照發通知」被 Z 取代，已拿掉。）
@@ -206,7 +207,7 @@ class TestRoleFeedback(RolePhoneCase):
                     if pair[1] == LEVEL_MANAGER:
                         _status, _value, hidden = self._create(user, 'hidden', from_project=str(self.p_other.id))
                         self.assertFalse(hidden.project_name, '範圍外的工程不帶進客服單')
-        # RPC／ORM 直接建、改：角色帳號照舊全拒（後台唯讀；寫入只有前台建單這一條）
+        # RPC／ORM 直接建、改：角色帳號照舊全拒（後台唯讀；寫入例外只走前台路由：建單、留言、驗證，都只限本人的單）
         role = self.new[(SIDE_SUPERVISION, LEVEL_BOSS)]
         with self.assertRaises(AccessError):
             self.env[TICKET].with_user(role).create({'subject': 'S2W RPC', 'description': 'x',

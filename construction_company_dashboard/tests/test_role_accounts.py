@@ -1212,7 +1212,7 @@ class TestRoleGateHttp(HttpCase):
         cls.sup = user('role_gate_sup', ['base.group_user', SUPERVISOR_ADMIN])
 
     def _call(self, user, method, args):
-        self.authenticate(user.login, self.PASSWORD)
+        scope_tests.login_as_browser(self, user.login, self.PASSWORD)   # S2 fix3-9：角色帳號非互動式只收 API key
         payload = {'jsonrpc': '2.0', 'method': 'call', 'id': 1, 'params': {
             'model': 'project.project', 'method': method, 'args': args,
             'kwargs': {'context': {'allowed_company_ids': user.company_ids.ids}}}}

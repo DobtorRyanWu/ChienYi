@@ -2,8 +2,9 @@
 <odoo>
     <!-- S2（2026-11-11）：後台角色帳號在手機（前台）的入口。角色帳號只在本模組裝了才存在，所以畫面放這裡、不改 construction_portal 的模板檔。
 
-         1. 沒開兩步驟驗證的提示（工程列表頁）：營造廠主管與後台角色帳號沒開 TOTP 時讀取範圍一律拒（res_users_guard.py
-            _dash_scope_ok），工程列表是空的；提示連到前台的「帳戶安全性」頁（/my/security，auth_totp_portal 提供啟用流程：
+         1. 沒開兩步驟驗證的提示（工程列表頁）：強制兩步驟驗證時（res_users_guard.py DASH_REQUIRE_TOTP，經 _dash_totp_missing；
+            使用者 11-11 暫定先不強制＝不出現）沒開 TOTP 的帳號範圍不合格（見 _dash_scope_ok），工程列表是空的；
+            提示連到前台的「帳戶安全性」頁（/my/security，auth_totp_portal 提供啟用流程：
             身分確認 → 掃 QR → 輸入驗證碼），不必先進後台（後台第一次開啟時核心會初始化 OdooBot，見 rule_scope._dash_with_odoobot）。
          2. 「電腦版後台」入口（工程列表頁、右側抽屜）：只有後台角色帳號（res.users._is_role_account）。 -->
     <template id="portal_role_projects_hints" inherit_id="construction_portal.portal_my_construction_projects"

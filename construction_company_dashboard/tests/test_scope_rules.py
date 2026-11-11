@@ -41,6 +41,17 @@ TOTP_FIXTURE_SECRET = 'JBSWY3DPEHPK3PXP'
 require_totp = patch('odoo.addons.construction_company_dashboard.models.res_users_guard.DASH_REQUIRE_TOTP', True)
 _logger = logging.getLogger(__name__)
 
+
+def login_as_browser(case, login, password):
+    """HttpCase 以 login 建 web session，當成瀏覽器（互動式）登入。
+
+    HttpCase.authenticate 走的是**非互動式**登入（odoo/tests/common.py：`{'interactive': False}`），核心在非互動式只看
+    _rpc_api_keys_only：開了 TOTP 的帳號（auth_totp），以及 S2 fix3-9 起的受限內部帳號（營造廠主管、後台角色帳號、
+    控台讀取）都只收 API key、不收密碼。真的瀏覽器登入（/web/login）是互動式，照常收密碼——測試裡建 session 時把它當互動式。
+    要驗「程式介面只收 API key」本身的測試不要用這個（tests/test_role_fix3.py TestRestrictedRpcApiKeyOnlyHttp）。"""
+    with patch.object(type(case.env['res.users']), '_rpc_api_keys_only', lambda self: False):
+        case.authenticate(login, password)
+
 # 合約 §3.2 的白名單，在測試這邊獨立寫一份（不 import 實作的常數，常數寫錯才測得出來）：
 # 營造廠層級：模型 → 所屬工程欄位
 EXPECT_CONTRACTOR_LEVEL = {
