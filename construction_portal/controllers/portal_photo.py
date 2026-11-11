@@ -288,7 +288,7 @@ class PhotoRoutesMixin:
         source_options = fields_info['source_model']['selection']
         category_options = _photo_category_options(request.env)
 
-        if self._dash_is_contractor():
+        if self._dash_is_restricted():
             # 模板直接讀 project.signboard_photo_ids（告示牌照片是 supervision.photo，營造廠層級）。
             # _document_check_access 回傳 sudo 紀錄，營造方要換回本人身分讀，才不會列出別家營造廠的照片
             # （合約 §3.6）；這頁模板只讀工程的名稱／年度／id 與告示牌照片，本人身分讀得到。

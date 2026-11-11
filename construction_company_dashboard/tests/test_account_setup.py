@@ -246,14 +246,14 @@ class TestAccountSetup(DashScopeCase):
         return env['daily.log.sheet'].search_count([])
 
     def test_totp_required_for_data(self):
-        """沒啟用 TOTP＝什麼都看不到（訊息指向「我的偏好」）；啟用後同一程序立即看得到；停用又回到 0。"""
+        """沒啟用 TOTP＝什麼都看不到（訊息指向「帳戶安全性」）；啟用後同一程序立即看得到；停用又回到 0。"""
         user = self._fresh_manager('dash_totp_user')
         self.assertFalse(user.totp_enabled)
         self.assertEqual(self._sheet_count(user), 0, '沒啟用兩步驟驗證 → 什麼都看不到')
         with self.assertRaises(AccessError) as ctx:
             self.docs_a_sheet().with_user(user).read(['log_date'])
         self.assertIn(TOTP_HINT, str(ctx.exception))
-        self.assertIn('我的偏好', str(ctx.exception))
+        self.assertIn('帳戶安全性', str(ctx.exception))   # fix1-I：提示指向實際的選單與分頁
         expected = self._sheet_count(self.mgr_a)
         self.assertTrue(expected)
         user.sudo().write({'totp_secret': TOTP_FIXTURE_SECRET})

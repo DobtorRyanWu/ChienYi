@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""營造廠主管的帳號設定（合約 §2、§3.1、§13-6）。
+"""營造廠主管、控台讀取、後台角色帳號的帳號設定（合約 §2、§3.1、§13-6；角色帳號 S1，2026-11-10）。
 
-* 群組允許清單約束（res.users 與 res.groups 兩邊）：帶「營造廠主管」或「控台讀取」群組的帳號，
-  群組只能是該群組＋它隱含的群組閉包＋通知類群組；帶營造廠主管就必須範圍公司合格。
+* 群組允許清單約束（res.users 與 res.groups 兩邊）：帶「營造廠主管」「控台讀取」或後台角色群組的帳號，
+  群組只能是這些群組＋它們隱含的群組閉包＋通知類群組；帶營造廠主管就必須範圍公司合格；
+  後台角色帳號另有組合限制（_dash_check_role_setup）。
 * 伺服器動作「設為營造廠主管」（工程管理者限定）：一次寫好群組、主要公司、允許公司。
 * 允許公司的計算（動作與自動同步共用）：營造公司（範圍公司）＋所承攬工程的所有監造公司；
   主公司＝承攬工程最多的監造公司。
@@ -22,6 +23,9 @@ from odoo.addons.construction_supervision_base.models.res_users import (
     DASH_CONSOLE_READER_XMLID,
     DASH_CONTRACTOR_MANAGER_XMLID,
     MANAGER_GROUP_XMLID,
+    ROLE_BOSS_XMLID,
+    ROLE_MANAGER_XMLID,
+    ROLE_SUPERVISION_XMLID,
 )
 
 COMPANY_TYPE_SUPERVISION = 'supervision'
@@ -31,8 +35,14 @@ NOTIFICATION_GROUP_XMLIDS = (
     'mail.group_mail_notification_type_inbox',
     'base.group_multi_company',
 )
-TOTP_SETUP_HINT = '請到右上角「我的偏好」（頭像選單）啟用兩步驟驗證（身分驗證 App），啟用後重新整理頁面即可看到資料。'
-DENY_NOTE_TOTP = '公司儀表板範圍規則：營造廠主管帳號尚未啟用兩步驟驗證，' + TOTP_SETUP_HINT
+# 選單實際名稱：有裝人資模組叫「我的個人資料」，沒裝叫「個人設定」；分頁叫「帳戶安全性」（fix1-I，真瀏覽器確認）
+TOTP_SETUP_HINT = '請到右上角頭像 →「我的個人資料」（或「個人設定」）→「帳戶安全性」啟用兩步驟驗證（身分驗證 App），啟用後重新整理頁面即可看到資料。'
+DENY_NOTE_TOTP = '公司儀表板範圍規則：這個後台唯讀帳號（營造廠主管／後台角色帳號）尚未啟用兩步驟驗證，' + TOTP_SETUP_HINT
+# 群組允許清單的載體：帶任一個就只能帶「載體＋隱含閉包＋通知類群組」（營造廠主管、控台讀取、後台角色帳號三種）
+CARRIER_GROUP_XMLIDS = (
+    DASH_CONTRACTOR_MANAGER_XMLID, DASH_CONSOLE_READER_XMLID,
+    ROLE_BOSS_XMLID, ROLE_MANAGER_XMLID, ROLE_SUPERVISION_XMLID,
+)
 # 範本使用者（base.default_user）加群組時，核心把新群組推給全部內部帳號（odoo/addons/base/models/res_users.py
 # write：`internal_users.write({'groups_id': [Command.link(...)]})`，dev 開了 base_setup.default_user_rights）。
 # 營造廠主管、控台讀取帳號不接收：推給它們會被群組允許清單約束擋下，讓「安裝一個替範本加群組的模組」整個失敗
@@ -75,15 +85,11 @@ class ResUsers(models.Model):
         return self._dash_in_group(DASH_CONTRACTOR_MANAGER_XMLID)
 
     def _dash_totp_missing(self):
-        """營造廠主管而沒有啟用 TOTP（合約 §13-6）。其他帳號不要求。"""
+        """營造廠主管或後台角色帳號（含監造方角色帳號）而沒有啟用 TOTP（合約 §13-6；S1 預設決定監造方也強制）。
+        其他帳號不要求。"""
         self.ensure_one()
-        return self._dash_is_contractor_manager() and not self.sudo().totp_enabled
-
-    def _dash_is_restricted(self):
-        """受限帳號：營造方（含前台營造帳號）或控台讀取帳號——rule_scope 的 _dash_scope_kind() 不為 None 的那些
-        （合約 §0b-24、§0b-25；精靈、自訂方法閘門、公開頻道、內部備註、共用篩選都以這個判定）。"""
-        self.ensure_one()
-        return bool(self._dash_is_console_reader() or self._dash_is_contractor_side())
+        return ((self._dash_is_contractor_manager() or self._is_role_account())
+                and not self.sudo().totp_enabled)
 
     def _dash_scope_ok(self):
         """範圍公司合格，且（營造廠主管）已啟用兩步驟驗證。
@@ -94,11 +100,9 @@ class ResUsers(models.Model):
 
     # ── 群組允許清單 ──────────────────────────────────────────────────
     def _dash_allowed_groups(self):
-        """本帳號允許帶的群組；不受限（沒帶營造廠主管／控台讀取群組）→ None。"""
+        """本帳號允許帶的群組；不受限（沒帶任何載體群組，見 CARRIER_GROUP_XMLIDS）→ None。"""
         self.ensure_one()
-        carriers = _groups_by_xmlid(
-            self.env, (DASH_CONTRACTOR_MANAGER_XMLID, DASH_CONSOLE_READER_XMLID)
-        ) & self.sudo().groups_id
+        carriers = _groups_by_xmlid(self.env, CARRIER_GROUP_XMLIDS) & self.sudo().groups_id
         if not carriers:
             return None
         allowed = carriers | carriers.trans_implied_ids
@@ -113,23 +117,52 @@ class ResUsers(models.Model):
             extra = user.groups_id - allowed
             if extra:
                 raise ValidationError(_(
-                    '帳號「%(user)s」帶有營造廠主管或控台讀取群組，不可再帶其他群組：%(groups)s。\n'
-                    '這兩種帳號只能是唯讀範圍（請用使用者表單「設為營造廠主管」重設群組）。',
+                    '帳號「%(user)s」帶有營造廠主管、控台讀取或後台角色帳號群組，不可再帶其他群組：%(groups)s。\n'
+                    '這幾種帳號只能是唯讀範圍（營造廠主管請用使用者表單「設為營造廠主管」重設群組）。',
                     user=user.display_name,
                     groups='、'.join(extra.mapped('full_name'))))
+            if user._is_role_account():
+                user._dash_check_role_setup()
             if user._dash_is_contractor_manager():
                 # 範圍公司有值但不是營造廠，由 construction_supervision_base 的 _check_dash_scope_company 擋
                 if not user.dash_scope_company_id:
                     raise ValidationError(_(
                         '營造廠主管帳號「%s」必須設定範圍公司（營造廠）。', user.display_name))
 
-    @api.constrains('groups_id', 'dash_scope_company_id')
+    def _dash_check_role_setup(self):
+        """後台角色帳號的組合（S1）：方別標記恰好一個、監造方要有層級、監造方不是營造方且至少一家非營造廠的允許公司。
+
+        這只是「從 ORM 設定時就擋下來」；就算用 SQL 繞過，判定也是 fail-closed（_dash_scope_ok() 為 False，見
+        construction_supervision_base/models/res_users.py 檔頭的 ROLE_* 說明）。
+        """
+        self.ensure_one()
+        name = self.display_name
+        if self._dash_is_console_reader():
+            raise ValidationError(_('帳號「%s」不可同時是控台讀取帳號與後台角色帳號。', name))
+        contractor = self._dash_in_group(DASH_CONTRACTOR_MANAGER_XMLID)
+        supervision = self._dash_in_group(ROLE_SUPERVISION_XMLID)
+        if contractor == supervision:
+            raise ValidationError(_(
+                '後台角色帳號「%s」必須恰好帶一個方別標記：「營造方（後台唯讀）」或「監造單位（角色帳號）」。', name))
+        if supervision:
+            if not self._role_level_raw():
+                raise ValidationError(_(
+                    '監造方角色帳號「%s」必須帶層級：「後台老闆」或「後台主管」。', name))
+            if self._dash_is_contractor_side():
+                raise ValidationError(_(
+                    '監造方角色帳號「%s」不可是營造方（營造組織標記、範圍公司、主要公司都不可以是營造廠）。', name))
+            if not self._role_supervision_company_ids():
+                raise ValidationError(_(
+                    '監造方角色帳號「%s」的允許公司至少要有一家不是營造廠（監造公司）。', name))
+
+    # 範圍公司、組織旗標、主要公司、允許公司改變時也要重查（監造方角色帳號的營造標記與監造公司看這些欄位）
+    @api.constrains('groups_id', 'dash_scope_company_id', 'is_contractor_org', 'company_id', 'company_ids')
     def _check_dash_account_setup(self):
         self._dash_check_account_setup()
 
     def _dash_restricted_users(self):
-        """self 之中帶營造廠主管或控台讀取群組的帳號（群組允許清單約束管的那些）。"""
-        carriers = _groups_by_xmlid(self.env, (DASH_CONTRACTOR_MANAGER_XMLID, DASH_CONSOLE_READER_XMLID))
+        """self 之中帶載體群組（營造廠主管、控台讀取、後台角色帳號）的帳號（群組允許清單約束管的那些）。"""
+        carriers = _groups_by_xmlid(self.env, CARRIER_GROUP_XMLIDS)
         return self.filtered(lambda user: user.sudo().groups_id & carriers) if carriers else self.browse()
 
     def write(self, vals):
@@ -241,8 +274,7 @@ class ResGroups(models.Model):
     @api.constrains('users')
     def _check_dash_account_setup(self):
         """從群組表單加人也要擋（res.users 那一側的約束不會因此觸發）。"""
-        carriers = _groups_by_xmlid(
-            self.env, (DASH_CONTRACTOR_MANAGER_XMLID, DASH_CONSOLE_READER_XMLID))
+        carriers = _groups_by_xmlid(self.env, CARRIER_GROUP_XMLIDS)
         if not carriers:
             return
         # 帶這兩個群組的帳號很少，直接全檢查（不載入 base.group_user 之類大群組的全部使用者）
@@ -255,7 +287,7 @@ class IrRule(models.Model):
     _inherit = 'ir.rule'
 
     def _make_access_error(self, operation, records):
-        # 營造廠主管沒設兩步驟驗證而被擋下時，訊息直接說明怎麼處理
+        # 營造廠主管／角色帳號沒設兩步驟驗證而被擋下時，訊息直接說明怎麼處理
         error = super()._make_access_error(operation, records)
         user = self.env.user
         if user and user._dash_totp_missing():

@@ -32,13 +32,17 @@ class IrActionsServer(models.Model):
                              or is_custom_module(xmlids[action.id].split('.', 1)[0]))
 
     def run(self):
-        if not self.env.su and self.env['ir.rule']._dash_scope_kind():
+        if not self.env.su and self.env.user and self.env.user._dash_is_restricted():
             blocked = self._dash_non_core_actions()
             if blocked:
                 user = self.env.user
                 _logger.warning('%s擋下：帳號 %s（id %s）執行伺服器動作 %s（不是官方模組定義的）',
                                 GATE_NOTE, user.login, user.id, blocked.ids)
+                names = '、'.join(blocked.sudo().mapped('name'))
+                if user._is_role_account():
+                    # 後台角色帳號（含監造方老闆、主管）：不能叫他們「洽監造單位」（fix1-I）
+                    raise AccessError(f'{GATE_NOTE}：您的帳號是後台唯讀帳號，不能執行這個伺服器動作（{names}）。')
                 raise AccessError(
                     f'{GATE_NOTE}：您的帳號是唯讀的營造廠／控台讀取帳號，不能執行這個伺服器動作'
-                    f'（{"、".join(blocked.sudo().mapped("name"))}）。這個操作限監造單位使用，如有需要請洽監造單位。')
+                    f'（{names}）。這個操作限監造單位使用，如有需要請洽監造單位。')
         return super().run()

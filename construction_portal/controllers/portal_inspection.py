@@ -220,7 +220,7 @@ class InspectionRoutesMixin:
         env = request.env
         Insp = env['general.self.inspection'].sudo()
         InspType = env['self.inspection.type'].sudo()
-        contractor = self._dash_is_contractor()
+        contractor = self._dash_is_contractor_or_console()   # 樣板主檔由監造方維護（不是讀取範圍的判斷）
         base_url = f'/construction/{project_id}/inspections/import'
         supervision_project_id = project.id
 
@@ -502,11 +502,12 @@ class InspectionRoutesMixin:
         if not vals['name']:
             return request.redirect('/construction/inspection-types/new?error=name')
 
-        # docx 上傳（可選，未選則不動原檔）。只開放內部帳號：套印引擎 docxtpl 的 Jinja2 沒有沙箱，
-        # 能上傳樣板＝能讓伺服器執行樣板裡的運算式，不能交給營造廠帳號。
-        # 回歸測試：tests/test_inspection_type_docx_upload.py
+        # docx 上傳（可選，未選則不動原檔）。只開放監造方後台人員：套印引擎 docxtpl 的 Jinja2 沒有沙箱，
+        # 能上傳樣板＝能讓伺服器執行樣板裡的運算式，不能交給營造廠帳號。2026-11-10 起看 _is_backend_staff()
+        # （原本看 share：營造廠主管、後台角色帳號是內部帳號，看 share 會放行）。
+        # 回歸測試：tests/test_inspection_type_docx_upload.py、tests/test_role_account_gates.py
         upload = request.httprequest.files.get('template_file')
-        if upload and upload.filename and request.env.user.share:
+        if upload and upload.filename and not request.env.user._is_backend_staff():
             raise AccessError(_('前台帳號不可上傳樣板 docx，請由監造／代操上傳'))
         if upload and upload.filename:
             data = base64.b64encode(upload.read())

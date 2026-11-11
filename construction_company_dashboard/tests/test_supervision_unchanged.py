@@ -43,7 +43,7 @@ class TestSupervisionUnchanged(DashScopeCase):
         compared = differ = 0
         diffs = []
         for user in users:
-            self.assertFalse(user._dash_is_contractor_side() or user._dash_is_console_reader(), user.login)
+            self.assertFalse(user._dash_is_restricted(), user.login)   # 前提：不是受限帳號（fix2-P：與 kind 同一份判斷）
             rule = self.env['ir.rule'].with_user(user)
             for name in names:
                 for mode in MODES:

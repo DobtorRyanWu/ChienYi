@@ -83,7 +83,7 @@
                                         </td>
                                     </t>
                                 </tr>
-                                <!-- Row 3: 支出（可編輯） -->
+                                <!-- Row 3: 支出（有寫入權才可編輯；唯讀帳號 can_edit=false 時唯讀） -->
                                 <tr>
                                     <td style="background: #fef2f2; font-weight: 600; color: #ef4444;">支出</td>
                                     <t t-foreach="state.data.estimates" t-as="est" t-key="est.estimate_id">
@@ -92,6 +92,7 @@
                                                    class="form-control form-control-sm text-end"
                                                    style="min-width: 100px;"
                                                    t-att-value="est.expense"
+                                                   t-att-readonly="!state.data.can_edit"
                                                    t-on-change="(ev) => this.onExpenseChange(est.estimate_id, ev)"/>
                                         </td>
                                     </t>

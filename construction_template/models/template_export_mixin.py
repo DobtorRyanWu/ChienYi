@@ -3,6 +3,18 @@
 
 施工日誌（單筆）與工程案件（專案層級總表）都要匯出樣板，流程完全相同：
 找樣板 → 套印 → 建下載附件 → 回傳下載動作。抽成 mixin 避免每個模型重寫一次。
+
+唯讀帳號（res.users._dash_is_restricted_internal()：營造廠主管、控台讀取、後台角色帳號；S1 fix2-X 起後台角色帳號可以
+匯出估驗的四份文件，其餘仍被公司儀表板的方法閘門擋在外面）走同一套流程，差別：
+* 套印資料一律以本人身分讀（record 就是呼叫者 env 裡的紀錄，各對照表的 search 也用 record.env），範圍規則照套——
+  多營造廠共用的工程上，營造方只讀得到自家的照片、日誌、估驗明細。
+* 以 sudo 讀的只有「樣板」本身（document.template 與它的空白檔）：樣板是版面、不是業務資料；查找條件是樣板類型＋
+  這張估驗的工程（呼叫端已確認讀得到）＋目前公司，不會因此讀到任何工程資料。唯讀帳號讀不到 document.template
+  （範圍規則「其他」類），不 sudo 就找不到樣板。
+* 寫入：record_usage 以 sudo 加樣板的使用次數與最後使用時間（統計，允許的副作用）；匯出檔不掛在單據上，
+  只建一個本人擁有、沒有 res_model 的附件（核心只准建立者與系統管理者讀），重匯時只刪自己先前匯出、帶匯出標記的同名檔——
+  不會刪到任何人上傳到單據上、剛好同名的附件，也不會在業務紀錄上留下檔案。
+* xlsx 不走試算表預覽（預覽頁要呼叫 dobtor 的方法，方法閘門會擋），一律直接下載。
 """
 
 import logging
@@ -18,6 +30,8 @@ XLSX_MIMETYPE = ('application/vnd.openxmlformats-officedocument'
                  '.spreadsheetml.sheet')
 DOCX_MIMETYPE = ('application/vnd.openxmlformats-officedocument'
                  '.wordprocessingml.document')
+# 唯讀帳號匯出檔的標記（ir.attachment.description）：重匯時只刪帶這個標記、本人建立、沒有掛單據的同名檔
+EXPORT_ATTACHMENT_MARKER = 'document.template.export'
 
 
 class TemplateExportMixin(models.AbstractModel):
@@ -38,6 +52,8 @@ class TemplateExportMixin(models.AbstractModel):
         """套印指定類型的樣板並回傳下載動作。"""
         self.ensure_one()
         Template = self.env['document.template']
+        if self.env.user._dash_is_restricted_internal():
+            Template = Template.sudo()   # 只查樣板（版面）；資料仍以本人身分讀（見檔頭）
         project = self._template_project()
 
         template = Template.get_template_for_report(
@@ -65,7 +81,8 @@ class TemplateExportMixin(models.AbstractModel):
         """
         Attachment = self.env['ir.attachment']
         if (attachment.mimetype == XLSX_MIMETYPE
-                and hasattr(Attachment, 'action_open_spreadsheet_preview')):
+                and hasattr(Attachment, 'action_open_spreadsheet_preview')
+                and not self.env.user._dash_is_restricted_internal()):
             # 附件是 sudo 建的；改回目前使用者的 env，讓預覽照使用者自己的權限判斷
             return attachment.with_env(self.env).action_open_spreadsheet_preview()
         return {
@@ -107,8 +124,11 @@ class TemplateExportMixin(models.AbstractModel):
 
         同一筆記錄重複匯出同一份時先清掉上一份，避免附件無限累積
         （這些是產出的暫存檔，不是使用者上傳的資料）。
+        唯讀帳號另走 _create_restricted_export_attachment（不掛單據、只清自己的；見檔頭）。
         """
         self.ensure_one()
+        if self.env.user._dash_is_restricted_internal():
+            return self._create_restricted_export_attachment(filename, content)
         Attachment = self.env['ir.attachment'].sudo()
         Attachment.search([
             ('res_model', '=', self._name),
@@ -122,4 +142,26 @@ class TemplateExportMixin(models.AbstractModel):
             'res_id': self.id,
             'mimetype': DOCX_MIMETYPE if filename.lower().endswith('.docx')
                         else XLSX_MIMETYPE,
+        })
+
+    def _create_restricted_export_attachment(self, filename, content):
+        """唯讀帳號的匯出檔：本人擁有、沒有 res_model 的附件（核心只准建立者與系統管理者讀）。
+
+        先刪「本人先前匯出、帶 EXPORT_ATTACHMENT_MARKER、沒有掛單據」的同名檔——比對條件含建立者與標記，
+        使用者上傳到單據上的附件（有 res_model、沒有標記）永遠不在範圍內。sudo 只是因為唯讀帳號沒有附件的寫入權。
+        """
+        self.ensure_one()
+        Attachment = self.env['ir.attachment'].sudo()
+        Attachment.search([
+            ('res_model', '=', False),
+            ('res_field', '=', False),
+            ('create_uid', '=', self.env.uid),
+            ('description', '=', EXPORT_ATTACHMENT_MARKER),
+            ('name', '=', filename),
+        ]).unlink()
+        return Attachment.create({
+            'name': filename,
+            'raw': content,
+            'description': EXPORT_ATTACHMENT_MARKER,
+            'mimetype': DOCX_MIMETYPE if filename.lower().endswith('.docx') else XLSX_MIMETYPE,
         })

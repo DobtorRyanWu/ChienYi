@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """受限帳號的自訂方法閘門：判定（合約 §0b-24；線 I）。呼叫路徑的攔截在 controllers/method_gate.py。
 
-受限帳號＝ir.rule._dash_scope_kind() 不為 None：營造方（後台營造廠主管、前台營造帳號）與控台讀取帳號。
+受限帳號＝res.users._dash_is_restricted()（全系統唯一一份）：營造方（後台營造廠主管、前台營造帳號）、控台讀取帳號、後台角色帳號。
 營造廠主管與控台讀取帳號隱含 base.group_user，於是繼承了內部帳號「從外部呼叫每個自訂模組公開方法」的路徑；
 這些方法裡常以 sudo 讀寫（ir.rule 擋不到，11-06 抗辯：資料夾上傳精靈改掛任意附件），逐一檢查一定會漏，
 所以把能力拿掉（judgment-rubrics L4：多加一道檢查不如把能力拿掉）：
@@ -10,6 +10,8 @@
 * ORM_READ_API：ORM 的讀取／介面 API（名稱照放行）。
 * ORM_WRITE_API：寫建刪的名稱照放行，交給拒寫規則（rule_scope）拒。
 * DASHBOARD_METHODS：儀表板自己的方法，(模型, 方法) 逐一列。
+* ROLE_ONLY_METHODS：只放後台角色帳號（_is_role_account）的方法，(模型, 方法) 逐一列；營造廠主管、控台讀取、前台營造帳號照擋。
+* NARROWING_ONLY_OVERRIDES：本模組自己只做收窄的覆寫（message_post、message_notify）不算自訂實作。
 只由 Odoo 官方模組實作的方法不經過這道閘門（照原本的 ACL 與規則；例：啟用兩步驟驗證、改密碼、建 API 金鑰）。
 伺服器動作（/web/action/run、ir.actions.server.run）是第四條路，另見 server_action_gate.py。
 監造方與其他帳號完全不受影響。
@@ -56,10 +58,28 @@ DASHBOARD_METHODS = frozenset({
     ('project.project', 'get_project_dashboard_data'),  # 單一工程頁（progress_dashboard.js、progress_dashboard_patch.js；先 check_access）
     ('project.project', 'get_progress_chart_data'),     # 進度表圖表（progress_chart.js、progress_dashboard.js；以本人身分讀進度表）
     ('project.project', 'dash_console_overview'),       # 控台取資料（合約 §8.1；非控台讀取帳號一律 AccessError）
+    # 即時損益（S1，2026-11-10；construction_general）：以看的人的權限查（不 sudo），先 check_access 工程；
+    # 回傳 can_edit 讓畫面唯讀。存支出 save_profit_loss_expense 不放（受限帳號照擋）
+    ('project.project', 'get_profit_loss_data'),
     # 更新公告（construction_release，後台啟動時叫）：讀已發布公告；按「知道了」只把呼叫者自己加進已讀名單（release.py:422-436）
     ('construction.release', 'get_startup_notices'),
     ('construction.release', 'mark_announcements_read'),
 })
+# 只放後台角色帳號的方法（S1 fix2-X，2026-11-10）。營造廠主管、控台讀取帳號、前台營造帳號照擋（_is_role_account 為否）。
+# 方法本身另有一道守衛，不靠閘門：
+#   估驗匯出（construction_template/models/payment_estimate.py）：受限的內部帳號只能匯出讀得到的估驗（範圍外的 id 在任何套印、
+#   寫入之前就 AccessError）、template_type 只准表單上那四顆按鈕（計價單、估驗詳細表、估驗照片、進度報告表）；
+#   套印資料以本人身分讀、匯出檔不掛在單據上也不刪別人的附件、xlsx 不走試算表預覽（template_export_mixin.py 檔頭）。
+ROLE_ONLY_METHODS = frozenset({
+    ('payment.estimate', 'action_export_estimate_template'),
+})
+# 本模組自己為了「收窄」而覆寫的公開方法（fix5，2026-11-11）：restricted_mail.py 的 message_post／message_notify
+# 只拿掉 sms 的「另外傳簡訊到這些號碼」參數、不放寬任何事。它們讓每個 mail.thread 模型的 MRO 都多一層本模組，
+# 閘門原本因此經 RPC 擋下核心的 message_post／message_notify（含既有營造廠主管；審查 skeptic r3 F4），
+# 使用者 11-11 決定：受限帳號經 RPC 在對話發訊息要照常。所以判定時不把「本模組的這幾支」算成自訂實作；
+# 其他自訂模組覆寫同名方法照算（照擋）。業務紀錄上留言、冒用作者，由訊息守衛擋（restricted_mail.py 檔頭二、三），不靠閘門。
+THIS_MODULE = __name__.split('.')[2]
+NARROWING_ONLY_OVERRIDES = frozenset({'message_post', 'message_notify'})
 # 被拒訊息的開頭（測試與 rpc_scope_check 用它認「是閘門擋的」）
 GATE_NOTE = '公司儀表板方法閘門'
 
@@ -82,11 +102,14 @@ def is_custom_module(module):
 
 
 def custom_implementations(model_class, method):
-    """模型類別 MRO 上「定義了 method 的類別」之中來自自訂模組的模組名（MRO 順序、不重複）。"""
+    """模型類別 MRO 上「定義了 method 的類別」之中來自自訂模組的模組名（MRO 順序、不重複）。
+    本模組只做收窄的覆寫（NARROWING_ONLY_OVERRIDES）不算。"""
     modules = []
     for cls in model_class.mro():
         if method in vars(cls):
             module = _addon_of(cls)
+            if module == THIS_MODULE and method in NARROWING_ONLY_OVERRIDES:
+                continue
             if module and is_custom_module(module) and module not in modules:
                 modules.append(module)
     return modules
@@ -96,9 +119,11 @@ def gate_verdict(env, model_name, method):
     """env.user 呼叫 model_name.method 會不會被閘門拒：拒回自訂實作的模組清單，放行回空清單。"""
     if env.su or not isinstance(model_name, str) or not isinstance(method, str):
         return []
-    if not env['ir.rule']._dash_scope_kind():
+    if not env.user or not env.user._dash_is_restricted():
         return []                       # 監造方與其他帳號：不受影響
     if method in ORM_READ_API or method in ORM_WRITE_API or (model_name, method) in DASHBOARD_METHODS:
+        return []
+    if (model_name, method) in ROLE_ONLY_METHODS and env.user._is_role_account():
         return []
     model_class = env.registry.get(model_name)
     if model_class is None:
@@ -115,6 +140,10 @@ def check_method_call(env, model_name, method, via):
     _logger.warning('%s擋下：帳號 %s（id %s）經 %s 呼叫 %s.%s（自訂模組 %s 實作）',
                     GATE_NOTE, user.login, user.id, via, model_name, method, '、'.join(modules))
     description = env[model_name]._description or model_name
+    if user._is_role_account():
+        # 後台角色帳號（含監造方老闆、主管）：不能叫他們「洽監造單位」（fix1-I）
+        raise AccessError(
+            f'{GATE_NOTE}：您的帳號是後台唯讀帳號，不能執行「{description}」的「{method}」（{model_name}.{method}）。')
     raise AccessError(
         f'{GATE_NOTE}：您的帳號是唯讀的營造廠／控台讀取帳號，不能執行「{description}」的「{method}」'
         f'（{model_name}.{method}）。這個操作限監造單位使用，如有需要請洽監造單位。')

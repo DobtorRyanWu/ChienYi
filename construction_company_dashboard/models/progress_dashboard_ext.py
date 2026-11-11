@@ -62,7 +62,8 @@ class ProjectProject(models.Model):
 
     @api.depends_context('uid')
     def _compute_dash_rest_days_readonly(self):
-        readonly = self.env.user._dash_is_contractor_side()
+        # 只有監造方後台人員可改（營造方、控台讀取、角色帳號、前台帳號都唯讀；這個欄位只出現在後台工程表單）
+        readonly = not self.env.user._is_backend_staff()
         for project in self:
             project.dash_rest_days_readonly = readonly
 

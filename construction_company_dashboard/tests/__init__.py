@@ -35,3 +35,7 @@ from . import test_company_type_choice  # 合約 §0b-30 新建公司必選類�
 from . import test_spreadsheet_dashboard
 # 主迴圈 11-07：雛型版三頁（總覽／單一工程／標案地圖）與 log_filled 合計（合約 §0b-33）
 from . import test_dashboard_page
+# S1（2026-11-10）：後台角色帳號（營造老闆／營造主管／監造老闆／監造主管，後台唯讀）
+from . import test_role_accounts
+# S1 fix2-X（2026-11-10）：角色帳號匯出估驗四份文件（construction_template 沒裝就略過）
+from . import test_role_estimate_export

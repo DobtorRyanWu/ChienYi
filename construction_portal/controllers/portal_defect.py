@@ -203,7 +203,7 @@ class DefectRoutesMixin:
                     # 不用 draft —— general 的防竄改邏輯以離開草稿為界，
                     # 且匯入的歷史缺失本來就已經通知過了。
                     state = 'closed' if improvement_date else 'notified'
-                    if state == 'closed' and self._dash_is_contractor():
+                    if state == 'closed' and self._dash_is_contractor_or_console():
                         # 匯入成「已結案」等於結案：缺失驗證與結案限監造方（合約 §3.6 寫入矩陣）
                         failed += 1
                         failed_details.append({
@@ -327,7 +327,7 @@ class DefectRoutesMixin:
         # 營造方只能補自家的缺失（合約 §3.6 表外通則）：sudo 查詢會把別家營造廠的缺失也放進比對索引
         defects = self._dash_visible(Defect.search([('project_id', '=', supervision_project_id)]))
         idx, ambiguous = build_defect_index(defects)
-        is_contractor = self._dash_is_contractor()
+        is_contractor = self._dash_is_contractor_or_console()   # 結案說明屬監造方（不是讀取範圍的判斷）
 
         updated = 0
         unmatched = 0
@@ -545,7 +545,7 @@ class DefectRoutesMixin:
 
                         state = 'closed' if close_comment else (
                             'improved' if improvement else 'notified')
-                        if state == 'closed' and self._dash_is_contractor():
+                        if state == 'closed' and self._dash_is_contractor_or_console():
                             # 有結案說明＝以「已結案」建立；結案限監造方（合約 §3.6 寫入矩陣）
                             failed += 1
                             failed_details.append({

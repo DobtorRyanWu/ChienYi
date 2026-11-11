@@ -1,20 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <!-- 合約 §3.1：兩個群組都只隱含 base.group_user。
-             不設 category_id：不出現在使用者表單的勾選區，指派走線 A1' 的伺服器動作「設為營造廠主管」。
+        <!-- 合約 §3.1：營造方標記與控台讀取都只隱含 base.group_user。
+             不設 category_id：不出現在使用者表單的勾選區，指派走伺服器動作（「設為營造廠主管」）或程式。
              讀取範圍與拒寫不靠群組規則記錄，由 models/rule_scope.py 覆寫 ir.rule._compute_domain（合約 §0b-1）。 -->
 
         <record id="group_contractor_manager" model="res.groups">
-            <field name="name">營造廠主管（唯讀）</field>
+            <!-- 2026-11-10 改名（xmlid 不動）：同時是「營造廠主管」帳號本身、也是營造方角色帳號的方別標記 -->
+            <field name="name">營造方（後台唯讀）</field>
             <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
-            <field name="comment">營造廠總經理的後台唯讀帳號：只看得到自己範圍公司承攬的工程與自家的營造廠層級資料，任何業務資料都不能寫、建、刪。範圍公司（dash_scope_company_id）必填。</field>
+            <field name="comment">營造方的後台唯讀帳號：只看得到自己範圍公司承攬的工程與自家的營造廠層級資料，任何業務資料都不能寫、建、刪。範圍公司（dash_scope_company_id）必填。
+單獨帶這個群組＝營造廠主管（看範圍公司承攬的全部工程）；再加「後台老闆」或「後台主管」＝營造方角色帳號（另外看得到契約變更明細、進度報告、即時損益、成本分析；主管只看被加入的工程）。</field>
         </record>
 
         <record id="group_console_reader" model="res.groups">
             <field name="name">控台讀取</field>
             <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
             <field name="comment">千溢控台拉資料用的帳號：只呼叫 dash_console_overview()（方法內部 sudo、只回合計）；除框架必要模型外一律讀不到，任何業務資料都不能寫、建、刪。</field>
+        </record>
+
+        <!-- 後台角色帳號（2026-11-10，S1）：層級＋方別標記恰好一個。組合規則與讀取範圍見
+             construction_supervision_base/models/res_users.py（ROLE_* 常數）與 models/rule_scope.py。
+             讀取 ACL 掛在 group_role_manager（老闆隱含主管）；監造方標記本身不帶 ACL，必須配層級。 -->
+        <record id="group_role_manager" model="res.groups">
+            <field name="name">後台主管（唯讀角色帳號）</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">角色帳號的層級「主管」：只看被加入為參與成員、而且不是未開始／終止的工程。必須再配一個方別標記：「營造方（後台唯讀）」或「監造單位（角色帳號）」，恰好一個。後台一律唯讀；必須啟用兩步驟驗證才看得到資料。</field>
+        </record>
+
+        <record id="group_role_boss" model="res.groups">
+            <field name="name">後台老闆（唯讀角色帳號）</field>
+            <field name="implied_ids" eval="[(4, ref('group_role_manager'))]"/>
+            <field name="comment">角色帳號的層級「老闆」（隱含「後台主管」）：看自己這一方的全部工程（含未開始的）。必須再配一個方別標記：「營造方（後台唯讀）」或「監造單位（角色帳號）」，恰好一個。後台一律唯讀；必須啟用兩步驟驗證才看得到資料。</field>
+        </record>
+
+        <record id="group_role_supervision" model="res.groups">
+            <field name="name">監造單位（角色帳號）</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+            <field name="comment">監造方角色帳號的方別標記：看允許公司裡不是營造廠的那些監造公司的工程（所有營造廠的紀錄）。必須配「後台老闆」或「後台主管」，不可同時帶「營造方（後台唯讀）」，帳號不可帶營造組織標記，允許公司至少要有一家不是營造廠。</field>
         </record>
     </data>
 </odoo>

@@ -28,6 +28,20 @@ COMPANY_TYPE_CONTRACTOR = 'contractor'
 # 本庫主公司：本產品裡一定是監造公司或千溢，永遠不當營造廠（見 _dash_company_is_contractor）
 MAIN_COMPANY_XMLID = 'base.main_company'
 
+# ── 後台角色帳號（老闆／主管的內部唯讀帳號；S1，2026-11-10）──
+# 群組定義在 construction_company_dashboard（模組沒裝 → env.ref 回 None → 判定一律為否）。
+# 組合：層級（老闆 ROLE_BOSS 隱含主管 ROLE_MANAGER）＋方別標記恰好一個——
+# 營造方標記＝DASH_CONTRACTOR_MANAGER_XMLID（沿用「營造廠主管」群組），監造方標記＝ROLE_SUPERVISION_XMLID。
+# 判定只看原始群組成員資格（不看 TOTP、不看範圍）：有任何角色群組就是角色帳號＝受限帳號，
+# 組合不合法、範圍不合格、沒開 TOTP 只會讓 _dash_scope_ok() 為 False（什麼都看不到），絕不會變回不受限的內部帳號。
+ROLE_BOSS_XMLID = 'construction_company_dashboard.group_role_boss'
+ROLE_MANAGER_XMLID = 'construction_company_dashboard.group_role_manager'
+ROLE_SUPERVISION_XMLID = 'construction_company_dashboard.group_role_supervision'
+ROLE_LEVEL_BOSS = 'boss'
+ROLE_LEVEL_MANAGER = 'manager'
+ROLE_SIDE_CONTRACTOR = 'contractor'
+ROLE_SIDE_SUPERVISION = 'supervision'
+
 
 class ResUsers(models.Model):
     """擴展 res.users 模型，新增組織身分欄位與臨時帳號到期欄位"""
@@ -308,8 +322,22 @@ class ResUsers(models.Model):
         )
 
     def _dash_scope_ok(self):
-        """範圍公司有值且是營造廠。營造方而這裡為 False → 預設拒絕（合約 §1-7）。"""
+        """範圍合格。False → 讀取規則預設拒絕（框架以外只剩本人，合約 §1-7、§0b-16）。
+
+        * 角色帳號：要有層級，且依方別——營造方＝範圍公司是營造廠；監造方＝不是營造方、而且允許公司裡
+          至少有一家不是營造廠；方別不是恰好一個（沒有方別或兩個都有）＝不合格。
+        * 其他帳號（營造方、前台營造帳號）：範圍公司有值且是營造廠（原本的判定，不變）。
+        """
         self.ensure_one()
+        if self._is_role_account():
+            if not self._role_level_raw():
+                return False
+            side = self._role_side()
+            if side == ROLE_SIDE_CONTRACTOR:
+                return self._dash_company_is_contractor(self.sudo().dash_scope_company_id)
+            if side == ROLE_SIDE_SUPERVISION:
+                return not self._dash_is_contractor_side() and bool(self._role_supervision_company_ids())
+            return False
         return self._dash_company_is_contractor(self.sudo().dash_scope_company_id)
 
     def _dash_is_console_reader(self):
@@ -317,14 +345,104 @@ class ResUsers(models.Model):
         self.ensure_one()
         return self._dash_in_group(DASH_CONSOLE_READER_XMLID)
 
-    def _is_supervision_side(self):
-        """監造方使用者（合約 §2）：內部帳號、不是營造方、也不是控台讀取。"""
+    # ── 後台角色帳號（見檔頭 ROLE_* 常數）──────────────────────────────
+    def _role_level_raw(self):
+        """層級：'boss'／'manager'／None。只看群組；前台帳號（share）一律 None。"""
         self.ensure_one()
+        if self.sudo().share:
+            return None
+        if self._dash_in_group(ROLE_BOSS_XMLID):
+            return ROLE_LEVEL_BOSS
+        if self._dash_in_group(ROLE_MANAGER_XMLID):
+            return ROLE_LEVEL_MANAGER
+        return None
+
+    def _role_side(self):
+        """方別：營造方標記與監造方標記剛好一個時回 'contractor'／'supervision'，否則 None。"""
+        self.ensure_one()
+        contractor = self._dash_in_group(DASH_CONTRACTOR_MANAGER_XMLID)
+        supervision = self._dash_in_group(ROLE_SUPERVISION_XMLID)
+        if contractor and not supervision:
+            return ROLE_SIDE_CONTRACTOR
+        if supervision and not contractor:
+            return ROLE_SIDE_SUPERVISION
+        return None
+
+    def _is_role_account(self):
+        """角色帳號：內部帳號，且帶老闆、主管或監造方標記任一群組。
+
+        只看原始群組成員資格，不看 TOTP、不看範圍、不看組合合不合法（fail-closed 的前提，見檔頭）。
+        只帶營造方標記、沒有層級的是原本的「營造廠主管」，不算角色帳號。
+        """
+        self.ensure_one()
+        if self.sudo().share:
+            return False
         return bool(
-            self._is_internal()
-            and not self._dash_is_contractor_side()
-            and not self._dash_is_console_reader()
+            self._dash_in_group(ROLE_BOSS_XMLID)
+            or self._dash_in_group(ROLE_MANAGER_XMLID)
+            or self._dash_in_group(ROLE_SUPERVISION_XMLID)
         )
+
+    def _role_supervision_company_ids(self):
+        """監造方角色帳號的監造公司：允許公司（company_ids）裡不是營造廠的那些（id 排序）。"""
+        self.ensure_one()
+        return sorted(
+            company.id for company in self.sudo().company_ids
+            if not self._dash_company_is_contractor(company)
+        )
+
+    def _dash_is_restricted(self):
+        """受限帳號：營造方（含前台營造帳號）、控台讀取帳號、後台角色帳號。**全系統只有這一份**（fix1-G）。
+
+        rule_scope 的 kind 不為 None、方法閘門、伺服器動作閘門、公開頻道、內部備註與其附件、通知、
+        前台「以本人身分再過一次 ir.rule」、後台人員判定（_is_backend_staff）都由它推出；
+        之後再加一種受限帳號，只改這裡。判定只看帳號本身（呼叫端用 env.user，不因 env.su 跳過）。
+        """
+        self.ensure_one()
+        return bool(self._dash_is_console_reader() or self._dash_is_contractor_side() or self._is_role_account())
+
+    def _dash_is_restricted_internal(self):
+        """受限的內部帳號（營造廠主管、控台讀取、後台角色帳號）：內部帳號而且受限。**全系統只有這一份**（fix2-M）。
+
+        留言／附件／通知／訊息寫入的守衛（construction_company_dashboard restricted_mail.py）、內部備註附件規則（rule_scope）
+        都看它；前台帳號（share）照核心原本的規則。空的 recordset（沒有使用者）回 False。
+        """
+        if not self:
+            return False
+        self.ensure_one()
+        return not self.sudo().share and self._dash_is_restricted()
+
+    def _is_backend_staff(self):
+        """監造方後台人員：內部帳號、而且不是受限帳號（不是營造方、控台讀取、角色帳號）。
+
+        危險能力（樣板管理、樣板 docx 上傳、已提報缺失的定義欄位、營造廠歸屬重填、監造工程師下拉）一律看這個。
+        """
+        self.ensure_one()
+        return bool(self._is_internal() and not self._dash_is_restricted())
+
+    def _construction_org_side(self):
+        """組織方別 'supervision'／'contractor'／None（S1 只定義；S2 才接上缺失類型）。
+
+        角色帳號看方別群組（不看帳號上的組織旗標：前台帳號建立時會被自動勾營造組織）；
+        其他帳號照組織旗標，兩個都勾或都沒勾回 None。
+        """
+        self.ensure_one()
+        if self._is_role_account():
+            return self._role_side()
+        user = self.sudo()
+        if user.is_supervision_org and not user.is_contractor_org:
+            return ROLE_SIDE_SUPERVISION
+        if user.is_contractor_org and not user.is_supervision_org:
+            return ROLE_SIDE_CONTRACTOR
+        return None
+
+    def _is_supervision_side(self):
+        """監造方使用者（合約 §2）：等於 _is_backend_staff()（名稱保留給既有呼叫端）。
+
+        既有帳號沒有角色群組，結果與原本「內部帳號、不是營造方、也不是控台讀取」相同；
+        角色帳號（含監造方角色帳號）不算——它們在後台唯讀、手機在 S1 也唯讀。
+        """
+        return self._is_backend_staff()
 
     @api.constrains('dash_scope_company_id')
     def _check_dash_scope_company(self):

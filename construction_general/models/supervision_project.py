@@ -30,11 +30,16 @@ class SupervisionProjectProfitLoss(models.Model):
                 },
                 ...
             ],
+            'can_edit': True／False,   # 看的人能不能改支出（profit.loss.entry 的寫入權；畫面依此唯讀）
         }
+
+        以看的人的權限查（不 sudo）：工程本身先 check_access('read')——讀不到的工程直接 AccessError，
+        不讓下面的 search 被規則濾成空、冒充「沒有估驗」（2026-11-10 S1，唯讀角色帳號也會叫這個方法）。
         """
         project = self.browse(project_id)
         if not project.exists():
-            return {'project_name': '', 'currency_symbol': '', 'estimates': []}
+            return {'project_name': '', 'currency_symbol': '', 'estimates': [], 'can_edit': False}
+        project.check_access('read')
 
         # 取得所有非草稿的估驗計價，依估驗日期排序
         estimates = self.env['payment.estimate'].search([
@@ -65,6 +70,7 @@ class SupervisionProjectProfitLoss(models.Model):
             'project_name': project.name or '',
             'currency_symbol': currency.symbol if currency else 'NT$',
             'estimates': result_estimates,
+            'can_edit': self.env['profit.loss.entry'].has_access('write'),
         }
 
     @api.model

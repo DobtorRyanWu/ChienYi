@@ -414,13 +414,13 @@ class TestRestrictedCapabilities(DashScopeCase):
         ctrl = ConstructionPortal()
         photos = self.env['supervision.photo'].sudo().browse(self.docs[('supervision.photo', self.co_a)].ids)
         with MockRequest(self.env(user=self.console)):
-            self.assertTrue(ctrl._dash_is_contractor(), '控台讀取帳號走受限帳號那條路')
+            self.assertTrue(ctrl._dash_is_restricted(), '控台讀取帳號走受限帳號那條路')
             self.assertFalse(ctrl._user_can_see_project(self.p_a), '前台看不到任何工程')
             self.assertFalse(ctrl._dash_visible(photos), 'sudo 查出的照片以本人身分再過規則 → 看不到')
         self.assertEqual(self.env['project.project'].with_user(self.console)._get_portal_projects_domain(
             self.console.partner_id), DENIED)
         # 對照：監造方照常
         with MockRequest(self.env(user=self.sup)):
-            self.assertFalse(ctrl._dash_is_contractor())
+            self.assertFalse(ctrl._dash_is_restricted())
             self.assertTrue(ctrl._user_can_see_project(self.p_a))
             self.assertEqual(ctrl._dash_visible(photos), photos)

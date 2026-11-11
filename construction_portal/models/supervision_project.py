@@ -59,6 +59,9 @@ class SupervisionProjectPortal(models.Model):
         - 營造方（後台營造廠主管、前台營造組織帳號；公司儀表板合約 §3.6）：上面依角色的條件
           再 AND「工程的營造廠含自己的範圍公司」（工程層級條件，同 rule_scope 的 project.project）；
           範圍公司空白或不是營造廠 → 什麼都沒有。監造方不變。
+        - 後台角色帳號（S1，2026-11-10；res.users._is_role_account()）：不走依角色的條件（它們是內部帳號，
+          那邊會被當成監造人員），改走 _get_portal_projects_domain_for_role_account（以本人身分經後台範圍規則查到的工程）；
+          營造方角色帳號之後一樣再 AND 營造方範圍。
         呼叫端（_user_can_see_project）會拿這個條件做 sudo 查詢，所以營造方條件必須寫在這裡，
         不能只靠 ir.rule。
         """
@@ -66,13 +69,28 @@ class SupervisionProjectPortal(models.Model):
         if user._dash_is_console_reader():
             # 控台讀取帳號（隱含 base.group_user）：前台一個工程都看不到（合約 §0b-24；讀取規則對它框架以外全拒）
             return [('id', '=', 0)]
-        domain = self._get_portal_projects_domain_by_role(user)
+        if user._is_role_account():
+            domain = self._get_portal_projects_domain_for_role_account(user)
+        else:
+            domain = self._get_portal_projects_domain_by_role(user)
         if user._dash_is_contractor_side():
             if not user._dash_scope_ok():
                 return [('id', '=', 0)]
             scope_id = user.sudo().dash_scope_company_id.id
             return expression.AND([domain, [('contractor_company_ids', 'in', [scope_id])]])
         return domain
+
+    @api.model
+    def _get_portal_projects_domain_for_role_account(self, user):
+        """後台角色帳號的可見工程＝以本人身分經後台範圍規則（rule_scope）查得到的工程（S1 手機唯讀）。
+
+        不再手抄一份後台的工程條件（fix1-H，審查 simplifier F3）：營造方／監造方、老闆／主管、未開始／終止、
+        TOTP 與組合不合格（什麼都查不到）全部以後台那一份為準，前台與後台不可能不一致。
+        允許公司照帳號全部的允許公司（後台不帶公司切換時也是全部）；封存的也查（呼叫端自己的 active_test 再濾）。
+        """
+        projects = self.with_user(user).with_context(
+            active_test=False, allowed_company_ids=user.sudo().company_ids.ids).search([])
+        return [('id', 'in', projects.ids)]
 
     @api.model
     def _get_portal_projects_domain_by_role(self, user):

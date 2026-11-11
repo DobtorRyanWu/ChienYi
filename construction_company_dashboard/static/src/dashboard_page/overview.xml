@@ -46,7 +46,7 @@
 
                 <!-- 提示：未啟用兩步驟驗證／被擋原因／合計讀取失敗 -->
                 <div t-if="totpMissing" class="alert alert-warning o_dash_totp_alert" role="alert">
-                    <strong>請到「我的偏好」啟用兩步驟驗證後才看得到資料。</strong>（右上角頭像 → 我的偏好 → 帳號安全）
+                    <strong>請啟用兩步驟驗證後才看得到資料。</strong>（右上角頭像 →「我的個人資料」（或「個人設定」）→「帳戶安全性」）
                 </div>
                 <div t-if="blockedMessage and !totpMissing" class="alert alert-warning o_dash_blocked_alert" role="alert" t-esc="blockedMessage"/>
                 <div t-if="kpi.error" class="alert alert-danger o_dash_kpi_error" role="alert">公司合計：<t t-esc="kpi.error"/></div>

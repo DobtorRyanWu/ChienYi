@@ -17,6 +17,7 @@ from datetime import date, timedelta
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 
+from odoo.addons.construction_supervision_base.models.res_users import ROLE_SIDE_CONTRACTOR
 from odoo.addons.construction_supervision_base.utils.local_date import local_today
 
 from .project_workday import DashMissingCalendar, missing_calendar_message
@@ -128,10 +129,13 @@ STATUS_MESSAGES = {
 BLOCKED_TOTP = 'totp_missing'
 BLOCKED_SCOPE = 'scope_invalid'
 BLOCKED_CONSOLE = 'console_reader'
+# 後台角色帳號（S1）的設定不合格：層級、方別或允許公司不對（營造方角色帳號的範圍公司不合格照舊用 BLOCKED_SCOPE）
+BLOCKED_ROLE_SETUP = 'role_setup_invalid'
 BLOCKED_MESSAGES = {
-    BLOCKED_TOTP: '營造廠主管帳號尚未啟用兩步驟驗證，啟用後才看得到資料',
+    BLOCKED_TOTP: '這個後台唯讀帳號尚未啟用兩步驟驗證，啟用後才看得到資料',
     BLOCKED_SCOPE: '帳號的範圍公司未設定或不是營造廠，看不到任何資料',
     BLOCKED_CONSOLE: '控台讀取帳號只能呼叫控台取資料方法',
+    BLOCKED_ROLE_SETUP: '後台角色帳號的設定不完整（層級、方別或允許公司），看不到任何資料，請洽系統管理者',
 }
 
 # ── 小 S 曲線 SVG（只含數字與固定標記，不含任何使用者字串；合約 §5.2）────────────
@@ -576,14 +580,21 @@ class ProjectProject(models.Model):
     # ── 公司合計 ──────────────────────────────────────────────────────────
     @api.model
     def _dash_blocked_reason(self):
-        """看的人整個被預設拒絕的原因（營造方範圍不合格、營造廠主管未啟用兩步驟驗證、控台讀取帳號）；沒有回 None。"""
+        """看的人整個被預設拒絕的原因（營造方範圍不合格、營造廠主管／角色帳號未啟用兩步驟驗證、
+        角色帳號設定不合格、控台讀取帳號）；沒有回 None。"""
         user = self.env.user
         if self.env.su:
             return None
         if user._dash_is_console_reader():
             return BLOCKED_CONSOLE
-        if user._dash_is_contractor_side() and not user._dash_scope_ok():
-            return BLOCKED_TOTP if user._dash_totp_missing() else BLOCKED_SCOPE
+        role = user._is_role_account()
+        if (user._dash_is_contractor_side() or role) and not user._dash_scope_ok():
+            if user._dash_totp_missing():
+                return BLOCKED_TOTP
+            # 營造方角色帳號（帶營造方標記、方別只有營造）的範圍公司不合格：照舊說範圍公司；其餘角色帳號說設定不完整
+            if role and not (user._role_side() == ROLE_SIDE_CONTRACTOR and user._role_level_raw()):
+                return BLOCKED_ROLE_SETUP
+            return BLOCKED_SCOPE
         return None
 
     @api.model
@@ -598,6 +609,10 @@ class ProjectProject(models.Model):
         projects = self.browse().with_context(active_test=False)
         blocked = projects._dash_blocked_reason()
         user = self.env.user
+        # 「未歸屬」只對監造這一邊有意義：監造方後台人員、前台監造方帳號、監造方角色帳號都算（S1 規格寫
+        # `_is_backend_staff() or _role_side()=='supervision'`，但那會把前台監造方帳號〔share〕改成「不適用」，
+        # 前台公司儀表板 /construction/dashboard 也呼叫這個方法——既有帳號行為要不變，所以保留原式；
+        # 監造方角色帳號不是營造方也不是控台讀取，原式本來就算它）
         supervision_like = not user._dash_is_contractor_side() and not user._dash_is_console_reader()
         kpis = {}
         for key in KPI_KEYS:

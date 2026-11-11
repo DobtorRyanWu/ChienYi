@@ -125,7 +125,7 @@ class DailyLogRoutesMixin:
             ) for i in items]
         rows = log.sudo().material_ids.filtered('catalog_item_id')
         own = (self._daily_log_material_totals(rows.catalog_item_id, upto=log.log_date)
-               if rows and self._dash_is_contractor() else None)
+               if rows and self._dash_is_restricted() else None)
         return [SimpleNamespace(
             name=m.name or '', unit=m.unit or '',
             contract_qty=m.contract_qty or 0.0,
@@ -147,7 +147,7 @@ class DailyLogRoutesMixin:
         if upto:
             domain.append(('daily_log_id.log_date', '<=', upto))
         Material = request.env['daily.log.material'].sudo()
-        if self._dash_is_contractor():
+        if self._dash_is_restricted():
             own_logs = self._dash_visible(Material.search(domain).daily_log_id)
             domain.append(('daily_log_id', 'in', own_logs.ids))
         groups = Material._read_group(domain, ['catalog_item_id'], ['daily_qty:sum'])
@@ -303,10 +303,10 @@ class DailyLogRoutesMixin:
         # 人工列的累計是匯入時照原檔寫的值，不是加總，照舊顯示
         linked = log_su.material_ids.filtered('catalog_item_id')
         own_totals = (self._daily_log_material_totals(linked.catalog_item_id, upto=log.log_date)
-                      if linked and self._dash_is_contractor() else {})
+                      if linked and self._dash_is_restricted() else {})
         for mat in log_su.material_ids:
             cumulative = (own_totals.get(mat.catalog_item_id.id, 0.0)
-                          if mat.catalog_item_id and self._dash_is_contractor()
+                          if mat.catalog_item_id and self._dash_is_restricted()
                           else mat.cumulative_qty or 0.0)
             log_materials.append(SimpleNamespace(
                 id=mat.id,
@@ -420,7 +420,7 @@ class DailyLogRoutesMixin:
         env = request.env
         DailyLog = env['daily.log.sheet'].sudo()
         ProjectTask = env['project.task'].sudo()
-        contractor = self._dash_is_contractor()
+        contractor = self._dash_is_contractor_or_console()   # 契約工項由監造方維護（不是讀取範圍的判斷）
         base_url = f'/construction/{project_id}/daily-logs/import'
         project_record_id = project.id
         supervision_project_id = project.id
@@ -957,7 +957,7 @@ class DailyLogRoutesMixin:
         if not log:
             return request.redirect(f'/construction/{project_id}/daily-logs')
         # 營造方不能解鎖（公司儀表板合約 §3.6）：鎖定是給監造方的稽核保護，營造方自己解鎖等於沒鎖
-        if self._dash_is_contractor() or not log.can_unlock:
+        if self._dash_is_contractor_or_console() or not log.can_unlock:
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}?error=no_unlock_permission')
         log.sudo().portal_unlock(hours=72, reason='前台解鎖')

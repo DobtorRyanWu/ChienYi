@@ -128,29 +128,67 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
     # ==================== 營造方範圍（公司儀表板合約 §3.6） ====================
     # 受限帳號＝營造方（res.users._dash_is_contractor_side()：後台營造廠主管、前台營造組織帳號）
-    # ＋控台讀取帳號（_dash_is_console_reader()；隱含 base.group_user，不擋就會被當成監造方，合約 §0b-24）。
+    # ＋控台讀取帳號（_dash_is_console_reader()；隱含 base.group_user，不擋就會被當成監造方，合約 §0b-24）
+    # ＋後台角色帳號（_is_role_account()；S1 2026-11-10：內部帳號，不擋就會被當成監造方後台人員）。
     # 前台路由大量用 sudo 列出、取出、寫入營造廠層級紀錄（日誌、照片、缺失、檢查…），
     # sudo 不走 ir.rule，營造廠範圍規則（construction_company_dashboard/models/rule_scope.py）
     # 就被繞過。下面幾個方法讓 sudo 查出來的紀錄對受限帳號「以本人身分再過一次 ir.rule」：
     # 範圍條件只有規則那一份，這裡不另寫一套（控台讀取帳號在規則裡框架以外全拒＝什麼都看不到）。
     # 監造方一律原樣放行（行為與原本相同）。
 
-    def _dash_is_contractor(self):
-        """登入者是受限帳號（營造方或控台讀取；判定只看帳號本身，不因 sudo 跳過）。"""
+    def _dash_is_restricted(self):
+        """登入者是受限帳號（大集合）——讀取要「以本人身分再過一次 ir.rule」的那些（判定只看帳號本身，不因 sudo 跳過）。
+
+        ＝res.users._dash_is_restricted()（全系統唯一一份）：營造方、控台讀取、後台角色帳號（含監造方角色帳號）。
+        「審核類動作要擋營造方」不要用這個（監造方角色帳號不是營造方），用 _dash_is_contractor_or_console()（小集合）。
+        （fix1-F：原名 _dash_is_contractor()，名稱與意思顛倒，已刪。）
+        """
+        return request.env.user._dash_is_restricted()
+
+    def _dash_is_contractor_or_console(self):
+        """登入者是營造方或控台讀取帳號（小集合；S1 之前舊名 _dash_is_contractor() 的內容）。
+
+        給「這件事限監造單位」的判斷用（審核、結案、解鎖、工程主檔、自動補建樣板／工項）：
+        監造方角色帳號不算營造方，不能在這裡被擋下（S1 規格 §2.9；手機寫入在 S1 另由 _require_write 等擋）。
+        """
         user = request.env.user
         return user._dash_is_contractor_side() or user._dash_is_console_reader()
 
     def _require_not_contractor(self, msg=None):
-        """審核類動作（合約 §3.6 寫入矩陣）：營造方一律拒；監造方照原本的守衛。"""
-        if self._dash_is_contractor():
+        """審核類動作（合約 §3.6 寫入矩陣）：營造方（與控台讀取）一律拒；監造方（含監造方角色帳號）照原本的守衛。"""
+        if self._dash_is_contractor_or_console():
             raise AccessError(msg or _('權限不足：此操作限監造單位，營造廠帳號不能執行'))
+
+    def _require_edit_project_info(self):
+        """能不能編輯工程資訊的那把尺（全檔只有這一份；fix3-T）：限老闆／主管，而且不是營造方／控台讀取。
+
+        編輯頁 GET、存檔 POST、工程資訊頁的「編輯」按鈕（_can_edit_project_info）都用它，三處才不會分岔
+        （fix1-F 修的就是 GET 與 POST 分岔：GET 頁以 sudo 列出全庫內部帳號與公司，存不了就不該看）。
+        順序與訊息照舊：先問管理權、再問是不是營造方。草稿狀態由呼叫端另外判斷。
+        """
+        self._require_manage(_('僅老闆或主管可修改工程資訊'))
+        # 工程主檔與營造廠清單：營造方不能改（公司儀表板合約 §3.6 寫入矩陣；契約「乙方不得自行變更本契約」）
+        self._require_not_contractor(_('權限不足：工程資訊由監造單位維護，營造廠帳號不能修改'))
+
+    def _can_edit_project_info(self):
+        """工程資訊頁的「編輯」按鈕（fix2-O）：與編輯頁 GET 同一把尺（_require_edit_project_info）。"""
+        try:
+            self._require_edit_project_info()
+        except AccessError:
+            return False
+        return True
+
+    def _require_not_restricted(self, msg=None):
+        """「其他」類資料的前台頁（rule_scope 對受限帳號整類拒絕，例：水位）：受限帳號一律拒（含監造方角色帳號）。"""
+        if self._dash_is_restricted():
+            raise AccessError(msg or _('權限不足：您的帳號看不到這類資料'))
 
     def _dash_visible(self, records):
         """營造方：只留下本人身分讀得到的紀錄（套 ir.rule 範圍）；監造方原樣回傳。
 
         回傳的紀錄保留原本的 env（呼叫端通常是 sudo，後續讀關聯欄位照舊），順序不變。
         """
-        if not records or not self._dash_is_contractor():
+        if not records or not self._dash_is_restricted():
             return records
         allowed = set(records.with_user(request.env.user)._filtered_access('read').ids)
         return records.browse([rid for rid in records.ids if rid in allowed])
@@ -159,7 +197,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         """sudo 查詢的營造方版本：營造方改以本人身分查（ir.rule 範圍在資料庫層套用，
         分頁與筆數才會對），結果再換回 sudo 紀錄；監造方照原本 sudo 查。"""
         Model = request.env[model].sudo()
-        if self._dash_is_contractor():
+        if self._dash_is_restricted():
             Scoped = Model.with_user(request.env.user)
             if count:
                 return Scoped.search_count(domain)
@@ -178,7 +216,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         前台帳號不能直接對 ir.attachment 做存取檢查（核心對非內部帳號一律拒），所以查來源單據。
         監造方原樣回傳。
         """
-        if not attachments or not self._dash_is_contractor():
+        if not attachments or not self._dash_is_restricted():
             return attachments
         user = request.env.user
         by_model = {}
@@ -215,7 +253,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         監造方一律 True（照原本只看工程）。營造方：照片紀錄（營造廠層級）只有自家的看得到；
         驗收缺失前／後照片（驗收歸「其他」類）一律看不到。
         """
-        if not self._dash_is_contractor():
+        if not self._dash_is_restricted():
             return True
         source = self._resolve_photo_source(att)
         return bool(source) and bool(self._dash_visible(source))
@@ -768,6 +806,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             'schedule_pct': schedule_pct,
             'remaining_days': remaining,
             'nav_badges': self._get_nav_badges(project),
+            # 「編輯」按鈕與編輯頁 GET 同一把尺（fix2-O）
+            'can_edit_info': self._can_edit_project_info(),
         }
 
         return request.render('construction_portal.portal_construction_project_info', values)
@@ -785,9 +825,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             )
         except (AccessError, MissingError):
             return request.redirect('/my')
-        # 工程主檔與營造廠清單：營造方不能改（公司儀表板合約 §3.6 寫入矩陣；契約「乙方不得自行變更本契約」）。
-        # 編輯頁也擋：頁上用 sudo 列出全庫內部帳號與公司，營造方存不了就不該看。
-        self._require_not_contractor(_('權限不足：工程資訊由監造單位維護，營造廠帳號不能修改'))
+        # 與存檔 POST、工程資訊頁的編輯按鈕同一把尺（fix1-F、fix3-T）：頁上用 sudo 列出全庫內部帳號與公司，存不了就不該看
+        self._require_edit_project_info()
 
         # 僅允許 draft 編輯
         if project.state != 'draft':
@@ -844,14 +883,16 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         # 使用者下拉
         Users = env['res.users'].sudo()
         all_users = Users.search([('share', '=', False)], order='name')
+        # 監造工程師下拉：只列監造方後台人員——營造廠主管、控台讀取、後台角色帳號也是內部帳號（share=False），
+        # 不濾掉會被選成監造工程師（S1）。工地主任、活動負責人用 all_users，照 S1 之前（fix1-D：工地主任本來就是營造方的人）
         if project.company_id:
             supervision_users = Users.search(
                 [('share', '=', False),
                  ('company_ids', 'in', project.company_id.ids)],
                 order='name'
-            )
+            ).filtered(lambda u: u._is_backend_staff())
         else:
-            supervision_users = all_users
+            supervision_users = all_users.filtered(lambda u: u._is_backend_staff())
 
         # Year Selection（callable）
         year_field = env['project.project']._fields['year'].selection
@@ -898,7 +939,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         if not self._can_manage():
             return {'success': False, 'error': '權限不足：僅老闆或主管可修改工程編號'}
         # 工程編號比照工程主檔：營造方不能改（公司儀表板合約 §3.6 寫入矩陣，hypothesis：契約無明文）
-        if self._dash_is_contractor():
+        if self._dash_is_contractor_or_console():
             return {'success': False, 'error': '權限不足：工程編號由監造單位維護，營造廠帳號不能修改'}
 
         code = (kw.get('code') or '').strip()
@@ -940,10 +981,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        # H1：修改工程資訊限老闆 / 主管（現場人員不得改專案主檔）
-        self._require_manage(_('僅老闆或主管可修改工程資訊'))
-        # 工程主檔與營造廠清單：營造方不能改（公司儀表板合約 §3.6 寫入矩陣）
-        self._require_not_contractor(_('權限不足：工程資訊由監造單位維護，營造廠帳號不能修改'))
+        # H1：修改工程資訊限老闆／主管、營造方不能改（與編輯頁 GET 同一把尺，fix3-T）
+        self._require_edit_project_info()
 
         if project.state != 'draft':
             return request.redirect(
@@ -1157,8 +1196,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     # 全庫的工程共用，不能交給其中一家營造廠改。
 
     def _can_manage_inspection_types(self):
-        # 限監造方內部帳號：營造方（含後台營造廠主管）與前台帳號都只能看和下載（公司儀表板合約 §3.6）
-        return self._can_manage() and request.env.user._is_supervision_side()
+        # 限監造方後台人員：營造方（含後台營造廠主管）、後台角色帳號、前台帳號都只能看和下載（公司儀表板合約 §3.6）
+        return self._can_manage() and request.env.user._is_backend_staff()
 
     def _require_manage_inspection_types(self):
         if not self._can_manage_inspection_types():

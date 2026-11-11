@@ -599,7 +599,8 @@
                         <span t-attf-class="cy-badge cy-badge-#{project.state}" style="font-size: 0.9rem; padding: 6px 14px;">
                             <t t-esc="dict(project._fields['state'].selection).get(project.state, project.state)"/>
                         </span>
-                        <t t-if="project.state == 'draft' and not request.env.user._dash_is_contractor_side()">
+                        <!-- 與編輯頁 GET 同一把尺（controller _can_edit_project_info：有管理權、不是營造方／控台讀取；fix2-O） -->
+                        <t t-if="project.state == 'draft' and can_edit_info">
                             <a t-attf-href="/construction/#{project.id}/edit"
                                class="cy-btn"
                                style="padding: 6px 14px; border: 1px solid var(--wb-blue); color: var(--wb-blue); font-weight: 700; font-size: 0.9rem; border-radius: 8px; text-decoration: none;">
@@ -960,8 +961,9 @@
                         <span class="cy-drawer-item-label">自主檢查樣板庫</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
-                    <!-- 營造方看不到水位（公司儀表板合約 §3.2「其他」類、§3.6），入口一併藏起來，免得點了 403 -->
-                    <a class="cy-drawer-item" t-if="project and not request.env.user._dash_is_contractor_side()"
+                    <!-- 受限帳號（營造方、控台讀取、後台角色帳號）看不到水位（公司儀表板合約 §3.2「其他」類、§3.6；
+                         後端 portal_water_level.py 的 _dash_is_restricted()），入口一併藏起來，免得點了 403（r5 N1） -->
+                    <a class="cy-drawer-item" t-if="project and not request.env.user._dash_is_restricted()"
                        t-attf-href="/construction/#{project.id}/water-level">
                         <span class="cy-drawer-item-icon">〰</span>
                         <span class="cy-drawer-item-label">水位監測</span>
@@ -990,9 +992,10 @@
                         <span class="cy-drawer-item-label">使用說明</span>
                         <span class="cy-drawer-item-arrow">›</span>
                     </a>
-                    <!-- 營造方不給「意見回饋」：客服回報被公司儀表板拒寫規則擋住（合約 §0b-13、§0b-20），點了只會 403。
+                    <!-- 受限帳號（營造方、控台讀取、後台角色帳號）不給「意見回饋」：客服回報被公司儀表板拒寫規則擋住
+                         （合約 §0b-13、§0b-20；rule_scope 對所有受限帳號拒建），點了只會 403（r5 N1）。
                          外層 t-if 包住佔位連結：construction_helpdesk 以 xpath 換掉裡面的 <a>，條件仍留在外層。 -->
-                    <t t-if="not request.env.user._dash_is_contractor_side()">
+                    <t t-if="not request.env.user._dash_is_restricted()">
                     <a class="cy-drawer-item" href="javascript:void(0)" data-cy-drawer-todo="意見回饋即將推出">
                         <span class="cy-drawer-item-icon">💬</span>
                         <span class="cy-drawer-item-label">意見回饋</span>
@@ -1659,14 +1662,14 @@
         </t>
     </template>
 
-    <!-- /my 首頁的文件入口卡（portal.portal_docs_entry）：營造方不給 dobtor「文件」「試算表」兩張卡
-         （營造廠主管沒有那兩個模組的群組，點了只會 403；合約 §0b-20）。
+    <!-- /my 首頁的文件入口卡（portal.portal_docs_entry）：受限帳號（營造方、控台讀取、後台角色帳號）不給 dobtor
+         「文件」「試算表」兩張卡（這些帳號沒有那兩個模組的群組，群組允許清單也不給，點了只會 403；合約 §0b-20；r5 N1）。
          繼承核心 portal 的卡片模板而不是 dobtor 的模板：dobtor 不一定每個庫都有裝，繼承不存在的模板會讓安裝失敗；
          卡片網址與 dobtor_doc_editor／dobtor_spreadsheet_editor 的 portal_templates.xml 相同。 -->
     <template id="portal_docs_entry_hide_for_contractor" inherit_id="portal.portal_docs_entry"
-              name="Portal：營造方不顯示文件／試算表入口卡">
+              name="Portal：受限帳號不顯示文件／試算表入口卡">
         <xpath expr="//div[contains(@t-att-class, 'o_portal_index_card')]" position="attributes">
-            <attribute name="t-if">not (url in ('/my/documents', '/my/spreadsheets') and request.env.user._dash_is_contractor_side())</attribute>
+            <attribute name="t-if">not (url in ('/my/documents', '/my/spreadsheets') and request.env.user._dash_is_restricted())</attribute>
         </xpath>
     </template>
 

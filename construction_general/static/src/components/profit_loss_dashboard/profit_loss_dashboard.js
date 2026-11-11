@@ -115,6 +115,8 @@ export class ProfitLossDashboard extends Component {
     }
 
     async onExpenseChange(estimateId, ev) {
+        // 沒有寫入權（唯讀帳號）不送出：欄位已唯讀，這裡再擋一次（伺服器端的方法閘門與拒寫規則仍是真正的防線）
+        if (!this.state.data || !this.state.data.can_edit) return;
         const value = parseFloat(ev.target.value) || 0;
         const projectId = this.state.selectedProjectId;
         if (!projectId) return;

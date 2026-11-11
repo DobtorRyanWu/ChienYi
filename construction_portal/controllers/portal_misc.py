@@ -289,7 +289,7 @@ class MiscRoutesMixin:
         folder_id = int(folder_filter) if folder_filter and folder_filter.isdigit() else 0
         if folder_id:
             domain.append(('folder_id', 'child_of', folder_id))
-        if self._dash_is_contractor():
+        if self._dash_is_restricted():
             # 營造方：只列來源單據看得到的附件（別家營造廠單據上的附件不列，合約 §3.6）。
             # 先依來源判定、再把結果併進 domain，分頁與筆數才會對
             domain.append(('id', 'in', self._dash_attachments_visible(Attachment.search(domain)).ids))

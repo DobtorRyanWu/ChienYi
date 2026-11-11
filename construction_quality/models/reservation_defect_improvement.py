@@ -224,8 +224,12 @@ class ReservationDefectImprovement(models.Model):
 
     def write(self, vals):
         """修改記錄時，若影響編號則重新計算"""
-        # 防竄改（v11）：前台帳號在缺失離開草稿後，不可再改缺失定義欄位
-        if self.env.user.share and any(f in vals for f in self._DEFINITION_FIELDS):
+        # 防竄改（v11）：監造方後台人員以外（前台帳號、營造方、後台角色帳號；2026-11-10 起看 _is_backend_staff()，
+        # 原本看 share——角色帳號是內部帳號，看 share 會放行）在缺失離開草稿後，不可再改缺失定義欄位；
+        # 改善回覆欄位不受限。env.user 是呼叫者本人（sudo 不換人），系統帳號（超級使用者）是後台人員、不受此限。
+        user = self.env.user
+        if (user and not user._is_backend_staff()
+                and any(f in vals for f in self._DEFINITION_FIELDS)):
             if self.filtered(lambda r: r.state and r.state != 'draft'):
                 raise UserError('缺失已送出，缺失說明、類別、嚴重度等定義欄位不可再修改')
 
