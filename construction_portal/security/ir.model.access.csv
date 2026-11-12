@@ -15,3 +15,4 @@ access_supervision_photo_boss,supervision.photo.boss,construction_photo.model_su
 access_supervision_photo_manager,supervision.photo.manager,construction_photo.model_supervision_photo,construction_supervision_base.group_portal_leader,1,0,0,0
 access_supervision_photo_field,supervision.photo.field,construction_photo.model_supervision_photo,construction_supervision_base.group_portal_user,1,0,0,0
 access_self_inspection_type_stage_portal,self.inspection.type.stage.portal,construction_quality.model_self_inspection_type_stage,base.group_portal,1,0,0,0
+access_deadline_reminder_system,construction.deadline.reminder.system,model_construction_deadline_reminder,base.group_system,1,0,0,1

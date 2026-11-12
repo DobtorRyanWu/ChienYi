@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!--
+            期限提醒（淞源 2026-11-10 會議 C8）：每天一次，到期前先提醒現場、快到期還沒辦完再提醒主管。
+            只發站內通知（後台收件匣／前台通知中心），不寄 email。規則見 models/deadline_reminder.py。
+            第一次執行時間定在 UTC 23:30＝台灣早上 07:30（上工前），之後每 24 小時一次。
+        -->
+        <record id="cron_deadline_reminder" model="ir.cron">
+            <field name="name">期限提醒：到期前通知現場與主管（每日）</field>
+            <field name="model_id" ref="model_construction_deadline_reminder"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_send_deadline_reminders()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="nextcall" eval="DateTime.now().replace(hour=23, minute=30, second=0, microsecond=0).strftime('%Y-%m-%d %H:%M:%S')"/>
+            <field name="active" eval="True"/>
+            <field name="priority">10</field>
+            <field name="user_id" ref="base.user_root"/>
+        </record>
+    </data>
+</odoo>

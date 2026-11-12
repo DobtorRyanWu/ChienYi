@@ -39,30 +39,35 @@ LEVELS = (LEVEL_OVERDUE, LEVEL_URGENT, LEVEL_SOON, LEVEL_NORMAL)
 # 來源：key、模型、清單上的說法、到工程的欄位、期限欄位、「還沒辦完」的條件、權責人欄位（沒有就 None）、
 # 標題用哪些欄位（依序接起來；沒列或都是空的就用 display_name）。
 # 標題不直接用 display_name 的原因：缺失的 display_name 只有編號（看不出是什麼事）、文件與送審的帶編號前綴（太長）。
+# portal_url：手機前台看這一筆的網址（%(id)s＝紀錄、%(project_id)s＝工程）；沒有手機頁的來源不給（送審管制只有後台）。
 DEADLINE_SOURCES = (
     {'key': 'plan_control', 'model': 'supervision.plan.control', 'label': '送審管制',
      'project_field': 'project_id', 'date_field': 'deadline_date',
      'open_domain': [('first_submit_date', '=', False)], 'user_field': None, 'title_fields': ('name',)},
     {'key': 'document', 'model': 'supervision.document', 'label': '應交文件',
      'project_field': 'project_id', 'date_field': 'due_date',
-     'open_domain': [('state', '=', 'draft')], 'user_field': None, 'title_fields': ('name',)},
+     'open_domain': [('state', '=', 'draft')], 'user_field': None, 'title_fields': ('name',),
+     'portal_url': '/construction/%(project_id)s/documents'},
     {'key': 'defect_general', 'model': 'general.defect.improvement', 'label': '缺失改善',
      'project_field': 'project_id', 'date_field': 'deadline',
      'open_domain': [('state', 'not in', ('improved', 'verified', 'closed'))], 'user_field': 'responsible_user_id',
-     'title_fields': ('defect_no', 'defect_description')},
+     'title_fields': ('defect_no', 'defect_description'), 'portal_url': '/construction/defect/%(id)s'},
     {'key': 'defect_reservation', 'model': 'reservation.defect.improvement', 'label': '缺失改善',
      'project_field': 'project_id', 'date_field': 'deadline',
      'open_domain': [('state', 'not in', ('improved', 'verified', 'closed'))], 'user_field': 'responsible_user_id',
-     'title_fields': ('defect_no', 'defect_description')},
+     'title_fields': ('defect_no', 'defect_description'),
+     'portal_url': '/construction/defect/%(id)s?model=reservation'},
     {'key': 'official_doc', 'model': 'construction.official.doc', 'label': '公文',
      'project_field': 'project_id', 'date_field': 'reply_deadline',
-     'open_domain': [('state', '=', 'pending')], 'user_field': 'responsible_user_id'},
+     'open_domain': [('state', '=', 'pending')], 'user_field': 'responsible_user_id',
+     'portal_url': '/construction/official-doc/%(id)s'},
     # 行事曆只收「送件期限」：會議、會勘是「那天要到場」，不是「那天以前要交」，放進來會把清單灌滿
     {'key': 'calendar_deadline', 'model': 'construction.calendar.event', 'label': '送件期限',
      'project_field': 'project_id', 'date_field': 'start',
      'open_domain': [('event_type', '=', 'deadline'), ('state', '=', 'planned')],
-     'user_field': 'responsible_user_id'},
+     'user_field': 'responsible_user_id', 'portal_url': '/construction/calendar'},
 )
+SOURCE_BY_MODEL = {source['model']: source for source in DEADLINE_SOURCES}
 
 
 class ProjectProject(models.Model):
@@ -94,6 +99,14 @@ class ProjectProject(models.Model):
         return title if len(title) <= TITLE_MAX_LENGTH else title[:TITLE_MAX_LENGTH - 1] + '…'
 
     @api.model
+    def _cy_deadline_portal_url(self, model, res_id, project_id):
+        """手機前台看這一筆的網址；這個來源沒有手機頁、或網址需要工程而這筆沒掛工程 → False。"""
+        template = SOURCE_BY_MODEL.get(model, {}).get('portal_url')
+        if not template or ('%(project_id)s' in template and not project_id):
+            return False
+        return template % {'id': res_id, 'project_id': project_id}
+
+    @api.model
     def _cy_deadline_bound(self, field, day):
         """「day 這一天的開始」換成期限欄位比得了的值：Date 欄位就是那一天；
         Datetime 欄位（資料庫存 naive UTC）是台灣那一天 00:00 的 UTC 時間。"""
@@ -111,7 +124,7 @@ class ProjectProject(models.Model):
               'counts': {'total', 'overdue', 'urgent', 'soon', 'normal'}（不受 limit 影響）,
               'denied': [讀不到的來源說法], 'site_days', 'manager_days'}
         item：source、source_label、model、res_id、title、project_id、project_name、deadline（ISO）、
-              days_left（負數＝逾期幾天）、level、user_id（權責人，沒有就 False）
+              days_left（負數＝逾期幾天）、level、user_id（權責人，沒有就 False）、url（手機前台的網址，沒有就 False）
         """
         today = local_today()
         limited = projects is not None
@@ -158,6 +171,7 @@ class ProjectProject(models.Model):
                     'days_left': days_left,
                     'level': self._cy_deadline_level(days_left, site_days, manager_days),
                     'user_id': user.id or False,
+                    'url': self._cy_deadline_portal_url(source['model'], record.id, project.id),
                 })
         items.sort(key=lambda item: (item['deadline'], item['source'], item['res_id']))
         counts['total'] = sum(counts[level] for level in LEVELS)

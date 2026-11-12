@@ -744,6 +744,66 @@
   color: inherit;
 }
 
+/* ── 期限待辦區塊（淞源 C8）：工程首頁、工程列表共用 ── */
+.cy-dl-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 2px 8px;
+}
+
+.cy-dl-chip {
+  font-size: 0.8rem;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: var(--wb-bg3);
+  color: var(--wb-t2);
+  white-space: nowrap;
+}
+
+.cy-dl-chip.cy-dl-red { background: rgba(232, 54, 79, 0.12); color: var(--wb-red); }
+.cy-dl-chip.cy-dl-warn { background: rgba(214, 139, 26, 0.14); color: var(--wb-warn); }
+
+.cy-dl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--wb-bg2);
+  border: 1px solid var(--wb-bdr);
+  border-left: 4px solid var(--wb-bdr);
+  border-radius: var(--wb-radius);
+  margin-bottom: 8px;
+  text-decoration: none;
+  color: inherit;
+  min-height: 56px;
+}
+
+.cy-dl-row:hover { text-decoration: none; color: inherit; }
+a.cy-dl-row[href]:hover { background: var(--wb-bg3); }
+
+/* 燈號（老闆在會中的說法）：逾期或剩幾天內（提醒主管的天數）＝紅、提醒現場的天數內＝黃 */
+.cy-dl-row.cy-dl-overdue, .cy-dl-row.cy-dl-urgent { border-left-color: var(--wb-red); }
+.cy-dl-row.cy-dl-soon { border-left-color: var(--wb-warn); }
+
+.cy-dl-when {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 86px;
+  line-height: 1.25;
+  font-size: 0.9rem;
+}
+
+.cy-dl-when small { color: var(--wb-t3); font-size: 0.75rem; }
+.cy-dl-overdue .cy-dl-when b, .cy-dl-urgent .cy-dl-when b { color: var(--wb-red); }
+.cy-dl-soon .cy-dl-when b { color: var(--wb-warn); }
+
+.cy-dl-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cy-dl-title { font-size: 0.95rem; font-weight: 600; color: var(--wb-t1); overflow-wrap: anywhere; }
+.cy-dl-sub { font-size: 0.8rem; color: var(--wb-t3); }
+.cy-dl-go { color: var(--wb-t3); flex-shrink: 0; }
+.cy-dl-more { font-size: 0.8rem; color: var(--wb-t3); margin: 0 2px 12px; }
+
 .cy-task-icon {
   width: 36px;
   height: 36px;

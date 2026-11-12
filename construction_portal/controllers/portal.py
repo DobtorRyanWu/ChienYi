@@ -33,6 +33,8 @@ from .portal_water_level import WaterLevelRoutesMixin
 
 _logger = logging.getLogger(__name__)
 
+PORTAL_DEADLINE_LIMIT = 6       # 手機「期限待辦」區塊最多列幾筆（件數另外給全部）
+
 
 # 缺失網址 ?model= 的對照（P11）：一般式與預約式的 id 各自編號會撞
 DEFECT_MODEL_PARAMS = {
@@ -381,6 +383,22 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             badges['notif'] = 0
         return badges
 
+    # ==================== 期限待辦（淞源 C8） ====================
+
+    def _deadline_block(self, projects, company):
+        """手機「期限待辦」區塊的資料：期限最近的幾筆＋各燈號件數（以登入者自己的權限讀）。
+
+        projects＝None 看得到的全部；company 決定燈號的兩個天數（公司設定）。算不出來回 None（整塊不顯示，
+        不能讓首頁因為這一塊開不起來）。
+        """
+        site_days, manager_days = company._cy_deadline_days()
+        try:
+            return request.env['project.project']._cy_deadline_data(
+                projects=projects, limit=PORTAL_DEADLINE_LIMIT, site_days=site_days, manager_days=manager_days)
+        except Exception:
+            _logger.exception('手機期限待辦讀取失敗')
+            return None
+
     # ==================== 前台通知中心 ====================
 
     def _portal_notif_domain(self):
@@ -426,6 +444,11 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
                             # P11：預約式帶 ?model=，避免 id 撞到同號的一般式缺失
                             if m.model == 'reservation.defect.improvement':
                                 url += '?model=reservation'
+                        else:
+                            # 期限提醒（淞源 C8）的其他來源：文件、公文、行事曆——網址表在期限彙整器
+                            project = rec.project_id if 'project_id' in rec._fields else rec.browse()
+                            url = request.env['project.project']._cy_deadline_portal_url(
+                                m.model, m.res_id, project.id) or None
                 except Exception:
                     url = None
             items.append({
@@ -546,6 +569,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             'default_url': '/construction',
             'searchbar_sortings': searchbar_sortings,
             'sortby': sortby,
+            # 期限待辦（淞源 C8）：看得到的全部工程（含沒掛工程的，例如公司共通的公文）
+            'deadline_block': self._deadline_block(None, request.env.company),
         }
 
         return request.render('construction_portal.portal_my_construction_projects', values)
@@ -751,6 +776,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             # 事件通知
             'overdue_defects': overdue_defects,
             'draft_inspections': draft_inspections,
+            # 期限待辦（淞源 C8）：這個工程有期限、還沒辦完的事，期限近的在前
+            'deadline_block': self._deadline_block(project, project.sudo().company_id),
             # 本週進度
             'week_display': week_display,
             'week_target': week_target,

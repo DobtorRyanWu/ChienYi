@@ -222,10 +222,49 @@
     <!-- ============================================
          工程案件列表 /construction
          ============================================ -->
+    <!-- ============================================
+         期限待辦區塊（淞源 C8）：工程首頁、工程列表共用
+         deadline_block＝project.project._cy_deadline_data() 的結果；沒有事項就整塊不顯示。
+         燈號一定搭配文字（逾期幾天／今天到期／還剩幾天），不只靠顏色。
+         ============================================ -->
+    <template id="portal_deadline_block" name="Deadline Todo Block">
+        <t t-if="deadline_block and deadline_block['items']">
+            <t t-set="dl_counts" t-value="deadline_block['counts']"/>
+            <div class="cy-sec-divider"><span>期限待辦</span></div>
+            <div class="cy-dl-summary">
+                <span t-if="dl_counts['overdue']" class="cy-dl-chip cy-dl-red">逾期 <b t-esc="dl_counts['overdue']"/></span>
+                <span t-if="dl_counts['urgent']" class="cy-dl-chip cy-dl-red"><t t-esc="deadline_block['manager_days']"/> 天內 <b t-esc="dl_counts['urgent']"/></span>
+                <span t-if="dl_counts['soon']" class="cy-dl-chip cy-dl-warn"><t t-esc="deadline_block['site_days']"/> 天內 <b t-esc="dl_counts['soon']"/></span>
+                <span class="cy-dl-chip">共 <b t-esc="dl_counts['total']"/> 件</span>
+            </div>
+            <t t-foreach="deadline_block['items']" t-as="dl">
+                <a t-att-href="dl['url'] or None" t-attf-class="cy-dl-row cy-dl-#{dl['level']}" t-att-data-model="dl['model']">
+                    <span class="cy-dl-when">
+                        <b>
+                            <t t-if="dl['days_left'] &lt; 0">逾期 <t t-esc="-dl['days_left']"/> 天</t>
+                            <t t-elif="dl['days_left'] == 0">今天到期</t>
+                            <t t-else="">還剩 <t t-esc="dl['days_left']"/> 天</t>
+                        </b>
+                        <small t-esc="dl['deadline']"/>
+                    </span>
+                    <span class="cy-dl-main">
+                        <span class="cy-dl-title" t-esc="dl['title']"/>
+                        <span class="cy-dl-sub"><t t-esc="dl['source_label']"/><t t-if="dl['project_name'] and not project">・<t t-esc="dl['project_name']"/></t></span>
+                    </span>
+                    <i t-if="dl['url']" class="fa fa-chevron-right cy-dl-go" aria-hidden="true"/>
+                </a>
+            </t>
+            <div t-if="dl_counts['total'] &gt; len(deadline_block['items'])" class="cy-dl-more">
+                只列出期限最近的 <t t-esc="len(deadline_block['items'])"/> 件，另有 <t t-esc="dl_counts['total'] - len(deadline_block['items'])"/> 件。
+            </div>
+        </t>
+    </template>
+
     <template id="portal_my_construction_projects" name="My Construction Projects">
         <t t-call="portal.portal_layout">
             <t t-set="breadcrumbs_searchbar" t-value="True"/>
             <div class="cy-content" style="padding: 16px;">
+                <t t-call="construction_portal.portal_deadline_block"/>
                 <h4 style="font-weight: 700; margin-bottom: 4px;">我的工程案件</h4>
                 <p style="color: var(--wb-t3, #8b90a0); font-size: 0.9rem; margin-bottom: 16px;">點擊進入工程</p>
                 <t t-if="not projects">
@@ -425,6 +464,9 @@
                             </div>
                         </t>
                     </t>
+
+                    <!-- 期限待辦（淞源 C8）：有期限、還沒辦完的事，期限近的在前 -->
+                    <t t-call="construction_portal.portal_deadline_block"/>
 
                     <!-- 本週進度（大卡：預定%/實際%/差異%）-->
                     <div class="cy-sec-divider"><span>本週進度</span></div>

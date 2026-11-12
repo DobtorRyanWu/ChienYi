@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 公司表單「工程監造」頁：期限提醒的兩個天數（淞源 C8） -->
+    <record id="view_company_form_deadline_days" model="ir.ui.view">
+        <field name="name">res.company.form.deadline.days</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_company_form_supervision"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='supervision_info']/group[1]" position="after">
+                <group string="期限提醒" name="deadline_reminder">
+                    <group>
+                        <label for="deadline_site_days"/>
+                        <div class="o_row"><field name="deadline_site_days" class="oe_inline"/><span>天</span></div>
+                        <label for="deadline_manager_days"/>
+                        <div class="o_row"><field name="deadline_manager_days" class="oe_inline"/><span>天</span></div>
+                    </group>
+                    <div class="text-muted" colspan="2">
+                        有期限的事項（送審、應交文件、缺失改善、公文、送件期限）每天早上檢查一次：
+                        到了「提醒現場」的天數通知權責人（沒有權責人就通知該工程的現場人員），
+                        到了「提醒主管」的天數還沒辦完就通知該工程的老闆與主管。只發站內通知，不寄 email。
+                    </div>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

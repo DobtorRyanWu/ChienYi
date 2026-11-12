@@ -5,8 +5,8 @@
 老闆：待辦要依期限排序，先試試看感覺；快到期還沒安排就在主管的控台亮燈。
 
 * get_dash_deadline_items()：期限待辦清單與各燈號件數。清單本身由 construction_portal 的
-  project.project._cy_deadline_data() 產生（手機首頁與每日提醒之後讀同一份），這裡只加上
-  「帳號整個被預設拒絕」的處理。
+  project.project._cy_deadline_data() 產生（手機首頁與每日提醒讀同一份），這裡只加上
+  「帳號整個被預設拒絕」的處理；燈號的兩個天數讀目前公司的設定（res.company._cy_deadline_days）。
 * get_dash_monthly_estimates()：最近幾個月每月的估驗期數與金額（不含草稿，與卡片「本月估驗」同一個定義）。
   資料來源用估驗（payment.estimate）：dev 上請款單（payment.claim）是 0 筆、估驗 107 筆，現場實際在用的是估驗。
 * get_dash_week_calendar()：今天起 7 天內的行事曆待辦事項（含還沒完成的過期事項）。行事曆在選裝模組
@@ -54,7 +54,10 @@ class ProjectProjectDashDeadlines(models.Model):
             result.update(status=STATUS_NO_ACCESS, message=BLOCKED_MESSAGES[blocked])
             return result
         try:
-            result.update(self._cy_deadline_data(limit=DEADLINE_LIST_LIMIT))
+            # 燈號的兩個天數讀目前公司的設定（公司表單「工程監造」頁；淞源 C8）
+            site_days, manager_days = self.env.company._cy_deadline_days()
+            result.update(self._cy_deadline_data(limit=DEADLINE_LIST_LIMIT, site_days=site_days,
+                                                 manager_days=manager_days))
         except AccessError:
             result.update(status=STATUS_NO_ACCESS, message=STATUS_MESSAGES[STATUS_NO_ACCESS])
         except Exception:

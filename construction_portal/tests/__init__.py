@@ -26,3 +26,5 @@ from . import test_role_phone_rerun
 from . import test_daily_log_day_inspections
 # 淞源 C5（2026-11-12）：期限待辦彙整——排序、燈號門檻、件數、台灣日期、工程範圍、讀不到的來源
 from . import test_project_deadline
+# 淞源 C8（2026-11-12）：期限提醒的每日排程——兩階段、不重複、辦完不提醒、改期限重來、不寄 email
+from . import test_deadline_reminder
