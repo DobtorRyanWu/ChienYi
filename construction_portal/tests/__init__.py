@@ -24,3 +24,5 @@ from . import test_role_phone_portal
 from . import test_role_phone_rerun
 # 淞源 C1（2026-11-12）：手機日誌詳情頁列出當天已完成的自主檢查
 from . import test_daily_log_day_inspections
+# 淞源 C5（2026-11-12）：期限待辦彙整——排序、燈號門檻、件數、台灣日期、工程範圍、讀不到的來源
+from . import test_project_deadline

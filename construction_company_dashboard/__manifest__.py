@@ -30,7 +30,8 @@
     #        2.3.3（2026-11-12，S3 fix2）：寫入面測試補齊（寫後檢查的欄位表鎖在資料庫規則上、每個規則欄位一格行為測試、
     #        related 欄位不能直接寫）；runbook／hook 訊息更正（回滾範圍、qd.py 已改呼叫清單函式、營造廠主管的處置、
     #        XML-RPC／JSON-RPC 只收 API key 不等於密碼不能跑程式）。沒有新欄位。
-    "version": "18.0.2.6.1",  # 2.6.1（2026-11-12，S4）：公司隔離測試加入 S4 的 29 個模型（tests/test_company_isolation.py）、runbook §3b 上 S4 前的檢查 SQL；程式不變。
+    #        2.6.1（2026-11-12，S4）：公司隔離測試加入 S4 的 29 個模型（tests/test_company_isolation.py）、runbook §3b 上 S4 前的檢查 SQL；程式不變。
+    "version": "18.0.2.7.0",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """
@@ -119,6 +120,7 @@
             "construction_company_dashboard/static/src/dashboard_page/charts.scss",
             "construction_company_dashboard/static/src/dashboard_page/charts.js",
             "construction_company_dashboard/static/src/dashboard_page/charts.xml",
+            "construction_company_dashboard/static/src/dashboard_page/deadlines.scss",
             "construction_company_dashboard/static/src/progress_dashboard_ext/progress_dashboard_patch.js",
             "construction_company_dashboard/static/src/progress_dashboard_ext/progress_dashboard_patch.xml",
         ],

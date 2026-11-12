@@ -8,12 +8,17 @@
 * 不用 Odoo 原生的 calendar.event：那個會寄邀請信、有出席者與重複規則，這裡都用不到。
 * 誰看得到：和公文同一套——事項屬於「所屬公司」（company_id）；營造方帳號建立的一律是自己的範圍公司。
   規則在 security/office_rules.xml；受限帳號另由 construction_company_dashboard 的 rule_scope 收窄。
-* 時間存 UTC（Odoo 的 Datetime 慣例）；手機頁輸入與顯示的是使用者時區的日期時間，換算在 controller。
+* 時間存 UTC（Odoo 的 Datetime 慣例）；手機頁與公司儀表板顯示的一律是台灣時間（不隨帳號的時區設定），
+  「哪一天、幾點到幾點」的說法與「幾天內」的條件都在這裡（_office_local_when、_office_upcoming_domain），兩邊共用。
 """
-from datetime import timedelta
+from datetime import datetime, time, timedelta
+
+import pytz
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
+
+from odoo.addons.construction_supervision_base.utils.local_date import LOCAL_TZ, local_today
 
 EVENT_TYPE_MEETING = 'meeting'
 EVENT_TYPE_SITE_VISIT = 'site_visit'
@@ -34,6 +39,21 @@ STATE_SELECTION = [
     (STATE_CANCELLED, '取消'),
 ]
 DEFAULT_DURATION_HOURS = 1          # 沒填結束時間時預設的長度
+UPCOMING_DAYS = 7                   # 「近期」＝今天起幾天內（公司儀表板的行事曆區塊；同手機頁的「7 天內」）
+UPCOMING_LIMIT = 20                 # 近期清單最多列幾件（件數另外給全部）
+TIME_FORMAT = '%H:%M'
+DAY_LABEL_FORMAT = '%m/%d'
+WEEKDAY_LABELS = ('一', '二', '三', '四', '五', '六', '日')
+
+
+def utc_to_local(utc_naive):
+    """資料庫的 naive UTC → 台灣時間（naive）。"""
+    return pytz.utc.localize(utc_naive).astimezone(LOCAL_TZ).replace(tzinfo=None)
+
+
+def local_to_utc(local_naive):
+    """台灣時間（naive）→ 資料庫存的 naive UTC。"""
+    return LOCAL_TZ.localize(local_naive).astimezone(pytz.utc).replace(tzinfo=None)
 
 
 class ConstructionCalendarEvent(models.Model):
@@ -120,6 +140,61 @@ class ConstructionCalendarEvent(models.Model):
         for event in self:
             if event.start and event.stop and event.stop < event.start:
                 raise ValidationError('結束時間不能早於開始時間。')
+
+    # ── 顯示與近期清單（手機行事曆頁、公司儀表板共用） ────────────────────
+    def _office_local_when(self):
+        """(台灣日期, 時間的說法)：整天／14:30–16:00／14:30（跨日或沒有長度只寫開始時間）。"""
+        self.ensure_one()
+        start = utc_to_local(self.start)
+        stop = utc_to_local(self.stop) if self.stop else start
+        if self.allday:
+            when = '整天'
+        elif stop.date() == start.date() and stop != start:
+            when = '%s–%s' % (start.strftime(TIME_FORMAT), stop.strftime(TIME_FORMAT))
+        else:
+            when = start.strftime(TIME_FORMAT)
+        return start.date(), when
+
+    @api.model
+    def _office_upcoming_domain(self, days):
+        """待辦，而且開始時間在「台灣今天 00:00 起算 days 天」以前——還沒完成的過期事項也算（不然會被忘掉）。
+        days=None＝不設上限（全部待辦）。"""
+        domain = [('state', '=', STATE_PLANNED)]
+        if days is not None:
+            day_start = local_to_utc(datetime.combine(local_today(), time.min))
+            domain.append(('start', '<', day_start + timedelta(days=days)))
+        return domain
+
+    @api.model
+    def _office_upcoming(self, days=UPCOMING_DAYS, limit=UPCOMING_LIMIT):
+        """近期的待辦事項（以呼叫者自己的權限讀），由早到晚。
+
+        回傳 {'today', 'days', 'count'（不受 limit 影響）, 'items': [{'id', 'name', 'event_type', 'type_label',
+              'day'（ISO）, 'day_label'（11/14（五））, 'when', 'is_today', 'overdue', 'responsible', 'project_name',
+              'location'}]}
+        """
+        today = local_today()
+        domain = self._office_upcoming_domain(days)
+        type_labels = dict(EVENT_TYPE_SELECTION)
+        items = []
+        for event in self.search(domain, limit=limit):
+            day, when = event._office_local_when()
+            items.append({
+                'id': event.id,
+                'name': event.name,
+                'event_type': event.event_type,
+                'type_label': type_labels.get(event.event_type, ''),
+                'day': day.isoformat(),
+                'day_label': '%s（%s）' % (day.strftime(DAY_LABEL_FORMAT), WEEKDAY_LABELS[day.weekday()]),
+                'when': when,
+                'is_today': day == today,
+                'overdue': day < today,
+                # sudo 只讀權責人姓名與工程名稱：事項本身已以本人身分讀到
+                'responsible': event.sudo().responsible_user_id.name or '',
+                'project_name': event.sudo().project_id.name or '',
+                'location': event.location or '',
+            })
+        return {'today': today.isoformat(), 'days': days, 'count': self.search_count(domain), 'items': items}
 
     # ── 動作 ──────────────────────────────────────────────────────────────
     def action_mark_done(self):

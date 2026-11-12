@@ -27,6 +27,9 @@ OPTIONAL_READ_ACCESS = (
     # 成本分析（S1，2026-11-10）：只給角色帳號；營造廠主管照舊沒有（rule_scope 對它也拒）
     ('cost.analysis', 'access_role_cost_analysis', ROLE_MANAGER_GROUP_XMLID),
     ('cost.analysis.line', 'access_role_cost_analysis_line', ROLE_MANAGER_GROUP_XMLID),
+    # 送審管制（construction_review，選裝；淞源 C5，2026-11-12）：期限待辦要讀它的限定提送日
+    ('supervision.plan.control', 'access_cm_plan_control', MANAGER_GROUP_XMLID),
+    ('supervision.plan.control', 'access_role_plan_control', ROLE_MANAGER_GROUP_XMLID),
     # 公文（construction_office，選裝；淞源 C10，2026-11-12）：營造廠主管用手機查、角色帳號後台也查；
     # 讀得到哪些由 rule_scope.COMPANY_OWNED_LEVEL 決定（所屬公司＝自己的公司）
     ('construction.official.doc', 'access_cm_official_doc', MANAGER_GROUP_XMLID),

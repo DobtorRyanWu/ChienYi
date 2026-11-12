@@ -1,0 +1,54 @@
+// 公司儀表板總覽頁：期限待辦＋近期行事曆＋每月估驗（淞源 C5、C7）。顏色變數沿用 dashboard_page.scss（同一個資產包，先載入）。
+$o-dash-lamp-size: 10px;
+$o-dash-dl-max-height: 318px;       // 期限待辦清單的高度上限（超過就在卡片裡捲動，不把整頁撐長）
+$o-dash-mo-bar: #2a78d6;            // 每月估驗的橫條：單一數列用同一個顏色
+$o-dash-mo-bar-height: 8px;
+
+.o_dash_page {
+    .o_dash_duo { display: grid; grid-template-columns: 1.35fr 1fr; gap: 10px; margin-bottom: 10px; align-items: start; }
+    .o_dash_duo.o_dash_trio { grid-template-columns: 1.3fr 1fr 1fr; }       // 裝了行事曆模組：三塊並排
+
+    // 燈號（老闆在會中的說法）：逾期或剩 3 天內＝紅、剩 7 天內＝黃、其餘灰。逾期和緊急同色，靠旁邊的字分（逾期幾天／還剩幾天）
+    .o_dash_lamp {
+        display: inline-block; width: $o-dash-lamp-size; height: $o-dash-lamp-size; border-radius: 50%;
+        background: $o-dash-grey; flex: none; margin-right: 5px;
+    }
+    .o_dash_lamp_overdue { background: $o-dash-red; }
+    .o_dash_lamp_urgent { background: $o-dash-red; }
+    .o_dash_lamp_soon { background: $o-dash-amber; }
+    .o_dash_lamp_normal { background: $o-dash-grey; }
+    .o_dash_dl_count { display: inline-flex; align-items: center; font-size: 12px; margin-left: 12px; white-space: nowrap; b { margin-left: 3px; } }
+
+    .o_dash_dl_list { max-height: $o-dash-dl-max-height; overflow-y: auto; padding: 0 6px 6px; }
+    .o_dash_dl_row {
+        display: grid; grid-template-columns: auto 132px auto 1fr; align-items: center; gap: 8px;
+        padding: 7px 8px; border-top: 1px solid $o-dash-line; cursor: pointer;
+        &:first-child { border-top: none; }
+        &:hover { background: $o-dash-hover; }
+    }
+    .o_dash_dl_when { display: flex; flex-direction: column; line-height: 1.25; small { color: $o-dash-mute; } }
+    .o_dash_dl_title { min-width: 0; display: flex; flex-direction: column; line-height: 1.3;
+        overflow-wrap: anywhere; small { color: $o-dash-mute; } }
+    .o_dash_pill_muted { background: $o-dash-track; color: $o-dash-ink; }
+    // 行事曆的列沒有燈號：日期時間、類型、事項
+    .o_dash_cal_row { grid-template-columns: 118px auto 1fr; }
+
+    // 每月估驗：月份、橫條、金額、期數
+    .o_dash_mo_list { padding: 2px 12px 8px; }
+    .o_dash_mo_row {
+        display: grid; grid-template-columns: 62px 1fr 128px 44px; align-items: center; gap: 8px; padding: 4px 0;
+        font-variant-numeric: tabular-nums;
+    }
+    .o_dash_mo_track {
+        display: block; height: $o-dash-mo-bar-height; background: $o-dash-track; border-radius: $o-dash-mo-bar-height;
+        overflow: hidden;
+        i { display: block; height: 100%; background: $o-dash-mo-bar; border-radius: $o-dash-mo-bar-height; }
+    }
+    .o_dash_mo_amount, .o_dash_mo_count { text-align: right; white-space: nowrap; }
+
+    @media (max-width: $o-dash-narrow) {
+        .o_dash_duo, .o_dash_duo.o_dash_trio { grid-template-columns: 1fr; }
+        .o_dash_dl_row { grid-template-columns: auto 1fr; .o_dash_pill { justify-self: start; } .o_dash_dl_title { grid-column: 1 / -1; } }
+        .o_dash_mo_row { grid-template-columns: 58px 1fr 112px; .o_dash_mo_count { display: none; } }
+    }
+}

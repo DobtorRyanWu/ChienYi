@@ -67,6 +67,91 @@
                     </div>
                 </t>
 
+                <!-- 期限待辦＋近期行事曆＋每月估驗（淞源 C5、C7）：並排，窄畫面上下排；沒裝行事曆模組就只有兩塊 -->
+                <div class="o_dash_duo" t-att-class="{ o_dash_trio: calendarShown }">
+                    <div class="o_dash_card o_dash_deadline">
+                        <div class="o_dash_sec_t">
+                            期限待辦<small>依期限由近到遠；點一筆開啟單據</small>
+                            <span class="o_dash_sp"/>
+                            <t t-if="deadlineCounts">
+                                <span class="o_dash_dl_count"><i class="o_dash_lamp o_dash_lamp_overdue" aria-hidden="true"/>逾期 <b t-esc="deadlineCounts.overdue"/></span>
+                                <span class="o_dash_dl_count"><i class="o_dash_lamp o_dash_lamp_urgent" aria-hidden="true"/><t t-esc="deadline.data.manager_days"/> 天內 <b t-esc="deadlineCounts.urgent"/></span>
+                                <span class="o_dash_dl_count"><i class="o_dash_lamp o_dash_lamp_soon" aria-hidden="true"/><t t-esc="deadlineSoonLabel"/> <b t-esc="deadlineCounts.soon"/></span>
+                                <span class="o_dash_dl_count o_dash_mute">共 <t t-esc="deadlineCounts.total"/> 件</span>
+                            </t>
+                        </div>
+                        <div t-if="deadline.loading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入中…</div>
+                        <div t-elif="deadline.error" class="o_dash_empty o_dash_bad" t-esc="deadline.error"/>
+                        <div t-elif="!deadlineOk" class="o_dash_empty o_dash_bad" t-esc="deadline.data.message"/>
+                        <div t-elif="!deadline.data.items.length" class="o_dash_empty">目前沒有設了期限、還沒辦完的事項</div>
+                        <div t-else="" class="o_dash_dl_list">
+                            <t t-foreach="deadline.data.items" t-as="item" t-key="item.model + '-' + item.res_id">
+                                <div class="o_dash_dl_row" t-att-data-level="item.level" t-on-click="() => this.openDeadlineItem(item)">
+                                    <i class="o_dash_lamp" t-attf-class="o_dash_lamp_{{ item.level }}" aria-hidden="true"/>
+                                    <span class="o_dash_dl_when">
+                                        <b t-att-class="{ o_dash_bad: item.level === 'overdue' }" t-esc="deadlineText(item)"/>
+                                        <small t-esc="item.deadline"/>
+                                    </span>
+                                    <span class="o_dash_pill o_dash_pill_muted" t-esc="item.source_label"/>
+                                    <span class="o_dash_dl_title">
+                                        <t t-esc="item.title"/>
+                                        <small t-if="item.project_name" t-esc="item.project_name"/>
+                                    </span>
+                                </div>
+                            </t>
+                        </div>
+                        <div t-if="deadlineMoreCount > 0" class="o_dash_more o_dash_mute">只列出期限最近的 <t t-esc="deadline.data.items.length"/> 件，另有 <t t-esc="deadlineMoreCount"/> 件。</div>
+                        <div t-if="deadlineDeniedText" class="o_dash_more o_dash_mute">沒有權限查看、未列入的來源：<t t-esc="deadlineDeniedText"/></div>
+                    </div>
+                    <div t-if="calendarShown" class="o_dash_card o_dash_calendar">
+                        <div class="o_dash_sec_t">
+                            行事曆<small t-if="calendarOk">今天起 <t t-esc="calendar.data.days"/> 天內的待辦，共 <t t-esc="calendar.data.count"/> 件</small>
+                            <span class="o_dash_sp"/>
+                            <button t-if="calendarOk" type="button" class="btn btn-link btn-sm o_dash_open_calendar" t-on-click="openCalendar">開啟行事曆</button>
+                        </div>
+                        <div t-if="calendar.loading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入中…</div>
+                        <div t-elif="calendar.error" class="o_dash_empty o_dash_bad" t-esc="calendar.error"/>
+                        <div t-elif="!calendarOk" class="o_dash_empty o_dash_bad" t-esc="calendar.data.message"/>
+                        <div t-elif="!calendar.data.items.length" class="o_dash_empty">這 <t t-esc="calendar.data.days"/> 天內沒有排定的事項</div>
+                        <div t-else="" class="o_dash_dl_list">
+                            <t t-foreach="calendar.data.items" t-as="item" t-key="item.id">
+                                <div class="o_dash_dl_row o_dash_cal_row" t-att-data-event="item.id" t-on-click="() => this.openCalendarItem(item)">
+                                    <span class="o_dash_dl_when">
+                                        <b t-att-class="{ o_dash_bad: item.overdue }"><t t-esc="item.day_label"/><t t-if="item.is_today">　今天</t><t t-if="item.overdue">　已過期</t></b>
+                                        <small t-esc="item.when"/>
+                                    </span>
+                                    <span class="o_dash_pill o_dash_pill_muted" t-esc="item.type_label"/>
+                                    <span class="o_dash_dl_title">
+                                        <t t-esc="item.name"/>
+                                        <small t-esc="calendarSubText(item)"/>
+                                    </span>
+                                </div>
+                            </t>
+                        </div>
+                        <div t-if="calendarMoreCount > 0" class="o_dash_more o_dash_mute">只列出最早的 <t t-esc="calendar.data.items.length"/> 件，另有 <t t-esc="calendarMoreCount"/> 件。</div>
+                    </div>
+                    <div class="o_dash_card o_dash_monthly">
+                        <div class="o_dash_sec_t">
+                            每月估驗<small>最近 12 個月，不含草稿</small>
+                            <span class="o_dash_sp"/>
+                            <span t-if="monthlyOk" class="o_dash_dl_count">合計 <b t-esc="formatMoney(monthly.data.total_amount)"/>／<t t-esc="monthly.data.total_count"/> 期</span>
+                        </div>
+                        <div t-if="monthly.loading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入中…</div>
+                        <div t-elif="monthly.error" class="o_dash_empty o_dash_bad" t-esc="monthly.error"/>
+                        <div t-elif="!monthlyOk" class="o_dash_empty o_dash_bad" t-esc="monthly.data.message"/>
+                        <div t-else="" class="o_dash_mo_list">
+                            <t t-foreach="monthly.data.months" t-as="row" t-key="row.month">
+                                <div class="o_dash_mo_row" t-att-data-month="row.month" t-att-title="monthTitle(row)">
+                                    <span class="o_dash_mo_month" t-esc="row.month"/>
+                                    <span class="o_dash_mo_track"><i t-att-style="monthBarStyle(row)"/></span>
+                                    <span class="o_dash_mo_amount" t-esc="row.count ? formatMoney(row.amount) : '—'"/>
+                                    <span class="o_dash_mo_count o_dash_mute"><t t-esc="row.count"/> 期</span>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 各工程現況 -->
                 <div class="o_dash_card">
                     <div class="o_dash_sec_t">

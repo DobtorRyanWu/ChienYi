@@ -55,3 +55,5 @@ from . import test_office_scope
 from . import test_office_calendar_scope
 # 淞源 C9（2026-11-12）：統計圖表頁的資料——合計＝search_count、受限帳號只數自家、閘門放行
 from . import test_dashboard_charts
+# 淞源 C5／C7（2026-11-12）：總覽頁的期限待辦、近期行事曆、每月估驗——誰看得到什麼、合計、閘門放行
+from . import test_dashboard_deadlines

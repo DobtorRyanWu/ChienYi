@@ -86,6 +86,8 @@ EXPECT_PROJECT_LEVEL = {
 }
 EXPECT_NARROW_COMPANY = ('hr.employee.public', 'hr.employee', 'hr.department', 'resource.resource')
 EXPECT_NARROW_OTHER = ('res.users', 'res.partner')
+# 選裝模組裡的工程層級模型（不放進 EXPECT_PROJECT_LEVEL：那張表的每個模型都會被逐一查筆數，沒裝會 KeyError）
+EXPECT_OPTIONAL_PROJECT_LEVEL = ('supervision.plan.control',)
 # 公司自有的行政資料（construction_office，選裝；測試獨立寫一份）
 EXPECT_COMPANY_OWNED = ('construction.official.doc', 'construction.calendar.event')
 # 框架照舊（讀取不加條件）與使用者自有狀態（可寫）——合約 §3.2、§3.3
@@ -117,7 +119,7 @@ EXPECT_LINES_A2 = (
 EXPECT_INSPECTION_TEMPLATE = ('self.inspection.type', 'self.inspection.type.item', 'self.inspection.type.stage',
                               'self.inspection.type.timing', 'self.inspection.type.measure')
 WHITELIST = (set(EXPECT_CONTRACTOR_LEVEL) | set(EXPECT_LINES) | set(EXPECT_PROJECT_LEVEL)
-             | set(EXPECT_NARROW_COMPANY) | set(EXPECT_NARROW_OTHER) | set(EXPECT_COMPANY_OWNED)
+             | set(EXPECT_NARROW_COMPANY) | set(EXPECT_NARROW_OTHER) | set(EXPECT_COMPANY_OWNED) | set(EXPECT_OPTIONAL_PROJECT_LEVEL)
              | set(EXPECT_PROJECT_LEVEL_A2) | set(EXPECT_LINES_A2) | set(EXPECT_INSPECTION_TEMPLATE))
 
 

@@ -11,15 +11,15 @@
 import logging
 from datetime import datetime, time, timedelta
 
-import pytz
-
 from odoo import _, fields, http
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
 
-from odoo.addons.construction_supervision_base.utils.local_date import LOCAL_TZ
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
 
-from ..models.calendar_event import EVENT_TYPE_MEETING, EVENT_TYPE_SELECTION, STATE_PLANNED
+from ..models.calendar_event import (
+    EVENT_TYPE_MEETING, EVENT_TYPE_SELECTION, STATE_PLANNED, TIME_FORMAT, WEEKDAY_LABELS, local_to_utc, utc_to_local,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -36,8 +36,6 @@ RANGES = {
 DEFAULT_RANGE = RANGE_MONTH
 LIST_LIMIT = 200                    # 一頁最多列幾件（行事曆不分頁；超過就請縮小範圍）
 DATE_FORMAT = '%Y-%m-%d'
-TIME_FORMAT = '%H:%M'
-WEEKDAY_LABELS = ('一', '二', '三', '四', '五', '六', '日')
 MESSAGES = {
     'created': ('ok', '事項已新增'),
     'updated': ('ok', '時間已更新'),
@@ -56,10 +54,10 @@ class ConstructionCalendarPortal(http.Controller):
     # ── 時區 ──────────────────────────────────────────────────────────────
     def _to_utc(self, local_naive):
         """台灣時間的日期時間（naive）→ UTC（naive，Odoo 的存法）。"""
-        return LOCAL_TZ.localize(local_naive).astimezone(pytz.utc).replace(tzinfo=None)
+        return local_to_utc(local_naive)
 
     def _to_local(self, utc_naive):
-        return pytz.utc.localize(utc_naive).astimezone(LOCAL_TZ).replace(tzinfo=None)
+        return utc_to_local(utc_naive)
 
     def _parse_times(self, post):
         """表單的日期、開始時間、結束時間 → (start_utc, stop_utc, allday)。格式不對丟 ValueError。
@@ -105,17 +103,10 @@ class ConstructionCalendarPortal(http.Controller):
             return request.env[EVENT_MODEL].browse()
 
     def _row(self, event):
-        start = self._to_local(event.start)
-        stop = self._to_local(event.stop) if event.stop else start
-        if event.allday:
-            when = '整天'
-        elif stop.date() == start.date() and stop != start:
-            when = '%s–%s' % (start.strftime(TIME_FORMAT), stop.strftime(TIME_FORMAT))
-        else:
-            when = start.strftime(TIME_FORMAT)
+        day, when = event._office_local_when()
         return {
             'event': event,
-            'day': start.date(),
+            'day': day,
             'when': when,
             # sudo 只讀權責人的姓名：事項本身已由呼叫端以本人身分讀到
             'responsible': event.sudo().responsible_user_id.name,
@@ -127,16 +118,12 @@ class ConstructionCalendarPortal(http.Controller):
     def calendar(self, **kw):
         range_key = kw.get('range') if kw.get('range') in RANGES else DEFAULT_RANGE
         mine_only = kw.get('mine') == '1'
-        today_local = self._to_local(fields.Datetime.now()).date()
-        day_start = self._to_utc(datetime.combine(today_local, time.min))
-        # 今天起的待辦事項，加上還沒完成的過期事項（過期的排在最前面，不然會被忘掉）
-        domain = [('state', '=', STATE_PLANNED)]
-        days = RANGES[range_key][1]
-        if days is not None:
-            domain.append(('start', '<', day_start + timedelta(days=days)))
+        today_local = local_today()
+        Event = request.env[EVENT_MODEL]
+        # 今天起的待辦事項，加上還沒完成的過期事項（過期的排在最前面，不然會被忘掉）；條件與公司儀表板的行事曆區塊同一份
+        domain = Event._office_upcoming_domain(RANGES[range_key][1])
         if mine_only:
             domain.append(('responsible_user_id', '=', request.env.uid))
-        Event = request.env[EVENT_MODEL]
         try:
             events = Event.search(domain, limit=LIST_LIMIT)
             total = Event.search_count(domain)

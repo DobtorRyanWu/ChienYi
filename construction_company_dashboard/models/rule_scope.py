@@ -112,6 +112,9 @@ PROJECT_LEVEL = {
     'supervision.document': 'project_id',
     # 合約 §0b-20：檢試驗預警（單一工程頁「檢試驗」區塊以本人身分數未處理預警；歸「其他」時整塊無權限）
     'supervision.test.warning': 'project_id',
+    # 送審管制（construction_review，選裝；淞源 C5，2026-11-12）：管的是承包商自己要提送的計畫書與期限
+    # （淞源技師：「契約規定下禮拜一要送施工計畫，希望一進系統就看到」），期限待辦要列得出來
+    'supervision.plan.control': 'project_id',
 }
 
 # 自主檢查樣板（線 G；真瀏覽器實證：營造方前台老闆開有草稿自主檢查的工程首頁，模板以本人身分讀

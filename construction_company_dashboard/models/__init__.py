@@ -27,3 +27,5 @@ from . import company_type_choice
 from . import restricted_accounts
 # 淞源 C9（2026-11-12）：統計圖表頁的資料（柱狀／圓餅／雷達）
 from . import dashboard_charts
+# 淞源 C5（2026-11-12）：總覽頁的期限待辦與每月估驗
+from . import dashboard_deadlines

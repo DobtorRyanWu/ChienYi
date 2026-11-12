@@ -69,6 +69,11 @@ DASHBOARD_METHODS = frozenset({
     # 帳號被預設拒絕時不算任何數字（先查 _dash_blocked_reason）
     ('project.project', 'get_dash_chart_catalog'),
     ('project.project', 'get_dash_chart_data'),
+    # 總覽頁的期限待辦、近期行事曆、每月估驗（淞源 C5／C7，2026-11-12；dashboard_deadlines.py）：
+    # 同樣以看的人的權限算，帳號被預設拒絕時不算任何數字
+    ('project.project', 'get_dash_deadline_items'),
+    ('project.project', 'get_dash_week_calendar'),
+    ('project.project', 'get_dash_monthly_estimates'),
 })
 # 只放後台角色帳號的方法（S1 fix2-X，2026-11-10）。營造廠主管、控台讀取帳號、前台營造帳號照擋（_is_role_account 為否）。
 # 方法本身另有一道守衛，不靠閘門：

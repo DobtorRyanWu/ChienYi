@@ -35,10 +35,14 @@ export class CompanyDashboardOverview extends Component {
         this.labels = {};
         this.kpi = useState({ loading: true, data: null, error: false, openKey: null });
         this.table = useState({ loading: true, error: false, rows: [], count: 0, offset: 0, search: "" });
+        this.deadline = useState({ loading: true, data: null, error: false });
+        this.monthly = useState({ loading: true, data: null, error: false });
+        this.calendar = useState({ loading: true, data: null, error: false });
         this.pageSize = DASH_PAGE_SIZE;
         onWillStart(async () => {
             this.labels = await loadSelectionLabels(this.orm);
-            await Promise.all([this.loadKpis(), this.loadRows()]);
+            await Promise.all([this.loadKpis(), this.loadRows(), this.loadDeadlines(), this.loadMonthly(),
+                this.loadCalendar()]);
         });
     }
 
@@ -164,6 +168,130 @@ export class CompanyDashboardOverview extends Component {
         this.kpi.openKey = null;
         const action = await this.orm.call(PROJECT_MODEL, "action_dash_drilldown", [[], key, modelName]);
         await this.actionService.doAction(action);
+    }
+
+    // ── 期限待辦、每月估驗（淞源 C5）────────────────────────────────────
+    /** 讀一個區塊的資料：讀不到就明講（不留空白、不當成 0）。
+     *  fetch 由呼叫端給（方法名稱要寫成字串常值，tests/test_dashboard_page.py 的掃描器才看得到、才比得到閘門清單）。 */
+    async _loadBlock(block, fetch, what) {
+        block.loading = true;
+        try {
+            block.data = await fetch();
+            block.error = false;
+        } catch (error) {
+            console.error(`${what}讀取失敗`, error);
+            block.data = null;
+            block.error = LOAD_FAILED_MESSAGE;
+        } finally {
+            block.loading = false;
+        }
+    }
+
+    async loadDeadlines() {
+        await this._loadBlock(
+            this.deadline, () => this.orm.call(PROJECT_MODEL, "get_dash_deadline_items", []), "期限待辦");
+    }
+
+    async loadMonthly() {
+        await this._loadBlock(
+            this.monthly, () => this.orm.call(PROJECT_MODEL, "get_dash_monthly_estimates", []), "每月估驗");
+    }
+
+    get deadlineOk() {
+        return Boolean(this.deadline.data && this.deadline.data.status === STATUS_OK);
+    }
+
+    get deadlineCounts() {
+        return this.deadlineOk ? this.deadline.data.counts : null;
+    }
+
+    /** 「7 天內」那一格其實是「超過緊急門檻、到提醒門檻為止」：寫成 4–7 天，不和「3 天內」重疊 */
+    get deadlineSoonLabel() {
+        const data = this.deadline.data;
+        return `${data.manager_days + 1}–${data.site_days} 天`;
+    }
+
+    get deadlineMoreCount() {
+        return this.deadlineOk ? this.deadlineCounts.total - this.deadline.data.items.length : 0;
+    }
+
+    get deadlineDeniedText() {
+        return this.deadlineOk ? this.deadline.data.denied.join("、") : "";
+    }
+
+    /** 期限的白話：逾期 3 天／今天到期／還剩 5 天（燈號旁邊一定有這行字，不只靠顏色） */
+    deadlineText(item) {
+        if (item.days_left < 0) {
+            return `逾期 ${-item.days_left} 天`;
+        }
+        return item.days_left === 0 ? "今天到期" : `還剩 ${item.days_left} 天`;
+    }
+
+    async openDeadlineItem(item) {
+        await this.actionService.doAction({
+            type: "ir.actions.act_window",
+            res_model: item.model,
+            res_id: item.res_id,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
+
+    // ── 近期行事曆（淞源 C7；construction_office 沒裝就整塊不顯示）─────────
+    async loadCalendar() {
+        await this._loadBlock(
+            this.calendar, () => this.orm.call(PROJECT_MODEL, "get_dash_week_calendar", []), "近期行事曆");
+    }
+
+    /** 沒裝行事曆模組＝整塊不顯示；讀取失敗要顯示（不然壞了沒人知道） */
+    get calendarShown() {
+        return Boolean(this.calendar.error || (this.calendar.data && this.calendar.data.installed));
+    }
+
+    get calendarOk() {
+        return Boolean(this.calendar.data && this.calendar.data.status === STATUS_OK);
+    }
+
+    get calendarMoreCount() {
+        return this.calendarOk ? this.calendar.data.count - this.calendar.data.items.length : 0;
+    }
+
+    /** 第二行小字：權責人・工程・地點（有的才列） */
+    calendarSubText(item) {
+        return [item.responsible, item.project_name, item.location].filter(Boolean).join("・");
+    }
+
+    async openCalendarItem(item) {
+        await this.actionService.doAction({
+            type: "ir.actions.act_window",
+            res_model: "construction.calendar.event",
+            res_id: item.id,
+            views: [[false, "form"]],
+            target: "current",
+        });
+    }
+
+    async openCalendar() {
+        await this.actionService.doAction("construction_office.action_calendar_event");
+    }
+
+    get monthlyOk() {
+        return Boolean(this.monthly.data && this.monthly.data.status === STATUS_OK);
+    }
+
+    /** 橫條長度：相對於這 12 個月裡金額最高的那個月 */
+    monthBarStyle(row) {
+        const max = this.monthly.data.max_amount || 0;
+        return `width: ${max ? Math.round((row.amount / max) * 100) : 0}%`;
+    }
+
+    /** 滑鼠停在一列上的說明（橫條本身沒有數字） */
+    monthTitle(row) {
+        return row.count ? `${row.month}：${row.count} 期，${formatMoney(row.amount)}` : `${row.month}：沒有估驗`;
+    }
+
+    formatMoney(value) {
+        return formatMoney(value);
     }
 
     // ── 各工程現況 ──────────────────────────────────────────────────────
