@@ -190,6 +190,8 @@
                         <t t-set="show_project" t-value="True"/>
                     </t>
                 </div>
+                <!-- 沒有工程頁首的頁面要自己帶抽屜選單（頁首右上角的按鈕開的就是它） -->
+                <t t-call="construction_portal.portal_v10_drawer"/>
             </div>
         </t>
     </template>
@@ -291,6 +293,8 @@
                     </form>
                 </div>
                 <t t-if="project" t-call="construction_portal.portal_bottom_nav_v10"/>
+                <!-- 沒有工程頁首的頁面要自己帶抽屜選單（有工程時頁首已經帶了） -->
+                <t t-else="" t-call="construction_portal.portal_v10_drawer"/>
             </div>
         </t>
     </template>
