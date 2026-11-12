@@ -6,8 +6,9 @@
 """
 from datetime import timedelta
 
-from odoo import fields
 from odoo.tests.common import TransactionCase
+
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
 
 ADMIN_GROUP = 'construction_supervision_base.group_supervisor_admin'
 BOSS = 'construction_supervision_base.group_portal_subscriber'
@@ -34,7 +35,9 @@ class OfficeCase(TransactionCase):
         cls.p2 = Project.create({
             'name': 'OFFICE 工程二', 'code': 'OFFICE-P2', 'project_type': 'general', 'state': 'construction',
             'company_id': cls.co_s.id, 'contractor_company_ids': [(6, 0, cls.co_b.ids)]})
-        cls.today = fields.Date.today()
+        # 台灣日期：模型的逾期判斷用 local_today()；這裡若用 fields.Date.today()（UTC 日期），
+        # 台灣 00:00–08:00 之間跑測試會差一天（2026-11-13 另一個 session 實跑出 3 個失敗）
+        cls.today = local_today()
         cls.yesterday = cls.today - timedelta(days=1)
         cls.tomorrow = cls.today + timedelta(days=1)
 
