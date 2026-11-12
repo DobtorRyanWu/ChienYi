@@ -14,19 +14,54 @@
                 <div t-if="!hasLeaflet" class="alert alert-warning" role="alert">地圖函式庫未載入（web_leaflet_lib），只顯示右側清單。</div>
                 <div t-if="state.tileError" class="alert alert-warning" role="alert">底圖載入失敗：這個裝置連不到 OpenStreetMap（HTTP <t t-esc="state.tileStatus"/>）也連不到備援的 CARTO；標記與清單照常。</div>
                 <div t-elif="state.fallback" class="alert alert-info py-1" role="status">OpenStreetMap 底圖在這個裝置載不到（HTTP <t t-esc="state.tileStatus"/>），已改用 CARTO 底圖。</div>
+                <div t-if="state.notice" class="alert py-2 o_dash_map_notice" role="status"
+                     t-att-class="{ 'alert-success': state.notice.tone === 'ok', 'alert-info': state.notice.tone === 'info', 'alert-danger': state.notice.tone === 'bad' }"
+                     t-esc="state.notice.text"/>
                 <div class="o_dash_mapwrap">
-                    <div class="o_dash_card o_dash_mapbox">
+                    <div class="o_dash_card o_dash_mapbox" t-att-class="{ o_dash_locating: state.locate }">
                         <div class="o_dash_map" t-ref="map"/>
-                        <div t-if="!state.loading and !state.located.length" class="o_dash_map_empty">尚無工程設定座標（在工程案件表單填經緯度後會出現在這裡）</div>
+                        <!-- 定位模式：在地圖上點一下就存 -->
+                        <div t-if="state.locate" class="o_dash_locate_bar" role="status">
+                            <i class="fa fa-map-marker me-2" aria-hidden="true"/>請在地圖上點一下「<b t-esc="state.locate.name"/>」的位置
+                            <button type="button" class="btn btn-sm btn-light ms-3 o_dash_locate_cancel" t-on-click="cancelLocate">取消</button>
+                        </div>
+                        <div t-if="!state.loading and !state.located.length and !state.locate" class="o_dash_map_empty">
+                            尚無工程設定座標<t t-if="canLocate">（在右邊按「定位」，然後在地圖上點一下）</t><t t-else="">（請有修改權限的人到標案地圖替工程定位）</t>
+                        </div>
                         <div class="o_dash_maplg">
                             <span><i class="o_dash_mk_dot o_dash_mk_behind"/>進度落後</span>
                             <span><i class="o_dash_mk_dot o_dash_mk_ahead"/>進度超前</span>
                             <span><i class="o_dash_mk_dot o_dash_mk_none"/>未建進度表</span>
+                            <label t-if="external" class="o_dash_ext_toggle">
+                                <input type="checkbox" t-att-checked="state.showExternal" t-on-change="toggleExternal"/>
+                                <i class="o_dash_mk_dot o_dash_mk_external"/>外部標案（<t t-esc="externalLocated.length"/>）
+                            </label>
                             <span class="o_dash_mute">點標記進入單一工程</span>
                         </div>
                     </div>
                     <div class="o_dash_mlist">
                         <div t-if="state.loading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入中…</div>
+                        <!-- 看附近：某個工程周圍幾公里內的外部標案，近的在前 -->
+                        <div t-if="state.nearby" class="o_dash_card o_dash_nearby">
+                            <div class="o_dash_nearby_head">
+                                <b>「<t t-esc="state.nearby.name"/>」附近的外部標案</b>
+                                <button type="button" class="btn btn-sm btn-link o_dash_nearby_close" t-on-click="closeNearby" aria-label="關閉">關閉</button>
+                            </div>
+                            <div class="o_dash_nearby_radii" role="group" aria-label="範圍">
+                                <t t-foreach="nearbyRadii" t-as="km" t-key="km">
+                                    <button type="button" class="o_dash_dl_chip" t-att-class="{ o_dash_dl_chip_on: state.nearby.radius === km }"
+                                            t-att-data-radius="km" t-on-click="() => this.setNearbyRadius(km)"><t t-esc="km"/> 公里內</button>
+                                </t>
+                                <span class="o_dash_mute">共 <b t-esc="nearbyTenders.length"/> 件</span>
+                            </div>
+                            <div t-if="!nearbyTenders.length" class="o_dash_mute o_dash_nearby_empty">這個範圍內沒有已定位的外部標案</div>
+                            <t t-foreach="nearbyTenders" t-as="t" t-key="t.id">
+                                <div class="o_dash_nearby_row" t-att-data-tender="t.id" t-on-click="() => this.openTender(t)">
+                                    <span class="o_dash_nearby_km" t-esc="formatKm(t.distance)"/>
+                                    <span class="o_dash_nearby_name"><t t-esc="t.name"/><small t-esc="tenderSubText(t)"/></span>
+                                </div>
+                            </t>
+                        </div>
                         <t t-foreach="state.located" t-as="row" t-key="row.id">
                             <div class="o_dash_card o_dash_mcard" t-att-data-project="row.id" t-on-click="() => this.openProject(row)">
                                 <div class="o_dash_nm"><t t-esc="row.name"/><small class="o_dash_code"> <t t-esc="row.code"/></small></div>
@@ -44,13 +79,55 @@
                                     <span>待改缺失 <b t-if="row.defects.ok" class="o_dash_ink"><t t-esc="row.defects.open"/></b><span t-else="" class="o_dash_bad" t-esc="row.defects.message"/><t t-if="row.defects.ok">（逾期 <t t-esc="row.defects.overdue"/>）</t></span>
                                     <span>檢驗待補 <b t-if="row.tests.ok" class="o_dash_ink" t-esc="row.tests.count"/><span t-else="" class="o_dash_bad" t-esc="row.tests.message"/></span>
                                 </div>
+                                <div t-if="external or canLocate" class="o_dash_mcard_tools">
+                                    <span t-if="row.geocoded" class="o_dash_pill o_dash_pill_warn" title="用工程地點文字自動查到的位置，不一定準">自動定位，請確認</span>
+                                    <button t-if="external" type="button" class="btn btn-sm btn-link o_dash_btn_nearby" t-on-click.stop="() => this.showNearby(row)">看附近的外部標案</button>
+                                    <button t-if="canLocate" type="button" class="btn btn-sm btn-link o_dash_btn_relocate" t-on-click.stop="() => this.startLocate('project', row)">重新定位</button>
+                                </div>
                             </div>
                         </t>
                         <t t-if="state.unlocated.length">
-                            <div class="o_dash_sec_t o_dash_mlist_sub">未設座標<small><t t-esc="state.unlocated.length"/> 個工程；在工程案件表單填經緯度後會上圖</small></div>
+                            <div class="o_dash_sec_t o_dash_mlist_sub">未設座標<small><t t-esc="state.unlocated.length"/> 個工程<t t-if="canLocate">；按「定位」後在地圖上點一下</t></small></div>
+                            <div t-if="geocodeEnabled and geocodableProjects" class="o_dash_geocode_bar">
+                                <button type="button" class="btn btn-sm btn-secondary o_dash_btn_geocode" t-att-disabled="state.busy"
+                                        t-on-click="() => this.geocode('project')">
+                                    <i class="fa fa-search-plus me-1" aria-hidden="true"/>用工程地點文字自動定位（一次最多 <t t-esc="state.extras.geocode_batch"/> 個）
+                                </button>
+                                <small class="o_dash_mute"><t t-esc="geocodableProjects"/> 個有填工程地點；會把地點文字送到外部定位服務</small>
+                            </div>
                             <t t-foreach="state.unlocated" t-as="p" t-key="p.id">
                                 <div class="o_dash_card o_dash_mcard o_dash_mcard_plain" t-att-data-project="p.id" t-on-click="() => this.openProject(p)">
-                                    <div class="o_dash_nm"><t t-esc="p.name"/><small class="o_dash_code"> <t t-esc="p.code"/></small><span class="o_dash_pill o_dash_pill_muted ms-2">未設座標</span></div>
+                                    <div class="o_dash_nm">
+                                        <t t-esc="p.name"/><small class="o_dash_code"> <t t-esc="p.code"/></small>
+                                        <button t-if="canLocate" type="button" class="btn btn-sm btn-outline-primary o_dash_btn_locate ms-2"
+                                                t-on-click.stop="() => this.startLocate('project', p)">定位</button>
+                                        <span t-else="" class="o_dash_pill o_dash_pill_muted ms-2">未設座標</span>
+                                    </div>
+                                    <small t-if="p.location" class="o_dash_mute" t-esc="p.location"/>
+                                </div>
+                            </t>
+                        </t>
+                        <!-- 外部標案（還沒定位的） -->
+                        <t t-if="external">
+                            <div class="o_dash_sec_t o_dash_mlist_sub">外部標案<small>共 <t t-esc="external.count"/> 件，<t t-esc="externalUnlocated.length"/> 件還沒定位</small></div>
+                            <div class="o_dash_mlist_tools">
+                                <small class="o_dash_mute">別人的標案；清單用匯入的，位置在這裡標</small>
+                                <button type="button" class="btn btn-sm btn-link o_dash_btn_tender_list" t-on-click="openTenderList">開啟清單／匯入</button>
+                            </div>
+                            <div t-if="geocodeEnabled and canLocateTender and geocodableTenders" class="o_dash_geocode_bar">
+                                <button type="button" class="btn btn-sm btn-secondary o_dash_btn_geocode_tender" t-att-disabled="state.busy"
+                                        t-on-click="() => this.geocode('tender')">
+                                    <i class="fa fa-search-plus me-1" aria-hidden="true"/>用履約地點自動定位（一次最多 <t t-esc="state.extras.geocode_batch"/> 個）
+                                </button>
+                            </div>
+                            <t t-foreach="externalUnlocated" t-as="t" t-key="t.id">
+                                <div class="o_dash_card o_dash_mcard o_dash_mcard_plain" t-att-data-tender="t.id" t-on-click="() => this.openTender(t)">
+                                    <div class="o_dash_nm">
+                                        <t t-esc="t.name"/>
+                                        <button t-if="canLocateTender" type="button" class="btn btn-sm btn-outline-primary o_dash_btn_locate_tender ms-2"
+                                                t-on-click.stop="() => this.startLocate('tender', t)">定位</button>
+                                    </div>
+                                    <small class="o_dash_mute" t-esc="tenderSubText(t) || t.location"/>
                                 </div>
                             </t>
                         </t>

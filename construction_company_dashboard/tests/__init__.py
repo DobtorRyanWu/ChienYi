@@ -57,3 +57,5 @@ from . import test_office_calendar_scope
 from . import test_dashboard_charts
 # 淞源 C5／C7（2026-11-12）：總覽頁的期限待辦、近期行事曆、每月估驗——誰看得到什麼、合計、閘門放行
 from . import test_dashboard_deadlines
+# 淞源 C6（2026-11-13）：標案地圖的定位與外部標案——誰能定位、自動定位只送地點文字、受限帳號拿不到
+from . import test_map_extras

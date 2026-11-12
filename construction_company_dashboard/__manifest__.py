@@ -31,7 +31,11 @@
     #        related 欄位不能直接寫）；runbook／hook 訊息更正（回滾範圍、qd.py 已改呼叫清單函式、營造廠主管的處置、
     #        XML-RPC／JSON-RPC 只收 API key 不等於密碼不能跑程式）。沒有新欄位。
     #        2.6.1（2026-11-12，S4）：公司隔離測試加入 S4 的 29 個模型（tests/test_company_isolation.py）、runbook §3b 上 S4 前的檢查 SQL；程式不變。
-    "version": "18.0.2.7.0",
+    #        2.8.0（2026-11-13，淞源 C6）：標案地圖可以定位——地圖上點位置、用工程地點文字自動定位（外部地理編碼服務，
+    #        只送地點文字；系統參數 construction_company_dashboard.geocode_url 可換服務或設 off 停用）、
+    #        外部標案（新模型 construction.external.tender，清單匯入、地圖多一個圖層、可看某工程附近幾公里內的標案）。
+    #        project.project 新欄位 dash_geo_source。
+    "version": "18.0.2.8.0",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """
@@ -66,6 +70,9 @@
         "security/ir.model.access.csv",
         # 線 A3：選裝模組模型的營造廠主管讀取 ACL（要在群組之後；合約 §0b-10）
         "security/optional_access.xml",
+        # 淞源 C6：外部標案的多公司規則、視圖與選單
+        "security/external_tender_rules.xml",
+        "views/external_tender_views.xml",
         # 線 A1'：帳號設定
         "views/res_users_views.xml",
         # 主迴圈 11-06：新建公司必選公司類型（合約 §0b-30）
@@ -115,6 +122,7 @@
             "construction_company_dashboard/static/src/dashboard_page/overview.xml",
             "construction_company_dashboard/static/src/dashboard_page/project.js",
             "construction_company_dashboard/static/src/dashboard_page/project.xml",
+            "construction_company_dashboard/static/src/dashboard_page/map_extras.scss",
             "construction_company_dashboard/static/src/dashboard_page/map.js",
             "construction_company_dashboard/static/src/dashboard_page/map.xml",
             "construction_company_dashboard/static/src/dashboard_page/charts.scss",

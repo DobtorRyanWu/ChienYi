@@ -1,0 +1,54 @@
+// 標案地圖的定位、外部標案與「看附近」（淞源 C6）。顏色變數沿用 dashboard_page.scss（同一個資產包，先載入）。
+$o-dash-external: #2a78d6;          // 外部標案的標記：藍色方塊（自家工程是圓點，形狀也不同，不只靠顏色分）
+$o-dash-locate-bar: #1f3a5f;
+
+.o_dash_page {
+    .o_dash_map_notice { margin-bottom: 8px; font-size: 13px; }
+    // 定位模式：游標變十字、上方一條提示
+    .o_dash_locating .o_dash_map, .o_dash_locating .leaflet-interactive { cursor: crosshair !important; }
+    // 定位模式下，既有的標記與標籤不攔截點擊：不然剛好點在標籤上（標籤很大）那一下不會算數
+    // （2026-11-13 真瀏覽器實看：第二筆定位點在前一筆的標籤上，沒有反應）
+    .o_dash_locating .leaflet-marker-pane, .o_dash_locating .leaflet-tooltip-pane,
+    .o_dash_locating .leaflet-marker-icon, .o_dash_locating .leaflet-tooltip { pointer-events: none !important; }
+    .o_dash_locate_bar {
+        position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 500; max-width: 92%;
+        background: $o-dash-locate-bar; color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 14px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); display: flex; align-items: center; flex-wrap: wrap;
+    }
+    .o_dash_ext_toggle { display: inline-flex; align-items: center; gap: 5px; margin: 0; cursor: pointer; }
+    .o_dash_mk_external { background: $o-dash-external; border-radius: 3px; }
+    .o_dash_maplg .o_dash_mk_external { border-radius: 2px; }
+
+    // 右側清單和地圖同高、自己捲：沒座標的工程可能上百個，整頁跟著變長的話，按了下面的「定位」地圖已經捲出畫面
+    // （2026-11-13 真瀏覽器實看）。窄畫面（單欄，清單在地圖下面）不限高，改由 startLocate 把地圖捲回來。
+    .o_dash_mlist { max-height: $o-dash-map-height; overflow-y: auto; padding-right: 2px; }
+    @media (max-width: $o-dash-narrow) {
+        .o_dash_mlist { max-height: none; overflow-y: visible; }
+    }
+    .o_dash_mlist_tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 6px;
+        .btn-link { padding: 0; font-size: 12px; white-space: nowrap; } }
+
+    .o_dash_mlist {
+        .o_dash_mcard_tools { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 8px; margin-top: 4px;
+            .btn-link { padding: 0 4px; font-size: 12px; } }
+        .o_dash_mcard_plain small { display: block; font-size: 12px; }
+        .o_dash_btn_locate, .o_dash_btn_locate_tender { padding: 0 10px; font-size: 12px; }
+        .o_dash_geocode_bar { display: flex; flex-direction: column; gap: 3px; padding: 0 4px 8px; small { font-size: 12px; } }
+        .o_dash_pill_warn { background: rgba(243, 156, 18, 0.16); color: #9a6200; }
+        // 看附近的結果
+        .o_dash_nearby { padding: 10px 14px; margin-bottom: 10px; border-left: 4px solid $o-dash-external; }
+        .o_dash_nearby_head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; font-size: 13px;
+            .btn-link { padding: 0; font-size: 12px; white-space: nowrap; flex: none; } }
+        .o_dash_nearby_radii { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+        .o_dash_nearby_empty { padding: 4px 0; }
+        .o_dash_nearby_row {
+            display: grid; grid-template-columns: 72px 1fr; gap: 8px; padding: 6px 0; border-top: 1px solid $o-dash-line;
+            cursor: pointer; font-size: 13px;
+            &:hover { background: $o-dash-hover; }
+        }
+        .o_dash_nearby_km { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .o_dash_nearby_name { min-width: 0; overflow-wrap: anywhere; small { display: block; color: $o-dash-mute; font-size: 12px; } }
+    }
+}
+// 附近範圍的圓（Leaflet 的 SVG 圖層不在 .o_dash_page 的子層選擇器範圍內時也要吃得到）
+.o_dash_nearby_circle { stroke: #2a78d6; stroke-width: 2; stroke-dasharray: 6 6; fill: #2a78d6; fill-opacity: 0.06; }

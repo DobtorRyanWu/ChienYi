@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 外部標案（淞源 C6）：清單用匯入的（⚙ > 匯入紀錄，有範本），位置在「標案地圖」上點或用履約地點自動定位 -->
+    <record id="view_external_tender_list" model="ir.ui.view">
+        <field name="name">construction.external.tender.list</field>
+        <field name="model">construction.external.tender</field>
+        <field name="arch" type="xml">
+            <list string="外部標案" editable="bottom" decoration-muted="stage == 'closed'">
+                <field name="name"/>
+                <field name="agency"/>
+                <field name="tender_no" optional="show"/>
+                <field name="stage"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="budget_amount" sum="預算合計"/>
+                <field name="announce_date" optional="hide"/>
+                <field name="deadline_date"/>
+                <field name="location"/>
+                <field name="latitude" optional="hide"/>
+                <field name="longitude" optional="hide"/>
+                <field name="geo_source" optional="show"/>
+                <field name="url" widget="url" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_external_tender_form" model="ir.ui.view">
+        <field name="name">construction.external.tender.form</field>
+        <field name="model">construction.external.tender</field>
+        <field name="arch" type="xml">
+            <form string="外部標案">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="標案名稱"/></h1>
+                    </div>
+                    <group>
+                        <group string="標案">
+                            <field name="agency"/>
+                            <field name="tender_no"/>
+                            <field name="stage"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="budget_amount"/>
+                            <field name="announce_date"/>
+                            <field name="deadline_date"/>
+                            <field name="url" widget="url"/>
+                        </group>
+                        <group string="位置">
+                            <field name="location" placeholder="例：新北市板橋區文化路一段"/>
+                            <field name="latitude"/>
+                            <field name="longitude"/>
+                            <field name="geo_source"/>
+                            <div class="text-muted" colspan="2">
+                                位置最方便的填法：到「公司儀表板 > 標案地圖」，在右邊「外部標案（還沒定位）」按「定位」，在地圖上點一下。
+                            </div>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="備註">
+                        <field name="note" nolabel="1" colspan="2"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_external_tender_search" model="ir.ui.view">
+        <field name="name">construction.external.tender.search</field>
+        <field name="model">construction.external.tender</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" string="標案" filter_domain="['|', '|', ('name', 'ilike', self), ('agency', 'ilike', self), ('tender_no', 'ilike', self)]"/>
+                <field name="location"/>
+                <filter name="open" string="招標中" domain="[('stage', '=', 'open')]"/>
+                <filter name="unlocated" string="還沒定位" domain="['|', ('latitude', '=', 0), ('longitude', '=', 0)]"/>
+                <separator/>
+                <filter name="archived" string="已封存" domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_stage" string="階段" context="{'group_by': 'stage'}"/>
+                    <filter name="group_agency" string="機關" context="{'group_by': 'agency'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_external_tender" model="ir.actions.act_window">
+        <field name="name">外部標案</field>
+        <field name="res_model">construction.external.tender</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有外部標案</p>
+            <p>可以一筆一筆新增，或用右上角 ⚙ 的「匯入紀錄」匯入 Excel（匯入畫面可以下載範本）。位置到「標案地圖」上點。</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_external_tender"
+              name="外部標案"
+              parent="construction_supervision_base.menu_project_overview"
+              action="action_external_tender"
+              groups="construction_supervision_base.group_supervisor_admin,construction_supervision_base.group_operator"
+              sequence="96"/>
+
+    <!-- 工程表單「工程位置」頁：在地圖上定位（施工中之後經緯度欄位是唯讀的，從這裡到標案地圖上點） -->
+    <record id="view_project_form_locate_on_map" model="ir.ui.view">
+        <field name="name">project.project.form.locate.on.map</field>
+        <field name="model">project.project</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_supervision_project_form"/>
+        <field name="arch" type="xml">
+            <field name="longitude" position="after">
+                <field name="dash_geo_source" invisible="not dash_geo_source"/>
+                <button name="action_dash_locate_on_map" type="object" string="在地圖上定位"
+                        class="btn-link" icon="fa-map-marker" colspan="2"
+                        invisible="not id"
+                        help="開啟標案地圖，在地圖上點一下這個工程的位置"/>
+            </field>
+        </field>
+    </record>
+</odoo>

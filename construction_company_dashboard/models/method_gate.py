@@ -74,6 +74,10 @@ DASHBOARD_METHODS = frozenset({
     ('project.project', 'get_dash_deadline_items'),
     ('project.project', 'get_dash_week_calendar'),
     ('project.project', 'get_dash_monthly_estimates'),
+    # 標案地圖的額外資料與「用地點文字自動定位」（淞源 C6，2026-11-13；project_geo.py）。
+    # 自動定位是寫入：方法裡對受限帳號直接拒絕（閘門放行只是讓前端的呼叫清單對得上）
+    ('project.project', 'get_dash_map_extras'),
+    ('project.project', 'action_dash_geocode'),
 })
 # 只放後台角色帳號的方法（S1 fix2-X，2026-11-10）。營造廠主管、控台讀取帳號、前台營造帳號照擋（_is_role_account 為否）。
 # 方法本身另有一道守衛，不靠閘門：

@@ -29,3 +29,6 @@ from . import restricted_accounts
 from . import dashboard_charts
 # 淞源 C5（2026-11-12）：總覽頁的期限待辦與每月估驗
 from . import dashboard_deadlines
+# 淞源 C6（2026-11-13）：外部標案、標案地圖的定位（地圖上點、地點文字自動定位）
+from . import external_tender
+from . import project_geo
