@@ -4,3 +4,4 @@
 
 from . import batch_download_wizard
 from . import batch_download_preview
+from . import completion_package_wizard   # 竣工打包：一包 zip＋清冊＋缺漏清單（淞源 C12）

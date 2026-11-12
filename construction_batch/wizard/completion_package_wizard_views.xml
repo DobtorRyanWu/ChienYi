@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 竣工打包精靈（淞源 C12）：選工程 → 一包 zip（依分類資料夾）＋清冊＋缺漏清單 -->
+    <record id="completion_package_wizard_form_view" model="ir.ui.view">
+        <field name="name">completion.package.wizard.form</field>
+        <field name="model">completion.package.wizard</field>
+        <field name="arch" type="xml">
+            <form string="竣工打包">
+                <field name="state" invisible="1"/>
+                <group invisible="state != 'draft'">
+                    <group string="工程與範圍">
+                        <field name="project_id" options="{'no_create': True}"/>
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                    </group>
+                    <group string="要包進去的資料">
+                        <field name="include_daily_logs"/>
+                        <field name="daily_log_variant" invisible="not include_daily_logs" required="include_daily_logs"/>
+                        <field name="include_estimates"/>
+                        <field name="include_control_tables"/>
+                        <field name="include_inspection_forms"/>
+                        <field name="include_documents"/>
+                        <field name="include_photos"/>
+                    </group>
+                </group>
+                <div class="alert alert-info" role="status" invisible="state != 'draft'">
+                    會產生一個壓縮檔：各類表單依資料夾分開，另附一份<strong>清冊</strong>（每個檔一列）與<strong>缺漏清單</strong>
+                    （工作天沒有日誌、還沒完成的日誌或估驗、估驗期別跳號、沒有照片的檢查紀錄、還沒上傳的應交文件）。
+                    日期留空＝整個工程。資料很多時要等一下；超過上限會停下來說明怎麼分批，不會只包一半。
+                </div>
+
+                <div invisible="state != 'done'">
+                    <div class="alert alert-success" role="status">
+                        <h4 class="alert-heading">打包完成</h4>
+                        <field name="result_note" readonly="1" nolabel="1"/>
+                    </div>
+                    <group>
+                        <field name="result_filename" readonly="1"/>
+                        <field name="result_file" filename="result_filename" readonly="1"/>
+                        <field name="file_count" readonly="1"/>
+                        <field name="missing_count" readonly="1"/>
+                    </group>
+                </div>
+
+                <footer>
+                    <button name="action_build" type="object" string="開始打包" class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="取消" class="btn-secondary" special="cancel" invisible="state != 'draft'"/>
+                    <button name="action_reset" type="object" string="重新設定" class="btn-secondary" invisible="state != 'done'"/>
+                    <button string="關閉" class="btn-primary" special="cancel" invisible="state != 'done'"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_completion_package_wizard" model="ir.actions.act_window">
+        <field name="name">竣工打包</field>
+        <field name="res_model">completion.package.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_completion_package"
+              name="竣工打包"
+              parent="menu_report_download_app"
+              action="action_completion_package_wizard"
+              sequence="20"/>
+</odoo>
