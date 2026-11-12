@@ -91,7 +91,7 @@
                         </page>
                         <page string="欄位對照" name="field_mapping">
                             <group>
-                                <field name="field_mapping" widget="ace" options="{'mode': 'json'}" placeholder='{"A1": "project_id.name", "B2": "date"}'/>
+                                <field name="field_mapping" widget="ace" options="{'mode': 'json'}" placeholder='{"B6": "project_id.code"}'/>
                             </group>
                             <group string="對照說明">
                                 <field name="field_mapping_display" readonly="1" nolabel="1"/>
@@ -99,14 +99,19 @@
                             <group>
                                 <div class="alert alert-info" role="alert">
                                     <p><strong>欄位對照說明：</strong></p>
-                                    <p>使用 JSON 格式設定樣板欄位與系統欄位的對應關係。</p>
-                                    <p>範例：</p>
+                                    <p>這裡是蓋在系統內建對照上面的微調：有寫的位置改帶你指定的欄位，沒寫的位置照系統原本的帶法；整個留空就完全照原本。</p>
+                                    <p>寫法：<code>"位置": "欄位路徑"</code>，要換顯示格式就寫 <code>"位置": "欄位路徑|格式器"</code>。</p>
+                                    <ul>
+                                        <li>位置：照儲存格填的樣板（例：監造日報表第一聯）寫座標，例 <code>B6</code>；有佔位符的樣板（xlsx 的 <code>${代號}</code>、docx 的 <code>{{ 代號 }}</code>）寫代號。明細表（一列一筆）的欄位不能在這裡改。</li>
+                                        <li>欄位路徑：從這張表的資料出發，用 <code>.</code> 一層一層走，例 <code>project_id.partner_id.name</code>。中間只能經過「多對一」欄位。</li>
+                                        <li>格式器：<code>roc_date</code>（民國 115.11.12）、<code>roc_date_slash</code>、<code>roc_date_cn</code>、<code>ad_date</code>、<code>selection_label</code>（選項的中文）、<code>money</code>、<code>percent</code>、<code>yes_no</code>、<code>count</code>。</li>
+                                    </ul>
+                                    <p>範例（監造日報表第一聯，把「工程名稱」那格改帶工程編號、填報日期改成西元）：</p>
                                     <pre>{
-    "A1": "project_id.name",
-    "B1": "project_id.code",
-    "A3": "date",
-    "B5": "total_amount"
+    "B6": "project_id.code",
+    "I5": "log_date|ad_date"
 }</pre>
+                                    <p>寫錯（位置、欄位名稱、格式器）存檔時會指出是哪一個；匯出時填不進去也會停下來說明，不會默默少資料。</p>
                                 </div>
                             </group>
                         </page>

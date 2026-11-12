@@ -7,6 +7,7 @@ import logging
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 
+from ..utils import field_mapping as field_mapping_rules
 from ..utils import template_render
 
 _logger = logging.getLogger(__name__)
@@ -250,7 +251,9 @@ class DocumentTemplate(models.Model):
     # === 欄位對照 ===
     field_mapping = fields.Text(
         string='欄位對照表',
-        help='樣板欄位與系統欄位的對照，JSON 格式。例如：{"A1": "project_id.name", "B2": "date"}')
+        help='蓋在內建對照表上面的微調，JSON 格式：{"位置": "欄位路徑"} 或 {"位置": "欄位路徑|格式器"}。'
+             '座標式樣板的位置寫儲存格（例 "B6"），佔位符樣板寫代號（例 "projectName"）。'
+             '沒填的位置照內建對照表。例如：{"B6": "project_id.code"}')
 
     field_mapping_display = fields.Text(
         string='欄位對照說明',
@@ -396,17 +399,22 @@ class DocumentTemplate(models.Model):
                 record.field_mapping_display = '尚未設定欄位對照'
 
     # === 約束驗證 ===
-    @api.constrains('field_mapping')
+    @api.constrains('field_mapping', 'template_type')
     def _check_field_mapping(self):
-        """驗證欄位對照表格式"""
+        """驗證欄位對照：JSON 語法、每個位置的寫法、每條欄位路徑走不走得通（規則見 utils/field_mapping.py）。
+        套印時會真的照它取值，所以壞的寫法要在存檔時就擋下來並指出是哪一個位置。"""
         for record in self:
             if record.field_mapping:
                 try:
                     mapping = json.loads(record.field_mapping)
-                    if not isinstance(mapping, dict):
-                        raise ValidationError('欄位對照表必須是 JSON 物件格式！')
                 except json.JSONDecodeError as e:
                     raise ValidationError(f'欄位對照表 JSON 格式錯誤：{str(e)}')
+                if not isinstance(mapping, dict):
+                    raise ValidationError('欄位對照表必須是 JSON 物件格式！')
+                _parsed, errors = field_mapping_rules.parse(
+                    self.env, template_render.get_mapping(record.template_type), mapping)
+                if errors:
+                    raise ValidationError('欄位對照有問題，沒有存檔：\n' + '\n'.join(errors))
 
     @api.constrains('is_default', 'project_id')
     def _check_default_no_project(self):

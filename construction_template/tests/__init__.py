@@ -25,3 +25,5 @@ from . import test_layout_fixes_20261105  # 跑版檢查：結尾空白頁、日
 from . import test_export_xlsx_preview  # 產出的 xlsx 直接在瀏覽器唯讀預覽、docx 照舊下載（11-08）
 from . import test_restricted_export_gc  # 唯讀帳號的匯出檔每日清理（S2 fix2-V，11-11）
 from . import test_daily_log_c1_inspections  # 營造版日誌第一聯：當天已完成的自主檢查帶進取樣試驗欄（淞源 C1，11-12）
+# 淞源 C3（2026-11-12）：樣板的「欄位對照」生效——三種樣板模式、沒設時不變、寫錯存檔就擋、匯出時的把關
+from . import test_field_mapping

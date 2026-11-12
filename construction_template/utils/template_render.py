@@ -10,8 +10,12 @@
       → 回傳 (bytes, 檔名)
 
 對照表是**資料不是邏輯**，加一張新表只要加一個 mappings/<type>.py，不必改這裡。
+
+樣板自己的「欄位對照」（document.template.field_mapping）是蓋在對照表上面的微調：填了的位置
+改用它指定的欄位，其餘照對照表；沒填就和沒有這個功能時完全一樣（見 utils/field_mapping.py）。
 """
 
+import datetime
 import importlib
 import logging
 import os
@@ -19,9 +23,11 @@ import re
 import tempfile
 import zipfile
 
+from odoo import fields
 from odoo.exceptions import UserError
 
 from . import docx_render
+from . import field_mapping
 from . import xlsx_placeholder
 from . import xlsx_sheets
 from . import xlsx_wrap
@@ -115,6 +121,38 @@ def apply_spec(record, spec):
     return value
 
 
+def field_overrides(template, record, mapping):
+    """樣板的「欄位對照」算成 {位置: 值}；沒設定回 {}。寫法不對就停下來講清楚是哪一個位置
+    （存檔時已經檢查過；這裡再查一次是因為欄位可能在存檔之後被改名或移除）。"""
+    raw = template.get_field_mapping_dict()
+    if not raw:
+        return {}
+    parsed, errors = field_mapping.parse(record.env, mapping, raw)
+    if errors:
+        raise UserError('樣板「%s」的欄位對照有問題，沒有匯出：\n%s\n請到樣板的「欄位對照」頁修正或清空。'
+                        % (template.display_name, '\n'.join(errors)))
+    values = {}
+    for key, (path, formatter) in parsed.items():
+        value = apply_spec(record, (path, formatter) if formatter else path)
+        # 沒指定格式器的日期／時間印成 2026-11-12 這種寫法（要民國年就加 |roc_date）
+        if isinstance(value, datetime.datetime):
+            value = fields.Datetime.to_string(value)
+        elif isinstance(value, datetime.date):
+            value = fields.Date.to_string(value)
+        values[key] = value
+    return values
+
+
+def _override_context(context, overrides, template):
+    """把欄位對照蓋進佔位符樣板的資料（context）。明細表（一列一筆的清單）不能被換成單一欄位。"""
+    for key, value in overrides.items():
+        if isinstance(context.get(key), (list, tuple)):
+            raise UserError('樣板「%s」的欄位對照有問題，沒有匯出：\n「%s」是明細表（一列一筆），不能改成單一欄位。'
+                            % (template.display_name, key))
+        context[key] = value
+    return context
+
+
 def build_values(record, mapping):
     """依對照表算出 {儲存格: 值}，含 ROWS 的明細迴圈。"""
     values = {}
@@ -149,8 +187,10 @@ def _paginate(records, page_size, pad):
     return pages
 
 
-def _render_placeholder(src, dst, mapping, record):
+def _render_placeholder(src, dst, mapping, record, template=None):
     """佔位符樣板（${token} / ${table:coll.field}）——舊 EAGLE 系統帶來的格式。
+
+    template：有給的話套用它的「欄位對照」（蓋掉對照表算出來的同名代號）。
 
     多工作表要全部處理：通報單的表頭在 sheet1、工項明細在 sheet2，
     只填第一張的話明細表會整張留著佔位符。
@@ -176,6 +216,8 @@ def _render_placeholder(src, dst, mapping, record):
                       if xlsx_wrap.STYLES_ENTRY in names else None)
 
     context = mapping.build_context(record)
+    if template is not None:
+        context = _override_context(context, field_overrides(template, record, mapping), template)
     paginate = getattr(mapping, 'PAGINATE', None)
     updates, additions, leftover = {}, {}, set()
 
@@ -238,12 +280,20 @@ def _render_placeholder(src, dst, mapping, record):
 def _render_cells(src, dst, mapping, record, template):
     """座標對照樣板（舊監造版日報表這種沒有佔位符的檔）"""
     values = build_values(record, mapping)
+    overrides = field_overrides(template, record, mapping)
+    values.update(overrides)
     with zipfile.ZipFile(src) as zf:
         sheet_xml = zf.read(mapping.SHEET).decode('utf-8')
 
     new_xml, missing = fill(sheet_xml, values)
     if missing:
-        # 填不進去代表對照表的座標寫錯了，必須讓人知道而不是默默少資料
+        # 填不進去代表座標寫錯了，必須讓人知道而不是默默少資料
+        mine = [ref for ref in missing if ref in overrides]
+        if mine:
+            raise UserError(
+                '樣板「%s」的欄位對照有 %s 個儲存格填不進去（樣板裡找不到該列）：%s\n'
+                '請到樣板的「欄位對照」頁修正座標。'
+                % (template.display_name, len(mine), '、'.join(mine[:10])))
         raise UserError(
             '樣板「%s」有 %s 個儲存格填不進去（樣板裡找不到該列）：%s\n'
             '請檢查 mappings/%s.py 的座標。'
@@ -309,7 +359,8 @@ def render(template, record):
             fp.write(raw)
 
         if mode == 'docx':
-            context = mapping.build_context(record)
+            context = _override_context(
+                mapping.build_context(record), field_overrides(template, record, mapping), template)
             filled = docx_render.render(raw, context)
             # 對照表可選的收尾處理：docxtpl 的 {%tr%} 只會「複製列」，
             # 做不出「同一組資料跨列合併儲存格」這種事（見 test_control 的
@@ -318,7 +369,7 @@ def render(template, record):
             if callable(post):
                 filled = post(filled, context)
         elif mode == 'placeholder':
-            filled = _render_placeholder(src, dst, mapping, record)
+            filled = _render_placeholder(src, dst, mapping, record, template)
         else:
             filled = _render_cells(src, dst, mapping, record, template)
 
