@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+        <!--
+            參觀帳號（淞源 2026-11-10 會議 C11）：給業主／監造臨時看一下的帳號。
+            只隱含 base.group_portal，不在前台四個角色（閱覽者→現場→主管→老闆）的繼承鏈裡，
+            所以業務模型的 ACL 一條都沒有：它看得到的東西全部經 /construction/visit 底下的專用頁面、
+            逐筆對照「參觀帳號授權」（construction.visit.grant）才給。其他網址一律擋（models/ir_http.py）。
+        -->
+        <record id="group_visitor" model="res.groups">
+            <field name="name">Portal - 參觀帳號（限期）</field>
+            <field name="category_id" eval="False"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="comment">限期的參觀帳號：只能看被指定工程的照片與被指定的公文，其他頁面與資料一律進不去；到期自動停用。不能和前台其他角色或後台帳號混用。</field>
+        </record>
+
+        <!-- 授權只有後台人員管（ACL 只給後台群組）；多公司：只看自己允許公司的工程 -->
+        <record id="visit_grant_company_rule" model="ir.rule">
+            <field name="name">參觀帳號授權：工程的公司在允許公司內</field>
+            <field name="model_id" ref="model_construction_visit_grant"/>
+            <field name="global" eval="True"/>
+            <field name="domain_force">['|', ('project_id.company_id', '=', False), ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

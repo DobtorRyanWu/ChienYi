@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 參觀帳號（淞源 C11）：後台「系統設定 > 基礎設定 > 參觀帳號」 -->
+
+    <record id="view_visit_grant_list" model="ir.ui.view">
+        <field name="name">construction.visit.grant.list</field>
+        <field name="model">construction.visit.grant</field>
+        <field name="arch" type="xml">
+            <list string="參觀帳號授權">
+                <field name="user_id"/>
+                <field name="project_id"/>
+                <field name="allow_photos"/>
+                <field name="official_doc_ids" widget="many2many_tags"/>
+                <field name="valid_until"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_visit_grant_form" model="ir.ui.view">
+        <field name="name">construction.visit.grant.form</field>
+        <field name="model">construction.visit.grant</field>
+        <field name="arch" type="xml">
+            <form string="參觀帳號授權">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="user_id" options="{'no_create': True}"/>
+                            <field name="valid_until"/>
+                        </group>
+                        <group>
+                            <field name="project_id" options="{'no_create': True}"/>
+                            <field name="allow_photos"/>
+                        </group>
+                    </group>
+                    <group string="可看的公文">
+                        <field name="official_doc_ids" nolabel="1" colspan="2" widget="many2many_tags" options="{'no_create': True}"/>
+                    </group>
+                    <div class="text-muted">
+                        參觀帳號只看得到這裡指定的：這個工程的照片（有勾才看得到）、列在上面的公文與附件。
+                        要延長或提前結束，到「設定 > 使用者」改這個帳號的「帳號有效期至」；過期的帳號每天自動停用。
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_visit_grant_search" model="ir.ui.view">
+        <field name="name">construction.visit.grant.search</field>
+        <field name="model">construction.visit.grant</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="user_id"/>
+                <field name="project_id"/>
+                <group expand="0" string="分組">
+                    <filter name="group_user" string="帳號" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_project" string="工程" context="{'group_by': 'project_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_visit_grant" model="ir.actions.act_window">
+        <field name="name">參觀帳號</field>
+        <field name="res_model">construction.visit.grant</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有參觀帳號</p>
+            <p>按上方的「開參觀帳號」：指定工程、照片、公文與天數，系統會建好帳號並顯示密碼。</p>
+        </field>
+    </record>
+
+    <!-- 開參觀帳號的精靈 -->
+    <record id="view_visit_account_wizard_form" model="ir.ui.view">
+        <field name="name">construction.visit.account.wizard.form</field>
+        <field name="model">construction.visit.account.wizard</field>
+        <field name="arch" type="xml">
+            <form string="開參觀帳號">
+                <field name="state" invisible="1"/>
+                <group invisible="state != 'draft'">
+                    <group>
+                        <field name="name" placeholder="例：水利局 王先生"/>
+                        <field name="login" placeholder="例：visit-wang"/>
+                    </group>
+                    <group>
+                        <label for="days"/>
+                        <div class="o_row"><field name="days" class="oe_inline"/><span>天（看到 <field name="valid_until" class="oe_inline" readonly="1"/> 為止）</span></div>
+                        <field name="allow_photos"/>
+                    </group>
+                    <field name="project_ids" widget="many2many_tags" options="{'no_create': True}" colspan="2"/>
+                    <field name="official_doc_ids" widget="many2many_tags" options="{'no_create': True}" colspan="2"/>
+                </group>
+                <div class="text-muted" invisible="state != 'draft'">
+                    這個帳號只看得到：上面工程的照片（有勾才看得到）、挑出來的公文與附件。其他頁面與資料一律進不去，到期自動停用。
+                </div>
+                <group invisible="state != 'done'">
+                    <div class="alert alert-success" role="alert" colspan="2">
+                        帳號已建立。請把下面的帳號與密碼交給對方；<strong>密碼只顯示這一次</strong>，關掉視窗後就查不到了
+                        （忘記可以到「設定 > 使用者」替這個帳號重設）。
+                    </div>
+                    <field name="created_user_id" options="{'no_open': True}"/>
+                    <field name="login" readonly="1"/>
+                    <field name="created_password" readonly="1"/>
+                    <field name="valid_until" readonly="1"/>
+                    <div colspan="2" class="text-muted">登入網址和一般前台相同；登入後會直接到「參觀」頁。</div>
+                </group>
+                <footer>
+                    <button name="action_create" type="object" string="建立帳號" class="btn-primary" invisible="state != 'draft'"/>
+                    <button string="取消" class="btn-secondary" special="cancel" invisible="state != 'draft'"/>
+                    <button string="關閉" class="btn-primary" special="cancel" invisible="state != 'done'"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_visit_account_wizard" model="ir.actions.act_window">
+        <field name="name">開參觀帳號</field>
+        <field name="res_model">construction.visit.account.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_visit_root" name="參觀帳號" parent="construction_supervision_base.menu_basic_config" sequence="80"/>
+    <menuitem id="menu_visit_account_wizard" name="開參觀帳號" parent="menu_visit_root"
+              action="action_visit_account_wizard" sequence="10"/>
+    <menuitem id="menu_visit_grant" name="已開的參觀帳號" parent="menu_visit_root"
+              action="action_visit_grant" sequence="20"/>
+</odoo>
