@@ -30,7 +30,7 @@
     #        2.3.3（2026-11-12，S3 fix2）：寫入面測試補齊（寫後檢查的欄位表鎖在資料庫規則上、每個規則欄位一格行為測試、
     #        related 欄位不能直接寫）；runbook／hook 訊息更正（回滾範圍、qd.py 已改呼叫清單函式、營造廠主管的處置、
     #        XML-RPC／JSON-RPC 只收 API key 不等於密碼不能跑程式）。沒有新欄位。
-    "version": "18.0.2.3.3",
+    "version": "18.0.2.3.4",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """

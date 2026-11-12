@@ -22,8 +22,10 @@
    → MailThread._get_thread_with_access：讀取以外的模式直接回空（portal 在模式不合格時還接受存取權杖／hash）。
 2. ORM／call_kw 的 message_post（含 attachments=、partner_ids=）、message_notify、message_post_with_source、直接建 mail.message：
    都經過 mail.message.create（非 sudo）。→ MailMessage.create：受限內部帳號（非 sudo）只能建對話的訊息。
-   直接建 mail.notification 不必另擋：核心規則「mail.notifications: group_user: write its own entries」只准建自己的，
-   替自己建「範圍外訊息」的通知又會被 relational_input_guard 擋（訊息讀不到；fix2-N 實測，原本那道守衛已刪）。
+   直接建 mail.notification：→ MailNotification.create：受限內部帳號（非 sudo）一律拒。核心發通知都以 sudo 建
+   （mail_thread.py `_notify_thread_by_inbox` 的 SafeNotification），不受影響。不能靠核心規則「mail.notifications:
+   group_user: write its own entries」——它的核心值 perm_create=False＝不管建立（dev 舊 noupdate 值曾是 True，
+   11-12 使用者決定改回核心值後，受限帳號就建得了任何人的通知；獨立驗收發現）。
 
 三、受限的內部帳號發的訊息都不寄 email、不通知也不加入對話成員以外的人（fix2-J，審查 skeptic r2 F1）——**例外見七**（手機動作）。
    對話照常，所以受限帳號仍在對話裡發訊息；核心的對話收件人＝訊息的 partner_ids（@ 到的人，不限成員），沒有帳號的
@@ -334,6 +336,13 @@ class MailThread(models.AbstractModel):
 
 class MailNotification(models.Model):
     _inherit = 'mail.notification'
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # 見檔頭二-2：受限內部帳號（非 sudo）不能直接建通知（核心發通知都以 sudo 建，不受影響）
+        if not self.env.su and self.env.user._dash_is_restricted_internal():
+            raise AccessError(DENY_POST_NOTE)
+        return super().create(vals_list)
 
     def _filtered_for_web_client(self):
         # 見檔頭十：受限內部帳號讀不到的通知（別人的）先拿掉，核心才不會逐筆讀它們的欄位而 AccessError
