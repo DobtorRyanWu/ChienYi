@@ -12,6 +12,10 @@
 * 期限欄位是 Datetime 的來源（行事曆）：以台灣時間換成日期再比，不是 UTC 日期。
 * 以呼叫者自己的權限讀（不 sudo）：讀不到的來源略過並記在 denied，不補算、不當成 0。
 * 「今天」＝台灣日期。逾期判斷每次現算，不讀各模型儲存的逾期旗標（那些要等排程重算，會過期）。
+* 已封存工程的事項不列（那不是待辦）；沒掛工程的照列。指定了工程（projects）時由呼叫端決定，不另外濾。
+* 清單有筆數上限時怎麼挑：快到期的（urgent＋soon）一定先列（期限近的優先），再補逾期的（從最近逾期的補起），
+  最後才是還很久的。不然幾年前的逾期缺失會把清單佔滿，真正快到期的反而看不到（2026-11-13 dev 實看：
+  48 筆逾期把 30 筆的清單佔滿）。顯示順序不變：期限由近到遠、逾期在最前面；件數永遠是全部。
 * 燈號：逾期＝期限已過；urgent＝還剩 manager_days 天以內（預設 3）；soon＝還剩 site_days 天以內（預設 7）。
   七天／三天是老闆在會中舉的例子，所以做成參數（C8 會改讀公司設定）。
 * 方法都以底線開頭：只給伺服器端程式呼叫。
@@ -87,8 +91,12 @@ class ProjectProject(models.Model):
     def _cy_deadline_source_domain(self, source, projects, limited):
         """某個來源「有期限、還沒辦完」的條件；limited＝只看 projects 這些工程（空的就是什麼都沒有）。"""
         domain = [(source['date_field'], '!=', False)] + list(source['open_domain'])
+        project_field = source['project_field']
         if limited:
-            domain.append((source['project_field'], 'in', projects.ids))
+            domain.append((project_field, 'in', projects.ids))
+        else:
+            # 看得到的全部：已封存工程的事項不算待辦（沒掛工程的照列）
+            domain += ['|', (project_field, '=', False), (project_field + '.active', '=', True)]
         return domain
 
     @api.model
@@ -120,7 +128,7 @@ class ProjectProject(models.Model):
         """期限待辦清單與各燈號的件數。
 
         projects：只看這些工程；None＝呼叫者看得到的全部（含沒掛工程的，例如公司共通的公文）。
-        回傳 {'today', 'items': [...最多 limit 筆，期限由近到遠、逾期在最前面],
+        回傳 {'today', 'items': [...最多 limit 筆，期限由近到遠、逾期在最前面；超過 limit 時的挑法見檔頭],
               'counts': {'total', 'overdue', 'urgent', 'soon', 'normal'}（不受 limit 影響）,
               'denied': [讀不到的來源說法], 'site_days', 'manager_days'}
         item：source、source_label、model、res_id、title、project_id、project_name、deadline（ISO）、
@@ -151,7 +159,11 @@ class ProjectProject(models.Model):
             counts[LEVEL_SOON] += Model.search_count(
                 base + [(date_field, '>=', after_urgent), (date_field, '<', after_soon)])
             counts[LEVEL_NORMAL] += Model.search_count(base + [(date_field, '>=', after_soon)])
-            for record in Model.search(base, order=f'{date_field}, id', limit=limit):
+            # 每個來源各取「還沒到期的最近 limit 筆」與「逾期的最近 limit 筆」，合起來再挑
+            upcoming = Model.search(base + [(date_field, '>=', from_today)], order=f'{date_field}, id', limit=limit)
+            overdue = Model.search(base + [(date_field, '<', from_today)], order=f'{date_field} desc, id desc',
+                                   limit=limit)
+            for record in upcoming + overdue:
                 deadline = record[date_field]
                 if field.type == 'datetime':
                     deadline = to_local_date(deadline)
@@ -173,11 +185,18 @@ class ProjectProject(models.Model):
                     'user_id': user.id or False,
                     'url': self._cy_deadline_portal_url(source['model'], record.id, project.id),
                 })
-        items.sort(key=lambda item: (item['deadline'], item['source'], item['res_id']))
+        def nearest_first(item):
+            return (item['deadline'], item['source'], item['res_id'])
+
+        # 超過上限時：快到期的先（期限近的優先）→ 逾期的（最近逾期的優先）→ 還很久的
+        actionable = sorted((i for i in items if i['level'] in (LEVEL_URGENT, LEVEL_SOON)), key=nearest_first)
+        late = sorted((i for i in items if i['level'] == LEVEL_OVERDUE), key=nearest_first, reverse=True)
+        later = sorted((i for i in items if i['level'] == LEVEL_NORMAL), key=nearest_first)
+        chosen = sorted((actionable + late + later)[:limit], key=nearest_first)
         counts['total'] = sum(counts[level] for level in LEVELS)
         return {
             'today': today.isoformat(),
-            'items': items[:limit],
+            'items': chosen,
             'counts': counts,
             'denied': denied,
             'site_days': site_days,

@@ -345,7 +345,7 @@ class TestPortalDeadlineBlock(TransactionCase):
         self.assertEqual(len(block['items']), PORTAL_DEADLINE_LIMIT)
         self.assertEqual({item['level'] for item in block['items']}, {'soon'}, '剩 9 天：提醒現場改成 10 天後是黃燈')
         section = self._block(html)
-        self.assertIn('只列出期限最近的 %s 件，另有 2 件' % PORTAL_DEADLINE_LIMIT, section)
+        self.assertIn('列出 %s 件（快到期的優先，逾期的從最近的列起），另有 2 件沒列' % PORTAL_DEADLINE_LIMIT, section)
         self.assertIn('10 天內', section)
 
     def test_project_list_page_shows_block_with_project_name(self):

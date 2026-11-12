@@ -155,11 +155,34 @@ class TestProjectDeadline(TransactionCase):
         self.assertEqual((data['site_days'], data['manager_days']), (10, 1))
 
     @freeze_time(FROZEN_NOW)
-    def test_limit_cuts_list_not_counts(self):
-        data = self._data(limit=3)
-        self.assertEqual([item['res_id'] for item in data['items']],
-                         [self.d_p2.id, self.d_overdue.id, self.d_today.id], '留下期限最近的三筆')
-        self.assertEqual(data['counts']['total'], 8)
+    def test_limit_keeps_soon_items_then_recent_overdue_and_counts_everything(self):
+        """超過上限時：快到期的（7 天內）先留，再補最近逾期的；顯示順序仍是逾期在最前、期限由近到遠。
+        修改前是單純取期限最早的幾筆——幾年前的逾期會把清單佔滿，快到期的反而看不到（dev 實看）。"""
+        soon_ids = [self.d_today.id, self.doc_due.id, self.d_3.id, self.d_4.id, self.d_7.id]
+        # 上限 6：5 筆快到期的全留＋最近逾期的 1 筆（11-04 那筆，不是更早的 11-02）；還剩 8 天的那筆不列
+        six = self._data(limit=6)
+        self.assertEqual([item['res_id'] for item in six['items']], [self.d_overdue.id] + soon_ids)
+        self.assertEqual(six['items'][0]['level'], 'overdue')
+        # 上限 3：快到期的就超過了，留期限最近的三筆
+        three = self._data(limit=3)
+        self.assertEqual([item['res_id'] for item in three['items']], soon_ids[:3])
+        # 上限 7：再多一筆逾期的（11-02）
+        seven = self._data(limit=7)
+        self.assertEqual([item['res_id'] for item in seven['items']], [self.d_p2.id, self.d_overdue.id] + soon_ids)
+        for data in (six, three, seven):
+            self.assertEqual(data['counts'], {'overdue': 2, 'urgent': 3, 'soon': 2, 'normal': 1, 'total': 8},
+                             '件數不受上限影響')
+
+    @freeze_time(FROZEN_NOW)
+    def test_archived_project_items_are_not_todo(self):
+        """看得到的全部（不指定工程）：已封存工程的事項不列、不計數；指定那個工程時照列（由呼叫端決定）。"""
+        before = self._data(projects=None, limit=PLENTY * 10)
+        self.assertIn((DEFECT_MODEL, self.d_p2.id), [(i['model'], i['res_id']) for i in before['items']])
+        self.p2.write({'active': False})
+        after = self._data(projects=None, limit=PLENTY * 10)
+        self.assertNotIn((DEFECT_MODEL, self.d_p2.id), [(i['model'], i['res_id']) for i in after['items']])
+        self.assertEqual(after['counts']['overdue'], before['counts']['overdue'] - 1)
+        self.assertEqual(self._data(projects=self.p2.with_context(active_test=False))['counts']['total'], 1)
 
     @freeze_time(FROZEN_NOW)
     def test_finished_items_drop_out(self):

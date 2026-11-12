@@ -114,8 +114,10 @@ class TestDashboardDeadlines(DashIndicatorCase):
         total = 0
         for model, condition in OPEN_CONDITIONS:
             if model in self.env and self.env[model].with_user(user).has_access('read'):
-                total += self.env[model].with_user(user).search_count(
-                    condition + [('project_id', 'not in', self.fixture_projects.ids)])
+                # 已封存工程的事項不算待辦；沒掛工程的照算
+                total += self.env[model].with_user(user).search_count(condition + [
+                    ('project_id', 'not in', self.fixture_projects.ids),
+                    '|', ('project_id', '=', False), ('project_id.active', '=', True)])
         return total
 
     # ── 期限待辦：監造方 ────────────────────────────────────────────────

@@ -71,7 +71,7 @@
                 <div class="o_dash_duo" t-att-class="{ o_dash_trio: calendarShown }">
                     <div class="o_dash_card o_dash_deadline">
                         <div class="o_dash_sec_t">
-                            期限待辦<small>依期限由近到遠；點一筆開啟單據</small>
+                            期限待辦<small>逾期在最上、期限由近到遠；點一筆開啟單據</small>
                             <span class="o_dash_sp"/>
                             <t t-if="deadlineCounts">
                                 <span class="o_dash_dl_count"><i class="o_dash_lamp o_dash_lamp_overdue" aria-hidden="true"/>逾期 <b t-esc="deadlineCounts.overdue"/></span>
@@ -100,7 +100,7 @@
                                 </div>
                             </t>
                         </div>
-                        <div t-if="deadlineMoreCount > 0" class="o_dash_more o_dash_mute">只列出期限最近的 <t t-esc="deadline.data.items.length"/> 件，另有 <t t-esc="deadlineMoreCount"/> 件。</div>
+                        <div t-if="deadlineMoreCount > 0" class="o_dash_more o_dash_mute">列出 <t t-esc="deadline.data.items.length"/> 件（快到期的全列，逾期的從最近的列起），另有 <t t-esc="deadlineMoreCount"/> 件沒列。</div>
                         <div t-if="deadlineDeniedText" class="o_dash_more o_dash_mute">沒有權限查看、未列入的來源：<t t-esc="deadlineDeniedText"/></div>
                     </div>
                     <div t-if="calendarShown" class="o_dash_card o_dash_calendar">

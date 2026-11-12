@@ -255,7 +255,7 @@
                 </a>
             </t>
             <div t-if="dl_counts['total'] &gt; len(deadline_block['items'])" class="cy-dl-more">
-                只列出期限最近的 <t t-esc="len(deadline_block['items'])"/> 件，另有 <t t-esc="dl_counts['total'] - len(deadline_block['items'])"/> 件。
+                列出 <t t-esc="len(deadline_block['items'])"/> 件（快到期的優先，逾期的從最近的列起），另有 <t t-esc="dl_counts['total'] - len(deadline_block['items'])"/> 件沒列。
             </div>
         </t>
     </template>
