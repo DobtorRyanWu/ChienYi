@@ -93,6 +93,27 @@ class TestCalendarEvent(OfficeCase):
             with self.assertRaises(AccessError, msg=user.login):
                 event.with_user(user).write({'name': '被改了'})
 
+    def test_portal_cannot_read_source_doc_through_event(self):
+        """前台帳號看得到事項（自己負責）但看不到它連到的公文（沒掛工程的公文只有老闆與後台看得到）：
+        不能經「來源公文」欄位讀到公文的主旨與 id（2026-11-12 權限審查的重現案例）。"""
+        secret = self._doc('不給現場看的公文主旨', self.co_s)
+        event = self._event('交辦事項', self.co_s, responsible=self.sup_field, official_doc_id=secret.id)
+        self.env.invalidate_all()
+        self.assertEqual(self._visible(self.sup_field, event), event, '前提：權責人看得到這件事')
+        self.assertFalse(self.Doc.with_user(self.sup_field).search([('id', '=', secret.id)]), '前提：他看不到那份公文')
+        as_field = event.with_user(self.sup_field)
+        with self.assertRaises(AccessError):
+            as_field.read(['official_doc_id'])
+        with self.assertRaises(AccessError):
+            self.Event.with_user(self.sup_field).search_read([('id', '=', event.id)], ['official_doc_id'])
+        with self.assertRaises(AccessError):
+            self.Event.with_user(self.sup_field).read_group([('id', '=', event.id)], ['name'], ['official_doc_id'])
+        self.assertNotIn('official_doc_id', as_field.read()[0], '沒指定欄位時也不會帶出來')
+        self.assertNotIn(secret.subject, str(as_field.read()[0]))
+        # 後台人員照常讀得到（表單上的「來源公文」）
+        self.env.invalidate_all()
+        self.assertEqual(event.with_user(self.staff).read(['official_doc_id'])[0]['official_doc_id'][0], secret.id)
+
     def test_official_doc_prefills_new_event(self):
         doc = self._doc('請於期限內提送施工計畫', self.co_s, self.p1, reply_deadline=self.tomorrow,
                         responsible_user_id=self.staff.id)

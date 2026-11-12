@@ -82,8 +82,11 @@ class ConstructionCalendarEvent(models.Model):
         'res.company', string='所屬公司', required=True, index=True, ondelete='restrict',
         default=lambda self: self.env.company, tracking=True,
         help='這件事是哪一家公司的行事曆。只有這家公司的帳號看得到；營造方帳號建立的一律是它自己的公司。')
+    # 只給後台帳號讀：核心讀 many2one 的名稱一律 sudo（看的是「這筆事項」讀不讀得到，不是那份公文），
+    # 前台帳號看得到事項（自己負責、或是工程成員）卻看不到公文時，會經這個欄位拿到公文主旨與 id
+    # （2026-11-12 權限審查的重現案例）。手機頁沒有用到這個欄位。
     official_doc_id = fields.Many2one(
-        'construction.official.doc', string='來源公文', ondelete='set null',
+        'construction.official.doc', string='來源公文', ondelete='set null', groups='base.group_user',
         help='這件事是哪一份公文交辦的（從公文按「建立行事曆事項」時自動帶入）')
     state = fields.Selection(
         STATE_SELECTION, string='狀態', required=True, default=STATE_PLANNED, index=True, tracking=True)
