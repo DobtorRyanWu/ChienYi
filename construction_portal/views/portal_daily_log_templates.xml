@@ -419,6 +419,19 @@
                         <div class="cy-section-title">取樣試驗紀錄</div>
                         <div class="cy-info-section" style="padding: 12px 16px;"><div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="log.sampling_test_record"/></div></div>
                     </t>
+                    <!-- 當天已完成的自主檢查（淞源 C1）：不存在日誌上，每次現查；點進去是檢查紀錄 -->
+                    <t t-if="day_inspections">
+                        <div class="cy-section-title">本日自主檢查（<t t-esc="len(day_inspections)"/>）</div>
+                        <div class="cy-info-section" style="padding: 0 16px;">
+                            <t t-foreach="day_inspections" t-as="insp">
+                                <a t-att-href="insp['url']" class="cy-info-row" style="text-decoration: none; min-height: 44px; align-items: center;">
+                                    <span style="font-size: 0.9rem; color: var(--wb-t1); padding-right: 12px;"><t t-esc="insp['title']"/></span>
+                                    <span class="cy-info-value" style="flex-shrink: 0; max-width: 40%;"><t t-esc="insp['result_label']"/> <i class="fa fa-chevron-right" style="font-size: 0.7rem; color: var(--wb-t3);"/></span>
+                                </a>
+                            </t>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--wb-t3); padding: 6px 16px 0;">匯出施工日誌第一聯時，會自動接在「取樣試驗紀錄」後面。</div>
+                    </t>
                     <t t-if="log.subcontractor_notification">
                         <div class="cy-section-title">通知協力廠商辦理事項</div>
                         <div class="cy-info-section" style="padding: 12px 16px;"><div style="font-size: 0.9rem; white-space: pre-wrap;"><t t-esc="log.subcontractor_notification"/></div></div>
@@ -738,6 +751,7 @@
                             <div style="margin-bottom: 12px;">
                                 <label class="form-label" style="font-size: 0.85rem;">抽查試驗紀錄</label>
                                 <textarea name="sampling_test_record" class="form-control" style="min-height: 60px;" placeholder="今日抽查項目..."><t t-esc="log and log.sampling_test_record or ''"/></textarea>
+                                <div style="font-size: 0.8rem; color: var(--wb-t3); margin-top: 4px;">當天已完成的自主檢查，匯出時會自動附在這一欄後面，不用重打<t t-if="day_inspection_count">（目前 <t t-esc="day_inspection_count"/> 筆）</t>。</div>
                             </div>
                             <div style="margin-bottom: 12px;">
                                 <label class="form-label" style="font-size: 0.85rem;">分包商通知事項</label>

@@ -24,6 +24,7 @@ from odoo.exceptions import UserError
 from . import docx_render
 from . import xlsx_placeholder
 from . import xlsx_sheets
+from . import xlsx_wrap
 from . import zip_patch
 from .formatters import FORMATTERS
 from .xlsx_fill import fill
@@ -171,10 +172,23 @@ def _render_placeholder(src, dst, mapping, record):
         for n in names:
             if n.startswith('xl/worksheets/_rels/'):
                 base_parts[n] = zf.read(n).decode('utf-8')
+        styles_xml = (zf.read(xlsx_wrap.STYLES_ENTRY).decode('utf-8')
+                      if xlsx_wrap.STYLES_ENTRY in names else None)
 
     context = mapping.build_context(record)
     paginate = getattr(mapping, 'PAGINATE', None)
     updates, additions, leftover = {}, {}, set()
+
+    # 對照表點名的 token：這一次要自動換行＋撐高列（合併儲存格不會自己長高，見 utils/xlsx_wrap.py）。
+    # 沒宣告 WRAP_TOKENS、或這次回傳空的 → 完全不動，輸出與沒有這段時相同。
+    wrap_tokens = getattr(mapping, 'WRAP_TOKENS', None)
+    wrap_texts = {token: context.get(token) or ''
+                  for token in (wrap_tokens(context) if wrap_tokens else ())}
+    new_styles_xml = styles_xml
+    if wrap_texts and styles_xml is not None:
+        for name in sheets:
+            sheets[name], new_styles_xml = xlsx_wrap.wrap_tokens(
+                sheets[name], new_styles_xml, shared, wrap_texts)
 
     if paginate:
         source = paginate['source']
@@ -212,6 +226,9 @@ def _render_placeholder(src, dst, mapping, record):
         # 沒填到的佔位符會原樣印在報表上，必須讓人知道
         _logger.warning('樣板 %s 有 %s 個佔位符沒有對應資料：%s',
                         mapping.__name__, len(leftover), '、'.join(sorted(leftover)[:12]))
+
+    if new_styles_xml != styles_xml:
+        updates[xlsx_wrap.STYLES_ENTRY] = new_styles_xml.encode('utf-8')
 
     zip_patch.patch(src, dst, updates, additions, removals=_drop_calc_chain(src, updates))
     with open(dst, 'rb') as fp:

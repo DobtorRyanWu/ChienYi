@@ -22,3 +22,5 @@ from . import test_role_account_gates
 # S2（2026-11-11）：F 跨公司寫入驗證、G 工程編號訊息；既有手機測試換成後台角色帳號重跑（規格 I）
 from . import test_role_phone_portal
 from . import test_role_phone_rerun
+# 淞源 C1（2026-11-12）：手機日誌詳情頁列出當天已完成的自主檢查
+from . import test_daily_log_day_inspections

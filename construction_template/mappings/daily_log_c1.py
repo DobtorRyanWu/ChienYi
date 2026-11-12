@@ -16,13 +16,16 @@ BSON dump 實測比對，16 個 token 有 14 個直接命中欄位名）。
     fillInAt                fillInAt             log_date
     fillInAtDay             （衍生）              log_date 的星期
     serialNo                serialNo             name
-    constructionSample      constructionSample   sampling_test_record
+    constructionSample      constructionSample   sampling_test_record ＋ 當天已完成的自主檢查
+                                                 （_sampling_record，2026-11-12）
     subConstructorHandle    subConstructorHandle subcontractor_notification
     important               important            important_matters
     other                   other                safety_other_matters
     manUsage / machineUsage manMachineUsage 拆分  man_machine_detail_ids
                                                  （record_type personnel/equipment）
 """
+
+from odoo.addons.construction_quality.models.self_inspection_daily_summary import BLOCK_HEADING
 
 from ..utils import progress
 from ..utils.formatters import contractor_name, roc_date, selection_label
@@ -31,6 +34,36 @@ MODEL = 'daily.log.sheet'
 MODE = 'placeholder'
 
 WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
+
+SAMPLE_TOKEN = 'constructionSample'
+# 匯出時「本日自主檢查」最多列幾筆：第一聯是整張縮成一頁（fitToPage），列越多整張字越小。
+# 超過的只印總筆數（詳自主檢查表）；畫面上的清單不受這個上限。
+MAX_INSPECTION_LINES = 5
+
+
+def _sampling_record(record):
+    """六、施工取樣試驗紀錄 ＝ 手填內容 ＋ 當天已完成的自主檢查（淞源 C1，2026-11-12）。
+
+    自主檢查那段是套印當下現查的，不存進日誌：已鎖定的日誌也帶得出來，手填的字不會被改。
+    當天沒有已完成的檢查 → 回傳值與以前完全相同。清單怎麼組見 construction_quality 的
+    self.inspection.daily.summary（手機日誌頁、後台表單讀同一份）。
+    """
+    manual = record.sampling_test_record or ''
+    block = record.env['self.inspection.daily.summary']._block_text(
+        record.project_id, record.log_date, limit=MAX_INSPECTION_LINES)
+    if not block:
+        return manual
+    return '%s\n%s' % (manual.rstrip(), block) if manual.strip() else block
+
+
+def WRAP_TOKENS(context):
+    """這一次套印要「自動換行＋撐高列」的 token（utils/xlsx_wrap.py）。
+
+    取樣試驗欄是合併儲存格、樣板沒開自動換行——多行字會印成一行、超出的被切掉。
+    只有帶入「本日自主檢查」時才動那一格；沒帶入時不動，產出檔與加這個功能之前相同
+    （營造版第一聯版面照 EAGLE，使用者 2026-11-05 裁示不要再調）。
+    """
+    return (SAMPLE_TOKEN,) if BLOCK_HEADING in (context.get(SAMPLE_TOKEN) or '') else ()
 
 
 def _qty(value, unit=None):
@@ -138,7 +171,7 @@ def build_context(record):
 
         # 文字區
         'other': record.safety_other_matters or '',
-        'constructionSample': record.sampling_test_record or '',
+        SAMPLE_TOKEN: _sampling_record(record),
         'subConstructorHandle': record.subcontractor_notification or '',
         'important': record.important_matters or '',
 

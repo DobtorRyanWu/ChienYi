@@ -49,6 +49,12 @@ IMPORT_COMPARE_TEXT_FIELDS = (
     'safety_other_matters', 'sampling_test_record', 'subcontractor_notification',
     'important_matters',
 )
+# 日誌頁「本日自主檢查」每一筆連到的檢查紀錄頁：模型 → 網址樣式
+# （清單由 construction_quality 的 self.inspection.daily.summary 產生，匯出與後台表單讀同一份）
+INSPECTION_DETAIL_URLS = {
+    'general.self.inspection': '/construction/inspection/%s',
+    'reservation.self.inspection': '/construction/reservation-inspection/%s',
+}
 
 
 def _parse_material_qtys(post, prefix):
@@ -152,6 +158,16 @@ class DailyLogRoutesMixin:
             domain.append(('daily_log_id', 'in', own_logs.ids))
         groups = Material._read_group(domain, ['catalog_item_id'], ['daily_qty:sum'])
         return {item.id: total for item, total in groups}
+
+    def _daily_log_day_inspections(self, project, day):
+        """當天已完成的自主檢查（淞源 C1，2026-11-12）：日誌詳情頁列出來、編輯頁提示筆數。
+
+        以目前使用者自己的權限查（不 sudo；project 只用來取 id），營造方帳號只會看到自家的檢查。
+        每筆補上檢查紀錄頁的網址。"""
+        rows = request.env['self.inspection.daily.summary']._rows(project, day)
+        for row in rows:
+            row['url'] = INSPECTION_DETAIL_URLS[row['model']] % row['id']
+        return rows
 
     @http.route(['/construction/<int:project_id>/daily-logs', '/construction/<int:project_id>/daily-logs/page/<int:page>'],
                 type='http', auth='user', website=True)
@@ -355,6 +371,8 @@ class DailyLogRoutesMixin:
             'upload_url': f'/construction/daily-log/{log.id}/photo/upload',
             'delete_url_tpl': f'/construction/daily-log/{log.id}/photo/%s/delete',
             'is_locked': log.is_locked,
+            # 當天已完成的自主檢查（匯出第一聯時會接在取樣試驗紀錄後面）
+            'day_inspections': self._daily_log_day_inspections(project, log.log_date),
             # chatter
             'object': log,
             'disable_composer': False,
@@ -632,6 +650,7 @@ class DailyLogRoutesMixin:
             'photo_categories': photo_categories,
             'is_edit': False,
             'log': False,
+            'day_inspection_count': 0,
             'form_materials': self._daily_log_form_materials(project),
             'form_action': '/construction/daily-log/create',
             'page_name': 'construction_daily_log_new',
@@ -931,6 +950,7 @@ class DailyLogRoutesMixin:
             'tasks': tasks,
             'photo_categories': photo_categories,
             'is_edit': True,
+            'day_inspection_count': len(self._daily_log_day_inspections(project, log.log_date)),
             'form_materials': self._daily_log_form_materials(project, log),
             'form_action': f'/construction/{project_id}/daily-log/{log.id}/update',
             'page_name': 'construction_daily_log_edit',

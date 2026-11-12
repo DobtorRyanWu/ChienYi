@@ -10,3 +10,4 @@ from . import self_inspection_measure   # 表尾量測區（區塊定義 ＋ 量
 from . import general_self_inspection
 from . import reservation_self_inspection
 from . import reservation_defect_improvement
+from . import self_inspection_daily_summary   # 某工程某天已完成的自主檢查清單（施工日誌帶入用）

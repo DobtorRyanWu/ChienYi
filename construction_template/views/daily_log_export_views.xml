@@ -38,6 +38,14 @@
                         context="{'template_type': 'daily_log_c2'}"
                         help="公共工程施工日誌 第二聯 完成工程詳細表"/>
             </xpath>
+            <!-- 當天已完成的自主檢查（淞源 C1）：唯讀、不儲存，接在「三、施工取樣試驗紀錄」手填欄下面 -->
+            <xpath expr="//field[@name='sampling_test_record']" position="after">
+                <div colspan="2" class="text-muted small" invisible="not same_day_inspection_text">
+                    以下由當天已完成的自主檢查自動帶入（唯讀）；匯出「施工日誌(一)」時會接在上面的內容之後。
+                </div>
+                <field name="same_day_inspection_text" nolabel="1" colspan="2" readonly="1"
+                       invisible="not same_day_inspection_text"/>
+            </xpath>
         </field>
     </record>
 
