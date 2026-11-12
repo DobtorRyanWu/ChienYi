@@ -207,10 +207,12 @@ class TestVisitAccountModel(VisitFixture, TransactionCase):
 
     def test_allowlist_is_exact_or_prefix_with_slash(self):
         allowed = (VISIT_HOME, VISIT_HOME + '/5/photos', '/web/assets/abc/web.assets_frontend.min.css',
-                   '/web/session/logout', '/web/login')
+                   '/web/session/logout', '/web/login', '/website/translations/0123abcd',
+                   '/web/webclient/translations/0123abcd')
         blocked = ('/construction', '/construction/5', '/construction/visitor', '/construction/visit-x', '/my',
                    '/web', '/web/dataset/call_kw', '/web/image/5', '/web/content/5', '/web/login_evil',
-                   '/construction/img/5', '/construction/official-docs', '/mail/thread/data')
+                   '/construction/img/5', '/construction/official-docs', '/mail/thread/data',
+                   '/website', '/website/translationsx', '/web/webclient/load_menus/1', '/web/webclient/version_info')
         for path in allowed:
             self.assertTrue(visit_path_allowed(path), path)
         for path in blocked:
@@ -293,6 +295,12 @@ class TestVisitAccountHttp(VisitFixture, HttpCase):
         )
         for path in not_found:
             self.assertEqual(self._get(path).status_code, 404, path)
+        # 頁面類的 404 是參觀自己的版型（不是網站預設的 404 頁），而且不透露那一筆存不存在
+        hidden, missing = (self._get('%s/doc/%s' % (VISIT_HOME, doc_id)) for doc_id in (self.doc_b.id, 99999999))
+        for response in (hidden, missing):
+            self.assertIn('沒有開放給這個帳號', response.text)
+            self.assertIn('回參觀首頁', response.text)
+            self.assertNotIn('VISIT 沒指定的公文', response.text)
         redirected = (
             '/my', '/my/home', '/construction', '/construction/%s' % self.p1.id,
             '/construction/%s/photos' % self.p1.id, '/construction/%s/official-docs' % self.p1.id,
@@ -306,6 +314,14 @@ class TestVisitAccountHttp(VisitFixture, HttpCase):
             response = self._get(path)
             self.assertIn(response.status_code, (302, 303), path)
             self.assertEqual(self._location(response), VISIT_HOME, path)
+        # 已封存的照片：照片牆不列，用編號直接打圖片端點也是 404（2026-11-13 權限審查的重現案例）
+        archived = self._photo(self.p1, 'visit-archived.png')
+        archived.active = False
+        self.env.flush_all()
+        self.assertNotIn('/photo/%s/' % archived.id, self._get('%s/%s/photos' % (VISIT_HOME, self.p1.id)).text)
+        for suffix in ('', '/320x320'):
+            self.assertEqual(self._get('%s/photo/%s%s' % (VISIT_HOME, archived.id, suffix)).status_code, 404, suffix)
+        self.assertEqual(self._get('%s/photo/%s' % (VISIT_HOME, self.photo1.id)).status_code, 200, '沒封存的照常')
         # 授權拿掉照片後，照片牆與照片都 404
         self.grant.allow_photos = False
         self.env.flush_all()

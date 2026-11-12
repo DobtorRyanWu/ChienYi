@@ -3,7 +3,8 @@
 
 * 每一支路由都先對照「參觀帳號授權」（res.users._visit_grants，過期就是空的），對得上才以 sudo 取資料——
   參觀帳號本身沒有任何業務模型的讀取權，所以這裡的 sudo 一定要緊跟在授權檢查後面。
-* 對不上的一律 404（不分「沒有這一筆」和「不給你看」，不洩漏存在性）。
+* 對不上的一律 404（不分「沒有這一筆」和「不給你看」，不洩漏存在性）。頁面類的 404 用參觀自己的版型
+  （系統預設的 404 頁是網站版型，上面的連結與插圖參觀帳號都進不去）。
 * 不是參觀帳號的人進來 → 導回一般的前台首頁。
 * 參觀帳號能打的網址只有這個檔案裡的（models/ir_http.py 的白名單）。
 """
@@ -54,6 +55,18 @@ class ConstructionVisitPortal(http.Controller):
             raise NotFound()
         return doc
 
+    def _page(self, build):
+        """頁面類路由共用：build() 回 (模板, 值)；授權對不上（NotFound）就給參觀版型的 404 頁。"""
+        try:
+            template, values = build()
+        except NotFound:
+            user = request.env.user
+            if not user._is_visit_account():
+                raise
+            return request.render('construction_office.portal_visit_not_found', self._base_values(self._grants()),
+                                  status=404)
+        return request.render(template, values)
+
     def _base_values(self, grants, **extra):
         user = request.env.user
         values = {'visit_user': user, 'valid_until': user.sudo().portal_valid_until, 'grants': grants,
@@ -83,22 +96,26 @@ class ConstructionVisitPortal(http.Controller):
     @http.route([VISIT_HOME + '/<int:project_id>/photos', VISIT_HOME + '/<int:project_id>/photos/page/<int:page>'],
                 type='http', auth='user', website=True)
     def visit_photos(self, project_id, page=1, **kw):
-        grant = self._grant_for(project_id, photos=True)
-        Photo = request.env[PHOTO_MODEL].sudo()
-        domain = self._photo_domain(grant.project_id)
-        total = Photo.search_count(domain)
-        url = '%s/%s/photos' % (VISIT_HOME, project_id)
-        pager = portal_pager(url=url, total=total, page=page, step=PHOTOS_PER_PAGE)
-        photos = Photo.search(domain, order=PHOTO_ORDER, limit=PHOTOS_PER_PAGE, offset=pager['offset'])
-        return request.render('construction_office.portal_visit_photos', self._base_values(
-            self._grants(), project=grant.project_id, photos=photos, photo_count=total, pager=pager,
-            thumb_size=THUMB_SIZE))
+        def build():
+            grant = self._grant_for(project_id, photos=True)
+            Photo = request.env[PHOTO_MODEL].sudo()
+            domain = self._photo_domain(grant.project_id)
+            total = Photo.search_count(domain)
+            url = '%s/%s/photos' % (VISIT_HOME, project_id)
+            pager = portal_pager(url=url, total=total, page=page, step=PHOTOS_PER_PAGE)
+            photos = Photo.search(domain, order=PHOTO_ORDER, limit=PHOTOS_PER_PAGE, offset=pager['offset'])
+            return 'construction_office.portal_visit_photos', self._base_values(
+                self._grants(), project=grant.project_id, photos=photos, photo_count=total, pager=pager,
+                thumb_size=THUMB_SIZE)
+        return self._page(build)
 
     @http.route([VISIT_HOME + '/photo/<int:photo_id>',
                  VISIT_HOME + '/photo/<int:photo_id>/<int:width>x<int:height>'], type='http', auth='user')
     def visit_photo_image(self, photo_id, width=0, height=0, **kw):
         photo = request.env[PHOTO_MODEL].sudo().browse(photo_id).exists()
-        if not photo or not photo.project_id:
+        # 已封存的照片不給（browse 不看 active；照片牆用 search 本來就不列，兩邊要一致——
+        # 2026-11-13 權限審查的重現案例：封存後用編號直接打圖片端點仍拿得到）
+        if not photo or not photo.active or not photo.project_id:
             raise NotFound()
         self._grant_for(photo.project_id.id, photos=True)
         attachment = photo.attachment_id
@@ -112,18 +129,22 @@ class ConstructionVisitPortal(http.Controller):
     # ── 公文 ──────────────────────────────────────────────────────────────
     @http.route([VISIT_HOME + '/<int:project_id>/docs'], type='http', auth='user', website=True)
     def visit_docs(self, project_id, **kw):
-        grant = self._grant_for(project_id)
-        docs = grant.official_doc_ids.filtered('active').sorted(lambda d: (d.doc_date or d.create_date.date(), d.id),
-                                                                 reverse=True)
-        return request.render('construction_office.portal_visit_docs', self._base_values(
-            self._grants(), project=grant.project_id, docs=docs, direction_labels=dict(DIRECTION_SELECTION)))
+        def build():
+            grant = self._grant_for(project_id)
+            docs = grant.official_doc_ids.filtered('active').sorted(
+                lambda d: (d.doc_date or d.create_date.date(), d.id), reverse=True)
+            return 'construction_office.portal_visit_docs', self._base_values(
+                self._grants(), project=grant.project_id, docs=docs, direction_labels=dict(DIRECTION_SELECTION))
+        return self._page(build)
 
     @http.route([VISIT_HOME + '/doc/<int:doc_id>'], type='http', auth='user', website=True)
     def visit_doc(self, doc_id, **kw):
-        doc = self._granted_doc(doc_id)
-        return request.render('construction_office.portal_visit_doc', self._base_values(
-            self._grants(), project=doc.project_id, doc=doc, attachments=doc.attachment_ids,
-            direction_labels=dict(DIRECTION_SELECTION)))
+        def build():
+            doc = self._granted_doc(doc_id)
+            return 'construction_office.portal_visit_doc', self._base_values(
+                self._grants(), project=doc.project_id, doc=doc, attachments=doc.attachment_ids,
+                direction_labels=dict(DIRECTION_SELECTION))
+        return self._page(build)
 
     @http.route([VISIT_HOME + '/doc/<int:doc_id>/file/<int:att_id>'], type='http', auth='user')
     def visit_doc_file(self, doc_id, att_id, **kw):

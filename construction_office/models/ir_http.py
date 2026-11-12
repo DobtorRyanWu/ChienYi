@@ -23,6 +23,10 @@ LOGIN_URL = '/web/login'
 VISIT_ALLOWED = (
     VISIT_HOME,                 # 參觀專用頁面（各自再對照授權表）
     '/web/assets',              # 頁面的 CSS／JS 資產包（公開路由）
+    # 前台頁面載入時會抓介面翻譯（公開路由，內容只有各模組的介面用語）；不放行的話每一頁都會有 JS 錯誤
+    # （2026-11-13 真瀏覽器實看：回來的是被導走的 HTML，前端當 JSON 解析失敗）
+    '/website/translations',
+    '/web/webclient/translations',
     '/web/session/logout',      # 登出
     LOGIN_URL,                  # 登入頁（登出後、過期後會到這裡）
 )

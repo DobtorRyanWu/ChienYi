@@ -78,17 +78,21 @@
             <form string="開參觀帳號">
                 <field name="state" invisible="1"/>
                 <group invisible="state != 'draft'">
-                    <group>
+                    <group string="給誰、看多久">
                         <field name="name" placeholder="例：水利局 王先生"/>
                         <field name="login" placeholder="例：visit-wang"/>
-                    </group>
-                    <group>
                         <label for="days"/>
                         <div class="o_row"><field name="days" class="oe_inline"/><span>天（看到 <field name="valid_until" class="oe_inline" readonly="1"/> 為止）</span></div>
-                        <field name="allow_photos"/>
                     </group>
-                    <field name="project_ids" widget="many2many_tags" options="{'no_create': True}" colspan="2"/>
-                    <field name="official_doc_ids" widget="many2many_tags" options="{'no_create': True}" colspan="2"/>
+                    <!-- 這三個欄位要自己一個 group：直接和內層 group 並排放在外層 group 裡不會顯示
+                         （2026-11-13 真瀏覽器實看：工程與公文兩欄整個不見） -->
+                    <group string="可以看什麼">
+                        <field name="project_ids" widget="many2many_tags" options="{'no_create': True}"
+                               placeholder="挑一個或多個工程"/>
+                        <field name="allow_photos"/>
+                        <field name="official_doc_ids" widget="many2many_tags" options="{'no_create': True}"
+                               placeholder="不挑就一份公文都看不到"/>
+                    </group>
                 </group>
                 <div class="text-muted" invisible="state != 'draft'">
                     這個帳號只看得到：上面工程的照片（有勾才看得到）、挑出來的公文與附件。其他頁面與資料一律進不去，到期自動停用。

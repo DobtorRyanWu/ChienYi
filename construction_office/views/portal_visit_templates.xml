@@ -19,16 +19,38 @@
                     <a href="/web/session/logout?redirect=/web/login" class="cy-btn"
                        style="min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap;">登出</a>
                 </div>
-                <div class="cy-breadcrumb" t-if="crumbs">
+                <!-- 不用前台的等寬分段麵包屑：工程名稱很長，分段會被切掉（2026-11-13 手機寬度實看）。
+                     有連結的是「回上一層」，最後一段當標題、可以換行 -->
+                <div t-if="crumbs" style="padding: 10px 16px 0;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 4px 12px;">
+                        <t t-foreach="crumbs" t-as="crumb">
+                            <a t-if="crumb[1]" t-att-href="crumb[1]"
+                               style="min-height: 44px; display: inline-flex; align-items: center; color: var(--wb-brand-darker); font-weight: 600; text-decoration: none;">
+                                <i class="fa fa-chevron-left" style="margin-right: 6px;" aria-hidden="true"/><t t-esc="crumb[0]"/>
+                            </a>
+                        </t>
+                    </div>
                     <t t-foreach="crumbs" t-as="crumb">
-                        <a t-if="crumb[1]" t-att-href="crumb[1]" class="cy-breadcrumb-item" t-esc="crumb[0]"/>
-                        <span t-else="" class="cy-breadcrumb-item active" t-esc="crumb[0]"/>
+                        <h2 t-if="not crumb[1]" style="font-size: 1.1rem; font-weight: 700; color: var(--wb-t1); margin: 4px 0 0; overflow-wrap: anywhere;" t-esc="crumb[0]"/>
                     </t>
                 </div>
                 <div class="cy-content" style="padding: 16px;">
                     <t t-out="0"/>
                 </div>
             </div>
+        </t>
+    </template>
+
+    <!-- 找不到／沒有開放：不分是哪一種（不洩漏存在性） -->
+    <template id="portal_visit_not_found" name="參觀：找不到">
+        <t t-call="construction_office.portal_visit_layout">
+            <t t-set="crumbs" t-value="[('參觀首頁', '/construction/visit'), ('找不到', False)]"/>
+            <div class="cy-empty">
+                <i class="fa fa-eye-slash"/>
+                <div class="cy-empty-text">找不到這個頁面，或這項內容沒有開放給這個帳號</div>
+            </div>
+            <a href="/construction/visit" class="cy-btn cy-btn-primary"
+               style="min-height: 44px; display: inline-flex; align-items: center; margin-top: 12px;">回參觀首頁</a>
         </t>
     </template>
 
