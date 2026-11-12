@@ -28,11 +28,14 @@ COMPANY_RULE_FIELDS：它是被測物，鎖定測試拿它跟「從資料庫規�
 以及正當流程（匯入工程案件、契約變更精靈、同公司內改掛、sudo）照常。
 S3 fix2：寫後檢查的欄位表以 test_write_guard_table_matches_rules 鎖住（從資料庫規則推、兩個方向比；表上每一格都要有
 REPARENT_CELLS 的一格行為測試）；related 欄位（company_id 等）非 sudo 不能直接寫，連同屬兩家公司的帳號也一樣。
+1b（2026-11-12，第三輪 red-team R1）：已經有估驗等單據（寫後檢查表上的模型）的工程，非 sudo 改公司只有系統管理者能改
+——同屬兩家公司的工程後台使用者改了，底下整串單據的公司跟著工程搬走（第 8 節）。
 """
 from contextlib import closing
 
 from odoo import fields
-from odoo.addons.construction_supervision_base.models.company_rule_write_guard import COMPANY_RULE_FIELDS
+from odoo.addons.construction_supervision_base.models.company_rule_write_guard import (
+    COMPANY_RULE_FIELDS, _project_paths)
 from odoo.exceptions import AccessError, UserError
 from odoo.models import LOG_ACCESS_COLUMNS
 from odoo.osv import expression
@@ -125,6 +128,11 @@ BLANK_FALLBACK_MODELS = ('payment.estimate', 'contract.change.order')
 # 拿掉這道檢查時寫後檢查的 AccessError 照樣讓 assertRaises(UserError) 綠（S3 fix1 mutation W2 第一輪實測，L2⑮ 第二形狀）
 LOST_PROJECT_HINT = '不能改成沒有工程'
 LUMP_ADJUST_AMOUNT = 1000.0
+# 已經有單據的工程改公司（2026-11-12「1b」）：只有系統管理者與代操作員能改（同日追加「代操跟管理者都要可以做」）。訊息片段測試獨立寫出（AccessError 是 UserError 的子類別，
+# 只比例外型別會被別道檢查滿足，L2⑮）
+SYSTEM_ADMIN = 'base.group_system'
+OPERATOR = 'construction_supervision_base.group_operator'
+COMPANY_MOVE_HINT = '只有系統管理者或代操作員能改'
 # 夾具數量
 CLAIM_AMOUNT = 1000.0
 ACCEPT_QTY = 1.0
@@ -539,3 +547,144 @@ class TestCompanyIsolation(RoleMatrixCase):
             self.env.invalidate_all()
             self.assertEqual(claim.sudo().project_id, self.p_iso_a)
             self.assertFalse(estimate.sudo().project_id)
+
+    # ── 8. 已經有單據的工程改公司：只有系統管理者（2026-11-12「1b」，第三輪 red-team R1）──────────
+    def _env_two(self, user=None):
+        """同屬 A＋B、兩家都選的帳號（預設：工程後台使用者 sa_ab）。"""
+        user = user or self.sa_ab
+        return self.env(user=user, context={'allowed_company_ids': (self.co_iso_a | self.co_iso_b).ids})
+
+    def _fresh_project(self, code, company=None):
+        """沒有任何單據的新工程（預設 A 公司；不走 _project／_role_project：那兩個會建進度表與工項，進度表、工項版本都算單據）。
+        會建標準資料夾（資料夾不在寫後檢查表上，不算單據）。
+
+        不帶分析帳戶（allow_timesheets=False）：核心改工程公司時會一起改分析帳戶的公司（project _inverse_company_id），
+        工程後台使用者沒有分析帳戶寫權 → 核心先 AccessError，測不到這道檢查（M-B）。R1 的洞就在沒有分析帳戶（或帳戶沒公司）
+        的工程上（dev 11-12 實查 253 個工程裡 23 個）。"""
+        vals = {
+            'name': f'{code} 改公司測試工程', 'code': code, 'project_type': 'general', 'state': 'construction',
+            'company_id': (company or self.co_iso_a).id, 'contractor_company_ids': [(6, 0, self.co_a.ids)]}
+        if 'allow_timesheets' in self.env['project.project']._fields:
+            vals['allow_timesheets'] = False
+        project = self.env['project.project'].create(vals)
+        self.assertFalse(project.account_id, '夾具：不要有分析帳戶')
+        return project
+
+    def _fresh_project_with_estimate(self, code, company=None):
+        project = self._fresh_project(code, company)
+        estimate = self.env['payment.estimate'].create({'project_id': project.id, 'estimate_date': fields.Date.today()})
+        return project, estimate
+
+    def _sys_admin_ab(self):
+        """系統管理者：與 sa_ab 只差 base.group_system（隔離出「系統管理者放行」這一條）。"""
+        return self._user('s3_sys_ab', ['base.group_user', SUPERVISOR_ADMIN, SYSTEM_ADMIN],
+                          company=self.co_iso_a, companies=self.co_iso_a | self.co_iso_b)
+
+    def _operator_ab(self):
+        """代操作員：與 sa_ab 只差代操作員群組（隔離出「代操作員放行」這一條）。"""
+        return self._user('s3_op_ab', ['base.group_user', SUPERVISOR_ADMIN, OPERATOR],
+                          company=self.co_iso_a, companies=self.co_iso_a | self.co_iso_b)
+
+    def _assert_move_refused(self, env, projects, company):
+        for project in projects:
+            env['project.project'].browse(project.id).check_access('write')  # 寫前檢查過得了：被拒不是本來就不能寫（M-B）
+        with self.assertRaises(UserError) as ctx:
+            env['project.project'].browse(projects.ids).write({'company_id': company.id})
+            env.flush_all()
+        self.assertIn(COMPANY_MOVE_HINT, str(ctx.exception), '擋下它的要是「有單據的工程只有系統管理者或代操作員能改公司」')
+        return str(ctx.exception)
+
+    def test_company_move_refused_when_project_has_estimate(self):
+        """同屬 A＋B 的工程後台使用者改「有估驗的工程」的公司 → 被拒；工程、估驗（經工程）的公司都沒變，只屬 A 的同事照樣
+        看得到（沒擋時：估驗跟著工程搬到 B、只屬 A 的同事從此看不到——第三輪 red-team R1 的重現）。
+        另一格：只有進度表的工程——進度表的 company_id 是 stored related，沒擋時它跟著改成 B。"""
+        env = self._env_two()
+        project, estimate = self._fresh_project_with_estimate('S3M-EST')
+        self._assert_move_refused(env, project, self.co_iso_b)
+        self.env.invalidate_all()
+        self.assertEqual(project.sudo().company_id, self.co_iso_a, '工程的公司不可以變')
+        self.assertEqual(estimate.sudo().project_id.company_id, self.co_iso_a, '估驗（經工程）的公司不可以變')
+        self.assertEqual(self._env_of(self.sa_a)['payment.estimate'].search([('id', '=', estimate.id)]).ids, estimate.ids,
+                         '只屬 A 的同事要照樣搜得到這張估驗')
+        project2 = self._fresh_project('S3M-SCH')
+        schedule = self.env['progress.schedule'].create({'project_id': project2.id, 'change_date': fields.Date.today()})
+        self.assertEqual(schedule.company_id, self.co_iso_a, '夾具：進度表的公司跟著工程')
+        self._assert_move_refused(env, project2, self.co_iso_b)
+        self.env.invalidate_all()
+        self.assertEqual((project2.sudo().company_id, schedule.sudo().company_id), (self.co_iso_a, self.co_iso_a),
+                         '工程與進度表 stored 的公司都不可以變')
+
+    def test_company_move_allowed_when_project_has_no_documents(self):
+        """同一個人改「沒有任何單據的工程」的公司 → 成功（這道檢查只管有單據的）。"""
+        project = self._fresh_project('S3M-NONE')
+        self._env_two()['project.project'].browse(project.id).write({'company_id': self.co_iso_b.id})
+        project.invalidate_recordset()
+        self.assertEqual(project.sudo().company_id, self.co_iso_b)
+
+    def test_company_move_allowed_for_system_admin_and_sudo(self):
+        """系統管理者、代操作員、sudo 改有單據的工程的公司 → 成功，單據跟著工程走。"""
+        for mode, code in (('系統管理者', 'S3M-OK-SYS'), ('代操作員', 'S3M-OK-OP'), ('sudo', 'S3M-OK-SU')):
+            with self.subTest(mode=mode):
+                project, estimate = self._fresh_project_with_estimate(code)
+                if mode == 'sudo':
+                    records = self._env_two()['project.project'].browse(project.id).sudo()
+                elif mode == '代操作員':
+                    records = self._env_two(self._operator_ab())['project.project'].browse(project.id)
+                else:
+                    records = self._env_two(self._sys_admin_ab())['project.project'].browse(project.id)
+                records.write({'company_id': self.co_iso_b.id})
+                self.env.invalidate_all()
+                self.assertEqual(project.sudo().company_id, self.co_iso_b)
+                self.assertEqual(estimate.sudo().project_id.company_id, self.co_iso_b, '估驗跟著工程走')
+
+    def test_company_move_same_value_not_checked(self):
+        """改成同一家公司（值沒變）→ 不擋，連有單據的工程也一樣。"""
+        project, _estimate = self._fresh_project_with_estimate('S3M-SAME')
+        self._env_two()['project.project'].browse(project.id).write({'company_id': self.co_iso_a.id})
+        project.invalidate_recordset()
+        self.assertEqual(project.sudo().company_id, self.co_iso_a)
+
+    def test_company_move_batch_checks_each_project(self):
+        """批次 write 逐個工程查：
+        * [沒單據的 A 工程, 有估驗、本來就在 B 的工程] → 改成 B：後者值沒變不查 → 成功；
+        * [沒單據的 A 工程, 有估驗的 A 工程] → 改成 B：被拒、訊息只點名有單據的那個、兩個都沒變（寫入前就拒）。"""
+        env = self._env_two()
+        empty = self._fresh_project('S3M-B0')
+        in_b, _estimate_b = self._fresh_project_with_estimate('S3M-BB', self.co_iso_b)
+        env['project.project'].browse((empty | in_b).ids).write({'company_id': self.co_iso_b.id})
+        self.env.invalidate_all()
+        self.assertEqual((empty.sudo().company_id, in_b.sudo().company_id), (self.co_iso_b, self.co_iso_b))
+        empty2 = self._fresh_project('S3M-B1')
+        with_doc, _estimate = self._fresh_project_with_estimate('S3M-B2')
+        message = self._assert_move_refused(env, empty2 | with_doc, self.co_iso_b)
+        self.assertIn('S3M-B2', message, '訊息要點名有單據的工程')
+        self.assertNotIn('S3M-B1', message, '沒單據的工程不該被點名')
+        self.env.invalidate_all()
+        self.assertEqual((empty2.sudo().company_id, with_doc.sudo().company_id), (self.co_iso_a, self.co_iso_a),
+                         '被拒時批次裡的工程都不可以變')
+
+    def test_company_move_archived_task_version_counts(self):
+        """封存的契約工項底下的工項版本也算單據（只有它）→ 被拒。"""
+        project = self._fresh_project('S3M-ARC')
+        task = self.env['project.task'].create({
+            'name': 'S3M 封存工項', 'project_id': project.id, 'item_no': '1', 'unit': '式',
+            'planned_qty': 10.0, 'unit_price': 100.0})
+        self.assertTrue(self.env['project.task.version'].search_count([('task_id', '=', task.id)]),
+                        '夾具：有數量的工項會自動建 v1 版本')
+        task.write({'active': False})
+        self._assert_move_refused(self._env_two(), project, self.co_iso_b)
+
+    def test_company_move_paths_reach_fixture_records(self):
+        """「單據」＝寫後檢查表上的模型（不另寫清單）；每個模型連到工程的路徑由表推出來。
+        這裡驗：一個模型一條路徑（上游說幾個就要幾個，M-C），而且每條路徑以 sudo 搜，搜到的正好包含夾具記在 iso_meta
+        掛在 A 工程的那幾筆、不含掛在 B 工程的（期望值來自夾具，不來自實作，L3）。"""
+        paths = _project_paths(self.env)
+        self.assertEqual(set(paths), set(COMPANY_RULE_FIELDS), '表上每個模型都要推得出路徑（本模組依賴那五個模組，都裝了）')
+        for model, path in sorted(paths.items()):
+            with self.subTest(model=model, path=path):
+                own = {rid for rid, project in self.iso_meta[model].items() if project == self.p_iso_a}
+                other = {rid for rid, project in self.iso_meta[model].items() if project == self.p_iso_b}
+                self.assertTrue(own and other, f'{model}：夾具兩個工程都要有紀錄（否則恆真）')
+                found = set(self.env[model].sudo().with_context(active_test=False).search([(path, '=', self.p_iso_a.id)]).ids)
+                self.assertTrue(own <= found, f'{model}：{path} 少了 {sorted(own - found)}')
+                self.assertFalse(other & found, f'{model}：{path} 搜到 B 工程的 {sorted(other & found)}')

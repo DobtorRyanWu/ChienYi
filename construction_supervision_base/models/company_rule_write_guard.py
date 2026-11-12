@@ -20,6 +20,12 @@ construction_progress／construction_general／construction_supervision_base 的
 3. **表上的 related 欄位不能直接寫**（UserError，S3 fix2）：company_id（工程的公司）、非契約工項明細的 project_id
    （估驗的工程）跟著來源走。同屬兩家公司的帳號直接改它，第 1 點會過（新公司也在他的公司裡），但值就和工程對不上：
    原公司的同事看不到、另一家公司的人看得到（S3 第二輪審查 skeptic F2）。要換請改來源（工程、父單）。
+4. **已經有單據的工程，只有系統管理者與代操作員能改公司**（UserError，2026-11-12 使用者決定「1b」；同日追加「代操跟管理者都要可以做」）：第 3 點擋住直接改單據的
+   公司，但改上游——工程的 company_id——底下整串單據的公司跟著重算、一起搬到別家公司，只屬原公司的同事從此看不到
+   （S3 第三輪審查 red-team R1；要同屬兩家公司又有工程寫權的人才做得到）。「單據」＝下表的模型（不另寫清單），
+   連到工程的欄位路徑由 _project_paths() 從表推；封存的也算。只在非 sudo、值真的有變時查；批次 write 逐個工程查。
+   正當流程（grep 全 repo，報告 project_company_guard_report.md）沒有以非 sudo 改工程公司的：前台「修改工程資訊」
+   （/construction/<id>/update）是 sudo 寫入、只限未開始的工程，不經這道檢查。
 
 sudo（系統內部流程）不檢查。正當的非 sudo 改寫（grep 全 repo，S3_fix1_report.md W-3）只有「匯入工程案件」
 （estimate.import.wizard 替工程空白的估驗設工程）與契約變更精靈（contract.change.wizard 替變更單設工程），
@@ -60,6 +66,49 @@ PROJECT_PATHS = {
     'contract.change.order': 'project_id',
     'contract.change.order.line': 'change_order_id.project_id',
 }
+# 第 4 點：已經有單據的工程，只有這些群組（系統管理者、代操作員）能改公司
+COMPANY_MOVE_GROUPS = ('base.group_system', 'construction_supervision_base.group_operator')
+PROJECT_MODEL = 'project.project'
+# 表外的父單模型（工項版本 → 工項）沿這個欄位連到工程
+PROJECT_FIELD = 'project_id'
+
+
+def _path_to_project(env, model_name, seen=frozenset()):
+    """model_name 經哪條欄位路徑連到工程（例 'estimate_id.project_id'）；推不出來回 None。
+
+    表上的模型只看表上的欄位（規則用得到的那幾個）：有直接指向工程的 many2one 就用它，否則沿父單欄位往上推；
+    表外的模型（工項）用它的 project_id。
+    """
+    Model = env[model_name]
+    names = sorted(COMPANY_RULE_FIELDS.get(model_name, {PROJECT_FIELD}))
+    links = [Model._fields[name] for name in names
+             if name in Model._fields and Model._fields[name].type == 'many2one']
+    for field in links:
+        if field.comodel_name == PROJECT_MODEL:
+            return field.name
+    for field in links:
+        if field.comodel_name in seen or field.comodel_name not in env:
+            continue
+        sub = _path_to_project(env, field.comodel_name, seen | {model_name})
+        if sub:
+            return f'{field.name}.{sub}'
+    return None
+
+
+def _project_paths(env):
+    """{模型: 連到工程的欄位路徑}，表上每個已安裝的模型一列（本模組不依賴那幾個模組，沒裝就不會有那種單據）。
+
+    已安裝卻推不出路徑就 raise——不可以靜默略過那種單據（略過＝那種單據不算，工程照樣搬得走）。
+    """
+    paths = {}
+    for model_name in COMPANY_RULE_FIELDS:
+        if model_name not in env:
+            continue
+        path = _path_to_project(env, model_name)
+        if not path:
+            raise UserError(_('%s：推不出連到工程的欄位（company_rule_write_guard.COMPANY_RULE_FIELDS）', model_name))
+        paths[model_name] = path
+    return paths
 
 
 class Base(models.AbstractModel):
@@ -92,3 +141,31 @@ class Base(models.AbstractModel):
                 model=self._description, names='、'.join(lost.mapped('display_name'))))
         self.check_access('write')
         return result
+
+
+class ProjectProject(models.Model):
+    _inherit = 'project.project'
+
+    def write(self, vals):
+        # 第 4 點：已經有單據的工程改公司，只有系統管理者與代操作員能改（寫入前就拒，不會先寫進去再回滾）
+        if ('company_id' in vals and not self.env.su
+                and not any(self.env.user.has_group(group) for group in COMPANY_MOVE_GROUPS)):
+            self._check_company_move_allowed(vals['company_id'])
+        return super().write(vals)
+
+    def _check_company_move_allowed(self, new_company):
+        """self 裡公司真的會變、而且底下已經有單據（含封存）的工程 → UserError，列出工程名稱。"""
+        new_company_id = new_company.id if isinstance(new_company, models.BaseModel) else (new_company or False)
+        moving = self.filtered(lambda project: project.company_id.id != new_company_id)
+        if not moving:
+            return
+        env = self.env(su=True, context=dict(self.env.context, active_test=False))
+        paths = _project_paths(env)
+        blocked = moving.browse([
+            project.id for project in moving
+            if any(env[model_name].search_count([(path, '=', project.id)], limit=1)
+                   for model_name, path in paths.items())])
+        if blocked:
+            raise UserError(_(
+                '工程「%(names)s」已經有估驗等單據，改公司會讓底下的單據跟著搬到別家公司，只有系統管理者或代操作員能改。',
+                names='、'.join(blocked.sudo().mapped('display_name'))))
