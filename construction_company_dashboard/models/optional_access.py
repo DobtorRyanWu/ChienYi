@@ -31,6 +31,9 @@ OPTIONAL_READ_ACCESS = (
     # 讀得到哪些由 rule_scope.COMPANY_OWNED_LEVEL 決定（所屬公司＝自己的公司）
     ('construction.official.doc', 'access_cm_official_doc', MANAGER_GROUP_XMLID),
     ('construction.official.doc', 'access_role_official_doc', ROLE_MANAGER_GROUP_XMLID),
+    # 行事曆事項（construction_office；淞源 C7）：同公文
+    ('construction.calendar.event', 'access_cm_calendar_event', MANAGER_GROUP_XMLID),
+    ('construction.calendar.event', 'access_role_calendar_event', ROLE_MANAGER_GROUP_XMLID),
 )
 
 

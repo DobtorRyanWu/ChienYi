@@ -144,6 +144,12 @@ NARROW_BY_COMPANY = frozenset({
 # 沒掛工程的公司共通資料主管看不到。見 _dash_company_owned_condition。
 COMPANY_OWNED_LEVEL = {
     'construction.official.doc': 'project_id',
+    'construction.calendar.event': 'project_id',
+}
+# 其中「屬於某個人」的資料：模型 → 那個人的欄位。主管被指定負責的事項一定看得到，
+# 不管有沒有掛工程、是不是那個工程的成員（淞源 C7：行事曆的權責人）。所屬公司的條件照樣要符合。
+COMPANY_OWNED_PERSONAL = {
+    'construction.calendar.event': 'responsible_user_id',
 }
 # 個資收窄（聯絡人、使用者）：自己＋自己範圍公司（合約 §13-3；細節見 _dash_scope_read_domain）
 NARROW_USERS = 'res.users'
@@ -598,8 +604,11 @@ class IrRule(models.Model):
         domain = list(company_condition)
         if user._role_level_raw() == ROLE_LEVEL_MANAGER:
             prefix = self._dash_prefix(COMPANY_OWNED_LEVEL[model_name])
-            domain.append((f'{prefix}member_user_ids', 'in', [user.id]))
-            domain.append((f'{prefix}state', 'not in', list(MANAGER_EXCLUDED_PROJECT_STATES)))
+            member = ['&', (f'{prefix}member_user_ids', 'in', [user.id]),
+                      (f'{prefix}state', 'not in', list(MANAGER_EXCLUDED_PROJECT_STATES))]
+            personal = COMPANY_OWNED_PERSONAL.get(model_name)
+            # 自己負責的（見 COMPANY_OWNED_PERSONAL）或參與工程的；所屬公司的條件在最外層，兩者都要先符合它
+            domain += (['|', (personal, '=', user.id)] + member) if personal else member
         return domain
 
     @api.model

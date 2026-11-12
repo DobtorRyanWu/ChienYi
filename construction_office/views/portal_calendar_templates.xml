@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 手機行事曆（淞源 C7）。沿用前台外殼與 wb- 開頭的色彩變數；觸控目標至少 44px。 -->
+
+    <!-- 抽屜選單入口：「公文總表」下面加「行事曆」 -->
+    <template id="portal_drawer_calendar" inherit_id="construction_portal.portal_v10_drawer" name="Portal Drawer: 行事曆">
+        <xpath expr="//a[@href='/construction/official-docs']" position="after">
+            <a class="cy-drawer-item" href="/construction/calendar">
+                <span class="cy-drawer-item-icon">📅</span>
+                <span class="cy-drawer-item-label">行事曆</span>
+                <span class="cy-drawer-item-arrow">›</span>
+            </a>
+        </xpath>
+    </template>
+
+    <template id="portal_calendar" name="行事曆">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_inspection_type_hud">
+                    <t t-set="back_url" t-value="'/construction?view=list'"/>
+                    <t t-set="hud_title" t-value="'行事曆'"/>
+                </t>
+                <div class="cy-content">
+                    <t t-call="construction_office.portal_official_doc_flash"/>
+
+                    <!-- 範圍：一列按鈕；「只看我的」另一顆 -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;" role="group" aria-label="範圍">
+                        <t t-foreach="ranges" t-as="option">
+                            <a t-attf-href="/construction/calendar?range=#{option[0]}#{mine_only and '&amp;mine=1' or ''}"
+                               t-attf-class="cy-btn #{range_key == option[0] and 'cy-btn-primary' or 'cy-btn-outline'}"
+                               style="min-height: 44px;" t-esc="option[1]"/>
+                        </t>
+                        <a t-attf-href="/construction/calendar?range=#{range_key}#{(not mine_only) and '&amp;mine=1' or ''}"
+                           t-attf-class="cy-btn #{mine_only and 'cy-btn-primary' or 'cy-btn-outline'}" style="min-height: 44px;">
+                            <i t-attf-class="fa #{mine_only and 'fa-check-square-o' or 'fa-square-o'}"/> 只看我負責的
+                        </a>
+                    </div>
+                    <a t-if="can_manage and not no_access" href="/construction/calendar/new"
+                       class="cy-btn cy-btn-primary cy-btn-block" style="min-height: 44px; margin-bottom: 12px;">
+                        <i class="fa fa-plus"/> 新增事項
+                    </a>
+
+                    <div class="cy-total-count">
+                        待辦 <t t-esc="event_count"/> 件
+                        <t t-if="shown_count &lt; event_count">（只列前 <t t-esc="shown_count"/> 件，請縮小範圍）</t>
+                    </div>
+
+                    <t t-if="no_access">
+                        <div class="cy-empty">
+                            <i class="fa fa-lock"/>
+                            <div class="cy-empty-text">這個帳號沒有查看行事曆的權限，請洽系統管理者</div>
+                        </div>
+                    </t>
+                    <t t-elif="not groups">
+                        <div class="cy-empty">
+                            <i class="fa fa-calendar-o"/>
+                            <div class="cy-empty-text">這個範圍內沒有待辦事項</div>
+                        </div>
+                    </t>
+
+                    <t t-foreach="groups" t-as="group">
+                        <div class="cy-section-title" t-attf-style="#{group['overdue'] and 'color: var(--wb-red);' or ''}">
+                            <span><i t-if="group['overdue']" class="fa fa-exclamation-triangle" style="margin-right: 4px;"/><t t-esc="group['label']"/></span>
+                        </div>
+                        <t t-foreach="group['rows']" t-as="row">
+                            <t t-set="event" t-value="row['event']"/>
+                            <div class="cy-task-row" style="cursor: default; align-items: flex-start;">
+                                <div t-attf-class="cy-task-icon #{row['mine'] and 'blue' or 'green'}">
+                                    <i class="fa fa-calendar"/>
+                                </div>
+                                <div class="cy-task-info">
+                                    <div class="cy-task-name" t-esc="event.name"/>
+                                    <div class="cy-task-sub">
+                                        <t t-if="group['overdue']"><t t-esc="row['day']"/> · </t>
+                                        <t t-esc="row['when']"/> · <t t-esc="type_labels.get(event.event_type)"/>
+                                        · <i class="fa fa-user-o"/> <t t-esc="row['responsible']"/><t t-if="row['mine']">（我）</t>
+                                    </div>
+                                    <div class="cy-task-sub" t-if="event.location or event.project_id">
+                                        <t t-if="event.location"><i class="fa fa-map-marker"/> <t t-esc="event.location"/></t>
+                                        <t t-if="event.location and event.project_id"> · </t>
+                                        <t t-if="event.project_id"><i class="fa fa-building-o"/> <t t-esc="event.project_id.name"/></t>
+                                    </div>
+                                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                        <form t-if="can_manage or row['mine']" t-attf-action="/construction/calendar/#{event.id}/done" method="post">
+                                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                            <button type="submit" class="cy-btn cy-btn-outline" style="min-height: 44px;">
+                                                <i class="fa fa-check"/> 完成
+                                            </button>
+                                        </form>
+                                        <a t-if="can_manage" t-attf-href="/construction/calendar/#{event.id}/reschedule"
+                                           class="cy-btn cy-btn-outline" style="min-height: 44px;">
+                                            <i class="fa fa-clock-o"/> 改時間
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </t>
+                </div>
+                <!-- 沒有工程頁首的頁面要自己帶抽屜選單（頁首右上角的按鈕開的就是它） -->
+                <t t-call="construction_portal.portal_v10_drawer"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- 新增／改時間 共用表單：event 有值＝改時間（只給日期與時間），沒有＝新增 -->
+    <template id="portal_calendar_form" name="行事曆：新增／改時間">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_inspection_type_hud">
+                    <t t-set="back_url" t-value="'/construction/calendar'"/>
+                    <t t-set="hud_title" t-value="event and '改時間' or '新增事項'"/>
+                </t>
+                <div class="cy-content">
+                    <t t-call="construction_office.portal_official_doc_flash"/>
+                    <h4 t-if="event" style="font-weight: 700; margin-bottom: 12px; word-break: break-word;" t-esc="event.name"/>
+                    <form t-att-action="event and ('/construction/calendar/%s/update' % event.id) or '/construction/calendar/create'" method="post">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <t t-if="not event">
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="ce_name">事項 <span style="color: var(--wb-red);">*</span></label>
+                                <input type="text" id="ce_name" name="name" class="form-control" required="required" maxlength="200"
+                                       placeholder="例：第 3 次工務會議、現場會勘"/>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="ce_type">類型</label>
+                                <select id="ce_type" name="event_type" class="form-select">
+                                    <t t-foreach="event_types" t-as="option">
+                                        <option t-att-value="option[0]" t-att-selected="'selected' if option[0] == default_type else None" t-esc="option[1]"/>
+                                    </t>
+                                </select>
+                            </div>
+                        </t>
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 0.85rem;" for="ce_date">日期 <span style="color: var(--wb-red);">*</span></label>
+                            <input type="date" id="ce_date" name="date" class="form-control" required="required" t-att-value="form_date"/>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 4px;">
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="ce_time_start">開始時間</label>
+                                <input type="time" id="ce_time_start" name="time_start" class="form-control" t-att-value="form_time_start"/>
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="ce_time_stop">結束時間</label>
+                                <input type="time" id="ce_time_stop" name="time_stop" class="form-control" t-att-value="form_time_stop"/>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--wb-t3); margin-bottom: 12px;">開始時間不填＝整天的事項。</div>
+                        <t t-if="not event">
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="ce_responsible">權責人</label>
+                                <select id="ce_responsible" name="responsible_user_id" class="form-select">
+                                    <t t-foreach="candidates" t-as="candidate">
+                                        <option t-att-value="candidate.id" t-att-selected="'selected' if candidate.id == request.env.uid else None" t-esc="candidate.name"/>
+                                    </t>
+                                </select>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="ce_project">工程（公司共通的事可以不選）</label>
+                                <select id="ce_project" name="project_id" class="form-select">
+                                    <option value="">-- 不指定 --</option>
+                                    <t t-foreach="projects" t-as="option">
+                                        <option t-att-value="option.id" t-esc="option.name"/>
+                                    </t>
+                                </select>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="ce_location">地點</label>
+                                <input type="text" id="ce_location" name="location" class="form-control" maxlength="200"/>
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="ce_note">備註</label>
+                                <textarea id="ce_note" name="note" class="form-control" style="min-height: 60px;"/>
+                            </div>
+                        </t>
+                        <button type="submit" class="cy-btn cy-btn-primary cy-btn-block" style="min-height: 44px;">
+                            <i class="fa fa-save"/> 儲存
+                        </button>
+                    </form>
+                </div>
+                <!-- 沒有工程頁首的頁面要自己帶抽屜選單（頁首右上角的按鈕開的就是它） -->
+                <t t-call="construction_portal.portal_v10_drawer"/>
+            </div>
+        </t>
+    </template>
+</odoo>

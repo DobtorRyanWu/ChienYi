@@ -51,5 +51,7 @@ from . import test_restricted_account_list
 from . import test_role_fix3
 # 淞源 C10（2026-11-12）：受限帳號看公文——所屬公司＝自己的公司、後台主管再限參與的工程（沒裝 construction_office 就略過）
 from . import test_office_scope
+# 淞源 C7（2026-11-12）：受限帳號看行事曆——同公文，另外自己負責的事項一定看得到
+from . import test_office_calendar_scope
 # 淞源 C9（2026-11-12）：統計圖表頁的資料——合計＝search_count、受限帳號只數自家、閘門放行
 from . import test_dashboard_charts

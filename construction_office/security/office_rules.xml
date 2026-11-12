@@ -34,5 +34,32 @@
             <field name="perm_create" eval="False"/>
             <field name="perm_unlink" eval="False"/>
         </record>
+        <!-- 行事曆事項（淞源 C7）：和公文同一套——全域看所屬公司；前台成員看自己參與工程的，
+             另外「自己是權責人」的一定看得到（沒掛工程、或不是那個工程的成員也一樣）；前台老闆看所屬公司範圍內全部。 -->
+        <record id="calendar_event_company_rule" model="ir.rule">
+            <field name="name">行事曆事項：所屬公司在允許公司內（全域）</field>
+            <field name="model_id" ref="model_construction_calendar_event"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="calendar_event_portal_member_rule" model="ir.rule">
+            <field name="name">Portal: 行事曆事項 - 自己負責的＋成員專案的</field>
+            <field name="model_id" ref="model_construction_calendar_event"/>
+            <field name="domain_force">['|', ('responsible_user_id', '=', user.id), ('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+        <record id="calendar_event_portal_boss_rule" model="ir.rule">
+            <field name="name">Portal老闆: 行事曆事項 - 所屬公司範圍內全部</field>
+            <field name="model_id" ref="model_construction_calendar_event"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
     </data>
 </odoo>

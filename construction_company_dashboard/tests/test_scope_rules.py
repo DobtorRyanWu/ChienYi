@@ -87,7 +87,7 @@ EXPECT_PROJECT_LEVEL = {
 EXPECT_NARROW_COMPANY = ('hr.employee.public', 'hr.employee', 'hr.department', 'resource.resource')
 EXPECT_NARROW_OTHER = ('res.users', 'res.partner')
 # 公司自有的行政資料（construction_office，選裝；測試獨立寫一份）
-EXPECT_COMPANY_OWNED = ('construction.official.doc',)
+EXPECT_COMPANY_OWNED = ('construction.official.doc', 'construction.calendar.event')
 # 框架照舊（讀取不加條件）與使用者自有狀態（可寫）——合約 §3.2、§3.3
 EXPECT_FRAMEWORK = frozenset({
     'ir.ui.menu', 'ir.ui.view', 'ir.model', 'ir.actions.report', 'report.paperformat',

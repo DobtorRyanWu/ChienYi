@@ -73,6 +73,7 @@ EXPECT_ROLE_MENUS = (
     'construction_progress.menu_progress_chart_dashboard',
     'construction_general.menu_general_progress_report',
     'construction_office.menu_official_doc',                    # 公文（選裝；淞源 C10）
+    'construction_office.menu_calendar_event',                  # 行事曆（選裝；淞源 C7）
 )
 # 自主檢查樣板與明細（fix2-R：角色帳號兩方都照工程條件，主管含成員＋狀態）
 EXPECT_TEMPLATE_MODELS = ('self.inspection.type', 'self.inspection.type.item')

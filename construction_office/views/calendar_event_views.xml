@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 主管行事曆（淞源 C7）：月曆（可拖曳改時間、依權責人上色）＋清單＋表單 -->
+
+    <record id="view_calendar_event_search" model="ir.ui.view">
+        <field name="name">construction.calendar.event.search</field>
+        <field name="model">construction.calendar.event</field>
+        <field name="arch" type="xml">
+            <search string="搜尋行事曆">
+                <field name="name"/>
+                <field name="responsible_user_id"/>
+                <field name="project_id"/>
+                <field name="location"/>
+                <separator/>
+                <filter string="我負責的" name="filter_mine" domain="[('responsible_user_id', '=', uid)]"/>
+                <separator/>
+                <filter string="待辦" name="filter_planned" domain="[('state', '=', 'planned')]"/>
+                <filter string="已過期未完成" name="filter_overdue" domain="[('is_overdue', '=', True)]"/>
+                <filter string="已完成" name="filter_done" domain="[('state', '=', 'done')]"/>
+                <filter string="取消" name="filter_cancelled" domain="[('state', '=', 'cancelled')]"/>
+                <separator/>
+                <filter string="會議" name="filter_meeting" domain="[('event_type', '=', 'meeting')]"/>
+                <filter string="會勘" name="filter_site_visit" domain="[('event_type', '=', 'site_visit')]"/>
+                <filter string="送件期限" name="filter_deadline" domain="[('event_type', '=', 'deadline')]"/>
+                <separator/>
+                <filter string="開始時間" name="filter_start" date="start"/>
+                <separator/>
+                <filter string="已封存" name="filter_inactive" domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter string="權責人" name="group_responsible" context="{'group_by': 'responsible_user_id'}"/>
+                    <filter string="工程" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="類型" name="group_type" context="{'group_by': 'event_type'}"/>
+                    <filter string="狀態" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="月份" name="group_month" context="{'group_by': 'start:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_calendar_event_calendar" model="ir.ui.view">
+        <field name="name">construction.calendar.event.calendar</field>
+        <field name="model">construction.calendar.event</field>
+        <field name="arch" type="xml">
+            <!-- quick_create="0"：點空白日期開完整表單（要填權責人）；拖曳事項＝改時間 -->
+            <calendar string="行事曆" date_start="start" date_stop="stop" all_day="allday"
+                      color="responsible_user_id" mode="month" quick_create="0" event_open_popup="1">
+                <field name="event_type"/>
+                <field name="responsible_user_id" filters="1" avatar_field="avatar_128"/>
+                <field name="location"/>
+                <field name="project_id"/>
+                <field name="state"/>
+            </calendar>
+        </field>
+    </record>
+
+    <record id="view_calendar_event_list" model="ir.ui.view">
+        <field name="name">construction.calendar.event.list</field>
+        <field name="model">construction.calendar.event</field>
+        <field name="arch" type="xml">
+            <list string="行事曆事項" decoration-danger="is_overdue" decoration-muted="state != 'planned'">
+                <field name="start"/>
+                <field name="stop" optional="hide"/>
+                <field name="event_type" widget="badge"/>
+                <field name="name"/>
+                <field name="responsible_user_id" widget="many2one_avatar_user"/>
+                <field name="location" optional="show"/>
+                <field name="project_id" optional="show"/>
+                <field name="state" widget="badge" decoration-warning="state == 'planned'" decoration-success="state == 'done'"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+                <field name="is_overdue" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_calendar_event_form" model="ir.ui.view">
+        <field name="name">construction.calendar.event.form</field>
+        <field name="model">construction.calendar.event</field>
+        <field name="arch" type="xml">
+            <form string="行事曆事項">
+                <header>
+                    <button name="action_mark_done" string="標為已完成" type="object" class="btn-primary"
+                            invisible="state != 'planned'"/>
+                    <button name="action_mark_planned" string="改回待辦" type="object" invisible="state == 'planned'"/>
+                    <button name="action_cancel" string="取消這件事" type="object" invisible="state != 'planned'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="planned,done"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="已封存" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="例：第 3 次工務會議、現場會勘"/></h1>
+                    </div>
+                    <group>
+                        <group string="時間與地點">
+                            <field name="event_type"/>
+                            <field name="allday"/>
+                            <field name="start"/>
+                            <field name="stop"/>
+                            <field name="location"/>
+                        </group>
+                        <group string="權責與歸屬">
+                            <field name="responsible_user_id"/>
+                            <field name="project_id"/>
+                            <field name="company_id" options="{'no_create': True}"/>
+                            <field name="official_doc_id"/>
+                            <field name="active" invisible="1"/>
+                            <field name="is_overdue" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="備註">
+                        <field name="note" nolabel="1" colspan="2"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_calendar_event" model="ir.actions.act_window">
+        <field name="name">行事曆</field>
+        <field name="res_model">construction.calendar.event</field>
+        <field name="view_mode">calendar,list,form</field>
+        <field name="search_view_id" ref="view_calendar_event_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                排第一件事
+            </p>
+            <p>
+                開會、會勘、送件期限等大事排在這裡，指定權責人；要改時間，在月曆上直接拖就可以。
+            </p>
+        </field>
+    </record>
+
+    <!-- 公文表單：按鈕「建立行事曆事項」＋已建立的事項數 -->
+    <record id="view_official_doc_form_calendar" model="ir.ui.view">
+        <field name="name">construction.official.doc.form.calendar</field>
+        <field name="model">construction.official.doc</field>
+        <field name="inherit_id" ref="view_official_doc_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header/field[@name='state']" position="before">
+                <button name="action_create_calendar_event" string="建立行事曆事項" type="object" icon="fa-calendar-plus-o"/>
+            </xpath>
+            <xpath expr="//sheet/div[hasclass('oe_title')]" position="before">
+                <div class="oe_button_box" name="button_box">
+                    <button name="action_view_calendar_events" type="object" class="oe_stat_button" icon="fa-calendar"
+                            invisible="calendar_event_count == 0">
+                        <field name="calendar_event_count" widget="statinfo" string="行事曆事項"/>
+                    </button>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 工程管理 > 行事曆 -->
+    <menuitem id="menu_calendar_event"
+              name="行事曆"
+              parent="construction_supervision_base.menu_project_management_root"
+              action="action_calendar_event"
+              sequence="5"/>
+</odoo>
