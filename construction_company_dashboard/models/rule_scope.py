@@ -137,6 +137,14 @@ NARROW_BY_COMPANY = frozenset({
     'hr.department',
     'resource.resource',
 })
+# 公司自有的行政資料（construction_office，選裝；淞源 C10，2026-11-12）：模型 → 到工程的欄位。
+# 這類資料屬於「所屬公司」（company_id），不是工程上每一方都能看：營造方只看 company_id＝範圍公司的，
+# 監造方角色帳號只看監造公司的；同一個工程上另一方的公文看不到（要給外人看走參觀帳號逐份指定）。
+# 後台主管（角色帳號 manager 層級）再限參與的工程，與工程條件的主管那一段相同：被加入、而且不是未開始／終止；
+# 沒掛工程的公司共通資料主管看不到。見 _dash_company_owned_condition。
+COMPANY_OWNED_LEVEL = {
+    'construction.official.doc': 'project_id',
+}
 # 個資收窄（聯絡人、使用者）：自己＋自己範圍公司（合約 §13-3；細節見 _dash_scope_read_domain）
 NARROW_USERS = 'res.users'
 NARROW_PARTNERS = 'res.partner'
@@ -442,6 +450,8 @@ class IrRule(models.Model):
                 parent_field + '.', CONTRACTOR_LEVEL[parent_model], scope_id, user, kind)
         if model_name in PROJECT_LEVEL:
             return self._dash_project_condition(self._dash_prefix(PROJECT_LEVEL[model_name]), user, kind)
+        if model_name in COMPANY_OWNED_LEVEL:
+            return self._dash_company_owned_condition(model_name, user, [('company_id', '=', scope_id)])
         if model_name in INSPECTION_TEMPLATE_LEVEL:
             if role:
                 # 營造方角色帳號：與監造方同一份（工程條件含主管的成員＋狀態；fix2-R，審查 red-team r2 G3-1）
@@ -492,6 +502,8 @@ class IrRule(models.Model):
                 self._dash_prefix(f'{parent_field}.{CONTRACTOR_LEVEL[parent_model]}'), user, kind)
         if model_name in PROJECT_LEVEL:
             return self._dash_project_condition(self._dash_prefix(PROJECT_LEVEL[model_name]), user, kind)
+        if model_name in COMPANY_OWNED_LEVEL:
+            return self._dash_company_owned_condition(model_name, user, [('company_id', 'in', companies)])
         if model_name in INSPECTION_TEMPLATE_LEVEL:
             return self._dash_role_template_condition(INSPECTION_TEMPLATE_LEVEL[model_name], user, kind)
         if model_name == ROLE_FEEDBACK_OWN:
@@ -577,6 +589,18 @@ class IrRule(models.Model):
     def _dash_prefix(self, path):
         """欄位路徑 → 條件前綴（'' 表示 project.project 本身，否則加一個點）。"""
         return f'{path}.' if path else ''
+
+    @api.model
+    def _dash_company_owned_condition(self, model_name, user, company_condition):
+        """公司自有的行政資料（COMPANY_OWNED_LEVEL）：company_condition＝所屬公司是自己的公司；
+        後台主管（角色帳號 manager 層級）再 AND 參與成員、而且工程不是未開始／終止——與 _dash_project_condition
+        的主管那一段同一組條件，所以沒掛工程的資料主管看不到。老闆與不是角色帳號的營造方只有公司條件。"""
+        domain = list(company_condition)
+        if user._role_level_raw() == ROLE_LEVEL_MANAGER:
+            prefix = self._dash_prefix(COMPANY_OWNED_LEVEL[model_name])
+            domain.append((f'{prefix}member_user_ids', 'in', [user.id]))
+            domain.append((f'{prefix}state', 'not in', list(MANAGER_EXCLUDED_PROJECT_STATES)))
+        return domain
 
     @api.model
     def _dash_project_condition(self, prefix, user, kind):

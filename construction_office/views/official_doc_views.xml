@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 公文（淞源 C10）：總表＝清單檢視（預設依工程分組），搜尋列可找主旨、文號、機關，並可依公文日期篩期間 -->
+
+    <record id="view_official_doc_search" model="ir.ui.view">
+        <field name="name">construction.official.doc.search</field>
+        <field name="model">construction.official.doc</field>
+        <field name="arch" type="xml">
+            <search string="搜尋公文">
+                <!-- 預設的搜尋欄：一次比對主旨、文號、機關 -->
+                <field name="subject" string="關鍵字（主旨／文號／機關）"
+                       filter_domain="['|', '|', ('subject', 'ilike', self), ('doc_number', 'ilike', self), ('organization', 'ilike', self)]"/>
+                <field name="subject" string="主旨"/>
+                <field name="doc_number"/>
+                <field name="organization"/>
+                <field name="project_id"/>
+                <field name="responsible_user_id"/>
+                <separator/>
+                <filter string="收文" name="filter_incoming" domain="[('direction', '=', 'incoming')]"/>
+                <filter string="發文" name="filter_outgoing" domain="[('direction', '=', 'outgoing')]"/>
+                <separator/>
+                <filter string="待辦" name="filter_pending" domain="[('state', '=', 'pending')]"/>
+                <filter string="已逾期" name="filter_overdue" domain="[('is_overdue', '=', True)]"/>
+                <filter string="已辦" name="filter_done" domain="[('state', '=', 'done')]"/>
+                <filter string="存查" name="filter_filed" domain="[('state', '=', 'filed')]"/>
+                <separator/>
+                <filter string="我承辦的" name="filter_mine" domain="[('responsible_user_id', '=', uid)]"/>
+                <separator/>
+                <filter string="公文日期" name="filter_doc_date" date="doc_date"/>
+                <separator/>
+                <filter string="已封存" name="filter_inactive" domain="[('active', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter string="工程" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="機關／單位" name="group_organization" context="{'group_by': 'organization'}"/>
+                    <filter string="收／發文" name="group_direction" context="{'group_by': 'direction'}"/>
+                    <filter string="辦理狀態" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="公文月份" name="group_month" context="{'group_by': 'doc_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_official_doc_list" model="ir.ui.view">
+        <field name="name">construction.official.doc.list</field>
+        <field name="model">construction.official.doc</field>
+        <field name="arch" type="xml">
+            <list string="公文" decoration-danger="is_overdue" decoration-muted="state == 'filed'">
+                <field name="doc_date"/>
+                <field name="direction" widget="badge" decoration-info="direction == 'incoming'" decoration-success="direction == 'outgoing'"/>
+                <field name="organization"/>
+                <field name="doc_number"/>
+                <field name="subject"/>
+                <field name="project_id" optional="show"/>
+                <field name="reply_deadline" optional="show"/>
+                <field name="state" widget="badge" decoration-warning="state == 'pending'" decoration-success="state == 'done'"/>
+                <field name="responsible_user_id" optional="show" widget="many2one_avatar_user"/>
+                <field name="attachment_count" string="附件" optional="show"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+                <field name="is_overdue" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_official_doc_form" model="ir.ui.view">
+        <field name="name">construction.official.doc.form</field>
+        <field name="model">construction.official.doc</field>
+        <field name="arch" type="xml">
+            <form string="公文">
+                <header>
+                    <button name="action_mark_done" string="標為已辦" type="object" class="btn-primary"
+                            invisible="state != 'pending'"/>
+                    <button name="action_mark_pending" string="改為待辦" type="object"
+                            invisible="state == 'pending'"/>
+                    <button name="action_mark_filed" string="存查" type="object"
+                            invisible="state == 'filed'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,done,filed"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="已封存" bg_color="text-bg-danger" invisible="active"/>
+                    <div class="alert alert-danger" role="alert" invisible="not is_overdue">
+                        這份公文已超過辦理期限 <field name="days_left" class="oe_inline" readonly="1"/> 天（負數＝逾期天數）。
+                    </div>
+                    <div class="oe_title">
+                        <label for="subject"/>
+                        <h1><field name="subject" placeholder="公文主旨"/></h1>
+                    </div>
+                    <group>
+                        <group string="公文">
+                            <field name="direction" widget="radio" options="{'horizontal': true}"/>
+                            <field name="doc_date"/>
+                            <field name="receive_date" invisible="direction != 'incoming'"/>
+                            <field name="organization" placeholder="來文機關／受文者"/>
+                            <field name="doc_number" placeholder="發文字號"/>
+                        </group>
+                        <group string="歸屬與辦理">
+                            <field name="project_id"/>
+                            <field name="company_id" options="{'no_create': True}"/>
+                            <field name="reply_deadline"/>
+                            <field name="responsible_user_id"/>
+                            <field name="active" invisible="1"/>
+                            <field name="is_overdue" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="說明">
+                        <field name="summary" nolabel="1" colspan="2" placeholder="公文說明、摘要…"/>
+                    </group>
+                    <group string="附件">
+                        <div colspan="2" class="text-muted small">
+                            上傳公文掃描檔：按下方對話區的迴紋針，或直接把檔案拖到這個頁面。
+                        </div>
+                        <field name="attachment_ids" nolabel="1" colspan="2" widget="many2many_binary" readonly="1"/>
+                    </group>
+                    <group string="備註">
+                        <field name="note" nolabel="1" colspan="2"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_official_doc" model="ir.actions.act_window">
+        <field name="name">公文</field>
+        <field name="res_model">construction.official.doc</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_official_doc_search"/>
+        <field name="context">{'search_default_group_project': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                登錄第一份公文
+            </p>
+            <p>
+                登錄收文與發文（日期、機關、文號、主旨、掃描檔），之後用上方搜尋列就找得到；手機也查得到。
+            </p>
+        </field>
+    </record>
+</odoo>

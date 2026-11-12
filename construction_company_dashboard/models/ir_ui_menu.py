@@ -26,6 +26,7 @@ ROLE_MENU_XMLIDS = (
     'construction_progress.menu_progress_chart_dashboard',          # 進度表圖表
     'construction_general.menu_general_progress_report',            # 進度報告
     'construction_company_dashboard.menu_role_phone_home',          # 手機版（回 /construction；S2）
+    'construction_office.menu_official_doc',                        # 檔案管理 > 公文（選裝；淞源 C10）
 )
 
 

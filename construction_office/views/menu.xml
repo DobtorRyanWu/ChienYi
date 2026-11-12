@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 檔案管理 > 公文（淞源 C10）：和「文件管理」同一層 -->
+    <menuitem id="menu_official_doc"
+              name="公文"
+              parent="construction_supervision_base.menu_file_management_root"
+              action="action_official_doc"
+              sequence="20"/>
+</odoo>

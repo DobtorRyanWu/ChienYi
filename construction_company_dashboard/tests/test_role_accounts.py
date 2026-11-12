@@ -72,6 +72,7 @@ EXPECT_ROLE_MENUS = (
     'construction_progress.menu_progress_schedule_line',
     'construction_progress.menu_progress_chart_dashboard',
     'construction_general.menu_general_progress_report',
+    'construction_office.menu_official_doc',                    # 公文（選裝；淞源 C10）
 )
 # 自主檢查樣板與明細（fix2-R：角色帳號兩方都照工程條件，主管含成員＋狀態）
 EXPECT_TEMPLATE_MODELS = ('self.inspection.type', 'self.inspection.type.item')
@@ -689,7 +690,7 @@ class TestRoleAccounts(RoleMatrixCase):
                        | set(rule_scope.PROJECT_LEVEL) | set(rule_scope.INSPECTION_TEMPLATE_LEVEL)
                        | set(rule_scope.ROLE_PROJECT_LEVEL) | set(rule_scope.ROLE_ESTIMATE_CHILD)
                        | set(rule_scope.ROLE_COST_ANALYSIS) | set(rule_scope.ROLE_SUPERVISION_ONLY_PROJECT_LEVEL)
-                       | set(rule_scope.NARROW_BY_COMPANY)
+                       | set(rule_scope.NARROW_BY_COMPANY) | set(rule_scope.COMPANY_OWNED_LEVEL)
                        | {rule_scope.NARROW_USERS, rule_scope.NARROW_PARTNERS} | set(rule_scope.FRAMEWORK_READ)
                        # S2 fix2-W：意見回饋（construction_helpdesk 有裝才有 ACL）
                        | {rule_scope.ROLE_FEEDBACK_OWN} | set(rule_scope.ROLE_FEEDBACK_REFERENCE))

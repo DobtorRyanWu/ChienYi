@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_official_doc_admin,construction.official.doc admin,model_construction_official_doc,construction_supervision_base.group_supervisor_admin,1,1,1,1
+access_official_doc_operator,construction.official.doc operator,model_construction_official_doc,construction_supervision_base.group_operator,1,1,1,1
+access_official_doc_subscriber,construction.official.doc subscriber,model_construction_official_doc,construction_supervision_base.group_portal_subscriber,1,0,0,0
+access_official_doc_leader,construction.official.doc leader,model_construction_official_doc,construction_supervision_base.group_portal_leader,1,0,0,0
+access_official_doc_user,construction.official.doc user,model_construction_official_doc,construction_supervision_base.group_portal_user,1,0,0,0
+access_official_doc_viewer,construction.official.doc viewer,model_construction_official_doc,construction_supervision_base.group_portal_viewer,1,0,0,0

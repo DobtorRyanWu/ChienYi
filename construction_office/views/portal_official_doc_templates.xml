@@ -1,0 +1,371 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 手機公文頁（淞源 C10）。沿用前台外殼：web.frontend_layout＋cy-v10-app＋ wb- 開頭的色彩變數。
+         顏色一律用變數；觸控目標至少 44px。 -->
+
+    <!-- 抽屜選單入口：「檔案管理」下面加「公文」（有選工程時）與「公文總表」 -->
+    <template id="portal_drawer_official_docs" inherit_id="construction_portal.portal_v10_drawer"
+              name="Portal Drawer: 公文">
+        <xpath expr="//a[@t-attf-href='/construction/#{project.id}/documents']" position="after">
+            <a class="cy-drawer-item" t-if="project" t-attf-href="/construction/#{project.id}/official-docs">
+                <span class="cy-drawer-item-icon">✉</span>
+                <span class="cy-drawer-item-label">公文</span>
+                <span class="cy-drawer-item-arrow">›</span>
+            </a>
+            <a class="cy-drawer-item" href="/construction/official-docs">
+                <span class="cy-drawer-item-icon">🗂</span>
+                <span class="cy-drawer-item-label">公文總表</span>
+                <span class="cy-drawer-item-aux">全部工程</span>
+                <span class="cy-drawer-item-arrow">›</span>
+            </a>
+        </xpath>
+    </template>
+
+    <!-- 訊息列（代碼對照成固定文字後才傳進來） -->
+    <template id="portal_official_doc_flash" name="公文：訊息列">
+        <t t-if="flash_text">
+            <div class="cy-event-card cy-event-info" style="margin-bottom: 12px;" role="status">
+                <span class="cy-event-icon" t-attf-style="color: var(--wb-#{flash_tone == 'ok' and 'green' or 'red'});">
+                    <i t-attf-class="fa #{flash_tone == 'ok' and 'fa-check-circle' or 'fa-exclamation-circle'}"/>
+                </span>
+                <div class="cy-event-body">
+                    <div class="cy-event-title" t-attf-style="color: var(--wb-#{flash_tone == 'ok' and 'green' or 'red'});" t-esc="flash_text"/>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- 搜尋表單＋結果列表（單一工程頁與總表共用） -->
+    <template id="portal_official_doc_search_and_list" name="公文：搜尋與列表">
+        <form t-att-action="default_url" method="get" role="search" style="margin-bottom: 12px;">
+            <div style="display: flex; gap: 8px;">
+                <input type="search" name="q" class="form-control" t-att-value="search['q']"
+                       placeholder="主旨、文號、機關" aria-label="關鍵字" style="min-height: 44px;"/>
+                <button type="submit" class="cy-btn cy-btn-primary" style="min-height: 44px; white-space: nowrap;">
+                    <i class="fa fa-search"/> 搜尋
+                </button>
+            </div>
+            <div class="cy-section-title" style="cursor: pointer; margin-top: 10px;" data-collapse-toggle="official_doc_filters">
+                <span><i class="fa fa-sliders" style="margin-right: 4px;"/> 日期與其他條件</span>
+                <i class="fa fa-chevron-down" style="font-size: 0.8rem; color: var(--wb-t3);"/>
+            </div>
+            <div id="official_doc_filters"
+                 t-attf-style="display: #{(search['date_from'] or search['date_to'] or search['direction'] or search['state']) and 'block' or 'none'};">
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <div style="flex: 1;">
+                        <label class="form-label" style="font-size: 0.85rem;" for="od_date_from">公文日期（起）</label>
+                        <input type="date" id="od_date_from" name="date_from" class="form-control" t-att-value="search['date_from']"/>
+                    </div>
+                    <div style="flex: 1;">
+                        <label class="form-label" style="font-size: 0.85rem;" for="od_date_to">公文日期（迄）</label>
+                        <input type="date" id="od_date_to" name="date_to" class="form-control" t-att-value="search['date_to']"/>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <div style="flex: 1;">
+                        <label class="form-label" style="font-size: 0.85rem;" for="od_direction">收／發文</label>
+                        <select id="od_direction" name="direction" class="form-select">
+                            <option value="">全部</option>
+                            <t t-foreach="directions" t-as="option">
+                                <option t-att-value="option[0]" t-att-selected="'selected' if search['direction'] == option[0] else None" t-esc="option[1]"/>
+                            </t>
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label class="form-label" style="font-size: 0.85rem;" for="od_state">辦理狀態</label>
+                        <select id="od_state" name="state" class="form-select">
+                            <option value="">全部</option>
+                            <t t-foreach="states" t-as="option">
+                                <option t-att-value="option[0]" t-att-selected="'selected' if search['state'] == option[0] else None" t-esc="option[1]"/>
+                            </t>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="cy-btn cy-btn-outline cy-btn-block" style="min-height: 44px;">套用條件</button>
+            </div>
+        </form>
+
+        <div class="cy-total-count">
+            共 <t t-esc="doc_count"/> 份
+            <t t-if="has_search">（已套用搜尋條件 · <a t-att-href="default_url">清除</a>）</t>
+        </div>
+
+        <t t-if="no_access">
+            <div class="cy-empty">
+                <i class="fa fa-lock"/>
+                <div class="cy-empty-text">這個帳號沒有查看公文的權限，請洽系統管理者</div>
+            </div>
+        </t>
+        <t t-elif="not docs">
+            <div class="cy-empty">
+                <i class="fa fa-envelope-open-o"/>
+                <div class="cy-empty-text"><t t-if="has_search">找不到符合條件的公文</t><t t-else="">尚無公文</t></div>
+            </div>
+        </t>
+
+        <t t-foreach="docs" t-as="doc">
+            <!-- 掛工程的連到工程底下的詳情頁；沒掛工程的（公司共通）連到不帶工程的詳情頁 -->
+            <t t-set="doc_url" t-value="doc.project_id and ('/construction/%s/official-doc/%s' % (doc.project_id.id, doc.id)) or ('/construction/official-doc/%s' % doc.id)"/>
+            <a t-att-href="doc_url" class="cy-task-row" style="text-decoration: none; color: inherit; min-height: 56px;">
+                <div t-attf-class="cy-task-icon #{doc.direction == 'incoming' and 'blue' or 'green'}">
+                    <i t-attf-class="fa #{doc.direction == 'incoming' and 'fa-inbox' or 'fa-paper-plane-o'}"/>
+                </div>
+                <div class="cy-task-info">
+                    <div class="cy-task-name" t-esc="doc.subject"/>
+                    <div class="cy-task-sub">
+                        <t t-esc="doc.doc_date"/> · <t t-esc="direction_labels.get(doc.direction)"/>
+                        <t t-if="doc.organization"> · <t t-esc="doc.organization"/></t>
+                        <t t-if="doc.doc_number"> · <t t-esc="doc.doc_number"/></t>
+                    </div>
+                    <div class="cy-task-sub" t-if="show_project and doc.project_id">
+                        <i class="fa fa-building-o"/> <t t-esc="doc.project_id.name"/>
+                    </div>
+                    <div class="cy-task-sub" t-if="doc.state == 'pending' and doc.reply_deadline">
+                        <span t-attf-style="color: var(--wb-#{doc.is_overdue and 'red' or 'amber'}); font-weight: 700;">
+                            <i class="fa fa-clock-o"/>
+                            <t t-if="doc.is_overdue">已逾期 <t t-esc="-doc.days_left"/> 天</t>
+                            <t t-elif="doc.days_left == 0">今天到期</t>
+                            <t t-else="">還剩 <t t-esc="doc.days_left"/> 天</t>
+                            （<t t-esc="doc.reply_deadline"/>）
+                        </span>
+                    </div>
+                </div>
+                <span style="font-size: 0.75rem; color: var(--wb-t3); white-space: nowrap;">
+                    <t t-esc="state_labels.get(doc.state)"/>
+                    <t t-if="doc.attachment_count"> · <i class="fa fa-paperclip"/> <t t-esc="doc.attachment_count"/></t>
+                </span>
+            </a>
+        </t>
+
+        <div class="d-flex justify-content-center mt-3">
+            <t t-call="portal.pager"/>
+        </div>
+    </template>
+
+    <!-- 單一工程的公文 -->
+    <template id="portal_official_docs" name="公文（工程）">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <span class="cy-breadcrumb-item active">公文</span>
+                </div>
+                <div class="cy-content">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <h4 style="font-weight: 700; margin: 0;">公文</h4>
+                        <a t-if="can_write and not no_access" t-attf-href="/construction/#{project.id}/official-doc/new"
+                           class="cy-btn cy-btn-primary" style="min-height: 44px;">
+                            <i class="fa fa-plus"/> 新增公文
+                        </a>
+                    </div>
+                    <t t-call="construction_office.portal_official_doc_flash"/>
+                    <t t-call="construction_office.portal_official_doc_search_and_list">
+                        <t t-set="show_project" t-value="False"/>
+                    </t>
+                    <div style="text-align: center; margin-top: 8px;">
+                        <a href="/construction/official-docs" style="font-size: 0.85rem;">看全部工程的公文總表 ›</a>
+                    </div>
+                </div>
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- 跨工程總表 -->
+    <template id="portal_official_docs_all" name="公文總表">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_inspection_type_hud">
+                    <t t-set="back_url" t-value="'/construction?view=list'"/>
+                    <t t-set="hud_title" t-value="'公文總表'"/>
+                </t>
+                <div class="cy-content">
+                    <t t-call="construction_office.portal_official_doc_flash"/>
+                    <t t-call="construction_office.portal_official_doc_search_and_list">
+                        <t t-set="show_project" t-value="True"/>
+                    </t>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- 詳情 -->
+    <template id="portal_official_doc_detail" name="公文詳情">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-if="project">
+                    <t t-call="construction_portal.portal_v10_header"/>
+                    <div class="cy-breadcrumb">
+                        <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                        <a t-attf-href="/construction/#{project.id}/official-docs" class="cy-breadcrumb-item">公文</a>
+                        <span class="cy-breadcrumb-item active">詳情</span>
+                    </div>
+                </t>
+                <t t-else="">
+                    <!-- 沒掛工程的公文（公司共通）：從總表進來，回總表 -->
+                    <t t-call="construction_portal.portal_inspection_type_hud">
+                        <t t-set="back_url" t-value="'/construction/official-docs'"/>
+                        <t t-set="hud_title" t-value="'公文'"/>
+                    </t>
+                </t>
+                <div class="cy-content">
+                    <t t-call="construction_office.portal_official_doc_flash"/>
+                    <h4 style="font-weight: 700; margin-bottom: 12px; word-break: break-word;" t-esc="doc.subject"/>
+                    <div class="cy-info-section" style="padding: 0 16px;">
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">收／發文</span>
+                            <span class="cy-info-value" t-esc="direction_labels.get(doc.direction)"/>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">公文日期</span>
+                            <span class="cy-info-value" t-esc="doc.doc_date"/>
+                        </div>
+                        <div class="cy-info-row" t-if="doc.receive_date">
+                            <span class="cy-info-label">收文日期</span>
+                            <span class="cy-info-value" t-esc="doc.receive_date"/>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">機關／單位</span>
+                            <span class="cy-info-value" t-esc="doc.organization or '-'"/>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">文號</span>
+                            <span class="cy-info-value" t-esc="doc.doc_number or '-'"/>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">辦理狀態</span>
+                            <span class="cy-info-value" t-esc="state_labels.get(doc.state)"/>
+                        </div>
+                        <div class="cy-info-row" t-if="doc.reply_deadline">
+                            <span class="cy-info-label">辦理期限</span>
+                            <span class="cy-info-value">
+                                <t t-esc="doc.reply_deadline"/>
+                                <t t-if="doc.state == 'pending'">
+                                    <span t-attf-style="color: var(--wb-#{doc.is_overdue and 'red' or 'amber'});">
+                                        （<t t-if="doc.is_overdue">已逾期 <t t-esc="-doc.days_left"/> 天</t><t t-elif="doc.days_left == 0">今天到期</t><t t-else="">還剩 <t t-esc="doc.days_left"/> 天</t>）
+                                    </span>
+                                </t>
+                            </span>
+                        </div>
+                    </div>
+
+                    <t t-if="doc.summary">
+                        <div class="cy-section-title">說明</div>
+                        <div class="cy-info-section" style="padding: 12px 16px;">
+                            <div style="font-size: 0.9rem; white-space: pre-wrap; word-break: break-word;" t-esc="doc.summary"/>
+                        </div>
+                    </t>
+
+                    <div class="cy-section-title">附件（<t t-esc="len(attachments)"/>）</div>
+                    <t t-if="not attachments">
+                        <div class="cy-empty" style="padding: 16px;">
+                            <div class="cy-empty-text">沒有附件</div>
+                        </div>
+                    </t>
+                    <t t-foreach="attachments" t-as="att">
+                        <div class="cy-task-row" style="cursor: default;">
+                            <div class="cy-task-icon blue"><i class="fa fa-file-o"/></div>
+                            <div class="cy-task-info">
+                                <div class="cy-task-name" t-esc="att.name"/>
+                            </div>
+                            <a t-attf-href="/construction/official-doc/#{doc.id}/file/#{att.id}"
+                               class="cy-btn cy-btn-outline" style="min-height: 44px; min-width: 44px;"
+                               t-attf-aria-label="下載 #{att.name}">
+                                <i class="fa fa-download"/>
+                            </a>
+                        </div>
+                    </t>
+
+                    <form t-if="can_mark_done" t-attf-action="#{doc_url}/done" method="post" style="margin-top: 16px;">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <button type="submit" class="cy-btn cy-btn-primary cy-btn-block" style="min-height: 44px;">
+                            <i class="fa fa-check"/> 標為已辦
+                        </button>
+                    </form>
+                </div>
+                <t t-if="project" t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+
+    <!-- 新增 -->
+    <template id="portal_official_doc_form" name="新增公文">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <div class="cy-v10-app">
+                <t t-call="construction_portal.portal_v10_header"/>
+                <div class="cy-breadcrumb">
+                    <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
+                    <a t-attf-href="/construction/#{project.id}/official-docs" class="cy-breadcrumb-item">公文</a>
+                    <span class="cy-breadcrumb-item active">新增</span>
+                </div>
+                <div class="cy-content">
+                    <h4 style="font-weight: 700; margin-bottom: 12px;">新增公文</h4>
+                    <t t-call="construction_office.portal_official_doc_flash"/>
+                    <form t-attf-action="/construction/#{project.id}/official-doc/create" method="post" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <div style="margin-bottom: 12px;">
+                            <span class="form-label" style="font-size: 0.85rem; display: block;">收／發文</span>
+                            <div style="display: flex; gap: 16px;">
+                                <t t-foreach="directions" t-as="option">
+                                    <label style="display: flex; align-items: center; gap: 6px; min-height: 44px;">
+                                        <input type="radio" name="direction" t-att-value="option[0]"
+                                               t-att-checked="'checked' if option[0] == default_direction else None"/>
+                                        <t t-esc="option[1]"/>
+                                    </label>
+                                </t>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 0.85rem;" for="od_subject">主旨 <span style="color: var(--wb-red);">*</span></label>
+                            <input type="text" id="od_subject" name="subject" class="form-control" required="required" maxlength="300"/>
+                        </div>
+                        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="od_doc_date">公文日期</label>
+                                <input type="date" id="od_doc_date" name="doc_date" class="form-control" t-att-value="today"/>
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label" style="font-size: 0.85rem;" for="od_receive_date">收文日期</label>
+                                <input type="date" id="od_receive_date" name="receive_date" class="form-control"/>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 0.85rem;" for="od_organization">機關／單位</label>
+                            <input type="text" id="od_organization" name="organization" class="form-control" placeholder="來文機關／受文者" maxlength="200"/>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 0.85rem;" for="od_doc_number">文號</label>
+                            <input type="text" id="od_doc_number" name="doc_number" class="form-control" placeholder="發文字號" maxlength="100"/>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 0.85rem;" for="od_reply_deadline">辦理期限（需要辦理才填）</label>
+                            <input type="date" id="od_reply_deadline" name="reply_deadline" class="form-control"/>
+                            <div style="font-size: 0.8rem; color: var(--wb-t3); margin-top: 4px;">有填期限的公文會列為待辦，期限快到時會提醒。</div>
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label" style="font-size: 0.85rem;" for="od_summary">說明</label>
+                            <textarea id="od_summary" name="summary" class="form-control" style="min-height: 80px;"/>
+                        </div>
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.85rem;" for="od_files">附件（掃描檔、照片，最多 <t t-esc="max_files"/> 個）</label>
+                            <input type="file" id="od_files" name="files" class="form-control" multiple="multiple"/>
+                        </div>
+                        <button type="submit" class="cy-btn cy-btn-primary cy-btn-block" style="min-height: 44px;">
+                            <i class="fa fa-save"/> 儲存
+                        </button>
+                    </form>
+                </div>
+                <t t-call="construction_portal.portal_bottom_nav_v10"/>
+            </div>
+        </t>
+    </template>
+</odoo>
