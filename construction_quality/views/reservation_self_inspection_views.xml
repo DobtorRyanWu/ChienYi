@@ -226,11 +226,34 @@
         </field>
     </record>
 
+    <!-- 預約式自主檢查統計（淞源 C9，2026-11-12）：樞紐＝抽查總表（檢查類型 × 月份），圖表＝各類型次數、依整體結果分色 -->
+    <record id="view_reservation_self_inspection_pivot" model="ir.ui.view">
+        <field name="name">reservation.self.inspection.pivot</field>
+        <field name="model">reservation.self.inspection</field>
+        <field name="arch" type="xml">
+            <pivot string="自主檢查統計" sample="1">
+                <field name="inspection_type_id" type="row"/>
+                <field name="inspection_date" interval="month" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_reservation_self_inspection_graph" model="ir.ui.view">
+        <field name="name">reservation.self.inspection.graph</field>
+        <field name="model">reservation.self.inspection</field>
+        <field name="arch" type="xml">
+            <graph string="自主檢查統計" type="bar" sample="1">
+                <field name="inspection_type_id"/>
+                <field name="overall_result"/>
+            </graph>
+        </field>
+    </record>
+
     <!-- 預約式自主檢查 Action -->
     <record id="action_reservation_self_inspection" model="ir.actions.act_window">
         <field name="name">預約式自主檢查</field>
         <field name="res_model">reservation.self.inspection</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">list,form,pivot,graph</field>
         <field name="search_view_id" ref="view_reservation_self_inspection_search"/>
         <!-- 先依工程、再依通報單分組（數字是分組層級的順序）。
              原本只有 group_slip，所有專案的通報單會平鋪在一起。 -->

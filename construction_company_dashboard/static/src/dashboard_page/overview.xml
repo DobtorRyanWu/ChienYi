@@ -40,6 +40,7 @@
                     <span class="o_dash_logo" aria-hidden="true"/>
                     <h1>公司儀表板</h1>
                     <span class="o_dash_sp"/>
+                    <button type="button" class="o_dash_back o_dash_open_charts" t-on-click="openCharts"><i class="fa fa-bar-chart me-1"/>統計圖表</button>
                     <button type="button" class="o_dash_back" t-on-click="openMap"><i class="fa fa-map-marker me-1"/>標案地圖</button>
                     <span class="o_dash_date">今日　<t t-esc="todayLabel"/></span>
                 </div>

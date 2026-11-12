@@ -49,3 +49,5 @@ from . import test_company_isolation
 from . import test_restricted_account_list
 # S2 fix3（2026-11-11）：@ 沒有 email 的同事、可 @ 同事一份定義、編輯訊息收窄、意見回饋留言與驗證、受限內部帳號 RPC 只收 API key
 from . import test_role_fix3
+# 淞源 C9（2026-11-12）：統計圖表頁的資料——合計＝search_count、受限帳號只數自家、閘門放行
+from . import test_dashboard_charts

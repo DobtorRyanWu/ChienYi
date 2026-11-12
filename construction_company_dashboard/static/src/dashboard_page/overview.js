@@ -12,6 +12,7 @@ import {
     ROW_ORDER, ROW_SPECIFICATION, STATUS_OK, formatAmount, formatDateLabel, formatMoney, formatPercent,
     loadSelectionLabels, openProjectPage, photoThumbUrl, shapeRow, workdayText,
 } from "./dash_common";
+import { CHARTS_PAGE_TAG } from "./charts";
 
 const KPI_NOT_APPLICABLE = "not_applicable";
 // 五張主卡以外的合計排成一排小卡（雛型沒有，但看板原本就有、使用者看慣了）
@@ -266,6 +267,10 @@ export class CompanyDashboardOverview extends Component {
 
     async openProject(row) {
         await openProjectPage(this.actionService, row.id, row.name);
+    }
+
+    async openCharts() {
+        await this.actionService.doAction({ type: "ir.actions.client", tag: CHARTS_PAGE_TAG, name: "統計圖表" });
     }
 
     async openMap() {

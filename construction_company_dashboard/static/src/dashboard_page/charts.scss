@@ -1,0 +1,48 @@
+// 公司儀表板「統計圖表」頁（淞源 C9）。顏色變數與卡片樣式沿用 dashboard_page.scss（同一個資產包，先載入）。
+$o-dash-chart-height: 420px;
+$o-dash-chart-height-narrow: 340px;
+$o-dash-chart-field-gap: 14px;
+$o-dash-chart-table-max-width: 760px;
+
+.o_dash_charts_page {
+    // 篩選列：一列排開，窄畫面自動換行
+    .o_dash_chart_filters {
+        display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px $o-dash-chart-field-gap; padding: 10px 14px;
+    }
+    .o_dash_chart_field {
+        display: flex; flex-direction: column; gap: 3px; margin: 0; min-width: 0;
+        > span:first-child { color: $o-dash-mute; font-size: 12px; }
+        select { min-width: 180px; max-width: 320px; }
+    }
+    .o_dash_chart_custom {
+        flex-direction: row; align-items: center; flex-wrap: wrap;
+        > span:first-child { flex-basis: 100%; }
+        input[type=date] { width: 150px; }
+    }
+    .o_dash_chart_types .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    // 圖：重新讀資料時先把舊圖變淡，不閃骨架、版面不跳
+    .o_dash_chart_card { padding: 10px 14px 12px; transition: opacity 0.15s; }
+    .o_dash_chart_stale { opacity: 0.55; }
+    .o_dash_chart_tools { display: flex; justify-content: flex-end; margin-bottom: 2px; }
+    .o_dash_chart_box { position: relative; height: $o-dash-chart-height; }
+    .o_dash_chart_empty { padding: 48px 14px; }
+    .o_dash_chart_note { padding-top: 6px; }
+
+    // 數字總表
+    .o_dash_chart_table_card { padding: 10px 14px 12px; }
+    .o_dash_chart_table_head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 6px; }
+    .o_dash_chart_table_wrap { overflow-x: auto; }
+    .o_dash_chart_table {
+        width: 100%; max-width: $o-dash-chart-table-max-width; border-collapse: collapse;
+        th, td { padding: 5px 10px; border-bottom: 1px solid $o-dash-line; text-align: left; }
+        thead th { color: $o-dash-mute; font-weight: 600; font-size: 12px; white-space: nowrap; }
+        tfoot th { border-top: 1px solid $o-dash-grey; border-bottom: none; }
+        .o_dash_num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    }
+
+    @media (max-width: $o-dash-narrow) {
+        .o_dash_chart_box { height: $o-dash-chart-height-narrow; }
+        .o_dash_chart_field select { min-width: 140px; }
+    }
+}

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!-- 公司儀表板「統計圖表」頁（淞源 C9）：一列篩選條件 → 圖 → 數字總表。
+         篩選條件放在最上面一列、管下面全部；每個數字在總表都找得到（不必滑到圖上才看得到）。 -->
+    <t t-name="construction_company_dashboard.ChartsPage">
+        <div class="o_action o_dash_action">
+        <Layout className="'o_dash_layout'" display="display">
+            <div class="o_dash_page o_dash_charts_page">
+                <div class="o_dash_card o_dash_head">
+                    <span class="o_dash_logo" aria-hidden="true"/>
+                    <h1>統計圖表</h1>
+                    <span class="o_dash_sp"/>
+                    <span class="o_dash_date">今日　<t t-esc="todayLabel"/></span>
+                </div>
+
+                <!-- 篩選列 -->
+                <div class="o_dash_card o_dash_chart_filters o_dash_mt">
+                    <label class="o_dash_chart_field">
+                        <span>看什麼</span>
+                        <select class="form-select form-select-sm o_dash_chart_dataset" t-on-change="onDatasetChange">
+                            <t t-foreach="state.catalog" t-as="entry" t-key="entry.key">
+                                <option t-att-value="entry.key" t-att-selected="entry.key === state.dataset" t-esc="entry.label"/>
+                            </t>
+                        </select>
+                    </label>
+                    <label class="o_dash_chart_field">
+                        <span>工程</span>
+                        <select class="form-select form-select-sm o_dash_chart_project" t-on-change="onProjectChange">
+                            <option t-att-value="allProjects" t-att-selected="state.project === allProjects">全部工程</option>
+                            <t t-foreach="state.projects" t-as="project" t-key="project.id">
+                                <option t-att-value="project.id" t-att-selected="isSelectedProject(project)" t-esc="project.name"/>
+                            </t>
+                        </select>
+                    </label>
+                    <div class="o_dash_chart_field">
+                        <span>期間</span>
+                        <div class="btn-group btn-group-sm o_dash_chart_periods" role="group" aria-label="期間">
+                            <t t-foreach="periodOptions" t-as="option" t-key="option.key">
+                                <button type="button" class="btn" t-att-class="state.period === option.key ? 'btn-primary' : 'btn-outline-secondary'"
+                                        t-att-data-period="option.key" t-on-click="() => this.onPeriodClick(option.key)" t-esc="option.label"/>
+                            </t>
+                        </div>
+                    </div>
+                    <div t-if="state.period === 'custom'" class="o_dash_chart_field o_dash_chart_custom">
+                        <span>自訂</span>
+                        <input type="date" class="form-control form-control-sm" aria-label="開始日" t-att-value="state.customFrom"
+                               t-on-change="(ev) => this.onCustomDateChange('customFrom', ev)"/>
+                        <span class="o_dash_mute">～</span>
+                        <input type="date" class="form-control form-control-sm" aria-label="結束日" t-att-value="state.customTo"
+                               t-on-change="(ev) => this.onCustomDateChange('customTo', ev)"/>
+                    </div>
+                    <span class="o_dash_sp"/>
+                    <div class="o_dash_chart_field">
+                        <span>圖型</span>
+                        <div class="btn-group btn-group-sm o_dash_chart_types" role="group" aria-label="圖型">
+                            <t t-foreach="chartTypes" t-as="type" t-key="type">
+                                <button type="button" class="btn" t-att-class="effectiveChartType === type ? 'btn-primary' : 'btn-outline-secondary'"
+                                        t-att-data-chart-type="type" t-att-disabled="!isChartTypeAvailable(type)"
+                                        t-att-title="chartTypeHint(type)" t-on-click="() => this.onChartTypeClick(type)">
+                                    <i t-attf-class="fa {{ chartTypeIcons[type] }} me-1"/><t t-esc="chartTypeLabels[type]"/>
+                                </button>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+
+                <div t-if="state.error" class="alert alert-danger o_dash_mt o_dash_chart_error" role="alert" t-esc="state.error"/>
+                <div t-if="data and !ok" class="alert alert-warning o_dash_mt o_dash_chart_blocked" role="alert" t-esc="data.message"/>
+
+                <!-- 圖 -->
+                <div class="o_dash_card o_dash_chart_card o_dash_mt" t-att-class="{ o_dash_chart_stale: state.loading }">
+                    <div t-if="state.loading and !data" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入中…</div>
+                    <t t-elif="hasValues">
+                        <div class="o_dash_chart_tools">
+                            <button type="button" class="btn btn-sm btn-outline-secondary o_dash_chart_download" t-on-click="onDownload">
+                                <i class="fa fa-download me-1"/>下載圖片
+                            </button>
+                        </div>
+                        <div class="o_dash_chart_box"><canvas t-ref="canvas" role="img" t-att-aria-label="data.label + '：' + subtitle"/></div>
+                        <div t-if="data.note" class="o_dash_mute o_dash_chart_note" t-esc="data.note"/>
+                    </t>
+                    <div t-elif="ok" class="o_dash_empty o_dash_chart_empty">
+                        這個條件下沒有資料（<t t-esc="projectLabel"/>　·　<t t-esc="periodLabel"/>）
+                    </div>
+                </div>
+
+                <!-- 數字總表：圖上的每個數字這裡都有 -->
+                <div t-if="ok and data.categories.length" class="o_dash_card o_dash_chart_table_card o_dash_mt">
+                    <div class="o_dash_chart_table_head">
+                        <strong>數字總表</strong>
+                        <span class="o_dash_mute"><t t-esc="data.label"/>　·　<t t-esc="subtitle"/></span>
+                    </div>
+                    <div class="o_dash_chart_table_wrap">
+                        <table class="o_dash_chart_table">
+                            <thead>
+                                <tr>
+                                    <th>項目</th>
+                                    <t t-foreach="data.series" t-as="series" t-key="series.key">
+                                        <th class="o_dash_num"><t t-esc="series.label"/>（<t t-esc="data.unit"/>）</th>
+                                    </t>
+                                    <th t-if="showRowTotal" class="o_dash_num">小計</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="data.categories" t-as="category" t-key="category.key">
+                                    <tr>
+                                        <td t-esc="category.label"/>
+                                        <t t-foreach="data.series" t-as="series" t-key="series.key">
+                                            <td class="o_dash_num" t-esc="formatValue(series.values[category_index])"/>
+                                        </t>
+                                        <td t-if="showRowTotal" class="o_dash_num" t-esc="formatValue(rowTotal(category_index))"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                            <tfoot t-if="showTotals">
+                                <tr>
+                                    <th>合計</th>
+                                    <t t-foreach="data.series" t-as="series" t-key="series.key">
+                                        <th class="o_dash_num" t-esc="formatValue(seriesTotal(series))"/>
+                                    </t>
+                                    <th t-if="showRowTotal" class="o_dash_num" t-esc="formatValue(data.total)"/>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </Layout>
+        </div>
+    </t>
+</templates>

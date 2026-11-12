@@ -25,3 +25,5 @@ from . import server_action_gate
 from . import company_type_choice
 # S3（2026-11-11）：受限帳號唯一清單（解除安裝硬擋、換版工具 qd.py、runbook 共用）
 from . import restricted_accounts
+# 淞源 C9（2026-11-12）：統計圖表頁的資料（柱狀／圓餅／雷達）
+from . import dashboard_charts
