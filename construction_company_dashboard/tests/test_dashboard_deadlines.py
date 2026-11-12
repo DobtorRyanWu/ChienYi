@@ -89,6 +89,11 @@ class TestDashboardDeadlines(DashIndicatorCase):
             cls.event_a = Event.create({
                 'name': 'DASHB 送施工計畫', 'event_type': 'deadline', 'company_id': cls.co_a.id,
                 'project_id': cls.pa.id, 'start': datetime(2026, 11, 10, 1, 0), 'responsible_user_id': cls.mgr.id})
+            # 營造 A 的會議，但掛在只有 B 承攬的工程、權責人是監造方人員：營造廠主管看得到這件事（所屬公司＝A），
+            # 可是那個工程、那位監造方人員他都讀不到（2026-11-13 權限審查的重現案例）
+            cls.meeting_a_on_pb = Event.create({
+                'name': 'DASHB A 的會議掛在 B 的工程', 'event_type': 'meeting', 'company_id': cls.co_a.id,
+                'project_id': cls.pb.id, 'start': datetime(2026, 11, 7, 1, 0), 'responsible_user_id': cls.sup.id})
             cls.meeting_s = Event.create({
                 'name': 'DASHB 工務會議', 'event_type': 'meeting', 'company_id': cls.co_s.id,
                 'project_id': cls.pa.id, 'start': datetime(2026, 11, 6, 6, 0), 'stop': datetime(2026, 11, 6, 7, 30),
@@ -235,11 +240,23 @@ class TestDashboardDeadlines(DashIndicatorCase):
         self.assertEqual((rows[0]['location'], rows[0]['project_name'], rows[0]['responsible']),
                          ('DASHB 會議室', self.pa.name, self.sup.name))
         self.assertGreaterEqual(sup['count'], 2)
-        # 營造廠主管：只有營造 A 的那一件（監造公司的會議與送件期限看不到）
+        # 營造廠主管：只有營造 A 的兩件（監造公司的會議與送件期限看不到）
         mgr = Project.with_user(self.mgr).get_dash_week_calendar()
         self.assertEqual(mgr['status'], 'ok')
-        self.assertEqual([item['id'] for item in mgr['items']], [self.event_a.id])
-        self.assertEqual(mgr['count'], 1)
+        self.assertEqual([item['id'] for item in mgr['items']], [self.meeting_a_on_pb.id, self.event_a.id])
+        self.assertEqual(mgr['count'], 2)
+        rows = {item['id']: item for item in mgr['items']}
+        # 自己範圍內的工程、自己的名字照帶
+        self.assertEqual((rows[self.event_a.id]['project_name'], rows[self.event_a.id]['responsible']),
+                         (self.pa.name, self.mgr.name))
+        # 讀不到的工程名稱、讀不到的人的姓名不帶（修改前兩個都用 sudo 帶出來）
+        self.assertFalse(self.env['project.project'].with_user(self.mgr).search([('id', '=', self.pb.id)]))
+        self.assertFalse(self.env['res.users'].with_user(self.mgr).search([('id', '=', self.sup.id)]),
+                         '前提：營造廠主管讀不到監造方人員')
+        self.assertEqual((rows[self.meeting_a_on_pb.id]['project_name'], rows[self.meeting_a_on_pb.id]['responsible']),
+                         ('', ''))
+        self.assertNotIn(self.pb.name, str(mgr))
+        self.assertNotIn(self.sup.name, str(mgr))
 
     # ── 每月估驗 ────────────────────────────────────────────────────────
     @freeze_time(FROZEN_NOW)

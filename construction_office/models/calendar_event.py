@@ -179,9 +179,17 @@ class ConstructionCalendarEvent(models.Model):
         today = local_today()
         domain = self._office_upcoming_domain(days)
         type_labels = dict(EVENT_TYPE_SELECTION)
+        events = self.search(domain, limit=limit)
+        # 事項讀得到，不代表它掛的工程、它的權責人也讀得到（事項看的是所屬公司與權責人）：
+        # 工程名稱與權責人姓名只給呼叫者自己讀得到的，其餘留空（2026-11-13 權限審查的重現案例：
+        # 營造廠主管經公司儀表板拿到範圍外工程的名稱與監造方人員的姓名）
+        project_names = self._office_readable_names('project.project', events.sudo().project_id.ids)
+        user_names = self._office_readable_names('res.users', events.sudo().responsible_user_id.ids)
+        user_names.setdefault(self.env.uid, self.env.user.sudo().name)      # 自己的名字一定看得到
         items = []
-        for event in self.search(domain, limit=limit):
+        for event in events:
             day, when = event._office_local_when()
+            project_id, responsible_id = event.sudo().project_id.id, event.sudo().responsible_user_id.id
             items.append({
                 'id': event.id,
                 'name': event.name,
@@ -192,12 +200,22 @@ class ConstructionCalendarEvent(models.Model):
                 'when': when,
                 'is_today': day == today,
                 'overdue': day < today,
-                # sudo 只讀權責人姓名與工程名稱：事項本身已以本人身分讀到
-                'responsible': event.sudo().responsible_user_id.name or '',
-                'project_name': event.sudo().project_id.name or '',
+                'responsible': user_names.get(responsible_id, ''),
+                'project_name': project_names.get(project_id, ''),
                 'location': event.location or '',
             })
         return {'today': today.isoformat(), 'days': days, 'count': self.search_count(domain), 'items': items}
+
+    @api.model
+    def _office_readable_names(self, model, ids):
+        """ids 之中呼叫者自己讀得到的 → {id: 名稱}；連模型都沒有讀取權就是空的。"""
+        if not ids:
+            return {}
+        try:
+            records = self.env[model].with_context(active_test=False).search([('id', 'in', ids)])
+            return {record.id: record.name or '' for record in records}
+        except AccessError:
+            return {}
 
     # ── 動作 ──────────────────────────────────────────────────────────────
     def action_mark_done(self):

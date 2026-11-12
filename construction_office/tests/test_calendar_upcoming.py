@@ -113,6 +113,23 @@ class TestCalendarUpcoming(OfficeCase):
         self.assertEqual(data['count'], before + 3)
 
     @freeze_time(FROZEN_NOW)
+    def test_names_only_when_the_viewer_can_read_them(self):
+        """事項看得到（自己是權責人），但它掛的工程自己不是成員：清單不帶那個工程的名稱；自己的名字照帶。
+        修改前工程名稱與權責人姓名一律用 sudo 讀（2026-11-13 權限審查的重現案例）。"""
+        on_p2 = self._event('掛在不是成員的工程', utc(2026, 11, 6, 1, 0), responsible_user_id=self.sup_field.id,
+                            project_id=self.p2.id)
+        on_p1 = self._event('掛在參與的工程', utc(2026, 11, 6, 2, 0), responsible_user_id=self.sup_field.id)
+        self.assertFalse(self.env['project.project'].with_user(self.sup_field).search([('id', '=', self.p2.id)]),
+                         '前提：他讀不到工程二')
+        _data, mine = self._upcoming(self.sup_field, on_p2 | on_p1, limit=200)
+        by_id = {item['id']: item for item in mine}
+        self.assertEqual((by_id[on_p2.id]['project_name'], by_id[on_p2.id]['responsible']), ('', self.sup_field.name))
+        self.assertEqual(by_id[on_p1.id]['project_name'], self.p1.name)
+        # 後台人員兩個工程都讀得到：照常帶
+        _data, staff_rows = self._upcoming(self.staff, on_p2 | on_p1, limit=200)
+        self.assertEqual({item['project_name'] for item in staff_rows}, {self.p1.name, self.p2.name})
+
+    @freeze_time(FROZEN_NOW)
     def test_other_party_not_listed(self):
         """營造 A 的事項：監造方前台帳號看不到；監造公司的事項：營造 A 的帳號看不到。"""
         of_a = self._event('營造 A 的', utc(2026, 11, 6, 1, 0), company=self.co_a,
