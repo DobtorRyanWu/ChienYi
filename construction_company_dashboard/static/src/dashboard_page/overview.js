@@ -14,6 +14,8 @@ import {
 } from "./dash_common";
 import { CHARTS_PAGE_TAG } from "./charts";
 
+const DEADLINE_FILTER_ALL = "all";
+
 const KPI_NOT_APPLICABLE = "not_applicable";
 // 五張主卡以外的合計排成一排小卡（雛型沒有，但看板原本就有、使用者看慣了）
 const MINOR_KPI_KEYS = ["today_photo", "estimate_cum", "log_today", "unattributed"];
@@ -35,7 +37,7 @@ export class CompanyDashboardOverview extends Component {
         this.labels = {};
         this.kpi = useState({ loading: true, data: null, error: false, openKey: null });
         this.table = useState({ loading: true, error: false, rows: [], count: 0, offset: 0, search: "" });
-        this.deadline = useState({ loading: true, data: null, error: false });
+        this.deadline = useState({ loading: true, data: null, error: false, filter: DEADLINE_FILTER_ALL });
         this.monthly = useState({ loading: true, data: null, error: false });
         this.calendar = useState({ loading: true, data: null, error: false });
         this.pageSize = DASH_PAGE_SIZE;
@@ -213,6 +215,31 @@ export class CompanyDashboardOverview extends Component {
 
     get deadlineMoreCount() {
         return this.deadlineOk ? this.deadlineCounts.total - this.deadline.data.items.length : 0;
+    }
+
+    /** 清單上方的篩選鈕：全部／逾期／N 天內／N–M 天（數字是全部的件數，不是清單上列出的筆數） */
+    get deadlineFilters() {
+        const data = this.deadline.data;
+        const counts = this.deadlineCounts;
+        return [
+            { key: DEADLINE_FILTER_ALL, label: "全部", count: counts.total, lamp: null },
+            { key: "overdue", label: "逾期", count: counts.overdue, lamp: "overdue" },
+            { key: "urgent", label: `${data.manager_days} 天內`, count: counts.urgent, lamp: "urgent" },
+            { key: "soon", label: this.deadlineSoonLabel, count: counts.soon, lamp: "soon" },
+        ];
+    }
+
+    setDeadlineFilter(key) {
+        this.deadline.filter = key;
+    }
+
+    /** 照篩選鈕過濾後要畫的列（後端給的順序：逾期在最上、期限由近到遠） */
+    get deadlineVisibleItems() {
+        if (!this.deadlineOk) {
+            return [];
+        }
+        const items = this.deadline.data.items;
+        return this.deadline.filter === DEADLINE_FILTER_ALL ? items : items.filter((item) => item.level === this.deadline.filter);
     }
 
     get deadlineDeniedText() {

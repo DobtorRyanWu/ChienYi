@@ -70,22 +70,24 @@
                 <!-- 期限待辦＋近期行事曆＋每月估驗（淞源 C5、C7）：並排，窄畫面上下排；沒裝行事曆模組就只有兩塊 -->
                 <div class="o_dash_duo" t-att-class="{ o_dash_trio: calendarShown }">
                     <div class="o_dash_card o_dash_deadline">
-                        <div class="o_dash_sec_t">
-                            期限待辦<small>逾期在最上、期限由近到遠；點一筆開啟單據</small>
-                            <span class="o_dash_sp"/>
-                            <t t-if="deadlineCounts">
-                                <span class="o_dash_dl_count"><i class="o_dash_lamp o_dash_lamp_overdue" aria-hidden="true"/>逾期 <b t-esc="deadlineCounts.overdue"/></span>
-                                <span class="o_dash_dl_count"><i class="o_dash_lamp o_dash_lamp_urgent" aria-hidden="true"/><t t-esc="deadline.data.manager_days"/> 天內 <b t-esc="deadlineCounts.urgent"/></span>
-                                <span class="o_dash_dl_count"><i class="o_dash_lamp o_dash_lamp_soon" aria-hidden="true"/><t t-esc="deadlineSoonLabel"/> <b t-esc="deadlineCounts.soon"/></span>
-                                <span class="o_dash_dl_count o_dash_mute">共 <t t-esc="deadlineCounts.total"/> 件</span>
+                        <div class="o_dash_sec_t">期限待辦<small>逾期在最上、期限由近到遠；點一筆開啟單據</small></div>
+                        <!-- 件數同時是篩選鈕：逾期很多時，點「N 天內」就只看快到期的 -->
+                        <div t-if="deadlineCounts" class="o_dash_dl_filters" role="group" aria-label="依期限篩選">
+                            <t t-foreach="deadlineFilters" t-as="chip" t-key="chip.key">
+                                <button type="button" class="o_dash_dl_chip" t-att-class="{ o_dash_dl_chip_on: deadline.filter === chip.key }"
+                                        t-att-data-filter="chip.key" t-att-aria-pressed="deadline.filter === chip.key ? 'true' : 'false'"
+                                        t-on-click="() => this.setDeadlineFilter(chip.key)">
+                                    <i t-if="chip.lamp" class="o_dash_lamp" t-attf-class="o_dash_lamp_{{ chip.lamp }}" aria-hidden="true"/><t t-esc="chip.label"/> <b t-esc="chip.count"/>
+                                </button>
                             </t>
                         </div>
                         <div t-if="deadline.loading" class="o_dash_loading"><i class="fa fa-spinner fa-spin me-2"/>載入中…</div>
                         <div t-elif="deadline.error" class="o_dash_empty o_dash_bad" t-esc="deadline.error"/>
                         <div t-elif="!deadlineOk" class="o_dash_empty o_dash_bad" t-esc="deadline.data.message"/>
                         <div t-elif="!deadline.data.items.length" class="o_dash_empty">目前沒有設了期限、還沒辦完的事項</div>
+                        <div t-elif="!deadlineVisibleItems.length" class="o_dash_empty">這一類目前沒有列出的事項</div>
                         <div t-else="" class="o_dash_dl_list">
-                            <t t-foreach="deadline.data.items" t-as="item" t-key="item.model + '-' + item.res_id">
+                            <t t-foreach="deadlineVisibleItems" t-as="item" t-key="item.model + '-' + item.res_id">
                                 <div class="o_dash_dl_row" t-att-data-level="item.level" t-on-click="() => this.openDeadlineItem(item)">
                                     <i class="o_dash_lamp" t-attf-class="o_dash_lamp_{{ item.level }}" aria-hidden="true"/>
                                     <span class="o_dash_dl_when">
