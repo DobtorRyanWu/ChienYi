@@ -421,7 +421,34 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
             stale = self.filtered(lambda r: r.outcome_result and r.state != vals['state'])
             if stale:
                 super(ConstructionDailyDefectMixin, stale).write({'outcome_result': False})
-        return super().write(vals)
+        # 當日序號的分組（工程／發現日期／檢查類型／記錄類型）真的變了、而且呼叫端沒有明給序號 → 在新分組重新取號
+        # （2026-11-13 使用者決定）。表單改這些欄位時 onchange 會算好序號一起送出（_onchange_sequence_fields），
+        # 程式、匯入、RPC 直接 write 不會——舊序號照帶過去，新分組已有同序號就撞唯一鍵 unique_sequence_per_day。
+        if 'sequence_number' in vals or not any(name in vals for name in self._SEQUENCE_GROUP_FIELDS):
+            return super().write(vals)
+        regrouped = self.filtered(lambda r: r._sequence_group(vals) != r._sequence_group({}))
+        result = super(ConstructionDailyDefectMixin, self - regrouped).write(vals)
+        # 逐筆寫：同一批搬進同一個分組的要各拿一個序號（_get_daily_sequence 會先 flush，看得到前一筆剛拿的號）
+        for record in regrouped:
+            project_id, found_date, check_type, record_type = record._sequence_group(vals)
+            record_vals = vals
+            if project_id and found_date:  # 與 onchange 相同：缺工程或日期時不取號
+                record_vals = dict(vals, sequence_number=record._get_daily_sequence(
+                    project_id, found_date, check_type or 'construction', record_type or 'supervision',
+                    exclude_id=record.id))
+            super(ConstructionDailyDefectMixin, record).write(record_vals)
+        return result
+
+    # 決定「當日序號」分組的欄位（同唯一鍵 unique_sequence_per_day 與 _onchange_sequence_fields），順序＝_sequence_group 的回傳順序
+    _SEQUENCE_GROUP_FIELDS = ('project_id', 'found_date', 'check_type', 'record_type')
+
+    def _sequence_group(self, vals):
+        """這筆套用 vals 之後的序號分組 (工程 id, 發現日期, 檢查類型, 記錄類型)；vals 給空的＝現在的分組。
+        用欄位自己的轉換把兩邊的值化成同一種形態再比（工程可能給 id 或紀錄、日期可能給字串或 date）。"""
+        self.ensure_one()
+        return tuple(
+            self._fields[name].convert_to_cache(vals[name] if name in vals else self[name], self)
+            for name in self._SEQUENCE_GROUP_FIELDS)
 
     def action_notify(self):
         """通知改善"""
