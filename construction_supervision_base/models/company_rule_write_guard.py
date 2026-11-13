@@ -22,8 +22,9 @@ construction_progress／construction_general／construction_supervision_base 的
    原公司的同事看不到、另一家公司的人看得到（S3 第二輪審查 skeptic F2）。要換請改來源（工程、父單）。
 4. **已經有單據的工程，只有系統管理者與代操作員能改公司**（UserError，2026-11-12 使用者決定「1b」；同日追加「代操跟管理者都要可以做」）：第 3 點擋住直接改單據的
    公司，但改上游——工程的 company_id——底下整串單據的公司跟著重算、一起搬到別家公司，只屬原公司的同事從此看不到
-   （S3 第三輪審查 red-team R1；要同屬兩家公司又有工程寫權的人才做得到）。「單據」＝下表的模型（不另寫清單），
-   連到工程的欄位路徑由 _project_paths() 從表推；封存的也算。只在非 sudo、值真的有變時查；批次 write 逐個工程查。
+   （S3 第三輪審查 red-team R1；要同屬兩家公司又有工程寫權的人才做得到）。「單據」＝下表的模型（不另寫清單；
+   開案時系統自己產生的兩種不算，見下面 S4 的第 4 點），連到工程的欄位路徑由 _project_paths() 從表推；封存的也算。
+   只在非 sudo、值真的有變時查；批次 write 逐個工程查。
    正當流程（grep 全 repo，報告 project_company_guard_report.md）沒有以非 sudo 改工程公司的：前台「修改工程資訊」
    （/construction/<id>/update）是 sudo 寫入、只限未開始的工程，不經這道檢查。
 
@@ -36,8 +37,11 @@ S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試�
   工項清空工程＝變成私人任務（核心功能，私人任務另有核心規則只給被指派的人），維持原狀。
 * 第 3 點：表上 related 的 project_id（日誌、日誌材料／特定項目、人機料明細、預約式缺失／自主檢查、通報單工項——
   ＝父單或來源的工程）非 sudo 不能直接寫。S4 的規則不用紀錄的 company_id，所以 related 的 company_id 不在表上。
-* 第 4 點：「單據」跟著這張表變大——照片、日誌、資料夾、工程成員、工項都算；開案會自動建標準資料夾，
-  所以新開的工程一開就算「有單據」（dev 11-12：253 個工程裡 235 個有單據，S3 的表是 225 個）。
+* 第 4 點：「單據」跟著這張表變大——照片、日誌、工項等都算。開案時系統自己產生的兩種不算（2026-11-13 使用者決定放寬；
+  原本連它們也算，新開的工程一開就只有系統管理者／代操作員能改公司）：
+  - 工程成員名單（COMPANY_MOVE_NOT_DOCUMENTS）：前台開案會把建立者加成成員；
+  - 空的資料夾（COMPANY_MOVE_EXTRA_DOMAINS）：開案自動建整套標準資料夾，裡面有任何一個檔（ir.attachment.folder_id）才算。
+  所以剛開、還沒有任何資料的工程，有工程寫權的人仍可改公司；一有照片、日誌、估驗、工項、檔案等任何一筆就照第 4 點擋。
 工項（project.task）在表上：非 sudo 改 project_id 之後要對新的結果有寫權（例：專案 User 把工項移到自己沒有寫權的
 followers-only 專案會被拒；核心原本放行、移過去之後自己就改不了）。
 
@@ -115,6 +119,11 @@ PROJECT_PATHS = {
 }
 # 第 4 點：已經有單據的工程，只有這些群組（系統管理者、代操作員）能改公司
 COMPANY_MOVE_GROUPS = ('base.group_system', 'construction_supervision_base.group_operator')
+# 第 4 點的例外（2026-11-13 使用者決定）：開案時系統自己產生的東西不算「單據」
+# * 表上的模型整個不算：工程成員名單（前台開案把建立者加成成員）
+COMPANY_MOVE_NOT_DOCUMENTS = frozenset({'supervision.project.member'})
+# * 表上的模型要多符合這個條件才算：資料夾要裡面有檔案（開案自動建的整套標準資料夾都是空的）
+COMPANY_MOVE_EXTRA_DOMAINS = {'supervision.folder': [('attachment_ids', '!=', False)]}
 PROJECT_MODEL = 'project.project'
 # 表外的父單模型（工項版本 → 工項）沿這個欄位連到工程
 PROJECT_FIELD = 'project_id'
@@ -208,10 +217,14 @@ class ProjectProject(models.Model):
             return
         env = self.env(su=True, context=dict(self.env.context, active_test=False))
         paths = _project_paths(env)
+        # 開案時系統自己產生的不算單據（成員名單整個不算；資料夾要有檔案才算）
+        document_paths = {model_name: path for model_name, path in paths.items()
+                          if model_name not in COMPANY_MOVE_NOT_DOCUMENTS}
         blocked = moving.browse([
             project.id for project in moving
-            if any(env[model_name].search_count([(path, '=', project.id)], limit=1)
-                   for model_name, path in paths.items())])
+            if any(env[model_name].search_count(
+                       [(path, '=', project.id), *COMPANY_MOVE_EXTRA_DOMAINS.get(model_name, ())], limit=1)
+                   for model_name, path in document_paths.items())])
         if blocked:
             raise UserError(_(
                 '工程「%(names)s」已經有估驗等單據，改公司會讓底下的單據跟著搬到別家公司，只有系統管理者或代操作員能改。',

@@ -30,6 +30,7 @@ S3 fix2：寫後檢查的欄位表以 test_write_guard_table_matches_rules 鎖�
 REPARENT_CELLS 的一格行為測試）；related 欄位（company_id 等）非 sudo 不能直接寫，連同屬兩家公司的帳號也一樣。
 1b（2026-11-12，第三輪 red-team R1）：已經有估驗等單據（寫後檢查表上的模型）的工程，非 sudo 改公司只有系統管理者能改
 ——同屬兩家公司的工程後台使用者改了，底下整串單據的公司跟著工程搬走（第 8 節）。
+1b 放寬（2026-11-13 使用者決定）：開案時系統自己產生的不算單據——空的資料夾、工程成員名單；資料夾裡有檔案才算。
 
 S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試驗、缺失、自主檢查、通報單、送審、工程文件、資料夾、工程成員、
 工項共 29 個模型加進同一張表（EXPECT_COMPANY_MODELS），表驅動、逐條關規則、盤點、鎖定測試、寫入面的格都自動涵蓋。
@@ -982,7 +983,7 @@ class TestCompanyIsolation(RoleMatrixCase):
     def _fresh_project(self, code, company=None):
         """沒有任何單據的新工程（預設 A 公司；不走 _project／_role_project：那兩個會建進度表與工項，進度表、工項版本都算單據）。
         S4 起資料夾也在寫後檢查表上（算單據），而開案預設會自動建標準資料夾——這裡以 skip_standard_folders 不建
-        （「只有自動資料夾」的工程另有一格 test_company_move_refused_when_project_has_only_auto_folders）。
+        （「只有自動資料夾」的工程另有一格 test_company_move_allowed_when_project_has_only_empty_folders_or_members）。
 
         不帶分析帳戶（allow_timesheets=False）：核心改工程公司時會一起改分析帳戶的公司（project _inverse_company_id），
         工程後台使用者沒有分析帳戶寫權 → 核心先 AccessError，測不到這道檢查（M-B）。R1 的洞就在沒有分析帳戶（或帳戶沒公司）
@@ -1049,10 +1050,9 @@ class TestCompanyIsolation(RoleMatrixCase):
         project.invalidate_recordset()
         self.assertEqual(project.sudo().company_id, self.co_iso_b)
 
-    def test_company_move_refused_when_project_has_only_auto_folders(self):
-        """S4：資料夾、照片、日誌等加進寫後檢查表之後，「單據」跟著變大——開案自動建的標準資料夾也算，
-        所以照一般方式開的工程（不帶 skip_standard_folders）一開就只有系統管理者／代操作員能改公司。"""
-        vals = {'name': 'S4M-FOLDER 改公司測試工程', 'code': 'S4M-FOLDER', 'project_type': 'general', 'state': 'construction',
+    def _project_with_auto_folders(self, code):
+        """照一般方式開的工程（不帶 skip_standard_folders）：開案自動建整套標準資料夾（都是空的），除此之外沒有別的單據。"""
+        vals = {'name': f'{code} 改公司測試工程', 'code': code, 'project_type': 'general', 'state': 'construction',
                 'company_id': self.co_iso_a.id, 'contractor_company_ids': [(6, 0, self.co_a.ids)]}
         if 'allow_timesheets' in self.env['project.project']._fields:
             vals['allow_timesheets'] = False
@@ -1063,9 +1063,45 @@ class TestCompanyIsolation(RoleMatrixCase):
             if model != 'supervision.folder':
                 self.assertFalse(self.env[model].sudo().with_context(active_test=False).search_count(
                     [(path, '=', project.id)]), f'夾具：除了資料夾不要有別的單據（{model}）')
-        self._assert_move_refused(self._env_two(), project, self.co_iso_b)
+        return project
+
+    def _assert_move_allowed(self, project):
+        self._env_two()['project.project'].browse(project.id).write({'company_id': self.co_iso_b.id})
         self.env.invalidate_all()
-        self.assertEqual(project.sudo().company_id, self.co_iso_a)
+        self.assertEqual(project.sudo().company_id, self.co_iso_b)
+
+    def test_company_move_allowed_when_project_has_only_empty_folders_or_members(self):
+        """1b 放寬（2026-11-13 使用者決定）：開案時系統自己產生的東西不算單據——空的標準資料夾、工程成員名單
+        （前台開案會把建立者加成成員）。同屬 A＋B 的工程後台使用者改這種工程的公司 → 成功。
+        三格各隔離一個條件：只有空資料夾、只有成員名單、兩者都有（前台開案的實際樣子）。"""
+        member_vals = {'user_id': self.sa_ab.id}
+        with self.subTest(case='只有空的標準資料夾'):
+            self._assert_move_allowed(self._project_with_auto_folders('S4M-FOLDER'))
+        with self.subTest(case='只有工程成員名單'):
+            project = self._fresh_project('S4M-MEMBER')
+            self.env['supervision.project.member'].sudo().create(dict(member_vals, project_id=project.id))
+            self._assert_move_allowed(project)
+        with self.subTest(case='空資料夾＋成員名單'):
+            project = self._project_with_auto_folders('S4M-BOTH')
+            self.env['supervision.project.member'].sudo().create(dict(member_vals, project_id=project.id))
+            self._assert_move_allowed(project)
+
+    def test_company_move_refused_when_folder_has_file_or_s4_document(self):
+        """放寬只到「空的」為止：資料夾裡有任何一個檔就算單據 → 被拒；S4 加進表的真單據（這裡用送審）也照舊被拒。
+        工程都照一般方式開（有整套空資料夾），所以擋下來的原因就是那個檔／那張單，不是資料夾本身。"""
+        with self.subTest(case='資料夾裡有檔案'):
+            project = self._project_with_auto_folders('S4M-FILE')
+            folder = self.env['supervision.folder'].sudo().search([('project_id', '=', project.id)], limit=1)
+            self.env['ir.attachment'].sudo().create({'name': 's4m_file.txt', 'raw': b's4m', 'folder_id': folder.id})
+            self._assert_move_refused(self._env_two(), project, self.co_iso_b)
+            self.env.invalidate_all()
+            self.assertEqual(project.sudo().company_id, self.co_iso_a)
+        with self.subTest(case='有一張送審'):
+            project = self._project_with_auto_folders('S4M-REVIEW')
+            self.env['supervision.review.application'].sudo().create({'name': 'S4M 送審', 'project_id': project.id})
+            self._assert_move_refused(self._env_two(), project, self.co_iso_b)
+            self.env.invalidate_all()
+            self.assertEqual(project.sudo().company_id, self.co_iso_a)
 
     def test_company_move_allowed_for_system_admin_and_sudo(self):
         """系統管理者、代操作員、sudo 改有單據的工程的公司 → 成功，單據跟著工程走。"""
