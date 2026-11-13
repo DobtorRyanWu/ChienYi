@@ -15,6 +15,8 @@ import werkzeug.exceptions
 from odoo import models
 from odoo.http import request
 
+from .visit_grant import VISITOR_GROUP
+
 _logger = logging.getLogger(__name__)
 
 VISIT_HOME = '/construction/visit'
@@ -47,7 +49,8 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def _visit_account_gate(cls):
         user = request.env.user if request.env.uid else None
-        if not user or not user._is_visit_account():
+        # 每個請求都會經過這裡：用有快取的 has_group（改群組時核心會清快取），不是參觀帳號就立刻放行、不多查資料庫
+        if not user or not user.has_group(VISITOR_GROUP):
             return
         path = request.httprequest.path
         if user._visit_expired():
