@@ -44,11 +44,12 @@ S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試�
 import os
 import re
 from contextlib import closing
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.addons.construction_supervision_base.models.company_rule_write_guard import (
-    COMPANY_RULE_FIELDS, _project_paths)
-from odoo.addons.construction_supervision_base.models import relational_input_guard
+    COMPANY_RULE_FIELDS, _project_link_fields, _project_paths)
+from odoo.addons.construction_supervision_base.models import company_rule_write_guard, relational_input_guard
 from odoo.addons.construction_supervision_base.models.relational_input_guard import guarded_fields_of
 from odoo.exceptions import AccessError, UserError
 from odoo.models import LOG_ACCESS_COLUMNS
@@ -226,6 +227,10 @@ REPARENT_CELLS = (
 # 非 sudo 不能直接寫：訊息片段（測試獨立寫出）與格數（上游說有幾格就要有幾格，M-C）：S3 8 格＋S4 7 格
 RELATED_FIELD_HINT = '不能直接改'
 RELATED_CELL_COUNT = 15
+# 寫後檢查表上「拿掉也不會有行為測試變紅」的兩格（還有第二道防線，A2）
+BACKSTOP_CELLS = frozenset({
+    ('reservation.notification.slip.suspension', 'slip_id'),
+    ('general.self.inspection.measure.line', 'inspection_id')})
 # 正當流程：同公司內改掛工程照常的模型（S3 fix1 那 5 格）
 SAME_COMPANY_REPARENT_MODELS = frozenset({
     'payment.claim', 'work.acceptance', 'payment.estimate.extra.item', 'payment.estimate', 'contract.change.order'})
@@ -953,6 +958,83 @@ class TestCompanyIsolation(RoleMatrixCase):
         self.assertNotIn(GUARD_MSG, str(ctx.exception), '擋下它的要是寫後檢查，不是關聯 id 守衛（M-B）')
         self._assert_unchanged(line, 'estimate_id', before)
 
+    # ── S4 收尾（2026-11-13）：工項清空工程、寫後檢查的備援格、連結線上文件 ──────────────
+    def test_task_clear_project_only_assignee(self):
+        """工項清空工程（變成私人任務）：寫後檢查以寫入者身分檢查，私人任務的核心規則只給被指派的人——
+        被指派的人清得掉、沒被指派的人被拒（AccessError）。行為由寫後檢查＋核心 rating_mixin 兩道一起擋（A1）。
+        寫入者與 test_reparent_* 一樣用 PROJECT_WRITE_MODELS 的帳號（工程後台使用者寫不了有工程的工項，測不到防線）。"""
+        writer = self.rpt_a
+        env = self._env_of(writer)
+        task = self._iso_one('project.task', self.p_iso_a)
+        before = task.sudo().project_id
+        self.assertTrue(before, '夾具：工項要有工程')
+        task.sudo().write({'user_ids': [(3, writer.id)]})
+        self.assertNotIn(writer, task.sudo().user_ids, '前提：寫入者沒被指派')
+        env['project.task'].browse(task.id).check_access('write')
+        with self.assertRaises(AccessError):
+            env['project.task'].browse(task.id).write({'project_id': False})
+            env.flush_all()
+        self._assert_unchanged(task, 'project_id', before)
+        # 規格原本預期「拿掉表上工項那一列，同一個寫入會成功」，實測不是：核心 project 的 rating_mixin.write 在改完 project_id 後
+        # 以寫入者身分讀 record.project_id，私人任務讀不到 → 核心自己就 AccessError（odoo/addons/rating/models/rating_mixin.py）。
+        # 所以工項這一格和 A2 那兩格一樣有第二道防線；這裡把「拿掉那一列仍被擋」鎖住（不是只靠表上的一列）
+        with closing(self.env.cr.savepoint()), patch.dict(company_rule_write_guard.COMPANY_RULE_FIELDS):
+            company_rule_write_guard.COMPANY_RULE_FIELDS.pop('project.task')
+            with self.assertRaises(AccessError, msg='拿掉表上的工項那一列，核心的 rating_mixin 仍會擋下'):
+                env['project.task'].browse(task.id).write({'project_id': False})
+                env.flush_all()
+        # 被指派的人清得掉
+        task.invalidate_recordset()
+        task.sudo().write({'user_ids': [(4, writer.id)]})
+        env['project.task'].browse(task.id).write({'project_id': False})
+        env.flush_all()
+        task.invalidate_recordset()
+        self.assertFalse(task.sudo().project_id, '被指派的人清空工程要成功')
+
+    def test_backstop_cells_blocked_without_post_write_row(self):
+        """寫後檢查表上兩格（停工的 slip_id、量測的 inspection_id）拿掉那一列，改掛到 B 的父單照樣被別的機制擋住——
+        把「還有第二道防線」寫成測試（A2）。"""
+        cells = tuple(cell for cell in REPARENT_CELLS if (cell[0], cell[1]) in BACKSTOP_CELLS)
+        self.assertEqual(len(cells), len(BACKSTOP_CELLS), '夾具：兩格都要在 REPARENT_CELLS 裡')
+        env = self._env_of(self.sa_a)
+        ran = 0
+        for model, field, kind in cells:
+            with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()), \
+                    patch.dict(company_rule_write_guard.COMPANY_RULE_FIELDS):
+                company_rule_write_guard.COMPANY_RULE_FIELDS.pop(model)
+                record = self._iso_one(model, self.p_iso_a)
+                before = record.sudo()[field]
+                target = self._target(kind, self.p_iso_b, model)
+                self.assertNotEqual(before, target, '夾具：目標要是另一筆')
+                env[model].browse(record.id).check_access('write')
+                with self.assertRaises(AccessError, msg=f'{model}.{field}：拿掉表上那一列仍要被擋'):
+                    env[model].browse(record.id).write({field: target.id})
+                    env.flush_all()
+                self._assert_unchanged(record, field, before)
+                ran += 1
+        self.assertEqual(ran, len(BACKSTOP_CELLS), '兩格都要真的跑到')
+
+    def test_linked_doc_other_company_refused(self):
+        """「連結線上文件」(linked_doc_id → doc.document) 不能填別家公司的文件（B1；red-team F1 剩下的一格）。"""
+        if 'doc.document' not in self.env:
+            self.fail('doc.document 不在 registry：要先安裝 dobtor_doc_editor')
+        Doc = self.env['doc.document'].sudo()
+        doc_b = Doc.create({'name': 'S4 收尾 B 文件', 'company_id': self.co_iso_b.id})
+        doc_a = Doc.create({'name': 'S4 收尾 A 文件', 'company_id': self.co_iso_a.id})
+        env = self._env_of(self.sa_a)
+        self.assertFalse(env['doc.document'].search([('id', '=', doc_b.id)]), '前提：sa_a 搜不到 B 公司的文件')
+        self.assertTrue(env['doc.document'].search([('id', '=', doc_a.id)]), '前提：sa_a 搜得到 A 公司的文件')
+        defect = self._iso_one('general.defect.improvement', self.p_iso_a)
+        before = defect.sudo().linked_doc_id
+        with self.assertRaises(AccessError) as ctx:
+            env['general.defect.improvement'].browse(defect.id).write({'linked_doc_id': doc_b.id})
+            env.flush_all()
+        self.assertIn(GUARD_MSG, str(ctx.exception), '擋下它的要是關聯 id 守衛')
+        self._assert_unchanged(defect, 'linked_doc_id', before)
+        env['general.defect.improvement'].browse(defect.id).write({'linked_doc_id': doc_a.id})
+        env.flush_all()
+        self.assertEqual(defect.sudo().linked_doc_id, doc_a, '自己公司的文件要填得進去')
+
     def test_s4_precheck_sql_covers_every_rule_model(self):
         """runbook/s4_precheck.sql 的 (S4-1) 在測試庫實跑：每個 S4 規則模型（SQL 檢視除外）恰好一列、第一欄＝它的資料表。
         漏改（新增規則模型沒補、表改名）時這裡紅；SQL 寫壞時 execute 就紅。"""
@@ -1102,6 +1184,36 @@ class TestCompanyIsolation(RoleMatrixCase):
             self._assert_move_refused(self._env_two(), project, self.co_iso_b)
             self.env.invalidate_all()
             self.assertEqual(project.sudo().company_id, self.co_iso_a)
+
+    def test_company_move_refused_when_project_has_off_table_data(self):
+        """S4 收尾審查 F1（2026-11-13 使用者決定「任何資料都算」）：寫後檢查表以外、直接掛在工程底下的資料也算單據。
+        里程碑（核心）、契約材料都不在表上，可見範圍卻跟著工程公司走——沒擋時只屬 A 的同事搬完就看不到。"""
+        cases = (('project.milestone', 'S4M-MILE', {'name': 'S4M 里程碑'}),
+                 ('construction.contract.material', 'S4M-MATL', {'name': 'S4M 契約材料'}))
+        for model, code, vals in cases:
+            with self.subTest(model=model):
+                self.assertNotIn(model, COMPANY_RULE_FIELDS, '前提：這個模型不在寫後檢查表上')
+                project = self._project_with_auto_folders(code)
+                self.env[model].sudo().create(dict(vals, project_id=project.id))
+                self._assert_move_refused(self._env_two(), project, self.co_iso_b)
+                self.env.invalidate_all()
+                self.assertEqual(project.sudo().company_id, self.co_iso_a)
+
+    def test_company_move_counts_every_model_linked_to_project(self):
+        """「任何資料都算」不另寫清單：表外的模型由 _project_link_fields() 從 registry 掃。這裡用另一個來源（ir.model.fields）
+        獨立算一次「有 stored many2one 指向工程的實體模型」：表上的＋掃到的要剛好蓋住它（少一個＝那種資料不算、工程搬得走）。"""
+        self.env.cr.execute(
+            "SELECT DISTINCT f.model FROM ir_model_fields f JOIN ir_model m ON m.id = f.model_id "
+            "WHERE f.ttype = 'many2one' AND f.relation = 'project.project' AND f.store AND NOT m.transient")
+        expected = {model for (model,) in self.env.cr.fetchall()
+                    if model in self.env and self.env[model]._auto and not self.env[model]._abstract
+                    and model != 'project.project'}
+        self.assertTrue(expected, '上游要有東西（空集合會恆真）')
+        links = _project_link_fields(self.env)
+        self.assertFalse(set(links) & set(COMPANY_RULE_FIELDS), '表上的模型已由 _project_paths 涵蓋，不重複掃')
+        self.assertEqual(set(links) | (set(COMPANY_RULE_FIELDS) & expected), expected)
+        for model in ('project.milestone', 'construction.contract.material'):
+            self.assertIn(model, links, f'{model} 要掃得到')
 
     def test_company_move_allowed_for_system_admin_and_sudo(self):
         """系統管理者、代操作員、sudo 改有單據的工程的公司 → 成功，單據跟著工程走。"""

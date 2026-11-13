@@ -22,19 +22,24 @@ construction_progress／construction_general／construction_supervision_base 的
    原公司的同事看不到、另一家公司的人看得到（S3 第二輪審查 skeptic F2）。要換請改來源（工程、父單）。
 4. **已經有單據的工程，只有系統管理者與代操作員能改公司**（UserError，2026-11-12 使用者決定「1b」；同日追加「代操跟管理者都要可以做」）：第 3 點擋住直接改單據的
    公司，但改上游——工程的 company_id——底下整串單據的公司跟著重算、一起搬到別家公司，只屬原公司的同事從此看不到
-   （S3 第三輪審查 red-team R1；要同屬兩家公司又有工程寫權的人才做得到）。「單據」＝下表的模型（不另寫清單；
-   開案時系統自己產生的兩種不算，見下面 S4 的第 4 點），連到工程的欄位路徑由 _project_paths() 從表推；封存的也算。
-   只在非 sudo、值真的有變時查；批次 write 逐個工程查。
+   （S3 第三輪審查 red-team R1；要同屬兩家公司又有工程寫權的人才做得到）。「單據」＝掛在工程底下的任何資料，
+   兩個來源都不另寫清單：下表的模型（連到工程的欄位路徑由 _project_paths() 從表推），加上表外直接指向工程的模型
+   （_project_link_fields() 從 registry 掃；2026-11-13 S4 收尾審查 F1，使用者決定「任何資料都算」——公文、行事曆、
+   會議記錄、驗收、契約材料、水位等還沒有全域公司規則，其中有的可見範圍照樣跟著工程公司走）。封存的也算；
+   開案時系統自己產生的兩種不算（見下面 S4 的第 4 點）。只在非 sudo、值真的有變時查；批次 write 逐個工程查。
    正當流程（grep 全 repo，報告 project_company_guard_report.md）沒有以非 sudo 改工程公司的：前台「修改工程資訊」
    （/construction/<id>/update）是 sudo 寫入、只限未開始的工程，不經這道檢查。
 
 S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試驗、缺失、自主檢查、通報單、送審、工程文件、資料夾、工程成員、
-工項的 29 條全域規則（說明在 construction_supervision_base/security/company_rules.xml 檔頭），寫得了的 28 個模型加進下表，
+工項的全域規則（說明在 construction_supervision_base/security/company_rules.xml 檔頭），寫得了的模型加進下表，
 四點照舊套用：
 * 第 1 點：改父單／工程（例：日誌明細改掛到別家公司的日誌、照片改到別家公司的工程）寫完再檢查。
 * 第 2 點（不能變成沒有工程）只管 S3 那三種有「建立者退路」的單；S4 的「工程空白放行」模型不另擋清空：
   檢試驗項目、資料夾、工程文件的 project_id 必填（資料庫 NOT NULL），清不掉；頻率條件的檢試驗項目必填；
-  工項清空工程＝變成私人任務（核心功能，私人任務另有核心規則只給被指派的人），維持原狀。
+  工項清空工程＝變成私人任務：寫後檢查以寫入者身分檢查結果，私人任務的核心規則只給被指派的人，所以被指派的人清得掉、
+  沒被指派的人會被拒（AccessError）。這條路徑另有一道核心的擋：rating.mixin 的 write 改完 project_id 後會以寫入者身分
+  讀它，私人任務讀不到也是 AccessError——所以拿掉表上工項那一列這裡照樣被拒（test_task_clear_project_only_assignee 鎖住；
+  S4 第一輪 skeptic F1 說「核心原本放行」是用 BaseModel.write 繞過所有覆寫量的，實際操作不是那樣）。
 * 第 3 點：表上 related 的 project_id（日誌、日誌材料／特定項目、人機料明細、預約式缺失／自主檢查、通報單工項——
   ＝父單或來源的工程）非 sudo 不能直接寫。S4 的規則不用紀錄的 company_id，所以 related 的 company_id 不在表上。
 * 第 4 點：「單據」跟著這張表變大——照片、日誌、工項等都算。開案時系統自己產生的兩種不算（2026-11-13 使用者決定放寬；
@@ -57,6 +62,7 @@ test_related_*、test_blank_project_*、test_line_*、test_legit_*；下表由 t
 """
 from odoo import _, models
 from odoo.exceptions import UserError
+from odoo.osv import expression
 
 # 模型 → 全域公司規則用得到、而且寫得進去的欄位。規則用 stored related 欄位（company_id 等）的，同時列來源欄位與
 # related 欄位本身（related 欄位的 readonly 只是畫面屬性，ORM write 照樣把值寫進欄位；非 sudo 直接寫由第 3 點擋）。
@@ -80,7 +86,7 @@ COMPANY_RULE_FIELDS = {
     'general.realtime.profit.cost': frozenset({'profit_id'}),
     'profit.loss.entry': frozenset({'project_id', 'company_id'}),
     'project.task.version': frozenset({'task_id'}),
-    # ── S4（2026-11-12）：29 條規則裡寫得了的 28 個模型（supervision.test.task.statistics 是 SQL 檢視，不在表上）。
+    # ── S4（2026-11-12）：S4 規則裡寫得了的模型（supervision.test.task.statistics 是 SQL 檢視，不在表上）。
     # 規則走工程路徑：有 stored related project_id（＝父單／來源的工程）的模型列它與它的來源欄位，其餘列父單欄位
     'supervision.photo': frozenset({'project_id'}),
     'daily.log.sheet': frozenset({'project_id', 'supervision_project_id'}),
@@ -167,6 +173,27 @@ def _project_paths(env):
     return paths
 
 
+def _project_link_fields(env):
+    """表外、直接掛在工程底下的資料：{模型: [指向工程的 stored many2one 欄位名…]}（第 4 點「單據」的第二個來源）。
+
+    從 registry 掃、不另寫清單——新模組的模型自動算進去（漏掉＝那種資料不算，工程照樣搬得走）。不算的：
+    抽象／暫存模型與 SQL 檢視（沒有自己的資料列）、工程指向別的工程的欄位（那是另一個工程的資料）、
+    表上的模型（已由 _project_paths 涵蓋，子表沿父單連到工程）。
+    test_company_move_counts_every_model_linked_to_project 用 ir.model.fields 獨立算一次來對。
+    """
+    links = {}
+    for model_name in env.registry:
+        Model = env[model_name]
+        if (Model._abstract or Model._transient or not Model._auto
+                or model_name == PROJECT_MODEL or model_name in COMPANY_RULE_FIELDS):
+            continue
+        names = sorted(name for name, field in Model._fields.items()
+                       if field.type == 'many2one' and field.comodel_name == PROJECT_MODEL and field.store)
+        if names:
+            links[model_name] = names
+    return links
+
+
 class Base(models.AbstractModel):
     _inherit = 'base'
 
@@ -217,15 +244,23 @@ class ProjectProject(models.Model):
             return
         env = self.env(su=True, context=dict(self.env.context, active_test=False))
         paths = _project_paths(env)
-        # 開案時系統自己產生的不算單據（成員名單整個不算；資料夾要有檔案才算）
-        document_paths = {model_name: path for model_name, path in paths.items()
-                          if model_name not in COMPANY_MOVE_NOT_DOCUMENTS}
-        blocked = moving.browse([
-            project.id for project in moving
-            if any(env[model_name].search_count(
-                       [(path, '=', project.id), *COMPANY_MOVE_EXTRA_DOMAINS.get(model_name, ())], limit=1)
-                   for model_name, path in document_paths.items())])
+        link_fields = _project_link_fields(env)
+
+        def has_documents(project):
+            """這個工程底下有沒有算數的資料：表上的模型沿路徑查，表外的看直接指向工程的欄位。
+            開案時系統自己產生的不算：成員名單整個不算、資料夾要裡面有檔案才算。"""
+            for model_name, path in paths.items():
+                if model_name in COMPANY_MOVE_NOT_DOCUMENTS:
+                    continue
+                domain = [(path, '=', project.id), *COMPANY_MOVE_EXTRA_DOMAINS.get(model_name, ())]
+                if env[model_name].search_count(domain, limit=1):
+                    return True
+            return any(
+                env[model_name].search_count(expression.OR([[(name, '=', project.id)] for name in names]), limit=1)
+                for model_name, names in link_fields.items())
+
+        blocked = moving.filtered(has_documents)
         if blocked:
             raise UserError(_(
-                '工程「%(names)s」已經有估驗等單據，改公司會讓底下的單據跟著搬到別家公司，只有系統管理者或代操作員能改。',
+                '工程「%(names)s」底下已經有資料（估驗、照片、公文等），改公司會讓這些資料跟著搬到別家公司，只有系統管理者或代操作員能改。',
                 names='、'.join(blocked.sudo().mapped('display_name'))))

@@ -28,7 +28,9 @@ Odoo 的 related 欄位與儲存型 compute 預設 ``compute_sudo=True``（``odo
    **只限隔離模型、不擴到所有 many2one**：核心與各模組有大量 many2one 指向使用者、夥伴、公司、幣別、單位等，
    那些的讀取權各有各的語意（例：可以把同事指派成負責人，卻不一定讀得到他的使用者紀錄），全擋的迴歸面太大；
    公司隔離模型的語意單純——讀不到就是別家公司的，填進來本來就不對。錯誤訊息把這一種寫成「顯示名稱」。
-   指向非隔離模型的 many2one（例：缺失、送審的 linked_doc_id → doc.document）照舊不守（S4_fix1_report.md 有清單）。
+   另加 EXTRA_GUARDED_COMODELS（``doc.document``：缺失、送審等的 linked_doc_id 指向它；它有自己的公司規則、不在寫後檢查表上，
+   2026-11-13 使用者決定一併守）。其餘指向非隔離模型的 many2one（例：``daily.log.sheet.department_id`` → hr.department）
+   照舊不守（S4_fix1_report.md §7.1 有清單）。
 
 「讀得到」的判定
 ----------------
@@ -89,6 +91,10 @@ CACHE_ATTR = '_relational_input_guard_cache'
 MAX_IDS_IN_MESSAGE = 10
 # 守衛欄位第 2 種（S4 fix1）：公司隔離的根模型（其餘隔離模型取 company_rule_write_guard.COMPANY_RULE_FIELDS 的鍵）
 ISOLATION_ROOT_MODEL = 'project.project'
+# 守衛欄位第 2 種另外加的 comodel（2026-11-13 使用者決定）：不在寫後檢查表上，但自己有公司規則、
+# 顯示名稱一樣以 sudo 帶出（S4 第一輪 red-team F1 剩下的 linked_doc_id → doc.document）。
+# 本模組不依賴 dobtor_doc_editor：沒裝就沒有欄位指向它，這一列不起作用。
+EXTRA_GUARDED_COMODELS = frozenset({'doc.document'})
 # 第 2 種在「以 sudo 計算的欄位」清單裡的記號（核心以 sudo 讀的是它的顯示名稱）；錯誤訊息改寫成 DISPLAY_NAME_LABEL
 DISPLAY_NAME_MARKER = 'display_name'
 DISPLAY_NAME_LABEL = '顯示名稱'
@@ -145,7 +151,7 @@ def isolated_models():
 
 def _isolated_many2one_fields(model):
     """模型上 comodel 是公司隔離模型的 many2one 欄位名。"""
-    targets = isolated_models()
+    targets = isolated_models() | EXTRA_GUARDED_COMODELS
     return [name for name, field in model._fields.items()
             if field.type == 'many2one' and field.comodel_name in targets]
 

@@ -35,8 +35,9 @@
     #        只送地點文字；系統參數 construction_company_dashboard.geocode_url 可換服務或設 off 停用）、
     #        外部標案（新模型 construction.external.tender，清單匯入、地圖多一個圖層、可看某工程附近幾公里內的標案）。
     #        project.project 新欄位 dash_geo_source。
+    #        2.8.2（2026-11-13）：S4 收尾測試（工項清空工程、寫後檢查備援格、連結線上文件、1b 表外資料也算單據兩支）、README 數字收斂；程式不變。
     #        2.8.1（2026-11-13）：1b 放寬的測試（只有空資料夾／成員名單的工程可改公司；資料夾有檔、有送審照擋）與 README §3b 說明；程式不變。
-    "version": "18.0.2.8.1",
+    "version": "18.0.2.8.2",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """
