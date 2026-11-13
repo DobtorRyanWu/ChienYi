@@ -30,14 +30,28 @@ S3 fix2：寫後檢查的欄位表以 test_write_guard_table_matches_rules 鎖�
 REPARENT_CELLS 的一格行為測試）；related 欄位（company_id 等）非 sudo 不能直接寫，連同屬兩家公司的帳號也一樣。
 1b（2026-11-12，第三輪 red-team R1）：已經有估驗等單據（寫後檢查表上的模型）的工程，非 sudo 改公司只有系統管理者能改
 ——同屬兩家公司的工程後台使用者改了，底下整串單據的公司跟著工程搬走（第 8 節）。
+
+S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試驗、缺失、自主檢查、通報單、送審、工程文件、資料夾、工程成員、
+工項共 29 個模型加進同一張表（EXPECT_COMPANY_MODELS），表驅動、逐條關規則、盤點、鎖定測試、寫入面的格都自動涵蓋。
+夾具：一般式模型 A＝PA、B＝PS2；預約式（通報單系）A＝R、B＝另建的預約式工程 RB（通報單只能掛預約式工程）。
+工項的 B 用「公司空白、工程在 B」的那一筆（dev 2924 筆就是這種；公司照常的 B 工項會先被核心規則 85 擋，M-B）。
+檢試驗統計是 SQL 檢視、id 是 row_number()（不穩定），以「工項-檢驗項目」當鍵（KEYED_MODELS）。
+「工程空白放行」：工項（私人任務）真的建一筆驗 A、B 都讀得到；檢試驗項目／頻率條件、資料夾、工程文件的工程欄位
+資料庫 NOT NULL，空白的紀錄建不出來——那一格改成驗 NOT NULL（改成可空時會紅，提醒補真的格）。
+本模組不依賴 construction_equipment（人機料）、construction_review（送審）：dev 都裝了，沒裝時夾具會直接失敗（不靜默略過）。
 """
+import os
+import re
 from contextlib import closing
 
 from odoo import fields
 from odoo.addons.construction_supervision_base.models.company_rule_write_guard import (
     COMPANY_RULE_FIELDS, _project_paths)
+from odoo.addons.construction_supervision_base.models import relational_input_guard
+from odoo.addons.construction_supervision_base.models.relational_input_guard import guarded_fields_of
 from odoo.exceptions import AccessError, UserError
 from odoo.models import LOG_ACCESS_COLUMNS
+from odoo.modules.module import get_module_path
 from odoo.osv import expression
 from odoo.tests import tagged
 from odoo.tools.safe_eval import safe_eval
@@ -66,20 +80,75 @@ EXPECT_COMPANY_MODELS = {
     'profit.loss.entry': 'construction_general.rule_company_global_profit_loss_entry',
     'project.task.version': 'construction_supervision_base.rule_company_global_project_task_version',
     'report.project.task.user': 'construction_supervision_base.rule_company_global_report_project_task_user',
+    # ── S4（2026-11-12）──
+    'supervision.photo': 'construction_photo.rule_company_global_supervision_photo',
+    'daily.log.sheet': 'construction_daily_log.rule_company_global_daily_log_sheet',
+    'daily.log.line': 'construction_daily_log.rule_company_global_daily_log_line',
+    'daily.log.material': 'construction_daily_log.rule_company_global_daily_log_material',
+    'daily.log.specific.item': 'construction_daily_log.rule_company_global_daily_log_specific_item',
+    'daily.log.weather': 'construction_daily_log.rule_company_global_daily_log_weather',
+    'daily.log.man.machine': 'construction_equipment.rule_company_global_daily_log_man_machine',
+    'daily.log.man.machine.detail': 'construction_equipment.rule_company_global_daily_log_man_machine_detail',
+    'supervision.test.standard': 'construction_test.rule_company_global_supervision_test_standard',
+    'supervision.test.task.statistics': 'construction_test.rule_company_global_supervision_test_task_statistics',
+    'supervision.test.record': 'construction_test.rule_company_global_supervision_test_record',
+    'supervision.test.warning': 'construction_test.rule_company_global_supervision_test_warning',
+    'supervision.test.frequency.condition': 'construction_test.rule_company_global_supervision_test_frequency_condition',
+    'general.defect.improvement': 'construction_general.rule_company_global_general_defect_improvement',
+    'general.self.inspection': 'construction_quality.rule_company_global_general_self_inspection',
+    'general.self.inspection.item': 'construction_quality.rule_company_global_general_self_inspection_item',
+    'general.self.inspection.measure.line': 'construction_quality.rule_company_global_general_self_inspection_measure_line',
+    'reservation.defect.improvement': 'construction_quality.rule_company_global_reservation_defect_improvement',
+    'reservation.self.inspection': 'construction_quality.rule_company_global_reservation_self_inspection',
+    'reservation.self.inspection.item': 'construction_quality.rule_company_global_reservation_self_inspection_item',
+    'reservation.self.inspection.measure.line':
+        'construction_quality.rule_company_global_reservation_self_inspection_measure_line',
+    'reservation.notification.slip': 'construction_notification_slip.rule_company_global_reservation_notification_slip',
+    'reservation.notification.slip.line':
+        'construction_notification_slip.rule_company_global_reservation_notification_slip_line',
+    'reservation.notification.slip.suspension':
+        'construction_notification_slip.rule_company_global_reservation_notification_slip_suspension',
+    'supervision.review.application': 'construction_review.rule_company_global_supervision_review_application',
+    'supervision.folder': 'construction_supervision_base.rule_company_global_supervision_folder',
+    'supervision.project.member': 'construction_supervision_base.rule_company_global_supervision_project_member',
+    'supervision.document': 'construction_supervision_base.rule_company_global_supervision_document',
+    'project.task': 'construction_supervision_base.rule_company_global_project_task',
 }
 # 本規格新增規則的 xmlid 前綴與所在模組（盤點用）
 RULE_XMLID_PREFIX = 'rule_company_global_'
 RULE_MODULES = ('construction_payment', 'construction_contract_change', 'construction_progress',
-                'construction_general', 'construction_supervision_base')
+                'construction_general', 'construction_supervision_base',
+                # S4
+                'construction_photo', 'construction_daily_log', 'construction_equipment', 'construction_test',
+                'construction_quality', 'construction_notification_slip', 'construction_review')
 # 一般內部帳號（只有 base.group_user）有讀取 ACL 的模型（dev ir_model_access 查得；其餘只給工程後台使用者等群組）
 INTERNAL_USER_MODELS = frozenset({
     'payment.claim', 'payment.estimate', 'payment.estimate.line', 'payment.estimate.extra.item',
     'payment.estimate.extra.line', 'work.acceptance', 'work.acceptance.line', 'project.task.version',
+    # S4：盤點「連一般內部帳號都讀得到」的三個
+    'supervision.folder', 'supervision.project.member', 'project.task',
 })
 # 工程後台使用者沒有讀取 ACL 的模型（核心 project 只給 Project User／Manager）
 PROJECT_USER_ONLY_MODELS = frozenset({'report.project.task.user'})
-# 核心 SQL 檢視（_auto=False，寫不了）：不在寫後檢查的欄位表上
-SQL_VIEW_MODELS = frozenset({'report.project.task.user'})
+# SQL 檢視（_auto=False，寫不了）：不在寫後檢查的欄位表上
+SQL_VIEW_MODELS = frozenset({'report.project.task.user', 'supervision.test.task.statistics'})
+# S4：掛在預約式工程的模型（通報單只能掛預約式工程）：A＝R、B＝RB
+RESERVATION_MODELS = frozenset({
+    'reservation.notification.slip', 'reservation.notification.slip.line', 'reservation.notification.slip.suspension',
+    'reservation.defect.improvement', 'reservation.self.inspection', 'reservation.self.inspection.item',
+    'reservation.self.inspection.measure.line',
+})
+# S4：id 不穩定的 SQL 檢視，以這兩個欄位組成鍵（「工項 id-檢驗項目 id」）
+KEYED_MODELS = {'supervision.test.task.statistics': ('task_id', 'standard_id')}
+# S4：寫入格要用有寫權的人（工程後台使用者沒有專案 User 群組，寫不了有工程的工項）→ 工程後台使用者＋專案 Manager
+PROJECT_WRITE_MODELS = frozenset({'project.task'})
+# S4：規格說「工程空白放行」、但工程欄位資料庫 NOT NULL 的模型 → (資料表, 欄位)。頻率條件的工程走檢試驗項目
+BLANK_SHARED_NOT_NULL = {
+    'supervision.test.standard': ('supervision_test_standard', 'project_id'),
+    'supervision.test.frequency.condition': ('supervision_test_standard', 'project_id'),
+    'supervision.folder': ('supervision_folder', 'project_id'),
+    'supervision.document': ('supervision_document', 'project_id'),
+}
 PROJECT_MANAGER = 'project.group_project_manager'
 # 寫入面：A 的紀錄改掛到 B 的哪一種目標（模型名＝B 的那一種父單）。S3 fix1 的 8 格（skeptic F1 的 6 個欄位＋估驗／變更單的
 # 工程）；S3 fix2 補成「規則用得到的每一個欄位一格」（第二輪 skeptic F1：表上一半的欄位沒有行為測試）——
@@ -114,11 +183,48 @@ REPARENT_CELLS = (
     ('general.realtime.profit.cost', 'profit_id', 'general.realtime.profit'),
     ('profit.loss.entry', 'project_id', TARGET_PROJECT),
     ('profit.loss.entry', 'company_id', TARGET_COMPANY),
+    # S4（related 的 project_id＝父單或來源的工程，7 格：日誌、材料、特定項目、人機料明細、預約式缺失、預約式自主檢查、通報單工項；
+    # 天氣的規則走父單、不用 related 的 project_id，見 construction_daily_log/security/company_rules.xml）
+    ('supervision.photo', 'project_id', TARGET_PROJECT),
+    ('daily.log.sheet', 'project_id', TARGET_PROJECT),
+    ('daily.log.sheet', 'supervision_project_id', TARGET_PROJECT),
+    ('daily.log.line', 'sheet_id', 'daily.log.sheet'),
+    ('daily.log.material', 'project_id', TARGET_PROJECT),
+    ('daily.log.material', 'daily_log_id', 'daily.log.sheet'),
+    ('daily.log.specific.item', 'project_id', TARGET_PROJECT),
+    ('daily.log.specific.item', 'daily_log_id', 'daily.log.sheet'),
+    ('daily.log.weather', 'sheet_id', 'daily.log.sheet'),
+    ('daily.log.man.machine', 'project_id', TARGET_PROJECT),
+    ('daily.log.man.machine.detail', 'project_id', TARGET_PROJECT),
+    ('daily.log.man.machine.detail', 'daily_log_id', 'daily.log.sheet'),
+    ('supervision.test.standard', 'project_id', TARGET_PROJECT),
+    ('supervision.test.record', 'project_id', TARGET_PROJECT),
+    ('supervision.test.warning', 'project_id', TARGET_PROJECT),
+    ('supervision.test.frequency.condition', 'standard_id', 'supervision.test.standard'),
+    ('general.defect.improvement', 'project_id', TARGET_PROJECT),
+    ('general.self.inspection', 'project_id', TARGET_PROJECT),
+    ('general.self.inspection.item', 'inspection_id', 'general.self.inspection'),
+    ('general.self.inspection.measure.line', 'inspection_id', 'general.self.inspection'),
+    ('reservation.defect.improvement', 'project_id', TARGET_PROJECT),
+    ('reservation.defect.improvement', 'slip_id', 'reservation.notification.slip'),
+    ('reservation.self.inspection', 'project_id', TARGET_PROJECT),
+    ('reservation.self.inspection', 'slip_id', 'reservation.notification.slip'),
+    ('reservation.self.inspection.item', 'inspection_id', 'reservation.self.inspection'),
+    ('reservation.self.inspection.measure.line', 'inspection_id', 'reservation.self.inspection'),
+    ('reservation.notification.slip', 'project_id', TARGET_PROJECT),
+    ('reservation.notification.slip.line', 'project_id', TARGET_PROJECT),
+    ('reservation.notification.slip.line', 'slip_id', 'reservation.notification.slip'),
+    ('reservation.notification.slip.suspension', 'slip_id', 'reservation.notification.slip'),
+    ('supervision.folder', 'project_id', TARGET_PROJECT),
+    ('supervision.project.member', 'project_id', TARGET_PROJECT),
+    ('supervision.review.application', 'project_id', TARGET_PROJECT),
+    ('supervision.document', 'project_id', TARGET_PROJECT),
+    ('project.task', 'project_id', TARGET_PROJECT),
 )
-# related 欄位（company_id＝工程的公司、非契約工項明細的 project_id＝估驗的工程）非 sudo 不能直接寫：訊息片段（測試獨立寫出）
-# 與格數（上游說有幾格就要有幾格，M-C）
+# related 欄位（company_id＝工程的公司、非契約工項明細的 project_id＝估驗的工程；S4 的 project_id＝父單／來源的工程）
+# 非 sudo 不能直接寫：訊息片段（測試獨立寫出）與格數（上游說有幾格就要有幾格，M-C）：S3 8 格＋S4 7 格
 RELATED_FIELD_HINT = '不能直接改'
-RELATED_CELL_COUNT = 8
+RELATED_CELL_COUNT = 15
 # 正當流程：同公司內改掛工程照常的模型（S3 fix1 那 5 格）
 SAME_COMPANY_REPARENT_MODELS = frozenset({
     'payment.claim', 'work.acceptance', 'payment.estimate.extra.item', 'payment.estimate', 'contract.change.order'})
@@ -133,6 +239,33 @@ LUMP_ADJUST_AMOUNT = 1000.0
 SYSTEM_ADMIN = 'base.group_system'
 OPERATOR = 'construction_supervision_base.group_operator'
 COMPANY_MOVE_HINT = '只有系統管理者或代操作員能改'
+# S4 fix1（S4 第一輪審查 red-team F1）：many2one 的顯示名稱核心以 sudo 讀——comodel 是公司隔離模型的 many2one
+# 都要被 relational_input_guard 守（填不進讀不到的 id）。訊息片段測試獨立寫出（AccessError 很多道防線都會丟，M-B）
+GUARD_MSG = '沒有讀取權限的紀錄'
+DISPLAY_NAME_HINT = '顯示名稱'
+ISOLATION_ROOT = 'project.project'
+# (A 的紀錄的模型, 原本沒被守的 many2one, B 的目標種類)：工項、缺失、通報單、工程（兩格）——審查重現的那幾個欄位
+DISPLAY_NAME_CELLS = (
+    ('general.defect.improvement', 'task_id', TARGET_TASK),
+    ('general.self.inspection.item', 'defect_improvement_id', 'general.defect.improvement'),
+    ('daily.log.sheet', 'notification_slip_id', 'reservation.notification.slip'),
+    ('supervision.photo', 'signboard_project_id', TARGET_PROJECT),
+    ('daily.log.line', 'project_id', TARGET_PROJECT),
+)
+# S4 fix1（S4 第一輪審查 simplifier medium）：上 S4 前的檢查 SQL 在 repo 裡；(S4-1) 那段每個 S4 規則模型一列（SQL 檢視除外）
+PRECHECK_SQL = ('runbook', 's4_precheck.sql')
+PRECHECK_SECTION = 'S4-1'
+S4_RULE_MODULES = ('construction_photo', 'construction_daily_log', 'construction_equipment', 'construction_test',
+                   'construction_quality', 'construction_notification_slip', 'construction_review')
+# S4 在 S3 那幾個模組裡加的規則（其餘 S4 規則在 S4_RULE_MODULES）
+S4_RULES_IN_S3_MODULES = frozenset({
+    'construction_general.rule_company_global_general_defect_improvement',
+    'construction_supervision_base.rule_company_global_supervision_folder',
+    'construction_supervision_base.rule_company_global_supervision_project_member',
+    'construction_supervision_base.rule_company_global_supervision_document',
+    'construction_supervision_base.rule_company_global_project_task',
+})
+S4_RULE_COUNT = 29
 # 夾具數量
 CLAIM_AMOUNT = 1000.0
 ACCEPT_QTY = 1.0
@@ -199,12 +332,115 @@ class TestCompanyIsolation(RoleMatrixCase):
         cls.task_b_blank.invalidate_recordset(['company_id'])
         cls.iso_meta['report.project.task.user'] = {
             cls.tasks[cls.p_iso_a].id: cls.p_iso_a, cls.task_b_blank.id: cls.p_iso_b}
+        cls._s4_fixtures()
         env.flush_all()
         env.registry.clear_cache()
 
+    @classmethod
+    def _s4_fixtures(cls):
+        """S4 的 29 個模型：A、B 各至少一筆（一般式掛 PA／PS2，預約式掛 R／RB），記進 iso_meta。"""
+        env = cls.env
+        today = fields.Date.today()
+        # 預約式的 B 工程（通報單只能掛預約式工程）；_fixture_company 另外認得它
+        cls.p_iso_rb = env['project.project'].create({
+            'name': 'S4-RB 公司隔離測試工程', 'code': 'S4-RB', 'project_type': 'reservation', 'state': 'construction',
+            'company_id': cls.co_iso_b.id, 'contractor_company_ids': [(6, 0, cls.co_a.ids)]})
+        env['defect.improvement.prefix.config'].create({
+            'project_id': cls.p_iso_rb.id, 'supervision_prefix': 'S4RBS', 'contractor_prefix': 'S4RBC'})
+        cls.tasks[cls.p_iso_rb] = env['project.task'].create({
+            'name': 'S4-RB 工項', 'project_id': cls.p_iso_rb.id, 'item_no': '1', 'unit': '式',
+            'planned_qty': 10.0, 'unit_price': 100.0})
+        cls.s4_reservation = {cls.co_iso_a: cls.r_shared, cls.co_iso_b: cls.p_iso_rb}
+        ptype = env['personnel.type'].create({'name': 'S4 技工', 'record_type': 'personnel'})
+        block = env['self.inspection.type.measure'].create({
+            'type_id': cls.itype.id, 'name': 'S4 量測', 'template': '丈量___位置'})
+        category = env['supervision.document.category'].create({'name': 'S4 文件分類'})
+        # 工程成員：A、B 用不同的帳號（同一帳號改掛到 B 會先撞唯一鍵，測不到防線）
+        members = {company: cls._user(f's4_member_{tag}', ['base.group_user'], company=company, companies=company)
+                   for company, tag in ((cls.co_iso_a, 'a'), (cls.co_iso_b, 'b'))}
+        cls.iso_meta.update({model: {} for model in EXPECT_COMPANY_MODELS if model not in cls.iso_meta})
+
+        def note(records, project):
+            for record in records:
+                cls.iso_meta[record._name][record.id] = project
+
+        for project, company in ((cls.p_iso_a, cls.co_iso_a), (cls.p_iso_b, cls.co_iso_b)):
+            task = cls.tasks[project]
+            note(cls._make_doc('supervision.photo', project, cls.co_a), project)
+            sheet = cls._make_doc('daily.log.sheet', project, cls.co_a)
+            note(sheet, project)
+            note(cls._make_line('daily.log.line', sheet), project)
+            note(env['daily.log.material'].create({'daily_log_id': sheet.id, 'name': 'S4 材料'}), project)
+            note(env['daily.log.specific.item'].create({'daily_log_id': sheet.id, 'name': 'S4 特定項'}), project)
+            # daily.log.weather 的 ORM 建立會壞（既有 bug：_check_date_in_sheet_range 讀不存在的 sheet_id.date_start，
+            # 見 construction_portal/tests/test_contractor_scope_portal.py），用 SQL 放資料——跟那邊一樣**不填** related 的
+            # project_id：規則要沿父單才看得到它（第一版規則用 project_id，portal 那 4 格就紅在這裡）
+            env.cr.execute('INSERT INTO daily_log_weather (sheet_id, date) VALUES (%s, %s) RETURNING id',
+                           [sheet.id, sheet.log_date])
+            note(env['daily.log.weather'].browse(env.cr.fetchone()[0]), project)
+            note(env['daily.log.man.machine'].create({'project_id': project.id, 'personnel_type_id': ptype.id}), project)
+            note(env['daily.log.man.machine.detail'].create({
+                'daily_log_id': sheet.id, 'personnel_type_id': ptype.id, 'hours': 8.0}), project)
+            standard = env['supervision.test.standard'].create({
+                'name': f'S4 抗壓 {project.code}', 'material': '預拌混凝土', 'project_id': project.id,
+                'task_ids': [(4, task.id)]})
+            note(standard, project)
+            cls.iso_meta['supervision.test.task.statistics'][f'{task.id}-{standard.id}'] = project
+            note(env['supervision.test.record'].create({'project_id': project.id, 'standard_id': standard.id}), project)
+            note(env['supervision.test.warning'].create({
+                'project_id': project.id, 'task_id': task.id, 'standard_id': standard.id}), project)
+            note(env['supervision.test.frequency.condition'].create({
+                'standard_id': standard.id, 'condition_type': 'every_batch'}), project)
+            note(cls._make_doc('general.defect.improvement', project, cls.co_a), project)
+            inspection = cls._make_doc('general.self.inspection', project, cls.co_a)
+            note(inspection, project)
+            note(env['general.self.inspection.item'].create({'inspection_id': inspection.id, 'check_item': 'S4 項目'}),
+                 project)
+            note(env['general.self.inspection.measure.line'].create({
+                'inspection_id': inspection.id, 'block_id': block.id, 'template': block.template, 'result': 'pass'}),
+                 project)
+            note(env['supervision.folder'].create({'name': 'S4 資料夾', 'project_id': project.id}), project)
+            note(env['supervision.project.member'].create({'project_id': project.id, 'user_id': members[company].id}),
+                 project)
+            note(env['supervision.review.application'].create({'name': 'S4 送審', 'project_id': project.id}), project)
+            note(env['supervision.document'].create({
+                'name': 'S4 文件', 'project_id': project.id, 'document_category_id': category.id}), project)
+        # 工項：A＝PA 的工項（公司照常）；B＝PS2 上公司空白的那一筆（核心規則 85 放行公司空白，正是要補的洞；
+        # 公司照常的 B 工項會先被 85 擋，M-B）
+        # RoleMatrixCase.meta 已把各工程的工項記進來（setUpClass 開頭帶進 iso_meta），其中 PS2 的工項公司是 S2——
+        # 它被核心 85 擋、不是被本規則擋，留著會讓「關掉規則 → 讀得到 B」恆紅（green 第一次實跑就紅在這裡），拿掉
+        cls.iso_meta['project.task'].pop(cls.tasks[cls.p_iso_b].id, None)
+        note(cls.tasks[cls.p_iso_a], cls.p_iso_a)
+        note(cls.task_b_blank, cls.p_iso_b)
+        # 預約式：A＝R、B＝RB
+        for company, project in cls.s4_reservation.items():
+            slip = cls._slip(project)
+            note(slip, project)
+            note(env['reservation.notification.slip.line'].create({
+                'slip_id': slip.id, 'task_id': cls.tasks[project].id, 'item_no': '1', 'unit': '式'}), project)
+            note(env['reservation.notification.slip.suspension'].create({
+                # 要填復工日：通報單不是停工狀態時不准有未復工的停工紀錄（_check_suspension_consistency）
+                'slip_id': slip.id, 'suspend_date': today, 'resume_date': today, 'reason': 'S4 停工'}), project)
+            note(cls._make_doc('reservation.defect.improvement', project, cls.co_a), project)
+            inspection = cls._make_doc('reservation.self.inspection', project, cls.co_a)
+            note(inspection, project)
+            note(env['reservation.self.inspection.item'].create({
+                'inspection_id': inspection.id, 'check_item': 'S4 項目'}), project)
+            note(env['reservation.self.inspection.measure.line'].create({
+                'inspection_id': inspection.id, 'block_id': block.id, 'template': block.template, 'result': 'pass'}),
+                 project)
+        # 工程空白的工項（私人任務）：只給被指派的人（核心規則 125）；指派給只屬 A 與只屬 B 的工程後台使用者，
+        # 公司清空（核心規則 85 放行公司空白）——這樣擋不擋它只看本規格的規則
+        cls.sa_b = cls._user('s4_sa_b', ['base.group_user', SUPERVISOR_ADMIN], company=cls.co_iso_b, companies=cls.co_iso_b)
+        cls.private_task = env['project.task'].create({
+            'name': 'S4 私人任務', 'user_ids': [(6, 0, (cls.sa_a | cls.sa_b).ids)], 'company_id': False})
+
     # ── 期望值（夾具獨立寫出）──────────────────────────────────────────
     def _fixture_company(self, project):
-        """夾具的工程屬哪家公司：DashScopeCase._project 與 RoleMatrixCase 都建在 S，只有 PS2 建在 S2。"""
+        """夾具的工程屬哪家公司：DashScopeCase._project 與 RoleMatrixCase 都建在 S，只有 PS2 建在 S2；
+        S4 另建的預約式工程 RB 也建在 S2。"""
+        if project == self.p_iso_rb:
+            return self.co_s2
         self.assertIn(project, self.all_projects, f'不認得的夾具工程 {project.code}')
         return self.co_s2 if project == self.p_s2 else self.co_s
 
@@ -214,6 +450,12 @@ class TestCompanyIsolation(RoleMatrixCase):
     def _seen(self, user, model, companies=None):
         companies = companies or user.sudo().company_ids
         env = self.env(user=user, context={'active_test': False, 'allowed_company_ids': companies.ids})
+        if model in KEYED_MODELS:
+            # SQL 檢視、id 不穩定：以夾具工項限縮，回傳「工項-檢驗項目」鍵
+            first, second = KEYED_MODELS[model]
+            task_ids = sorted({int(key.split('-')[0]) for key in self.iso_meta[model]})
+            rows = env[model].search_read([(first, 'in', task_ids)], [first, second])
+            return {f'{row[first][0]}-{row[second][0]}' for row in rows} & set(self.iso_meta[model])
         return set(env[model].search([('id', 'in', list(self.iso_meta[model]))]).ids)
 
     def _subjects(self):
@@ -367,15 +609,22 @@ class TestCompanyIsolation(RoleMatrixCase):
     def _env_of(self, user):
         return self.env(user=user, context={'allowed_company_ids': user.company_ids.ids})
 
+    def _iso_project(self, model, project):
+        """預約式模型（S4）沒有掛在 PA／PS2：A 換成 R、B 換成 RB（同一家公司的預約式工程）。"""
+        if model in RESERVATION_MODELS and project in (self.p_iso_a, self.p_iso_b):
+            return self.s4_reservation[self._fixture_company(project)]
+        return project
+
     def _iso_one(self, model, project):
         """夾具裡掛在 project 的一筆（id 最小的，固定）。"""
+        project = self._iso_project(model, project)
         ids = [rid for rid, owner in self.iso_meta[model].items() if owner == project]
         self.assertTrue(ids, f'夾具：{model} 在 {project.code} 沒有紀錄')
         return self.env[model].browse(min(ids))
 
-    def _target(self, kind, project):
+    def _target(self, kind, project, model=None):
         if kind == TARGET_PROJECT:
-            return project
+            return self._iso_project(model, project)
         if kind == TARGET_TASK:
             return self.tasks[project]
         if kind == TARGET_COMPANY:
@@ -401,13 +650,17 @@ class TestCompanyIsolation(RoleMatrixCase):
         work.acceptance.line 那一格另有附帶的擋：work_acceptance.py 的 write 覆寫寫完後以本人身分算超約
         （_is_over_contract 讀新父單）→ 讀不到 B 的驗收就 AccessError——那是附帶效果、不是設計好的防線。
         拿掉表上任一列時，那一列至少有一格會紅（只有 relational_input_guard 守的欄位除外，那幾格靠鎖定測試）。
+        **S4 fix1 起上面的分工改變**：comodel 是公司隔離模型的 many2one 都由 relational_input_guard 守，本測試的格（目標都讀不到）
+        一律先被它擋；拿掉寫後檢查（W1）這裡不再有格紅，寫後檢查改由 test_post_write_check_isolated_cell 隔離。
+        S4：工項那一格由「工程後台使用者＋專案 Manager」寫（工程後台使用者沒有專案群組、寫不了有工程的工項，
+        寫前檢查就不過——測不到防線，M-B）。S4 各格由誰擋下見 S4_report.md 的 mutation 節。
         """
-        env = self._env_of(self.sa_a)
         for model, field, kind in REPARENT_CELLS:
+            env = self._env_of(self.rpt_a if model in PROJECT_WRITE_MODELS else self.sa_a)
             with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()):
                 record = self._iso_one(model, self.p_iso_a)
                 before = record.sudo()[field]
-                target = self._target(kind, self.p_iso_b)
+                target = self._target(kind, self.p_iso_b, model)
                 self.assertNotEqual(before, target, '夾具：目標要是另一筆')
                 if model == 'project.task.version':
                     # 版本號要避開目標工項已有的（唯一鍵 task_id＋version）：沒擋住時寫入要真的成功，紅的才是這道檢查
@@ -438,7 +691,7 @@ class TestCompanyIsolation(RoleMatrixCase):
             with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()):
                 record = self._iso_one(model, self.p_iso_a)
                 before = record.sudo()[field]
-                target = self._target(kind, self.p_iso_b)
+                target = self._target(kind, self.p_iso_b, model)
                 self.assertNotEqual(before, target, '夾具：目標要是另一筆')
                 env[model].browse(record.id).check_access('write')
                 with self.assertRaises(UserError, msg=f'{model}.{field}：兩家都屬的帳號直接改成 B 也要被拒') as ctx:
@@ -548,6 +801,178 @@ class TestCompanyIsolation(RoleMatrixCase):
             self.assertEqual(claim.sudo().project_id, self.p_iso_a)
             self.assertFalse(estimate.sudo().project_id)
 
+    # ── 7b. S4：「工程空白放行」的格、同公司內改掛照常 ─────────────────────────────
+    def _private_task_readers(self):
+        found = set()
+        for user in (self.sa_a, self.sa_b):
+            if self._env_of(user)['project.task'].search([('id', '=', self.private_task.id)]):
+                found.add(user)
+        return found
+
+    def test_s4_blank_project_shared(self):
+        """工項：工程空白的私人任務（公司也空白），被指派的只屬 A、只屬 B 兩人都讀得到；
+        把本規則改成不放行工程空白 → 兩人都讀不到（證明放行的是規則的那一段，rig 有效，M-B）。
+        檢試驗項目／頻率條件、資料夾、工程文件：規格說工程空白放行（規則也寫了那一段），但工程欄位資料庫 NOT NULL，
+        空白的紀錄建不出來——這裡驗 NOT NULL；哪天改成可空，這一格會紅，要回頭補「A、B 都讀得到」的真格。"""
+        both = {self.sa_a, self.sa_b}
+        self.assertEqual(self._private_task_readers(), both, '工程空白的私人任務：被指派的 A、B 都讀得到')
+        rule = self.env.ref(EXPECT_COMPANY_MODELS['project.task']).sudo()
+        original = rule.domain_force
+        rule.write({'domain_force': "[('project_id.company_id', 'in', company_ids)]"})
+        self.env.registry.clear_cache()
+        try:
+            self.assertEqual(self._private_task_readers(), set(), 'rig：規則不放行工程空白時兩人都讀不到')
+        finally:
+            rule.write({'domain_force': original})
+            self.env.registry.clear_cache()
+        self.assertEqual(self._private_task_readers(), both, '規則恢復後兩人又讀得到')
+        for model, (table, column) in BLANK_SHARED_NOT_NULL.items():
+            with self.subTest(model=model):
+                self.assertIn("('project_id', '=', False)", self.env.ref(EXPECT_COMPANY_MODELS[model]).domain_force.replace(
+                    'standard_id.project_id', 'project_id'), f'{model}：規則要有「工程空白放行」那一段（規格語意）')
+                self.env.cr.execute(
+                    'SELECT is_nullable FROM information_schema.columns '
+                    'WHERE table_schema = current_schema() AND table_name = %s AND column_name = %s', [table, column])
+                self.assertEqual(self.env.cr.fetchall(), [('NO',)],
+                                 f'{table}.{column} 改成可空了：補一格「工程空白的 {model} A、B 都讀得到」')
+
+    def test_s4_legit_reparent_within_company(self):
+        """S4 的寫入面不擋正當操作：同公司內改掛工程／父單照常（工程後台使用者；工項由工程後台使用者＋專案 Manager）。"""
+        same_company = self.p_b
+        self.assertEqual(self._fixture_company(same_company), self.co_iso_a, '夾具：同公司的另一個工程')
+        # 缺失不在這裡：改掛工程時缺失編號依新工程重算，會撞夾具 PB 上既有的編號（唯一鍵；與 S4 無關的既有行為）
+        cases = [(model, 'project_id', same_company, {}) for model in (
+            'supervision.photo', 'supervision.review.application', 'supervision.project.member',
+            'daily.log.man.machine', 'supervision.test.record', 'project.task')]
+        other_sheet = self._make_doc('daily.log.sheet', self.p_iso_a, self.co_a)
+        # 日誌明細的日期要等於日誌日期（_check_date_in_sheet_range）：一起改
+        cases.append(('daily.log.line', 'sheet_id', other_sheet, {'date': other_sheet.log_date}))
+        for model, field, target, extra in cases:
+            user = self.rpt_a if model in PROJECT_WRITE_MODELS else self.sa_a
+            with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()):
+                record = self._iso_one(model, self.p_iso_a)
+                self._env_of(user)[model].browse(record.id).write(dict(extra, **{field: target.id}))
+                self.env.flush_all()
+                record.invalidate_recordset()
+                self.assertEqual(record.sudo()[field], target, f'{model}.{field}：同公司內改掛要成功')
+
+    # ── 7c. S4 fix1：many2one 的顯示名稱（red-team F1）、上 S4 前的檢查 SQL（simplifier medium）──────────
+    def _m2o_target(self, kind):
+        """B 的目標。工項用「公司空白、工程在 B」那一筆（核心 85 放行公司空白，擋它的只有本規格的規則）。"""
+        if kind == TARGET_TASK:
+            return self.task_b_blank
+        return self._target(kind, self.p_iso_b)
+
+    def test_s4fix1_display_name_cells_refused(self):
+        """只屬 A 的工程後台使用者把 B 的工項／缺失／通報單／工程 id 寫進自己紀錄上的 many2one → relational_input_guard
+        擋下（AccessError、訊息指名欄位並寫「顯示名稱」）、資料沒變；新紀錄 onchange 帶同一個 id 也擋。
+        修之前寫得進去，read／web_read 以 sudo 帶出 B 的顯示名稱（審查重現 s4r1_rt_leak.py：300 筆被藏的工項名稱逐 id 枚舉）。"""
+        env = self._env_of(self.sa_a)
+        for model, field, kind in DISPLAY_NAME_CELLS:
+            with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()):
+                record = self._iso_one(model, self.p_iso_a)
+                target = self._m2o_target(kind)
+                before = record.sudo()[field]
+                self.assertNotEqual(before, target, '夾具：目標要是另一筆')
+                with self.assertRaises(AccessError, msg='前提：B 的目標本人直接讀不到'):
+                    env[target._name].browse(target.id).read(['display_name'])
+                env[model].browse(record.id).check_access('write')   # 寫前檢查過得了：被拒不是本來就不能寫（M-B）
+                with self.assertRaises(AccessError, msg=f'{model}.{field} 填 B 的 id 要被拒') as ctx:
+                    env[model].browse(record.id).write({field: target.id})
+                    env.flush_all()
+                message = str(ctx.exception)
+                self.assertIn(GUARD_MSG, message, f'擋下它的要是關聯 id 守衛：{message}')
+                self.assertIn(f'（{field}）', message, f'訊息要指名欄位：{message}')
+                self.assertIn(DISPLAY_NAME_HINT, message, f'訊息要寫「顯示名稱」：{message}')
+                self._assert_unchanged(record, field, before)
+        model, field, kind = DISPLAY_NAME_CELLS[0]
+        with self.assertRaises(AccessError) as ctx:
+            env[model].onchange({field: self._m2o_target(kind).id}, [field], {field: {'fields': {'display_name': {}}}})
+        self.assertIn(f'（{field}）', str(ctx.exception), 'onchange（新紀錄）也要被同一道守衛擋')
+
+    def test_s4fix1_display_name_legit_writes(self):
+        """正當流程照常：同公司的 id 寫得進去；寫回原本就掛著、本人讀不到的現值不擋（既有語意：只查改變了的值）。"""
+        env = self._env_of(self.sa_a)
+        defect = self._iso_one('general.defect.improvement', self.p_iso_a)
+        item = self._iso_one('general.self.inspection.item', self.p_iso_a)
+        photo = self._iso_one('supervision.photo', self.p_iso_a)
+        cases = ((defect, 'task_id', self.tasks[self.p_iso_a]), (item, 'defect_improvement_id', defect),
+                 (photo, 'signboard_project_id', self.p_b))
+        for record, field, target in cases:
+            with self.subTest(model=record._name, field=field), closing(self.env.cr.savepoint()):
+                owner = target if target._name == ISOLATION_ROOT else target.project_id
+                self.assertEqual(self._fixture_company(owner), self.co_iso_a, '夾具：目標是同公司的')
+                env[record._name].browse(record.id).write({field: target.id})
+                env.flush_all()
+                record.invalidate_recordset()
+                self.assertEqual(record.sudo()[field], target, f'{record._name}.{field}：同公司的要寫得進去')
+        with self.subTest(mode='寫回讀不到的現值'), closing(self.env.cr.savepoint()):
+            defect.sudo().write({'task_id': self.task_b_blank.id})   # 既有資料（例：搬家前就掛著）
+            env['general.defect.improvement'].browse(defect.id).write(
+                {'task_id': self.task_b_blank.id, 'defect_description': 'S4 fix1 寫回現值'})
+            env.flush_all()
+            defect.invalidate_recordset()
+            self.assertEqual(defect.sudo().defect_description, 'S4 fix1 寫回現值', '現值沒變的 many2one 不查，其他欄位照常寫進去')
+
+    def test_s4fix1_isolated_many2one_all_guarded(self):
+        """鎖定：走訪 registry，每個 comodel 是公司隔離模型的 stored many2one 都在 guarded_fields_of() 裡。
+        隔離模型集合在這裡獨立寫（規則表減 SQL 檢視，加上工程），並與實作的 isolated_models() 比。"""
+        isolated = (set(EXPECT_COMPANY_MODELS) - SQL_VIEW_MODELS) | {ISOLATION_ROOT}
+        self.assertEqual(set(relational_input_guard.isolated_models()), isolated, '實作的隔離模型集合＝規則表（不含 SQL 檢視）＋工程')
+        checked, missing = set(), []
+        for name in sorted(self.env.registry):
+            Model = self.env[name]
+            if Model._abstract:
+                continue
+            guarded = guarded_fields_of(Model)
+            for fname, field in Model._fields.items():
+                if field.type == 'many2one' and field.store and field.comodel_name in isolated:
+                    checked.add((name, fname))
+                    if fname not in guarded:
+                        missing.append(f'{name}.{fname} → {field.comodel_name}')
+        self.assertFalse(missing, f'沒被守的隔離模型 many2one：{missing}')
+        cells = {(model, field) for model, field, _kind in DISPLAY_NAME_CELLS}
+        self.assertTrue(cells <= checked, f'審查重現的欄位都要被走訪到（上游說有幾格就要有幾格，M-C）：少 {sorted(cells - checked)}')
+
+    def test_post_write_check_isolated_cell(self):
+        """寫後檢查（company_rule_write_guard 第 1 點）還隔離得到的一格：S4 fix1 起 comodel 是隔離模型的 many2one 全部由
+        relational_input_guard 守，改掛到「讀不到的」目標都先被它擋（test_reparent_* 那 61 格拿掉寫後檢查也照樣綠，
+        mutation W1 實跑 SURVIVED）。剩下的是「目標讀得到、改完紀錄卻讀不到」：估驗明細改掛到自己建的工程空白估驗——
+        空白估驗靠建立者退路讀得到，估驗明細的規則沒有退路，改完誰都讀不到（沒擋就是一筆明細從畫面上消失）。"""
+        env = self._env_of(self.sa_a)
+        line = self._iso_one('payment.estimate.line', self.p_iso_a)
+        before = line.sudo().estimate_id
+        blank = env['payment.estimate'].create({'estimate_date': fields.Date.today()})
+        self.assertTrue(env['payment.estimate'].search([('id', '=', blank.id)]),
+                        '前提：自己建的空工程估驗讀得到（relational_input_guard 不會擋）')
+        env['payment.estimate.line'].browse(line.id).check_access('write')
+        with self.assertRaises(AccessError) as ctx:
+            env['payment.estimate.line'].browse(line.id).write({'estimate_id': blank.id})
+            env.flush_all()
+        self.assertNotIn(GUARD_MSG, str(ctx.exception), '擋下它的要是寫後檢查，不是關聯 id 守衛（M-B）')
+        self._assert_unchanged(line, 'estimate_id', before)
+
+    def test_s4_precheck_sql_covers_every_rule_model(self):
+        """runbook/s4_precheck.sql 的 (S4-1) 在測試庫實跑：每個 S4 規則模型（SQL 檢視除外）恰好一列、第一欄＝它的資料表。
+        漏改（新增規則模型沒補、表改名）時這裡紅；SQL 寫壞時 execute 就紅。"""
+        path = os.path.join(get_module_path(MODULE), *PRECHECK_SQL)
+        with open(path, encoding='utf-8') as handle:
+            text = handle.read()
+        section = re.escape(PRECHECK_SECTION)
+        match = re.search(rf'-- \[{section}\]\n(.*?)-- \[/{section}\]', text, re.S)
+        self.assertTrue(match, f'{path} 找不到 [{PRECHECK_SECTION}] 那一段')
+        s4_models = {model for model, xmlid in EXPECT_COMPANY_MODELS.items()
+                     if xmlid.split('.', 1)[0] in S4_RULE_MODULES or xmlid in S4_RULES_IN_S3_MODULES}
+        self.assertEqual(len(s4_models), S4_RULE_COUNT, '本輪規則模型數（上游說幾個就要幾個）')
+        expected = {self.env[model]._table for model in s4_models if self.env[model]._auto}
+        self.assertEqual(len(expected), S4_RULE_COUNT - 1, '扣掉一個 SQL 檢視（檢試驗統計）')
+        self.env.cr.execute(match.group(1))
+        rows = self.env.cr.fetchall()
+        labels = [row[0] for row in rows]
+        self.assertEqual(len(labels), len(set(labels)), f'有重複的列：{labels}')
+        self.assertEqual(set(labels), expected, f'SQL 多 {sorted(set(labels) - expected)}、少 {sorted(expected - set(labels))}')
+        self.assertTrue(all(isinstance(row[1], int) for row in rows), '第二欄要是筆數')
+
     # ── 8. 已經有單據的工程改公司：只有系統管理者（2026-11-12「1b」，第三輪 red-team R1）──────────
     def _env_two(self, user=None):
         """同屬 A＋B、兩家都選的帳號（預設：工程後台使用者 sa_ab）。"""
@@ -556,7 +981,8 @@ class TestCompanyIsolation(RoleMatrixCase):
 
     def _fresh_project(self, code, company=None):
         """沒有任何單據的新工程（預設 A 公司；不走 _project／_role_project：那兩個會建進度表與工項，進度表、工項版本都算單據）。
-        會建標準資料夾（資料夾不在寫後檢查表上，不算單據）。
+        S4 起資料夾也在寫後檢查表上（算單據），而開案預設會自動建標準資料夾——這裡以 skip_standard_folders 不建
+        （「只有自動資料夾」的工程另有一格 test_company_move_refused_when_project_has_only_auto_folders）。
 
         不帶分析帳戶（allow_timesheets=False）：核心改工程公司時會一起改分析帳戶的公司（project _inverse_company_id），
         工程後台使用者沒有分析帳戶寫權 → 核心先 AccessError，測不到這道檢查（M-B）。R1 的洞就在沒有分析帳戶（或帳戶沒公司）
@@ -566,8 +992,10 @@ class TestCompanyIsolation(RoleMatrixCase):
             'company_id': (company or self.co_iso_a).id, 'contractor_company_ids': [(6, 0, self.co_a.ids)]}
         if 'allow_timesheets' in self.env['project.project']._fields:
             vals['allow_timesheets'] = False
-        project = self.env['project.project'].create(vals)
+        project = self.env['project.project'].with_context(skip_standard_folders=True).create(vals)
         self.assertFalse(project.account_id, '夾具：不要有分析帳戶')
+        self.assertFalse(self.env['supervision.folder'].sudo().search_count([('project_id', '=', project.id)]),
+                         '夾具：不要有資料夾')
         return project
 
     def _fresh_project_with_estimate(self, code, company=None):
@@ -621,6 +1049,24 @@ class TestCompanyIsolation(RoleMatrixCase):
         project.invalidate_recordset()
         self.assertEqual(project.sudo().company_id, self.co_iso_b)
 
+    def test_company_move_refused_when_project_has_only_auto_folders(self):
+        """S4：資料夾、照片、日誌等加進寫後檢查表之後，「單據」跟著變大——開案自動建的標準資料夾也算，
+        所以照一般方式開的工程（不帶 skip_standard_folders）一開就只有系統管理者／代操作員能改公司。"""
+        vals = {'name': 'S4M-FOLDER 改公司測試工程', 'code': 'S4M-FOLDER', 'project_type': 'general', 'state': 'construction',
+                'company_id': self.co_iso_a.id, 'contractor_company_ids': [(6, 0, self.co_a.ids)]}
+        if 'allow_timesheets' in self.env['project.project']._fields:
+            vals['allow_timesheets'] = False
+        project = self.env['project.project'].create(vals)
+        self.assertTrue(self.env['supervision.folder'].sudo().search_count([('project_id', '=', project.id)]),
+                        '夾具：開案要自動建標準資料夾')
+        for model, path in _project_paths(self.env).items():
+            if model != 'supervision.folder':
+                self.assertFalse(self.env[model].sudo().with_context(active_test=False).search_count(
+                    [(path, '=', project.id)]), f'夾具：除了資料夾不要有別的單據（{model}）')
+        self._assert_move_refused(self._env_two(), project, self.co_iso_b)
+        self.env.invalidate_all()
+        self.assertEqual(project.sudo().company_id, self.co_iso_a)
+
     def test_company_move_allowed_for_system_admin_and_sudo(self):
         """系統管理者、代操作員、sudo 改有單據的工程的公司 → 成功，單據跟著工程走。"""
         for mode, code in (('系統管理者', 'S3M-OK-SYS'), ('代操作員', 'S3M-OK-OP'), ('sudo', 'S3M-OK-SU')):
@@ -664,7 +1110,7 @@ class TestCompanyIsolation(RoleMatrixCase):
                          '被拒時批次裡的工程都不可以變')
 
     def test_company_move_archived_task_version_counts(self):
-        """封存的契約工項底下的工項版本也算單據（只有它）→ 被拒。"""
+        """封存的契約工項（S4 起工項本身也在表上）與它底下的工項版本都算單據 → 被拒。"""
         project = self._fresh_project('S3M-ARC')
         task = self.env['project.task'].create({
             'name': 'S3M 封存工項', 'project_id': project.id, 'item_no': '1', 'unit': '式',
@@ -679,12 +1125,15 @@ class TestCompanyIsolation(RoleMatrixCase):
         這裡驗：一個模型一條路徑（上游說幾個就要幾個，M-C），而且每條路徑以 sudo 搜，搜到的正好包含夾具記在 iso_meta
         掛在 A 工程的那幾筆、不含掛在 B 工程的（期望值來自夾具，不來自實作，L3）。"""
         paths = _project_paths(self.env)
-        self.assertEqual(set(paths), set(COMPANY_RULE_FIELDS), '表上每個模型都要推得出路徑（本模組依賴那五個模組，都裝了）')
+        self.assertEqual(set(paths), set(COMPANY_RULE_FIELDS),
+                         '表上每個模型都要推得出路徑（本模組依賴那五個模組；S4 的人機料、送審模組 dev 有裝）')
         for model, path in sorted(paths.items()):
             with self.subTest(model=model, path=path):
-                own = {rid for rid, project in self.iso_meta[model].items() if project == self.p_iso_a}
-                other = {rid for rid, project in self.iso_meta[model].items() if project == self.p_iso_b}
+                project_a = self._iso_project(model, self.p_iso_a)
+                project_b = self._iso_project(model, self.p_iso_b)
+                own = {rid for rid, project in self.iso_meta[model].items() if project == project_a}
+                other = {rid for rid, project in self.iso_meta[model].items() if project == project_b}
                 self.assertTrue(own and other, f'{model}：夾具兩個工程都要有紀錄（否則恆真）')
-                found = set(self.env[model].sudo().with_context(active_test=False).search([(path, '=', self.p_iso_a.id)]).ids)
+                found = set(self.env[model].sudo().with_context(active_test=False).search([(path, '=', project_a.id)]).ids)
                 self.assertTrue(own <= found, f'{model}：{path} 少了 {sorted(own - found)}')
                 self.assertFalse(other & found, f'{model}：{path} 搜到 B 工程的 {sorted(other & found)}')

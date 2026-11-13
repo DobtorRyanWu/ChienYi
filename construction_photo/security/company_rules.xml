@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S4（2026-11-12）全域公司隔離：工程照片。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在 construction_supervision_base/models/company_rule_write_guard.py。
+    一律走「紀錄所屬工程的公司」（子表沿父單），不用紀錄自己的 company_id（dev 上日誌、文件的 company_id 與工程公司不一致的各有上千／上百筆）。
+-->
+<odoo>
+    <data>
+        <!-- project_id 必填（資料庫 NOT NULL，dev 0 筆空白）：沒有「工程空白」的照片，不另寫放行 -->
+        <record id="rule_company_global_supervision_photo" model="ir.rule">
+            <field name="name">工程照片 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_photo"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

@@ -27,9 +27,26 @@ construction_progress／construction_general／construction_supervision_base 的
    正當流程（grep 全 repo，報告 project_company_guard_report.md）沒有以非 sudo 改工程公司的：前台「修改工程資訊」
    （/construction/<id>/update）是 sudo 寫入、只限未開始的工程，不經這道檢查。
 
+S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試驗、缺失、自主檢查、通報單、送審、工程文件、資料夾、工程成員、
+工項的 29 條全域規則（說明在 construction_supervision_base/security/company_rules.xml 檔頭），寫得了的 28 個模型加進下表，
+四點照舊套用：
+* 第 1 點：改父單／工程（例：日誌明細改掛到別家公司的日誌、照片改到別家公司的工程）寫完再檢查。
+* 第 2 點（不能變成沒有工程）只管 S3 那三種有「建立者退路」的單；S4 的「工程空白放行」模型不另擋清空：
+  檢試驗項目、資料夾、工程文件的 project_id 必填（資料庫 NOT NULL），清不掉；頻率條件的檢試驗項目必填；
+  工項清空工程＝變成私人任務（核心功能，私人任務另有核心規則只給被指派的人），維持原狀。
+* 第 3 點：表上 related 的 project_id（日誌、日誌材料／特定項目、人機料明細、預約式缺失／自主檢查、通報單工項——
+  ＝父單或來源的工程）非 sudo 不能直接寫。S4 的規則不用紀錄的 company_id，所以 related 的 company_id 不在表上。
+* 第 4 點：「單據」跟著這張表變大——照片、日誌、資料夾、工程成員、工項都算；開案會自動建標準資料夾，
+  所以新開的工程一開就算「有單據」（dev 11-12：253 個工程裡 235 個有單據，S3 的表是 225 個）。
+工項（project.task）在表上：非 sudo 改 project_id 之後要對新的結果有寫權（例：專案 User 把工項移到自己沒有寫權的
+followers-only 專案會被拒；核心原本放行、移過去之後自己就改不了）。
+
 sudo（系統內部流程）不檢查。正當的非 sudo 改寫（grep 全 repo，S3_fix1_report.md W-3）只有「匯入工程案件」
 （estimate.import.wizard 替工程空白的估驗設工程）與契約變更精靈（contract.change.wizard 替變更單設工程），
 都是「空白 → 自己公司的工程」，兩道檢查都會過。
+S4 fix1（2026-11-13）：relational_input_guard 起守 comodel 是隔離模型的 many2one 之後，改掛到「讀不到的」目標都先被它擋，
+第 1 點只剩「目標讀得到、改完紀錄讀不到」那種要靠它（例：估驗明細改掛到自己建的工程空白估驗），
+由 test_post_write_check_isolated_cell 隔離（mutation W1）。
 測試：construction_company_dashboard/tests/test_company_isolation.py（TestCompanyIsolation 的 test_reparent_*、
 test_related_*、test_blank_project_*、test_line_*、test_legit_*；下表由 test_write_guard_table_matches_rules
 從資料庫的規則推出來兩個方向比，表上每一格另有一格行為測試）。
@@ -40,7 +57,7 @@ from odoo.exceptions import UserError
 # 模型 → 全域公司規則用得到、而且寫得進去的欄位。規則用 stored related 欄位（company_id 等）的，同時列來源欄位與
 # related 欄位本身（related 欄位的 readonly 只是畫面屬性，ORM write 照樣把值寫進欄位；非 sudo 直接寫由第 3 點擋）。
 # 這張表是規則 domain 的第二份：改規則就要改這裡，test_write_guard_table_matches_rules 會紅。
-# report.project.task.user 是核心 SQL 檢視（寫不了），不在表上。
+# report.project.task.user（核心）、supervision.test.task.statistics（S4）是 SQL 檢視（寫不了），不在表上。
 COMPANY_RULE_FIELDS = {
     'payment.claim': frozenset({'project_id'}),
     'payment.estimate': frozenset({'project_id'}),
@@ -59,6 +76,36 @@ COMPANY_RULE_FIELDS = {
     'general.realtime.profit.cost': frozenset({'profit_id'}),
     'profit.loss.entry': frozenset({'project_id', 'company_id'}),
     'project.task.version': frozenset({'task_id'}),
+    # ── S4（2026-11-12）：29 條規則裡寫得了的 28 個模型（supervision.test.task.statistics 是 SQL 檢視，不在表上）。
+    # 規則走工程路徑：有 stored related project_id（＝父單／來源的工程）的模型列它與它的來源欄位，其餘列父單欄位
+    'supervision.photo': frozenset({'project_id'}),
+    'daily.log.sheet': frozenset({'project_id', 'supervision_project_id'}),
+    'daily.log.line': frozenset({'sheet_id'}),
+    'daily.log.material': frozenset({'project_id', 'daily_log_id'}),
+    'daily.log.specific.item': frozenset({'project_id', 'daily_log_id'}),
+    'daily.log.weather': frozenset({'sheet_id'}),
+    'daily.log.man.machine': frozenset({'project_id'}),
+    'daily.log.man.machine.detail': frozenset({'project_id', 'daily_log_id'}),
+    'supervision.test.standard': frozenset({'project_id'}),
+    'supervision.test.record': frozenset({'project_id'}),
+    'supervision.test.warning': frozenset({'project_id'}),
+    'supervision.test.frequency.condition': frozenset({'standard_id'}),
+    'general.defect.improvement': frozenset({'project_id'}),
+    'general.self.inspection': frozenset({'project_id'}),
+    'general.self.inspection.item': frozenset({'inspection_id'}),
+    'general.self.inspection.measure.line': frozenset({'inspection_id'}),
+    'reservation.defect.improvement': frozenset({'project_id', 'slip_id'}),
+    'reservation.self.inspection': frozenset({'project_id', 'slip_id'}),
+    'reservation.self.inspection.item': frozenset({'inspection_id'}),
+    'reservation.self.inspection.measure.line': frozenset({'inspection_id'}),
+    'reservation.notification.slip': frozenset({'project_id'}),
+    'reservation.notification.slip.line': frozenset({'project_id', 'slip_id'}),
+    'reservation.notification.slip.suspension': frozenset({'slip_id'}),
+    'supervision.folder': frozenset({'project_id'}),
+    'supervision.project.member': frozenset({'project_id'}),
+    'supervision.review.application': frozenset({'project_id'}),
+    'supervision.document': frozenset({'project_id'}),
+    'project.task': frozenset({'project_id'}),
 }
 # 模型 → 「這筆有沒有工程」的路徑：規則對工程空白放行建立者的那三個模型（#2 估驗、#8 變更單、#9 變更明細）
 PROJECT_PATHS = {

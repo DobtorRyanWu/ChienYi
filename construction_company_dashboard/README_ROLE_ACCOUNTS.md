@@ -127,6 +127,34 @@ FROM project_task t WHERE t.company_id IS NULL AND t.project_id IS NOT NULL;
 
 (1) 不是 0 就不准上，先替那些工程補公司。(2)(2b)(3) 有列出來的，先確認是不是預期（多公司庫 jt 最要緊）。
 
+## 3b. 上 S4 之前各站要查（S4，2026-11-12）
+
+S4 在照片、施工日誌（＋明細、材料、特定項目、天氣、人機料與明細）、檢試驗（項目、統計、記錄、預警、頻率條件）、一般式缺失、
+自主檢查（一般式／預約式＋項目、量測）、預約式缺失、通報單（＋工項、停工）、送審、工程文件、資料夾、工程成員、工項（project.task）
+共 29 個模型加了同樣的全域公司規則：**紀錄所屬工程的公司**要在使用者目前選取的公司裡（子表沿父單；不看紀錄自己的 company_id）。
+工程空白放行的只有：檢試驗項目／頻率條件、資料夾、工程文件（三者的工程欄位目前必填，實際上不會空）與工項的私人任務。
+寫入面同 S3（寫後檢查、related 的工程欄位不能直接寫）；1b 的「單據」跟著變大：照片、日誌、資料夾、工程成員、工項都算——
+開案會自動建標準資料夾，**實際上幾乎每個工程都只有系統管理者／代操作員能改公司**（dev 11-12：253 個工程裡 235 個有單據，S3 時是 225 個；開案自動建資料夾是較新的版本才有，舊工程多半沒有）。
+
+上線前先跑 §3 的 (1)(2)(2b)(3)，再跑 **`runbook/s4_precheck.sql`**（本模組目錄裡，全部唯讀）：
+
+```bash
+psql -d <DB> -At -F ' | ' -f construction_company_dashboard/runbook/s4_precheck.sql
+```
+
+檔內分五段（每段以 `-- [段名]`／`-- [/段名]` 包起來）：
+- **(S4-1)** 每個 S4 規則模型一列（SQL 檢視「檢試驗統計」除外，共 28 列）：所屬工程空白、或工程公司空白的筆數——**必須全部是 0**
+  （規則 fail-closed，上 S4 後非 sudo 的人全部看不到）。路徑與規則相同（子表沿規則用的欄位）；工程空白放行的
+  檢試驗項目／頻率條件／資料夾／工程文件與工項，只數「有工程、但工程公司空白」。這一段由測試
+  `test_s4_precheck_sql_covers_every_rule_model` 在測試庫實跑、鎖住「列＝規則模型的資料表」，新增或拿掉規則模型時沒跟著改會紅。
+- **(S4-1b)** 規則用的 stored related project_id 與父單不一致的筆數——**也必須是 0**。
+- **(S4-2)** 最近 180 天自己建立的照片／日誌／缺失／自主檢查／通報單／送審，工程公司不在本人允許公司裡的帳號（0 列＝沒有）。
+- **(S4-3)** 工項被指派人的允許公司不含工程公司的帳號（0 列＝沒有）。
+- **(S4-4)** 參考：上 S4 前一般內部帳號就讀得到的資料夾、工程成員、公司空白工項，各工程公司的筆數。
+
+(S4-1)(S4-1b) 不是 0 就不准上（先補工程或公司；related 失真的先把 project_id 補成父單的值——`-u` 不會重算既有的 stored related）。(S4-2)(S4-3) 有列出來的先確認（多公司庫 jt 最要緊：任泰的人建在別家公司工程的資料，上線後他自己也看不到）。
+dev 11-13 實跑 `s4_precheck.sql`：(S4-1)(S4-1b) 全 0、(S4-2)(S4-3) 0 列。
+
 ## 4. 已知限制
 
 - **兩步驟驗證目前不強制**：使用者 11-11 暫定（`res_users_guard.DASH_REQUIRE_TOTP = False`）；改回 True 即恢復。
@@ -157,3 +185,14 @@ FROM project_task t WHERE t.company_id IS NULL AND t.project_id IS NOT NULL;
 - 跟著工程走的 related 欄位（變更單、變更明細、預定進度（明細）、進度報告、即時損益、損益支出的 `company_id`，
   非契約工項明細的 `project_id`）非 sudo 不能直接寫，同屬兩家公司的帳號也一樣（S3 fix2，UserError）；要換請改工程或父單。
 - 受限帳號清單是 fail-closed：受限群組 xmlid 不完整時函式直接 UserError（見第 1 節），不會回一份漏人的清單。
+- **S4 的 29 條規則也在模型所屬模組**（construction_photo、construction_daily_log、construction_equipment、construction_test、
+  construction_quality、construction_notification_slip、construction_review，以及 construction_general、construction_supervision_base
+  的 `security/company_rules.xml`）：同上一條，任一個降版到 S4 之前的版本，那幾條規則會被刪掉、沒有 log。
+- S4 的規則不看紀錄自己的 `company_id`（日誌、工程文件的 company_id 與工程公司不一致的很多），所以那些 related／獨立的
+  `company_id` 不在寫後檢查表上、非 sudo 仍寫得了——不影響隔離（規則只看工程），但值可能和工程對不上。
+  related 的 `project_id`（日誌、日誌材料／特定項目、人機料明細、預約式缺失／自主檢查、通報單工項）在表上，非 sudo 不能直接寫。
+  天氣例外走父單（它的 ORM 建立是壞的，現有資料寫法是 SQL、related 的 project_id 會是空的）。
+- 工項（project.task）在寫後檢查表上：非 sudo 改工項的工程之後，要對改完的工項有寫權（例：把工項移到自己沒有寫權的
+  「只限追蹤者」專案會被拒；核心原本放行、移過去之後本人就改不了）。工項清空工程（變成私人任務）不擋（核心功能）。
+- 1b（有單據的工程只有系統管理者／代操作員能改公司）的「單據」S4 起含照片、日誌、資料夾、工程成員、工項等：
+  開案自動建標準資料夾，所以新開的工程一開就屬於「有單據」。

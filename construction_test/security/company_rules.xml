@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S4（2026-11-12）全域公司隔離：檢試驗。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在 construction_supervision_base/models/company_rule_write_guard.py。
+    一律走「紀錄所屬工程的公司」（子表沿父單），不用紀錄自己的 company_id（dev 上日誌、文件的 company_id 與工程公司不一致的各有上千／上百筆）。
+-->
+<odoo>
+    <data>
+        <!-- 工程空白＝共用項目，放行（S4 規格）。注意：project_id 目前必填、資料庫 NOT NULL，這一段實際上用不到 -->
+        <record id="rule_company_global_supervision_test_standard" model="ir.rule">
+            <field name="name">檢試驗項目 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_test_standard"/>
+            <field name="domain_force">['|', ('project_id', '=', False), ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- SQL 檢視（_auto=False，寫不了）：project_id 由 JOIN project_project 而來，不會空 -->
+        <record id="rule_company_global_supervision_test_task_statistics" model="ir.rule">
+            <field name="name">檢試驗統計 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_test_task_statistics"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_supervision_test_record" model="ir.rule">
+            <field name="name">檢(試)驗記錄 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_test_record"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_supervision_test_warning" model="ir.rule">
+            <field name="name">檢試驗預警 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_test_warning"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 沿檢試驗項目；項目工程空白＝共用，放行（同上，目前用不到） -->
+        <record id="rule_company_global_supervision_test_frequency_condition" model="ir.rule">
+            <field name="name">檢試驗頻率條件 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_test_frequency_condition"/>
+            <field name="domain_force">['|', ('standard_id.project_id', '=', False), ('standard_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

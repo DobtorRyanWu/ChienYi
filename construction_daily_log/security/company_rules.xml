@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S4（2026-11-12）全域公司隔離：施工日誌與明細。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在 construction_supervision_base/models/company_rule_write_guard.py。
+    一律走「紀錄所屬工程的公司」（子表沿父單），不用紀錄自己的 company_id（dev 上日誌、文件的 company_id 與工程公司不一致的各有上千／上百筆）。
+-->
+<odoo>
+    <data>
+        <!-- 有 stored related 的 project_id（＝父單／來源的工程）就用它：寫後檢查會同時盯它的來源欄位（改來源要再檢查），
+             而它本身是 related、非 sudo 不能直接寫（company_rule_write_guard 第 3 點）——同 S3 用 related company_id 的寫法。
+             dev 實查 project_id 與來源一致（不一致 0 筆）。日誌：project_id ＝ supervision_project_id（必填） -->
+        <record id="rule_company_global_daily_log_sheet" model="ir.rule">
+            <field name="name">施工日誌 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_daily_log_sheet"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 沿父單：明細自己的 project_id 是獨立欄位（非 related、可空），不拿來判斷；沒有父單的明細非 sudo 讀不到（dev 0 筆） -->
+        <record id="rule_company_global_daily_log_line" model="ir.rule">
+            <field name="name">施工日誌明細 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_daily_log_line"/>
+            <field name="domain_force">[('sheet_id.supervision_project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_daily_log_material" model="ir.rule">
+            <field name="name">施工日誌材料 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_daily_log_material"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_daily_log_specific_item" model="ir.rule">
+            <field name="name">施工日誌特定項目 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_daily_log_specific_item"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 天氣走父單、不用它的 stored related project_id：天氣的 ORM 建立壞掉（既有 bug：_check_date_in_sheet_range 讀不存在的
+             sheet_id.date_start），現有的寫法（construction_portal 測試）是以 SQL 放資料、related 的 project_id 是空的——
+             用 project_id 的話那種紀錄誰都看不到（S4 第一次全套實跑：portal 的天氣 4 格紅在這裡） -->
+        <record id="rule_company_global_daily_log_weather" model="ir.rule">
+            <field name="name">施工日誌天氣 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_daily_log_weather"/>
+            <field name="domain_force">[('sheet_id.supervision_project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

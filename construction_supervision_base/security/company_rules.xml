@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     S3（2026-11-11）：估驗、變更、進度、損益類 18 個模型的全域公司隔離（global ir.rule，不掛群組、讀寫建刪都套）。
-    本檔是 5 份 security/company_rules.xml 共用的說明（construction_payment／contract_change／progress／general 那 4 份只留指路）。
+    S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試驗、缺失、自主檢查、通報單、送審、工程文件、資料夾、工程成員、
+    工項共 29 個模型，寫法與機制相同（盤點與規格：scratch 20261110-boss-backend/S4_research.md、S4_spec.md）。
+    本檔是 12 份 security/company_rules.xml 共用的說明（construction_payment／contract_change／progress／general，
+    S4 的 photo／daily_log／equipment／test／quality／notification_slip／review 那幾份只留指路）。
+    S4 的模型一律走「紀錄所屬工程的公司」：有 project_id 的用它（或它的必填來源欄位），子表沿父單——
+    不用紀錄自己的 company_id（dev：施工日誌 1733 筆、工程文件 128 筆與工程公司不一致，照片 121 筆公司空白）。
+    「工程空白放行」只有規格點名的共用語意（檢試驗項目＋頻率條件、資料夾、工程文件、工項的私人任務）；
+    其中前三種的 project_id 目前必填（資料庫 NOT NULL），那一段實際上用不到。
 
     為什麼是全域規則：這些模型原本沒有公司規則，或只有「群組＝Internal User」的公司規則——
     同一模型另有「工程後台使用者 (1=1)」「Portal 老闆 (1=1)」群組規則，群組規則之間是 OR，
@@ -20,7 +27,7 @@
     construction_company_dashboard/README_ROLE_ACCOUNTS.md）。
     noupdate 不設（＝0）：-u 時與程式同步；模組降版到沒有這個檔的版本，規則會被刪掉、洞回來（runbook 已知限制）。
     測試：construction_company_dashboard/tests/test_company_isolation.py（表驅動＋逐條關掉規則再打開；
-    寫入面 test_reparent_*、test_blank_project_*、test_line_*、test_legit_*）。
+    寫入面 test_reparent_*、test_blank_project_*、test_line_*、test_legit_*；S4 的模型也在同一張表）。
 -->
 <odoo>
     <data>
@@ -34,6 +41,36 @@
         <record id="rule_company_global_report_project_task_user" model="ir.rule">
             <field name="name">工項分析 - 公司隔離（全域，S3）</field>
             <field name="model_id" ref="project.model_report_project_task_user"/>
+            <field name="domain_force">['|', ('project_id', '=', False), ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+
+        <!-- ── S4（2026-11-12）── -->
+        <!-- 工程資料夾：原本內部帳號沒有任何規則、Internal User 有讀取 ACL（連一般內部帳號都讀得到別家工程的資料夾）。
+             工程空白放行（S4 規格）；注意 project_id 目前必填、資料庫 NOT NULL，這一段實際上用不到 -->
+        <record id="rule_company_global_supervision_folder" model="ir.rule">
+            <field name="name">工程資料夾 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_folder"/>
+            <field name="domain_force">['|', ('project_id', '=', False), ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 工程成員：原本沒有任何規則、Internal User 有讀取 ACL（誰參與別家公司哪個工程）。project_id 必填 -->
+        <record id="rule_company_global_supervision_project_member" model="ir.rule">
+            <field name="name">工程成員 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_project_member"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 工程文件：不用紀錄自己的 company_id（獨立欄位，dev 與工程公司不一致 128 筆）。
+             工程空白放行（S4 規格）；project_id 目前必填、資料庫 NOT NULL，這一段實際上用不到 -->
+        <record id="rule_company_global_supervision_document" model="ir.rule">
+            <field name="name">工程文件 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_supervision_document"/>
+            <field name="domain_force">['|', ('project_id', '=', False), ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 契約工項／任務（核心熱表）：核心全域規則 85（company_id in company_ids + [False]）保留不動，這條再 AND 上去——
+             工項自己的 company_id 空白時核心放行（dev 有 2924 筆是別家公司工程的工項）。沒有工程的工項（私人任務）
+             維持核心原狀（私人任務另有核心規則只給被指派的人）。寫法同上面的工項版本 -->
+        <record id="rule_company_global_project_task" model="ir.rule">
+            <field name="name">工項 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="project.model_project_task"/>
             <field name="domain_force">['|', ('project_id', '=', False), ('project_id.company_id', 'in', company_ids)]</field>
         </record>
     </data>

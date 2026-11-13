@@ -16,7 +16,7 @@
     # 1.4.1: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 1.4.2: 人機項目主檔、日誌人機使用明細補前台成員讀取規則（原本前台帳號讀得到全庫 23545 筆明細）
     # 1.4.3: 前台成員讀取規則補到掛在工程底下的業務資料（老闆另加公司範圍）：原本前台讀得到、沒有任何前台規則，非成員經 RPC 讀得到別案：機具、維修申請（不屬任何工程的照常可讀）
-    "version": "18.0.1.4.3",
+    "version": "18.0.1.5.0",  # 1.5.0（2026-11-12，S4）：人機料、人機料日誌明細補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。
     "category": "Construction/Equipment",
     "summary": "機具設備管理、維護請求與 MTBF/MTTR 效能指標",
     "description": """
@@ -60,6 +60,7 @@
         # 注意：ir.model.access.csv 必須先載入，才能刪除舊群組
         "security/ir.model.access.csv",
         "security/security.xml",
+        "security/company_rules.xml",  # 全域公司隔離（S4）
         # Data - 人員類型預設資料必須在視圖之前載入
         "data/personnel_type_data.xml",
         "data/ir_sequence_data.xml",

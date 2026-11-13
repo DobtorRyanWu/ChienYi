@@ -52,7 +52,7 @@
     #        前台三個群組拿掉照片的 unlink 權（前台刪照片一律走 sudo 路由並檢查上傳者，
     #        原本可直接呼叫 ORM 刪掉全庫任何一張）
     # 3.7.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
-    'version': '18.0.3.8.0',  # 3.8.0: shot_date 改台灣日期（原本是 UTC 日期，台灣 00:00–07:59 上傳的落到前一天），migration 補空值與改舊公式算錯的（公司儀表板合約 §5.3）
+    'version': '18.0.3.9.0',  # 3.9.0（2026-11-12，S4）：工程照片補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。 3.8.0: shot_date 改台灣日期（原本是 UTC 日期，台灣 00:00–07:59 上傳的落到前一天），migration 補空值與改舊公式算錯的（公司儀表板合約 §5.3）
     'category': 'Construction/Supervision',
     'summary': '工程照片管理與 GPS 追蹤',
     'description': """
@@ -87,6 +87,7 @@
         # Security
         'security/security.xml',
         'security/ir.model.access.csv',
+        'security/company_rules.xml',  # 全域公司隔離（S4）
         # Wizard 必須排在所有 views 之前：supervision_project_views.xml 等多個
         # 視圖用 %(action_photo_upload_wizard)d 引用這裡的 action，
         # 排在後面會噴 "External ID not found in the system"。

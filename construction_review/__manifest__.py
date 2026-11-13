@@ -8,7 +8,7 @@
     #        文號只能擠進審查意見（把真正的審查意見擠掉）或丟掉。
     # 1.4.2: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 1.4.3: 前台成員讀取規則補到掛在工程底下的業務資料（老闆另加公司範圍）：原本前台讀得到、沒有任何前台規則，非成員經 RPC 讀得到別案：計畫管制、送審
-    'version': '18.0.1.4.3',
+    'version': '18.0.1.5.0',  # 1.5.0（2026-11-12，S4）：送審補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。
     'category': 'Construction/Review',
     'summary': '工程監造材料送審管制與追蹤',
     'description': """
@@ -47,6 +47,7 @@
         # Security
         'security/security.xml',
         'security/ir.model.access.csv',
+        'security/company_rules.xml',  # 全域公司隔離（S4）
         # Data
         'data/ir_sequence_data.xml',
         # Views

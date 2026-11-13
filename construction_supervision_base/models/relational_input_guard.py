@@ -13,9 +13,22 @@ Odoo 的 related 欄位與儲存型 compute 預設 ``compute_sudo=True``（``odo
 
 守衛欄位
 --------
-一個模型的「守衛欄位」＝會被某個 compute_sudo 欄位（related 或 compute，儲存或不儲存）當成依賴路徑第一段的
-關聯欄位（many2one／one2many／many2many）。清單由 registry 的 ``field_depends`` 算出，每個模型在 registry
-準備好之後只算一次（``_register_hook`` 重新設定欄位時清掉重算）；``guarded_fields_of()`` 可以在測試裡印出來比對。
+一個模型的「守衛欄位」有兩種，清單由 registry 算出，每個模型在 registry 準備好之後只算一次
+（``_register_hook`` 重新設定欄位時清掉重算）；``guarded_fields_of()`` 可以在測試裡印出來比對：
+
+1. 會被某個 compute_sudo 欄位（related 或 compute，儲存或不儲存）當成依賴路徑第一段的關聯欄位
+   （many2one／one2many／many2many；由 ``field_depends`` 算）。
+2. **comodel 是公司隔離模型的 many2one**（S4 fix1，2026-11-13，S4 第一輪審查 red-team F1）：核心的 many2one
+   **顯示名稱本來就是以 sudo 讀的**（``Many2one.convert_to_read``、``web_read`` 的 many2one 分支），不經任何
+   compute_sudo 欄位——於是只屬 A 的人把 B 的工項／缺失／通報單／工程 id 寫進自己紀錄上沒被第 1 種守住的
+   many2one（例：缺失的 task_id、自主檢查項目的 defect_improvement_id、日誌的 notification_slip_id、照片的
+   signboard_project_id），再 read／web_read，就拿到 B 的顯示名稱，還能逐 id 枚舉（重現：dev 300 筆被藏的工項名稱）。
+   公司隔離模型＝``company_rule_write_guard.COMPANY_RULE_FIELDS`` 的鍵（S3＋S4 全域公司規則、寫得了的模型），
+   加上隔離的根 ``project.project``（ISOLATION_ROOT_MODEL）；不另立清單，規則表一改這裡就跟著變。
+   **只限隔離模型、不擴到所有 many2one**：核心與各模組有大量 many2one 指向使用者、夥伴、公司、幣別、單位等，
+   那些的讀取權各有各的語意（例：可以把同事指派成負責人，卻不一定讀得到他的使用者紀錄），全擋的迴歸面太大；
+   公司隔離模型的語意單純——讀不到就是別家公司的，填進來本來就不對。錯誤訊息把這一種寫成「顯示名稱」。
+   指向非隔離模型的 many2one（例：缺失、送審的 linked_doc_id → doc.document）照舊不守（S4_fix1_report.md 有清單）。
 
 「讀得到」的判定
 ----------------
@@ -74,6 +87,11 @@ DEFAULT_CTX_PREFIX = 'default_'
 CACHE_ATTR = '_relational_input_guard_cache'
 # 錯誤訊息最多列幾個 id（全部列出沒有意義，也避免訊息過長）
 MAX_IDS_IN_MESSAGE = 10
+# 守衛欄位第 2 種（S4 fix1）：公司隔離的根模型（其餘隔離模型取 company_rule_write_guard.COMPANY_RULE_FIELDS 的鍵）
+ISOLATION_ROOT_MODEL = 'project.project'
+# 第 2 種在「以 sudo 計算的欄位」清單裡的記號（核心以 sudo 讀的是它的顯示名稱）；錯誤訊息改寫成 DISPLAY_NAME_LABEL
+DISPLAY_NAME_MARKER = 'display_name'
+DISPLAY_NAME_LABEL = '顯示名稱'
 # 複製進行中的 context 旗標：只認 COPY_TOKEN 這個物件本身（同 construction_company_dashboard rule_scope 的寫法）
 COPY_CTX = 'relational_input_guard_copy'
 # 外層呼叫是這些方法時，視為「伺服器端程式在另一個模型的寫入裡順手建／改紀錄」（見 _nested_in_other_model_crud）
@@ -112,7 +130,24 @@ def _compute_guarded_fields(model):
         for head, users in _compute_guarded_fields(parent).items():
             if head in model._fields:
                 guarded[head].update(name for name in users if name in model._fields)
+    # 第 2 種：comodel 是公司隔離模型的 many2one（顯示名稱以 sudo 讀，見檔頭「守衛欄位」）
+    for name in _isolated_many2one_fields(model):
+        guarded[name].add(DISPLAY_NAME_MARKER)
     return {name: tuple(sorted(users)) for name, users in guarded.items()}
+
+
+def isolated_models():
+    """公司隔離模型：寫後檢查表的鍵（S3＋S4 全域公司規則、寫得了的模型）＋隔離的根（工程）。"""
+    # 函式內匯入：company_rule_write_guard 的 Base 要在本模組之後定義（models/__init__.py 的順序決定 write 的包覆順序）
+    from .company_rule_write_guard import COMPANY_RULE_FIELDS
+    return frozenset(COMPANY_RULE_FIELDS) | {ISOLATION_ROOT_MODEL}
+
+
+def _isolated_many2one_fields(model):
+    """模型上 comodel 是公司隔離模型的 many2one 欄位名。"""
+    targets = isolated_models()
+    return [name for name, field in model._fields.items()
+            if field.type == 'many2one' and field.comodel_name in targets]
 
 
 def guarded_fields_of(model):
@@ -427,7 +462,8 @@ def _raise_forbidden(model, forbidden):
     model_name, fname, comodel_name, ids = forbidden
     owner = env[model_name]
     field = owner._fields[fname]
-    computed = ', '.join(guarded_fields_of(owner).get(fname, ()))
+    computed = ', '.join(DISPLAY_NAME_LABEL if name == DISPLAY_NAME_MARKER else name
+                         for name in guarded_fields_of(owner).get(fname, ()))
     shown = ', '.join(str(i) for i in ids[:MAX_IDS_IN_MESSAGE])
     if len(ids) > MAX_IDS_IN_MESSAGE:
         shown += ' …'

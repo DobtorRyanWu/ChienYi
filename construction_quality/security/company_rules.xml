@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S4（2026-11-12）全域公司隔離：自主檢查與預約式缺失。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在 construction_supervision_base/models/company_rule_write_guard.py。
+    一律走「紀錄所屬工程的公司」（子表沿父單），不用紀錄自己的 company_id（dev 上日誌、文件的 company_id 與工程公司不一致的各有上千／上百筆）。
+-->
+<odoo>
+    <data>
+        <record id="rule_company_global_general_self_inspection" model="ir.rule">
+            <field name="name">一般式自主檢查 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_general_self_inspection"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_general_self_inspection_item" model="ir.rule">
+            <field name="name">一般式自主檢查項目 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_general_self_inspection_item"/>
+            <field name="domain_force">[('inspection_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_general_self_inspection_measure_line" model="ir.rule">
+            <field name="name">一般式自主檢查量測 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_general_self_inspection_measure_line"/>
+            <field name="domain_force">[('inspection_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <!-- 沿通報單（必填）：project_id 是 slip_id.project_id 的 stored related——寫後檢查盯 slip_id、project_id 本身不能直接寫 -->
+        <record id="rule_company_global_reservation_defect_improvement" model="ir.rule">
+            <field name="name">預約式缺失 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_reservation_defect_improvement"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_reservation_self_inspection" model="ir.rule">
+            <field name="name">預約式自主檢查 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_reservation_self_inspection"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_reservation_self_inspection_item" model="ir.rule">
+            <field name="name">預約式自主檢查項目 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_reservation_self_inspection_item"/>
+            <field name="domain_force">[('inspection_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_reservation_self_inspection_measure_line" model="ir.rule">
+            <field name="name">預約式自主檢查量測 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_reservation_self_inspection_measure_line"/>
+            <field name="domain_force">[('inspection_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

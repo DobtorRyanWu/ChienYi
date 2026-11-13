@@ -30,5 +30,12 @@
             <field name="model_id" ref="model_profit_loss_entry"/>
             <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         </record>
+        <!-- S4（2026-11-12）：一般式缺失。原本只有 Internal User 群組的公司規則（被「工程後台使用者 (1=1)」OR 掉）。
+             走工程路徑（project_id 必填）；不用 company_id（它是 project_id.company_id 的 stored related，寫入面另擋） -->
+        <record id="rule_company_global_general_defect_improvement" model="ir.rule">
+            <field name="name">一般式缺失 - 公司隔離（全域，S4）</field>
+            <field name="model_id" ref="model_general_defect_improvement"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
     </data>
 </odoo>
