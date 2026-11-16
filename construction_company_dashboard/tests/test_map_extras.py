@@ -14,14 +14,20 @@ from unittest.mock import MagicMock, patch
 
 import requests
 
+from odoo.addons.construction_supervision_base.models import company_rule_write_guard
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.models import LOG_ACCESS_COLUMNS
 from odoo.modules.module import get_module_path
+from odoo.osv import expression
+from odoo.sql_db import db_connect
 from odoo.tests import tagged
+from odoo.tools.safe_eval import safe_eval
 
 from ..models import project_geo
 from ..models.method_gate import DASHBOARD_METHODS, gate_verdict
 from ..models.project_geo import GEOCODE_PARAM, GEOCODE_USER_AGENT, MAP_PAGE_TAG, geocode_candidates
 from .test_dashboard_indicators import DashIndicatorCase
+from .test_scope_rules import SUPERVISOR_ADMIN
 
 TENDER_MODEL = 'construction.external.tender'
 MAP_METHODS = ('get_dash_map_extras', 'action_dash_geocode')
@@ -147,7 +153,8 @@ class TestMapExtras(DashIndicatorCase):
             self.assertNotIn('SECRET-NO-1', str(call))
             self.assertNotIn('查得到', str(call))
             self.assertTrue(call['timeout'])
-        self.assertEqual(len(sleeps), len(calls) - 1)
+        # 每個請求之前都等（含第一個：上一次自動定位的最後一個請求可能才剛送出，見 test_geocode_spacing_holds_across_calls）
+        self.assertEqual(len(sleeps), len(calls))
         self.assertTrue(all(seconds >= 1 for seconds in sleeps))
 
     def test_geocode_falls_back_to_street_then_district(self):
@@ -173,7 +180,7 @@ class TestMapExtras(DashIndicatorCase):
             '臺北市信義區市府路1號', '臺北市信義區市府路',
             '臺北市大安區某某巷弄 5號', '臺北市大安區',
             '新北市板橋區文化路一段100號', '新北市板橋區文化路一段', '新北市板橋區'])
-        self.assertEqual(len(sleeps), len(calls) - 1, '每個請求之間都要隔開')
+        self.assertEqual(len(sleeps), len(calls), '每個請求之前都要等（含第一個）')
         self.assertEqual(by_street.geo_source, 'geocoded')
         # 整段就查得到的不算「大概」
         exact = self._tender('整段查得到', location='MAPX 整段查得到')
@@ -212,6 +219,76 @@ class TestMapExtras(DashIndicatorCase):
         self.assertEqual(calls[0]['url'], 'https://geocoder.example.invalid/search')
         with self.assertRaises(UserError):
             self.Project.with_user(self.sup).action_dash_geocode('nope')
+
+    def test_geocode_spacing_holds_across_calls(self):
+        """「一秒一個請求」要跨呼叫成立（淞源權限審查 low #7）：連按兩次（或兩個人前後按），
+        第二次的第一個請求也要和上一次的最後一個隔開。用假的時鐘量：sleep 推進時鐘、送請求時記下時鐘。"""
+        clock, sent_at = [0.0], []
+
+        def fake_sleep(seconds):
+            clock[0] += seconds
+
+        def fake_get(url, params=None, headers=None, timeout=None):
+            sent_at.append(clock[0])
+            response = MagicMock()
+            response.json.return_value = [TAIPEI]
+            response.raise_for_status.return_value = None
+            return response
+
+        for index in range(2):
+            self._tender('連按 %s' % index, location='MAPX 連按 %s' % index)
+            with patch.object(project_geo.requests, 'get', side_effect=fake_get), \
+                    patch.object(project_geo.time, 'sleep', side_effect=fake_sleep):
+                result = self.Project.with_user(self.sup).action_dash_geocode('tender')
+            self.assertEqual(len(result['located']), 1, '夾具：每次剛好查一筆')
+        self.assertEqual(len(sent_at), 2)
+        self.assertGreaterEqual(sent_at[1] - sent_at[0], 1, '兩次呼叫之間的請求也要隔一秒以上')
+
+    def test_geocode_refuses_while_another_call_is_running(self):
+        """同一時間只讓一個自動定位在跑（不同請求、不同 worker 也一樣；淞源權限審查 low #7）：
+        別人正在查（另一條資料庫連線拿著鎖）時回「請稍候」，一個請求都不送；別人查完就可以了。"""
+        lock_key = getattr(project_geo, 'GEOCODE_LOCK_KEY', None)
+        self.assertIsNotNone(lock_key, '要有跨請求的鎖')
+        tender = self._tender('同時按', location='MAPX 同時按')
+        other = db_connect(self.env.cr.dbname).cursor()
+        try:
+            other.execute('SELECT pg_try_advisory_xact_lock(%s)', [lock_key])
+            self.assertTrue(other.fetchone()[0], '前提：另一條連線拿得到鎖')
+            calls = []
+            with patch.object(project_geo.requests, 'get', side_effect=fake_service({}, calls)), \
+                    patch.object(project_geo.time, 'sleep'):
+                with self.assertRaises(UserError) as caught:
+                    self.Project.with_user(self.sup).action_dash_geocode('tender')
+            self.assertIn('請稍候', str(caught.exception))
+            self.assertEqual(calls, [], '別人正在查：一個請求都不送')
+            other.rollback()            # 別人查完（交易結束，鎖放開）
+        finally:
+            other.close()
+        result, calls, _sleeps = self._geocode(self.sup, 'tender', {'MAPX 同時按': [TAIPEI]})
+        self.assertEqual([item['id'] for item in result['located']], [tender.id])
+
+    # ── 外部標案的所屬公司（S4 寫後檢查）─────────────────────────────────
+    def test_tender_cannot_be_moved_outside_allowed_companies(self):
+        """有編輯權的帳號不能把外部標案的所屬公司改成自己允許公司以外的（淞源權限審查 low #6）：
+        核心只在寫入「前」用舊值檢查規則，改完那一筆就落到別家公司。允許公司內換公司照常。"""
+        tender = self._tender('改公司')
+        with self.assertRaises(AccessError), self.cr.savepoint():
+            tender.with_user(self.sup).write({'company_id': self.co_a.id})
+        self.env.invalidate_all()
+        self.assertEqual(tender.company_id, self.co_s, '被拒之後資料沒變')
+        both = self._user('dashb_sup_sb', ['base.group_user', SUPERVISOR_ADMIN], self.co_s, self.co_s | self.co_b)
+        tender.with_user(both).write({'company_id': self.co_b.id})
+        self.assertEqual(tender.company_id, self.co_b)
+
+    def test_tender_write_guard_fields_match_its_rules(self):
+        """寫後檢查要盯的欄位＝外部標案的全域規則用得到、寫得進去的欄位（從資料庫的規則推，不抄實作）。"""
+        context = dict(self.env['ir.rule']._eval_context(), company_ids=[])
+        rules = self.env['ir.rule'].sudo().search([('model_id.model', '=', TENDER_MODEL), ('global', '=', True)])
+        self.assertTrue(rules, '前提：外部標案有全域規則')
+        derived = {leaf[0].split('.', 1)[0] for rule in rules for leaf in safe_eval(rule.domain_force, context)
+                   if expression.is_leaf(leaf)} - set(LOG_ACCESS_COLUMNS)
+        watched = getattr(company_rule_write_guard, 'COMPANY_OWNED_RULE_FIELDS', {}).get(TENDER_MODEL, frozenset())
+        self.assertEqual(set(watched), derived)
 
     # ── 其他 ────────────────────────────────────────────────────────────
     def test_tender_coordinates_are_validated(self):

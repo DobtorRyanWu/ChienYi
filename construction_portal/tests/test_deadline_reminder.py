@@ -241,6 +241,28 @@ class TestDeadlineReminder(TransactionCase):
         self.assertEqual(self._notified(event), [('site', ['rmd_field'])])
         self.assertIn('還剩 <b>5</b> 天', str(self._inbox(self.field, event).mail_message_id.body))
 
+    @freeze_time(FROZEN_NOW)
+    def test_body_hides_project_name_from_recipient_who_cannot_read_project(self):
+        """行事曆事項的權責人不是工程成員：讀得到事項本身（權責人規則）、讀不到工程。
+        通知內文不能帶出工程名稱，改用泛稱（淞源權限審查 low #1）；讀得到工程的人照常看到名稱
+        （test_site_stage_goes_to_responsible_once）。"""
+        if EVENT_MODEL not in self.env:
+            self.skipTest('沒裝 construction_office')
+        event = self.env[EVENT_MODEL].create({
+            'name': 'RMD 非成員負責的送件', 'event_type': 'deadline', 'company_id': self.company.id,
+            'project_id': self.p1.id, 'start': datetime(2026, 11, 9, 16, 30),    # 台灣 11-10 00:30：還剩 5 天
+            'responsible_user_id': self.outsider.id})
+        self.assertTrue(self.env[EVENT_MODEL].with_user(self.outsider).search([('id', '=', event.id)]),
+                        '前提：權責人讀得到這筆事項')
+        self.assertFalse(self.env['project.project'].with_user(self.outsider).search([('id', '=', self.p1.id)]),
+                         '前提：權責人讀不到這個工程')
+        self._run()
+        self.assertEqual(self._notified(event), [('site', ['rmd_outsider'])])
+        body = str(self._inbox(self.outsider, event).mail_message_id.body)
+        self.assertNotIn('RMD 工程一', body, '讀不到的工程名稱不能出現在內文')
+        for text in ('RMD 非成員負責的送件', '某工程', '還剩 <b>5</b> 天'):
+            self.assertIn(text, body)
+
     # ── 紀錄清理 ────────────────────────────────────────────────────────
     @freeze_time(FROZEN_NOW)
     def test_old_reminder_rows_are_removed(self):

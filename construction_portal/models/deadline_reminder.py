@@ -9,6 +9,8 @@
 * 還剩 0～manager_days 天、還沒辦完 → 「提醒主管」：通知那個工程的老闆／主管成員。
 * 已經逾期的不再提醒（部署當天不會把幾年前的逾期缺失一次灌給大家；逾期在儀表板和手機首頁看得到）。
 * 只通知「自己讀得到那一筆」的人（例：公文屬於所屬公司，同工程的另一方不會收到）。
+  讀得到那一筆不等於讀得到它的工程（例：行事曆事項的權責人不是工程成員）——收件人讀不到工程時，
+  內文不寫工程名稱、改寫泛稱（PROJECT_HIDDEN_LABEL）。
 * 同一筆、同一階段、同一個期限只提醒一次（本表就是那張紀錄）；期限改了算新的一輪；辦完就不在清單上、不會再提醒。
 
 只發站內通知，不寄 email：
@@ -36,6 +38,9 @@ STAGE_MANAGER = 'manager'
 STAGE_SELECTION = [(STAGE_SITE, '提醒現場'), (STAGE_MANAGER, '提醒主管')]
 REMINDER_KEEP_DAYS = 90         # 提醒紀錄留到期限過後幾天（之後清掉；那時那個期限早就不會再提醒）
 MEMBER_MODEL = 'supervision.project.member'
+# 收件人讀不到那個工程時，內文裡工程名稱的位置改寫這個泛稱（淞源權限審查 low #1：
+# 行事曆事項的權責人不一定是工程成員——讀得到事項、讀不到工程，不能從通知看到工程名稱）
+PROJECT_HIDDEN_LABEL = '某工程'
 
 
 class ConstructionDeadlineReminder(models.Model):
@@ -92,11 +97,19 @@ class ConstructionDeadlineReminder(models.Model):
 
     # ── 通知內容 ──────────────────────────────────────────────────────────
     @api.model
-    def _reminder_body(self, source, record, stage, title, deadline, days_left):
+    def _reminder_project_label(self, project, users):
+        """內文裡的工程名稱：收件人每一位都讀得到這個工程才寫名稱，否則寫泛稱。
+        同一則通知所有收件人看到的內文相同，所以要每一位都讀得到（以收件人本人身分查，不用排程的 sudo）。"""
+        if all(self._reminder_can_read(user, project) for user in users):
+            return project.name
+        return PROJECT_HIDDEN_LABEL
+
+    @api.model
+    def _reminder_body(self, source, record, stage, title, deadline, days_left, users):
         project = record[source['project_field']]
         remaining = Markup('今天到期') if days_left == 0 else Markup('還剩 <b>%s</b> 天') % days_left
         tail = Markup('請安排辦理。') if stage == STAGE_SITE else Markup('目前還沒辦完，請主管留意。')
-        where = Markup('（%s）') % project.name if project else Markup('')
+        where = Markup('（%s）') % self._reminder_project_label(project, users) if project else Markup('')
         return Markup('%s「<b>%s</b>」%s的期限是 <b>%s</b>，%s。%s') % (
             source['label'], title, where, fields.Date.to_string(deadline), remaining, tail)
 
@@ -157,7 +170,8 @@ class ConstructionDeadlineReminder(models.Model):
                         continue        # 沒有人可通知就不記：之後加了成員還來得及提醒
                     title = Project._cy_deadline_title(source, record)
                     message = self._reminder_send(
-                        record, title, self._reminder_body(source, record, stage, title, deadline, days_left), users)
+                        record, title,
+                        self._reminder_body(source, record, stage, title, deadline, days_left, users), users)
                     self.create({
                         'res_model': record._name, 'res_id': record.id, 'stage': stage, 'deadline': deadline,
                         'notified_on': today, 'partner_ids': [(6, 0, users.partner_id.ids)],

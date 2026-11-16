@@ -117,6 +117,14 @@ COMPANY_RULE_FIELDS = {
     'supervision.document': frozenset({'project_id'}),
     'project.task': frozenset({'project_id'}),
 }
+# 公司自己的資料、不掛在工程底下的模型 → 全域公司規則用得到、寫得進去的欄位（淞源權限審查 low #6，2026-11-16：
+# 外部標案的規則是「所屬公司在允許公司內」，有編輯權的人把 company_id 改成允許公司以外的，核心照樣寫得進去）。
+# 只套第 1 點（寫後再檢查）。不放在上表：上表的每個模型都要推得出連到工程的路徑（第 4 點的「單據」，
+# 推不出來會 raise），這類資料不是工程的單據。由 construction_company_dashboard 的
+# test_tender_write_guard_fields_match_its_rules 從資料庫的規則推出來比。
+COMPANY_OWNED_RULE_FIELDS = {
+    'construction.external.tender': frozenset({'company_id'}),
+}
 # 模型 → 「這筆有沒有工程」的路徑：規則對工程空白放行建立者的那三個模型（#2 估驗、#8 變更單、#9 變更明細）
 PROJECT_PATHS = {
     'payment.estimate': 'project_id',
@@ -198,7 +206,7 @@ class Base(models.AbstractModel):
     _inherit = 'base'
 
     def write(self, vals):
-        watched = COMPANY_RULE_FIELDS.get(self._name)
+        watched = COMPANY_RULE_FIELDS.get(self._name) or COMPANY_OWNED_RULE_FIELDS.get(self._name)
         if not self or not watched or self.env.su or watched.isdisjoint(vals):
             return super().write(vals)
         # 第 3 點：related 欄位（例 company_id＝工程的公司）跟著來源走，寫入前就拒（不會先寫進去再回滾）

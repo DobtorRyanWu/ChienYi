@@ -188,3 +188,21 @@ class ConstructionOfficialDoc(models.Model):
         if state in dict(STATE_SELECTION):
             domain.append(('state', '=', state))
         return domain
+
+
+class ResUsers(models.Model):
+    _inherit = 'res.users'
+
+    def _office_portal_doc_company_ids(self, company_ids):
+        """前台的公文規則（security/office_rules.xml）用：company_ids 之中，這個前台帳號可以看公文的公司。
+
+        * 監造方（不是營造方）：只留不是營造廠的公司。允許公司裡有營造廠時（例：為了看到營造廠名下的工程），
+          那家營造廠的公文仍看不到——同一個工程上的監造與營造廠彼此看不到對方的公文
+          （淞源權限審查 low #5；後台的監造方角色帳號由 rule_scope 同樣只看監造公司的）。
+        * 營造方：照 company_ids，範圍另由 construction_company_dashboard 的 rule_scope 收窄成自己的範圍公司。
+        """
+        self.ensure_one()
+        if self._dash_is_contractor_side():
+            return list(company_ids)
+        companies = self.env['res.company'].sudo().browse(company_ids)
+        return [company.id for company in companies if not self._dash_company_is_contractor(company)]

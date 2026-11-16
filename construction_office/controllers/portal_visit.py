@@ -46,11 +46,11 @@ class ConstructionVisitPortal(http.Controller):
         return grant
 
     def _granted_doc(self, doc_id):
-        """被指定給目前登入者看的公文（sudo 的紀錄）；不是 → 404。"""
+        """被指定給目前登入者看、而且現在還掛在授權工程上的公文（sudo 的紀錄）；不是 → 404。"""
         grants = self._grants()
         if not grants:
             raise NotFound()
-        doc = grants.official_doc_ids.filtered(lambda d: d.id == doc_id and d.active)
+        doc = grants._visit_docs().filtered(lambda d: d.id == doc_id)
         if not doc:
             raise NotFound()
         return doc
@@ -85,7 +85,7 @@ class ConstructionVisitPortal(http.Controller):
             'grant': grant,
             'project': grant.project_id,
             'photo_count': Photo.search_count(self._photo_domain(grant.project_id)) if grant.allow_photos else 0,
-            'doc_count': len(grant.official_doc_ids.filtered('active')),
+            'doc_count': len(grant._visit_docs()),
         } for grant in grants]
         return request.render('construction_office.portal_visit_home', self._base_values(grants, rows=rows))
 
@@ -131,7 +131,7 @@ class ConstructionVisitPortal(http.Controller):
     def visit_docs(self, project_id, **kw):
         def build():
             grant = self._grant_for(project_id)
-            docs = grant.official_doc_ids.filtered('active').sorted(
+            docs = grant._visit_docs().sorted(
                 lambda d: (d.doc_date or d.create_date.date(), d.id), reverse=True)
             return 'construction_office.portal_visit_docs', self._base_values(
                 self._grants(), project=grant.project_id, docs=docs, direction_labels=dict(DIRECTION_SELECTION))

@@ -9,6 +9,10 @@
 2. 用地點文字自動定位（action_dash_geocode）：拿「工程地點／履約地點」的文字向外部地理編碼服務查座標。
    * 預設用 OpenStreetMap 的 Nominatim（免金鑰）。只送地點文字，不送工程名稱、編號或任何帳號資訊。
    * 遵守它的使用規則：一秒最多一個請求、帶可辨識的 User-Agent、不大量批次——所以一次最多查 GEOCODE_BATCH_LIMIT 個。
+     「一秒一個」要跨呼叫成立（淞源權限審查 low #7）：同一時間只讓一個自動定位在跑（PostgreSQL 交易層級的
+     advisory lock，跨請求、跨 worker；別人正在查就回「請稍候」，不排隊卡住 worker），而且每個請求「之前」都等
+     GEOCODE_MIN_INTERVAL_SECONDS——鎖保證上一次的交易已經結束，但它的最後一個請求可能才剛送出。
+     鎖只在同一個資料庫內有效：同一台主機上好幾個庫同時按，仍可能同時送（沒處理）。
    * 查到的座標標成「地點文字自動定位（請確認）」：地址定位不一定準，地圖上可以再點一次修正。
    * 這個服務查不到臺灣的門牌（2026-11-13 實測：「…市府路1號」查不到，「…市府路」「…信義區」查得到），
      所以整段文字查不到時會退一級再查：先拿掉門牌只留到路段，再不行只查行政區（geocode_candidates）。
@@ -22,6 +26,7 @@
 import logging
 import re
 import time
+import zlib
 
 import requests
 
@@ -39,6 +44,8 @@ GEOCODE_OFF = 'off'
 GEOCODE_USER_AGENT = 'odoo-construction-site-map/18.0'      # 不帶任何公司、個人或站台資訊
 GEOCODE_TIMEOUT_SECONDS = 10
 GEOCODE_MIN_INTERVAL_SECONDS = 1.1          # Nominatim 的使用規則：每秒最多一個請求
+# 「同一時間只讓一個自動定位在跑」的 advisory lock 鍵（固定值：同一個庫的每個 worker 都要算出同一個）
+GEOCODE_LOCK_KEY = zlib.crc32(b'construction_company_dashboard.geocode')
 GEOCODE_BATCH_LIMIT = 10                    # 一次最多查幾個（一個請求大約十幾秒內做完；也避免變成大量批次）
 GEOCODE_COUNTRY = 'tw'
 GEOCODE_LANGUAGE = 'zh-TW'
@@ -174,6 +181,14 @@ class ProjectProjectGeo(models.Model):
         return Model, with_text, without_text
 
     @api.model
+    def _dash_geocode_lock(self):
+        """同一時間只讓一個自動定位在跑（跨請求、跨 worker）：交易層級的 advisory lock，交易結束（含出錯回滾）自動放開。
+        拿不到＝別人正在查 → 請稍候。不排隊等：一次最多要十幾秒，排隊會把 worker 卡住。"""
+        self.env.cr.execute('SELECT pg_try_advisory_xact_lock(%s)', [GEOCODE_LOCK_KEY])
+        if not self.env.cr.fetchone()[0]:
+            raise UserError('別人正在使用自動定位，請稍候幾秒再試。')
+
+    @api.model
     def action_dash_geocode(self, kind=KIND_PROJECT):
         """把還沒座標的工程（或外部標案）用地點文字查座標，一次最多 GEOCODE_BATCH_LIMIT 個。
 
@@ -189,15 +204,15 @@ class ProjectProjectGeo(models.Model):
         Model, candidates, no_location = self._dash_geocode_targets(kind)
         Model.check_access('write')
         batch = candidates[:GEOCODE_BATCH_LIMIT]
+        if batch:
+            self._dash_geocode_lock()
         source_field = 'dash_geo_source' if kind == KIND_PROJECT else 'geo_source'
         located, failed = [], []
-        requests_sent = 0
         for record in batch:
             found, reason = None, ''
             for level, query in enumerate(geocode_candidates(record.location)):
-                if requests_sent:
-                    time.sleep(GEOCODE_MIN_INTERVAL_SECONDS)        # 每個請求之間都要隔開，不只是每筆之間
-                requests_sent += 1
+                # 每個請求之前都等（不只是每筆之間，也含這次的第一個：上一次自動定位的最後一個請求可能才剛送出）
+                time.sleep(GEOCODE_MIN_INTERVAL_SECONDS)
                 try:
                     found = geocode_text(url, query) + (bool(level),)
                     break

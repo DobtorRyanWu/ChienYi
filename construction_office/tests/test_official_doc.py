@@ -9,7 +9,7 @@ from datetime import timedelta
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 
-from .common import DOC_MODEL, OfficeCase
+from .common import BOSS, DOC_MODEL, FIELD, OfficeCase
 
 
 @tagged('post_install', '-at_install', 'construction_office')
@@ -110,6 +110,23 @@ class TestOfficialDoc(OfficeCase):
         self.assertEqual(self._visible(self.sup_boss, docs), s_doc)
         # 後台人員開了 S 與 A 兩家公司：看得到這兩家的，B 的看不到
         self.assertEqual(self._visible(self.staff, docs), s_doc | a_doc)
+
+    def test_supervision_portal_with_contractor_in_allowed_companies(self):
+        """監造方前台帳號的允許公司裡有營造廠（例：要看營造廠名下的工程）時，仍看不到那家營造廠的公文——
+        同一個工程上的監造與營造廠彼此看不到對方的公文（淞源權限審查 low #5；後台的監造方角色帳號
+        由 construction_company_dashboard 的 rule_scope 同樣只看監造公司的）。後台人員不受影響。"""
+        boss = self._user('office_sup_boss_sa', [BOSS], self.co_s, self.co_s | self.co_a, supervision=True)
+        member = self._user('office_sup_field_sa', [FIELD], self.co_s, self.co_s | self.co_a,
+                            supervision=True, member_of=self.p1)
+        s_doc = self._doc('監造的公文', self.co_s, self.p1)
+        a_doc = self._doc('營造 A 在工程一的公文', self.co_a, self.p1)
+        a_common = self._doc('營造 A 的公司共通公文', self.co_a)
+        docs = s_doc | a_doc | a_common
+        # 成員名單是儲存的計算欄位（工程的 member_user_ids）：規則條件走它，先寫進資料庫再以帳號身分查
+        self.env.flush_all()
+        self.assertEqual(self._visible(boss, docs), s_doc, '老闆：營造 A 的公文一份都看不到')
+        self.assertEqual(self._visible(member, docs), s_doc, '工程一的成員：同工程上營造 A 的公文看不到')
+        self.assertEqual(self._visible(self.staff, docs), docs, '後台人員：允許公司內照舊都看得到')
 
     def test_contractor_portal_sees_only_own_company(self):
         """營造 A 的前台帳號只看得到所屬公司＝A 的公文（要有 construction_company_dashboard 的範圍規則）。"""

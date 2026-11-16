@@ -2,7 +2,10 @@
 """開參觀帳號的精靈（淞源 C11）：指定工程、能不能看照片、能看哪幾份公文、給幾天。
 
 按「建立」後一次做完：建帳號（只帶參觀群組）、設有效期、建授權，並把系統產生的密碼顯示一次。
-密碼只存在這筆暫存紀錄上給開帳號的人抄下來（精靈紀錄會被系統定期清掉），不寫進 log。
+密碼不存進任何欄位、不寫進 log：只放在「建立」回傳的畫面動作的 context 裡（PASSWORD_CONTEXT_KEY），
+畫面上的「密碼」欄位是不儲存的計算欄位，從 context 讀出來顯示。
+（淞源權限審查 low #2：原本存在這筆暫存紀錄上——核心沒有「暫存紀錄只有建立者讀得到」的規則，
+系統定期清掉之前，其他管理員讀得到。）
 """
 import secrets
 from datetime import timedelta
@@ -19,6 +22,8 @@ PASSWORD_LENGTH = 12
 PASSWORD_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 STATE_DRAFT = 'draft'
 STATE_DONE = 'done'
+# 「建立」回傳的畫面動作用這個 context 鍵帶密碼（只有那一次的回應裡有）
+PASSWORD_CONTEXT_KEY = 'visit_created_password'
 
 
 class ConstructionVisitAccountWizard(models.TransientModel):
@@ -37,7 +42,15 @@ class ConstructionVisitAccountWizard(models.TransientModel):
         help='只有挑出來的公文（含附件）看得到；只能挑上面那些工程的公文')
     valid_until = fields.Date(string='可以看到', compute='_compute_valid_until')
     created_user_id = fields.Many2one('res.users', string='建立的帳號', readonly=True)
-    created_password = fields.Char(string='密碼（只顯示這一次）', readonly=True)
+    # 不儲存：值只來自「建立」回傳的畫面動作帶的 context（見檔頭）；事後任何人讀這筆精靈都是空的
+    created_password = fields.Char(string='密碼（只顯示這一次）', compute='_compute_created_password')
+
+    @api.depends('state')
+    @api.depends_context(PASSWORD_CONTEXT_KEY)
+    def _compute_created_password(self):
+        password = self.env.context.get(PASSWORD_CONTEXT_KEY) or False
+        for wizard in self:
+            wizard.created_password = password if wizard.state == STATE_DONE else False
 
     @api.depends('days')
     def _compute_valid_until(self):
@@ -87,7 +100,7 @@ class ConstructionVisitAccountWizard(models.TransientModel):
             'allow_photos': self.allow_photos,
             'official_doc_ids': [(6, 0, self.official_doc_ids.filtered(lambda doc: doc.project_id == project).ids)],
         } for project in self.project_ids])
-        self.write({'state': STATE_DONE, 'created_user_id': user.id, 'created_password': password})
+        self.write({'state': STATE_DONE, 'created_user_id': user.id})
         return {
             'type': 'ir.actions.act_window',
             'name': _('參觀帳號已建立'),
@@ -95,4 +108,6 @@ class ConstructionVisitAccountWizard(models.TransientModel):
             'res_id': self.id,
             'view_mode': 'form',
             'target': 'new',
+            # 密碼只在這一次的回應裡（畫面用這個 context 讀精靈，created_password 從這裡算出來）
+            'context': {PASSWORD_CONTEXT_KEY: password},
         }

@@ -57,6 +57,14 @@ class ConstructionVisitGrant(models.Model):
             if not grant.user_id._is_visit_account():
                 raise ValidationError('「%s」不是參觀帳號，不能設定參觀授權。' % grant.user_id.sudo().name)
 
+    def _visit_docs(self):
+        """這些授權現在看得到的公文：列在授權上、沒封存，而且「目前」還掛在授權的那個工程上。
+        公文事後改掛別的工程（下面的約束只在改授權時檢查），原工程的授權就不再給看（淞源權限審查 low #3）。"""
+        docs = self.env[DOC_MODEL].sudo()
+        for grant in self:
+            docs |= grant.official_doc_ids.filtered(lambda doc: doc.active and doc.project_id == grant.project_id)
+        return docs
+
     @api.constrains('official_doc_ids', 'project_id')
     def _check_docs_belong_to_project(self):
         for grant in self:

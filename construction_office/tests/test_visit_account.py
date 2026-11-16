@@ -171,21 +171,30 @@ class TestVisitAccountModel(VisitFixture, TransactionCase):
                          (False, False, True, True, True))
 
     # ── ⑥ 精靈 ──────────────────────────────────────────────────────────
-    def test_wizard_creates_account_validity_and_grants(self):
-        staff = self.env['res.users'].with_context(no_reset_password=True).create({
-            'name': 'visit_staff', 'login': 'visit_staff',
+    def _staff(self, login):
+        return self.env['res.users'].with_context(no_reset_password=True).create({
+            'name': login, 'login': login,
             'groups_id': [(6, 0, [self.env.ref('base.group_user').id, self.env.ref(ADMIN_GROUP).id])],
             'company_id': self.company.id, 'company_ids': [(6, 0, self.company.ids)]})
+
+    @staticmethod
+    def _shown_password(wizard, action):
+        """「建立」回傳的畫面上顯示的密碼：用回傳動作帶的 context 讀精靈（網頁就是這樣開那個畫面）。"""
+        return wizard.with_context(**action.get('context', {})).created_password
+
+    def test_wizard_creates_account_validity_and_grants(self):
+        staff = self._staff('visit_staff')
         Wizard = self.env['construction.visit.account.wizard'].with_user(staff)
         wizard = Wizard.create({
             'name': 'VISIT 水利局 王先生', 'login': 'visit-wang', 'project_ids': [(6, 0, (self.p1 | self.p2).ids)],
             'official_doc_ids': [(6, 0, (self.doc_a | self.doc_p2).ids)]})
         self.assertEqual(wizard.days, DEFAULT_VISIT_DAYS)
-        wizard.action_create()
+        action = wizard.action_create()
+        password = self._shown_password(wizard, action)
         user = wizard.created_user_id
         self.assertTrue(user._is_visit_account())
         self.assertEqual(user.sudo().portal_valid_until, local_today() + timedelta(days=DEFAULT_VISIT_DAYS))
-        self.assertEqual(len(wizard.created_password), 12)
+        self.assertEqual(len(password), 12)
         self.assertEqual(wizard.state, 'done')
         grants = {grant.project_id: grant for grant in user._visit_grants()}
         self.assertEqual(set(grants), {self.p1, self.p2})
@@ -194,7 +203,7 @@ class TestVisitAccountModel(VisitFixture, TransactionCase):
         self.assertTrue(all(grant.allow_photos for grant in grants.values()))
         # 密碼真的能登入
         self.env['res.users'].sudo().with_user(user)._check_credentials(
-            {'type': 'password', 'password': wizard.created_password}, {'interactive': True})
+            {'type': 'password', 'password': password}, {'interactive': True})
         # 已建立的不能再按一次；帳號重複、天數不對要擋
         with self.assertRaises(UserError):
             wizard.action_create()
@@ -204,6 +213,27 @@ class TestVisitAccountModel(VisitFixture, TransactionCase):
             with self.assertRaises(ValidationError), self.cr.savepoint():
                 Wizard.create({'name': '天數', 'login': 'visit-days-%s' % days, 'days': days,
                                'project_ids': [(6, 0, self.p1.ids)]})
+
+    def test_wizard_password_is_not_left_on_the_wizard_record(self):
+        """密碼只在「建立」的回傳畫面出現一次，不存進精靈紀錄（淞源權限審查 low #2）：
+        精靈是暫存紀錄，核心沒有「只有建立者讀得到」的規則，存在欄位上的話，系統清掉它之前別的管理員讀得到。"""
+        staff, other_staff = self._staff('visit_staff_a'), self._staff('visit_staff_b')
+        wizard = self.env['construction.visit.account.wizard'].with_user(staff).create({
+            'name': 'VISIT 密碼不留', 'login': 'visit-nopw', 'project_ids': [(6, 0, self.p1.ids)]})
+        action = wizard.action_create()
+        self.env.flush_all()
+        # 別的管理員事後讀那筆精靈：拿不到密碼（建立者自己重新讀也一樣）
+        for reader in (other_staff, staff):
+            row = wizard.with_user(reader).with_context({}).read(['created_password', 'state'])[0]
+            self.assertEqual(row['state'], 'done', '前提：讀得到那筆精靈')
+            self.assertFalse(row['created_password'], reader.login)
+        # 資料庫裡也沒有
+        password = self._shown_password(wizard, action)
+        self.assertEqual(len(password or ''), 12, '建立的回傳畫面要顯示密碼')
+        self.env.cr.execute('SELECT * FROM construction_visit_account_wizard WHERE id = %s', [wizard.id])
+        self.assertNotIn(password, [str(value) for value in self.env.cr.fetchone()])
+        self.env['res.users'].sudo().with_user(wizard.created_user_id)._check_credentials(
+            {'type': 'password', 'password': password}, {'interactive': True})
 
     def test_allowlist_is_exact_or_prefix_with_slash(self):
         allowed = (VISIT_HOME, VISIT_HOME + '/5/photos', '/web/assets/abc/web.assets_frontend.min.css',
@@ -343,7 +373,39 @@ class TestVisitAccountHttp(VisitFixture, HttpCase):
         self.assertEqual(posted.status_code, 403)
         self.assertFalse(self.env[DOC_MODEL].search([('subject', '=', 'VISIT 不該建立的公文')]))
 
+    def test_doc_moved_to_another_project_is_no_longer_visible(self):
+        """公文改掛別的工程後，原工程的參觀授權就看不到它——授權依公文「目前」所屬的工程算
+        （淞源權限審查 low #3）。改回原工程又看得到（授權本身沒有被改）。"""
+        self._login(self.visitor)
+        doc_path = '%s/doc/%s' % (VISIT_HOME, self.doc_a.id)
+        file_path = '%s/file/%s' % (doc_path, self.att_a.id)
+        list_path = '%s/%s/docs' % (VISIT_HOME, self.p1.id)
+        self.assertEqual(self._get(doc_path).status_code, 200, '前提：改掛前看得到')
+        self.doc_a.project_id = self.p2
+        self.env.flush_all()
+        self.assertEqual(self._get(doc_path).status_code, 404)
+        self.assertEqual(self._get(file_path).status_code, 404)
+        self.assertNotIn('VISIT 指定給他看的公文', self._get(list_path).text)
+        self.assertNotIn(list_path, self._get(VISIT_HOME).text, '首頁不再有「公文（N）」的入口（件數是 0）')
+        self.doc_a.project_id = self.p1
+        self.env.flush_all()
+        self.assertEqual(self._get(doc_path).status_code, 200)
+
     # ── ③ 過期 ──────────────────────────────────────────────────────────
+    def test_deactivated_visitor_old_session_cannot_get_in(self):
+        """參觀帳號停用（還沒到期）後，舊的 session 一個請求都進不來：導到登入頁，不是空的參觀首頁
+        （淞源權限審查 low #4）。"""
+        self._login(self.visitor)
+        self.assertEqual(self._get(VISIT_HOME).status_code, 200, '前提：停用前進得來')
+        self.assertFalse(self.visitor._visit_expired(), '前提：還沒到期（只有停用）')
+        self.visitor.active = False
+        self.env.flush_all()
+        for path in (VISIT_HOME, '%s/%s/photos' % (VISIT_HOME, self.p1.id),
+                     '%s/photo/%s' % (VISIT_HOME, self.photo1.id), '%s/doc/%s' % (VISIT_HOME, self.doc_a.id)):
+            response = self._get(path)
+            self.assertIn(response.status_code, (302, 303), path)
+            self.assertTrue(self._location(response).startswith('/web/login'), (path, self._location(response)))
+
     def test_expired_visitor_is_logged_out_at_once(self):
         self._login(self.visitor)
         self.assertEqual(self._get(VISIT_HOME).status_code, 200)
