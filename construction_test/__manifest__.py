@@ -23,7 +23,7 @@
     # 2.7.3: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 2.7.4: 檢(試)驗記錄補前台成員讀取規則（老闆另加公司範圍）：原本庫內前台帳號讀得到每個工程的檢試驗記錄、也能留言
     # 2.7.5: 檢試驗項目、統計、預警、公式變數、頻率條件補前台成員讀取規則（不屬任何工程的共用項目照常可讀）
-    'version': '18.0.2.8.1',  # 2.8.1（2026-11-16）：試驗紀錄單號依工程所屬公司取號（ir.sequence._next_by_code_for_project）。 2.8.0（2026-11-12，S4）：檢試驗項目、統計、記錄、預警、頻率條件補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。
+    'version': '18.0.2.8.2',  # 2.8.2（2026-11-16）：migration 把「/」的試驗紀錄依工程公司、依取樣日→進場日→建立日補號。 2.8.1（2026-11-16）：試驗紀錄單號依工程所屬公司取號（ir.sequence._next_by_code_for_project）。 2.8.0（2026-11-12，S4）：檢試驗項目、統計、記錄、預警、頻率條件補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。
     'category': 'Construction/Test',
     'summary': '工程監造檢試驗項目管理與管制記錄',
     'description': """
