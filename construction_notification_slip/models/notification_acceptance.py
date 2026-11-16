@@ -21,7 +21,7 @@ class NotificationAcceptance(models.Model):
     # === 基本資料 ===
     name = fields.Char(
         string='驗收單號', required=True, copy=False, readonly=True,
-        default=lambda self: self.env['ir.sequence'].next_by_code('notification.acceptance') or '/')
+        default='/')
 
     slip_id = fields.Many2one(
         'reservation.notification.slip', string='通報單',
@@ -258,8 +258,10 @@ class NotificationAcceptance(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', '/') == '/':
-                vals['name'] = self.env['ir.sequence'].next_by_code(
-                    'notification.acceptance') or '/'
+                # 工程是通報單的 related 欄位，vals 只會帶 slip_id
+                slip = self.env['reservation.notification.slip'].browse(vals.get('slip_id'))
+                vals['name'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'notification.acceptance', slip.sudo().project_id) or '/'
         return super().create(vals_list)
 
     def unlink(self):
@@ -271,7 +273,8 @@ class NotificationAcceptance(models.Model):
     def copy(self, default=None):
         default = dict(default or {})
         default.update({
-            'name': self.env['ir.sequence'].next_by_code('notification.acceptance') or '/',
+            'name': self.env['ir.sequence']._next_by_code_for_project(
+                'notification.acceptance', self.project_id) or '/',
             'state': 'draft',
             'acceptance_date': fields.Date.today(),
         })

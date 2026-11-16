@@ -467,7 +467,8 @@ class TestRecord(models.Model):
         """建立時自動產生編號"""
         for vals in vals_list:
             if vals.get('name', '/') == '/':
-                vals['name'] = self.env['ir.sequence'].next_by_code('supervision.test.record') or '/'
+                vals['name'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'supervision.test.record', vals.get('project_id')) or '/'
             # 未指定負責人時，由工程案件的「檢試驗負責人」帶入（程式/Portal 建立也適用）
             if not vals.get('responsible_user_id') and vals.get('project_id'):
                 project = self.env['project.project'].browse(vals['project_id'])

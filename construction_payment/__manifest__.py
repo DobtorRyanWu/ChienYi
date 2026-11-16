@@ -198,7 +198,7 @@
     # 1.9.0（2026-11-11，S3）：請款、估驗、估驗明細、非契約工項（＋明細）、計量驗收（＋明細）補全域公司規則（security/company_rules.xml）——
     #        原本沒有任何內部帳號的公司規則，只屬一家公司的內部帳號讀得到全部估驗。估驗工程空白的草稿只給建立者。
     # 1.9.1（2026-11-11，S3 fix1）：公司規則檔頭註解收成一份（說明在 construction_supervision_base/security/company_rules.xml），規則本體不變；寫入面（改掛別家、清空工程）由 construction_supervision_base 擋。
-    'version': '18.0.1.9.1',
+    'version': '18.0.1.9.2',  # 1.9.2（2026-11-16）：估驗請款、工作驗收補 create()，單號依工程所屬公司取號；欄位預設值改「/」。
     # 1.7.2: 效能：`payment.estimate.line._compute_previous_approved_qty` 與
     #        `extra.line._compute_previous_approved` 加 before_cache ——
     #        原本每一列都要重跑一次 `_estimates_before()`，一張估驗單查上百次。

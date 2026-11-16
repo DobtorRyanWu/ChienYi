@@ -26,7 +26,7 @@ class GeneralRealtimeProfit(models.Model):
         required=True,
         copy=False,
         readonly=True,
-        default=lambda self: self.env['ir.sequence'].next_by_code('general.realtime.profit') or '/')
+        default='/')
 
     # === 工程關聯 ===
     project_id = fields.Many2one(
@@ -452,7 +452,8 @@ class GeneralRealtimeProfit(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', '/') == '/':
-                vals['name'] = self.env['ir.sequence'].next_by_code('general.realtime.profit') or '/'
+                vals['name'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'general.realtime.profit', vals.get('project_id')) or '/'
         return super().create(vals_list)
 
     def unlink(self):

@@ -27,7 +27,7 @@ class GeneralSelfInspection(models.Model):
         required=True,
         copy=False,
         readonly=True,
-        default=lambda self: self.env['ir.sequence'].next_by_code('general.self.inspection') or '/')
+        default='/')
 
     # === 工程關聯 ===
     project_id = fields.Many2one(
@@ -353,7 +353,8 @@ class GeneralSelfInspection(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', '/') == '/':
-                vals['name'] = self.env['ir.sequence'].next_by_code('general.self.inspection') or '/'
+                vals['name'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'general.self.inspection', vals.get('project_id')) or '/'
             # 未指定負責人時，由工程案件的「自主檢查負責人」帶入
             if not vals.get('responsible_user_id') and vals.get('project_id'):
                 user = self.env['project.project'].browse(

@@ -25,7 +25,7 @@ class GeneralProgressReport(models.Model):
         required=True,
         copy=False,
         readonly=True,
-        default=lambda self: self.env['ir.sequence'].next_by_code('general.progress.report') or '/')
+        default='/')
 
     # === 工程關聯 ===
     project_id = fields.Many2one(
@@ -353,7 +353,8 @@ class GeneralProgressReport(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', '/') == '/':
-                vals['name'] = self.env['ir.sequence'].next_by_code('general.progress.report') or '/'
+                vals['name'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'general.progress.report', vals.get('project_id')) or '/'
         return super().create(vals_list)
 
     # === 約束 ===

@@ -28,7 +28,7 @@
     # 3.0.2: 「停工紀錄」清單的停工天數、「合併」頁籤的通報單次、清單的逾期天數給固定欄寬
     #        （整數欄預設太窄，標題被截成「停工…」）
     # 3.0.4: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
-    'version': '18.0.3.1.0',  # 3.1.0（2026-11-12，S4）：通報單、通報單工項、停工補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。 2.8.0: 手填金額閘門補一道判準——契約工項標記為「整包費用項」者一律可手填，即使明細列的單價欄被寫髒（保險絲：上游 contract_change 18.0.2.0.0 起已不再污染 unit_price）。 2.7.0: 施工詳細表可選彙總項（選葉節點自動補齊祖先），金額改「有子列加總／無子列手填／葉節點數量×單價」三分支，結算金額只加總根列，新增明細預估合計與不符示警。
+    'version': '18.0.3.1.1',  # 3.1.1（2026-11-16）：單號依工程所屬公司取號（ir.sequence._next_by_code_for_project），欄位預設值改「/」。 3.1.0（2026-11-12，S4）：通報單、通報單工項、停工補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。 2.8.0: 手填金額閘門補一道判準——契約工項標記為「整包費用項」者一律可手填，即使明細列的單價欄被寫髒（保險絲：上游 contract_change 18.0.2.0.0 起已不再污染 unit_price）。 2.7.0: 施工詳細表可選彙總項（選葉節點自動補齊祖先），金額改「有子列加總／無子列手填／葉節點數量×單價」三分支，結算金額只加總根列，新增明細預估合計與不符示警。
     'category': 'Construction/Supervision',
     'summary': '預約式工程通報單管理模組',
     'description': """

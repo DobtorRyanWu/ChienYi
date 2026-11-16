@@ -25,7 +25,7 @@ class PaymentClaim(models.Model):
         required=True,
         copy=False,
         readonly=True,
-        default=lambda self: self.env['ir.sequence'].next_by_code('payment.claim') or '/'
+        default='/'
     )
     project_id = fields.Many2one(
         'project.project',
@@ -213,6 +213,16 @@ class PaymentClaim(models.Model):
             # 取得最大期次
             if self.estimate_ids:
                 self.claim_period = max(self.estimate_ids.mapped('estimate_no'))
+
+    # === CRUD 覆寫 ===
+    @api.model_create_multi
+    def create(self, vals_list):
+        # 單號存檔時才依工程的公司取（欄位預設值是「/」）
+        for vals in vals_list:
+            if vals.get('name', '/') == '/':
+                vals['name'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'payment.claim', vals.get('project_id')) or '/'
+        return super().create(vals_list)
 
     # === 約束檢查 ===
     @api.constrains('claim_amount')

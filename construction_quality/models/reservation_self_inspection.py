@@ -46,7 +46,7 @@ class ReservationSelfInspection(models.Model):
     inspection_no = fields.Char(
         string='編號',
         copy=False,
-        default=lambda self: self.env['ir.sequence'].next_by_code('reservation.self.inspection') or '/')
+        default='/')
 
     # === 檢查資訊 ===
     inspection_type_id = fields.Many2one(
@@ -335,7 +335,10 @@ class ReservationSelfInspection(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if not vals.get('inspection_no') or vals.get('inspection_no') == '/':
-                vals['inspection_no'] = self.env['ir.sequence'].next_by_code('reservation.self.inspection') or '/'
+                # 工程是通報單的 related 欄位，vals 只會帶 slip_id
+                slip = self.env['reservation.notification.slip'].browse(vals.get('slip_id'))
+                vals['inspection_no'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'reservation.self.inspection', slip.sudo().project_id) or '/'
             # 未指定負責人時，由工程案件(經通報單)的「自主檢查負責人」帶入
             if not vals.get('responsible_user_id') and vals.get('slip_id'):
                 project = self.env['reservation.notification.slip'].browse(

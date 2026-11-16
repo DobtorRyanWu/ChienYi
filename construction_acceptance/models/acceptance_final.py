@@ -27,7 +27,7 @@ class AcceptanceFinal(models.Model):
         required=True,
         copy=False,
         readonly=True,
-        default=lambda self: self.env['ir.sequence'].next_by_code('acceptance.final') or '/',
+        default='/',
         index=True)
 
     # === 工程關聯 ===
@@ -455,7 +455,8 @@ class AcceptanceFinal(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('name', '/') == '/':
-                vals['name'] = self.env['ir.sequence'].next_by_code('acceptance.final') or '/'
+                vals['name'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'acceptance.final', vals.get('project_id')) or '/'
         return super().create(vals_list)
 
     def unlink(self):

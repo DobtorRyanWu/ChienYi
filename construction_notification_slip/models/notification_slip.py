@@ -44,7 +44,7 @@ class ReservationNotificationSlip(models.Model):
 
     slip_number = fields.Char(
         string='通報單編號', required=True, copy=False, readonly=True,
-        default=lambda self: self.env['ir.sequence'].next_by_code('reservation.notification.slip') or '/')
+        default='/')
 
     project_id = fields.Many2one(
         'project.project', string='所屬工程', required=True,
@@ -776,8 +776,8 @@ class ReservationNotificationSlip(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('slip_number', '/') == '/':
-                vals['slip_number'] = self.env['ir.sequence'].next_by_code(
-                    'reservation.notification.slip') or '/'
+                vals['slip_number'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'reservation.notification.slip', vals.get('project_id')) or '/'
         # 部分唯一索引看的是資料庫裡的 state：同一交易內剛退單（還在快取、
         # 尚未寫進資料庫）的舊單，INSERT 重開的同次通報單時會被誤判為重複。
         self.flush_model(['state', 'project_id', 'slip_no'])
@@ -816,7 +816,8 @@ class ReservationNotificationSlip(models.Model):
     def copy(self, default=None):
         default = dict(default or {})
         default.update({
-            'slip_number': self.env['ir.sequence'].next_by_code('reservation.notification.slip') or '/',
+            'slip_number': self.env['ir.sequence']._next_by_code_for_project(
+                'reservation.notification.slip', default.get('project_id') or self.project_id) or '/',
             'state': 'draft',
             'actual_start_date': False,
             'actual_end_date': False,

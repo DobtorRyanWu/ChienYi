@@ -311,8 +311,8 @@ class SupervisionReviewApplication(models.Model):
 
             # 產生送審編號
             if record.sequence_code == '/':
-                record.sequence_code = self.env['ir.sequence'].next_by_code(
-                    'supervision.review.application') or '/'
+                record.sequence_code = self.env['ir.sequence']._next_by_code_for_project(
+                    'supervision.review.application', record.project_id) or '/'
 
             record.write({
                 'state': 'done',

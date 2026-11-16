@@ -25,7 +25,7 @@ class WorkAcceptance(models.Model):
         required=True,
         copy=False,
         readonly=True,
-        default=lambda self: self.env['ir.sequence'].next_by_code('work.acceptance') or '/'
+        default='/'
     )
     project_id = fields.Many2one(
         'project.project',
@@ -160,6 +160,16 @@ class WorkAcceptance(models.Model):
         for rec in self:
             rec.total_contract_amount = sum(rec.line_ids.mapped('contract_amount'))
             rec.total_accepted_amount = sum(rec.line_ids.mapped('accepted_amount'))
+
+    # === CRUD 覆寫 ===
+    @api.model_create_multi
+    def create(self, vals_list):
+        # 單號存檔時才依工程的公司取（欄位預設值是「/」）
+        for vals in vals_list:
+            if vals.get('name', '/') == '/':
+                vals['name'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'work.acceptance', vals.get('project_id')) or '/'
+        return super().create(vals_list)
 
     # === 約束檢查 ===
     @api.constrains('line_ids')

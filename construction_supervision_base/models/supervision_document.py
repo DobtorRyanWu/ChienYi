@@ -374,8 +374,8 @@ class SupervisionDocument(models.Model):
         for vals in vals_list:
             # 自動產生文件編號
             if not vals.get('document_no'):
-                vals['document_no'] = self.env['ir.sequence'].next_by_code(
-                    'supervision.document') or '/'
+                vals['document_no'] = self.env['ir.sequence']._next_by_code_for_project(
+                    'supervision.document', vals.get('project_id')) or '/'
 
             # 設定上傳者和上傳時間
             if not vals.get('uploader_id'):
