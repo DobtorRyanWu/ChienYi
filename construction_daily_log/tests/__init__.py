@@ -5,3 +5,4 @@ from . import test_contract_material  # 案件契約材料清單：自動帶入�
 from . import test_manual_fixes_20261102  # B3 排程 NewId、P19 排程提醒（2026-11-02）
 from . import test_title_language  # 日誌標題不隨使用者語言（2026-11-03）
 from . import test_can_unlock_groups  # can_unlock 拿掉人資管理群組（儀表板合約 §13-8）
+from . import test_low_fixes_20261116  # 11-16 六件 low：鎖定日誌不可標已填

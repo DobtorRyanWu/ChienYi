@@ -16,7 +16,7 @@
             return;
         }
         document.body.classList.add("cy-has-maint");
-        document.body.style.setProperty("--cy-maint-h", banner.offsetHeight + "px");
+        document.body.style.setProperty("--wb-maint-h", banner.offsetHeight + "px");
     }
 
     function showModal(el) {

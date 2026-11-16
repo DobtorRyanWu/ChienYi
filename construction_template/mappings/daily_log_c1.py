@@ -36,6 +36,8 @@ MODE = 'placeholder'
 WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日']
 
 SAMPLE_TOKEN = 'constructionSample'
+# 第一聯的多行文字欄（對應 Text 欄位）：六、取樣試驗／分包通知／其他／八、重要事項紀錄
+MULTILINE_TOKENS = (SAMPLE_TOKEN, 'subConstructorHandle', 'other', 'important')
 # 匯出時「本日自主檢查」最多列幾筆：第一聯是整張縮成一頁（fitToPage），列越多整張字越小。
 # 超過的只印總筆數（詳自主檢查表）；畫面上的清單不受這個上限。
 MAX_INSPECTION_LINES = 5
@@ -59,11 +61,12 @@ def _sampling_record(record):
 def WRAP_TOKENS(context):
     """這一次套印要「自動換行＋撐高列」的 token（utils/xlsx_wrap.py）。
 
-    取樣試驗欄是合併儲存格、樣板沒開自動換行——多行字會印成一行、超出的被切掉。
-    只有帶入「本日自主檢查」時才動那一格；沒帶入時不動，產出檔與加這個功能之前相同
-    （營造版第一聯版面照 EAGLE，使用者 2026-11-05 裁示不要再調）。
+    取樣試驗欄、其他、分包通知、重要事項紀錄都是合併儲存格、樣板沒開自動換行（或列高固定）——
+    多行字會印成一行、超出的被切掉。只有值真的有換行時才動那一格；單行或空白時不動，
+    產出檔與加這個功能之前相同（營造版第一聯版面照 EAGLE，使用者 2026-11-05 裁示不要再調；
+    整張仍是 fitToPage 一頁）。
     """
-    return (SAMPLE_TOKEN,) if BLOCK_HEADING in (context.get(SAMPLE_TOKEN) or '') else ()
+    return tuple(token for token in MULTILINE_TOKENS if '\n' in (context.get(token) or '').strip())
 
 
 def _qty(value, unit=None):

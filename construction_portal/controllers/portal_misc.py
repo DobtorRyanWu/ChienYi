@@ -514,9 +514,13 @@ class MiscRoutesMixin:
                 f'/construction/{project_id}/schedule/extend?error=negative')
 
         try:
-            schedule.write({'current_extension': current_extension})
-            schedule.action_extend_lines()
-        except (UserError, ValidationError) as e:
+            # savepoint：寫天數與補區間是一組動作，後者失敗時天數要一併退回，
+            # 否則 controller 回導向後交易照 commit，進度表會留下「天數變了、區間沒補」的半套資料
+            with request.env.cr.savepoint():
+                schedule.write({'current_extension': current_extension})
+                schedule.action_extend_lines()
+        except (UserError, ValidationError, OverflowError) as e:
+            # OverflowError：天數大到完工日超出日期範圍（date + timedelta），原本會變成 500
             _logger.warning('schedule extend failed: %s', e)
             return request.redirect(
                 f'/construction/{project_id}/schedule/extend?error=action_failed')

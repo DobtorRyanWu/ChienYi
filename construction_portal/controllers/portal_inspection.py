@@ -274,24 +274,21 @@ class InspectionRoutesMixin:
                             ('project_id', '=', supervision_project_id),
                             ('project_id', '=', False),
                         ], limit=1)
-                        if not t and contractor:
-                            # 營造方不自動補建檢查類型（樣板是全庫／工程共用的主檔，由監造方維護；
-                            # 合約 §0b-12）：這一列列出原因、不匯入
+                        if not t:
+                            # 找不到對應樣板一律不匯入、不自動補建（樣板是全庫／工程共用的主檔，
+                            # 偷偷建出來的空樣板會污染樣板庫；營造方另見合約 §0b-12）：
+                            # 這一列列出原因，由有權維護樣板的人補建後再匯入
                             failed += 1
+                            if contractor:
+                                hint = _('營造廠帳號匯入不會自動補建檢查類型（樣板），請監造方補建後再匯入')
+                            else:
+                                hint = _('匯入不會自動補建檢查類型（樣板），請先到樣板庫建立後再匯入')
                             failed_details.append({
                                 'filename': fname,
-                                'error': _('%(date)s 檢查類型「%(name)s」不存在。營造廠帳號匯入不會自動補建'
-                                           '檢查類型（樣板），請監造方補建後再匯入',
-                                           date=insp_date, name=type_name),
+                                'error': _('%(date)s 檢查類型「%(name)s」不存在。%(hint)s',
+                                           date=insp_date, name=type_name, hint=hint),
                             })
                             continue
-                        if not t:
-                            t = InspType.create({
-                                'name': type_name,
-                                'project_id': supervision_project_id,
-                                'category': 'civil',
-                                'description': f'[auto-stub from 自檢總表單 {row["sheet_label"]}]',
-                            })
                         type_cache[type_name] = t
 
                     # 2. duplicate check（營造方只比對自家讀得到的檢查，合約 §3.6 表外通則）

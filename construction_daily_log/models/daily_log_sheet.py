@@ -16,6 +16,8 @@ _logger = logging.getLogger(__name__)
 SHEET_NAME_LOCALE = 'zh_TW'
 # 前台匯入補傳：放行「同一人同一天」的重疊檢查（見 _check_overlapping_sheets）
 DAILY_LOG_IMPORT_ALLOW_SAME_DAY = 'daily_log_import_allow_same_day'
+# 已鎖定的日誌狀態（手動鎖定／排程自動鎖定）：不能再標已填寫
+LOCKED_SHEET_STATES = ('locked', 'auto_locked')
 
 
 class DailyLogSheet(models.Model):
@@ -592,6 +594,8 @@ class DailyLogSheet(models.Model):
     def action_mark_filled(self):
         """標記為已填寫（允許無明細，代表當日無施工）"""
         for sheet in self:
+            if sheet.state in LOCKED_SHEET_STATES:
+                raise UserError('日誌「%s」已鎖定，不能標記為已填寫；請先申請解鎖。' % sheet.complete_name)
             sheet.state = 'filled'
 
     def action_revert_to_draft(self):

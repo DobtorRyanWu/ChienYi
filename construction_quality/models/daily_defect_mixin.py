@@ -386,9 +386,12 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
         for record in overdue:
             if not record.responsible_user_id:
                 continue
+            # 作者：排程以系統帳號執行，不指定的話會記成「系統」；改記發現人，沒有發現人退建立者
+            author = (record.discovery_user_id or record.create_uid).partner_id
             record.message_post(
                 body=Markup('缺失 <b>%s</b> 已逾期 %s 天（期限：%s），請儘速完成改善。') % (
                     record.defect_no or record.id, record.overdue_days, record.deadline),
+                author_id=author.id or False,
                 partner_ids=record.responsible_user_id.partner_id.ids,
                 message_type='notification',
                 subtype_xmlid='mail.mt_comment',

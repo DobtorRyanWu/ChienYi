@@ -931,6 +931,8 @@ class TestContractorScopePortal(TransactionCase):
         self.assertTrue(any(missing in d['error'] and '請監造方補建' in d['error'] for d in details), details)
         self.assertFalse(Type.search([('name', '=', missing)]), '營造方匯入不可補建檢查類型')
         self.assertFalse(Insp.search([('project_id', '=', self.p.id), ('inspection_location', '=', 'A3 L1')]))
+        # 11-16：監造方也不再自動補建（偷偷建出來的空樣板會污染樣板庫）：同樣列出原因、不匯入
         loc, details = run(self.sup_leader)
-        self.assertIn('imported=1', loc, details)
-        self.assertEqual(len(Type.search([('name', '=', missing)])), 1, '監造方照舊自動補建')
+        self.assertIn('failed=1', loc, details)
+        self.assertTrue(any(missing in d['error'] and '不會自動補建' in d['error'] for d in details), details)
+        self.assertFalse(Type.search([('name', '=', missing)]), '監造方匯入也不可自建檢查類型')
