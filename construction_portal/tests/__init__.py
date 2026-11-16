@@ -31,3 +31,4 @@ from . import test_project_deadline
 # 淞源 C8（2026-11-12）：期限提醒的每日排程——兩階段、不重複、辦完不提醒、改期限重來、不寄 email
 from . import test_deadline_reminder
 from . import test_low_fixes_20261116  # 11-16 六件 low：展延送出 savepoint
+from . import test_inspection_create_type_scope  # 建立自主檢查時 POST 的樣板 id 要過可見性（2026-11-16）

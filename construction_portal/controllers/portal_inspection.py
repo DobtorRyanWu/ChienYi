@@ -637,9 +637,13 @@ class InspectionRoutesMixin:
         # H1：建立自主檢查限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可建立自主檢查'))
 
+        type_id = self._posted_visible_type_id(post)
+        if type_id is None:               # 送了看不到的樣板（竄改的表單）：不建立
+            return request.redirect(f'/construction/{project_id}/inspection/new?error=inspection_type')
+
         vals = {
             'project_id': project_id,
-            'inspection_type_id': int(post.get('inspection_type_id', 0)) or False,
+            'inspection_type_id': type_id,
             'inspection_date': post.get('inspection_date') or date.today().isoformat(),
             'inspection_location': post.get('inspection_location', ''),
             'inspection_timing_ids': _posted_timing_ids(post),
@@ -929,9 +933,14 @@ class InspectionRoutesMixin:
         # H1：建立預約式自主檢查限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可建立自主檢查'))
 
+        type_id = self._posted_visible_type_id(post)
+        if type_id is None:               # 送了看不到的樣板（竄改的表單）：不建立
+            return request.redirect(
+                f'/construction/{project.id}/slip/{slip.id}?error=inspection_type')
+
         vals = {
             'slip_id': slip.id,
-            'inspection_type_id': int(post.get('inspection_type_id', 0)) or False,
+            'inspection_type_id': type_id,
             'sub_project_name': post.get('sub_project_name', ''),
             'inspection_date': post.get('inspection_date') or date.today().isoformat(),
             'inspection_location': post.get('inspection_location', ''),

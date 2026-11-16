@@ -1298,6 +1298,19 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             AND([self._accessible_type_domain(), [('id', '=', type_id)]]))
         return rec if rec.id in visible.ids else None
 
+    def _posted_visible_type_id(self, post):
+        """前台表單 POST 的 inspection_type_id 過可見性。回傳：
+        False＝沒送樣板（維持各路徑原本的處理）；id＝送了且看得到；None＝送了但看不到（呼叫端要拒絕）。
+
+        建立自主檢查是 sudo，樣板的項目會被複製進檢查；沒過這關，前台帳號就能
+        指定別案專屬樣板的 id，把讀不到的項目名稱與設計標準帶進自己的檢查（2026-11-16）。
+        不能「當成沒選」：一般式的 inspection_type_id 是必填，會撞資料庫約束而變成 400 加 SQL ERROR。
+        """
+        type_id = int(post.get('inspection_type_id', 0) or 0)
+        if not type_id:
+            return False
+        return type_id if self._get_visible_inspection_type(type_id) else None
+
     def _inspection_type_stage_groups(self, rec):
         """把 default_item_ids 依查驗段落分群，回傳 [{key,label,items}]（只留有項目的段落）。
 
