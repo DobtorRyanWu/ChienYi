@@ -2,7 +2,7 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
 
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tools import float_compare
 
 # 一式計價的單位。這類工項的契約量代表「整件」，累計做到超過就沒有物理意義
@@ -488,15 +488,45 @@ class DailyLogLine(models.Model):
                 if not vals.get('company_id'):
                     vals['company_id'] = sheet.company_id.id
 
+        # 鎖定守衛（建立前，什麼都還沒寫）：vals 沒給 sheet_id 時，Odoo 會用 context 的 default_sheet_id 補上，
+        # 所以一起算進來（審查 2026-11-16 以 RPC／with_context(default_sheet_id=…) 重現繞過）。
+        # 不放在建立後才擋：呼叫端若接住 UserError 繼續執行，已寫入的列會被 commit。
+        default_sheet = self.env.context.get('default_sheet_id')
+        self._check_sheets_not_locked(self.env['daily.log.sheet'].browse(
+            [sid for sid in (v['sheet_id'] if 'sheet_id' in v else default_sheet for v in vals_list) if sid]))
         lines = super().create(vals_list)
+        # 備援：用實際寫入的 sheet_id 再檢查一次（萬一還有別的途徑補上 sheet_id）
+        self._check_sheets_not_locked(lines.sheet_id)
         # H3：cumulative_qty 為跨列聚合，新增列（尤其補登較早日期）須重算同工項後續列
         lines._recompute_sibling_cumulative(lines.work_item_id)
         return lines
+
+    @api.model
+    def _check_sheets_not_locked(self, sheets):
+        """所屬日誌已鎖定（超過 14 天且未有效解鎖）時，明細不能新增／修改／刪除。
+
+        判準與 daily.log.sheet.write() 同一把尺：_is_edit_locked()（即時判斷，不看 stale 的 is_locked，也不看 state）。
+        唯一放行：本交易剛建立的日誌——前台／匯入補登舊日期時，日誌與明細在同一個交易建立
+        （同 daily.log.material._check_locked_linked_rows）。不放行 sudo、管理員；要改先走解鎖流程。
+        累計重算與 stored 欄位重算不經 write()，不受影響。
+        """
+        now = self.env.cr.now()
+        locked = sheets.exists().filtered(lambda s: s.create_date != now and s._is_edit_locked())
+        if locked:
+            raise UserError(
+                '已鎖定（超過14天）的日誌不能新增、修改或刪除施工明細：\n'
+                + '\n'.join('- %s' % s.complete_name for s in locked)
+                + '\n\n請先申請解鎖。')
 
     _CUMULATIVE_TRIGGER_FIELDS = ('daily_qty', 'date', 'work_item_id')
 
     def write(self, vals):
         """覆寫 write 以觸發 H3 跨列累計重算"""
+        # 鎖定守衛：寫前所屬的日誌，以及要搬去的日誌（不能把列搬出或搬進鎖定日誌）
+        sheets = self.sheet_id
+        if vals.get('sheet_id'):
+            sheets |= self.env['daily.log.sheet'].browse(vals['sheet_id'])
+        self._check_sheets_not_locked(sheets)
         affected_items = self.work_item_id  # 變更前的工項
         res = super().write(vals)
         # H3：改量/改日期/換工項會影響同工項其他列的累計，需一併重算
@@ -506,6 +536,7 @@ class DailyLogLine(models.Model):
 
     def unlink(self):
         """刪除明細後重算同工項其餘列的累計"""
+        self._check_sheets_not_locked(self.sheet_id)
         affected_items = self.work_item_id  # H3：刪列後同工項其餘列累計要重算
         res = super().unlink()
         self.env['daily.log.line']._recompute_sibling_cumulative(affected_items)

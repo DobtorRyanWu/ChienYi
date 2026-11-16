@@ -599,8 +599,11 @@ class DailyLogSheet(models.Model):
             sheet.state = 'filled'
 
     def action_revert_to_draft(self):
-        """退回編輯中"""
+        """退回編輯中（已鎖定的日誌不能退回；判準用即時的 _is_edit_locked，不看 state：
+        滿 14 天但排程還沒跑時 state 仍是 filled，有效解鎖時 state 也可能還是 locked）"""
         for sheet in self:
+            if sheet._is_edit_locked():
+                raise UserError('日誌「%s」已鎖定，不能退回編輯；請先申請解鎖。' % sheet.complete_name)
             sheet.state = 'draft'
 
     # -------------------------------------------------------------------------

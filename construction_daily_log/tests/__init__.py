@@ -7,3 +7,4 @@ from . import test_title_language  # 日誌標題不隨使用者語言（2026-11
 from . import test_can_unlock_groups  # can_unlock 拿掉人資管理群組（儀表板合約 §13-8）
 from . import test_low_fixes_20261116  # 11-16 六件 low：鎖定日誌不可標已填
 from . import test_weather_date_constraint  # 天氣列日期檢查讀不存在欄位（2026-11-16）
+from . import test_line_lock_guard  # 明細 14 天鎖定守衛、鎖定日誌不可退回編輯（2026-11-16）
