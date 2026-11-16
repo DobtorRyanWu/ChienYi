@@ -269,29 +269,41 @@ class ContractChangeOrder(models.Model):
                  'line_ids.item_level', 'lump_adjust_amount', 'state',
                  'line_ids.exclude_from_contract_amount',
                  'project_id.contract_amount',
-                 'project_id.contract_amount_adjustment')
+                 'project_id.contract_amount_adjustment',
+                 # 2.5.0：已套用的單要看「排在前面、已套用」的那幾張的調整金額
+                 'project_id.change_order_ids.state',
+                 'project_id.change_order_ids.lump_adjust_amount',
+                 'project_id.change_order_ids.change_no')
     def _compute_amount_totals(self):
         """契約金額一律以「頂層彙總項（item_level == 0）加總」為單一真實來源。
 
         概念（薪資統計類比）：各頂層「部門」彙總項各自由下而上算出（明細端
         wizard 已含稅什費 tax_misc_rate 比率），再加總所有頂層彙總項。
-          變更前 = Σ 頂層 original_amount + 歷次契約金額調整
-          變更後 = Σ 頂層 new_amount     + 歷次契約金額調整 + 本次發包工程費調整
+          變更前 = Σ 頂層 original_amount + 這張單之前已經生效的調整
+          變更後 = Σ 頂層 new_amount     + 這張單之前已經生效的調整
+                   （本次發包工程費調整已經疊在頂層彙總列的新金額裡）
           本次變更 = 變更後 - 變更前
         不再使用「快照 original + Σ change」的鏈式累積（會逐次累積誤差）。
+
+        「這張單之前已經生效的調整」見 `_adjustment_before()`（2.5.0）：
+        已套用的單＝排在它前面（變更編號較小）、已套用的變更單的調整金額加總；
+        還沒套用的單＝工程現在的累計調整。
+        🔴 2.5.0 以前用的是「工程今天的累計調整 − 本單的調整」，對最後一張單剛好對，
+        對前面的單會把後面才發生的調整也算進去（正式站 112-07-AEG 第 1 次變更
+        14,920,000 → 14,920,000 顯示成 18,420,000 → 18,420,000）。
 
         「純案例一」（工項完全不動、只填 lump_adjust_amount）時沒有任何明細列，
         Σ 頂層會是 0 —— 此時基數退回工程當前的工項合計
         （contract_amount − contract_amount_adjustment），否則變更前會顯示成 0。
+        2.5.0 起這種單套用時會由 `_add_missing_top_summary_lines()` 補上頂層彙總列，
+        這個分支只剩還沒套用的單（以及 2.5.0 以前套用、沒有明細的舊單）會走到。
         """
         for order in self:
             top = order.line_ids.filtered(
                 lambda l: l.item_level == 0 and not l.exclude_from_contract_amount)
             adjustment = order.project_id.contract_amount_adjustment or 0.0
             lump = order.lump_adjust_amount or 0.0
-            # 套用後 lump 已經進了 project.contract_amount_adjustment，
-            # 這裡要退回「本單套用前」的累計值，否則變更後金額會把 lump 算兩次。
-            adj_before = adjustment - (lump if order.state == 'applied' else 0.0)
+            adj_before = order._adjustment_before()
 
             if top:
                 # 頂層彙總明細（發包工程費）的新金額已含本次 lump
@@ -314,6 +326,84 @@ class ContractChangeOrder(models.Model):
                     order.change_amount / order.original_contract_amount)
             else:
                 order.change_amount_rate = 0.0
+
+    def _sequence_key(self):
+        """變更單的先後：跟「第幾次變更」（change_no）、變更編號同一個順序。
+        change_no 照建立先後（同一天照建立先後），相同時再看 id。"""
+        self.ensure_one()
+        return (self.change_no or 0, self._origin.id or 0)
+
+    def _adjustment_before(self):
+        """這張單生效之前，已經生效的「發包工程費調整」加總（2.5.0）。
+
+        ・已套用的單：排在它前面（變更編號較小）、已套用的那幾張的調整金額加總。
+          後面才套用的單不算 —— 不然前面那張的「變更前／變更後」會被後面的調整墊高。
+        ・還沒套用的單（草稿～已核定、已駁回）：工程現在的累計調整
+          ＝「如果現在套用，前面就是這些」。
+        """
+        self.ensure_one()
+        project = self.project_id
+        if not project:
+            return 0.0
+        if self.state != 'applied':
+            return project.contract_amount_adjustment or 0.0
+        me = self._sequence_key()
+        prior = project.change_order_ids.filtered(
+            lambda o: o.state == 'applied' and o._sequence_key() < me)
+        return sum(prior.mapped('lump_adjust_amount'))
+
+    def _top_summary_snapshot_if_missing(self):
+        """套用前：這張單如果一列頂層明細都沒有，記下每一個頂層工項現在的金額（2.5.0）。
+
+        「頂層明細」＝會算進契約金額的 item_level 0 列，不算本次新增的頂層項次
+        （它的原金額是 0，代表不了既有工項的變更前金額）。
+        有的話（例如用精靈做的單，精靈一定會帶頂層彙總列）回 None、什麼都不做。
+        """
+        self.ensure_one()
+        if self.line_ids.filtered(
+                lambda l: l.item_level == 0 and not l.exclude_from_contract_amount
+                and l.change_type != 'add'):
+            return None
+        tops = self.project_id.task_ids.filtered(
+            lambda t: t.active and not t.parent_id
+            and not t.exclude_from_contract_amount
+        ).sorted(lambda t: (t.sequence, t.id))
+        return [(task, round(task.planned_amount or 0.0, 2)) for task in tops]
+
+    def _add_missing_top_summary_lines(self, snapshot):
+        """套用後：替套用前記下的每一個頂層工項補一列彙總明細（2.5.0）。
+
+        原金額＝套用前的金額、新金額＝套用後的金額，第一列再加上本次的發包工程費調整
+        —— 跟用精靈做出來的樣子一樣（精靈也是把調整疊在「壹 發包工程費」那一列）。
+
+        為什麼要模組自己補：只調上限、工項不動的單由匯入工具建時，工具是先套用、
+        套用後才補這一列，補的時候不含調整金額 → 變更後少了那筆錢
+        （正式站 112-07-AEG 第 2 次變更 +3,500,000 顯示成 14,920,000 → 14,920,000）。
+        匯入工具鎖住不改；它補之前會先查「這張單已經有彙總列嗎」，有就跳過，
+        所以模組先補好，照現在的工具重匯就是對的。
+        """
+        self.ensure_one()
+        if not snapshot:
+            return
+        lump = self.lump_adjust_amount or 0.0
+        vals_list = []
+        for i, (task, before) in enumerate(snapshot):
+            after = round(task.planned_amount or 0.0, 2) + (lump if i == 0 else 0.0)
+            vals_list.append({
+                'change_order_id': self.id,
+                'sequence': 0,
+                'task_id': task.id,
+                'item_no': task.item_no or '',
+                'item_name': task.name or '',
+                'unit': task.unit or '',
+                # change_type 留空＝自動納入的彙總列（同精靈的 H5 列）
+                'is_summary_line': True,
+                'original_qty': 1.0,
+                'original_unit_price': before,
+                'new_qty': 1.0,
+                'new_unit_price': after,
+            })
+        self.env['contract.change.order.line'].create(vals_list)
 
     def _apply_lump_to_top_line(self, delta):
         """把「發包工程費調整金額」的變化量疊到頂層彙總項那一列變更明細上。
@@ -657,11 +747,17 @@ class ContractChangeOrder(models.Model):
         # 之後 _apply_changes_to_tasks 才可以放心改工項。
         self._freeze_lump_original_prices()
 
+        # 2.5.0：沒有頂層明細的單（只調上限、或只有葉項），套用前先記下頂層工項金額
+        top_snapshot = self._top_summary_snapshot_if_missing()
+
         # 套用變更至工項
         self._apply_changes_to_tasks()
 
         # 更新專案契約金額與工期
         self._update_project_contract()
+
+        # 2.5.0：替它補上頂層彙總列（含本次調整），變更前／變更後才算得出來
+        self._add_missing_top_summary_lines(top_snapshot)
 
         self.write({
             'state': 'applied',
