@@ -16,7 +16,7 @@
         <record id="water_level_device_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 水位監測站 - 僅參與成員專案（預設）</field>
             <field name="model_id" ref="water_level_core.model_water_level_device"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -38,7 +38,7 @@
         <record id="water_level_reading_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 水位紀錄 - 僅參與成員專案（預設）</field>
             <field name="model_id" ref="water_level_core.model_water_level_reading"/>
-            <field name="domain_force">[('device_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('device_id.project_id.member_user_ids', 'in', [user.id]), ('device_id.project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -61,7 +61,8 @@
             <field name="name">Portal: 監測場域 - 僅參與成員的工程場域</field>
             <field name="model_id" ref="water_level_core.model_water_level_site"/>
             <field name="domain_force">[('site_type', '=', 'project'),
-                                        ('project_id.member_user_ids', 'in', [user.id])]</field>
+                                        ('project_id.member_user_ids', 'in', [user.id]),
+                                        ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>

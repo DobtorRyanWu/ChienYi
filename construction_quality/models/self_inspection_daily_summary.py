@@ -54,7 +54,8 @@ class SelfInspectionDailySummary(models.AbstractModel):
                 ('state', '!=', STATE_DRAFT),
             ], order=ROW_ORDER)
             for inspection in inspections:
-                type_name = inspection.inspection_type_id.name or ''
+                # 樣板名稱只取名稱用 sudo：樣板可能已改綁別的工程（本人讀不到），日誌頁不能因此 403（2026-11-16）
+                type_name = inspection.inspection_type_id.sudo().name or ''
                 rows.append({
                     'model': model_name,
                     'id': inspection.id,

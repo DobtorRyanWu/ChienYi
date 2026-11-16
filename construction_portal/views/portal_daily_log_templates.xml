@@ -75,7 +75,7 @@
                             <div id="alert_draft_inspections" style="display: none;">
                                 <t t-foreach="draft_inspections" t-as="di">
                                     <div style="font-size: 0.9rem; color: var(--wb-t1); padding: 8px 0;">
-                                        <t t-esc="di.inspection_type_id.name or di.name"/> — <t t-esc="di.inspection_location or ''"/>
+                                        <t t-esc="di.inspection_type_id.sudo().name or di.name"/> — <t t-esc="di.inspection_location or ''"/>
                                     </div>
                                 </t>
                             </div>

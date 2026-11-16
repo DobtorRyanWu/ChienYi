@@ -17,7 +17,7 @@ import hmac
 import secrets
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 # 預設斷線判定門檻（分鐘）。平時採樣多為 10 分鐘一筆，取兩個週期多一點當預設。
 DEFAULT_OFFLINE_MINUTES = 30
@@ -378,6 +378,14 @@ class WaterLevelDevice(models.Model):
     def action_generate_api_key(self):
         """產生新的上報金鑰。明文只在這一刻顯示，資料庫只留雜湊。"""
         self.ensure_one()
+        # 先檢查權限再寫（2026-11-16）：下面是 sudo 寫入，原本靠後面 message_post 對前台帳號拋錯、
+        # 整筆交易 rollback 才把新雜湊收回——那一行一改就變成前台帳號能讓舊金鑰失效。
+        # 前台帳號（工程／社區前台讀得到設備的成員）一律拒絕；內部帳號照 ACL＋規則要有這台設備的寫入權。
+        # 回歸：tests/test_api_key_access.py
+        if not self.env.su:
+            if not self.env.user._is_internal():
+                raise AccessError(_('只有內部帳號可以產生上報金鑰。'))
+            self.check_access('write')
         raw_key = secrets.token_urlsafe(API_KEY_BYTES)
         self.sudo().write({'api_key_hash': self._hash_api_key(raw_key)})
         self.message_post(body=_('已重新產生上報金鑰（舊金鑰即刻失效）。'))

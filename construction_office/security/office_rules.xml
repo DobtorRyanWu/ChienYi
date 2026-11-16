@@ -6,6 +6,9 @@
             同一個工程上的監造與營造廠各有各的公文，彼此看不到。
          2. 前台成員：只看自己參與工程的公文；沒掛工程的（公司共通）成員看不到。
          3. 前台老闆：所屬公司範圍內全部（含沒掛工程的）。
+         2、3 另外都要符合「所屬公司是 user._office_portal_doc_company_ids(company_ids) 之一」：監造方前台帳號
+         只看允許公司裡不是營造廠的公司的公文——允許公司裡有營造廠時（為了看營造廠名下的工程），那家營造廠的
+         公文仍看不到（淞源權限審查 low #5，2026-11-16）。營造方照允許公司，由下面說的 rule_scope 收窄。
          受限帳號（營造方、後台角色帳號）另由 construction_company_dashboard 的 rule_scope 收窄成
          「所屬公司＝自己的公司」（NARROW_BY_COMPANY）；沒列進去的話，那邊預設是拒絕。 -->
     <data>
@@ -17,7 +20,7 @@
         <record id="official_doc_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 公文 - 成員專案讀取</field>
             <field name="model_id" ref="model_construction_official_doc"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated']), ('company_id', 'in', user._office_portal_doc_company_ids(company_ids))]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -27,7 +30,7 @@
         <record id="official_doc_portal_boss_rule" model="ir.rule">
             <field name="name">Portal老闆: 公文 - 所屬公司範圍內全部</field>
             <field name="model_id" ref="model_construction_official_doc"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="domain_force">[('company_id', 'in', user._office_portal_doc_company_ids(company_ids))]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -44,7 +47,7 @@
         <record id="calendar_event_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 行事曆事項 - 自己負責的＋成員專案的</field>
             <field name="model_id" ref="model_construction_calendar_event"/>
-            <field name="domain_force">['|', ('responsible_user_id', '=', user.id), ('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">['|', ('responsible_user_id', '=', user.id), '&amp;', ('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>

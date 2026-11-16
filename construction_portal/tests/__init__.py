@@ -17,6 +17,8 @@ from . import test_portal_orm_readonly  # 前台角色 ORM 寫入權收回：權
 from . import test_inspection_timing_multi  # 前台一次勾多個檢查時機都要存（11-06）
 from . import test_contractor_scope_portal  # 公司儀表板合約 §3.6：營造方範圍與寫入矩陣（線 A2）
 from . import test_portal_get_items_scope  # get-items 只回看得到的樣板（線 H，11-06 抗辯 F9）
+from . import test_inspection_type_portal_scope  # 別案專屬樣板非成員讀不到（原前台規則 1=1，2026-11-16）
+from . import test_portal_member_state_scope  # 前台成員規則排除未開始／終止工程（2026-11-16）
 # S1（2026-11-10）：後台角色帳號在前台的危險閘門與唯讀
 from . import test_role_account_gates
 # S2（2026-11-11）：F 跨公司寫入驗證、G 工程編號訊息；既有手機測試換成後台角色帳號重跑（規格 I）
@@ -28,3 +30,4 @@ from . import test_daily_log_day_inspections
 from . import test_project_deadline
 # 淞源 C8（2026-11-12）：期限提醒的每日排程——兩階段、不重複、辦完不提醒、改期限重來、不寄 email
 from . import test_deadline_reminder
+from . import test_low_fixes_20261116  # 11-16 六件 low：展延送出 savepoint

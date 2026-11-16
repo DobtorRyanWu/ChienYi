@@ -11,7 +11,7 @@
         <record id="rule_test_record_portal_member" model="ir.rule">
             <field name="name">Portal: 檢(試)驗記錄 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_supervision_test_record"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -32,7 +32,7 @@
         <record id="test_standard_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 檢試驗項目（不屬任何工程的共用項目照常可讀） - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_supervision_test_standard"/>
-            <field name="domain_force">['|', ('project_id', '=', False), ('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">['|', ('project_id', '=', False), '&amp;', ('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -52,7 +52,7 @@
         <record id="test_task_statistics_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 檢試驗統計 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_supervision_test_task_statistics"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -72,7 +72,7 @@
         <record id="test_warning_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 檢試驗預警 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_supervision_test_warning"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -92,7 +92,7 @@
         <record id="test_formula_variable_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 檢試驗公式變數 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_supervision_test_formula_variable"/>
-            <field name="domain_force">['|', '|', ('standard_id', '=', False), ('standard_id.project_id', '=', False), ('standard_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">['|', '|', ('standard_id', '=', False), ('standard_id.project_id', '=', False), '&amp;', ('standard_id.project_id.member_user_ids', 'in', [user.id]), ('standard_id.project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -112,7 +112,7 @@
         <record id="test_frequency_condition_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 檢試驗頻率條件 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_supervision_test_frequency_condition"/>
-            <field name="domain_force">['|', '|', ('standard_id', '=', False), ('standard_id.project_id', '=', False), ('standard_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">['|', '|', ('standard_id', '=', False), ('standard_id.project_id', '=', False), '&amp;', ('standard_id.project_id.member_user_ids', 'in', [user.id]), ('standard_id.project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>

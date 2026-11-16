@@ -454,7 +454,7 @@
                                 <div style="flex: 1;">
                                     <div style="font-size: 0.8rem; font-weight: 700; color: var(--wb-amber); margin-bottom: 4px;">待完成的自主檢查</div>
                                     <div style="font-size: 1rem; font-weight: 700;">
-                                        <t t-esc="di.inspection_type_id.name or di.name"/> 尚未完成
+                                        <t t-esc="di.inspection_type_id.sudo().name or di.name"/> 尚未完成
                                     </div>
                                 </div>
                                 <a t-attf-href="/construction/inspection/#{di.id}"

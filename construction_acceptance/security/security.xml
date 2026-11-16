@@ -58,7 +58,7 @@
         <record id="acceptance_preliminary_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 初驗 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_acceptance_preliminary"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -78,7 +78,7 @@
         <record id="acceptance_preliminary_line_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 初驗明細 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_acceptance_preliminary_line"/>
-            <field name="domain_force">[('acceptance_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('acceptance_id.project_id.member_user_ids', 'in', [user.id]), ('acceptance_id.project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -98,7 +98,7 @@
         <record id="acceptance_final_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 正驗 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_acceptance_final"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -118,7 +118,7 @@
         <record id="acceptance_final_line_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 正驗明細 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_acceptance_final_line"/>
-            <field name="domain_force">[('acceptance_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('acceptance_id.project_id.member_user_ids', 'in', [user.id]), ('acceptance_id.project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -138,7 +138,7 @@
         <record id="acceptance_defect_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 驗收缺失 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_acceptance_defect"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -158,7 +158,7 @@
         <record id="project_closure_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 結案 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_project_closure"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -178,7 +178,7 @@
         <record id="project_closure_document_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 結案文件 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_project_closure_document"/>
-            <field name="domain_force">[('closure_id.project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('closure_id.project_id.member_user_ids', 'in', [user.id]), ('closure_id.project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>

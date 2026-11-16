@@ -24,7 +24,7 @@
         <record id="plan_control_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 計畫管制 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_supervision_plan_control"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>
@@ -44,7 +44,7 @@
         <record id="review_application_portal_member_rule" model="ir.rule">
             <field name="name">Portal: 送審 - 成員專案讀取（預設）</field>
             <field name="model_id" ref="model_supervision_review_application"/>
-            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id])]</field>
+            <field name="domain_force">[('project_id.member_user_ids', 'in', [user.id]), ('project_id.state', 'not in', ['draft', 'terminated'])]</field>
             <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>

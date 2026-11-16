@@ -398,7 +398,7 @@
                                    style="text-decoration: none; color: inherit; display: block; padding: 16px; border-bottom: 1px solid var(--wb-bdr);">
                                     <div style="display: flex; justify-content: space-between;">
                                         <span style="font-size: 0.9rem; font-weight: 600;">
-                                            <t t-esc="si.inspection_type_id.name or si.inspection_no or ''"/>
+                                            <t t-esc="si.inspection_type_id.sudo().name or si.inspection_no or ''"/>
                                         </span>
                                         <span t-attf-class="cy-badge cy-badge-#{si.state}">
                                             <t t-esc="dict(si._fields['state'].selection).get(si.state, si.state)"/>

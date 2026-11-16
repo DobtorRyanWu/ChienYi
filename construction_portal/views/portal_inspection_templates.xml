@@ -62,7 +62,7 @@
                             <div class="cy-insp-card-header">
                                 <div>
                                     <div class="cy-insp-card-title">
-                                        <t t-esc="insp.sub_project_name or insp.inspection_type_id.name or insp.name"/>
+                                        <t t-esc="insp.sub_project_name or insp.inspection_type_id.sudo().name or insp.name"/>
                                     </div>
                                     <div class="cy-insp-card-sub">
                                         <t t-esc="insp.inspection_location or ''"/> / <t t-esc="insp.inspection_date"/>
@@ -547,7 +547,7 @@
                                     </span>
                                 </div>
                                 <div style="font-size: 0.85rem; color: var(--wb-t3);">
-                                    <t t-esc="insp.inspection_date"/> · <t t-esc="insp.inspection_type_id.name or ''"/>
+                                    <t t-esc="insp.inspection_date"/> · <t t-esc="insp.inspection_type_id.sudo().name or ''"/>
                                 </div>
                                 <div t-if="insp.slip_id" style="font-size: 0.8rem; color: var(--wb-blue); margin-top: 4px;">
                                     <i class="fa fa-link"/> <t t-esc="insp.slip_id.slip_number or insp.slip_id.name"/>
