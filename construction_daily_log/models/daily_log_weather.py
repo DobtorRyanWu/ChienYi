@@ -237,14 +237,12 @@ class DailyLogWeather(models.Model):
 
     @api.constrains('sheet_id', 'date')
     def _check_date_in_sheet_range(self):
-        """Validate date is within sheet date range"""
+        """天氣日期必須等於日誌日期（日誌已改為單日記錄）"""
         for record in self:
-            if record.sheet_id and record.date:
-                if (record.date < record.sheet_id.date_start or
-                        record.date > record.sheet_id.date_end):
+            if record.sheet_id and record.date and record.sheet_id.log_date:
+                if record.date != record.sheet_id.log_date:
                     raise ValidationError(
-                        f'天氣日期 {record.date} 超出表單日期範圍 '
-                        f'({record.sheet_id.date_start} - {record.sheet_id.date_end})。'
+                        f'天氣日期 {record.date} 與日誌日期 {record.sheet_id.log_date} 不同。'
                     )
 
     @api.constrains('sheet_id', 'date')

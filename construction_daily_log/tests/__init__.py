@@ -6,3 +6,4 @@ from . import test_manual_fixes_20261102  # B3 排程 NewId、P19 排程提醒�
 from . import test_title_language  # 日誌標題不隨使用者語言（2026-11-03）
 from . import test_can_unlock_groups  # can_unlock 拿掉人資管理群組（儀表板合約 §13-8）
 from . import test_low_fixes_20261116  # 11-16 六件 low：鎖定日誌不可標已填
+from . import test_weather_date_constraint  # 天氣列日期檢查讀不存在欄位（2026-11-16）

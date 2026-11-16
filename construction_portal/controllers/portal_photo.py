@@ -3,6 +3,7 @@
 
 import base64
 import json
+import math
 from datetime import date, datetime, timedelta
 
 from odoo import http, _, fields

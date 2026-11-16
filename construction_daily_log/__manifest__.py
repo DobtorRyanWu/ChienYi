@@ -29,7 +29,7 @@
     # 2.10.5: 同一人同一天的重疊檢查讓前台匯入補傳放行（context DAILY_LOG_IMPORT_ALLOW_SAME_DAY）
     # 2.10.6: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 2.11.0: 公司儀表板（合約 §13-8）：日誌解鎖 can_unlock 拿掉 hr 管理群組（hr.group_hr_manager 不再能解鎖），其他分支不變；沒有 schema 變更
-    "version": "18.0.2.12.0",  # 2.12.0（2026-11-12，S4）：施工日誌、明細、材料、特定項目、天氣補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。 2.11.1（2026-11-11，S2）：can_unlock 改看 res.users._portal_review_visible()（審核類，含不是營造方），加 depends_context('uid')
+    "version": "18.0.2.12.1",  # 2.12.1（2026-11-16）：天氣列日期檢查改比對日誌日期 log_date（原本讀已移除的 date_start／date_end 而 AttributeError）。 2.12.0（2026-11-12，S4）：施工日誌、明細、材料、特定項目、天氣補全域公司規則（security/company_rules.xml；走紀錄所屬工程的公司，子表沿父單；說明在 construction_supervision_base/security/company_rules.xml）。 2.11.1（2026-11-11，S2）：can_unlock 改看 res.users._portal_review_visible()（審核類，含不是營造方），加 depends_context('uid')
     "category": "Construction/Supervision",
     "summary": "施工日誌管理 - 參考 hr_timesheet_sheet 設計模式",
     "description": """

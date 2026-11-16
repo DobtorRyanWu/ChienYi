@@ -32,3 +32,4 @@ from . import test_project_deadline
 from . import test_deadline_reminder
 from . import test_low_fixes_20261116  # 11-16 六件 low：展延送出 savepoint
 from . import test_inspection_create_type_scope  # 建立自主檢查時 POST 的樣板 id 要過可見性（2026-11-16）
+from . import test_photo_nearby_route  # 附近照片路由缺 import math（2026-11-16）
