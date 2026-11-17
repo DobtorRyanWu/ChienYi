@@ -17,8 +17,9 @@ from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 
 PULLER_GROUP_XMLID = 'construction_console.group_console_puller'
-# 庫名格式（控台草案第六節）
-DB_NAME_PATTERN = re.compile(r'^[a-z][a-z0-9_]{2,30}$')
+# 庫名格式（控台草案第六節）：2～31 字。原本是 3 字起，但正式站的庫名 jt、th、hj、qy 都是 2 字（2026-11-17）。
+# tools/console_agent/pull_overview.py 的 DB_NAME_PATTERN 要與這裡相同。
+DB_NAME_PATTERN = re.compile(r'^[a-z][a-z0-9_]{1,30}$')
 # 上次成功超過這麼久就標「資料過時」——拉資料程式整個沒在跑時（排程被拿掉、主機停機）不會有失敗紀錄，
 # 只能靠時間看出來。hypothesis：每天拉一次＋2 小時寬限；排程頻率待部署位置定案（合約 §8.5）後調整。
 STALE_AFTER = timedelta(hours=26)
@@ -152,7 +153,7 @@ class ConsoleTenant(models.Model):
     def _check_db_name(self):
         for tenant in self:
             if not DB_NAME_PATTERN.match(tenant.db_name or ''):
-                raise ValidationError(_('資料庫名「%s」格式不對：小寫英文開頭，只能有小寫英文、數字、底線，3～31 字。',
+                raise ValidationError(_('資料庫名「%s」格式不對：小寫英文開頭，只能有小寫英文、數字、底線，2～31 字。',
                                         tenant.db_name))
 
     def _compute_snapshot_count(self):

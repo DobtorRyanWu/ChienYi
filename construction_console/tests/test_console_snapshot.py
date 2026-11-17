@@ -250,6 +250,16 @@ class TestConsoleSnapshot(TransactionCase):
         with self.assertRaises(ValidationError):
             self.env['console.tenant'].create({'name': 'x', 'db_name': 'Bad-Name'})
 
+    def test_db_name_length(self):
+        """正式站的庫名 jt、th、hj、qy 都只有 2 個字，要收得下；1 個字與 32 個字不收。"""
+        Tenant = self.env['console.tenant']
+        for db_name in ('jt', 'qy', 'a' * 31):
+            self.assertEqual(Tenant.create({'name': db_name, 'db_name': db_name}).db_name, db_name)
+        for db_name in ('j', 'a' * 32):
+            with self.subTest(db_name=db_name), self.assertRaises(ValidationError):
+                with self.env.cr.savepoint():
+                    Tenant.create({'name': db_name, 'db_name': db_name})
+
     # ── 清單畫面 ────────────────────────────────────────────────────────
     def test_group_by_supervision_company(self):
         """同一租戶（jt 這種多家共用的庫）底下兩家監造公司的工程：清單可依監造公司分組、各組合計分得開。"""

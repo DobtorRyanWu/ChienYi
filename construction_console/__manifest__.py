@@ -1,6 +1,6 @@
 {
     "name": "工程監造系統 - 控台（工程總覽快照）",
-    "version": "18.0.1.0.0",
+    "version": "18.0.1.0.1",
     "category": "Construction/Supervision",
     "summary": "千溢控台：各監造公司庫的工程總覽快照（只裝在控台庫）",
     "description": """
