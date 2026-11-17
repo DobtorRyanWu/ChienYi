@@ -2287,6 +2287,8 @@ body {{
             except Exception as e:
                 warnings.append(f'渲染警告：{e}')
                 rendered_body = content_html
+        # Jinja 運算式在渲染時才組出內容，存檔時的消毒看不到 → 嵌進頁面前再消毒一次
+        rendered_body = request.env['doc.sanitizer'].sanitize_html(rendered_body)
 
         # 包成完整 HTML 頁面（含列印樣式）
         page_format = doc.page_format or 'A4'

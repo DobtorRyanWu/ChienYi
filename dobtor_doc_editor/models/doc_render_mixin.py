@@ -129,12 +129,15 @@ class DocRenderMixin(models.AbstractModel):
                 env.globals[name] = fn
             template = env.from_string(html)
             # 防 SSTI：以唯讀代理取代活 ORM 物件，封鎖 object.env / sudo / cr 穿透
-            return template.render(
+            rendered = template.render(
                 object=_SafeRecordProxy(record),
                 user=_SafeRecordProxy(self.env.user),
             )
-        except Exception as e:
-            return html  # 渲染失敗時回傳原始 HTML（不執行任何運算式）
+        except Exception:
+            rendered = html  # 渲染失敗時回傳原始 HTML（不執行任何運算式）
+        # 存檔時已消毒，但 Jinja 運算式是渲染時才組出內容（例如用 format 造出「<」），
+        # 預覽頁與 wkhtmltopdf 吃的是渲染結果 → 出口再消毒一次（2026-11-17 抗辯 red-team #1）
+        return self.env['doc.sanitizer'].sanitize_html(rendered)
 
     def _get_render_helpers(self, record):
         """回傳要注入 Jinja2 globals 的 helper 對映。

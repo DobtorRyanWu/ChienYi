@@ -419,6 +419,9 @@ class DocDocument(models.Model):
             for field in self._HTML_FIELDS:
                 if vals.get(field):
                     vals[field] = sanitizer.sanitize_html(vals[field])
+            # canvas 結構資料：block（iframe／video）與不安全的超連結網址不能存進去（2026-11-17）
+            if vals.get('content_json'):
+                vals['content_json'] = sanitizer.sanitize_canvas_json(vals['content_json'])
         return super().create(vals_list)
 
     @api.onchange('template_id')
@@ -502,6 +505,8 @@ class DocDocument(models.Model):
         for field in self._HTML_FIELDS:
             if vals.get(field):
                 vals[field] = sanitizer.sanitize_html(vals[field])
+        if vals.get('content_json'):
+            vals['content_json'] = sanitizer.sanitize_canvas_json(vals['content_json'])
 
         # 大文件自動存入 attachment
         if 'content_html' in vals and vals['content_html']:
