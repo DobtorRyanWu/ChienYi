@@ -14,7 +14,7 @@
     # 1.6.0: 「今天」改台灣日期（local_today）；圖表看不到的變更單不帶名稱；單一工程頁進度摘要改用圖表同一份數字（不再呼叫會寫入的 _compute_current_progress）；缺失摘要改用 _dash_open_domain（公司儀表板合約 §5.3）
     # 1.7.0（2026-11-11，S3）：預定進度表與明細補全域公司規則（security/company_rules.xml；原本只有「工程後台使用者 (1=1)」）
     # 1.7.1（2026-11-11，S3 fix1）：公司規則檔頭註解收成一份（說明在 construction_supervision_base/security/company_rules.xml），規則本體不變。
-    "version": "18.0.1.7.1",
+    "version": "18.0.1.7.2",
     "category": "Construction/Supervision",
     "summary": "工程進度表管理 - 支援每周/每兩周/自訂計算模式",
     "description": """
