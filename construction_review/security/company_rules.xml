@@ -11,5 +11,12 @@
             <field name="model_id" ref="model_supervision_review_application"/>
             <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
         </record>
+
+        <!-- ── S5（2026-11-18）：計畫書送審管制（工程必填）── -->
+        <record id="rule_company_global_supervision_plan_control" model="ir.rule">
+            <field name="name">計畫書送審管制 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_supervision_plan_control"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
     </data>
 </odoo>

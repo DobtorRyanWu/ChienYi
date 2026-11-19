@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': '工程監造系統 - 監造會議記錄',
-    'version': '18.0.1.0.1',
+    'version': '18.0.1.1.0',  # 1.1.0（2026-11-18，S5）：會議記錄補全域公司規則（security/company_rules.xml）——有工程看工程的公司，沒選工程只有記錄自己的公司看得到。
     'category': 'Construction',
     'summary': '監造會議記錄管理（Sprint 24 新增；可選 dobtor_doc_editor_chienyi 啟用線上協作）',
     'description': """
@@ -32,6 +32,7 @@
     ],
     'data': [
         'security/ir.model.access.csv',
+        'security/company_rules.xml',  # 全域公司隔離（S5）
         'views/meeting_record_views.xml',
         'views/menu.xml',
     ],

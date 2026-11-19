@@ -42,5 +42,40 @@
             <field name="model_id" ref="model_reservation_self_inspection_measure_line"/>
             <field name="domain_force">[('inspection_id.project_id.company_id', 'in', company_ids)]</field>
         </record>
+
+        <!-- ── S5（2026-11-18）：自主檢查樣板（＋時機、段落、項目、量測）與缺失編號前綴設定 ──
+             樣板沒有 company_id，只看 project_id：空白＝全域樣板庫（所有公司共用，本來的設計）→ 放行；
+             綁了工程的樣板看工程的公司。四張子表沿樣板（type_id 必填）。
+             前綴設定的工程必填（資料庫 NOT NULL），沒有工程空白放行。 -->
+        <record id="rule_company_global_self_inspection_type" model="ir.rule">
+            <field name="name">自主檢查樣板 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_self_inspection_type"/>
+            <field name="domain_force">['|', ('project_id', '=', False), ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_self_inspection_type_timing" model="ir.rule">
+            <field name="name">自主檢查樣板時機 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_self_inspection_type_timing"/>
+            <field name="domain_force">['|', ('type_id.project_id', '=', False), ('type_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_self_inspection_type_stage" model="ir.rule">
+            <field name="name">自主檢查樣板段落 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_self_inspection_type_stage"/>
+            <field name="domain_force">['|', ('type_id.project_id', '=', False), ('type_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_self_inspection_type_item" model="ir.rule">
+            <field name="name">自主檢查樣板項目 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_self_inspection_type_item"/>
+            <field name="domain_force">['|', ('type_id.project_id', '=', False), ('type_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_self_inspection_type_measure" model="ir.rule">
+            <field name="name">自主檢查樣板量測 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_self_inspection_type_measure"/>
+            <field name="domain_force">['|', ('type_id.project_id', '=', False), ('type_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_defect_improvement_prefix_config" model="ir.rule">
+            <field name="name">缺失編號前綴設定 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_defect_improvement_prefix_config"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
     </data>
 </odoo>

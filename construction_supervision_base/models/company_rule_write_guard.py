@@ -50,6 +50,17 @@ S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試�
 工項（project.task）在表上：非 sudo 改 project_id 之後要對新的結果有寫權（例：專案 User 把工項移到自己沒有寫權的
 followers-only 專案會被拒；核心原本放行、移過去之後自己就改不了）。
 
+S5（2026-11-18）：自主檢查樣板（＋時機、段落、項目、量測）、缺失編號前綴設定、文件樣板、會議記錄、週施工排程（＋明細）、
+初驗／正驗／驗收缺失／結案（＋明細、結案文件）、機具（＋維護請求）、計畫書送審管制的全域規則，寫得了的模型加進下表，
+四點照舊套用。這一輪的規則多了兩種欄位：
+* 工程空白時才看的 company_id（文件樣板的「公司層級」、會議記錄的公司內部會議）：獨立欄位、不是 related，第 3 點不套；
+  改成自己允許公司以外的公司，由第 1 點（寫後再檢查）擋。
+* 不是關聯欄位的 is_default（文件樣板的「系統預設」＝所有公司可用）：把別家公司的系統預設取消預設，改完那份樣板變成
+  別家的公司層級、寫入者讀不到——第 1 點擋（沒擋的話，任何公司的人都能讓別家的系統預設從所有人面前消失）。
+第 2 點（不能變成沒有工程）不擴大：自主檢查樣板清空工程＝變成全域樣板（大家都看得到，是寫入者把自己的樣板分享出去）；
+文件樣板、會議記錄清空工程＝改看紀錄自己的 company_id，不在寫入者允許公司內時由第 1 點擋。
+反方向（把全域樣板、系統預設綁到自己的工程，別家公司從此看不到）這裡不擋：有寫權的人本來就能直接刪掉它。
+
 sudo（系統內部流程）不檢查。正當的非 sudo 改寫（grep 全 repo，S3_fix1_report.md W-3）只有「匯入工程案件」
 （estimate.import.wizard 替工程空白的估驗設工程）與契約變更精靈（contract.change.wizard 替變更單設工程），
 都是「空白 → 自己公司的工程」，兩道檢查都會過。
@@ -116,6 +127,28 @@ COMPANY_RULE_FIELDS = {
     'supervision.review.application': frozenset({'project_id'}),
     'supervision.document': frozenset({'project_id'}),
     'project.task': frozenset({'project_id'}),
+    # ── S5（2026-11-18）：規則一樣走工程路徑。文件樣板、會議記錄在工程空白時看紀錄自己的 company_id（獨立欄位，
+    # 不是 related）；文件樣板另看 is_default（系統預設放行）。說明見檔頭 S5 一段
+    'self.inspection.type': frozenset({'project_id'}),
+    'self.inspection.type.timing': frozenset({'type_id'}),
+    'self.inspection.type.stage': frozenset({'type_id'}),
+    'self.inspection.type.item': frozenset({'type_id'}),
+    'self.inspection.type.measure': frozenset({'type_id'}),
+    'defect.improvement.prefix.config': frozenset({'project_id'}),
+    'document.template': frozenset({'is_default', 'project_id', 'company_id'}),
+    'construction.meeting.record': frozenset({'project_id', 'company_id'}),
+    'construction.weekly.schedule': frozenset({'project_id', 'supervision_project_id'}),
+    'construction.weekly.schedule.line': frozenset({'schedule_id'}),
+    'acceptance.preliminary': frozenset({'project_id'}),
+    'acceptance.preliminary.line': frozenset({'acceptance_id'}),
+    'acceptance.final': frozenset({'project_id'}),
+    'acceptance.final.line': frozenset({'acceptance_id'}),
+    'acceptance.defect': frozenset({'project_id'}),
+    'project.closure': frozenset({'project_id'}),
+    'project.closure.document': frozenset({'closure_id'}),
+    'supervision.equipment': frozenset({'project_id'}),
+    'supervision.equipment.request': frozenset({'project_id', 'equipment_id'}),
+    'supervision.plan.control': frozenset({'project_id'}),
 }
 # 公司自己的資料、不掛在工程底下的模型 → 全域公司規則用得到、寫得進去的欄位（淞源權限審查 low #6，2026-11-16：
 # 外部標案的規則是「所屬公司在允許公司內」，有編輯權的人把 company_id 改成允許公司以外的，核心照樣寫得進去）。

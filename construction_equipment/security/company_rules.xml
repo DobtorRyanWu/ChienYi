@@ -17,5 +17,19 @@
             <field name="model_id" ref="model_daily_log_man_machine_detail"/>
             <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
         </record>
+
+        <!-- ── S5（2026-11-18）：機具設備與維護請求 ──
+             機具自己的 company_id 是獨立欄位（預設帶建立者當時選的公司），不拿來判斷；工程必填。
+             維護請求：project_id 是 equipment_id.project_id 的 stored related（機具必填） -->
+        <record id="rule_company_global_supervision_equipment" model="ir.rule">
+            <field name="name">機具設備 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_supervision_equipment"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_supervision_equipment_request" model="ir.rule">
+            <field name="name">機具維護請求 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_supervision_equipment_request"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
     </data>
 </odoo>

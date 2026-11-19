@@ -159,6 +159,46 @@ psql -d <DB> -At -F ' | ' -f construction_company_dashboard/runbook/s4_precheck.
 (S4-1)(S4-1b) 不是 0 就不准上（先補工程或公司；related 失真的先把 project_id 補成父單的值——`-u` 不會重算既有的 stored related）。(S4-2)(S4-3) 有列出來的先確認（多公司庫 jt 最要緊：任泰的人建在別家公司工程的資料，上線後他自己也看不到）。
 dev 11-13 實跑 `s4_precheck.sql`：(S4-1)(S4-1b) 全 0、(S4-2)(S4-3) 0 列。
 
+## 3c. 上 S5 之前各站要查（S5，2026-11-18）
+
+S5 把 S4 排到下一輪的模型補上同樣的全域公司規則，共 20 個模型：自主檢查樣板（＋時機、段落、項目、量測）、缺失編號前綴設定、
+文件樣板、會議記錄、週施工排程（＋明細）、初驗／正驗／驗收缺失／結案（＋明細、結案文件）、機具設備（＋維護請求）、
+計畫書送審管制。原則照舊：**紀錄所屬工程的公司**要在使用者目前選取的公司裡，子表沿父單，不看紀錄自己的 company_id
+（機具的 company_id 是獨立欄位、預設帶建立者當時選的公司，可能和工程對不上）。
+
+沒有工程的紀錄，這一輪有三種處理（使用者 2026-11-18 核准的計畫；文件樣板那一條是實作時照模型自己的定義收緊，已回報）：
+
+| 資料 | 沒有工程時 | 為什麼 |
+|---|---|---|
+| 自主檢查樣板（＋子表） | 所有公司都看得到 | 全域樣板庫，本來就是共用的 |
+| 文件樣板 | **系統預設**所有公司都看得到；**公司層級**（不是預設）只有樣板自己的公司看得到 | 照模型的「適用範圍」三種：系統／公司／專案 |
+| 會議記錄 | 只有記錄自己的公司看得到 | 沒選工程＝公司內部的會議 |
+
+文件樣板、會議記錄在「沒有工程、自己的公司也空白」時，非 sudo 的人全部看不到（規則 fail-closed）——下面的檢查要是 0 筆。
+
+這一批要 `-u` 的模組（9 個）：construction_supervision_base、construction_quality、construction_template、
+construction_meeting_record、construction_daily_log、construction_acceptance、construction_equipment、construction_review、
+construction_company_dashboard。**寫後檢查表在 construction_supervision_base、規則在各模型所屬模組**——只升其中幾個會變成
+「有規則但沒有寫入面檢查」或反過來，要一起上。沒裝 construction_meeting_record／construction_acceptance 的站，
+那兩個模組的規則本來就不存在，不用處理。
+
+上線前先跑 §3 的 (1)(2)(2b)(3)，再跑 **`runbook/s5_precheck.sql`**（本模組目錄裡，全部唯讀）：
+
+```bash
+psql -d <DB> -At -F ' | ' -f construction_company_dashboard/runbook/s5_precheck.sql
+```
+
+檔內分四段（每段以 `-- [段名]`／`-- [/段名]` 包起來）：
+- **(S5-1)** 每個 S5 規則模型一列：上線後非 sudo 的人全部看不到的筆數——**必須全部是 0**。由測試
+  `test_s5_precheck_sql_covers_every_rule_model` 在測試庫實跑、鎖住「列＝規則模型的資料表」。
+- **(S5-1b)** 規則用的 stored related project_id（週施工排程、機具維護請求）與來源不一致的筆數——**也必須是 0**。
+- **(S5-2)** 上線後可見範圍會變小、要先確認是不是預期的：(a) 公司層級的文件樣板各公司幾份、(b) 沒選工程的會議記錄各公司幾筆、
+  (c) 自主檢查用到別家公司工程專屬樣板的筆數、(d) 專案層級文件樣板的公司與工程公司不一致的筆數。
+  一庫一公司的站 (a)(b) 應該只有一家公司，(c)(d) 應該 0 列；多公司共用的庫（jt）要逐列看。
+- **(S5-3)** 參考：上 S5 前別家公司的後台帳號就讀得到的資料，各工程公司的筆數。
+
+(S5-1)(S5-1b) 不是 0 就不准上。dev 2026-11-18 實跑：(S5-1)(S5-1b) 全 0；(S5-2) 只有 (b) 一筆（公司 1 的測試會議）。
+
 ## 4. 已知限制
 
 - **兩步驟驗證目前不強制**：使用者 11-11 暫定（`res_users_guard.DASH_REQUIRE_TOTP = False`）；改回 True 即恢復。
@@ -198,5 +238,12 @@ dev 11-13 實跑 `s4_precheck.sql`：(S4-1)(S4-1b) 全 0、(S4-2)(S4-3) 0 列。
   天氣例外走父單（它的 ORM 建立是壞的，現有資料寫法是 SQL、related 的 project_id 會是空的）。
 - 工項（project.task）在寫後檢查表上：非 sudo 改工項的工程之後，要對改完的工項有寫權（例：把工項移到自己沒有寫權的
   「只限追蹤者」專案會被拒；核心原本放行、移過去之後本人就改不了）。工項清空工程（變成私人任務）：被指派的人清得掉，沒被指派的人會被拒（私人任務的核心規則只給被指派的人）。
+- **S5 的規則也在模型所屬模組**（construction_quality、construction_template、construction_meeting_record、
+  construction_daily_log、construction_acceptance、construction_equipment、construction_review 的 `security/company_rules.xml`）：
+  同 S3／S4，任一個降版到 S5 之前的版本，那幾條規則會被刪掉、沒有 log。
+- S5「工程空白」的反方向不擋：有寫權的人把全域樣板綁到自己的工程、或把系統預設的文件樣板改成專案層級，別家公司從此看不到它
+  （他本來就能直接刪掉那份樣板，屬於既有的寫入權問題，不是公司隔離的洞）。把**別家公司**的系統預設取消預設會被寫後檢查擋。
+- 驗收模組原有的「多公司規則」（群組＝Internal User、公司空白放行）照舊留著，和 S5 的全域規則取交集；
+  監造方前台老闆的幾條「公司範圍」前台規則實際條件是 1=1，在多公司庫上靠 S5 的全域規則收窄。
 - 1b（有單據的工程只有系統管理者／代操作員能改公司）的「單據」S4 起含照片、日誌、工項等；開案時系統自己產生的不算
   （空的資料夾、工程成員名單，2026-11-13 放寬，見 §3b）——資料夾裡有任何一個檔就算。

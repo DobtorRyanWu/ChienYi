@@ -38,5 +38,18 @@
             <field name="model_id" ref="model_daily_log_weather"/>
             <field name="domain_force">[('sheet_id.supervision_project_id.company_id', 'in', company_ids)]</field>
         </record>
+
+        <!-- ── S5（2026-11-18）：週施工排程（＋明細）──
+             排程：project_id ＝ supervision_project_id（必填）的 stored related，寫法同施工日誌；明細沿排程（schedule_id 必填） -->
+        <record id="rule_company_global_construction_weekly_schedule" model="ir.rule">
+            <field name="name">週施工排程 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_construction_weekly_schedule"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_construction_weekly_schedule_line" model="ir.rule">
+            <field name="name">週施工排程明細 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_construction_weekly_schedule_line"/>
+            <field name="domain_force">[('schedule_id.supervision_project_id.company_id', 'in', company_ids)]</field>
+        </record>
     </data>
 </odoo>

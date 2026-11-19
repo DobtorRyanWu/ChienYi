@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S5（2026-11-18）全域公司隔離：會議記錄。說明（為什麼是全域規則、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在
+    construction_supervision_base/models/company_rule_write_guard.py（本模組不依賴它：沒裝時只有讀、建、刪由規則擋）。
+    * 有工程：看工程的公司，不看記錄自己的 company_id（預設帶建立者當時選的公司，可能和工程對不上）；
+    * 沒有工程：公司內部的會議，只有記錄自己的公司（company_id）看得到。工程與公司都空白的，非 sudo 看不到
+      （上線前檢查：construction_company_dashboard/runbook/s5_precheck.sql 要是 0 筆）。
+    本模型原本沒有任何規則，ACL 是所有內部帳號讀寫建刪。
+-->
+<odoo>
+    <data>
+        <record id="rule_company_global_construction_meeting_record" model="ir.rule">
+            <field name="name">會議記錄 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_construction_meeting_record"/>
+            <field name="domain_force">['|',
+                '&amp;', ('project_id', '=', False), ('company_id', 'in', company_ids),
+                ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

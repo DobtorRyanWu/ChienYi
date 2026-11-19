@@ -4,7 +4,7 @@
     # 附件自動歸類：掛 supervision.attachment.mixin，上傳的附件自動帶所屬工程與文件分類
     # 1.1.2: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 1.1.3: 前台成員讀取規則補到掛在工程底下的業務資料（老闆另加公司範圍）：原本前台讀得到、沒有任何前台規則，非成員經 RPC 讀得到別案：初驗、正驗、驗收缺失、結案與明細
-    'version': '18.0.1.1.4',  # 1.1.4（2026-11-16）：單號依工程所屬公司取號（ir.sequence._next_by_code_for_project），欄位預設值改「/」。
+    'version': '18.0.1.2.0',  # 1.2.0（2026-11-18，S5）：初驗、正驗、驗收缺失、結案（＋明細、結案文件）補全域公司規則（security/company_rules.xml；走工程路徑，不看紀錄自己的 company_id）。 1.1.4（2026-11-16）：單號依工程所屬公司取號（ir.sequence._next_by_code_for_project），欄位預設值改「/」。
     'category': 'Construction',
     'summary': '初驗、正驗、驗收缺失追蹤、結案處理',
     'description': """
@@ -57,6 +57,7 @@
         # Security
         'security/security.xml',
         'security/ir.model.access.csv',
+        'security/company_rules.xml',  # 全域公司隔離（S5）
         # Data
         'data/ir_sequence_data.xml',
         # Views

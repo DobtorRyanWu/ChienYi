@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S5（2026-11-18）全域公司隔離：初驗、正驗、驗收缺失、結案（＋明細、結案文件）。說明（為什麼是全域規則、語意、寫入另由寫後檢查擋、
+    noupdate、測試）在 construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在
+    construction_supervision_base/models/company_rule_write_guard.py。
+    一律走「紀錄所屬工程的公司」（子表沿父單），不用紀錄自己的 company_id：本模組原有的「多公司規則」（security.xml，群組＝Internal User）
+    看 company_id、而且公司空白放行——company_id 是 project_id.company_id 的 stored related，值失真（空白）時那條規則擋不住；
+    這裡的全域規則與它取交集。工程必填（資料庫 NOT NULL），沒有工程空白放行。
+-->
+<odoo>
+    <data>
+        <record id="rule_company_global_acceptance_preliminary" model="ir.rule">
+            <field name="name">初驗 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_acceptance_preliminary"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_acceptance_preliminary_line" model="ir.rule">
+            <field name="name">初驗項目 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_acceptance_preliminary_line"/>
+            <field name="domain_force">[('acceptance_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_acceptance_final" model="ir.rule">
+            <field name="name">正驗 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_acceptance_final"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_acceptance_final_line" model="ir.rule">
+            <field name="name">正驗項目 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_acceptance_final_line"/>
+            <field name="domain_force">[('acceptance_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_acceptance_defect" model="ir.rule">
+            <field name="name">驗收缺失 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_acceptance_defect"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_project_closure" model="ir.rule">
+            <field name="name">結案 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_project_closure"/>
+            <field name="domain_force">[('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+        <record id="rule_company_global_project_closure_document" model="ir.rule">
+            <field name="name">結案文件 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_project_closure_document"/>
+            <field name="domain_force">[('closure_id.project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>

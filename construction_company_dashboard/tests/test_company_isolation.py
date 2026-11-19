@@ -40,6 +40,16 @@ S4（2026-11-12）：照片、施工日誌（＋明細、人機料）、檢試�
 「工程空白放行」：工項（私人任務）真的建一筆驗 A、B 都讀得到；檢試驗項目／頻率條件、資料夾、工程文件的工程欄位
 資料庫 NOT NULL，空白的紀錄建不出來——那一格改成驗 NOT NULL（改成可空時會紅，提醒補真的格）。
 本模組不依賴 construction_equipment（人機料）、construction_review（送審）：dev 都裝了，沒裝時夾具會直接失敗（不靜默略過）。
+
+S5（2026-11-18）：自主檢查樣板（＋時機、段落、項目、量測）、缺失編號前綴設定、文件樣板、會議記錄、週施工排程（＋明細）、
+初驗／正驗／驗收缺失／結案（＋明細、結案文件）、機具（＋維護請求）、計畫書送審管制共 20 個模型加進同一張表。
+夾具都掛 PA／PS2。驗收四種主單的 B 把 stored related 的 company_id 清空：那個模組原有的群組規則（Internal User）公司空白放行，
+公司照常的 B 會先被它擋（M-B；同工項 B 用公司空白那一筆）。
+工程空白的三種語意另有專屬的格（不進 iso_meta）：全域樣板 A、B 都讀得到；文件樣板的系統預設 A、B 都讀得到、
+公司層級只有自己公司讀得到；沒選工程的會議記錄只有記錄自己的公司讀得到。
+規則欄位裡「改掛到 B」表達不了的三格（文件樣板的 company_id、is_default，會議記錄的 company_id）記在 SPECIAL_CELLS，
+由 test_s5_special_cells_refused 各跑一格。
+本模組不依賴 construction_acceptance、construction_meeting_record：同上，dev 都裝了，沒裝時夾具直接失敗。
 """
 import os
 import re
@@ -115,6 +125,27 @@ EXPECT_COMPANY_MODELS = {
     'supervision.project.member': 'construction_supervision_base.rule_company_global_supervision_project_member',
     'supervision.document': 'construction_supervision_base.rule_company_global_supervision_document',
     'project.task': 'construction_supervision_base.rule_company_global_project_task',
+    # ── S5（2026-11-18）──
+    'self.inspection.type': 'construction_quality.rule_company_global_self_inspection_type',
+    'self.inspection.type.timing': 'construction_quality.rule_company_global_self_inspection_type_timing',
+    'self.inspection.type.stage': 'construction_quality.rule_company_global_self_inspection_type_stage',
+    'self.inspection.type.item': 'construction_quality.rule_company_global_self_inspection_type_item',
+    'self.inspection.type.measure': 'construction_quality.rule_company_global_self_inspection_type_measure',
+    'defect.improvement.prefix.config': 'construction_quality.rule_company_global_defect_improvement_prefix_config',
+    'document.template': 'construction_template.rule_company_global_document_template',
+    'construction.meeting.record': 'construction_meeting_record.rule_company_global_construction_meeting_record',
+    'construction.weekly.schedule': 'construction_daily_log.rule_company_global_construction_weekly_schedule',
+    'construction.weekly.schedule.line': 'construction_daily_log.rule_company_global_construction_weekly_schedule_line',
+    'acceptance.preliminary': 'construction_acceptance.rule_company_global_acceptance_preliminary',
+    'acceptance.preliminary.line': 'construction_acceptance.rule_company_global_acceptance_preliminary_line',
+    'acceptance.final': 'construction_acceptance.rule_company_global_acceptance_final',
+    'acceptance.final.line': 'construction_acceptance.rule_company_global_acceptance_final_line',
+    'acceptance.defect': 'construction_acceptance.rule_company_global_acceptance_defect',
+    'project.closure': 'construction_acceptance.rule_company_global_project_closure',
+    'project.closure.document': 'construction_acceptance.rule_company_global_project_closure_document',
+    'supervision.equipment': 'construction_equipment.rule_company_global_supervision_equipment',
+    'supervision.equipment.request': 'construction_equipment.rule_company_global_supervision_equipment_request',
+    'supervision.plan.control': 'construction_review.rule_company_global_supervision_plan_control',
 }
 # 本規格新增規則的 xmlid 前綴與所在模組（盤點用）
 RULE_XMLID_PREFIX = 'rule_company_global_'
@@ -122,13 +153,19 @@ RULE_MODULES = ('construction_payment', 'construction_contract_change', 'constru
                 'construction_general', 'construction_supervision_base',
                 # S4
                 'construction_photo', 'construction_daily_log', 'construction_equipment', 'construction_test',
-                'construction_quality', 'construction_notification_slip', 'construction_review')
+                'construction_quality', 'construction_notification_slip', 'construction_review',
+                # S5（quality、daily_log、equipment、review 上面已有）
+                'construction_template', 'construction_meeting_record', 'construction_acceptance')
 # 一般內部帳號（只有 base.group_user）有讀取 ACL 的模型（dev ir_model_access 查得；其餘只給工程後台使用者等群組）
 INTERNAL_USER_MODELS = frozenset({
     'payment.claim', 'payment.estimate', 'payment.estimate.line', 'payment.estimate.extra.item',
     'payment.estimate.extra.line', 'work.acceptance', 'work.acceptance.line', 'project.task.version',
     # S4：盤點「連一般內部帳號都讀得到」的三個
     'supervision.folder', 'supervision.project.member', 'project.task',
+    # S5：base.group_user 有讀取 ACL 的（文件樣板、會議記錄、驗收與結案七個）
+    'document.template', 'construction.meeting.record',
+    'acceptance.preliminary', 'acceptance.preliminary.line', 'acceptance.final', 'acceptance.final.line',
+    'acceptance.defect', 'project.closure', 'project.closure.document',
 })
 # 工程後台使用者沒有讀取 ACL 的模型（核心 project 只給 Project User／Manager）
 PROJECT_USER_ONLY_MODELS = frozenset({'report.project.task.user'})
@@ -222,11 +259,41 @@ REPARENT_CELLS = (
     ('supervision.review.application', 'project_id', TARGET_PROJECT),
     ('supervision.document', 'project_id', TARGET_PROJECT),
     ('project.task', 'project_id', TARGET_PROJECT),
+    # S5（related 的 project_id 2 格：週施工排程＝supervision_project_id、機具維護請求＝機具的工程）
+    ('self.inspection.type', 'project_id', TARGET_PROJECT),
+    ('self.inspection.type.timing', 'type_id', 'self.inspection.type'),
+    ('self.inspection.type.stage', 'type_id', 'self.inspection.type'),
+    ('self.inspection.type.item', 'type_id', 'self.inspection.type'),
+    ('self.inspection.type.measure', 'type_id', 'self.inspection.type'),
+    ('defect.improvement.prefix.config', 'project_id', TARGET_PROJECT),
+    ('document.template', 'project_id', TARGET_PROJECT),
+    ('construction.meeting.record', 'project_id', TARGET_PROJECT),
+    ('construction.weekly.schedule', 'project_id', TARGET_PROJECT),
+    ('construction.weekly.schedule', 'supervision_project_id', TARGET_PROJECT),
+    ('construction.weekly.schedule.line', 'schedule_id', 'construction.weekly.schedule'),
+    ('acceptance.preliminary', 'project_id', TARGET_PROJECT),
+    ('acceptance.preliminary.line', 'acceptance_id', 'acceptance.preliminary'),
+    ('acceptance.final', 'project_id', TARGET_PROJECT),
+    ('acceptance.final.line', 'acceptance_id', 'acceptance.final'),
+    ('acceptance.defect', 'project_id', TARGET_PROJECT),
+    ('project.closure', 'project_id', TARGET_PROJECT),
+    ('project.closure.document', 'closure_id', 'project.closure'),
+    ('supervision.equipment', 'project_id', TARGET_PROJECT),
+    ('supervision.equipment.request', 'project_id', TARGET_PROJECT),
+    ('supervision.equipment.request', 'equipment_id', 'supervision.equipment'),
+    ('supervision.plan.control', 'project_id', TARGET_PROJECT),
 )
+# S5：規則欄位裡「把 A 的紀錄改掛到 B 的工程／父單」表達不了的格——工程空白時才看的 company_id（獨立欄位）、
+# 不是關聯欄位的 is_default。各由 test_s5_special_cells_refused 跑一格；鎖定測試把它們和 REPARENT_CELLS 合起來比
+SPECIAL_CELLS = frozenset({
+    ('document.template', 'company_id'),
+    ('document.template', 'is_default'),
+    ('construction.meeting.record', 'company_id'),
+})
 # related 欄位（company_id＝工程的公司、非契約工項明細的 project_id＝估驗的工程；S4 的 project_id＝父單／來源的工程）
-# 非 sudo 不能直接寫：訊息片段（測試獨立寫出）與格數（上游說有幾格就要有幾格，M-C）：S3 8 格＋S4 7 格
+# 非 sudo 不能直接寫：訊息片段（測試獨立寫出）與格數（上游說有幾格就要有幾格，M-C）：S3 8 格＋S4 7 格＋S5 2 格
 RELATED_FIELD_HINT = '不能直接改'
-RELATED_CELL_COUNT = 15
+RELATED_CELL_COUNT = 17
 # 寫後檢查表上「拿掉也不會有行為測試變紅」的兩格（還有第二道防線，A2）
 BACKSTOP_CELLS = frozenset({
     ('reservation.notification.slip.suspension', 'slip_id'),
@@ -272,6 +339,27 @@ S4_RULES_IN_S3_MODULES = frozenset({
     'construction_supervision_base.rule_company_global_project_task',
 })
 S4_RULE_COUNT = 29
+# S5（2026-11-18）：本輪的規則模型（測試獨立寫一份；有幾條規則和 S4 在同一個模組，所以用模型名分，不用模組分）
+S5_RULE_MODELS = frozenset({
+    'self.inspection.type', 'self.inspection.type.timing', 'self.inspection.type.stage', 'self.inspection.type.item',
+    'self.inspection.type.measure', 'defect.improvement.prefix.config', 'document.template',
+    'construction.meeting.record', 'construction.weekly.schedule', 'construction.weekly.schedule.line',
+    'acceptance.preliminary', 'acceptance.preliminary.line', 'acceptance.final', 'acceptance.final.line',
+    'acceptance.defect', 'project.closure', 'project.closure.document',
+    'supervision.equipment', 'supervision.equipment.request', 'supervision.plan.control',
+})
+S5_RULE_COUNT = 20
+S5_PRECHECK_SQL = ('runbook', 's5_precheck.sql')
+S5_PRECHECK_SECTION = 'S5-1'
+# S5：驗收模組原有的群組規則（Internal User）看 stored related 的 company_id、公司空白放行的四種主單
+ACCEPTANCE_COMPANY_RULE_MODELS = ('acceptance.preliminary', 'acceptance.final', 'acceptance.defect', 'project.closure')
+# S5：夾具用的文件樣板類型——同一家公司同一類型只能有一份非預設樣板（唯一鍵 template_type＋is_default＋company_id），各用一種
+S5_TEMPLATE_TYPE_PROJECT = 'daily_log_1'
+# 公司層級的兩份（A、B）要用不同類型：特殊格會把 A 的那份改成 B 公司，同類型的話先撞唯一鍵、測不到防線（M-B）
+S5_TEMPLATE_TYPE_COMPANY_A = 'daily_log_2'
+S5_TEMPLATE_TYPE_COMPANY_B = 'defect_improvement'
+S5_TEMPLATE_TYPE_DEFAULT = 'self_inspection'
+S5_MEASURE_TEMPLATE = '丈量___位置'
 # 夾具數量
 CLAIM_AMOUNT = 1000.0
 ACCEPT_QTY = 1.0
@@ -339,6 +427,7 @@ class TestCompanyIsolation(RoleMatrixCase):
         cls.iso_meta['report.project.task.user'] = {
             cls.tasks[cls.p_iso_a].id: cls.p_iso_a, cls.task_b_blank.id: cls.p_iso_b}
         cls._s4_fixtures()
+        cls._s5_fixtures()
         env.flush_all()
         env.registry.clear_cache()
 
@@ -440,6 +529,85 @@ class TestCompanyIsolation(RoleMatrixCase):
         cls.sa_b = cls._user('s4_sa_b', ['base.group_user', SUPERVISOR_ADMIN], company=cls.co_iso_b, companies=cls.co_iso_b)
         cls.private_task = env['project.task'].create({
             'name': 'S4 私人任務', 'user_ids': [(6, 0, (cls.sa_a | cls.sa_b).ids)], 'company_id': False})
+
+    @classmethod
+    def _s5_fixtures(cls):
+        """S5 的 20 個模型：A、B 各至少一筆（掛 PA／PS2），記進 iso_meta；另建工程空白的幾筆（不進 iso_meta，各有專屬的格）。"""
+        env = cls.env
+        today = fields.Date.today()
+        cls.iso_meta.update({model: {} for model in EXPECT_COMPANY_MODELS if model not in cls.iso_meta})
+
+        def note(records, project):
+            for record in records:
+                cls.iso_meta[record._name][record.id] = project
+
+        category = env['supervision.equipment.category'].create({'name': 'S5 機具分類'})
+        for project, company in ((cls.p_iso_a, cls.co_iso_a), (cls.p_iso_b, cls.co_iso_b)):
+            tag = project.code
+            itype = env['self.inspection.type'].create({'name': f'S5 專屬樣板 {tag}', 'project_id': project.id})
+            note(itype, project)
+            note(env['self.inspection.type.timing'].create({'type_id': itype.id, 'name': 'S5 時機'}), project)
+            note(env['self.inspection.type.stage'].create({'type_id': itype.id, 'name': 'S5 段落'}), project)
+            note(env['self.inspection.type.item'].create({'type_id': itype.id, 'name': 'S5 項目'}), project)
+            note(env['self.inspection.type.measure'].create({
+                'type_id': itype.id, 'name': 'S5 量測', 'template': S5_MEASURE_TEMPLATE}), project)
+            prefix = env['defect.improvement.prefix.config'].search([('project_id', '=', project.id)])
+            assert len(prefix) == 1, f'夾具：{tag} 應有一組缺失編號前綴（_project／_role_project 建的）'
+            note(prefix, project)
+            note(env['document.template'].create({
+                'name': f'S5 專案樣板 {tag}', 'template_type': S5_TEMPLATE_TYPE_PROJECT,
+                'project_id': project.id, 'company_id': company.id}), project)
+            note(env['construction.meeting.record'].create({
+                'name': f'S5 會議 {tag}', 'project_id': project.id, 'company_id': company.id}), project)
+            schedule = env['construction.weekly.schedule'].create({
+                'supervision_project_id': project.id, 'week_start': today})
+            note(schedule, project)
+            note(env['construction.weekly.schedule.line'].create({
+                'schedule_id': schedule.id, 'task_id': cls.tasks[project].id}), project)
+            preliminary = env['acceptance.preliminary'].create({'name': f'S5-PRE-{tag}', 'project_id': project.id})
+            note(preliminary, project)
+            note(env['acceptance.preliminary.line'].create({
+                'acceptance_id': preliminary.id, 'name': 'S5 初驗項目'}), project)
+            final = env['acceptance.final'].create({
+                'name': f'S5-FIN-{tag}', 'project_id': project.id, 'preliminary_acceptance_id': preliminary.id})
+            note(final, project)
+            note(env['acceptance.final.line'].create({'acceptance_id': final.id, 'name': 'S5 正驗項目'}), project)
+            note(env['acceptance.defect'].create({
+                'name': f'S5-DEF-{tag}', 'project_id': project.id, 'source': 'preliminary',
+                'preliminary_acceptance_id': preliminary.id, 'description': 'S5 驗收缺失', 'deadline': today}), project)
+            closure = env['project.closure'].create({
+                'name': f'S5-CLO-{tag}', 'project_id': project.id, 'final_acceptance_id': final.id})
+            note(closure, project)
+            note(env['project.closure.document'].create({'closure_id': closure.id, 'name': 'S5 結案文件'}), project)
+            equipment = env['supervision.equipment'].create({
+                'name': f'S5 機具 {tag}', 'category_id': category.id, 'project_id': project.id})
+            note(equipment, project)
+            note(env['supervision.equipment.request'].create({
+                'name': f'S5 維護請求 {tag}', 'equipment_id': equipment.id}), project)
+            note(env['supervision.plan.control'].create({'name': f'S5 計畫書 {tag}', 'project_id': project.id}), project)
+        # 驗收四種主單的 B：把 stored related 的 company_id 清空——驗收模組原有的群組規則（Internal User）公司空白放行，
+        # 公司照常的 B 會先被那條擋、不是被本規則擋（M-B；dev 現況 0 筆，這是「related 失真」時本規則才擋得住的那種）
+        env.flush_all()
+        for model in ACCEPTANCE_COMPANY_RULE_MODELS:
+            ids = [rid for rid, project in cls.iso_meta[model].items() if project == cls.p_iso_b]
+            assert ids, f'夾具：{model} 在 B 要有紀錄'
+            env.cr.execute(f'UPDATE {env[model]._table} SET company_id = NULL WHERE id IN %s', [tuple(ids)])
+            env[model].browse(ids).invalidate_recordset(['company_id'])
+        # 工程空白的幾筆（不進 iso_meta）：全域樣板＋項目；每家公司一份系統預設、一份公司層級的文件樣板；每家公司一場沒選工程的會議
+        cls.s5_global_type = env['self.inspection.type'].create({'name': 'S5 全域樣板'})
+        cls.s5_global_item = env['self.inspection.type.item'].create({
+            'type_id': cls.s5_global_type.id, 'name': 'S5 全域樣板項目'})
+        cls.s5_default_template, cls.s5_company_template, cls.s5_company_meeting = {}, {}, {}
+        for company, company_type in ((cls.co_iso_a, S5_TEMPLATE_TYPE_COMPANY_A),
+                                      (cls.co_iso_b, S5_TEMPLATE_TYPE_COMPANY_B)):
+            cls.s5_default_template[company] = env['document.template'].create({
+                'name': f'S5 系統預設 {company.name}', 'template_type': S5_TEMPLATE_TYPE_DEFAULT,
+                'is_default': True, 'company_id': company.id})
+            cls.s5_company_template[company] = env['document.template'].create({
+                'name': f'S5 公司層級 {company.name}', 'template_type': company_type,
+                'company_id': company.id})
+            cls.s5_company_meeting[company] = env['construction.meeting.record'].create({
+                'name': f'S5 公司內部會議 {company.name}', 'company_id': company.id})
 
     # ── 期望值（夾具獨立寫出）──────────────────────────────────────────
     def _fixture_company(self, project):
@@ -577,6 +745,8 @@ class TestCompanyIsolation(RoleMatrixCase):
         pairs = {(model, name) for model, names in derived.items() for name in names}
         cells = {(model, field) for model, field, _kind in REPARENT_CELLS}
         self.assertEqual(len(cells), len(REPARENT_CELLS), 'REPARENT_CELLS 有重複的格')
+        self.assertFalse(cells & SPECIAL_CELLS, 'SPECIAL_CELLS 的格不該同時在 REPARENT_CELLS')
+        cells |= SPECIAL_CELLS
         self.assertEqual(cells, pairs, f'行為測試多 {sorted(cells - pairs)}、少 {sorted(pairs - cells)}')
 
     # ── 4. 工程空白的草稿（#2 估驗、#8 變更單、#9 變更明細）：本人存得進、讀得回；別人讀不到 ──
@@ -862,6 +1032,142 @@ class TestCompanyIsolation(RoleMatrixCase):
                 record.invalidate_recordset()
                 self.assertEqual(record.sudo()[field], target, f'{model}.{field}：同公司內改掛要成功')
 
+    # ── 7b'. S5：工程空白的三種語意、特殊的三格、正當操作 ─────────────────────────────
+    def _sees(self, user, record):
+        return bool(self._env_of(user)[record._name].search([('id', '=', record.id)]))
+
+    def _with_rule_off(self, model):
+        """把 model 的全域公司規則關掉的 context manager（結束時打開；M-B 用）。"""
+        test = self
+        rule = self.env.ref(EXPECT_COMPANY_MODELS[model]).sudo()
+
+        class _Off:
+            def __enter__(self):
+                rule.write({'active': False})
+                test.env.registry.clear_cache()
+
+            def __exit__(self, *exc):
+                rule.write({'active': True})
+                test.env.registry.clear_cache()
+        return _Off()
+
+    def test_s5_blank_project_shared_or_company_owned(self):
+        """工程空白的三種語意（決定見 README_ROLE_ACCOUNTS §3c）：
+        * 全域樣板（＋項目）：只屬 A、只屬 B 的人都讀得到；把規則改成不放行工程空白 → 都讀不到（rig，M-B）。
+        * 文件樣板：系統預設不管掛在哪家公司，A、B 都讀得到；公司層級只有自己公司讀得到。
+        * 沒選工程的會議記錄：只有記錄自己的公司讀得到。
+        每一格「讀不到」都先關掉規則證明本來讀得到（擋下它的是這條規則，不是別道防線）。"""
+        users = {self.co_iso_a: self.sa_a, self.co_iso_b: self.sa_b}
+        for record in (self.s5_global_type, self.s5_global_item):
+            with self.subTest(model=record._name, case='全域樣板 A、B 都讀得到'):
+                self.assertTrue(all(self._sees(user, record) for user in users.values()))
+                rule = self.env.ref(EXPECT_COMPANY_MODELS[record._name]).sudo()
+                original = rule.domain_force
+                path = 'project_id' if record._name == 'self.inspection.type' else 'type_id.project_id'
+                rule.write({'domain_force': f"[('{path}.company_id', 'in', company_ids)]"})
+                self.env.registry.clear_cache()
+                try:
+                    self.assertFalse(any(self._sees(user, record) for user in users.values()),
+                                     'rig：規則不放行工程空白時兩人都讀不到')
+                finally:
+                    rule.write({'domain_force': original})
+                    self.env.registry.clear_cache()
+                self.assertTrue(all(self._sees(user, record) for user in users.values()), '規則恢復後又讀得到')
+        for company, user in users.items():
+            other = self.co_iso_b if company == self.co_iso_a else self.co_iso_a
+            with self.subTest(user=user.login, case='系統預設的文件樣板：兩家的都讀得到'):
+                self.assertTrue(self._sees(user, self.s5_default_template[company]))
+                self.assertTrue(self._sees(user, self.s5_default_template[other]))
+            for label, records in (('公司層級的文件樣板', self.s5_company_template),
+                                   ('沒選工程的會議記錄', self.s5_company_meeting)):
+                with self.subTest(user=user.login, case=label):
+                    self.assertTrue(self._sees(user, records[company]), f'{label}：自己公司的要讀得到')
+                    self.assertFalse(self._sees(user, records[other]), f'{label}：別家公司的讀不到')
+                    with self._with_rule_off(records[other]._name):
+                        self.assertTrue(self._sees(user, records[other]),
+                                        f'{label}：關掉規則後別家的讀得到（證明擋的是這條規則）')
+                    self.assertFalse(self._sees(user, records[other]), f'{label}：規則恢復後又讀不到')
+
+    def test_s5_special_cells_refused(self):
+        """SPECIAL_CELLS 的三格，各在自己的 savepoint 裡跑（被拒、資料沒變）：
+        * 文件樣板 company_id：A 的公司層級樣板改成 B 公司 → 改完 A 的人讀不到 → 被拒。
+        * 會議記錄 company_id：A 的公司內部會議改成 B 公司 → 同上。
+        * 文件樣板 is_default：把 B 公司的系統預設取消預設 → 變成 B 的公司層級、A 的人讀不到 → 被拒
+          （沒擋的話任何公司的人都能讓別家的系統預設從所有人面前消失）。只有寫後檢查擋得到這一格（布林欄位沒有關聯 id 守衛）。"""
+        env = self._env_of(self.sa_a)
+        cases = (
+            ('document.template', 'company_id', self.s5_company_template[self.co_iso_a], self.co_iso_b.id),
+            ('construction.meeting.record', 'company_id', self.s5_company_meeting[self.co_iso_a], self.co_iso_b.id),
+            ('document.template', 'is_default', self.s5_default_template[self.co_iso_b], False),
+        )
+        self.assertEqual({(model, field) for model, field, _record, _value in cases}, set(SPECIAL_CELLS),
+                         '每一格 SPECIAL_CELLS 都要有一個案例（上游說有幾格就要有幾格）')
+        for model, field, record, value in cases:
+            with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()):
+                before = record.sudo()[field]
+                env[model].browse(record.id).check_access('write')   # 寫前檢查過得了：被拒不是本來就不能寫（M-B）
+                with self.assertRaises(AccessError, msg=f'{model}.{field} 要被拒'):
+                    env[model].browse(record.id).write({field: value})
+                    env.flush_all()
+                self._assert_unchanged(record, field, before)
+        # is_default 那一格只靠寫後檢查：拿掉表上文件樣板那一列，同一個寫入就寫得進去（證明擋下它的是那一列）
+        record = self.s5_default_template[self.co_iso_b]
+        with closing(self.env.cr.savepoint()), patch.dict(company_rule_write_guard.COMPANY_RULE_FIELDS):
+            company_rule_write_guard.COMPANY_RULE_FIELDS.pop('document.template')
+            env['document.template'].browse(record.id).write({'is_default': False})
+            env.flush_all()
+            record.invalidate_recordset()
+            self.assertFalse(record.sudo().is_default, 'rig：沒有那一列時取消別家的系統預設寫得進去')
+
+    def test_s5_legit_writes(self):
+        """S5 的寫入面不擋正當操作（只屬 A 的工程後台使用者）：同公司內改掛、把自己公司的樣板設成系統預設、
+        把自己的專屬樣板變成全域、建一場沒選工程的會議、會議補上自己公司的工程。"""
+        env = self._env_of(self.sa_a)
+        same_company = self.p_b
+        self.assertEqual(self._fixture_company(same_company), self.co_iso_a, '夾具：同公司的另一個工程')
+        other_schedule = self.env['construction.weekly.schedule'].create({
+            'supervision_project_id': same_company.id, 'week_start': fields.Date.today()})
+        other_equipment = self.env['supervision.equipment'].create({
+            'name': 'S5 同公司另一台機具', 'project_id': same_company.id,
+            'category_id': self._iso_one('supervision.equipment', self.p_iso_a).category_id.id})
+        cases = [
+            ('supervision.plan.control', 'project_id', same_company),
+            ('supervision.equipment', 'project_id', same_company),
+            ('construction.meeting.record', 'project_id', same_company),
+            ('construction.weekly.schedule', 'supervision_project_id', same_company),
+            ('construction.weekly.schedule.line', 'schedule_id', other_schedule),
+            ('supervision.equipment.request', 'equipment_id', other_equipment),
+        ]
+        for model, field, target in cases:
+            with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()):
+                record = self._iso_one(model, self.p_iso_a)
+                env[model].browse(record.id).write({field: target.id})
+                self.env.flush_all()
+                record.invalidate_recordset()
+                self.assertEqual(record.sudo()[field], target, f'{model}.{field}：同公司內改掛要成功')
+        with self.subTest(case='自己公司的公司層級樣板設成系統預設'), closing(self.env.cr.savepoint()):
+            template = self.s5_company_template[self.co_iso_a]
+            env['document.template'].browse(template.id).write({'is_default': True})
+            self.env.flush_all()
+            template.invalidate_recordset()
+            self.assertTrue(template.sudo().is_default)
+        with self.subTest(case='自己的專屬樣板清空工程＝變成全域樣板'), closing(self.env.cr.savepoint()):
+            itype = self._iso_one('self.inspection.type', self.p_iso_a)
+            env['self.inspection.type'].browse(itype.id).write({'project_id': False})
+            self.env.flush_all()
+            itype.invalidate_recordset()
+            self.assertFalse(itype.sudo().project_id)
+            self.assertTrue(self._sees(self.sa_b, itype), '變成全域之後別家也讀得到')
+        with self.subTest(case='建一場沒選工程的會議，再補上自己公司的工程'), closing(self.env.cr.savepoint()):
+            meeting = env['construction.meeting.record'].create({'name': 'S5 本人建的會議'})
+            self.env.flush_all()
+            self.assertEqual(meeting.sudo().company_id, self.co_iso_a, '沒指定時帶本人目前的公司')
+            self.assertTrue(self._sees(self.sa_a, meeting))
+            self.assertFalse(self._sees(self.sa_b, meeting))
+            meeting.write({'project_id': self.p_iso_a.id})
+            self.env.flush_all()
+            self.assertEqual(meeting.sudo().project_id, self.p_iso_a)
+
     # ── 7c. S4 fix1：many2one 的顯示名稱（red-team F1）、上 S4 前的檢查 SQL（simplifier medium）──────────
     def _m2o_target(self, kind):
         """B 的目標。工項用「公司空白、工程在 B」那一筆（核心 85 放行公司空白，擋它的只有本規格的規則）。"""
@@ -1035,26 +1341,41 @@ class TestCompanyIsolation(RoleMatrixCase):
         env.flush_all()
         self.assertEqual(defect.sudo().linked_doc_id, doc_a, '自己公司的文件要填得進去')
 
-    def test_s4_precheck_sql_covers_every_rule_model(self):
-        """runbook/s4_precheck.sql 的 (S4-1) 在測試庫實跑：每個 S4 規則模型（SQL 檢視除外）恰好一列、第一欄＝它的資料表。
+    def _assert_precheck_covers(self, sql_file, section_name, expected):
+        """runbook 的檢查 SQL 某一段在測試庫實跑：每個資料表恰好一列（第一欄＝資料表、第二欄＝筆數）。
         漏改（新增規則模型沒補、表改名）時這裡紅；SQL 寫壞時 execute 就紅。"""
-        path = os.path.join(get_module_path(MODULE), *PRECHECK_SQL)
+        path = os.path.join(get_module_path(MODULE), *sql_file)
         with open(path, encoding='utf-8') as handle:
             text = handle.read()
-        section = re.escape(PRECHECK_SECTION)
+        section = re.escape(section_name)
         match = re.search(rf'-- \[{section}\]\n(.*?)-- \[/{section}\]', text, re.S)
-        self.assertTrue(match, f'{path} 找不到 [{PRECHECK_SECTION}] 那一段')
-        s4_models = {model for model, xmlid in EXPECT_COMPANY_MODELS.items()
-                     if xmlid.split('.', 1)[0] in S4_RULE_MODULES or xmlid in S4_RULES_IN_S3_MODULES}
-        self.assertEqual(len(s4_models), S4_RULE_COUNT, '本輪規則模型數（上游說幾個就要幾個）')
-        expected = {self.env[model]._table for model in s4_models if self.env[model]._auto}
-        self.assertEqual(len(expected), S4_RULE_COUNT - 1, '扣掉一個 SQL 檢視（檢試驗統計）')
+        self.assertTrue(match, f'{path} 找不到 [{section_name}] 那一段')
         self.env.cr.execute(match.group(1))
         rows = self.env.cr.fetchall()
         labels = [row[0] for row in rows]
         self.assertEqual(len(labels), len(set(labels)), f'有重複的列：{labels}')
         self.assertEqual(set(labels), expected, f'SQL 多 {sorted(set(labels) - expected)}、少 {sorted(expected - set(labels))}')
         self.assertTrue(all(isinstance(row[1], int) for row in rows), '第二欄要是筆數')
+
+    def test_s4_precheck_sql_covers_every_rule_model(self):
+        """runbook/s4_precheck.sql 的 (S4-1)：每個 S4 規則模型（SQL 檢視除外）一列。"""
+        s4_models = {model for model, xmlid in EXPECT_COMPANY_MODELS.items()
+                     if model not in S5_RULE_MODELS
+                     and (xmlid.split('.', 1)[0] in S4_RULE_MODULES or xmlid in S4_RULES_IN_S3_MODULES)}
+        self.assertEqual(len(s4_models), S4_RULE_COUNT, '本輪規則模型數（上游說幾個就要幾個）')
+        expected = {self.env[model]._table for model in s4_models if self.env[model]._auto}
+        self.assertEqual(len(expected), S4_RULE_COUNT - 1, '扣掉一個 SQL 檢視（檢試驗統計）')
+        self._assert_precheck_covers(PRECHECK_SQL, PRECHECK_SECTION, expected)
+
+    def test_s5_precheck_sql_covers_every_rule_model(self):
+        """runbook/s5_precheck.sql 的 (S5-1)：每個 S5 規則模型一列。S5 的模型集合在這裡獨立寫（S5_RULE_MODELS），
+        並與規則表對：表上 S3、S4 以外的模型＝S5 的模型（新增一輪時沒分清楚會紅在這裡）。"""
+        self.assertEqual(len(S5_RULE_MODELS), S5_RULE_COUNT, '本輪規則模型數（上游說幾個就要幾個）')
+        self.assertTrue(S5_RULE_MODELS <= set(EXPECT_COMPANY_MODELS), 'S5 的模型都要在規則表上')
+        self.assertEqual(len(EXPECT_COMPANY_MODELS), 18 + S4_RULE_COUNT + S5_RULE_COUNT, '規則表＝S3 18＋S4＋S5')
+        expected = {self.env[model]._table for model in S5_RULE_MODELS}
+        self.assertEqual(len(expected), S5_RULE_COUNT)
+        self._assert_precheck_covers(S5_PRECHECK_SQL, S5_PRECHECK_SECTION, expected)
 
     # ── 8. 已經有單據的工程改公司：只有系統管理者（2026-11-12「1b」，第三輪 red-team R1）──────────
     def _env_two(self, user=None):

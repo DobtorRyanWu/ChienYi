@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    S5（2026-11-18）全域公司隔離：文件樣板。說明（為什麼是全域規則、寫入另由寫後檢查擋、noupdate、測試）在
+    construction_supervision_base/security/company_rules.xml 檔頭；寫入面實作在
+    construction_supervision_base/models/company_rule_write_guard.py。
+    照模型自己的三種適用範圍（document_template.py 的 scope_type）：
+    * 系統預設（is_default）：所有公司可用 → 放行；
+    * 專案層級（有 project_id）：看工程的公司，不看樣板自己的 company_id；
+    * 公司層級（沒有工程、不是預設）：只有樣板自己的公司（company_id）看得到。公司也空白的，非 sudo 看不到
+      （上線前檢查：construction_company_dashboard/runbook/s5_precheck.sql 要是 0 筆）。
+    本模組原有的「使用者讀取」規則（security.xml，群組＝Internal User）是同一個意思，但被「管理者完整存取 (1=1)」OR 掉，
+    而且只看目前公司（user.company_id）；這裡的全域規則與群組規則取交集。
+-->
+<odoo>
+    <data>
+        <record id="rule_company_global_document_template" model="ir.rule">
+            <field name="name">文件樣板 - 公司隔離（全域，S5）</field>
+            <field name="model_id" ref="model_document_template"/>
+            <field name="domain_force">['|', '|',
+                ('is_default', '=', True),
+                '&amp;', ('project_id', '=', False), ('company_id', 'in', company_ids),
+                ('project_id.company_id', 'in', company_ids)]</field>
+        </record>
+    </data>
+</odoo>
