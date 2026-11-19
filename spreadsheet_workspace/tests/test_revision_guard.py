@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
-"""模板的協作操作列只有對模板有寫入權的人能動（2026-11-19 權限審查 F1）。
+"""協作操作列只有對目標記錄有寫入權的人能動（2026-11-19 權限審查 F1）。
 
 修正前：任何內部帳號都能直接建一筆操作列掛到模板上，等於改寫模板內容。
+同日使用者決定一般試算表（spreadsheet.spreadsheet）也納入：OCA 原本對它同樣全開，
+連沒有試算表群組的內部帳號都能用 RPC 塞或刪別人試算表的操作。
 """
 import json
 
@@ -115,10 +117,59 @@ class TestWorkspaceRevisionGuard(WorkspaceCommon):
         self.template.with_user(self.manager).write({'spreadsheet_raw': self._raw('存檔後')})
         self.assertFalse(self._template_revisions())
 
-    def test_own_spreadsheet_revisions_unchanged(self):
-        """對照組：一般試算表的操作列行為不變（守衛只管受保護的模型）。"""
+    def test_own_spreadsheet_revisions_still_work(self):
+        """對照組：對自己有寫入權的試算表，直接建／改／刪操作列照常可以。"""
         sheet = self.Sheet.with_user(self.owner).create({'name': '自己的表'})
         revision = self.Revision.with_user(self.owner).create(self._revision_vals(SHEET_MODEL, sheet.id, '正常編輯'))
         revision.with_user(self.owner).write({'client_id': 'ws-guard-2'})
         revision.with_user(self.owner).unlink()
         self.assertFalse(revision.exists())
+
+    # ── 一般試算表（spreadsheet.spreadsheet）──
+    def _sheet_revisions(self, sheet):
+        return self.Revision.search([('model', '=', SHEET_MODEL), ('res_id', '=', sheet.id)])
+
+    def test_cannot_inject_revision_into_others_spreadsheet(self):
+        sheet = self._shared_sheet()
+        for user in (self.plain, self.outsider, self.reader):
+            with self.subTest(who=user.login), self.assertRaises(AccessError):
+                self.Revision.with_user(user).create(self._revision_vals(SHEET_MODEL, sheet.id))
+        self.assertFalse(self._sheet_revisions(sheet))
+
+    def test_cannot_delete_or_steal_others_spreadsheet_revisions(self):
+        sheet = self._shared_sheet()
+        revision = self.Revision.with_user(self.owner).create(self._revision_vals(SHEET_MODEL, sheet.id, '擁有者編輯中'))
+        own = self.Sheet.with_user(self.outsider).create({'name': '局外人自己的表'})
+        for user in (self.plain, self.outsider, self.reader):
+            with self.subTest(who=user.login, op='unlink'), self.assertRaises(AccessError):
+                self.Revision.with_user(user).browse(revision.id).unlink()
+            with self.subTest(who=user.login, op='write'), self.assertRaises(AccessError):
+                self.Revision.with_user(user).browse(revision.id).write({'commands': '{}'})
+        # 改掛到自己的試算表＝把別人編輯中的內容搬走
+        with self.assertRaises(AccessError):
+            self.Revision.with_user(self.outsider).browse(revision.id).write({'res_id': own.id})
+        self.assertEqual(self._sheet_revisions(sheet), revision)
+
+    def test_writers_edit_shared_spreadsheet_normally(self):
+        """對照組：擁有者與可編輯者走編輯器的路徑、直接建操作列、存檔清操作列都照常；唯讀者照舊只能看。"""
+        sheet = self._shared_sheet()
+        self.assertTrue(sheet.with_user(self.owner).send_spreadsheet_message(self._message('擁有者改的')))
+        self.Revision.with_user(self.contributor).create(self._revision_vals(SHEET_MODEL, sheet.id, '可編輯者改的'))
+        self.assertEqual(len(self._sheet_revisions(sheet)), 2)
+        with self.assertRaises(AccessError):
+            sheet.with_user(self.reader).send_spreadsheet_message(self._message(POISON))
+        self.assertEqual(sheet.with_user(self.reader).get_spreadsheet_data()['mode'], 'readonly')
+        self.assertEqual(len(sheet.with_user(self.reader).get_spreadsheet_data()['revisions']), 2)
+        # 可編輯者存檔：OCA 會清掉操作列（清的人要對試算表有寫入權，可編輯者有）
+        sheet.invalidate_recordset(['spreadsheet_revision_ids'])
+        sheet.with_user(self.contributor).write({'spreadsheet_raw': self._raw('存檔後')})
+        self.assertFalse(self._sheet_revisions(sheet))
+
+    def test_removed_contributor_loses_revision_access(self):
+        """被移出可編輯名單後，就不能再動那份試算表的操作列。"""
+        sheet = self._shared_sheet()
+        self.Revision.with_user(self.contributor).create(self._revision_vals(SHEET_MODEL, sheet.id, '還在名單時'))
+        sheet.sudo().write({'contributor_ids': [(5, 0, 0)]})
+        with self.assertRaises(AccessError):
+            self.Revision.with_user(self.contributor).create(self._revision_vals(SHEET_MODEL, sheet.id, '被移出後'))
+        self.assertEqual(len(self._sheet_revisions(sheet)), 1)

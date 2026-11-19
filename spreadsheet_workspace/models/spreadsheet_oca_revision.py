@@ -9,14 +9,18 @@ OCA 對這個模型的權限是「所有內部帳號可讀寫建刪、沒有記�
 模板的設計是「一般使用者可讀、可建、不可改」。不擋的話，任何內部帳號（連沒有試算表群組的）
 都能改寫管理員的模板——預覽看到的、從模板建出來的試算表，都會帶著被塞進去的內容
 （2026-11-19 權限審查實測）。所以目標是受保護模型時，建／改／刪操作列都要對目標記錄有寫入權。
+
+一般試算表（spreadsheet.spreadsheet）同日也納入（使用者決定）：OCA 原本對它一樣全開，
+沒有寫入權的人可以用 RPC 塞或刪別人試算表的操作。納入前盤點過：專案裡會動操作列的只有 OCA 的
+``send_spreadsheet_message``（先檢查寫入權）與存檔時的清除（存檔本身要寫入權），正常編輯不受影響。
 """
 from collections import defaultdict
 
 from odoo import api, models
 
 # 操作列的目標是這些模型時，要對目標記錄有寫入權才能建／改／刪。
-# 只列本模組新增、而且「使用者不可改」的模型；spreadsheet.spreadsheet 等 OCA 既有模型的行為不動。
-PROTECTED_REVISION_MODELS = ('spreadsheet.workspace.template',)
+# 沒列的（例如 spreadsheet_dashboard_oca 的 spreadsheet.dashboard）維持 OCA 原本的行為。
+PROTECTED_REVISION_MODELS = ('spreadsheet.workspace.template', 'spreadsheet.spreadsheet')
 
 
 class SpreadsheetOcaRevision(models.Model):
