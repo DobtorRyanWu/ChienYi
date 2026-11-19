@@ -39,7 +39,9 @@
     #        2.8.1（2026-11-13）：1b 放寬的測試（只有空資料夾／成員名單的工程可改公司；資料夾有檔、有送審照擋）與 README §3b 說明；程式不變。
     #        2.9.0（2026-11-18，S5）：公司隔離測試加入 S5 的 20 個模型（tests/test_company_isolation.py：工程空白的三種語意、
     #        規則欄位的三格特殊情況）、runbook §3c 與上 S5 前的檢查 SQL（runbook/s5_precheck.sql）；程式不變。
-    "version": "18.0.2.9.0",
+    #        2.9.1（2026-11-19，S5 審查）：測試補「複製別家公司的系統預設樣板」（F1）與「樣板的公司必須在寫入者允許公司內、
+    #        勾了系統預設也一樣」（F2）；修正都在 construction_template，本模組程式不變。README §4 補兩條已知限制。
+    "version": "18.0.2.9.1",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",
     "description": """

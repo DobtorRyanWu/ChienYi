@@ -61,7 +61,7 @@ from odoo.addons.construction_supervision_base.models.company_rule_write_guard i
     COMPANY_RULE_FIELDS, _project_link_fields, _project_paths)
 from odoo.addons.construction_supervision_base.models import company_rule_write_guard, relational_input_guard
 from odoo.addons.construction_supervision_base.models.relational_input_guard import guarded_fields_of
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.models import LOG_ACCESS_COLUMNS
 from odoo.modules.module import get_module_path
 from odoo.osv import expression
@@ -359,6 +359,10 @@ S5_TEMPLATE_TYPE_PROJECT = 'daily_log_1'
 S5_TEMPLATE_TYPE_COMPANY_A = 'daily_log_2'
 S5_TEMPLATE_TYPE_COMPANY_B = 'defect_improvement'
 S5_TEMPLATE_TYPE_DEFAULT = 'self_inspection'
+# 夾具沒用到的類型（A、B 兩家都還沒有這一類的系統預設）：「掛到別家公司名下」的格用它，才不會先撞唯一鍵（M-B）
+S5_TEMPLATE_TYPE_FREE = 'defect_control'
+# 文件樣板「公司不在寫入者允許公司內」的訊息片段（測試獨立寫出；S5 審查 F2）
+TEMPLATE_COMPANY_HINT = '不在你可以使用的公司裡'
 S5_MEASURE_TEMPLATE = '丈量___位置'
 # 夾具數量
 CLAIM_AMOUNT = 1000.0
@@ -1090,26 +1094,43 @@ class TestCompanyIsolation(RoleMatrixCase):
 
     def test_s5_special_cells_refused(self):
         """SPECIAL_CELLS 的三格，各在自己的 savepoint 裡跑（被拒、資料沒變）：
-        * 文件樣板 company_id：A 的公司層級樣板改成 B 公司 → 改完 A 的人讀不到 → 被拒。
+        * 文件樣板 company_id：A 的公司層級樣板改成 B 公司 → 被拒。S5 審查 F2 之後先被樣板自己的限制擋下
+          （construction_template 的 _check_company_allowed，ValidationError：公司不在寫入者允許公司內）；
+          寫後檢查是它後面的第二道（改完 A 的人讀不到）。
         * 會議記錄 company_id：A 的公司內部會議改成 B 公司 → 同上。
         * 文件樣板 is_default：把 B 公司的系統預設取消預設 → 變成 B 的公司層級、A 的人讀不到 → 被拒
           （沒擋的話任何公司的人都能讓別家的系統預設從所有人面前消失）。只有寫後檢查擋得到這一格（布林欄位沒有關聯 id 守衛）。"""
         env = self._env_of(self.sa_a)
         cases = (
-            ('document.template', 'company_id', self.s5_company_template[self.co_iso_a], self.co_iso_b.id),
-            ('construction.meeting.record', 'company_id', self.s5_company_meeting[self.co_iso_a], self.co_iso_b.id),
-            ('document.template', 'is_default', self.s5_default_template[self.co_iso_b], False),
+            ('document.template', 'company_id', self.s5_company_template[self.co_iso_a], self.co_iso_b.id,
+             ValidationError),
+            ('construction.meeting.record', 'company_id', self.s5_company_meeting[self.co_iso_a], self.co_iso_b.id,
+             AccessError),
+            ('document.template', 'is_default', self.s5_default_template[self.co_iso_b], False, AccessError),
         )
-        self.assertEqual({(model, field) for model, field, _record, _value in cases}, set(SPECIAL_CELLS),
+        self.assertEqual({(model, field) for model, field, _record, _value, _error in cases}, set(SPECIAL_CELLS),
                          '每一格 SPECIAL_CELLS 都要有一個案例（上游說有幾格就要有幾格）')
-        for model, field, record, value in cases:
+        for model, field, record, value, error in cases:
             with self.subTest(model=model, field=field), closing(self.env.cr.savepoint()):
                 before = record.sudo()[field]
                 env[model].browse(record.id).check_access('write')   # 寫前檢查過得了：被拒不是本來就不能寫（M-B）
-                with self.assertRaises(AccessError, msg=f'{model}.{field} 要被拒'):
+                with self.assertRaises(error, msg=f'{model}.{field} 要被拒'):
                     env[model].browse(record.id).write({field: value})
                     env.flush_all()
                 self._assert_unchanged(record, field, before)
+        # 文件樣板 company_id 的第二道：關掉樣板自己的限制，同一個寫入由寫後檢查擋下（AccessError）——兩道各自有效
+        record = self.s5_company_template[self.co_iso_a]
+        before = record.sudo().company_id
+        # 核心把各模型的限制方法清單快取在 registry 類別上（_constraint_methods），換掉方法本身沒有用，要換那份清單
+        Template = type(self.env['document.template'])
+        others = [method for method in self.env['document.template']._constraint_methods
+                  if method.__name__ != '_check_company_allowed']
+        self.assertEqual(len(others), len(Template._constraint_methods) - 1, 'rig：要剛好拿掉那一條限制')
+        with closing(self.env.cr.savepoint()), patch.object(Template, '_constraint_methods', others):
+            with self.assertRaises(AccessError, msg='沒有樣板自己的限制時，寫後檢查要擋下'):
+                env['document.template'].browse(record.id).write({'company_id': self.co_iso_b.id})
+                env.flush_all()
+        self._assert_unchanged(record, 'company_id', before)
         # is_default 那一格只靠寫後檢查：拿掉表上文件樣板那一列，同一個寫入就寫得進去（證明擋下它的是那一列）
         record = self.s5_default_template[self.co_iso_b]
         with closing(self.env.cr.savepoint()), patch.dict(company_rule_write_guard.COMPANY_RULE_FIELDS):
@@ -1167,6 +1188,60 @@ class TestCompanyIsolation(RoleMatrixCase):
             meeting.write({'project_id': self.p_iso_a.id})
             self.env.flush_all()
             self.assertEqual(meeting.sudo().project_id, self.p_iso_a)
+
+    def test_s5_duplicate_other_company_default_template(self):
+        """複製別家公司的系統預設樣板（S5 審查 F1，2026-11-19）：系統預設所有公司都看得到，複製出來的是「公司層級」樣板——
+        要歸複製的人目前的公司：他自己讀得到、別家讀不到。修之前副本沿用原樣板的公司 → 複製的人自己讀不到 → 建立時被規則拒絕。
+        真實資料正是這樣用：系統預設都掛在主公司，其他公司的人複製來改（dev 31 份系統預設全掛公司 1）。
+        兩個入口都驗：表單的「複製樣板」按鈕（action_duplicate）、ORM 的 copy。"""
+        source = self.s5_default_template[self.co_iso_a]
+        Template = self._env_of(self.sa_b)['document.template']
+        entries = (
+            ('複製樣板按鈕', lambda: Template.browse(Template.browse(source.id).action_duplicate()['res_id'])),
+            ('copy', lambda: Template.browse(source.id).copy()),
+        )
+        for label, duplicate_it in entries:
+            with self.subTest(entry=label), closing(self.env.cr.savepoint()):
+                duplicate = duplicate_it()
+                self.env.flush_all()
+                self.assertEqual(duplicate.sudo().company_id, self.co_iso_b, '副本歸複製的人目前的公司')
+                self.assertFalse(duplicate.sudo().is_default, '副本不是系統預設')
+                self.assertFalse(duplicate.sudo().project_id)
+                self.assertTrue(self._sees(self.sa_b, duplicate), '複製的人自己讀得到')
+                self.assertFalse(self._sees(self.sa_a, duplicate), '原樣板那家公司的人讀不到別家的副本')
+
+    def test_s5_template_company_must_be_allowed_even_when_default(self):
+        """文件樣板的公司只能是寫入者允許的公司，勾了系統預設也一樣（S5 審查 F2，2026-11-19，使用者決定補這條限制）。
+        系統預設所有公司都看得到，所以只靠規則與寫後檢查的話，「同時勾系統預設」就能把樣板掛到別家公司名下——
+        那家公司同一類型的系統預設被佔走（唯一鍵 template_type＋is_default＋company_id），之後建不了自己的。
+        建立、修改兩條路都驗；自己公司的系統預設照常建得出來；sudo（系統內部流程）不受限。"""
+        env = self._env_of(self.sa_a)
+        Template = env['document.template']
+        squat = {'name': 'S5 掛到別家名下', 'template_type': S5_TEMPLATE_TYPE_FREE,
+                 'company_id': self.co_iso_b.id, 'is_default': True}
+        with self.subTest(case='建立：別家公司＋系統預設'), closing(self.env.cr.savepoint()):
+            with self.assertRaises(ValidationError) as ctx:
+                Template.create(squat)
+                env.flush_all()
+            self.assertIn(TEMPLATE_COMPANY_HINT, str(ctx.exception), '擋下它的要是「公司不在允許公司內」')
+        with self.subTest(case='修改：自己的公司層級樣板 → 別家公司＋系統預設'), closing(self.env.cr.savepoint()):
+            record = self.s5_company_template[self.co_iso_a]
+            before = record.sudo().company_id
+            Template.browse(record.id).check_access('write')   # 寫前檢查過得了：被拒不是本來就不能寫（M-B）
+            with self.assertRaises(ValidationError) as ctx:
+                Template.browse(record.id).write({'company_id': self.co_iso_b.id, 'is_default': True})
+                env.flush_all()
+            self.assertIn(TEMPLATE_COMPANY_HINT, str(ctx.exception), '擋下它的要是「公司不在允許公司內」')
+            self._assert_unchanged(record, 'company_id', before)
+        with self.subTest(case='自己公司的系統預設照常'), closing(self.env.cr.savepoint()):
+            own = Template.create(dict(squat, name='S5 自己公司的系統預設', company_id=self.co_iso_a.id))
+            env.flush_all()
+            self.assertTrue(own.sudo().is_default)
+            self.assertTrue(self._sees(self.sa_b, own), '系統預設別家也看得到')
+        with self.subTest(case='sudo 不受限'), closing(self.env.cr.savepoint()):
+            by_system = Template.sudo().create(squat)
+            env.flush_all()
+            self.assertEqual(by_system.company_id, self.co_iso_b)
 
     # ── 7c. S4 fix1：many2one 的顯示名稱（red-team F1）、上 S4 前的檢查 SQL（simplifier medium）──────────
     def _m2o_target(self, kind):

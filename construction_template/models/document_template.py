@@ -416,6 +416,24 @@ class DocumentTemplate(models.Model):
                 if errors:
                     raise ValidationError('欄位對照有問題，沒有存檔：\n' + '\n'.join(errors))
 
+    @api.constrains('company_id')
+    def _check_company_allowed(self):
+        """非 sudo 的人只能把樣板掛在自己目前可以使用的公司底下（S5 審查 F2，2026-11-19，使用者決定補這條）。
+
+        系統預設所有公司都看得到（security/company_rules.xml），所以只靠規則與寫後檢查的話，「同時勾系統預設」
+        就能把樣板掛到別家公司名下——那家公司同一類型的系統預設被佔走（唯一鍵 unique_default_type_company），
+        之後建不了自己的。這裡不管有沒有勾系統預設都擋。sudo（模組資料、系統內部流程）不檢查；
+        公司空白不在這裡管（那種樣板的可見範圍由規則決定）。
+        """
+        if self.env.su:
+            return
+        allowed = self.env.companies
+        for record in self:
+            if record.company_id and record.company_id not in allowed:
+                raise ValidationError(
+                    f'樣板「{record.name}」的適用公司「{record.company_id.sudo().name}」不在你可以使用的公司裡，'
+                    '不能把樣板掛到別家公司名下。')
+
     @api.constrains('is_default', 'project_id')
     def _check_default_no_project(self):
         """系統預設樣板不能指定專案"""
@@ -755,6 +773,11 @@ class DocumentTemplate(models.Model):
         default.setdefault('is_default', False)
         default.setdefault('usage_count', 0)
         default.setdefault('last_used_date', False)
+        # 沒有工程的副本是「公司層級」樣板，歸複製的人目前的公司（S5 審查 F1，2026-11-19）：公司層級只有樣板自己的公司
+        # 看得到（security/company_rules.xml）。沿用原樣板的公司的話，複製別家公司的系統預設會得到一份自己讀不到的樣板、
+        # 建立時被規則拒絕——系統預設都掛在主公司，其他公司的人複製來改正是最常見的用法
+        if not default.get('project_id', self.project_id.id):
+            default.setdefault('company_id', self.env.company.id)
         return super().copy(default)
 
     def name_get(self):
