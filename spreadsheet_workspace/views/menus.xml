@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+
+    <!-- 不另立 App：沿用 OCA 的頂層選單，只改名稱並在底下加項目 -->
+    <record id="spreadsheet_oca.spreadsheet_spreadsheet_menu" model="ir.ui.menu">
+        <field name="name">試算表</field>
+    </record>
+
+    <menuitem id="menu_my_spreadsheets"
+              name="我的文件"
+              parent="spreadsheet_oca.spreadsheet_spreadsheet_menu"
+              action="spreadsheet_oca.spreadsheet_spreadsheet_act_window"
+              sequence="1"/>
+
+    <menuitem id="menu_spreadsheet_template"
+              name="模板庫"
+              parent="spreadsheet_oca.spreadsheet_spreadsheet_menu"
+              action="action_spreadsheet_template"
+              sequence="5"/>
+
+    <!-- OCA 的「Configuration」：改名並排到最後 -->
+    <record id="spreadsheet_oca.spreadsheet_spreadsheet_configuration_menu" model="ir.ui.menu">
+        <field name="name">設定</field>
+        <field name="sequence">90</field>
+    </record>
+
+    <menuitem id="menu_spreadsheet_folder"
+              name="資料夾"
+              parent="spreadsheet_oca.spreadsheet_spreadsheet_configuration_menu"
+              action="action_spreadsheet_folder"
+              sequence="5"/>
+
+    <record id="spreadsheet_oca.spreadsheet_spreadsheet_tag_menu" model="ir.ui.menu">
+        <field name="name">標籤</field>
+    </record>
+
+    <menuitem id="menu_spreadsheet_version"
+              name="版本歷史"
+              parent="spreadsheet_oca.spreadsheet_spreadsheet_configuration_menu"
+              action="action_spreadsheet_version"
+              sequence="20"/>
+
+</odoo>

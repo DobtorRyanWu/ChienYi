@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+
+    <record id="spreadsheet_folder_list_view" model="ir.ui.view">
+        <field name="name">spreadsheet.workspace.folder.list</field>
+        <field name="model">spreadsheet.workspace.folder</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="parent_id"/>
+                <field name="spreadsheet_count"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="spreadsheet_folder_form_view" model="ir.ui.view">
+        <field name="name">spreadsheet.workspace.folder.form</field>
+        <field name="model">spreadsheet.workspace.folder</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_spreadsheets" type="object"
+                                class="oe_stat_button" icon="fa-table">
+                            <field name="spreadsheet_count" widget="statinfo" string="試算表"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="資料夾名稱"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="parent_id"/>
+                            <field name="sequence"/>
+                            <field name="color" widget="color_picker"/>
+                        </group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="試算表" name="spreadsheets">
+                            <field name="spreadsheet_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="period_label"/>
+                                    <field name="write_date" string="最後修改"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="子資料夾" name="children">
+                            <field name="child_ids" readonly="1">
+                                <list>
+                                    <field name="name"/>
+                                    <field name="spreadsheet_count"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="spreadsheet_folder_search_view" model="ir.ui.view">
+        <field name="name">spreadsheet.workspace.folder.search</field>
+        <field name="model">spreadsheet.workspace.folder</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="parent_id"/>
+                <filter name="root_folders" string="最上層" domain="[('parent_id', '=', False)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_by_parent" string="上層資料夾" context="{'group_by': 'parent_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_spreadsheet_folder" model="ir.actions.act_window">
+        <field name="name">資料夾</field>
+        <field name="res_model">spreadsheet.workspace.folder</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一個資料夾</p>
+            <p>資料夾可以分層，建好之後會出現在試算表清單的左側。</p>
+        </field>
+    </record>
+
+</odoo>

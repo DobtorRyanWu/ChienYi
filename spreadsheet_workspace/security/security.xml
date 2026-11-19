@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+
+    <!-- 資料夾、模板：公司隔離（留空＝各公司共用）。全域規則，管理員也受限。 -->
+    <record id="spreadsheet_folder_company_rule" model="ir.rule">
+        <field name="name">試算表資料夾：公司隔離</field>
+        <field name="model_id" ref="model_spreadsheet_workspace_folder"/>
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+    </record>
+
+    <record id="spreadsheet_template_company_rule" model="ir.rule">
+        <field name="name">試算表模板：公司隔離</field>
+        <field name="model_id" ref="model_spreadsheet_workspace_template"/>
+        <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+    </record>
+
+    <!-- 版本：看得到的範圍必須等於「所屬試算表看得到」，否則快照會外洩別人的試算表內容。
+         下面三條逐條對應 spreadsheet_oca/security/security.xml 的
+         spreadsheet_company_rule／owner+contributor+reader 三條／manager 一條，
+         只是欄位前面多一層 spreadsheet_id。OCA 的規則有變動時這裡要跟著改，
+         tests/test_version_access.py 的對等測試會抓到不一致。 -->
+    <record id="spreadsheet_version_company_rule" model="ir.rule">
+        <field name="name">試算表版本：跟隨試算表的公司隔離</field>
+        <field name="model_id" ref="model_spreadsheet_workspace_version"/>
+        <field name="domain_force">[('spreadsheet_id.company_id', 'in', company_ids + [False])]</field>
+    </record>
+
+    <record id="spreadsheet_version_user_rule" model="ir.rule">
+        <field name="name">試算表版本：擁有者／可編輯／唯讀者看得到</field>
+        <field name="model_id" ref="model_spreadsheet_workspace_version"/>
+        <field name="groups" eval="[(4, ref('spreadsheet_oca.group_user'))]"/>
+        <field name="domain_force">['|', '|', '|', '|',
+            ('spreadsheet_id.owner_id', '=', user.id),
+            ('spreadsheet_id.contributor_ids', '=', user.id),
+            ('spreadsheet_id.contributor_group_ids', 'in', user.groups_id.ids),
+            ('spreadsheet_id.reader_ids', '=', user.id),
+            ('spreadsheet_id.reader_group_ids', 'in', user.groups_id.ids)]</field>
+    </record>
+
+    <record id="spreadsheet_version_manager_rule" model="ir.rule">
+        <field name="name">試算表版本：管理員全部</field>
+        <field name="model_id" ref="model_spreadsheet_workspace_version"/>
+        <field name="groups" eval="[(4, ref('spreadsheet_oca.group_manager'))]"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+    </record>
+
+</odoo>

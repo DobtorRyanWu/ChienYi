@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+
+    <!-- ══ 搜尋：資料夾／期間標籤、與我共用、左側導覽 ══ -->
+    <record id="spreadsheet_spreadsheet_search_view_workspace" model="ir.ui.view">
+        <field name="name">spreadsheet.spreadsheet.search (spreadsheet_workspace)</field>
+        <field name="model">spreadsheet.spreadsheet</field>
+        <field name="inherit_id" ref="spreadsheet_oca.spreadsheet_spreadsheet_search_view"/>
+        <field name="arch" type="xml">
+            <field name="spreadsheet_tag_ids" position="after">
+                <field name="folder_id"/>
+                <field name="period_label"/>
+            </field>
+            <filter name="mysheets" position="attributes">
+                <attribute name="string">我建立的</attribute>
+            </filter>
+            <filter name="mysheets" position="after">
+                <!-- OCA 的共用分「可編輯／唯讀」、各有使用者與群組，四個欄位任一命中都算與我共用 -->
+                <filter name="shared_with_me" string="與我共用"
+                        domain="['|', '|', '|',
+                                 ('contributor_ids', 'in', [uid]),
+                                 ('reader_ids', 'in', [uid]),
+                                 ('contributor_group_ids.users', 'in', [uid]),
+                                 ('reader_group_ids.users', 'in', [uid])]"/>
+                <filter name="template_candidate" string="模板候選"
+                        domain="[('is_template_candidate', '=', True)]"/>
+            </filter>
+            <filter name="active" position="attributes">
+                <attribute name="string">已封存</attribute>
+            </filter>
+            <filter name="active" position="after">
+                <group expand="0" string="分組">
+                    <filter name="group_by_folder" string="資料夾" context="{'group_by': 'folder_id'}"/>
+                    <filter name="group_by_owner" string="擁有者" context="{'group_by': 'owner_id'}"/>
+                    <filter name="group_by_company" string="公司" context="{'group_by': 'company_id'}"
+                            groups="base.group_multi_company"/>
+                </group>
+            </filter>
+            <!-- OCA 原本就留了一個空的 searchpanel -->
+            <xpath expr="//searchpanel" position="inside">
+                <!-- expand：空的資料夾也要列出來（預設只列裡面有試算表的），不然剛建好的資料夾選不到 -->
+                <field name="folder_id" string="資料夾" icon="fa-folder" enable_counters="1" expand="1"/>
+                <field name="spreadsheet_tag_ids" string="標籤" icon="fa-tags" select="multi" enable_counters="1"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══ 清單：點一列直接開啟、列尾齒輪改資訊 ══ -->
+    <record id="spreadsheet_spreadsheet_list_view_workspace" model="ir.ui.view">
+        <field name="name">spreadsheet.spreadsheet.list (spreadsheet_workspace)</field>
+        <field name="model">spreadsheet.spreadsheet</field>
+        <field name="inherit_id" ref="spreadsheet_oca.spreadsheet_spreadsheet_tree_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="attributes">
+                <attribute name="js_class">spreadsheet_workspace_list</attribute>
+                <attribute name="action">open_spreadsheet</attribute>
+                <attribute name="type">object</attribute>
+            </xpath>
+            <field name="name" position="after">
+                <field name="folder_id" optional="show"/>
+                <field name="period_label" optional="show"/>
+                <field name="spreadsheet_tag_ids" widget="many2many_tags"
+                       options="{'color_field': 'color'}" optional="show"/>
+                <field name="owner_id" widget="many2one_avatar_user" optional="show"/>
+                <field name="source_template_id" optional="hide"/>
+                <field name="write_date" string="最後修改" optional="show"/>
+            </field>
+            <field name="company_id" position="attributes">
+                <attribute name="optional">hide</attribute>
+            </field>
+            <!-- 點列就會開啟，原本的 Edit 鈕換成齒輪（改資料夾／標籤／共用） -->
+            <button name="open_spreadsheet" position="replace">
+                <button name="action_edit_metadata" type="object" title="編輯資訊" icon="fa-cog"/>
+            </button>
+        </field>
+    </record>
+
+    <!-- ══ 表單：上方按鈕、版本數、工作區欄位、繁中標題 ══ -->
+    <record id="spreadsheet_spreadsheet_form_view_workspace" model="ir.ui.view">
+        <field name="name">spreadsheet.spreadsheet.form (spreadsheet_workspace)</field>
+        <field name="model">spreadsheet.spreadsheet</field>
+        <field name="inherit_id" ref="spreadsheet_oca.spreadsheet_spreadsheet_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="open_spreadsheet" type="object" string="開啟試算表"
+                        class="btn-primary" icon="fa-external-link"/>
+                <button name="action_export_xlsx" type="object" string="下載 XLSX" icon="fa-download"/>
+                <button name="action_open_save_version" type="object" string="存成版本" icon="fa-history"/>
+                <button name="action_promote_to_template" type="object" string="另存為模板"
+                        icon="fa-bookmark" invisible="not is_template_candidate"
+                        context="{'category': 'custom'}"/>
+            </xpath>
+            <xpath expr="//widget[@name='web_ribbon']" position="attributes">
+                <attribute name="title">已封存</attribute>
+            </xpath>
+            <!-- 上方已有「開啟試算表」，原本按鈕盒裡的 Edit 換成版本數 -->
+            <xpath expr="//div[@name='button_box']/button[@name='open_spreadsheet']" position="replace">
+                <button name="action_view_versions" type="object" class="oe_stat_button" icon="fa-history">
+                    <field name="version_count" widget="statinfo" string="版本"/>
+                </button>
+            </xpath>
+            <field name="name" position="attributes">
+                <attribute name="placeholder">試算表名稱</attribute>
+            </field>
+            <xpath expr="//group[field[@name='owner_id']]" position="attributes">
+                <attribute name="string">擁有者</attribute>
+            </xpath>
+            <xpath expr="//group[field[@name='spreadsheet_tag_ids']]" position="attributes">
+                <attribute name="string">分類</attribute>
+            </xpath>
+            <xpath expr="//group[field[@name='contributor_ids']]" position="attributes">
+                <attribute name="string">可編輯</attribute>
+            </xpath>
+            <xpath expr="//group[field[@name='reader_ids']]" position="attributes">
+                <attribute name="string">唯讀</attribute>
+            </xpath>
+            <field name="spreadsheet_tag_ids" position="before">
+                <field name="folder_id"/>
+                <field name="period_label"/>
+            </field>
+            <field name="spreadsheet_tag_ids" position="after">
+                <field name="is_template_candidate"/>
+                <field name="source_template_id" invisible="not source_template_id"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ══ 看板：新增即開啟、顯示資料夾 ══ -->
+    <record id="spreadsheet_spreadsheet_kanban_view_workspace" model="ir.ui.view">
+        <field name="name">spreadsheet.spreadsheet.kanban (spreadsheet_workspace)</field>
+        <field name="model">spreadsheet.spreadsheet</field>
+        <field name="inherit_id" ref="spreadsheet_oca.spreadsheet_spreadsheet_kanban_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban" position="attributes">
+                <attribute name="js_class">spreadsheet_workspace_kanban</attribute>
+            </xpath>
+            <xpath expr="//t[@t-name='menu']/a[@type='open']" position="replace">
+                <a t-if="widget.editable" type="open" class="dropdown-item">編輯資訊</a>
+            </xpath>
+            <xpath expr="//t[@t-name='menu']/a[@type='delete']" position="replace">
+                <a t-if="widget.deletable" type="delete" class="dropdown-item">刪除</a>
+            </xpath>
+            <xpath expr="//widget[@name='web_ribbon']" position="attributes">
+                <attribute name="title">已封存</attribute>
+            </xpath>
+            <xpath expr="//field[@name='spreadsheet_tag_ids']" position="before">
+                <div t-if="record.folder_id.raw_value">
+                    <i class="fa fa-folder-o me-1" title="資料夾" role="img" aria-label="資料夾"/>
+                    <field name="folder_id"/>
+                </div>
+                <div t-if="record.period_label.raw_value">
+                    <i class="fa fa-calendar me-1" title="期間" role="img" aria-label="期間"/>
+                    <field name="period_label"/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ══ 「試算表資訊」小視窗（清單列尾齒輪）：獨立的表單，不帶聊天區 ══ -->
+    <record id="spreadsheet_spreadsheet_metadata_form_view" model="ir.ui.view">
+        <field name="name">spreadsheet.spreadsheet.metadata.form</field>
+        <field name="model">spreadsheet.spreadsheet</field>
+        <!-- priority 調高：不要搶走預設表單 -->
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <form string="試算表資訊">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="試算表名稱"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="folder_id"/>
+                            <field name="period_label"/>
+                            <field name="spreadsheet_tag_ids" widget="many2many_tags"
+                                   options="{'color_field': 'color'}"/>
+                            <field name="is_template_candidate"/>
+                        </group>
+                        <group>
+                            <field name="owner_id"/>
+                            <field name="source_template_id" invisible="not source_template_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="共用">
+                        <group>
+                            <field name="contributor_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            <field name="contributor_group_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <field name="reader_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                            <field name="reader_group_ids" widget="many2many_tags" options="{'no_create': True}"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="儲存" special="save" class="btn-primary"/>
+                    <button string="取消" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ══ OCA 的動作：預設改清單、名稱與說明改繁中 ══ -->
+    <record id="spreadsheet_oca.spreadsheet_spreadsheet_act_window" model="ir.actions.act_window">
+        <field name="name">試算表</field>
+        <field name="view_mode">list,kanban,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">建立第一份試算表</p>
+            <p>點選「新增」直接建立並開啟試算表，或從模板庫一鍵套用。</p>
+        </field>
+    </record>
+
+    <record id="spreadsheet_oca.spreadsheet_spreadsheet_tags_act_window" model="ir.actions.act_window">
+        <field name="name">試算表標籤</field>
+    </record>
+
+</odoo>

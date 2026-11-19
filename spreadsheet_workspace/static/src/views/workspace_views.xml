@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 清單按鈕列：沿用 OCA 的上傳元件，只把按鈕文字改成「匯入 XLSX」 -->
+<templates xml:space="preserve">
+    <t t-name="spreadsheet_workspace.ListView.Buttons"
+       t-inherit="spreadsheet_oca.ListView.Buttons"
+       t-inherit-mode="primary">
+        <xpath expr="//button[hasclass('o_button_upload_spreadsheet')]" position="replace">
+            <button type="button" class="btn btn-secondary o_button_upload_spreadsheet">
+                <i class="fa fa-upload me-1"/>匯入 XLSX
+            </button>
+        </xpath>
+    </t>
+</templates>

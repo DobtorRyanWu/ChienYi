@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 編輯器上方列的「存成版本」。掛法比照 dobtor_spreadsheet_editor 的 preview_control_panel.xml。 -->
+<templates xml:space="preserve">
+    <t t-inherit="spreadsheet_oca.SpreadsheetControlPanel" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_control_panel_breadcrumbs')]" position="inside">
+            <t t-set="workspaceVersion" t-value="props.record and props.record.workspace_version"/>
+            <button t-if="workspaceVersion and workspaceVersion.can_save"
+                    type="button"
+                    class="btn btn-secondary btn-sm o_spreadsheet_workspace_save_version"
+                    t-on-click="() => this.onWorkspaceSaveVersion(workspaceVersion.spreadsheet_id)">
+                <i class="fa fa-history me-1"/>存成版本
+            </button>
+        </xpath>
+    </t>
+</templates>

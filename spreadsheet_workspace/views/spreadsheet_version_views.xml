@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+
+    <!-- 版本一律由「存成版本」與存檔自動產生，畫面上不提供新增／編輯 -->
+    <record id="spreadsheet_version_list_view" model="ir.ui.view">
+        <field name="name">spreadsheet.workspace.version.list</field>
+        <field name="model">spreadsheet.workspace.version</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0">
+                <field name="version_date"/>
+                <field name="spreadsheet_id"/>
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="commit_message"/>
+                <field name="is_auto" optional="show"/>
+                <button name="action_compare_with_latest" type="object" string="對比最新版" icon="fa-exchange"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="spreadsheet_version_form_view" model="ir.ui.view">
+        <field name="name">spreadsheet.workspace.version.form</field>
+        <field name="model">spreadsheet.workspace.version</field>
+        <field name="arch" type="xml">
+            <form create="0" edit="0">
+                <header>
+                    <button name="action_compare_with_latest" type="object" string="對比最新版"
+                            class="btn-primary" icon="fa-exchange"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="spreadsheet_id"/>
+                            <field name="user_id"/>
+                            <field name="version_date"/>
+                        </group>
+                        <group>
+                            <field name="is_auto"/>
+                            <field name="parent_version_id"/>
+                        </group>
+                    </group>
+                    <group string="提交說明">
+                        <field name="commit_message" nolabel="1" colspan="2"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="spreadsheet_version_search_view" model="ir.ui.view">
+        <field name="name">spreadsheet.workspace.version.search</field>
+        <field name="model">spreadsheet.workspace.version</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="spreadsheet_id"/>
+                <field name="user_id"/>
+                <field name="commit_message"/>
+                <separator/>
+                <filter name="manual_only" string="手動版本" domain="[('is_auto', '=', False)]"/>
+                <filter name="auto_only" string="自動儲存" domain="[('is_auto', '=', True)]"/>
+                <group expand="0" string="分組">
+                    <filter name="group_by_spreadsheet" string="試算表" context="{'group_by': 'spreadsheet_id'}"/>
+                    <filter name="group_by_user" string="提交者" context="{'group_by': 'user_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_spreadsheet_version" model="ir.actions.act_window">
+        <field name="name">版本歷史</field>
+        <field name="res_model">spreadsheet.workspace.version</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">還沒有版本紀錄</p>
+            <p>在試算表按「存成版本」，或編輯後存檔，就會留下一個版本。</p>
+        </field>
+    </record>
+
+</odoo>
