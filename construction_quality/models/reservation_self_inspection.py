@@ -299,9 +299,8 @@ class ReservationSelfInspection(models.Model):
     # === 動作方法 ===
     def action_inspect(self):
         """完成檢查"""
+        # 2026-11-20 回復原版（1118 會議）：拿掉「沒有檢查項目不能完成檢查」——舊系統儲存檢查單只檢查類型與名稱有填
         for record in self:
-            if not record.checklist_ids:
-                raise UserError('請先填寫檢查項目')
             record.state = 'inspected'
 
     def action_confirm(self):

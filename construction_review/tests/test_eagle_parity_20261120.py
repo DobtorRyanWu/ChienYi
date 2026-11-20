@@ -26,3 +26,11 @@ class TestEagleParityReview(TransactionCase):
         self.assertEqual(review.state, 'done', '前提：送審已完成')
         review.unlink()
         self.assertFalse(review.exists())
+
+    def test_closed_project_selectable_for_new_review(self):
+        """RV-04：新增送審時，已結案／終止的工程不再被下拉選單濾掉，也建得起來。"""
+        domain = self.env['supervision.review.application'].fields_get(['project_id'])['project_id'].get('domain') or ''
+        self.assertNotIn('closed', str(domain))
+        self.assertNotIn('terminated', str(domain))
+        review = self._review(self._project('closed'))
+        self.assertTrue(review.exists())

@@ -63,3 +63,62 @@ class TestEagleParityDefectDelete(EagleParityDefectCase):
             self.assertEqual(defect.state, 'closed', label)
             defect.unlink()
             self.assertFalse(defect.exists(), label)
+
+
+@tagged('post_install', '-at_install', 'construction_quality')
+class TestEagleParityDefectFlow(EagleParityDefectCase):
+
+    def test_notify_without_deadline(self):
+        """DF-01：沒有改善期限也能通知改善（舊系統期限不必填）。"""
+        for label, defect in (('一般式', self._general(deadline=False)), ('預約式', self._reservation())):
+            self.assertFalse(defect.deadline, label)
+            defect.action_notify()
+            self.assertEqual(defect.state, 'notified', label)
+
+    def test_notify_message_without_deadline_has_no_false(self):
+        """沒有期限時，通知訊息不能把期限印成 False。"""
+        responsible = self.env['res.users'].create({'name': 'ep_responsible', 'login': 'ep_responsible'})
+        defect = self._general(deadline=False, responsible_user_id=responsible.id)
+        defect.action_notify()
+        body = self.env['mail.message'].search(
+            [('model', '=', defect._name), ('res_id', '=', defect.id), ('message_type', '=', 'notification')],
+            order='id desc', limit=1).body
+        self.assertTrue(body, '前提：有發出通知訊息')
+        self.assertNotIn('False', body)
+
+    def test_complete_improvement_without_corrective_action(self):
+        """DF-03：沒有填矯正措施也能標記改善完成（舊系統矯正措施是選填）。"""
+        for label, defect in self._both():
+            defect.sudo().write({'state': 'improving'})
+            self.assertFalse(defect.improvement_action, label)
+            defect.action_complete_improvement()
+            self.assertEqual(defect.state, 'improved', label)
+
+
+@tagged('post_install', '-at_install', 'construction_quality')
+class TestEagleParityInspect(TransactionCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        cls.itype = env['self.inspection.type'].create({'name': '回復原版檢查類型'})
+        cls.project = env['project.project'].create({
+            'name': '回復原版自主檢查（一般式）', 'code': 'EP-QI-G', 'project_type': 'general',
+            'state': 'construction', 'company_id': env.company.id})
+        res_project = env['project.project'].create({
+            'name': '回復原版自主檢查（預約式）', 'code': 'EP-QI-R', 'project_type': 'reservation',
+            'state': 'construction', 'company_id': env.company.id})
+        cls.slip = env['reservation.notification.slip'].create({'project_id': res_project.id, 'location': '回復原版測試地點'})
+        cls.slip.sudo().write({'state': 'in_progress'})
+
+    def test_inspect_without_checklist_items(self):
+        """QI-07：沒有檢查項目也能按「完成檢查」（舊系統儲存檢查單只檢查類型與名稱有填）。"""
+        general = self.env['general.self.inspection'].create({
+            'project_id': self.project.id, 'inspection_type_id': self.itype.id, 'sub_project_name': '回復原版分項'})
+        reservation = self.env['reservation.self.inspection'].create({
+            'slip_id': self.slip.id, 'inspection_type_id': self.itype.id, 'sub_project_name': '回復原版分項'})
+        for label, insp in (('一般式', general), ('預約式', reservation)):
+            self.assertFalse(insp.checklist_ids, '前提：%s 沒有檢查項目' % label)
+            insp.action_inspect()
+            self.assertEqual(insp.state, 'inspected', label)

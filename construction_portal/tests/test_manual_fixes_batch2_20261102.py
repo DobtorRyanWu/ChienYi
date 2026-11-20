@@ -141,6 +141,17 @@ class TestPortalManualFixesBatch2(TransactionCase):
         self.assertEqual(defect.prevention_action, 'B2 預防措施')
         self.assertEqual(defect.improvement_action, 'B2 矯正')
 
+    # 回復原版（2026-11-20，DF-03）-------------------------------------
+    def test_improve_without_corrective_action_is_accepted(self):
+        """前台提交改善時沒填矯正措施也收（舊系統矯正措施是選填）：不再導回 need_corrective_action。"""
+        defect = self._general_defect()
+        loc = self._drive(
+            self.worker, self.ctrl.portal_construction_defect_improve, defect.id,
+            improvement_description='已修補，未另填矯正措施')[1]
+        self.assertNotIn('error=', loc)
+        self.env.invalidate_all()
+        self.assertEqual(defect.sudo().state, 'improved')
+
     # P9 ----------------------------------------------------------------
     def test_p9_create_from_portal_keeps_source_model(self):
         Photo = self.env['supervision.photo']

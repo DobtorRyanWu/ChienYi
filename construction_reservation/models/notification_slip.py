@@ -208,9 +208,10 @@ class ReservationNotificationSlipReservation(models.Model):
     def action_create_self_inspection(self):
         """建立自主檢查"""
         self.ensure_one()
-        # 狀態流程為 draft → not_started → in_progress（⇄ suspended）→ closed，無 approved
-        if self.state not in ('not_started', 'in_progress', 'suspended'):
-            raise UserError('只有未開始、施工中或停工的通報單可以建立自主檢查')
+        # 2026-11-20 回復原版（1118 會議）：已結案的通報單也能建（舊系統通報單狀態不拿來擋別的單據）。
+        # 草稿、已退單不能掛單據是退單功能的一部分（reservation.self.inspection._check_slip_state），維持
+        if self.state in ('draft', 'cancelled'):
+            raise UserError('草稿或已退單的通報單不能建立自主檢查')
 
         return {
             'type': 'ir.actions.act_window',
@@ -227,9 +228,9 @@ class ReservationNotificationSlipReservation(models.Model):
     def action_create_defect_improvement(self):
         """建立缺失改善記錄"""
         self.ensure_one()
-        # 狀態流程為 draft → not_started → in_progress（⇄ suspended）→ closed，無 approved
-        if self.state not in ('not_started', 'in_progress', 'suspended'):
-            raise UserError('只有未開始、施工中或停工的通報單可以建立缺失改善')
+        # 2026-11-20 回復原版（1118 會議）：已結案的通報單也能建；草稿、已退單維持不行（同上）
+        if self.state in ('draft', 'cancelled'):
+            raise UserError('草稿或已退單的通報單不能建立缺失改善')
 
         return {
             'type': 'ir.actions.act_window',

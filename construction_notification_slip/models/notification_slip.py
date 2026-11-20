@@ -472,8 +472,7 @@ class ReservationNotificationSlip(models.Model):
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('只有草稿狀態可以確認')
-            if not rec.detail_line_ids:
-                raise ValidationError('請先填寫詳細表項目')
+            # 2026-11-20 回復原版（1118 會議）：拿掉「沒有明細不能確認」——舊系統通報單的狀態沒有前置條件
             rec.write({'state': 'not_started'})
             site_manager = rec.project_id.site_manager_id
             if site_manager:
@@ -511,14 +510,7 @@ class ReservationNotificationSlip(models.Model):
         for rec in self:
             if rec.state not in ('in_progress', 'suspended'):
                 raise UserError('只有施工中或停工狀態可以結案')
-            # 驗證：施工詳細表的實際數量與金額不能全為 0
-            total_actual_qty = sum(rec.detail_line_ids.mapped('actual_qty'))
-            total_actual_amount = sum(rec.detail_line_ids.mapped('actual_amount'))
-            if total_actual_qty == 0 and total_actual_amount == 0:
-                raise UserError(
-                    '施工詳細表中尚未填寫任何實際完成數量或實際金額，無法結案。\n'
-                    '請至「施工詳細表」頁籤填寫實際完成資料。'
-                )
+            # 2026-11-20 回復原版（1118 會議）：拿掉「結案前要先填實際完成數量或金額」——舊系統沒有這個前置條件
             vals = {'state': 'closed'}
             end_date = rec.actual_end_date or fields.Date.context_today(rec)
             if not rec.actual_end_date:

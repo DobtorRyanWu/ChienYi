@@ -792,22 +792,9 @@ class DefectRoutesMixin:
         corrective_action = post.get('corrective_action', '').strip()
         preventive_action = post.get('preventive_action', '').strip()
 
-        # ── 前置檢查：把最後一關提前 ────────────────────────────────────
-        # action_complete_improvement()（daily_defect_mixin.py:397）要求
-        # improvement_action 有值，否則 raise「請先填寫矯正措施」。那一關原本
-        # 排在整串動作的**最後**，等它擋下來時，前面的照片存檔與
-        # notified→improving 的狀態推進**都已經生效且不會回滾**（例外被下面的
-        # except 接住轉成 redirect，不是往上拋）。
-        #
-        # 症狀：使用者漏填矯正措施 → 看到錯誤訊息以為什麼都沒發生 → 補填重送
-        # → 照片變成兩張一模一樣的，狀態也早就被推走了。
-        #
-        # 這裡在動任何資料之前先驗一次，不合格就直接退回。
-        # 只有「這次送出會觸發狀態推進」時才需要這個欄位，所以綁在 state 上。
-        if defect.state in ('notified', 'improving') and not (
-                corrective_action or defect.improvement_action):
-            return request.redirect(
-                self._defect_url(defect, error='need_corrective_action'))
+        # 2026-11-20 回復原版（1118 會議）：拿掉「沒填矯正措施就退回」的前置檢查。
+        # 它原本是把 action_complete_improvement() 的「請先填寫矯正措施」提前（避免照片先存、狀態先推才被擋）；
+        # 那條限制已經拿掉（舊系統矯正措施是選填），這裡跟著拿掉。
 
         # 收改善後照片（走共用 helper，stage=after）
         _defect_save_photos(

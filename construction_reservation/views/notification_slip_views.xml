@@ -41,11 +41,11 @@
                 <button name="action_create_self_inspection"
                         string="新增自主檢查" type="object"
                         class="btn-secondary"
-                        invisible="state not in ['not_started', 'in_progress', 'suspended']"/>
+                        invisible="state in ['draft', 'cancelled']"/>
                 <button name="action_create_defect_improvement"
                         string="新增缺失改善" type="object"
                         class="btn-secondary"
-                        invisible="state not in ['not_started', 'in_progress', 'suspended']"/>
+                        invisible="state in ['draft', 'cancelled']"/>
                 <button name="action_create_defect_from_inspection"
                         string="從檢查建立缺失" type="object"
                         class="btn-warning"

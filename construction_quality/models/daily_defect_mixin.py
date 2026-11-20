@@ -458,8 +458,7 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
         for record in self:
             if record.state != 'draft':
                 raise UserError('只有草稿狀態可以通知改善')
-            if not record.deadline:
-                raise ValidationError('請先設定改善期限')
+            # 2026-11-20 回復原版（1118 會議）：拿掉「要先設改善期限」——舊系統改善期限不必填
             record.write({
                 'state': 'notified',
                 'notification_date': fields.Date.today(),
@@ -470,11 +469,13 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
                 record.message_subscribe(partner_ids=partner.ids)
                 record.message_post(
                     body=Markup(
-                        '缺失 <b>%s</b> 已派發給您%s，請於 <b>%s</b> 前完成改善。<br/>缺失說明：%s'
+                        '缺失 <b>%s</b> 已派發給您%s，%s。<br/>缺失說明：%s'
                     ) % (
                         record.defect_no,
                         Markup('（執行改善單位：%s）') % unit if unit else '',
-                        record.deadline,
+                        # 沒有期限時不印「請於 False 前」
+                        (Markup('請於 <b>%s</b> 前完成改善') % record.deadline) if record.deadline
+                        else '請儘速完成改善（未設定改善期限）',
                         record.defect_description or '（無）',
                     ),
                     partner_ids=partner.ids,
@@ -494,8 +495,7 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
         for record in self:
             if record.state != 'improving':
                 raise UserError('只有改善中狀態可以標記完成')
-            if not record.improvement_action:
-                raise UserError('請先填寫矯正措施')
+            # 2026-11-20 回復原版（1118 會議）：拿掉「要先填矯正措施」——舊系統矯正措施是選填
             record.write({
                 'state': 'improved',
                 'improvement_date': fields.Date.today(),

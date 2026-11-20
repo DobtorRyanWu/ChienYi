@@ -46,8 +46,8 @@ class SupervisionReviewApplication(models.Model):
         required=True,
         ondelete='cascade',
         index=True,
-        tracking=True,
-        domain="[('state', 'not in', ['closed', 'terminated'])]")
+        tracking=True)
+    # 2026-11-20 回復原版（1118 會議）：拿掉「已結案／終止的工程選不到」——舊系統不依工程狀態限制新增送審
 
     company_id = fields.Many2one(
         'res.company',

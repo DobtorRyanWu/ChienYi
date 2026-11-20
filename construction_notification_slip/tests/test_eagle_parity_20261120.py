@@ -29,3 +29,29 @@ class TestEagleParitySlipForm(TransactionCase):
             self.assertIn('cancelled', readonly, '%s 退單後仍要唯讀' % name)
         add_button = arch.xpath("//button[@name='action_open_add_lines_wizard']")[0]
         self.assertNotIn('closed', add_button.get('invisible') or '', '已結案後「加入工項」按鈕不該消失')
+
+
+@tagged('post_install', '-at_install', 'construction_notification_slip')
+class TestEagleParitySlipFlow(TransactionCase):
+
+    def _slip(self, code):
+        project = self.env['project.project'].create({
+            'name': '回復原版通報單 %s' % code, 'code': code, 'project_type': 'reservation',
+            'state': 'construction', 'company_id': self.env.company.id})
+        return self.env['reservation.notification.slip'].create({'project_id': project.id, 'location': '回復原版測試地點'})
+
+    def test_confirm_without_detail_lines(self):
+        """NS-01：沒有明細的通報單也能確認。"""
+        slip = self._slip('EP-NS-1')
+        self.assertFalse(slip.detail_line_ids, '前提：沒有明細')
+        slip.action_confirm()
+        self.assertEqual(slip.state, 'not_started')
+
+    def test_close_without_actual_qty_or_amount(self):
+        """NS-03：沒有填實際完成數量或金額也能結案。"""
+        slip = self._slip('EP-NS-3')
+        slip.action_confirm()
+        slip.action_start()
+        slip.action_close()
+        self.assertEqual(slip.state, 'closed')
+        self.assertTrue(slip.actual_end_date, '結案時仍要記下實際竣工日')
