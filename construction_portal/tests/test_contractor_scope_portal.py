@@ -431,14 +431,15 @@ class TestContractorScopePortal(TransactionCase):
         self.assertFalse(self.photo_b.exists(), '監造方主管照常刪得掉')
 
     def test_daily_log_unlock_contractor_denied(self):
+        # 2026-11-20 回復原版：日誌不再因超過 14 天鎖定，解鎖按鈕不會出現。
+        # 解鎖路由還留著（之後要加回鎖定時用），它的權限判斷照舊：營造方直接打網址仍被拒。
         log = self._log(self.co_a, days_ago=LOCKED_LOG_AGE_DAYS)
-        self.assertTrue(log._is_edit_locked(), '前提：日誌已鎖定')
+        self.assertFalse(log._is_edit_locked(), '超過 14 天的日誌不再鎖定')
         loc = self._location(self.boss_a, self.ctrl.portal_construction_daily_log_unlock, self.p.id, log.id)
         self.assertIn('error=no_unlock_permission', loc)
-        self.assertTrue(log._is_edit_locked(), '營造方不能解鎖')
         loc = self._location(self.sup_leader, self.ctrl.portal_construction_daily_log_unlock, self.p.id, log.id)
         self.assertIn('message=unlocked', loc)
-        self.assertFalse(log._is_edit_locked(), '監造方主管照常解得開')
+        self.assertFalse(log._is_edit_locked())
 
     def test_daily_log_import_replace_never_touches_others(self):
         """取代模式：那天只有 B 一張時，A 匯入不可覆蓋 B 的（改成另建 A 自己的一張）。"""

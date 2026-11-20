@@ -125,12 +125,13 @@ class TestPortalDailyLogMaterials(TransactionCase):
         self.assertFalse(sheet.work_summary)
 
     # l ------------------------------------------------------------------
-    def test_l_locked_sheet_redirects_and_keeps_data(self):
+    def test_l_old_sheet_can_be_updated(self):
+        # 2026-11-20 回復原版：超過 14 天的日誌不再鎖定，前台照樣能改材料數量
         sheet = self._sheet(20)
         res = self._update(self.leader, sheet,
                            **{'material_qty_%s' % self._row(sheet).id: '8'})
-        self.assertIn('error=locked', self._location(res))
-        self.assertEqual(self._row(sheet).daily_qty, 0.0)
+        self.assertNotIn('error=', self._location(res))
+        self.assertEqual(self._row(sheet).daily_qty, 8.0)
 
     # 無效數量 ------------------------------------------------------------
     def test_invalid_qty_redirects_and_writes_nothing(self):

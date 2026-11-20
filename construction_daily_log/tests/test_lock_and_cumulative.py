@@ -13,7 +13,6 @@ H3：cumulative_qty 為跨列聚合（同工項、date<=本列）但 @api.depend
 from datetime import timedelta
 
 from odoo import fields
-from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -52,25 +51,15 @@ class TestDailyLogLock(TransactionCase):
             'log_date': log_date,
         })
 
-    def test_stale_is_locked_still_blocks_edit_after_14_days(self):
-        """核心：即使 stored is_locked 因 stale 顯示 False，過 14 天的日誌仍不可編輯。"""
-        old_date = fields.Date.today() - timedelta(days=20)
-        sheet = self._make_sheet(old_date)
-
-        # 模擬 stale：先 flush（把 create 期的 compute 落庫並清掉 recompute queue），
-        # 再直接把 stored is_locked 改成 False 繞過 compute，invalidate 後讀回即為 stale。
-        # 重現「建立時年輕→存 False→時間流逝但 stored 值沒重算」的生產實況。
-        self.env.flush_all()
-        self.env.cr.execute(
-            "UPDATE daily_log_sheet SET is_locked = FALSE WHERE id = %s",
-            (sheet.id,),
-        )
+    def test_sheet_older_than_14_days_is_editable(self):
+        """2026-11-20 回復原版：過 14 天的日誌照樣能改（舊系統沒有鎖定；這裡原本測的是相反的事）。"""
+        sheet = self._make_sheet(fields.Date.today() - timedelta(days=20))
+        self.env.cr.execute(                       # 模擬以前就建好的日誌（舊守衛放行本交易剛建立的）
+            "UPDATE daily_log_sheet SET create_date = create_date - interval '30 days' WHERE id = %s", (sheet.id,))
         sheet.invalidate_recordset()
-        self.assertFalse(sheet.is_locked, "前提：stored is_locked 已被弄成 stale False")
-
-        # 20 天前的日誌，本日完成備註等使用者輸入欄位不得再改
-        with self.assertRaises(UserError):
-            sheet.write({'notes': '竄改已鎖定日誌'})
+        self.assertFalse(sheet.is_locked)
+        sheet.write({'notes': '滿 14 天後補記'})
+        self.assertEqual(sheet.notes, '滿 14 天後補記')
 
     def test_young_sheet_editable(self):
         """護欄：未滿 14 天的日誌可正常編輯（修復不得誤鎖）。"""

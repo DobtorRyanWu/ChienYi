@@ -140,17 +140,19 @@ class TestContractMaterial(TransactionCase):
         self.assertEqual(row.cumulative_qty, 30.0)
 
     # e ------------------------------------------------------------------
-    def test_e_locked_sheet_is_skipped_or_blocked(self):
-        old = self._sheet(20)
+    def test_e_old_sheet_gets_key_materials_too(self):
+        # 2026-11-20 回復原版：滿 14 天的日誌不再鎖定，帶入重要材料、套用到各日誌都包含它
+        old = self._created_earlier(self._sheet(20))
         recent = self._sheet(3)
-        item = self._item('M001', '鋼筋')  # 清單是在兩張日誌都建立之後才有的
+        older = self._created_earlier(self._sheet(25))
+        item = self._item('M001', '鋼筋')  # 清單是在日誌都建立之後才有的
         self.assertFalse(old.material_ids)
         self.assertFalse(recent.material_ids)
-        with self.assertRaises(UserError):
-            old.action_load_key_materials()
-        self.assertFalse(old.material_ids)
+        old.action_load_key_materials()
+        self.assertEqual(old.material_ids.catalog_item_id, item)
         item.action_apply_to_open_logs()
-        self.assertFalse(old.material_ids, '鎖定的日誌不可被補入')
+        self.assertEqual(len(old.material_ids), 1, '已經帶入過的不重複')
+        self.assertEqual(older.material_ids.catalog_item_id, item, '滿 14 天的日誌也會被補入')
         self.assertEqual(recent.material_ids.catalog_item_id, item)
         # 再套用一次不會重複帶入
         item.action_apply_to_open_logs()
@@ -221,28 +223,21 @@ class TestContractMaterial(TransactionCase):
         sheet.invalidate_recordset(['create_date'])
         return sheet
 
-    def test_k_direct_write_on_locked_linked_row_blocked(self):
-        # 材料列可以被直接寫（例如 JSON-RPC），不經日誌的鎖定檢查；連結列一改就會改寫後面所有日誌的累計
+    def test_k_linked_rows_on_old_sheet_can_be_changed(self):
+        # 2026-11-20 回復原版：滿 14 天的日誌不再鎖定，連結列可以改、刪、再新增；後面日誌的累計跟著重算
         item = self._item('M001', '鋼筋')
         old, recent = self._created_earlier(self._sheet(20)), self._sheet(3)
         user = self._admin_user('contract_material_admin')
         Material = self.env['daily.log.material'].with_user(user)
-        manual_old = self.env['daily.log.material'].create({'daily_log_id': old.id, 'name': '人工列'})
-        attacks = {
-            '改本日數量': lambda: self._row(old, item).with_user(user).write({'daily_qty': 3.0}),
-            '刪除': lambda: self._row(old, item).with_user(user).unlink(),
-            '在已鎖定日誌新增連結列': lambda: Material.create({
-                'daily_log_id': old.id, 'name': '鋼筋', 'catalog_item_id': item.id, 'daily_qty': 5.0}),
-            '把人工列改成連結列': lambda: manual_old.with_user(user).write({'catalog_item_id': item.id}),
-            '把連結列搬進已鎖定日誌': lambda: self._row(recent, item).with_user(user).write(
-                {'daily_log_id': old.id}),
-        }
-        for name, attack in attacks.items():
-            with self.assertRaises(UserError, msg=name):
-                attack()
-        self.assertEqual(self._row(old, item).daily_qty, 0.0)
-        self._row(recent, item).with_user(user).write({'daily_qty': 4.0})   # 未鎖定照常可改
+        self._row(old, item).with_user(user).write({'daily_qty': 3.0})          # 改本日數量
+        self.assertEqual(self._row(old, item).daily_qty, 3.0)
+        self._row(recent, item).with_user(user).write({'daily_qty': 4.0})
+        self.assertEqual(self._row(recent, item).cumulative_qty, 7.0, '舊日誌改量後，後面日誌的累計要跟著變')
+        self._row(old, item).with_user(user).unlink()                           # 刪除
+        self.assertFalse(old.material_ids.filtered(lambda m: m.catalog_item_id == item), '舊日誌的連結列刪得掉')
         self.assertEqual(self._row(recent, item).cumulative_qty, 4.0)
+        Material.create({'daily_log_id': old.id, 'name': '鋼筋', 'catalog_item_id': item.id, 'daily_qty': 5.0})  # 再新增
+        self.assertEqual(self._row(recent, item).cumulative_qty, 9.0)
 
     def test_k2_backend_backfill_with_linked_row_allowed(self):
         # 後台補登 20 天前的日誌、連同連結材料列一起建立：本交易剛建立的日誌不算鎖定

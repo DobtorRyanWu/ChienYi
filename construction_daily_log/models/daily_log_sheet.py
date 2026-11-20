@@ -16,8 +16,6 @@ _logger = logging.getLogger(__name__)
 SHEET_NAME_LOCALE = 'zh_TW'
 # 前台匯入補傳：放行「同一人同一天」的重疊檢查（見 _check_overlapping_sheets）
 DAILY_LOG_IMPORT_ALLOW_SAME_DAY = 'daily_log_import_allow_same_day'
-# 已鎖定的日誌狀態（手動鎖定／排程自動鎖定）：不能再標已填寫
-LOCKED_SHEET_STATES = ('locked', 'auto_locked')
 
 
 class DailyLogSheet(models.Model):
@@ -287,7 +285,8 @@ class DailyLogSheet(models.Model):
         ('auto_locked', '自動鎖定'),
         ('locked', '已鎖定'),
     ], string='狀態', default='draft', tracking=True, required=True, index=True,
-       help='編輯中→已填寫→已鎖定；超過14天由排程自動鎖定')
+       help='編輯中→已填寫；滿 14 天還在編輯中的日誌由排程自動標成已填寫。'
+            '2026-11-20 起不再鎖定：「自動鎖定」「已鎖定」只留給舊資料顯示，不擋修改與刪除')
 
     state_sequence = fields.Integer(
         string='狀態排序',
@@ -309,15 +308,19 @@ class DailyLogSheet(models.Model):
         for rec in self:
             rec.state_sequence = self.STATE_SEQUENCE_MAP.get(rec.state, 9)
 
-    # === Auto-Lock Mechanism (14 days) ===
-    # 自動鎖定天數（估驗/請款數量凍結窗口）。用具名常數取代散落的魔數 14。
+    # === 14 天規則 ===
+    # 2026-11-20 回復原版（1118 會議）：舊系統的日誌沒有鎖定，「滿 14 天不能改、不能刪」整個拿掉
+    # （_is_edit_locked 一律 False、is_locked 一律 False）。解鎖申請與審核的程式留著但不會再被用到，
+    # 要加回鎖定只需還原這個提交。
+    # 這個天數現在只剩一個用途：滿這麼多天還在「編輯中」的日誌，排程自動標成「已填寫」，
+    # 讓它照舊算進累計完成數量、可估驗數量與實際進度（以前是轉成「自動鎖定」，計算上兩者等價）。
     LOCK_DAYS = 14
 
     is_locked = fields.Boolean(
         string='是否已鎖定',
         compute='_compute_is_locked',
         store=True,
-        help='日誌日期超過14天自動鎖定（僅供顯示/搜尋；實際編輯封鎖以 write() 即時判斷為準）',
+        help='2026-11-20 起恆為否（不再鎖定）；欄位留著讓既有畫面條件與解鎖流程的程式不用改',
     )
     
     days_since_log = fields.Integer(
@@ -517,37 +520,21 @@ class DailyLogSheet(models.Model):
         return True
 
     def _is_edit_locked(self):
-        """即時判斷編輯是否應被封鎖（不信任 stored is_locked，防 stale）。
+        """日誌是否鎖住不能編輯。2026-11-20 回復原版：一律不鎖。
 
-        這是真正的封鎖判準：write()/unlink() 用它，而非 stored 的 is_locked——
-        後者是 store=True compute、無隨時間變動的觸發源，會 stale（H2）。
+        日誌本身的 write()/unlink()、明細、材料列、前台路由的守衛都問這個方法，
+        所以這裡回 False，那些守衛就全部放行（守衛的程式留著沒刪）。
         """
         self.ensure_one()
-        if not self.log_date:
-            return False
-        if (fields.Date.today() - self.log_date).days < self.LOCK_DAYS:
-            return False
-        # 過 14 天：唯有「有效臨時解鎖」才可編輯（過期解鎖視同鎖定）
-        return not self._is_validly_unlocked()
+        return False
 
     @api.depends('log_date', 'is_unlocked', 'unlock_expires_at')
     def _compute_is_locked(self):
-        """stored 值僅供顯示/搜尋；真正的編輯封鎖以 _is_edit_locked() 即時判斷。
-
-        注意：此為 store=True compute 但依賴的 log_date/解鎖欄位不隨時間變動，
-        stored 值會 stale（H2）。故不在此做任何 write 副作用（原本 compute 內
-        以 sudo().write 重置解鎖 / 寫 lock_date 是反模式），改由 _cron_auto_lock 維護。
-        """
+        """is_locked 2026-11-20 起恆為否（不再鎖定）；days_since_log 照算。"""
         today = fields.Date.today()
-        now = fields.Datetime.now()
         for sheet in self:
-            if not sheet.log_date:
-                sheet.days_since_log = 0
-                sheet.is_locked = False
-                continue
-            days = (today - sheet.log_date).days
-            sheet.days_since_log = days
-            sheet.is_locked = (days >= sheet.LOCK_DAYS) and not sheet._is_validly_unlocked(now)
+            sheet.days_since_log = (today - sheet.log_date).days if sheet.log_date else 0
+            sheet.is_locked = False
     
     @api.depends_context('uid')
     def _compute_can_unlock(self):
@@ -594,8 +581,6 @@ class DailyLogSheet(models.Model):
     def action_mark_filled(self):
         """標記為已填寫（允許無明細，代表當日無施工）"""
         for sheet in self:
-            if sheet.state in LOCKED_SHEET_STATES:
-                raise UserError('日誌「%s」已鎖定，不能標記為已填寫；請先申請解鎖。' % sheet.complete_name)
             sheet.state = 'filled'
 
     def action_revert_to_draft(self):
@@ -611,40 +596,17 @@ class DailyLogSheet(models.Model):
     # -------------------------------------------------------------------------
 
     def _cron_auto_lock(self):
-        """排程：自動鎖定超過14天的施工日誌，並維護 stored is_locked 顯示值。"""
-        today = fields.Date.today()
-        now = fields.Datetime.now()
-        cutoff = today - timedelta(days=self.LOCK_DAYS)
+        """排程：滿 14 天還在「編輯中」的日誌自動標成「已填寫」。
 
-        # 0) 重置已過期的臨時解鎖（原本靠 compute 內 sudo().write，已移除該副作用）
-        expired = self.search([
-            ('is_unlocked', '=', True),
-            ('unlock_expires_at', '!=', False),
-            ('unlock_expires_at', '<', now),
-        ])
-        if expired:
-            expired.write({'is_unlocked': False, 'unlock_expires_at': False})
-
-        # 1) 狀態機：draft/filled 過期 → auto_locked
-        logs = self.search([
-            ('log_date', '<=', cutoff),
-            ('state', 'in', ('draft', 'filled')),
-            ('is_unlocked', '=', False),
-        ])
+        2026-11-20 以前這裡是把日誌轉成「自動鎖定」並擋修改。鎖定拿掉了，但「滿 14 天自動確認」要留著：
+        累計完成數量、可估驗數量、實際進度只算已確認的日誌，補登或匯入的舊日誌就是靠這一步被算進去的。
+        方法名稱沒改，是因為排程資料（noupdate）記的是這個名字。
+        """
+        cutoff = fields.Date.today() - timedelta(days=self.LOCK_DAYS)
+        logs = self.search([('log_date', '<=', cutoff), ('state', '=', 'draft')])
         if logs:
-            logs.write({'state': 'auto_locked'})
-            _logger.info('自動鎖定 %d 筆施工日誌（超過14天）', len(logs))
-
-        # 2) 刷新 stored is_locked 顯示值（stored compute 無時間觸發會 stale）
-        stale = self.search([
-            ('log_date', '<=', cutoff),
-            ('is_locked', '=', False),
-            ('is_unlocked', '=', False),
-        ])
-        if stale:
-            stale.invalidate_recordset(['is_locked'])
-            stale.modified(['log_date'])  # 觸發 stored compute 重算並落庫
-            _logger.info('刷新 %d 筆 stale 的 is_locked 顯示值', len(stale))
+            logs.write({'state': 'filled'})
+            _logger.info('滿 %d 天的編輯中施工日誌自動標成已填寫：%d 筆', self.LOCK_DAYS, len(logs))
 
     # -------------------------------------------------------------------------
     # Constraint Methods

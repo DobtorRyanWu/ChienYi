@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""11-16 六件 low 的回歸：已鎖定／自動鎖定的日誌不能被標成「已填寫」（否則等於繞過鎖定）。"""
+"""日誌「標記已填寫」：2026-11-20 回復原版後，舊資料掛著「已鎖定／自動鎖定」的日誌也能標成已填寫。
+
+11-16 這支測的是相反的事（鎖定的日誌不能標已填寫，否則等於繞過鎖定）；鎖定拿掉後改測新行為。"""
 from datetime import timedelta
 
 from odoo import fields
-from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
 
 LOCKED_STATES = ('locked', 'auto_locked')
@@ -31,13 +32,12 @@ class TestMarkFilledBlockedWhenLocked(TransactionCase):
             sheet.write({'state': state})
         return sheet
 
-    def test_locked_sheet_cannot_be_marked_filled(self):
-        """修前：鎖定的日誌被標成已填寫（狀態直接被改掉）。"""
+    def test_legacy_locked_sheet_can_be_marked_filled(self):
+        """舊資料的「已鎖定／自動鎖定」不再擋「標記已填寫」。"""
         for days_ago, state in enumerate(LOCKED_STATES, start=1):   # 同一天不能有兩張日誌
             sheet = self._sheet(state, days_ago)
-            with self.assertRaises(UserError, msg=state):
-                sheet.action_mark_filled()
-            self.assertEqual(sheet.state, state, '狀態不可被改掉')
+            sheet.action_mark_filled()
+            self.assertEqual(sheet.state, 'filled', state)
 
     def test_draft_sheet_can_still_be_marked_filled(self):
         """正常案例：編輯中的日誌照樣能標已填寫。"""

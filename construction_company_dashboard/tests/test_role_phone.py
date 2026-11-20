@@ -44,7 +44,7 @@ PAIRS = ((SIDE_CONTRACTOR, LEVEL_BOSS), (SIDE_CONTRACTOR, LEVEL_MANAGER),
          (SIDE_SUPERVISION, LEVEL_BOSS), (SIDE_SUPERVISION, LEVEL_MANAGER))
 MATRIX_MARK = 'S2_MATRIX'
 # 日誌超過幾天自動鎖定（construction_daily_log LOCK_DAYS＝14）；夾具用更舊的日期
-LOCKED_LOG_DAYS_AGO = 20
+OLD_LOG_DAYS_AGO = 20      # 超過 14 天的日誌（2026-11-20 以前會鎖定）
 PNG_BYTES = (b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89'
              b'\x00\x00\x00\rIDATx\xdac\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa7\x35\x81\x84\x00\x00\x00\x00IEND\xaeB`\x82')
 # 必守的差異以外、角色帳號比舊前台帳號少的能力：(方別, 能力) → 理由（不可以有「角色帳號比較多」的差異）
@@ -151,7 +151,7 @@ class RolePhoneCase(TransactionCase):
 
     # ── 資料工廠（都歸營造廠 A，營造方帳號才讀得到） ──────────────────────
     def _log(self, days_ago=1, state='draft'):
-        # 每一格都在 savepoint 裡退回，日期不必錯開；超過 14 天會自動鎖定（LOCKED_LOG_DAYS_AGO 那一格才要）
+        # 每一格都在 savepoint 裡退回，日期不必錯開；超過 14 天的那一格用 OLD_LOG_DAYS_AGO（2026-11-20 起不再鎖定）
         return self.env['daily.log.sheet'].create({
             'supervision_project_id': self.p.id, 'company_id': self.co_s.id, 'employee_id': self.emp.id,
             'log_date': self.today - timedelta(days=days_ago), 'contractor_company_id': self.co_a.id,
@@ -293,14 +293,16 @@ class TestRolePhoneMatrix(RolePhoneCase):
         self.env.invalidate_all()
         return {'entry': '/mark-filled' in html, 'route': status != 'denied', 'write': log.state == 'filled'}
 
-    def _cap_log_unlock(self, user):
-        log = self._log(days_ago=LOCKED_LOG_DAYS_AGO)
-        self.assertTrue(log.sudo().is_locked, '前提：夾具日誌已鎖定')
+    def _cap_log_update_old(self, user):
+        """2026-11-20 回復原版：超過 14 天的日誌不再鎖定，誰能改跟一般日誌一樣（原本這格是「解鎖」）。"""
+        log = self._log(days_ago=OLD_LOG_DAYS_AGO)
+        self.assertFalse(log.sudo().is_locked, '超過 14 天的日誌不再鎖定')
         html = self._html(user, self.ctrl.portal_construction_daily_log_detail, self.p.id, log.id)
-        status, location = self._call(user, self.ctrl.portal_construction_daily_log_unlock, self.p.id, log.id)
+        self.assertNotIn('/unlock', html, '解鎖按鈕不再出現')
+        status, _value = self._call(user, self.ctrl.portal_construction_daily_log_update, self.p.id, log.id,
+                                    work_summary='S2M 改舊日誌')
         self.env.invalidate_all()
-        return {'entry': '/unlock' in html, 'route': 'no_unlock_permission' not in location,
-                'write': bool(log.is_unlocked)}
+        return {'entry': None, 'route': status != 'denied', 'write': log.work_summary == 'S2M 改舊日誌'}
 
     def _cap_insp_create(self, user):
         Insp = self.env['general.self.inspection'].sudo()
@@ -446,7 +448,7 @@ class TestRolePhoneMatrix(RolePhoneCase):
 
     CAPABILITIES = (
         'project_new', 'project_edit', 'project_code', 'schedule_extend',
-        'log_create', 'log_update', 'log_mark_filled', 'log_unlock',
+        'log_create', 'log_update', 'log_mark_filled', 'log_update_old',
         'insp_create', 'insp_inspect', 'insp_inspect_own', 'insp_confirm', 'insp_close',
         'defect_create', 'defect_notify', 'defect_notify_deadline', 'defect_verify', 'defect_close',
         'slip_confirm', 'slip_close',

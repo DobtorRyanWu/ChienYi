@@ -28,7 +28,7 @@ BOSS = 'construction_supervision_base.group_portal_subscriber'
 LEADER = 'construction_supervision_base.group_portal_leader'
 FIELD = 'construction_supervision_base.group_portal_user'
 MODULE_DIR = Path(__file__).resolve().parent.parent
-LOCKED_LOG_AGE_DAYS = 20          # 日誌超過 14 天鎖定（construction_daily_log LOCK_DAYS）
+LOCKED_LOG_AGE_DAYS = 20          # 超過 14 天的日誌（2026-11-20 以前會鎖定，現在不鎖）
 CARD_ID = re.compile(r'data-project-id="(\d+)"')
 SVG_BLOCK = re.compile(r'<svg\b.*?</svg>', re.S)
 
@@ -333,8 +333,8 @@ class TestPortalApprovalButtons(PortalDashCase):
              (f'/slip/{s["draft"].id}/confirm',), False),
             ('通報單：結案', self.portal.portal_construction_slip_detail, slip_args('in_progress'),
              (f'/slip/{s["in_progress"].id}/close',), False),
-            ('日誌：解鎖', self.portal.portal_construction_daily_log_detail, (pid, self.locked_log.id),
-             (f'/daily-log/{self.locked_log.id}/unlock',), False),
+            # 「日誌：解鎖」2026-11-20 拿掉：日誌不再因超過 14 天鎖定，解鎖按鈕對誰都不出現
+            # （見 test_unlock_button_gone_for_everyone）
             ('工程首頁快速新增：新增專案', self.portal.portal_construction_project_detail, (pid,),
              ('/construction/project/new', 'cy-quick-add-item'), False),
             ('工程首頁快速新增：工期展延', self.portal.portal_construction_project_detail, (pid,),
@@ -365,6 +365,13 @@ class TestPortalApprovalButtons(PortalDashCase):
                     self.assertTrue(has, f'{label}：{user.login} 應看得到按鈕 {fragment}')
                 else:
                     self.assertFalse(has, f'{label}：營造方 {user.login} 不應看到按鈕 {fragment}')
+
+    def test_unlock_button_gone_for_everyone(self):
+        """2026-11-20 回復原版：滿 14 天的日誌不再鎖定，詳情頁對監造方、營造方都不再出現解鎖按鈕。"""
+        self.assertFalse(self.locked_log.sudo().is_locked, '超過 14 天的日誌不再鎖定')
+        for user in (self.sup_boss, self.boss_a):
+            html = self._html(user, self.portal.portal_construction_daily_log_detail, (self.pa.id, self.locked_log.id))
+            self.assertFalse(self._has_button(html, (f'/daily-log/{self.locked_log.id}/unlock',)), user.login)
 
     def test_contractor_leader_also_hidden(self):
         """主管角色的營造方帳號也一樣（按鈕原本給老闆／主管）。主管沒掛在預約式工程 PR 與草稿 PN 上，那幾項略過。"""

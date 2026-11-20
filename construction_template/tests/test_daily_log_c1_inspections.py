@@ -29,7 +29,7 @@ from .common import blank_template, leftovers_xlsx, xlsx_cells
 SHEET = 'xl/worksheets/sheet1.xml'
 STYLES = 'xl/styles.xml'
 MANUAL = '混凝土坍度試驗 1 組'
-LOCK_TEST_DAYS_AGO = 30        # 超過日誌的 14 天鎖定
+LOCK_TEST_DAYS_AGO = 30        # 超過 14 天的舊日誌（2026-11-20 起不再鎖定）
 ONE_LINE_MAX_HEIGHT = 20.0     # 樣板預設列高 16.5pt；撐高後一定比這個高
 
 
@@ -161,11 +161,12 @@ class TestDailyLogC1Inspections(TransactionCase):
         self.assertEqual(len(self.sheet.same_day_inspection_text.split('\n')), total + 1)
 
     # ── 已鎖定的日誌也帶得出來（不寫進日誌欄位）──────────────────────────
-    def test_locked_sheet_still_gets_block(self):
+    def test_old_sheet_still_gets_block(self):
+        # 2026-11-20 以前這裡的前提是「日誌已鎖定」；鎖定拿掉後改成確認超過 14 天的舊日誌一樣套得出來
         day = self.today - timedelta(days=LOCK_TEST_DAYS_AGO)
         old_sheet = self._sheet(day)
         self._insp(day=day)
-        self.assertTrue(old_sheet._is_edit_locked())
+        self.assertFalse(old_sheet._is_edit_locked())
         _ref, text = self._sample_cell(self._render(old_sheet))
         self.assertIn(BLOCK_HEADING, text)
         self.assertIn(BLOCK_HEADING, old_sheet.same_day_inspection_text)
