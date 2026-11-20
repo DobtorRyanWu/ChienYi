@@ -17,6 +17,7 @@ import os
 from datetime import timedelta
 
 from odoo import fields
+from odoo.exceptions import ValidationError
 from odoo.modules.module import get_module_path
 from odoo.tests.common import TransactionCase, tagged
 
@@ -141,3 +142,47 @@ class TestEagleParityDailyQty(TransactionCase):
             'daily_qty': -3.0, 'date': sheet.log_date})
         env.flush_all()
         self.assertEqual(line.daily_qty, -3.0)
+
+
+@tagged('post_install', '-at_install', 'construction_daily_log')
+class TestEagleParityLumpItem(TransactionCase):
+    """回復原版（對照清單 DL-14）：整包項可以填進日誌明細，比例項照舊不行。
+
+    舊系統只有名稱含「稅什」的項目不能填日誌（isTaxItem），其他「式」的費用項在日誌統計表裡照樣有數量欄。
+    從舊系統轉進來的工程，工項沒有階層，大多數一般工項都被 18.0.6.0.0 的 migration 標成整包項
+    （dev 2026-11-20 實查 46,400 筆工項有 33,723 筆），擋整包項等於那些工程整個填不了日誌。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        cls.project = env['project.project'].create({
+            'name': '回復原版－整包項填日誌', 'code': 'EP-LUMP', 'project_type': 'general',
+            'state': 'construction', 'company_id': env.company.id})
+        cls.employee = env['hr.employee'].create({'name': '回復原版整包項員工', 'company_id': env.company.id})
+        Task = env['project.task']
+        cls.lump = Task.create({'name': '回復原版自主品管費', 'project_id': cls.project.id, 'item_no': 'EP-L1',
+                                'unit': '式', 'planned_qty': 1.0, 'xml_amount': 80000.0, 'is_lump_sum': True})
+        cls.rate = Task.create({'name': '回復原版稅什費', 'project_id': cls.project.id, 'item_no': 'EP-R1',
+                                'unit': '式', 'planned_qty': 1.0, 'tax_misc_rate': 5.0})
+        cls.sheet = env['daily.log.sheet'].create({
+            'supervision_project_id': cls.project.id, 'company_id': env.company.id,
+            'employee_id': cls.employee.id, 'log_date': fields.Date.today()})
+
+    def _line(self, task, qty):
+        return self.env['daily.log.line'].create({
+            'sheet_id': self.sheet.id, 'entry_type': 'contract', 'work_item_id': task.id, 'daily_qty': qty})
+
+    def test_lump_sum_item_can_be_logged(self):
+        line = self._line(self.lump, 0.3)          # 修改前：ValidationError「…是整包項…不能填在施工日誌明細」
+        self.assertEqual((line.work_item_id, line.daily_qty), (self.lump, 0.3))
+
+    def test_rate_item_still_blocked(self):
+        with self.assertRaises(ValidationError):
+            self._line(self.rate, 0.3)
+
+    def test_lump_sum_item_offered_by_field_domain(self):
+        domain = self.env['daily.log.line']._fields['work_item_id'].domain
+        self.assertNotIn('is_lump_sum', domain, '工項下拉的條件不能再排除整包項')
+        self.assertIn('tax_misc_rate', domain, '比例項照舊排除')

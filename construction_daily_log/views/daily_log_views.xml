@@ -164,7 +164,7 @@
                                     <field name="type_order" column_invisible="1"/>
                                     <field name="entry_type" string="類型" readonly="1" width="90px"/>
                                     <field name="work_item_id"
-                                           domain="[('project_id', '=', parent.project_id), ('is_summary_item', '=', False), ('active', '=', True), '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0), ('is_lump_sum', '=', False)]"
+                                           domain="[('project_id', '=', parent.project_id), ('is_summary_item', '=', False), ('active', '=', True), '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0)]"
                                            options="{'no_create': True, 'no_open': True}"
                                            placeholder="選擇施工項目..."
                                            readonly="entry_type == 'extra'"/>

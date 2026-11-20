@@ -34,6 +34,14 @@ from .portal_water_level import WaterLevelRoutesMixin
 _logger = logging.getLogger(__name__)
 
 PORTAL_DEADLINE_LIMIT = 6       # 手機「期限待辦」區塊最多列幾筆（件數另外給全部）
+# 前台工程資訊編輯：開始施工後仍然不能改的欄位（2026-11-20 回復原版，其餘欄位開工後也能改）。
+# 與後台工程表單開工後仍唯讀的欄位對齊：工程類型、契約金額、契約開工／完工日、核准展延工期；
+# 管理公司後台表單本來就沒有開放，開工後換公司會把整個工程的資料搬到別家公司底下，維持不開放。
+# 工程編號不在這裡：前台另有單欄位路由 /code/update，本來就不看狀態。
+PROJECT_FIELDS_LOCKED_AFTER_START = (
+    'project_type', 'contract_amount', 'contract_start_date', 'contract_end_date',
+    'extension_duration', 'company_id',
+)
 
 
 # 缺失網址 ?model= 的對照（P11）：一般式與預約式的 id 各自編號會撞
@@ -855,12 +863,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             return request.redirect('/my')
         # 與存檔 POST、工程資訊頁的編輯按鈕同一把尺（fix1-F、fix3-T）：頁上用 sudo 列出全庫內部帳號與公司，存不了就不該看
         self._require_edit_project_info()
-
-        # 僅允許 draft 編輯
-        if project.state != 'draft':
-            return request.redirect(
-                f'/construction/{project_id}/info?error=not_draft'
-            )
+        # 2026-11-20 回復原版（1118 會議）：開工後也能編輯（舊系統工程資訊隨時可改）。
+        # 開工後仍然鎖住的欄位見 PROJECT_FIELDS_LOCKED_AFTER_START，樣板用 locked_after_start 停用那幾格。
 
         env = request.env
 
@@ -915,6 +919,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             'supervision_users': supervision_users,
             'all_users': all_users,
             'error': kw.get('error'),
+            'locked_after_start': project.state != 'draft',
         }
         return request.render(
             'construction_portal.portal_construction_project_edit', values
@@ -986,9 +991,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
     def portal_construction_project_code_update(self, project_id, **kw):
         """工程編號單欄位更新（inline edit，不受 state 限制）。
 
-        為什麼獨立路由：完整 /update 強制 state=='draft' 才能改，
-        但工程編號可能在標案匯入後、案件已開工才需要校正，
-        因此 code 單欄位放寬限制。其他欄位仍走 /update + state guard。
+        為什麼獨立路由：工程資訊頁上直接改編號用（標案匯入後、案件已開工才需要校正）。
+        完整 /update 2026-11-20 起開工後也能存，兩條路由對工程編號都不看狀態。
         """
         try:
             project = self._document_check_access(
@@ -1047,11 +1051,8 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
 
         # H1：修改工程資訊限老闆／主管、營造方不能改（與編輯頁 GET 同一把尺，fix3-T）
         self._require_edit_project_info()
-
-        if project.state != 'draft':
-            return request.redirect(
-                f'/construction/{project_id}/info?error=not_draft'
-            )
+        # 2026-11-20 回復原版（1118 會議）：開工後也能存；鎖住的欄位就算送進來也不寫（見下面 _in）
+        locked_keys = PROJECT_FIELDS_LOCKED_AFTER_START if project.state != 'draft' else ()
 
         def _s(key):
             return (post.get(key) or '').strip()
@@ -1091,7 +1092,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         is_form_submit = post.get('_edit_form') == '1'
 
         def _in(key):
-            return key in post
+            return key in post and key not in locked_keys
 
         # ---- 基本資訊 ----
         # name 特殊處理：jsonb translation 同時寫 zh_TW + en_US，
@@ -1190,22 +1191,7 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             notes = post.get('notes')
             vals['notes'] = notes if notes else False
 
-        # ---- 預檢日期一致性 ----
-        # 若使用者只更新其中一個日期，要跟既有值比對
-        eff_start = (
-            vals['contract_start_date']
-            if 'contract_start_date' in vals
-            else project.contract_start_date
-        )
-        eff_end = (
-            vals['contract_end_date']
-            if 'contract_end_date' in vals
-            else project.contract_end_date
-        )
-        if eff_start and eff_end and eff_end < eff_start:
-            return request.redirect(
-                f'/construction/{project_id}/edit?error=date_invalid'
-            )
+        # 2026-11-20 回復原版：不再預檢「契約完工日不得早於開工日」（後台的檢查同一天拿掉，舊系統沒有）
 
         # ---- 寫入 ----
         # F（S2）：sudo 寫入前驗證公司、承攬廠商、使用者 id 都在可選值內（與編輯頁下拉同一份），不合就 AccessError

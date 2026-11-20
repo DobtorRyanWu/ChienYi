@@ -644,7 +644,8 @@
                             <t t-esc="dict(project._fields['state'].selection).get(project.state, project.state)"/>
                         </span>
                         <!-- 與編輯頁 GET 同一把尺（controller _can_edit_project_info：有管理權、不是營造方／控台讀取；fix2-O） -->
-                        <t t-if="project.state == 'draft' and can_edit_info">
+                        <!-- 2026-11-20 回復原版：開工後也能編輯（舊系統工程資訊隨時可改），不再只限未開始的工程 -->
+                        <t t-if="can_edit_info">
                             <a t-attf-href="/construction/#{project.id}/edit"
                                class="cy-btn"
                                style="padding: 6px 14px; border: 1px solid var(--wb-blue); color: var(--wb-blue); font-weight: 700; font-size: 0.9rem; border-radius: 8px; text-decoration: none;">
@@ -659,12 +660,6 @@
                             <i class="fa fa-check-circle"/> 工程資訊已儲存
                         </div>
                     </t>
-                    <t t-if="request.params.get('error') == 'not_draft'">
-                        <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(239,68,68,0.12); color: var(--wb-red); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
-                            <i class="fa fa-exclamation-triangle"/> 非草稿狀態無法編輯
-                        </div>
-                    </t>
-
                     <!-- 基本資訊 -->
                     <div class="cy-section-title">基本資訊</div>
                     <div class="cy-info-section">
@@ -1266,11 +1261,6 @@
 
                 <div class="cy-content">
                     <!-- 錯誤提示 -->
-                    <t t-if="error == 'date_invalid'">
-                        <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(239,68,68,0.12); color: var(--wb-red); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
-                            <i class="fa fa-exclamation-triangle"/> 契約完工日不得早於開工日
-                        </div>
-                    </t>
                     <t t-if="error == 'save_failed'">
                         <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(239,68,68,0.12); color: var(--wb-red); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
                             <i class="fa fa-exclamation-triangle"/> 儲存失敗，請檢查欄位內容
@@ -1304,7 +1294,9 @@
 
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">工程類型 <span style="color: var(--wb-red);">*</span></label>
-                                <select name="project_type" class="form-select">
+                                <!-- locked_after_start：開始施工後不能改的欄位（controller PROJECT_FIELDS_LOCKED_AFTER_START），停用後瀏覽器不會送出 -->
+                                <select name="project_type" class="form-select"
+                                        t-att-disabled="'disabled' if locked_after_start else None">
                                     <option value="general"
                                             t-att-selected="'selected' if project.project_type == 'general' else None">
                                         一般式工程
@@ -1314,6 +1306,9 @@
                                         預約式工程
                                     </option>
                                 </select>
+                                <t t-if="locked_after_start">
+                                    <small style="color: var(--wb-t3);">開始施工後不能修改</small>
+                                </t>
                             </div>
 
                             <div style="margin-bottom: 14px;">
@@ -1369,28 +1364,40 @@
                                 <input type="number" step="0.01" name="contract_amount"
                                        class="form-control"
                                        t-att-value="project.contract_amount or ''"
-                                       t-att-disabled="'disabled' if project.task_count else None"/>
+                                       t-att-disabled="'disabled' if (project.task_count or locked_after_start) else None"/>
                                 <t t-if="project.task_count">
                                     <small style="color: var(--wb-t3);">已匯入工項，金額由工項自動計算</small>
+                                </t>
+                                <t t-elif="locked_after_start">
+                                    <small style="color: var(--wb-t3);">開始施工後不能修改</small>
                                 </t>
                             </div>
 
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">契約開工日</label>
                                 <input type="date" name="contract_start_date" class="form-control"
-                                       t-att-value="project.contract_start_date and project.contract_start_date.strftime('%Y-%m-%d') or ''"/>
+                                       t-att-value="project.contract_start_date and project.contract_start_date.strftime('%Y-%m-%d') or ''"
+                                       t-att-disabled="'disabled' if locked_after_start else None"/>
+                                <t t-if="locked_after_start">
+                                    <small style="color: var(--wb-t3);">開始施工後不能修改</small>
+                                </t>
                             </div>
 
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">契約完工日</label>
                                 <input type="date" name="contract_end_date" class="form-control"
-                                       t-att-value="project.contract_end_date and project.contract_end_date.strftime('%Y-%m-%d') or ''"/>
+                                       t-att-value="project.contract_end_date and project.contract_end_date.strftime('%Y-%m-%d') or ''"
+                                       t-att-disabled="'disabled' if locked_after_start else None"/>
+                                <t t-if="locked_after_start">
+                                    <small style="color: var(--wb-t3);">開始施工後不能修改；完工日只能經由進度表展延改變</small>
+                                </t>
                             </div>
 
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">核准展延工期（天）</label>
                                 <input type="number" name="extension_duration" class="form-control"
-                                       t-att-value="project.extension_duration or 0"/>
+                                       t-att-value="project.extension_duration or 0"
+                                       t-att-disabled="'disabled' if locked_after_start else None"/>
                             </div>
                         </div>
 
@@ -1414,7 +1421,8 @@
                         <div class="cy-info-section" style="padding: 14px 16px;">
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">管理公司（監造）<span style="color: var(--wb-red);">*</span></label>
-                                <select name="company_id" class="form-select">
+                                <select name="company_id" class="form-select"
+                                        t-att-disabled="'disabled' if locked_after_start else None">
                                     <t t-foreach="supervision_companies" t-as="c">
                                         <option t-att-value="c.id"
                                                 t-att-selected="'selected' if project.company_id.id == c.id else None">

@@ -162,9 +162,10 @@
                         <t t-if="defect.portal_workflow_state == 'draft'">
                             <form t-attf-action="/construction/defect/#{defect.id}/notify#{defect_q}" method="post" style="margin-bottom: 16px;">
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-                                <!-- P10：提報沒填期限時在這裡補；有值就帶入 -->
-                                <label for="notify_deadline" style="display:block; font-weight:600; margin-bottom:4px;">改善期限</label>
-                                <input type="date" name="deadline" id="notify_deadline" required="required"
+                                <!-- P10：提報沒填期限時在這裡補；有值就帶入。
+                                     2026-11-20 回復原版：期限不是必填（後台「通知改善」同一天拿掉「請先設定改善期限」） -->
+                                <label for="notify_deadline" style="display:block; font-weight:600; margin-bottom:4px;">改善期限（可不填）</label>
+                                <input type="date" name="deadline" id="notify_deadline"
                                        t-att-value="defect.deadline and defect.deadline.strftime('%Y-%m-%d') or ''"
                                        class="form-control" style="margin-bottom:8px;"/>
                                 <button type="submit" class="cy-btn cy-btn-primary" style="width:100%;"><i class="fa fa-bullhorn"/> 通知改善</button>

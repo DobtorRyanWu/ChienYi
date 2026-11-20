@@ -28,7 +28,6 @@
                             <t t-if="error == 'not_found'">找不到可展延的進度表。</t>
                             <t t-elif="error == 'not_draft'">只有草稿狀態的進度表可展延。</t>
                             <t t-elif="error == 'invalid_value'">請輸入有效的展延天數。</t>
-                            <t t-elif="error == 'negative'">展延天數不可為負數。</t>
                             <t t-elif="error == 'action_failed'">補充進度區間失敗，請確認計算模式與完工日設定。</t>
                             <t t-else="">操作失敗。</t>
                         </div>
@@ -106,7 +105,7 @@
                                 </label>
                                 <input type="number" name="current_extension" id="current_extension"
                                        t-att-value="str(schedule.current_extension or 0)"
-                                       min="0" step="1" required="required"
+                                       step="1" required="required"
                                        class="cy-input" style="width: 100%; padding: 10px; border: 1px solid var(--wb-bdr); border-radius: var(--wb-radius-sm); font-size: 1rem;"/>
                                 <div style="color: var(--wb-t3); font-size: 0.85rem; margin-top: 6px;">
                                     提交後將自動補充缺少的進度區間（僅對草稿進度表有效）。

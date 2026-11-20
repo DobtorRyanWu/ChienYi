@@ -590,9 +590,11 @@ class TestContractorScopePortal(TransactionCase):
         _v, res, _s = self._call(self.sup_leader, self.ctrl.portal_construction_project_code_update,
                                  project.id, code='A2-P2')
         self.assertTrue(res['success'], res)
-        self.assertIn('error=not_draft', self._location(
-            self.sup_leader, self.ctrl.portal_construction_project_update, project.id, name='改'),
-            '守衛放行，接著才是「只有草稿可改」的既有檢查')
+        # 2026-11-20 回復原版：開工後也能存（原本守衛放行後會被「只有草稿可改」擋成 error=not_draft）
+        self.assertIn('message=updated', self._location(
+            self.sup_leader, self.ctrl.portal_construction_project_update, project.id, name='A2 監造改名'),
+            '監造方主管：守衛放行，開工後的工程也存得進去')
+        self.assertEqual(project.name, 'A2 監造改名')
         loc = self._location(self.sup_leader, self.ctrl.portal_construction_project_create, name='監造建的工程')
         self.assertTrue(self.env['project.project'].search([('name', '=', '監造建的工程')]), loc)
 

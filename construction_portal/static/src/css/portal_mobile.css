@@ -1230,6 +1230,17 @@ a.cy-dl-row[href]:hover { background: var(--wb-bg3); }
   box-shadow: 0 0 0 3px rgba(59, 141, 224, 0.2);
 }
 
+/* 停用的欄位（例：開工後鎖住的工程資訊欄位）：灰底。
+   上面的 background 簡寫把箭頭圖的 repeat／size 清掉了，停用的下拉會被核心樣式帶回的箭頭圖鋪滿整格，
+   這裡用簡寫把圖一併清掉。 */
+.cy-v10-app .form-control:disabled,
+.cy-v10-app .form-select:disabled {
+  background: var(--wb-bg3);
+  color: var(--wb-t2);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .cy-v10-app textarea.form-control {
   min-height: 100px;
 }

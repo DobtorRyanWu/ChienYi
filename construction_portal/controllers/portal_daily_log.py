@@ -518,11 +518,11 @@ class DailyLogRoutesMixin:
                             ('project_id', '=', project_record_id),
                             ('name', '=', task_name),
                         ], limit=1)
-                        if task and (task.tax_misc_rate or task.is_lump_sum):
-                            # 比例項、整包項不寫進日誌明細（完成金額照基數比例自動算）
+                        if task and task.tax_misc_rate:
+                            # 比例項不寫進日誌明細（完成金額照基數比例自動算）；整包項照收（2026-11-20 回復原版）
                             failed_details.append({
                                 'filename': fname,
-                                'error': f"{parsed['log_date']}「{task_name}」是比例項或整包項，"
+                                'error': f"{parsed['log_date']}「{task_name}」是比例項（稅什費等），"
                                          '日誌明細不收，這一列略過',
                             })
                             continue
@@ -648,9 +648,8 @@ class DailyLogRoutesMixin:
             ('project_id', '=', project.id),
             ('is_summary_item', '=', False),
             ('active', '=', True),
-            # 比例項、整包項不列
+            # 比例項不列（整包項 2026-11-20 回復原版後可以選，與後台同一份條件）
             '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0),
-            ('is_lump_sum', '=', False),
         ], order='sequence, item_no')
 
         # 天氣 emoji 映射
@@ -954,9 +953,8 @@ class DailyLogRoutesMixin:
             ('project_id', '=', project.id),
             ('is_summary_item', '=', False),
             ('active', '=', True),
-            # 比例項、整包項不列
+            # 比例項不列（整包項 2026-11-20 回復原版後可以選，與後台同一份條件）
             '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0),
-            ('is_lump_sum', '=', False),
         ], order='sequence, item_no')
 
         photo_categories = _photo_category_options(request.env)

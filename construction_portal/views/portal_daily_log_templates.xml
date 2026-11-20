@@ -631,7 +631,7 @@
                                     <div style="display: flex; gap: 8px; margin-bottom: 8px;">
                                         <div style="flex: 1;">
                                             <label class="form-label" style="font-size: 0.85rem;">今日數量</label>
-                                            <input type="number" name="line_daily_qty_0" class="form-control" step="0.01" min="0" placeholder="0"/>
+                                            <input type="number" name="line_daily_qty_0" class="form-control" step="0.01" placeholder="0"/>
                                         </div>
                                         <div style="flex: 1;">
                                             <label class="form-label" style="font-size: 0.85rem;">單位</label>
@@ -953,8 +953,7 @@
                                     <li>工項進度取自「一、」段落下的 data rows（R12+）</li>
                                     <li>材料管理取自「二、」段落</li>
                                     <li>日誌的工項名稱若找不到對應契約工項，會自動建 stub project.task</li>
-                                    <li>同日期已有日誌：依上面的選擇另建一張（工項與數量相同就跳過）或取代（內容完全相同就跳過；只限自己的日誌，已鎖定的要先解鎖）</li>
-                                    <li><strong style="color: var(--wb-amber);">log_date 超過 14 天的日誌建立後會自動鎖定</strong></li>
+                                    <li>同日期已有日誌：依上面的選擇另建一張（工項與數量相同就跳過）或取代（內容完全相同就跳過；只限自己的日誌）</li>
                                 </ul>
                             </div>
                         </div>
