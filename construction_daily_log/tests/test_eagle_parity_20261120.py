@@ -118,3 +118,26 @@ class TestEagleParityNoLock(TransactionCase):
         _load_migration().migrate(self.env.cr, None)
         self.env.invalidate_all()
         self.assertEqual(auto.state, 'auto_locked', '新裝（version 是 None）時不動資料')
+
+
+@tagged('post_install', '-at_install', 'construction_daily_log')
+class TestEagleParityDailyQty(TransactionCase):
+    """DL-16：本日完成數量可以是負數（舊系統只夾上限、沒有下限）。"""
+
+    def test_negative_daily_qty_allowed(self):
+        env = self.env
+        project = env['project.project'].create({
+            'name': '回復原版日誌數量', 'code': 'EP-DL-Q', 'project_type': 'general',
+            'state': 'construction', 'company_id': env.company.id})
+        employee = env['hr.employee'].create({'name': '回復原版數量員工', 'company_id': env.company.id})
+        task = env['project.task'].create({
+            'name': '回復原版數量工項', 'project_id': project.id, 'item_no': 'EPQ-1',
+            'unit': 'M', 'planned_qty': 100.0, 'unit_price': 10.0})
+        sheet = env['daily.log.sheet'].create({
+            'supervision_project_id': project.id, 'company_id': env.company.id,
+            'employee_id': employee.id, 'log_date': fields.Date.today() - timedelta(days=1)})
+        line = env['daily.log.line'].create({
+            'sheet_id': sheet.id, 'entry_type': 'contract', 'work_item_id': task.id,
+            'daily_qty': -3.0, 'date': sheet.log_date})
+        env.flush_all()
+        self.assertEqual(line.daily_qty, -3.0)

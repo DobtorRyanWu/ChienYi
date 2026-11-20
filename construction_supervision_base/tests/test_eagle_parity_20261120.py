@@ -61,3 +61,26 @@ class TestEagleParityStart(TransactionCase):
             self.assertEqual(readonly_of(name), '', '%s 開工後不該唯讀' % name)
         for name in ('project_type', 'contract_start_date', 'contract_end_date'):
             self.assertIn("'construction'", readonly_of(name), '%s 開工後仍要唯讀' % name)
+
+
+@tagged('post_install', '-at_install', 'construction_supervision_base')
+class TestEagleParityInputChecks(TransactionCase):
+    """PJ-12、CT-02：日期先後、數量與單價正負不再檢查（舊系統前後端都沒有比對）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.project = cls.env['project.project'].create({
+            'name': '回復原版輸入值', 'code': 'EP-INPUT', 'project_type': 'general'})
+
+    def test_contract_end_before_start_allowed(self):
+        self.project.write({'contract_start_date': '2026-03-01', 'contract_end_date': '2026-02-01'})
+        self.env.flush_all()          # 資料庫層的 CHECK 約束在 flush 時才會擋
+        self.project.invalidate_recordset()
+        self.assertLess(self.project.contract_end_date, self.project.contract_start_date)
+
+    def test_negative_contract_qty_and_price_allowed(self):
+        task = self.env['project.task'].create({'name': '回復原版負數工項', 'project_id': self.project.id})
+        task.write({'planned_qty': -5.0, 'unit_price': -10.0})
+        self.env.flush_all()
+        self.assertEqual((task.planned_qty, task.unit_price), (-5.0, -10.0))

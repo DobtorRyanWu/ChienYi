@@ -652,9 +652,7 @@ class SupervisionProject(models.Model):
     # === SQL 約束 ===
     _sql_constraints = [
         ('code_unique', 'UNIQUE(code)', '工程編號必須唯一！'),
-        ('contract_dates_check',
-         'CHECK(contract_end_date >= contract_start_date)',
-         '契約完工日必須晚於或等於開工日！'),
+        # 2026-11-20 回復原版（1118 會議）：拿掉 contract_dates_check（契約完工日不早於開工日）——舊系統不比對日期先後
     ]
 
     # === 開工後（而且進度表啟用過）契約日期不能手動改 ===

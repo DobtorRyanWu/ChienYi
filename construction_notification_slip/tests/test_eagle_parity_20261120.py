@@ -55,3 +55,35 @@ class TestEagleParitySlipFlow(TransactionCase):
         slip.action_close()
         self.assertEqual(slip.state, 'closed')
         self.assertTrue(slip.actual_end_date, '結案時仍要記下實際竣工日')
+
+
+@tagged('post_install', '-at_install', 'construction_notification_slip')
+class TestEagleParitySlipInput(TransactionCase):
+    """NS-07、NS-12：日期先後、數量與單價正負不再檢查。"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.project = cls.env['project.project'].create({
+            'name': '回復原版通報單輸入值', 'code': 'EP-NS-I', 'project_type': 'reservation',
+            'state': 'construction', 'company_id': cls.env.company.id})
+        cls.task = cls.env['project.task'].create({
+            'name': '回復原版通報單工項', 'project_id': cls.project.id, 'item_no': 'EPN-1',
+            'unit': 'M', 'planned_qty': 100.0, 'unit_price': 10.0})
+        cls.slip = cls.env['reservation.notification.slip'].create({
+            'project_id': cls.project.id, 'location': '回復原版測試地點'})
+
+    def test_end_dates_before_start_dates_allowed(self):
+        self.slip.write({'planned_start_date': '2026-06-10', 'planned_end_date': '2026-06-01',
+                         'actual_start_date': '2026-06-10', 'actual_end_date': '2026-06-05'})
+        self.env.flush_all()          # 預定日期是資料庫層的 CHECK 約束，flush 才會擋
+        self.slip.invalidate_recordset()
+        self.assertLess(self.slip.planned_end_date, self.slip.planned_start_date)
+        self.assertLess(self.slip.actual_end_date, self.slip.actual_start_date)
+
+    def test_negative_line_qty_and_price_allowed(self):
+        line = self.env['reservation.notification.slip.line'].create({
+            'slip_id': self.slip.id, 'task_id': self.task.id, 'item_no': '1', 'unit': 'M'})
+        line.write({'planned_qty': -1.0, 'actual_qty': -2.0, 'unit_price': -3.0})
+        self.env.flush_all()
+        self.assertEqual((line.planned_qty, line.actual_qty, line.unit_price), (-1.0, -2.0, -3.0))

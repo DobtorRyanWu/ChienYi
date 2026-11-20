@@ -3,3 +3,4 @@ from . import test_record_values  # 附表11 試驗數據子表：公司隔離�
 from . import test_display_name_20261102  # B2 檢驗頻率條件麵包屑（2026-11-02）
 from . import test_activity_assignee  # B20 預警活動指派給檢試驗負責人（2026-11-02）
 from . import test_number_backfill  # 「/」試驗紀錄依工程公司補號（2.8.2，2026-11-16）
+from . import test_eagle_parity_20261120  # 回復原版：數量不再檢查正負（1118 會議，2026-11-20）

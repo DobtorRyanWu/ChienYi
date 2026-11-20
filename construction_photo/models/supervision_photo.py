@@ -909,13 +909,7 @@ class SupervisionPhoto(models.Model):
                 if not -180 <= photo.longitude <= 180:
                     raise ValidationError('經度必須在 -180 到 180 之間！')
 
-    @api.constrains('shot_at')
-    def _check_shot_at(self):
-        """驗證拍攝日期不能在未來"""
-        now = fields.Datetime.now()
-        for photo in self:
-            if photo.shot_at and photo.shot_at > now:
-                raise ValidationError('拍攝日期不能在未來！')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「拍攝日期不能在未來」——舊系統上傳照片不驗證拍攝日期
     
     # === 搜尋功能增強 ===
     # 打一個關鍵字要同時命中的欄位。與 supervision_photo_view_search 主搜尋的

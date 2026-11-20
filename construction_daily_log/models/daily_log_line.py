@@ -402,12 +402,7 @@ class DailyLogLine(models.Model):
                         f'同一工項在同一天只能記錄一次。'
                     )
     
-    @api.constrains('daily_qty')
-    def _check_daily_qty(self):
-        """檢查數量不可為負"""
-        for line in self:
-            if line.daily_qty < 0:
-                raise ValidationError('本日完成數量不可為負數！')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「本日完成數量不可為負數」——舊系統只夾上限、沒有下限
 
     @api.constrains('daily_qty', 'work_item_id', 'date')
     def _check_lump_sum_not_over_contract(self):

@@ -490,22 +490,7 @@ class ReservationNotificationSlipLine(models.Model):
         return res
 
     # === 約束驗證 ===
-    @api.constrains('planned_qty', 'actual_qty', 'unit_price')
-    def _check_positive_values(self):
-        """驗證約束：數量與單價必須為正數"""
-        for rec in self:
-            if rec.planned_qty < 0:
-                raise ValidationError(
-                    f'項目 {rec.item_no}: 預估數量不得為負數'
-                )
-            if rec.actual_qty < 0:
-                raise ValidationError(
-                    f'項目 {rec.item_no}: 實際數量不得為負數'
-                )
-            if rec.unit_price < 0:
-                raise ValidationError(
-                    f'項目 {rec.item_no}: 單價不得為負數'
-                )
+    # 2026-11-20 回復原版（1118 會議）：拿掉「預估數量、實際數量、單價不得為負數」——舊系統沒有正負檢查
 
     @api.constrains('slip_id', 'item_no')
     def _check_unique_item_no(self):

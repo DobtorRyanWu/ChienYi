@@ -20,7 +20,7 @@
     # 3.5.5: 前台三個角色（老闆／主管／現場）的 ORM 寫入權收回（ir.model.access.csv 改 1,0,0,0）。前台頁面一律走 sudo＋controller 守衛寫入，不受影響；營造廠帳號不能再繞過前台直接打 RPC 改資料
     # 3.6.0（2026-11-10，S1 後台角色帳號）：即時損益 get_profit_loss_data 先 check_access 工程、回傳 can_edit（畫面支出欄依此唯讀）；
     #        缺失定義欄位鎖改看 _is_backend_staff()（原本看 share，內部唯讀帳號會被放行）
-    'version': '18.0.3.9.0',  # 3.9.0（2026-11-20 回復原版 3/6）：一般式缺失不是草稿也能刪。 3.8.3（2026-11-20）：刪整張缺失單時照片照刪（從照片管理動作帶進來的 photo_manager_delete 不算）。 3.8.2（2026-11-16）：單號依工程所屬公司取號（ir.sequence._next_by_code_for_project），欄位預設值改「/」。 3.8.1（2026-11-13）：缺失改掛工程／改日期時重新取當日序號的測試（tests/test_defect_resequence.py）；程式不變，實作在 construction_quality 的 construction.daily.defect.mixin。
+    'version': '18.0.3.10.0',  # 3.10.0（2026-11-20 回復原版 5/6）：缺失的期限、通知日不再跟發現日比先後；進度報告期間不再比對起迄。 3.9.0（2026-11-20 回復原版 3/6）：一般式缺失不是草稿也能刪。 3.8.3（2026-11-20）：刪整張缺失單時照片照刪（從照片管理動作帶進來的 photo_manager_delete 不算）。 3.8.2（2026-11-16）：單號依工程所屬公司取號（ir.sequence._next_by_code_for_project），欄位預設值改「/」。 3.8.1（2026-11-13）：缺失改掛工程／改日期時重新取當日序號的測試（tests/test_defect_resequence.py）；程式不變，實作在 construction_quality 的 construction.daily.defect.mixin。
     # 3.8.0（2026-11-12，S4）：一般式缺失補全域公司規則（security/company_rules.xml，走 project_id.company_id；原本的公司隔離是 Internal User 群組規則，被「工程後台使用者 (1=1)」OR 掉）。 3.7.1（2026-11-11，S3 fix1）：公司規則檔頭註解收成一份（說明在 construction_supervision_base/security/company_rules.xml），規則本體不變。 3.7.0（2026-11-11，S3）：進度報告（＋明細）、即時損益（＋成本列）、損益支出補全域公司規則（security/company_rules.xml；原本的公司隔離是 Internal User 群組規則，被「工程後台使用者 (1=1)」OR 掉）。  # 3.6.1（2026-11-11，S2）：缺失類型改看 res.users._construction_org_side()。 3.5.6（2026-11-06）：缺失表單「複查資訊」加「成果確認」（construction_quality 6.7.0 的 outcome_result）
     'category': 'Construction/General',
     'summary': '一般式工程專用管理模組',

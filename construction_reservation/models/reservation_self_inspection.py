@@ -82,22 +82,7 @@ class ReservationSelfInspectionReservation(models.Model):
         }
 
     # === 約束驗證 ===
-    @api.constrains('inspection_date', 'slip_id')
-    def _check_inspection_date_in_slip_period(self):
-        """驗證檢查日期不早於通報單的最早起算日。
-
-        基準取 survey_date / actual_start_date / planned_start_date 三者中
-        有值者的最早日期（見 slip._get_earliest_start_date），
-        不再單以預定開工日為下限——實際早於預定開工、先會勘後補文件
-        這兩種常態都是合法資料。
-        """
-        for record in self:
-            if record.slip_id and record.inspection_date:
-                earliest, source = record.slip_id._get_earliest_start_date()
-                if earliest and record.inspection_date < earliest:
-                    raise ValidationError(
-                        f'檢查日期 ({record.inspection_date}) 不得早於'
-                        f'通報單的最早起算日 ({earliest}，取自 {source})')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「檢查日期不得早於通報單的最早起算日」——舊系統沒有日期先後檢查
 
     @api.constrains('slip_id')
     def _check_slip_state(self):

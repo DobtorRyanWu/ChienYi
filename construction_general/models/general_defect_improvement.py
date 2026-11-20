@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 
 from odoo.addons.construction_supervision_base.models.res_users import ROLE_SIDE_CONTRACTOR, ROLE_SIDE_SUPERVISION
 
@@ -271,19 +271,9 @@ class GeneralDefectImprovement(models.Model):
         return super().unlink()
 
     # === 約束 ===
-    @api.constrains('deadline', 'found_date')
-    def _check_dates(self):
-        for record in self:
-            if record.deadline and record.found_date:
-                if record.deadline < record.found_date:
-                    raise ValidationError('改善期限不得早於發現日期')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「改善期限不得早於發現日期」——舊系統日期欄位彼此不比對
 
-    @api.constrains('notification_date', 'found_date')
-    def _check_notification_date(self):
-        for record in self:
-            if record.notification_date and record.found_date:
-                if record.notification_date < record.found_date:
-                    raise ValidationError('通知改善日期不得早於發現日期')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「通知改善日期不得早於發現日期」——舊系統日期欄位彼此不比對
 
     # 照片資料表收斂後，_get_photo_sync_config() 與 _auto_sync_photos() 覆寫
     # 都已移除（原本約 110 行）：照片本來就是 supervision.photo。

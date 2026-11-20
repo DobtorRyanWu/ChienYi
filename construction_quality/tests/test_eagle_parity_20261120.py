@@ -122,3 +122,20 @@ class TestEagleParityInspect(TransactionCase):
             self.assertFalse(insp.checklist_ids, '前提：%s 沒有檢查項目' % label)
             insp.action_inspect()
             self.assertEqual(insp.state, 'inspected', label)
+
+
+@tagged('post_install', '-at_install', 'construction_quality')
+class TestEagleParityDefectDates(EagleParityDefectCase):
+    """DF-11：缺失的期限、通知日、發現日彼此不再比對先後（舊系統日期欄位各存各的）。"""
+
+    def test_general_dates_in_any_order(self):
+        defect = self._general(found_date=self.today, deadline=self.today - timedelta(days=3),
+                               notification_date=self.today - timedelta(days=5))
+        self.env.flush_all()
+        self.assertLess(defect.deadline, defect.found_date)
+        self.assertLess(defect.notification_date, defect.found_date)
+
+    def test_reservation_deadline_before_notification(self):
+        defect = self._reservation(deadline=self.today - timedelta(days=3))
+        self.env.flush_all()
+        self.assertLess(defect.deadline, defect.notification_date)

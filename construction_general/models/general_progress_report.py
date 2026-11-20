@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api, Command
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 from datetime import timedelta
 
 
@@ -357,13 +357,7 @@ class GeneralProgressReport(models.Model):
                     'general.progress.report', vals.get('project_id')) or '/'
         return super().create(vals_list)
 
-    # === 約束 ===
-    @api.constrains('period_start', 'period_end')
-    def _check_period_dates(self):
-        for record in self:
-            if record.period_start and record.period_end:
-                if record.period_end < record.period_start:
-                    raise ValidationError('報告期間迄日不得早於起日')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「報告期間迄日不得早於起日」——舊系統只檢查有沒有選期間
 
     # === Onchange ===
     @api.onchange('report_type', 'report_date')

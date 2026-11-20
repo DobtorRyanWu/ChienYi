@@ -283,12 +283,7 @@ class ReservationDefectImprovement(models.Model):
         return super().unlink()
 
     # === 約束 ===
-    @api.constrains('deadline', 'notification_date')
-    def _check_dates(self):
-        for record in self:
-            if record.deadline and record.notification_date:
-                if record.deadline < record.notification_date:
-                    raise ValidationError('限定完成改善日期不得早於通知改善日期')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「限定完成改善日期不得早於通知改善日期」——舊系統日期欄位彼此不比對
 
     # 照片資料表收斂後，_get_photo_sync_config() 與 _auto_sync_photos() 覆寫
     # 都已移除：照片本來就是 supervision.photo，不需要再把照片行「同步」成

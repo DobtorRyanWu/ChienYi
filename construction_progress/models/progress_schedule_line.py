@@ -3,7 +3,7 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 
 
 class ProgressScheduleLine(models.Model):
@@ -254,80 +254,16 @@ class ProgressScheduleLine(models.Model):
         help='本區間進度備註說明',
     )
 
-    # === SQL 約束 ===
-    _sql_constraints = [
-        ('date_check', 'CHECK(date_end >= date_start)',
-         '結束日期必須晚於或等於開始日期'),
-        # planned_progress 的下限由 Python 約束處理（允許計畫倒退校正使用負值）
-        ('planned_progress_max', 'CHECK(planned_progress <= 100)',
-         '預定進度不可超過 100%'),
-        # actual_progress 刻意不設 DB 界限：它是施工日誌 daily_actual_progress 的忠實加總，
-        # 來源本身無上下限（負修正、跨區間回填、custom 模式單日皆可讓加總落在 0~100 之外），
-        # 綁硬界會讓合法的「從施工日誌同步」崩潰。防呆改由「只能經同步寫入」保證
-        # （見 create() 與 write() 的 allow_sync_progress 閘門），非法手填走不進來。
-    ]
-
-    # =========================================================================
-    # 約束驗證
-    # =========================================================================
-
-    @api.constrains('planned_progress')
-    def _check_planned_progress(self):
-        """預定進度負值僅限：(a) 校正過渡明細(歷史) 或 (b) 當前校正視窗內"""
-        for line in self:
-            if line.planned_progress < 0:
-                # (a) 由套用校正產生的過渡明細，永久視為合法（支援跨版本多次校正）
-                if line.from_plan_correction:
-                    continue
-                # (b) 保留舊行為：當前校正視窗內允許負值
-                sched = line.schedule_id
-                if not (
-                    sched.needs_plan_correction
-                    and sched.correction_period_start
-                    and sched.correction_period_end
-                    and sched.correction_period_start <= line.date_start
-                    and line.date_end <= sched.correction_period_end
-                ):
-                    raise ValidationError(
-                        f'預定進度不可為負數（{line.planned_progress:.2f}%）。\n'
-                        f'若需要修正計畫倒退，請在進度表上啟用「需要計畫基準校正」並套用校正。'
-                    )
-
-    @api.constrains('date_start', 'date_end', 'schedule_id')
-    def _check_date_in_project_range(self):
-        """驗證日期在工程期間內"""
-        for line in self:
-            if not line.schedule_id or not line.date_start or not line.date_end:
-                continue
-
-            schedule = line.schedule_id
-            if schedule.start_date and line.date_start < schedule.start_date:
-                raise ValidationError(
-                    f'區間開始日期 ({line.date_start}) 不可早於工程開工日 ({schedule.start_date})'
-                )
-            if schedule.adjusted_end_date and line.date_end > schedule.adjusted_end_date:
-                raise ValidationError(
-                    f'區間結束日期 ({line.date_end}) 不可晚於調整後完工日 ({schedule.adjusted_end_date})'
-                )
-
-    @api.constrains('date_start', 'date_end', 'schedule_id')
-    def _check_no_overlap(self):
-        """驗證區間不重疊"""
-        for line in self:
-            if not line.schedule_id or not line.date_start or not line.date_end:
-                continue
-
-            overlapping = self.search([
-                ('schedule_id', '=', line.schedule_id.id),
-                ('id', '!=', line.id),
-                ('date_start', '<=', line.date_end),
-                ('date_end', '>=', line.date_start),
-            ], limit=1)
-
-            if overlapping:
-                raise ValidationError(
-                    f'區間日期 ({line.period_display}) 與其他區間 ({overlapping.period_display}) 重疊'
-                )
+    # === 輸入值檢查 ===
+    # 2026-11-20 回復原版（1118 會議）：這裡原本有五條檢查，全部拿掉——舊系統儲存進度表只檢查
+    # 「變更時間有填、預定進度不能全部是 0」（views/PC/Schedule.vue addSchedule），其餘不比對：
+    #   - 資料庫 CHECK date_check（結束日不早於開始日）、planned_progress_max（預定進度不超過 100%）
+    #   - _check_planned_progress（預定進度不可為負，校正視窗除外）
+    #   - _check_date_in_project_range（區間不可早於開工日、晚於調整後完工日）
+    #   - _check_no_overlap（區間不重疊）
+    # 區間重疊時，日誌的「本日所屬區間」取第一筆符合的（daily_log_sheet._compute_progress_line 的 limit=1）。
+    # actual_progress 一直沒有界限：它是施工日誌 daily_actual_progress 的加總，只能經同步寫入
+    # （見 create() 與 write() 的 allow_sync_progress 閘門）。
 
     # =========================================================================
     # 動作方法

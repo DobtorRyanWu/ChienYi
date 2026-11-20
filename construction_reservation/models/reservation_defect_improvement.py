@@ -109,12 +109,7 @@ class ReservationDefectImprovementReservation(models.Model):
         return super().action_reopen()
 
     # === 約束驗證 ===
-    @api.constrains('improvement_progress')
-    def _check_improvement_progress(self):
-        """驗證改善進度"""
-        for record in self:
-            if record.improvement_progress < 0 or record.improvement_progress > 100:
-                raise ValidationError('改善進度必須在 0-100 之間')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「改善進度必須在 0-100 之間」——舊系統沒有範圍檢查
 
     @api.constrains('slip_id')
     def _check_slip_not_cancelled(self):
@@ -123,22 +118,7 @@ class ReservationDefectImprovementReservation(models.Model):
             if record.slip_id.state == 'cancelled':
                 raise ValidationError(f'{record.slip_id.name} 已退單，不得掛缺失改善')
 
-    @api.constrains('slip_id', 'notification_date')
-    def _check_notification_date(self):
-        """驗證通知改善日期不早於通報單的最早起算日。
-
-        基準與自主檢查同一套：survey_date / actual_start_date /
-        planned_start_date 三者中有值者的最早日期
-        （見 construction_reservation/models/notification_slip.py
-        的 _get_earliest_start_date）。
-        """
-        for record in self:
-            if record.slip_id and record.notification_date:
-                earliest, source = record.slip_id._get_earliest_start_date()
-                if earliest and record.notification_date < earliest:
-                    raise ValidationError(
-                        f'通知改善日期 ({record.notification_date}) 不得早於'
-                        f'通報單的最早起算日 ({earliest}，取自 {source})')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「通知改善日期不得早於通報單的最早起算日」——舊系統沒有日期先後檢查
 
     # === 建立方法擴展 ===
     @api.model

@@ -45,3 +45,37 @@ class TestEagleParityReservationSlip(TransactionCase):
             self.assertNotIn('not in', invisible, '%s 不再用「只有這幾個狀態才顯示」的寫法' % name)
             self.assertIn('draft', invisible, '%s 草稿時仍隱藏' % name)
             self.assertIn('cancelled', invisible, '%s 退單後仍隱藏' % name)
+
+
+@tagged('post_install', '-at_install', 'construction_reservation')
+class TestEagleParityReservationDates(TransactionCase):
+    """RS-03、RS-05：自主檢查日、缺失通知日不再跟通報單起算日比；改善進度不限 0～100。"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        project = env['project.project'].create({
+            'name': '回復原版預約式日期', 'code': 'EP-RS-D', 'project_type': 'reservation',
+            'state': 'construction', 'company_id': env.company.id})
+        env['defect.improvement.prefix.config'].create({
+            'project_id': project.id, 'supervision_prefix': 'EPDS', 'contractor_prefix': 'EPDC'})
+        cls.slip = env['reservation.notification.slip'].create({
+            'project_id': project.id, 'location': '回復原版測試地點', 'planned_start_date': '2026-06-01'})
+        cls.slip.sudo().write({'state': 'in_progress'})
+        cls.itype = env['self.inspection.type'].create({'name': '回復原版預約式類型'})
+
+    def test_inspection_date_before_slip_start_allowed(self):
+        insp = self.env['reservation.self.inspection'].create({
+            'slip_id': self.slip.id, 'inspection_type_id': self.itype.id, 'sub_project_name': '回復原版分項',
+            'inspection_date': '2026-05-01'})
+        self.assertTrue(insp.exists())
+
+    def test_defect_notification_before_slip_start_and_progress_out_of_range_allowed(self):
+        defect = self.env['reservation.defect.improvement'].create({
+            'slip_id': self.slip.id, 'record_type': 'supervision', 'check_type': 'construction',
+            'defect_category': 'workmanship', 'defect_description': '回復原版預約式缺失',
+            'notification_date': '2026-05-01'})
+        defect.write({'improvement_progress': 150})
+        self.env.flush_all()
+        self.assertEqual(defect.improvement_progress, 150)

@@ -501,16 +501,7 @@ class ProgressSchedule(models.Model):
          '同一工程的進度表版本號不可重複'),
     ]
 
-    @api.constrains('current_extension', 'base_extension_duration')
-    def _check_extension_not_below_contract(self):
-        """累計工期展延不可為負（不可短於原合約工期）；
-        本次核准展延允許為負，用於跨版本修正前一版的過度展延。"""
-        for rec in self:
-            if rec.duration_extension < 0:
-                raise ValidationError(
-                    f'累計工期展延（{rec.duration_extension} 天）不可為負數，'
-                    f'工期不可短於原合約工期。'
-                )
+    # 2026-11-20 回復原版（1118 會議）：拿掉「累計工期展延不可為負數」——舊系統的展延天數沒有下限檢查
 
     # =========================================================================
     # Onchange 方法
@@ -840,9 +831,7 @@ class ProgressSchedule(models.Model):
         total_planned = sum(self.line_ids.mapped('planned_progress'))
         if total_planned <= 0:
             raise ValidationError('請至少填寫一筆預定進度')
-        # 計畫倒退校正版本允許總和不等於 100%（過渡區間有負值）
-        if total_planned > 100 and not self.needs_plan_correction:
-            raise ValidationError(f'預定進度總和 ({total_planned:.2f}%) 不可超過 100%')
+        # 2026-11-20 回復原版（1118 會議）：拿掉「預定進度總和不可超過 100%」——舊系統只檢查不能全部是 0
 
         return {
             'type': 'ir.actions.act_window',

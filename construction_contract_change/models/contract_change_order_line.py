@@ -684,15 +684,7 @@ class ContractChangeOrderLine(models.Model):
                     f'工項 [{line.task_id.item_no}] {line.task_id.name} 已有紀錄（{"、".join(reasons)}），'
                     f'不能刪除；合約縮減請改用「歸零」。')
 
-    @api.constrains('new_qty', 'new_unit_price')
-    def _check_positive_values(self):
-        """檢查數量與單價"""
-        for line in self:
-            if line.change_type != 'delete':
-                if line.new_qty < 0:
-                    raise ValidationError('新數量不可為負數！')
-                if line.new_unit_price < 0:
-                    raise ValidationError('新單價不可為負數！')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「新數量、新單價不可為負數」——舊系統沒有正負檢查
 
     @api.constrains('task_id', 'change_order_id')
     def _check_unique_task(self):

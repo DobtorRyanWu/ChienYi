@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 
 
 class TestRecord(models.Model):
@@ -438,19 +438,7 @@ class TestRecord(models.Model):
                 record.processing_status = 'not_started'
 
     # === 約束檢查 ===
-    @api.constrains('in_site_quantity')
-    def _check_in_site_quantity(self):
-        """進場數量不可為負"""
-        for rec in self:
-            if rec.in_site_quantity < 0:
-                raise ValidationError('進場數量不可為負數')
-
-    @api.constrains('sample_quantity')
-    def _check_sample_quantity(self):
-        """抽樣數量不可為負"""
-        for rec in self:
-            if rec.sample_quantity < 0:
-                raise ValidationError('抽樣數量不可為負數')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「進場數量、抽樣數量不可為負數」——舊系統這兩欄是文字、沒有驗證
 
     # 【已移除】原本有一條 _check_sample_date：抽樣日期不可早於進場日期。
     # 移除原因：該規則對「工地抽樣」成立，但對「廠驗（出廠前查驗）」不成立，而廠驗是

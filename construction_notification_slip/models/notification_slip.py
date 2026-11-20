@@ -283,9 +283,7 @@ class ReservationNotificationSlip(models.Model):
         ('slip_number_unique', 'UNIQUE(slip_number)', '通報單編號必須唯一！'),
         ('project_slip_no_active_unique', '',
          '同一工程的通報單次不可重複（已退單的通報單不算）！'),
-        ('planned_dates_check',
-         'CHECK(planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date)',
-         '預定完工日必須晚於或等於開工日！'),
+        # 2026-11-20 回復原版（1118 會議）：拿掉 planned_dates_check（預定完工日不早於開工日）——舊系統不比對日期先後
     ]
 
     def init(self):
@@ -407,12 +405,7 @@ class ReservationNotificationSlip(models.Model):
             self.planned_end_date = self.planned_start_date + timedelta(days=self.planned_duration - 1)
 
     # === 約束驗證 ===
-    @api.constrains('actual_start_date', 'actual_end_date')
-    def _check_actual_dates(self):
-        for rec in self:
-            if rec.actual_start_date and rec.actual_end_date:
-                if rec.actual_end_date < rec.actual_start_date:
-                    raise ValidationError('實際竣工日必須晚於或等於實際開工日')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「實際竣工日必須晚於或等於實際開工日」——舊系統不比對日期先後
 
     @api.constrains('project_id')
     def _check_project_type(self):

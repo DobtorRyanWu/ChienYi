@@ -793,13 +793,7 @@ class ProjectTask(models.Model):
                 if task.actual_date_end < task.actual_date_start:
                     raise ValidationError('實際完成時間必須晚於實際開始時間')
 
-    @api.constrains('planned_qty', 'unit_price')
-    def _check_positive_values(self):
-        for task in self:
-            if task.planned_qty < 0:
-                raise ValidationError('契約數量不可為負數')
-            if task.unit_price < 0:
-                raise ValidationError('契約單價不可為負數')
+    # 2026-11-20 回復原版（1118 會議）：拿掉「契約數量、單價不可為負數」——舊系統的契約工項沒有正負檢查
 
     # === 動作方法 ===
     def action_assign_to_contractor(self):
