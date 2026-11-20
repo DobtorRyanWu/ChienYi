@@ -289,3 +289,83 @@ class TestEagleParityPortalFollowUp(TransactionCase):
         self.assertEqual(len(defect), 1)
         self.assertEqual((defect.found_date, defect.deadline), (found, deadline),
                          '期限要照原檔（修改前會被改成發現日）')
+
+
+@tagged('post_install', '-at_install', 'construction_portal')
+class TestEagleParityPortalClosedDefect(TransactionCase):
+    """DF-07（使用者 2026-11-20 決定拿掉）：已驗證／結案的缺失，前台也能改改善內容、刪照片。
+
+    舊系統的缺失任何成員隨時可改、照片隨時可刪。修改前：改善導回 error=improve_locked、
+    刪照片導回 error=photo_locked，詳情頁在這兩個狀態也不顯示刪除鈕。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        cls.ctrl = ConstructionPortal()
+        cls.contractor = make_contractor(env, '回復原版前台結案缺失營造')
+        cls.project = env['project.project'].create({
+            'name': '回復原版結案缺失工程', 'code': 'EP-PF-DF', 'project_type': 'general',
+            'state': 'construction', 'company_id': env.company.id, **contractor_project_vals(cls.contractor)})
+        env['defect.improvement.prefix.config'].create({
+            'project_id': cls.project.id, 'supervision_prefix': 'EPCA', 'contractor_prefix': 'EPCR'})
+        cls.leader = env['res.users'].create({
+            'name': 'ep_closed_leader', 'login': 'ep_closed_leader',
+            'groups_id': [(6, 0, [env.ref(LEADER).id])], **SUPERVISION_USER_VALS})
+        env['supervision.project.member'].create({'project_id': cls.project.id, 'user_id': cls.leader.id})
+
+    def _defect(self, state):
+        defect = self.env['general.defect.improvement'].create({
+            'project_id': self.project.id, 'record_type': 'supervision', 'check_type': 'construction',
+            'defect_category': 'workmanship', 'defect_description': '回復原版結案缺失',
+            'defect_location': 'B1', 'source_type': 'daily_check', 'state': 'notified'})
+        defect.sudo().write({'state': state, 'improvement_result': '原本的改善成果'})
+        attachment = self.env['ir.attachment'].create({
+            'name': 'ep-df.png', 'raw': b'ep', 'res_model': 'supervision.photo'})
+        photo = self.env['supervision.photo'].create({
+            'project_id': self.project.id, 'general_defect_id': defect.id, 'photo_stage': 'after',
+            'attachment_id': attachment.id})
+        return defect, photo
+
+    def _drive(self, method, *args, **kw):
+        self.env.flush_all()
+        self.env.invalidate_all()
+        env = self.env(user=self.leader)
+        seen = {}
+        with MockRequest(env) as req:
+            req.httprequest.files.getlist.return_value = []
+            req.httprequest.args = {}
+            req.params = {}
+            req.render = lambda tpl, vals=None, **k: seen.update(tpl=tpl, vals=vals) or '<render>'
+            res = method(*args, **kw)
+            if 'tpl' not in seen:
+                self.env.invalidate_all()
+                return None, res.headers.get('Location', '')
+            html = env['ir.ui.view']._render_template(seen['tpl'], dict(seen['vals']))
+        self.env.invalidate_all()
+        return seen['vals'], html.decode() if isinstance(html, bytes) else str(html)
+
+    def test_detail_shows_photo_delete_button_when_closed(self):
+        for state in ('verified', 'closed'):
+            defect, photo = self._defect(state)
+            vals, html = self._drive(self.ctrl.portal_construction_defect_detail, defect.id)
+            self.assertIsNotNone(vals, html)
+            self.assertIn('/construction/defect/%d/photo/%d/delete' % (defect.id, photo.id), html, state)
+
+    def test_photo_can_be_deleted_when_closed(self):
+        for state in ('verified', 'closed'):
+            defect, photo = self._defect(state)
+            _vals, loc = self._drive(self.ctrl.portal_construction_defect_photo_delete, defect.id, photo.id)
+            self.assertIn('photo_deleted', loc, '%s：%s' % (state, loc))
+            self.assertFalse(photo.exists(), state)
+
+    def test_improvement_can_be_rewritten_when_closed(self):
+        for state in ('verified', 'closed'):
+            defect, _photo = self._defect(state)
+            _vals, loc = self._drive(self.ctrl.portal_construction_defect_improve, defect.id,
+                                     improvement_description='結案後補充的改善成果', corrective_action='補記矯正措施')
+            self.assertNotIn('error=', loc, state)
+            defect = defect.sudo()
+            self.assertEqual(defect.state, state, '狀態不能被改動')
+            self.assertEqual(defect.improvement_action, '補記矯正措施', state)

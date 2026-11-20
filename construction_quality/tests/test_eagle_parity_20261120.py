@@ -139,3 +139,29 @@ class TestEagleParityDefectDates(EagleParityDefectCase):
         defect = self._reservation(deadline=self.today - timedelta(days=3))
         self.env.flush_all()
         self.assertLess(defect.deadline, defect.notification_date)
+
+
+@tagged('post_install', '-at_install', 'construction_quality')
+class TestEagleParityDefectDefinitionEditable(EagleParityDefectCase):
+    """DF-05（使用者 2026-11-20 決定拿掉）：缺失離開草稿後，缺失說明、類別、嚴重度、發現日期、檢查類型不再鎖。
+
+    舊系統的缺失是一張表單，任何成員隨時可改任何一欄（後端 routes/errorRecord.js 的 PATCH 直接 set(req.body)）。
+    以前這條只擋「監造方後台人員以外」的帳號，所以用前台帳號驗；sudo 只是略過存取權限，
+    守衛看的是 env.user（呼叫者本人）。
+    """
+
+    def test_portal_account_can_edit_definition_fields_after_submit(self):
+        portal_user = self.env['res.users'].create({
+            'name': 'ep_df_portal', 'login': 'ep_df_portal',
+            'groups_id': [(6, 0, [self.env.ref('base.group_portal').id])]})
+        self.assertFalse(portal_user._is_backend_staff(), '前提：不是監造方後台人員')
+        new_date = self.today - timedelta(days=3)
+        for label, defect in self._both():
+            for state in ('notified', 'closed'):
+                defect.sudo().write({'state': state})
+                defect.with_user(portal_user).sudo().write({     # 修改前：UserError「缺失已送出…不可再修改」
+                    'defect_description': '回復原版改寫 %s' % state, 'defect_category': 'material',
+                    'found_date': new_date})
+                self.assertEqual(
+                    (defect.defect_description, defect.defect_category, defect.found_date),
+                    ('回復原版改寫 %s' % state, 'material', new_date), '%s／%s' % (label, state))

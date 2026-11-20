@@ -209,11 +209,6 @@ class GeneralDefectImprovement(models.Model):
 
         return super().create(vals_list)
 
-    # 缺失「定義」欄位：離開草稿後前台不可再改（防竄改）
-    _DEFINITION_FIELDS = (
-        'defect_description', 'defect_category', 'severity', 'found_date', 'check_type',
-    )
-
     @api.model
     def _resolve_record_type(self, vals):
         """依建立者監造/營造身分自動判定 record_type（監造/營造缺失單）
@@ -241,15 +236,9 @@ class GeneralDefectImprovement(models.Model):
 
     def write(self, vals):
         """修改記錄時，若影響編號則重新計算"""
-        # 防竄改（v11）：監造方後台人員以外（前台帳號、營造方、後台角色帳號；2026-11-10 起看 _is_backend_staff()，
-        # 原本看 share——角色帳號是內部帳號，看 share 會放行）在缺失離開草稿後，不可再改缺失定義欄位；
-        # 改善回覆欄位不受限。env.user 是呼叫者本人（sudo 不換人），系統帳號（超級使用者）是後台人員、不受此限。
-        user = self.env.user
-        if (user and not user._is_backend_staff()
-                and any(f in vals for f in self._DEFINITION_FIELDS)):
-            if self.filtered(lambda r: r.state and r.state != 'draft'):
-                raise UserError('缺失已送出，缺失說明、類別、嚴重度等定義欄位不可再修改')
-
+        # 2026-11-20 回復原版（1118 會議；使用者決定拿掉）：缺失離開草稿後，缺失說明、類別、嚴重度、發現日期、
+        # 檢查類型不再鎖——舊系統的缺失是一張表單，任何成員隨時可改任何一欄。
+        # 以前這裡擋的是監造方後台人員以外的帳號（前台、營造方、後台角色帳號）；誰能寫這張單仍由存取權限決定。
         result = super().write(vals)
 
         # 若修改影響編號的欄位，觸發重新計算

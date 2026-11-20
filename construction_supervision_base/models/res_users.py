@@ -454,7 +454,8 @@ class ResUsers(models.Model):
     def _is_backend_staff(self):
         """監造方後台人員：內部帳號、而且不是受限帳號（不是營造方、控台讀取、角色帳號）。
 
-        危險能力（樣板管理、樣板 docx 上傳、已提報缺失的定義欄位、營造廠歸屬重填、監造工程師下拉）一律看這個。
+        危險能力（樣板管理、樣板 docx 上傳、營造廠歸屬重填、監造工程師下拉）一律看這個。
+        （已提報缺失的定義欄位 2026-11-20 回復原版後不再鎖，不在此列。）
         """
         self.ensure_one()
         return bool(self._is_internal() and not self._dash_is_restricted())

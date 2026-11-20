@@ -806,12 +806,47 @@ class ReservationNotificationSlip(models.Model):
             raise UserError(
                 f'{cancelled[0].name} 已退單，不可修改{what}。如需修改請先「解除退單」。')
 
+    # 刪通報單前要先處理掉的資料：(模型, 指向通報單的欄位, 名稱, 單位)。
+    # ・自主檢查、缺失改善、照片：slip_id 是 ondelete='cascade'，資料庫會直接連帶刪掉、不經各自的 unlink()
+    #   （照片的附件檔不會被回收）。
+    # ・施工日誌：外鍵是 SET NULL，日誌還在，但掛的通報單會被悄悄清空。
+    # ・併入本單的已退單通報單：外鍵是 RESTRICT，不先擋的話資料庫會直接報錯（使用者看到的是系統錯誤）。
+    # 用模型名稱查：自主檢查、缺失改善、施工日誌的欄位定義在相依本模組的其他模組，沒裝就略過。
+    # 明細、停工紀錄是通報單自己的一部分，跟著刪。
+    _UNLINK_BLOCKING_CHILDREN = (
+        ('reservation.self.inspection', 'slip_id', '自主檢查', '筆'),
+        ('reservation.defect.improvement', 'slip_id', '缺失改善', '筆'),
+        ('supervision.photo', 'slip_id', '照片', '張'),
+        ('daily.log.sheet', 'notification_slip_id', '施工日誌', '筆'),
+        ('reservation.notification.slip', 'merged_into_slip_id', '併入本單的已退單通報單', '張'),
+    )
+
+    def _unlink_blocking_children(self):
+        """回傳 {通報單: ['自主檢查 2 筆', ...]}：刪除前要先處理掉的資料。
+
+        用 sudo、含封存的：資料庫的連帶動作不管目前使用者看不看得到、有沒有封存。"""
+        found = {}
+        for model, field, label, unit in self._UNLINK_BLOCKING_CHILDREN:
+            if model not in self.env or field not in self.env[model]._fields:
+                continue
+            groups = self.env[model].sudo().with_context(active_test=False)._read_group(
+                [(field, 'in', self.ids)], [field], ['__count'])
+            for slip, count in groups:
+                found.setdefault(slip, []).append('%s %d %s' % (label, count, unit))
+        return found
+
     def unlink(self):
-        for rec in self:
-            if rec.state != 'draft':
-                raise UserError('只有草稿狀態的通報單可以刪除'
-                                + ('（已退單的通報單保留編號，不可刪除）'
-                                   if rec.state == 'cancelled' else ''))
+        # 2026-11-20 回復原版（1118 會議；使用者選 B）：不再限草稿，任何狀態都能刪——舊系統刪通報單不看狀態。
+        # 但舊系統只刪通報單本身，底下的自主檢查、缺失、照片、日誌都留在資料庫；新系統會連帶刪掉或拆掉連結，
+        # 所以底下還有資料時擋下，請使用者先處理。已退單的通報單保留編號（退單功能的一部分），照舊不能刪。
+        cancelled = self.filtered(lambda r: r.state == 'cancelled')
+        if cancelled:
+            raise UserError('已退單的通報單保留編號，不可刪除：%s' % '、'.join(cancelled.mapped('name')))
+        blocking = self._unlink_blocking_children()
+        if blocking:
+            raise UserError(
+                '以下通報單底下還有資料，不能直接刪除，請先把它們刪除或改掛到別的通報單：\n'
+                + '\n'.join('- %s：%s' % (slip.name, '、'.join(items)) for slip, items in blocking.items()))
         return super().unlink()
 
     def copy(self, default=None):

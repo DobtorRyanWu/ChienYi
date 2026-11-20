@@ -18,7 +18,7 @@ from werkzeug.datastructures import MultiDict
 
 from odoo import fields
 from odoo.addons.website.tools import MockRequest
-from odoo.exceptions import AccessError, UserError
+from odoo.exceptions import AccessError
 from odoo.tests.common import HttpCase, TransactionCase, tagged
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
@@ -193,16 +193,15 @@ class TestRoleAccountGates(TransactionCase):
                     self.assertIn('營造廠帳號不能修改', str(exc))
             self.assertEqual(bool(rendered), user == self.sb, f'{user.login}：編輯頁')
 
-    # ── 已提報缺失的定義欄位鎖 ────────────────────────────────────────
-    def test_defect_definition_lock(self):
+    # ── 已提報缺失的定義欄位：2026-11-20 回復原版後不再鎖（使用者決定拿掉；舊系統任何成員隨時可改）─────
+    def test_defect_definition_no_longer_locked(self):
         for defect in (self.general_defect, self.reservation_defect):
             self.assertNotEqual(defect.state, 'draft', '前提：缺失已離開草稿')
-            for user in self.roles:
-                with self.assertRaises(UserError, msg=f'{user.login} × {defect._name}'):
-                    defect.with_user(user).sudo().write({'defect_description': 'ROLE 改寫'})
-            self.assertEqual(defect.defect_description, 'ROLE 缺失')
-            defect.with_user(self.operator).sudo().write({'defect_description': 'ROLE 監造方改寫'})
-            self.assertEqual(defect.defect_description, 'ROLE 監造方改寫', '反證：監造方後台人員照常可改')
+            for user in self.roles | self.operator:
+                text = 'ROLE 改寫 %s' % user.login
+                # sudo 只略過存取權限；原本的鎖看的是 env.user（呼叫者本人），所以這樣寫驗得到「模型不再擋」
+                defect.with_user(user).sudo().write({'defect_description': text})
+                self.assertEqual(defect.defect_description, text, f'{user.login} × {defect._name}')
 
     # ── 手機寫入：S2 起照層級（範圍合格；範圍不合格見 _dash_scope_ok）─────────────────────
     def test_phone_write_guards_follow_level(self):

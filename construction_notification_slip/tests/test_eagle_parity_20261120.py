@@ -8,6 +8,7 @@
 """
 from lxml import etree
 
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
 
 FORM_XMLID = 'construction_notification_slip.view_reservation_notification_slip_form'
@@ -87,3 +88,102 @@ class TestEagleParitySlipInput(TransactionCase):
         line.write({'planned_qty': -1.0, 'actual_qty': -2.0, 'unit_price': -3.0})
         self.env.flush_all()
         self.assertEqual((line.planned_qty, line.actual_qty, line.unit_price), (-1.0, -2.0, -3.0))
+
+
+@tagged('post_install', '-at_install', 'construction_notification_slip')
+class TestEagleParitySlipDelete(TransactionCase):
+    """NS-05（使用者 2026-11-20 選 B）：通報單任何狀態都能刪，但底下還有會被連帶刪掉的單據時擋下。
+
+    舊系統刪通報單不看狀態，只刪通報單本身與成員名單（後端 models/schemas/project.js 的 post('remove')），
+    底下的自主檢查、缺失、照片留在資料庫。新系統這三種單據的 slip_id 是 ondelete='cascade'，
+    會被資料庫直接刪掉，所以有這些單據時先擋。自主檢查、缺失的案例在 construction_reservation。
+    已退單的通報單保留編號、不能刪，是退單功能的一部分，維持。
+    """
+
+    def _slip(self, code, state):
+        project = self.env['project.project'].create({
+            'name': '回復原版刪通報單 %s' % code, 'code': code, 'project_type': 'reservation',
+            'state': 'construction', 'company_id': self.env.company.id})
+        slip = self.env['reservation.notification.slip'].create({
+            'project_id': project.id, 'location': '回復原版測試地點'})
+        if state == 'cancelled':
+            slip.sudo().write({'state': state, 'cancel_reason': 'return'})   # 退單一定要有原因
+        elif state != 'draft':
+            slip.sudo().write({'state': state})
+        return slip
+
+    def _photo(self, slip):
+        attachment = self.env['ir.attachment'].create({
+            'name': 'ep-slip.png', 'raw': b'ep', 'res_model': 'supervision.photo'})
+        return self.env['supervision.photo'].create({
+            'project_id': slip.project_id.id, 'slip_id': slip.id, 'attachment_id': attachment.id})
+
+    def test_any_state_without_children_can_be_deleted(self):
+        # 停工要先有停工紀錄才設得成，這裡不列；刪除不看狀態，四個狀態足以代表
+        for i, state in enumerate(('draft', 'not_started', 'in_progress', 'closed')):
+            slip = self._slip('EP-ND-%d' % i, state)
+            slip.unlink()                      # 修改前：非草稿一律「只有草稿狀態的通報單可以刪除」
+            self.assertFalse(slip.exists(), state)
+
+    def test_slip_with_photo_blocked_until_photo_removed(self):
+        slip = self._slip('EP-ND-P', 'closed')
+        photo = self._photo(slip)
+        with self.assertRaises(UserError) as caught:
+            slip.unlink()
+        self.assertIn('照片 1 張', str(caught.exception))
+        self.assertIn(slip.name, str(caught.exception))
+        self.assertTrue(photo.exists(), '被擋下時照片不能已經被刪掉')
+        photo.unlink()
+        slip.unlink()
+        self.assertFalse(slip.exists())
+
+    def test_draft_slip_with_photo_blocked_too(self):
+        slip = self._slip('EP-ND-DP', 'draft')
+        self._photo(slip)
+        with self.assertRaises(UserError):
+            slip.unlink()
+
+    def test_archived_photo_still_blocks(self):
+        slip = self._slip('EP-ND-AP', 'in_progress')
+        photo = self._photo(slip)
+        if 'active' not in photo._fields:
+            self.skipTest('照片沒有封存欄位')
+        photo.active = False
+        with self.assertRaises(UserError):
+            slip.unlink()
+
+    def test_slip_with_merged_in_slip_blocked_with_message(self):
+        """審查員案例 1：有已退單的通報單併入本單時，要給看得懂的訊息（原本是資料庫的外鍵錯誤）。"""
+        target = self._slip('EP-ND-M', 'in_progress')
+        merged = self.env['reservation.notification.slip'].create({
+            'project_id': target.project_id.id, 'location': '回復原版併入的通報單',
+            'slip_no': target.slip_no + 1})        # 同一工程未退單的通報單次不能重複
+        merged.sudo().write({'state': 'cancelled', 'cancel_reason': 'merge', 'merged_into_slip_id': target.id})
+        with self.assertRaises(UserError) as caught:
+            target.unlink()
+        self.assertIn('併入本單的已退單通報單 1 張', str(caught.exception))
+        self.assertTrue(target.exists())
+
+    def test_slip_with_daily_log_blocked_and_link_kept(self):
+        """審查員案例 2：通報單上還掛著施工日誌時擋下（原本會刪成功、日誌的通報單欄位被悄悄清空）。"""
+        Log = self.env.get('daily.log.sheet')
+        if Log is None or 'notification_slip_id' not in Log._fields:
+            self.skipTest('沒有裝施工日誌模組')
+        slip = self._slip('EP-ND-L', 'in_progress')
+        employee = self.env['hr.employee'].create({'name': '回復原版刪通報單員工', 'company_id': self.env.company.id})
+        log = Log.create({
+            'supervision_project_id': slip.project_id.id, 'company_id': self.env.company.id,
+            'employee_id': employee.id, 'log_date': '2026-11-19', 'notification_slip_id': slip.id})
+        with self.assertRaises(UserError) as caught:
+            slip.unlink()
+        self.assertIn('施工日誌 1 筆', str(caught.exception))
+        self.assertEqual(log.notification_slip_id, slip, '被擋下時日誌的通報單不能已經被清掉')
+        log.notification_slip_id = False
+        slip.unlink()
+        self.assertFalse(slip.exists())
+
+    def test_cancelled_slip_still_refused(self):
+        slip = self._slip('EP-ND-C', 'cancelled')
+        with self.assertRaises(UserError) as caught:
+            slip.unlink()
+        self.assertIn('已退單', str(caught.exception))

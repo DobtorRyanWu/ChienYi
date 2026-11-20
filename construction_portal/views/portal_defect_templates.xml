@@ -287,19 +287,6 @@
                         </div>
                     </t>
 
-                    <!-- 照片／改善被狀態鎖擋下時的提示（後端 portal_defect.py 導回時帶參數）-->
-                    <t t-if="request.params.get('error') == 'photo_locked'">
-                        <div class="cy-event-card" style="margin-bottom: 12px;">
-                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-lock"/></span>
-                            <div class="cy-event-body"><div class="cy-event-desc">此缺失已驗證／結案，照片為稽核證據不可刪除</div></div>
-                        </div>
-                    </t>
-                    <t t-if="request.params.get('error') == 'improve_locked'">
-                        <div class="cy-event-card" style="margin-bottom: 12px;">
-                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-lock"/></span>
-                            <div class="cy-event-body"><div class="cy-event-desc">此缺失已驗證／結案，改善內容不可再修改</div></div>
-                        </div>
-                    </t>
                     <t t-if="request.params.get('error') == 'need_corrective_action'">
                         <div class="cy-event-card" style="margin-bottom: 12px;">
                             <span class="cy-event-icon" style="color: var(--wb-amber);"><i class="fa fa-exclamation-triangle"/></span>
@@ -312,11 +299,9 @@
                         </div>
                     </t>
 
-                    <!-- 已驗證／結案後不顯示刪除鈕（後端 portal_defect.py 亦會擋，
-                         此處同步隱藏，避免「看得到按鈕、按了失敗」）。
-                         用 portal_workflow_state 與下方提交改善表單的 gating 一致。-->
-                    <t t-set="photo_deletable"
-                       t-value="defect.portal_workflow_state not in ('verified', 'closed')"/>
+                    <!-- 2026-11-20 回復原版：已驗證／結案後也顯示刪除鈕（後端 portal_defect.py 同一天拿掉狀態鎖）。
+                         誰能刪由後端 _require_photo_deleter 把關。-->
+                    <t t-set="photo_deletable" t-value="True"/>
 
                     <!-- 改善前照片（縮圖列，點擊開 lightbox）-->
                     <t t-if="defect.before_photo_ids">

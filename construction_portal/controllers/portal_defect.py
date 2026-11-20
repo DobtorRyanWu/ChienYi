@@ -31,7 +31,6 @@ _logger = logging.getLogger(__name__)
 # 值取自 construction_quality/models/daily_defect_mixin.py 的 state Selection，
 # general 與 reservation 共用同一份定義（portal_workflow_state 亦等同 state），
 # 且 _browse_defect 只會回傳這兩個模型，故直接比對 state 不會有值集不合的問題。
-DEFECT_LOCKED_STATES = ('verified', 'closed')
 
 
 class DefectRoutesMixin:
@@ -779,12 +778,8 @@ class DefectRoutesMixin:
         # H1：提交缺失改善限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可提交缺失改善'))
 
-        # 已驗證／結案的缺失不可再改寫改善內容（原本任何狀態都會走到下方的
-        # write，closed 缺失的 improvement_result 可被整段覆寫）。結案後若真要
-        # 補充，改由後台處理。
-        if defect.state in DEFECT_LOCKED_STATES:
-            return request.redirect(
-                self._defect_url(defect, error='improve_locked'))
+        # 2026-11-20 回復原版（1118 會議；使用者決定拿掉）：已驗證／結案的缺失不再擋改寫改善內容——
+        # 舊系統的缺失任何成員隨時可改。詳情頁的改善表單仍只在已通知／改善中出現（狀態順序沒動）。
 
         # 收齊文字欄位
         improvement_text = post.get('improvement_description', '').strip()
@@ -884,12 +879,8 @@ class DefectRoutesMixin:
         # 與上傳路由同一把尺：閱覽角色不可刪除照片
         self._require_write(_('權限不足：閱覽角色不可刪除照片'))
 
-        # 已驗證／結案後照片為稽核證據，前台不可移除。上傳仍不擋 —— 與施工日誌
-        # 「鎖定後可補不可刪」同一原則（portal_photo.py:63-67 vs :97-100）：
-        # 增加證據無害，移除證據破壞稽核軌跡。
-        if defect.state in DEFECT_LOCKED_STATES:
-            return request.redirect(
-                self._defect_url(defect, error='photo_locked'))
+        # 2026-11-20 回復原版（1118 會議；使用者決定拿掉）：已驗證／結案後也能刪照片——舊系統不看狀態。
+        # 誰能刪仍由下面的 _require_photo_deleter 把關（上傳者本人與管理層級）。
 
         photo = request.env['supervision.photo'].sudo().with_context(
             active_test=False).browse(line_id)
