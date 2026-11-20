@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 2026-11-20：標單覆蓋被「檢試驗項目的關聯契約工項」擋下時，可以在這裡清掉連結。
+         兩步：先按「清除這些連結」列出會受影響的檢試驗項目與檢試驗紀錄，看過後按「確認清除」才清。 -->
+    <record id="view_tender_import_wizard_form_test_links" model="ir.ui.view">
+        <field name="name">tender.import.wizard.form.test.links</field>
+        <field name="model">tender.import.wizard</field>
+        <field name="inherit_id" ref="construction_supervision_base.view_tender_import_wizard_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='blocking_reference_info']" position="after">
+                <field name="has_test_links" invisible="1"/>
+                <div class="mt-2" invisible="not has_test_links">
+                    <button name="action_preview_clear_test_links" string="清除這些連結"
+                            type="object" class="btn-secondary" icon="fa-unlink"
+                            invisible="test_link_detail"/>
+                    <div invisible="not test_link_detail" class="mt-2 p-2 bg-white border rounded">
+                        <field name="test_link_detail" widget="text" readonly="1" nolabel="1"/>
+                        <button name="action_clear_test_links" string="確認清除" type="object"
+                                class="btn-danger mt-2" icon="fa-check"/>
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

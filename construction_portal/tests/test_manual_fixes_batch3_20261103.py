@@ -238,16 +238,17 @@ class TestPortalManualFixesBatch3(TransactionCase):
         self.assertIn('/daily-log/new?error=duplicate_log', loc)
 
     def test_b3_2_other_filler_same_day_is_allowed(self):
-        """使用者決定：同工程同一天可有多張日誌（不同填表人），不可被當成重複。"""
+        """（2026-11-20，原 11-03 決定反過來）：同工程同一天只能一張、不分填表人——
+        別的填表人同一天再建一張要提示重複、不建（不可 500）。"""
         self._log(self.emp_a)
         before = self.env['daily.log.sheet'].search_count(
             [('supervision_project_id', '=', self.project.id)])
         vals, loc = self._drive(
             self.worker_b, self.ctrl.portal_construction_daily_log_create,
             project_id=str(self.project.id), log_date=fields.Date.today().isoformat())
-        self.assertNotIn('error=', loc)
+        self.assertIn('error=duplicate_log', loc)
         self.assertEqual(self.env['daily.log.sheet'].search_count(
-            [('supervision_project_id', '=', self.project.id)]), before + 1)
+            [('supervision_project_id', '=', self.project.id)]), before)
 
     # ═══ B3-3 error 參數不原樣印出 ═════════════════════════════════════════
     def _detail_pages(self):
@@ -395,7 +396,7 @@ class TestPortalManualFixesBatch3(TransactionCase):
             self.assertTrue(photo.exists())
 
     def test_b3_2_edit_to_same_day_shows_duplicate_not_500(self):
-        """編輯日誌把日期改成同填表人另一張日誌的日期：導回編輯頁提示重複（原本直接 500）。"""
+        """2026-11-20：前台編輯日誌不再改日期——表單送了別的日期也照原日期存，不會撞重複、不會 500。"""
         today = fields.Date.today()
         self._log(self.emp_a)
         other = self.env['daily.log.sheet'].create({
@@ -406,8 +407,8 @@ class TestPortalManualFixesBatch3(TransactionCase):
         vals, loc = self._drive(
             self.leader, self.ctrl.portal_construction_daily_log_update,
             self.project.id, other.id, log_date=today.isoformat())
-        self.assertIn(f'/daily-log/{other.id}/edit?error=duplicate_log', loc)
-        self.assertEqual(other.log_date, today - timedelta(days=1), '整筆不可存進去')
+        self.assertNotIn('error=', loc)
+        self.assertEqual(other.log_date, today - timedelta(days=1), '日期不可被改')
 
     # ═══ B3-10 日誌匯入：同一天已有日誌不再整份跳過（使用者 11-03 決定）═══════
     def _parsed(self, day, qty=2.0, note=''):
@@ -470,13 +471,13 @@ class TestPortalManualFixesBatch3(TransactionCase):
         self.assertEqual(sheet.line_ids.mapped('daily_qty'), [5.0], '明細要換成檔案內容、舊的不留')
 
     def test_b3_10_import_replace_refuses_others_log_for_field_worker(self):
+        """2026-11-20：拿掉「現場人員只能改自己建的」——現場人員也能取代別人匯入的那一天。"""
         day = fields.Date.today() - timedelta(days=2)
         self._import(self.worker_a, self._parsed(day, qty=2.0))
         sheet = self._day_sheets(day)
         loc, details = self._import(self.worker_b, self._parsed(day, qty=5.0), same_day='replace')
-        self.assertIn('failed=1', loc)
-        self.assertIn('只能取代自己的日誌', details[-1]['error'])
-        self.assertEqual(sheet.line_ids.mapped('daily_qty'), [2.0], '被擋時原日誌不可被改')
+        self.assertIn('replaced=1', loc, details)
+        self.assertEqual(sheet.line_ids.mapped('daily_qty'), [5.0], '取代後是新的數量')
 
     # ── 審查補充（匯入同日） ─────────────────────────────────────────────
     def test_b3_10_reimport_with_progress_decimals_is_skipped(self):

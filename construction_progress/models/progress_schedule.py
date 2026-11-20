@@ -7,6 +7,13 @@ from datetime import timedelta
 from odoo import api, fields, models, Command
 from odoo.exceptions import UserError, ValidationError
 
+from odoo.addons.construction_supervision_base.models.supervision_project import (
+    CONTRACT_DATES_SYSTEM_WRITE,
+)
+
+# 「工程僅存的進度表不能刪」的例外：整個工程要刪掉的維護腳本才帶（畫面、前台都不會帶）
+ALLOW_DELETE_LAST_SCHEDULE = 'allow_delete_last_progress_schedule'
+
 
 class ProgressSchedule(models.Model):
     """
@@ -860,6 +867,9 @@ class ProgressSchedule(models.Model):
                 f'工期不可短於原合約工期。'
             )
 
+        # 區間日期在精靈確認時一律重檢（程式直接叫精靈的匯入 7b 也會檢查到）
+        self._check_lines_cover_period()
+
         # 將同專案其他進度表歸檔
         other_schedules = self.search([
             ('project_id', '=', self.project_id.id),
@@ -877,8 +887,12 @@ class ProgressSchedule(models.Model):
             update_vals['extension_duration'] = self.duration_extension
         if self.adjusted_end_date and self.adjusted_end_date != self.project_id.contract_end_date:
             update_vals['contract_end_date'] = self.adjusted_end_date
+        # 第一次啟用時記下「進度表啟用過」
+        if not self.project_id.progress_ever_activated:
+            update_vals['progress_ever_activated'] = True
         if update_vals:
-            self.project_id.write(update_vals)
+            # 展延寫回完工日是正規路徑，開工後的契約日期鎖放行
+            self.project_id.with_context(**{CONTRACT_DATES_SYSTEM_WRITE: True}).write(update_vals)
 
         # 在 Chatter 中記錄
         self.message_post(
@@ -920,6 +934,37 @@ class ProgressSchedule(models.Model):
             logs_after_effective._compute_daily_planned_progress()
             logs_after_effective._compute_has_progress_change()
             logs_after_effective._compute_changed_planned_progress()
+
+    def _check_lines_cover_period(self):
+        """啟用前檢查進度區間——第一段從開工日起、最後一段到調整後完工日、
+        段與段之間沒有空檔、全部落在開工日～調整後完工日之間。不符就擋並說明哪一段。"""
+        self.ensure_one()
+        start, end = self.start_date, self.adjusted_end_date
+        lines = self.line_ids.filtered(lambda l: l.date_start and l.date_end).sorted('date_start')
+        problems = []
+        if not start or not end:
+            problems.append('工程的契約開工日或本版調整後完工日是空的')
+        if not lines:
+            problems.append('沒有填好起訖日的進度區間')
+        if not problems:
+            first, last = lines[0], lines[-1]
+            if first.date_start != start:
+                problems.append('第一個區間（%s）沒有從開工日 %s 開始' % (first.period_display, start))
+            if max(lines.mapped('date_end')) != end:
+                problems.append('最後一個區間（%s）沒有到調整後完工日 %s' % (last.period_display, end))
+            for prev, cur in zip(lines[:-1], lines[1:]):
+                if cur.date_start > prev.date_end + timedelta(days=1):
+                    problems.append('區間 %s 與 %s 之間有空檔（%s ～ %s 沒有區間）' % (
+                        prev.period_display, cur.period_display,
+                        prev.date_end + timedelta(days=1), cur.date_start - timedelta(days=1)))
+            for l in lines:
+                if l.date_start < start or l.date_end > end:
+                    problems.append('區間 %s 超出開工日 %s ～ 調整後完工日 %s' % (l.period_display, start, end))
+        if problems:
+            raise ValidationError(
+                '進度表「%s」的進度區間跟工期對不起來，不能啟用：\n%s\n'
+                '請調整進度區間（或用「產生進度區間」重排）後再啟用。' % (
+                    self.display_name, '\n'.join('- ' + p for p in problems)))
 
     def _resequence_lines(self):
         """切割前整理：依 date_start 排序後以 10 為步長重設 sequence，確保有足夠間距插入新行"""
@@ -1087,6 +1132,11 @@ class ProgressSchedule(models.Model):
         for rec in self:
             if rec.state not in ('active', 'archived'):
                 raise UserError('只有使用中或已歸檔狀態可以重設為草稿')
+            # 開始施工後只有使用中（最新）那一版能退回草稿；舊版要改請「建立新版本」
+            if rec.state == 'archived' and rec.project_id.state != 'draft':
+                raise UserError(
+                    '工程已開始施工，已歸檔的舊版進度表（第%s版）不能退回草稿。\n'
+                    '要拿舊版內容修改，請在這一版按「建立新版本」複製一份。' % rec.version)
             rec.write({'state': 'draft'})
         return True
 
@@ -1203,6 +1253,15 @@ class ProgressSchedule(models.Model):
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('只有草稿狀態的進度表可以刪除')
+        # 工程僅存的那一張不能刪（不論有沒有日誌）；開工前要改日期退回草稿就好。
+        # ALLOW_DELETE_LAST_SCHEDULE 只給整個工程要刪掉的維護腳本用，畫面不會帶。
+        if not self.env.context.get(ALLOW_DELETE_LAST_SCHEDULE):
+            for project in self.mapped('project_id'):
+                remaining = self.search_count([('project_id', '=', project.id), ('id', 'not in', self.ids)])
+                if not remaining:
+                    raise UserError(
+                        '進度表是工程「%s」僅存的一張，不能刪除。\n'
+                        '要改內容請直接修改這一張（使用中的先退回草稿）。' % project.display_name)
         # 記下受影響工程，刪除後重算剩餘兄弟（刪掉最高版時最新版會換人）
         affected = self.mapped('project_id').ids
         res = super().unlink()

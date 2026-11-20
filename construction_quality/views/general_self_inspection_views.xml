@@ -77,8 +77,10 @@
                             <field name="company_id" invisible="1"/>
                         </group>
                         <group string="檢查資訊">
+                            <!-- 已有檢查項目就不能換類型（模型 write 也擋） -->
                             <field name="inspection_type_id"
                                    options="{'no_create': True, 'no_open': True}"
+                                   readonly="checklist_ids"
                                    domain="[('project_id', '=', project_id)]"/>
                             <field name="sub_project_name" required="1"/>
                             <field name="inspection_date"/>
@@ -113,7 +115,7 @@
                                     <field name="stage_id" optional="show"
                                            options="{'no_create': True, 'no_open': True}"/>
                                     <field name="check_item" string="檢查項目"/>
-                                    <field name="design_standard" optional="show"/>
+                                    <field name="design_standard" optional="show" required="1"/>
                                     <field name="actual_result" optional="show"/>
                                     <!-- 結果欄位不是「合格／缺失／無此項目」時，填「勾選」、檢查結果由它換算（self_inspection_mark.py） -->
                                     <field name="mark" column_invisible="parent.result_layout == 'standard'"/>

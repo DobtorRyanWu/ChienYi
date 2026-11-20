@@ -261,6 +261,9 @@ class TenderImportWizard(models.TransientModel):
             if count:
                 hits.append(('%s（%s.%s）' % (
                     Model._description or f.model, f.model, f.name), count))
+        # 多選連結（例：檢試驗項目的「關聯契約工項」）也算引用。由各模組在
+        # project.task._extra_task_reference_hits 補上（本模組不認識那些模型）
+        hits.extend(self.env['project.task']._extra_task_reference_hits(tasks))
         return hits
 
     # === 金額核對（不建立 task）===

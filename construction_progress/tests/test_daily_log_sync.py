@@ -9,6 +9,7 @@
 from datetime import timedelta
 
 from odoo import fields
+from odoo.exceptions import UserError
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -53,5 +54,7 @@ class TestDailyLogSync(TransactionCase):
     def test_moving_to_another_interval_resyncs_both(self):
         sheet = self._sheet(self.d0 + timedelta(days=3), daily_actual_progress=1.0, state='filled')
         self.assertEqual((self.l1.actual_progress, self.l2.actual_progress), (1.0, 0.0))
-        sheet.write({'log_date': self.d0 + timedelta(days=12)})
-        self.assertEqual((self.l1.actual_progress, self.l2.actual_progress), (0.0, 1.0))
+        # 2026-11-20 起日誌建立後不能改日期 → 不會有「搬到另一個區間」；進度停在原區間
+        with self.assertRaises(UserError):
+            sheet.write({'log_date': self.d0 + timedelta(days=12)})
+        self.assertEqual((self.l1.actual_progress, self.l2.actual_progress), (1.0, 0.0))

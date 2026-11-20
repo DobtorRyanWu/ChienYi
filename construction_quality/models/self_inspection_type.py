@@ -365,6 +365,26 @@ class SelfInspectionTypeTiming(models.Model):
          '同一檢查類型內的舊代碼不可重複！'),
     ]
 
+    def _used_by_inspections(self):
+        """已勾選這個時機的檢查單筆數（兩式合計）"""
+        total = 0
+        for model in ('general.self.inspection', 'reservation.self.inspection'):
+            Model = self.env.get(model)
+            if Model is not None:
+                total += Model.sudo().search_count([('inspection_timing_ids', 'in', self.ids)])
+        return total
+
+    def write(self, vals):
+        # 2026-11-20：已被檢查單用到的檢查時機不能改名（要不同名稱就另建一個）
+        if 'name' in vals:
+            for rec in self.filtered(lambda r: r.name != vals['name']):
+                n = rec._used_by_inspections()
+                if n:
+                    raise UserError(
+                        f'檢查時機「{rec.name}」已經有 {n} 張檢查單用到，不能改名；'
+                        f'要不同的名稱請另建一個檢查時機。')
+        return super().write(vals)
+
     @api.ondelete(at_uninstall=False)
     def _unlink_except_in_use(self):
         """時機已被檢查記錄勾選時不可刪除。
@@ -449,6 +469,21 @@ class SelfInspectionTypeStage(models.Model):
         ('name_type_uniq', 'UNIQUE(type_id, name)',
          '同一檢查類型內的段落名稱不可重複！'),
     ]
+
+    def write(self, vals):
+        # 2026-11-20：已被檢查單（的檢查項目）用到的段落不能改名；類型自己的預設項目不算
+        if 'name' in vals:
+            for rec in self.filtered(lambda r: r.name != vals['name']):
+                n = 0
+                for model in ('general.self.inspection.item', 'reservation.self.inspection.item'):
+                    Model = self.env.get(model)
+                    if Model is not None:
+                        n += Model.sudo().search_count([('stage_id', '=', rec.id)])
+                if n:
+                    raise UserError(
+                        f'段落「{rec.name}」已經有 {n} 個檢查單項目用到，不能改名；'
+                        f'要不同的名稱請另建一個段落。')
+        return super().write(vals)
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_in_use(self):

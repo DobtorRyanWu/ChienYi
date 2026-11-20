@@ -175,6 +175,13 @@
                                            readonly="is_manual_amount or child_line_ids"/>
                                     <field name="actual_amount" string="實際金額"
                                            readonly="not is_manual_amount"/>
+                                    <!-- 比例項金額依比例 × 本單基數自動算；手改過（含匯入）標「手動金額」 -->
+                                    <field name="is_amount_manual" string="手動金額" readonly="1"
+                                           invisible="not is_rate_line" optional="show"/>
+                                    <button name="action_reset_manual_amount" string="解除手動金額"
+                                            type="object" icon="fa-undo"
+                                            invisible="not is_amount_manual"/>
+                                    <field name="is_rate_line" column_invisible="1"/>
                                     <field name="specification" string="規格說明" optional="hide"/>
                                     <field name="note" string="備註" optional="hide"/>
                                     <field name="currency_id" column_invisible="1"/>

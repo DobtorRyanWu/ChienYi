@@ -19,6 +19,8 @@ class TestSlipConfirmChatter(TransactionCase):
         cls.project = cls.env['project.project'].create({
             'name': '通報單通知測試', 'code': 'MF-SLIP',
             'project_type': 'reservation', 'company_id': cls.env.company.id,
+            # 2026-11-20 起未開始的工程不能把契約工項加進通報單
+            'state': 'construction',
             'site_manager_id': cls.manager.id})
         cls.task = cls.env['project.task'].create({
             'name': '通知測試工項', 'project_id': cls.project.id, 'item_no': '1'})

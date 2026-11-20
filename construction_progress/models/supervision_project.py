@@ -6,6 +6,7 @@ import logging
 from datetime import date, datetime
 
 from odoo import api, fields, models
+from odoo.exceptions import UserError
 
 from odoo.addons.construction_supervision_base.utils.local_date import local_today
 
@@ -139,6 +140,66 @@ class SupervisionProjectProgress(models.Model):
         for project in self:
             active = project.schedule_ids.filtered(lambda s: s.state == 'active')
             project.active_schedule_id = active[0] if active else False
+
+    # =========================================================================
+    # 開工前改契約日期 → 草稿進度表、空白日誌跟著同步
+    # （開工後的日期鎖在 construction_supervision_base 的 write()）
+    # =========================================================================
+
+    def write(self, vals):
+        from odoo.addons.construction_supervision_base.models.supervision_project import (
+            CONTRACT_DATES_SYSTEM_WRITE,
+        )
+        if self.env.context.get(CONTRACT_DATES_SYSTEM_WRITE):
+            return super().write(vals)
+        draft_changed = self._contract_date_changes(vals).filtered(lambda p: p.state == 'draft')
+        drop_logs = self.env['daily.log.sheet']
+        for project in draft_changed:
+            drop_logs |= project._prepare_contract_date_change(vals)
+        res = super().write(vals)
+        if draft_changed:
+            if 'contract_end_date' in vals:
+                # 草稿進度表建立時抄下的「原完工日」改成新的預定契約完工日；開工日本來就
+                # related 到工程、自動跟著變。進度區間不重排，啟用時檢查區間。
+                draft_changed.schedule_ids.filtered(lambda s: s.state == 'draft').write(
+                    {'original_end_date': fields.Date.to_date(vals['contract_end_date'])})
+            if drop_logs:
+                _logger.info('開工前改契約日期：刪除新範圍外從沒填過的空白日誌 %d 張（工程 %s）',
+                             len(drop_logs), ', '.join(draft_changed.mapped('code')))
+                drop_logs.sudo().unlink()
+        return res
+
+    def _prepare_contract_date_change(self, vals):
+        """開工前改日期的前置檢查，回傳要刪掉的空白日誌。
+
+        - 所有進度表都要是草稿（使用中、已歸檔的要先退回草稿）。
+        - 新範圍外的日誌：從沒填過的刪掉；有填過的就擋下並列出日期。
+        """
+        self.ensure_one()
+        not_draft = self.schedule_ids.filtered(lambda s: s.state != 'draft')
+        if not_draft:
+            raise UserError(
+                '工程「%s」還有不是草稿的進度表（%s），要改契約開工日或預定契約完工日，'
+                '請先把進度表退回草稿。' % (
+                    self.display_name,
+                    '、'.join('第%s版（%s）' % (s.version, dict(s._fields['state'].selection).get(s.state))
+                             for s in not_draft.sorted('version'))))
+        new_start = fields.Date.to_date(vals['contract_start_date']) \
+            if 'contract_start_date' in vals else self.contract_start_date
+        new_end = fields.Date.to_date(vals['contract_end_date']) \
+            if 'contract_end_date' in vals else self.contract_end_date
+        Sheet = self.env['daily.log.sheet'].sudo()
+        domain = [('supervision_project_id', '=', self.id)]
+        outside = Sheet.search(domain).filtered(
+            lambda s: (new_start and s.log_date < new_start) or (new_end and s.log_date > new_end))
+        filled = outside.filtered(lambda s: not s._is_untouched_blank())
+        if filled:
+            raise UserError(
+                '工程「%s」新的契約日期範圍（%s ～ %s）外面有已經填過內容的施工日誌，不能改：\n%s\n'
+                '請先處理這些日誌（確認內容不要了就刪掉）再改日期。' % (
+                    self.display_name, new_start or '-', new_end or '-',
+                    '\n'.join('- %s' % d for d in sorted(filled.mapped('log_date')))))
+        return outside
 
     @api.depends('active_schedule_id', 'active_schedule_id.current_cumulative_planned',
                  'active_schedule_id.current_cumulative_actual',

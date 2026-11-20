@@ -29,7 +29,8 @@ class TestSeedSelfInspectionMigration(TransactionCase):
             ('template_type', '=', TTYPE), ('is_default', '=', True)])
 
     def test_missing_default_is_recreated(self):
-        self._defaults().unlink()
+        # 2026-11-20：系統預設樣板只有升級程式帶 context 才刪得掉
+        self._defaults().with_context(allow_delete_default_template=True).unlink()
         self.assertEqual(len(self._defaults()), 0)
         _run_migration(self.env)
         created = self._defaults()

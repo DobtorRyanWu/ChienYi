@@ -18,6 +18,14 @@ class ProjectTask(models.Model):
     - 實際執行追蹤 (actual_qty, actual_amount, completion_rate)
     """
     _inherit = 'project.task'
+
+    @api.model
+    def _extra_task_reference_hits(self, tasks):
+        """many2one 以外的引用（多選連結），回傳 [(說明, 筆數), ...]。
+        標單匯入精靈覆蓋前的引用檢查會併進來；本模組沒有，由其他模組覆寫補上
+        （例：construction_test 的檢試驗項目「關聯契約工項」）。"""
+        return []
+
     # 本系統的 project.task 就是「契約工項」，正確順序是項次階層，不是 Odoo 原生的
     # priority/deadline。item_no 是 Char，直接排會得到 1, 10, 100, …, 11（代操 2026-08-06
     # 回報「契約項目順序有誤」）；改用補零後的 item_no_sort。

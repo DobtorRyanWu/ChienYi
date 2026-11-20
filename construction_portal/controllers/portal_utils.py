@@ -42,10 +42,11 @@ PORTAL_FLASH_MAX_LEN = 600      # 訊息長度上限，避免 session 被撐大
 # 注意：有專屬提示區塊的代碼（photo_locked、no_file…）不放這裡，避免同一頁顯示兩次
 PORTAL_ERROR_MESSAGES = {
     'locked': '此日誌已鎖定，無法修改。',
-    'not_owner': '您只能編輯自己建立的單據。',
     'no_unlock_permission': '您沒有解鎖此日誌的權限。',
     'photo_not_found': '找不到這張照片。',
     'invalid_date': '日期格式不正確，請重新選擇日期。',
+    # 前台新增、匯入日誌不能用在「未開始」的工程（後台的工程下拉本來就不列未開始的）
+    'project_not_started': '這個工程還沒開始施工，不能新增或匯入施工日誌。',
 }
 
 

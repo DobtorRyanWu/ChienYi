@@ -661,19 +661,34 @@ class DailyLogSheet(models.Model):
         """
         if self.env.context.get(DAILY_LOG_IMPORT_ALLOW_SAME_DAY):
             return
+        # 2026-11-20：同一工程同一天只能一張，不分填表人（照舊系統）。
+        # sudo 只用來找：record rule 看不到別人名下的日誌時，不能因此判成「不存在」。
         for sheet in self:
             domain = [
                 ('id', '!=', sheet.id),
                 ('log_date', '=', sheet.log_date),
-                ('employee_id', '=', sheet.employee_id.id),
                 ('company_id', '=', sheet.company_id.id),
                 ('supervision_project_id', '=', sheet.supervision_project_id.id),
             ]
-            overlapping = self.search(domain, limit=1)
+            overlapping = self.sudo().search(domain, limit=1)
             if overlapping:
                 raise ValidationError(
                     f'同一專案在同一天已存在日誌: {overlapping.complete_name}'
                 )
+
+    @api.constrains('log_date', 'supervision_project_id')
+    def _check_log_date_not_before_contract_start(self):
+        """2026-11-20：日誌日期不能早於工程的「契約開工日」。
+
+        用契約開工日、不用實際開工日：進度表與自動建的空白日誌都從契約開工日起算；實際開工日
+        沒填時「開始施工」會填成按鈕那天（補建歷史資料＝匯入當天），拿它當界線會擋掉整個工期。
+        不學舊系統把日期偷偷改回今天。"""
+        for sheet in self:
+            start = sheet.supervision_project_id.contract_start_date
+            if start and sheet.log_date and sheet.log_date < start:
+                raise ValidationError(
+                    f'施工日誌日期 {sheet.log_date} 早於工程「{sheet.supervision_project_id.display_name}」'
+                    f'的契約開工日 {start}，不能建立。')
 
     # 註：原 _check_company_employee（日誌公司必須等於員工公司）已移除。
     # 代操作員跨公司建立日誌時，員工（提交人）與專案/日誌可屬不同公司，
@@ -742,6 +757,16 @@ class DailyLogSheet(models.Model):
 
     def write(self, vals):
         """檢查鎖定狀態：鎖定只凍結「使用者輸入欄位」，不阻擋系統重算「衍生計算欄位」。"""
+        # 2026-11-20：日誌日期只有建立時能填。改日期會讓明細日期、工項累計跟日誌對不起來
+        # （明細日期不跟著改、累計照明細日期算），所以一律不准改；日期填錯就刪掉重建。
+        if 'log_date' in vals:
+            new_date = fields.Date.to_date(vals['log_date'])
+            moved = self.filtered(lambda s: s.log_date != new_date)
+            if moved:
+                raise UserError(
+                    '施工日誌建立後不能改日期：\n'
+                    + '\n'.join('- %s' % s.complete_name for s in moved)
+                    + '\n日期填錯請刪掉這張日誌、在正確的日期重建（沒鎖住的日誌能刪）。')
         # 用即時判斷（_is_edit_locked）而非 stale 的 stored is_locked（H2）
         locked_sheets = self.filtered(lambda s: s._is_edit_locked())
 

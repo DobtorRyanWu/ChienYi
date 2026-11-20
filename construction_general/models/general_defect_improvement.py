@@ -268,7 +268,8 @@ class GeneralDefectImprovement(models.Model):
         # 「順便刪 supervision.photo + 欄位附件」整條不會跑，留下照片管理裡看得到、
         # 點下去卻 404 的孤兒照片與孤兒 filestore 檔案。
         # 這裡明確先走一次 ORM unlink，讓那條邏輯生效。
-        self.photo_ids.unlink()
+        # 刪整張單據時照片照刪（照片管理動作帶進來的 context 不算）
+        self.photo_ids.with_context(photo_manager_delete=False).unlink()
         return super().unlink()
 
     # === 約束 ===

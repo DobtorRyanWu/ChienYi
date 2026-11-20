@@ -488,7 +488,8 @@
         <field name="res_model">supervision.photo</field>
         <field name="view_mode">kanban,list,form,calendar</field>
         <field name="search_view_id" ref="supervision_photo_view_search"/>
-        <field name="context">{'search_default_group_by_project': 1}</field>
+        <!-- 從照片管理刪照片時，來自單據的照片擋下（photo_manager_delete） -->
+        <field name="context">{'search_default_group_by_project': 1, 'photo_manager_delete': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 上傳第一張工程照片
@@ -505,7 +506,7 @@
         <field name="res_model">supervision.photo</field>
         <field name="view_mode">kanban,list,form,calendar</field>
         <field name="search_view_id" ref="supervision_photo_view_search"/>
-        <field name="context">{'search_default_group_by_shot_date': 1}</field>
+        <field name="context">{'search_default_group_by_shot_date': 1, 'photo_manager_delete': 1}</field>
         <field name="domain">[('project_id', '=', active_id)]</field>
     </record>
 

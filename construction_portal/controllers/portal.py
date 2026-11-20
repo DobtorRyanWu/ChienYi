@@ -76,12 +76,6 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         """現場人員（且非老闆/主管/內部）：寫入只能限自己建立的單據"""
         return request.env.user._portal_is_field_only()
 
-    def _require_owner_or_manager(self, record):
-        """現場人員只能編輯自己建立的記錄；老闆/主管/內部不受限；沒有紀錄（新建）放行。
-        判斷＝res.users._portal_owns_or_may_edit()（全系統一份；模板的按鈕經 _portal_can_edit_record 呼叫同一支）。"""
-        if not request.env.user._portal_owns_or_may_edit(record):
-            raise AccessError(_('您只能編輯自己建立的單據'))
-
     def _require_write(self, msg=None):
         """H1：禁止唯讀角色（定期閱覽者 / viewer / observer）建立或寫入單據。
 

@@ -133,6 +133,21 @@ class TestFrequencyCondition(models.Model):
     # 約束條件
     # ===================================================================
     
+    @api.constrains('standard_id', 'condition_type')
+    def _check_condition_type_unique(self):
+        """2026-11-20：同一個檢試驗項目，同一種頻率條件只能設一次（含停用的：要用就重新啟用）"""
+        labels = dict(self._fields['condition_type'].selection)
+        for cond in self:
+            dup = self.with_context(active_test=False).sudo().search_count([
+                ('standard_id', '=', cond.standard_id.id),
+                ('condition_type', '=', cond.condition_type),
+                ('id', '!=', cond.id),
+            ])
+            if dup:
+                raise ValidationError(
+                    f'檢試驗項目「{cond.standard_id.display_name}」已經有「{labels.get(cond.condition_type)}」'
+                    f'的頻率條件，同一種條件只能設一次（停用的也算，要用請重新啟用那一條）。')
+
     @api.constrains('condition_type', 'threshold_qty', 'range_start', 'range_end',
                     'exceed_qty', 'interval_qty')
     def _check_condition_values(self):

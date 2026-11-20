@@ -625,7 +625,8 @@ class TestContractorScopePortal(TransactionCase):
                                                      self.r.id, slip.id))
         self.assertEqual(slip.state, 'not_started')
         slip.sudo().write({'state': 'in_progress'})
-        slip.detail_line_ids.sudo().write({'actual_qty': 1.0})
+        # 2026-11-20：「式」的明細只填金額、數量由系統帶，所以填實際金額（原本填實際數量 1）
+        slip.detail_line_ids.sudo().write({'actual_amount': 100.0})
         self._assert_denied(self.leader_a, self.ctrl.portal_slip_close, self.r.id, slip.id)
         self.assertEqual(slip.state, 'in_progress')
         self.assertIn('msg=reviewed', self._location(self.sup_leader, self.ctrl.portal_slip_close,

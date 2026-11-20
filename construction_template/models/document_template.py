@@ -748,6 +748,20 @@ class DocumentTemplate(models.Model):
             vals.setdefault('version_notes', f'檔案已於 {fields.Datetime.now()} 更新')
         return super().write(vals)
 
+    # 2026-11-20：系統預設樣板不能刪（後台、前台都走這裡）；換內容照樣可以。
+    # 例外只給模組升級程式（migration）：要刪預設樣板時帶這個 context。
+    ALLOW_DELETE_DEFAULT = 'allow_delete_default_template'
+
+    def unlink(self):
+        if not self.env.context.get(self.ALLOW_DELETE_DEFAULT):
+            defaults = self.filtered('is_default')
+            if defaults:
+                raise UserError(
+                    '系統預設樣板不能刪除：\n%s\n'
+                    '要換內容請直接上傳新的樣板檔（或用模組升級換版）。'
+                    % '\n'.join('- %s' % (t.name or t.display_name) for t in defaults))
+        return super().unlink()
+
     def copy(self, default=None):
         """複製記錄"""
         default = default or {}

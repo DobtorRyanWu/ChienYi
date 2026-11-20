@@ -89,7 +89,18 @@ class ReservationNotificationSlipLine(models.Model):
     is_manual_amount = fields.Boolean(
         string='金額手填',
         compute='_compute_is_manual_amount', compute_sudo=True,
-        help='本單內沒有子列，且是彙總項或無單價項（如稅什費）→ 金額直接手填')
+        help='本單內沒有子列，且是彙總項、無單價項（如稅什費）或單位「式」→ 金額直接填')
+
+    # 2026-11-20：比例項（稅什費、自主品管費…）的金額依比例 × 本單基數自動算；
+    # 手改過（含程式寫入，例如匯入照原單據填的金額）就標成手動金額，之後不被自動算的值蓋掉。
+    # 做法同估驗明細的 is_amount_manual；要還原按「解除手動金額」。
+    is_amount_manual = fields.Boolean(
+        string='手動金額', default=False, copy=False,
+        help='比例項的金額是手填的（含匯入），不會被「比例 × 本單基數」自動算的值蓋掉。\n'
+             '按「解除手動金額」改回自動計算。')
+    is_rate_line = fields.Boolean(
+        string='比例項', compute='_compute_is_rate_line', compute_sudo=True,
+        help='契約工項設有計算比例（稅什費、自主品管費等），金額自動算')
 
     # === 項目基本資訊 ===
     item_no = fields.Char(
@@ -172,7 +183,7 @@ class ReservationNotificationSlipLine(models.Model):
 
     @api.depends('slip_id.detail_line_ids.task_id', 'task_id',
                  'is_summary_line', 'unit_price', 'task_id.tax_misc_rate',
-                 'task_id.is_lump_sum')
+                 'task_id.is_lump_sum', 'unit', 'task_id.child_ids')
     def _compute_is_manual_amount(self):
         """金額是否由人工填寫。
 
@@ -193,11 +204,25 @@ class ReservationNotificationSlipLine(models.Model):
             if has_child:
                 line.is_manual_amount = False
             else:
-                line.is_manual_amount = bool(
-                    line.is_summary_line
-                    or line.task_id.tax_misc_rate
-                    or line.task_id.is_lump_sum
-                    or not line.unit_price)
+                line.is_manual_amount = line._manual_kind()
+
+    def _manual_kind(self):
+        """沒有子列時，這一列是不是「金額直接填」的那一種（onchange 也用同一個判斷）。
+        單位「式」的工項也只填金額，數量由系統帶。"""
+        self.ensure_one()
+        return bool(self.is_summary_line
+                    or self.task_id.tax_misc_rate
+                    or self.task_id.is_lump_sum
+                    or not self.unit_price
+                    or self._is_shi_unit())
+
+    def _is_shi_unit(self):
+        return (self.unit or '').strip() == '式' and not self.task_id.child_ids
+
+    @api.depends('task_id.tax_misc_rate', 'task_id.child_ids')
+    def _compute_is_rate_line(self):
+        for line in self:
+            line.is_rate_line = bool(line.task_id.tax_misc_rate and not line.task_id.child_ids)
 
     @api.depends('planned_qty', 'unit_price', 'is_manual_amount',
                  'child_line_ids', 'child_line_ids.planned_amount')
@@ -318,29 +343,48 @@ class ReservationNotificationSlipLine(models.Model):
             vals['item_no'] = no
             used_nos.add(no)
             created |= self.create(vals)
-        created._apply_tax_misc_default()
+        created.mapped('slip_id')._recompute_rate_lines()
         return created
 
-    def _apply_tax_misc_default(self):
-        """稅什費類（無單價、有 tax_misc_rate）建立時以契約比例試算一次當預設。
+    # === 比例項自動算、式工項數量由金額帶 ===
+    # ⚠️ 比例項金額**不放進 compute 依賴鏈**：它依賴同單基數列、基數列又依賴父列，
+    # 放進依賴鏈會繞成循環。改在明細建立／修改／刪除之後明確重算一次（同一個交易內）。
+    # 試算值一定要能改——實測契約比例 10.94681908% 算出 27,096，回報單實際填 27,130.76，
+    # 所以手改（含匯入照原單據寫入）就標成手動金額，之後不再自動蓋掉。
+    _AUTO_CTX = 'slip_line_auto_amount'
 
-        ⚠️ 只在建立時算，**不放進 compute 依賴鏈**：它依賴同單前置列、前置列又
-        依賴父列，放進依賴鏈會繞成循環。試算值必定要能改——實測契約比例
-        10.94681908% 算出 27,096，回報單實際填 27,130.76。
-        同層前置列金額尚未填寫時試算為 0，由使用者自行輸入。
-        """
-        for line in self:
-            task = line.task_id
-            if not task.tax_misc_rate or task.child_ids or line.planned_amount:
+    def _rate_amounts(self):
+        """比例 × 本單基數（基數＝契約工項的比例基數；留空＝同層前置工項，同 project.task）"""
+        self.ensure_one()
+        task = self.task_id
+        base_tasks = task._rate_base_records()
+        base_lines = self.slip_id.detail_line_ids.filtered(
+            lambda l: l.id != self.id and l.task_id in base_tasks)
+        rate = task.tax_misc_rate / 100.0
+        return (round(sum(base_lines.mapped('planned_amount')) * rate, 2),
+                round(sum(base_lines.mapped('actual_amount')) * rate, 2))
+
+    def _sync_shi_qty(self):
+        """單位「式」的工項：數量由系統帶——金額大於 0 帶 1，否則帶 0（使用者只填金額）"""
+        auto = self.with_context(**{self._AUTO_CTX: True})
+        for line in auto:
+            if not line._is_shi_unit() or line.child_line_ids:
                 continue
-            preceding = line.slip_id.detail_line_ids.filtered(
-                lambda l: l.id != line.id
-                and l.parent_line_id.id == line.parent_line_id.id
-                and l.sequence < line.sequence)
-            base = sum(preceding.mapped('planned_amount'))
-            if base:
-                line.planned_amount = round(
-                    base * task.tax_misc_rate / 100.0, 2)
+            vals = {}
+            pq = 1.0 if (line.planned_amount or 0) > 0 else 0.0
+            aq = 1.0 if (line.actual_amount or 0) > 0 else 0.0
+            if line.planned_qty != pq:
+                vals['planned_qty'] = pq
+            if line.actual_qty != aq:
+                vals['actual_qty'] = aq
+            if vals:
+                super(ReservationNotificationSlipLine, line).write(vals)
+
+    def action_reset_manual_amount(self):
+        """解除手動金額：改回依比例 × 本單基數自動計算"""
+        self.write({'is_amount_manual': False})
+        self.mapped('slip_id')._recompute_rate_lines()
+        return True
 
     # 金額欄位是 compute + store + readonly=False，Odoo 對這種欄位的規則是
     # 「一旦被明確寫入，就不再重算」。後台表單靠 readonly="not is_manual_amount"
@@ -356,33 +400,70 @@ class ReservationNotificationSlipLine(models.Model):
             if auto:
                 self.env.add_to_compute(self._fields[fname], auto)
 
+    # 明細改了這些欄位，比例項與「式」的數量要跟著重算
+    _RECALC_TRIGGERS = frozenset({'planned_amount', 'actual_amount', 'planned_qty', 'actual_qty',
+                                  'unit_price', 'unit', 'task_id', 'is_amount_manual'})
+
+    @staticmethod
+    def _check_project_started(slips):
+        """工程未開始時，不能把契約工項加進通報單（開工＝契約定案）"""
+        for slip in slips:
+            if slip.project_id and slip.project_id.state == 'draft':
+                raise ValidationError(
+                    f'工程「{slip.project_id.display_name}」還沒開始施工，不能把契約工項加進通報單'
+                    f'「{slip.display_name}」。\n開始施工後契約工項才定案，請先按「開始施工」。')
+
     @api.model_create_multi
     def create(self, vals_list):
-        self.env['reservation.notification.slip'].browse(
-            [v.get('slip_id') for v in vals_list if v.get('slip_id')]
-        )._check_not_cancelled_for_children('施工詳細表')
+        slips = self.env['reservation.notification.slip'].browse(
+            [v.get('slip_id') for v in vals_list if v.get('slip_id')])
+        slips._check_not_cancelled_for_children('施工詳細表')
+        self._check_project_started(slips)
+        auto = self.env.context.get(self._AUTO_CTX)
         records = super().create(vals_list)
+        if not auto:
+            # 程式寫入比例項的金額（例如匯入照原單據填的）也算手動金額
+            manual_rate = self.browse([
+                rec.id for rec, vals in zip(records, vals_list)
+                if any(k in vals for k in self._AMOUNT_FIELDS) and rec.is_rate_line])
+            if manual_rate:
+                super(ReservationNotificationSlipLine, manual_rate).write({'is_amount_manual': True})
         records._restore_computed_amounts()
+        if not auto:
+            records._sync_shi_qty()
+            records.mapped('slip_id')._recompute_rate_lines()
         return records
 
     def write(self, vals):
         # 退單後唯讀（通報單本身的守門見 notification_slip.write）
         self.mapped('slip_id')._check_not_cancelled_for_children('施工詳細表')
+        if 'task_id' in vals:
+            self._check_project_started(self.mapped('slip_id'))
+        auto = self.env.context.get(self._AUTO_CTX)
         amount_keys = [k for k in self._AMOUNT_FIELDS if k in vals]
+        if amount_keys and not auto and 'is_amount_manual' not in vals:
+            # 手改（或程式寫入）比例項的金額 → 標成手動金額，之後不被自動算的值蓋掉
+            rate = self.filtered('is_rate_line')
+            if rate:
+                super(ReservationNotificationSlipLine, rate).write({'is_amount_manual': True})
         if not amount_keys:
-            return super().write(vals)
+            res = super().write(vals)
+        else:
+            # 先寫其他欄位（unit_price 可能同批寫入），is_manual_amount 才是最新狀態
+            rest = {k: v for k, v in vals.items() if k not in amount_keys}
+            if rest:
+                super().write(rest)
 
-        # 先寫其他欄位（unit_price 可能同批寫入），is_manual_amount 才是最新狀態
-        rest = {k: v for k, v in vals.items() if k not in amount_keys}
-        if rest:
-            super().write(rest)
-
-        manual = self.filtered('is_manual_amount')
-        if manual:
-            super(ReservationNotificationSlipLine, manual).write(
-                {k: vals[k] for k in amount_keys})
-        (self - manual)._restore_computed_amounts()
-        return True
+            manual = self.filtered('is_manual_amount')
+            if manual:
+                super(ReservationNotificationSlipLine, manual).write(
+                    {k: vals[k] for k in amount_keys})
+            (self - manual)._restore_computed_amounts()
+            res = True
+        if not auto and self._RECALC_TRIGGERS.intersection(vals):
+            self._sync_shi_qty()
+            self.mapped('slip_id')._recompute_rate_lines()
+        return res
 
     def unlink(self):
         """刪除某列時一併刪除本單內的子孫列，維持樹的完整性。
@@ -399,10 +480,13 @@ class ReservationNotificationSlipLine(models.Model):
             all_lines |= children
             frontier = children
         parents = all_lines.mapped('parent_line_id') - all_lines
+        slips = all_lines.mapped('slip_id')
         res = super(ReservationNotificationSlipLine, all_lines).unlink()
         orphaned = parents.exists().filtered(lambda l: not l.child_line_ids)
         if orphaned:
-            orphaned.write({'planned_amount': 0.0, 'actual_amount': 0.0})
+            orphaned.with_context(**{self._AUTO_CTX: True}).write(
+                {'planned_amount': 0.0, 'actual_amount': 0.0})
+        slips._recompute_rate_lines()
         return res
 
     # === 約束驗證 ===

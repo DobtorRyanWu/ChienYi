@@ -65,6 +65,8 @@ class PaymentEstimate(models.Model):
         tracking=True,
         index=True
     )
+    # 畫面上「提出估驗」按鈕要看工程類型（預約式可以提出空單）
+    project_type = fields.Selection(related='project_id.project_type', string='工程類型')
     # 2026-08-18 移除 slip_id：估驗計價與通報單在功能上無關。
     #   估驗詳細表的結構是「契約詳細價目表 × 期別」（群組/項次/單價全繼承自契約），
     #   通報單不出現在計價單上；模型的每一項計算（估驗次數重排、前期累計、可估數量、
@@ -256,6 +258,11 @@ class PaymentEstimate(models.Model):
             if not vals.get('name'):
                 estimate_no = vals.get('estimate_no') or 1
                 vals['name'] = f'第{estimate_no}次估驗計價'
+            # 不能新增日期早於已核定期別的估驗
+            if vals.get('project_id') and vals.get('estimate_date'):
+                self._check_not_before_approved(
+                    self.env['project.project'].browse(vals['project_id']),
+                    fields.Date.to_date(vals['estimate_date']))
         records = super().create(vals_list)
         if not self.env.context.get('_skip_estimate_resequence'):
             for project in records.mapped('project_id'):
@@ -365,8 +372,14 @@ class PaymentEstimate(models.Model):
             # 非契約工項也算「有內容」：一張只有變賣收入／物價調整的估驗單不是空單。
             # （實務上每期都會有契約工項，但這個閘門的語意是「不要送出空單」，
             #   不是「一定要有契約工項」。）
-            if not rec.line_ids and not rec.extra_line_ids:
+            # 2026-11-20：預約式整期沒有通報單時，空的估驗單也能提出、核定；
+            # 一般式照舊擋（一般式空單幾乎一定是忘了匯入工程案件）
+            if (not rec.line_ids and not rec.extra_line_ids
+                    and rec.project_id.project_type != 'reservation'):
                 raise UserError('請先匯入工程案件')
+            # 提出估驗時要有估驗日期（草稿照樣可以先存）
+            if not rec.estimate_date:
+                raise UserError(f'估驗單「{rec.display_name}」還沒有估驗日期，請先填估驗日期再提出估驗。')
             rec.write({
                 'state': 'pending_approval',
                 'submitted_by_id': self.env.uid,
@@ -374,8 +387,52 @@ class PaymentEstimate(models.Model):
             })
         return True
 
+    # 已核定（或已歸檔）的期別
+    APPROVED_STATES = ('approved', 'archived')
+
+    def _check_not_before_approved(self, project, estimate_date, exclude=None, action='新增'):
+        """日期早於任何一張已核定或已歸檔的估驗就擋。只跟已核定的比、不跟草稿比
+        （啟用進度表依週期預先建好的草稿，中間要臨時插一期照樣可以）；同一天照舊可以。"""
+        if not project or not estimate_date:
+            return
+        domain = [('project_id', '=', project.id), ('state', 'in', self.APPROVED_STATES),
+                  ('estimate_date', '>', estimate_date)]
+        if exclude:
+            domain.append(('id', 'not in', exclude.ids))
+        later = self.sudo().search(domain, order='estimate_date desc', limit=1)
+        if later:
+            raise UserError(
+                f'不能{action}估驗日期 {estimate_date} 的估驗：已經有日期更晚、已核定的「{later.display_name}」'
+                f'（{later.estimate_date}）。\n估驗要照日期順序核定。')
+
+    def _over_qty_lines(self):
+        """本次估驗後的累計超過可估驗數量（施工日誌累計）或契約數量的明細"""
+        return self.mapped('line_ids').filtered('is_over_qty')
+
+    def action_approve_with_check(self):
+        """畫面上的「核定」按鈕。有超量的明細就先跳確認並列出工項編號，按確定才核定；
+        沒有就直接核定。系統內部（匯入步驟 14）直接呼叫 action_approve，不經這裡。"""
+        over = self._over_qty_lines()
+        if not over:
+            return self.action_approve()
+        nos = []
+        for line in over.sorted(lambda l: (l.estimate_id.id, l.sequence, l.id)):
+            no = line.item_no or line.task_id.display_item_no or line.description or '?'
+            if no not in nos:
+                nos.append(no)
+        wiz = self.env['payment.estimate.approve.confirm'].create({
+            'estimate_ids': [(6, 0, self.ids)],
+            'message': '以下項目超過可估驗數量／契約數量：%s，確定核定？' % '、'.join(nos),
+        })
+        return {
+            'type': 'ir.actions.act_window', 'name': '確認核定',
+            'res_model': wiz._name, 'res_id': wiz.id, 'view_mode': 'form', 'target': 'new',
+        }
+
     def action_approve(self):
         """核定"""
+        for rec in self:
+            rec._check_not_before_approved(rec.project_id, rec.estimate_date, exclude=self, action='核定')
         self.write({
             'state': 'approved',
             'approved_by_id': self.env.uid,
@@ -756,6 +813,25 @@ class PaymentEstimateLine(models.Model):
         readonly=True,
         help='前期已核定累計金額 + 本次估驗金額（非儲存）'
     )
+    # 2026-11-20：超量不擋，清單整列醒目標示；按畫面上的「核定」時再提醒一次
+    is_over_qty = fields.Boolean(
+        '超量',
+        compute='_compute_is_over_qty',
+        help='本次估驗後的累計估驗數量超過可估驗數量（施工日誌累計）或契約數量。不擋，只提醒。')
+
+    @api.depends('cumulative_estimate_qty', 'available_qty', 'approved_qty', 'contract_qty',
+                 'is_summary_item', 'task_id.is_lump_sum', 'task_id.tax_misc_rate')
+    def _compute_is_over_qty(self):
+        """彙總項（一式）、整包項、比例項的數量用不到，不判斷。"""
+        for line in self:
+            if line.is_summary_item or line.task_id.is_lump_sum or line.task_id.tax_misc_rate:
+                line.is_over_qty = False
+                continue
+            cum = line.cumulative_estimate_qty or 0.0
+            limit = line.approved_qty or line.contract_qty or 0.0
+            line.is_over_qty = bool(
+                float_compare(cum, line.available_qty or 0.0, precision_digits=4) > 0
+                or float_compare(cum, limit, precision_digits=4) > 0)
 
     # === 備註 ===
     note = fields.Text('備註', readonly=True)

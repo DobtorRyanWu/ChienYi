@@ -27,7 +27,7 @@ from .portal_utils import (
     _photo_category_options, _photo_category_to_id, _post_photo_meta,
     _portal_save_photos,
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
-    _portal_flash_url, _portal_flash_code, _portal_error_message,
+    _portal_flash_url, _portal_flash_code, _portal_error_message, PORTAL_ERROR_MESSAGES,
     _haversine_km,
 )
 
@@ -420,6 +420,11 @@ class DailyLogRoutesMixin:
             return request.redirect('/my')
         # P7：匯入日誌限現場人員以上，閱覽角色不可操作
         self._require_write(_('權限不足：閱覽角色不可匯入日誌'))
+        # 未開始的工程不能匯入日誌（停工、驗收中等照舊可以補）
+        if project.state == 'draft':
+            request.session['daily_log_import_failed_details'] = [
+                {'filename': '', 'error': PORTAL_ERROR_MESSAGES['project_not_started']}]
+            return request.redirect(f'/construction/{project_id}/daily-logs/import?failed=1')
 
         from ..utils.daily_log_xlsm_parser import parse_daily_log_xlsm
         from ..utils.daily_log_b_xlsx_parser import parse_daily_log_b_xlsx
@@ -513,6 +518,14 @@ class DailyLogRoutesMixin:
                             ('project_id', '=', project_record_id),
                             ('name', '=', task_name),
                         ], limit=1)
+                        if task and (task.tax_misc_rate or task.is_lump_sum):
+                            # 比例項、整包項不寫進日誌明細（完成金額照基數比例自動算）
+                            failed_details.append({
+                                'filename': fname,
+                                'error': f"{parsed['log_date']}「{task_name}」是比例項或整包項，"
+                                         '日誌明細不收，這一列略過',
+                            })
+                            continue
                         if not task:
                             task = ProjectTask.with_context(
                                 tracking_disable=True, mail_create_nolog=True
@@ -635,6 +648,9 @@ class DailyLogRoutesMixin:
             ('project_id', '=', project.id),
             ('is_summary_item', '=', False),
             ('active', '=', True),
+            # 比例項、整包項不列
+            '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0),
+            ('is_lump_sum', '=', False),
         ], order='sequence, item_no')
 
         # 天氣 emoji 映射
@@ -660,6 +676,9 @@ class DailyLogRoutesMixin:
         }
 
         values['error_message'] = _portal_error_message(request.params.get('error'))
+        if project.state == 'draft' and not values['error_message']:
+            # 未開始的工程送出也會被擋，先在頁面上說明
+            values['error_message'] = PORTAL_ERROR_MESSAGES['project_not_started']
         return request.render('construction_portal.portal_construction_daily_log_form', values)
 
     @staticmethod
@@ -723,8 +742,9 @@ class DailyLogRoutesMixin:
         return missing
 
     def _daily_log_import_target(self, existing, project):
-        """取代模式要覆蓋哪一張：那天只有一張就是它；多張時只認目前使用者自己（提交人）
-        的那一張。權限與鎖定比照前台編輯。回傳 (日誌, '') 或 (False, 失敗原因)。
+        """取代模式要覆蓋哪一張：那天只有一張就是它；多張時（補傳例外）只認目前使用者
+        自己（提交人）的那一張。鎖定比照前台編輯；2026-11-20 起不再限「只能取代自己建的」。
+        回傳 (日誌, '') 或 (False, 失敗原因)。
 
         existing 是匯入路由用 sudo 查的，範圍限定在已 _document_check_access 過的工程。
         提交人照匯入建日誌時的取法：工程所屬公司的員工。"""
@@ -737,18 +757,14 @@ class DailyLogRoutesMixin:
             if len(target) != 1:
                 return False, (f'{day} 有 {len(existing)} 張日誌，無法判斷要取代哪一張；'
                                '請改選「另建一張」')
-        try:
-            self._require_owner_or_manager(target)
-        except AccessError:
-            return False, f'{day} 的日誌 (id={target.id}) 不是你建立的，只能取代自己的日誌'
         if target._is_edit_locked():
             return False, f'{day} 的日誌 (id={target.id}) 已鎖定（超過 14 天），請先解鎖再取代'
         return target, ''
 
     @staticmethod
     def _daily_log_has_overlap(DailyLog, project, vals, sheet=None):
-        """是否已有「同日、同提交人、同公司、同專案」的日誌——與
-        construction_daily_log 的 _check_overlapping_sheets 同一組條件。
+        """是否已有「同日、同公司、同專案」的日誌——與 construction_daily_log 的
+        _check_overlapping_sheets 同一組條件（2026-11-20 起不分填表人）。
 
         sudo 只讀：DailyLog 是呼叫端已用 sudo 的 env，範圍限定 project（呼叫端前面
         已 _document_check_access 過）。新增時提交人與公司的取法跟 create() 一致：
@@ -756,15 +772,11 @@ class DailyLogRoutesMixin:
         編輯時（傳 sheet）用那張日誌自己的提交人與公司，並排除它自己。
         """
         if sheet:
-            employee, company = sheet.employee_id, sheet.company_id
+            company = sheet.company_id
         else:
-            employee = DailyLog._default_employee()
             company = project.company_id or DailyLog.env.company
-        if not employee:
-            return False
         domain = [
             ('log_date', '=', vals['log_date']),
-            ('employee_id', '=', employee.id),
             ('company_id', '=', company.id),
             ('supervision_project_id', '=', project.id),
         ]
@@ -785,6 +797,10 @@ class DailyLogRoutesMixin:
 
         # H1：建立施工日誌限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可建立施工日誌'))
+        # 未開始的工程不能新增日誌（不擋在日誌存檔：進度表啟用時自動建的空白日誌照舊）
+        if project.state == 'draft':
+            return request.redirect(
+                f'/construction/{project_id}/daily-log/new?error=project_not_started')
 
         # 約定重要材料的本日數量：先驗證，數字不合法就不建日誌
         key_qtys = _parse_material_qtys(post, KEY_MATERIAL_QTY_PREFIX)
@@ -938,6 +954,9 @@ class DailyLogRoutesMixin:
             ('project_id', '=', project.id),
             ('is_summary_item', '=', False),
             ('active', '=', True),
+            # 比例項、整包項不列
+            '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0),
+            ('is_lump_sum', '=', False),
         ], order='sequence, item_no')
 
         photo_categories = _photo_category_options(request.env)
@@ -994,8 +1013,9 @@ class DailyLogRoutesMixin:
         except (AccessError, MissingError):
             return request.redirect('/my')
 
-        # H1：閱覽角色不可寫入。_is_field_only() 對閱覽者回 False，下面的
-        # _require_owner_or_manager 不會擋他，所以要在這裡先擋（create 路由同寫法）。
+        # H1：閱覽角色不可寫入（create 路由同寫法）。
+        # 2026-11-20：拿掉「現場人員只能改自己建的」——一工程一天一張，系統又先替
+        # 每天建好空白日誌，同工程有寫入權限的現場人員都要能填。
         self._require_write(_('權限不足：閱覽角色不可修改施工日誌'))
 
         DailyLog = request.env['daily.log.sheet'].sudo()
@@ -1012,14 +1032,6 @@ class DailyLogRoutesMixin:
         if log._is_edit_locked():
             return request.redirect(
                 f'/construction/{project_id}/daily-log/{log.id}?error=locked'
-            )
-
-        # 角色 guard：現場人員只能編輯自己建立的日誌（老闆/主管不受限）
-        try:
-            self._require_owner_or_manager(log)
-        except AccessError:
-            return request.redirect(
-                f'/construction/{project_id}/daily-log/{log.id}?error=not_owner'
             )
 
         # 約定重要材料本日數量。只接受「這張日誌自己、已連結契約材料」的列 id：
@@ -1042,8 +1054,8 @@ class DailyLogRoutesMixin:
             for row_id, qty in material_qtys.items() if row_id in own_linked_ids
         ]
 
+        # 日期只在新增時填，編輯一律不寫日期（頁面也拿掉日期欄）
         vals = {
-            'log_date': post.get('log_date') or log.log_date,
             'weather_am': post.get('weather_am') or False,
             'weather_pm': post.get('weather_pm') or False,
             'work_summary': post.get('work_summary', ''),
@@ -1065,21 +1077,10 @@ class DailyLogRoutesMixin:
             vals['material_ids'] = material_cmds
         edit_url = f'/construction/{project_id}/daily-log/{log.id}/edit'
         try:
-            new_date = fields.Date.to_date(vals['log_date'])
-        except ValueError:
-            return request.redirect(f'{edit_url}?error=invalid_date')
-        if new_date == log.log_date:
-            # 日期沒改就不寫：寫了會觸發同一人同一天的重疊檢查，而匯入補傳允許同日多張，
-            # 那種日誌會變成怎麼存都被當成重複
-            vals.pop('log_date')
-        try:
             with request.env.cr.savepoint():
                 log.write(vals)
         except (ValidationError, UserError) as e:
-            # 同新增：改日期撞到同提交人同日的日誌才提示重複，其他原因走 session 顯示（原本直接 500）
-            if 'log_date' in vals and isinstance(e, ValidationError) and self._daily_log_has_overlap(
-                    DailyLog, project, vals, sheet=log):
-                return request.redirect(f'{edit_url}?error=duplicate_log')
+            # 其他原因走 session 顯示（原本直接 500）
             return request.redirect(_portal_flash_url(edit_url, e))
 
         # 編輯時若有上傳新照片

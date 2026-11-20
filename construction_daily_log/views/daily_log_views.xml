@@ -102,8 +102,8 @@
                             <field name="employee_id" 
                                    widget="many2one_avatar_employee" 
                                    readonly="1"/>
-                            <field name="log_date"
-                                   readonly="is_locked and not is_unlocked"/>
+                            <!-- 日誌建立後不能改日期（write 也擋） -->
+                            <field name="log_date" readonly="id"/>
                             <field name="company_id" 
                                    groups="base.group_multi_company" 
                                    readonly="1"/>
@@ -164,7 +164,7 @@
                                     <field name="type_order" column_invisible="1"/>
                                     <field name="entry_type" string="類型" readonly="1" width="90px"/>
                                     <field name="work_item_id"
-                                           domain="[('project_id', '=', parent.project_id), ('is_summary_item', '=', False), ('active', '=', True)]"
+                                           domain="[('project_id', '=', parent.project_id), ('is_summary_item', '=', False), ('active', '=', True), '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0), ('is_lump_sum', '=', False)]"
                                            options="{'no_create': True, 'no_open': True}"
                                            placeholder="選擇施工項目..."
                                            readonly="entry_type == 'extra'"/>
