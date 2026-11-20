@@ -35,11 +35,12 @@ _logger = logging.getLogger(__name__)
 
 PORTAL_DEADLINE_LIMIT = 6       # 手機「期限待辦」區塊最多列幾筆（件數另外給全部）
 # 前台工程資訊編輯：開始施工後仍然不能改的欄位（2026-11-20 回復原版，其餘欄位開工後也能改）。
-# 與後台工程表單開工後仍唯讀的欄位對齊：工程類型、契約金額、契約開工／完工日、核准展延工期；
+# 與後台工程表單開工後仍唯讀的欄位對齊：工程類型、契約開工／完工日、核准展延工期；
 # 管理公司後台表單本來就沒有開放，開工後換公司會把整個工程的資料搬到別家公司底下，維持不開放。
 # 工程編號不在這裡：前台另有單欄位路由 /code/update，本來就不看狀態。
+# 契約金額 2026-11-20 起不在這裡（清單 PJ-10）：後台改成任何狀態都能手改，前台跟著開放。
 PROJECT_FIELDS_LOCKED_AFTER_START = (
-    'project_type', 'contract_amount', 'contract_start_date', 'contract_end_date',
+    'project_type', 'contract_start_date', 'contract_end_date',
     'extension_duration', 'company_id',
 )
 
@@ -1131,13 +1132,18 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         if _in('contract_no'):
             vals['contract_no'] = _s('contract_no')
 
+        # 契約金額：有沒有工項、開工了沒都可以手改（2026-11-20 回復原版，清單 PJ-10）。
+        # 表單每次存檔都會把這一格原樣送回來，數字沒變就不寫——寫了會被當成手動輸入。
         if _in('contract_amount'):
             amount_raw = _s('contract_amount')
-            if amount_raw and not project.task_count:
+            if amount_raw:
                 try:
-                    vals['contract_amount'] = float(amount_raw)
+                    amount = float(amount_raw)
                 except ValueError:
-                    pass
+                    amount = None
+                if amount is not None and project._contract_amount_differs(
+                        amount, project.contract_amount):
+                    vals['contract_amount'] = amount
 
         if _in('contract_start_date'):
             vals['contract_start_date'] = _to_date('contract_start_date') or False

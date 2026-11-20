@@ -29,6 +29,9 @@ NEGATIVE_EXTENSION_DAYS = -3
 NEGATIVE_DAILY_QTY = -2.5
 
 
+PORTAL_MANUAL_AMOUNT = 8500000.0     # 前台手填的契約金額（PJ-10）
+
+
 @tagged('post_install', '-at_install', 'construction_portal')
 class TestEagleParityPortalScenario(TransactionCase):
 
@@ -96,7 +99,8 @@ class TestEagleParityPortalFollowUp(TransactionCase):
     """前台跟著後台回復原版（使用者 2026-11-20：「前台也要跟著做」）。
 
     後台那六包拿掉的限制，前台另外寫了一份的有這幾處，逐條對一個「修改前會失敗」的案例：
-    * PJ-09 工程資訊編輯只開放未開始的工程 → 開工後也能編輯（工程類型、契約金額、契約日期、展延、管理公司照後台維持鎖住）
+    * PJ-09 工程資訊編輯只開放未開始的工程 → 開工後也能編輯（工程類型、契約日期、展延、管理公司照後台維持鎖住）
+    * PJ-10 契約金額有工項或開工後不能改 → 可以手改（使用者 2026-11-20 追加）
     * PJ-12 存檔前預檢「契約完工日不得早於開工日」→ 不檢查
     * PG-12 工期展延天數不可為負數 → 可以
     * DL-14 日誌工項清單不列整包項 → 列（比例項照舊不列）
@@ -178,13 +182,14 @@ class TestEagleParityPortalFollowUp(TransactionCase):
         self.assertTrue(vals['locked_after_start'])
         for name, tag in (('project_type', 'select'), ('contract_start_date', 'input'),
                           ('contract_end_date', 'input'), ('extension_duration', 'input'),
-                          ('contract_amount', 'input'), ('company_id', 'select')):
+                          ('company_id', 'select')):
             self.assertIn(name, PROJECT_FIELDS_LOCKED_AFTER_START)
             element = self._tag(html, r'<%s[^>]*name="%s"[^>]*>' % (tag, name))
             self.assertIsNotNone(element, f'編輯頁找不到 {name}')
             self.assertIn('disabled', element, f'{name} 開工後要停用')
+        # 契約金額（PJ-10）：這個工程有工項、也已開工，修改前兩個條件都會讓這一格停用
         for name, tag in (('name', 'input'), ('location', 'input'), ('contract_no', 'input'),
-                          ('year', 'select'), ('actual_start_date', 'input')):
+                          ('year', 'select'), ('actual_start_date', 'input'), ('contract_amount', 'input')):
             element = self._tag(html, r'<%s[^>]*name="%s"[^>]*>' % (tag, name))
             self.assertIsNotNone(element, f'編輯頁找不到 {name}')
             self.assertNotIn('disabled', element, f'{name} 開工後要能改')
@@ -210,6 +215,40 @@ class TestEagleParityPortalFollowUp(TransactionCase):
         self.assertEqual((project.project_type, project.contract_start_date, project.contract_end_date,
                           project.extension_duration),
                          ('general', CONTRACT_START, CONTRACT_END, 0), '鎖住的欄位不能被改到')
+
+    # ---- PJ-10：契約金額可以手改 ----------------------------------------
+    def test_update_after_start_can_change_contract_amount(self):
+        """已開工、有工項的工程，前台也能改契約金額；改完記成手動輸入，工項再變也不覆蓋。"""
+        project = self.started
+        task_sum = project.contract_amount
+        self.assertTrue(task_sum, '前提：契約金額目前是工項合計')
+        _vals, loc = self._drive(self.ctrl.portal_construction_project_update, project.id,
+                                 contract_amount=str(PORTAL_MANUAL_AMOUNT))
+        self.assertIn('message=updated', loc)
+        self.assertEqual((project.contract_amount, project.contract_amount_manual),
+                         (PORTAL_MANUAL_AMOUNT, True), '修改前：這一格被忽略，金額還是工項合計')
+        self.normal_task.planned_qty += 1
+        self.env.flush_all()
+        self.assertEqual(project.contract_amount, PORTAL_MANUAL_AMOUNT)
+
+    def test_update_with_unchanged_amount_stays_automatic(self):
+        """守門：表單把沒改的金額原樣送回來，不能被記成手動輸入，之後照舊跟著工項合計走。"""
+        project = self.started
+        task_sum = project.contract_amount
+        _vals, loc = self._drive(self.ctrl.portal_construction_project_update, project.id,
+                                 location='只改地點', contract_amount=str(task_sum))
+        self.assertIn('message=updated', loc)
+        self.assertEqual((project.location, project.contract_amount, project.contract_amount_manual),
+                         ('只改地點', task_sum, False))
+        self.normal_task.planned_qty += 1
+        self.env.flush_all()
+        self.assertEqual(project.contract_amount, task_sum + self.normal_task.unit_price)
+
+    def test_edit_page_says_amount_is_manual(self):
+        project = self.started
+        project.write({'contract_amount': PORTAL_MANUAL_AMOUNT})
+        _vals, html = self._drive(self.ctrl.portal_construction_project_edit, project.id)
+        self.assertIn('目前是手動輸入的金額', html)
 
     # ---- PJ-12：不再預檢契約日期先後 ----------------------------------
     def test_draft_update_accepts_end_before_start(self):

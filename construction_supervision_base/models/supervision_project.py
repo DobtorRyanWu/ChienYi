@@ -128,7 +128,20 @@ class SupervisionProject(models.Model):
         inverse='_inverse_contract_amount',
         store=True,
         tracking=True,
-        help='從工項自動計算，草稿/籌備階段可手動輸入')
+        help='由契約工項合計自動帶入，也可以手動輸入。\n'
+             '手動輸入的金額和工項合計不一樣時，系統會記成「手動輸入」，之後不再跟著工項變動；\n'
+             '取消勾選「契約金額手動輸入」就改回工項合計。')
+
+    # 2026-11-20 回復原版（1118 會議，清單 PJ-10）：舊系統的發包金額是獨立欄位、隨時可改。
+    # 新系統的契約金額由工項加總，原本「有工項就不能手改、開工後不能手填」；改成可以手改，
+    # 用這個旗標記住「現在的金額是人填的」，compute 看到旗標就不再覆蓋。
+    contract_amount_manual = fields.Boolean(
+        string='契約金額手動輸入',
+        tracking=True,
+        copy=False,
+        help='勾選時，契約金額以手動輸入的為準，不跟著契約工項合計變動'
+             '（套用契約變更單也不會自動改，要自己改）。\n'
+             '取消勾選，契約金額改回「契約工項合計＋契約金額調整」。')
 
     currency_id = fields.Many2one(
         'res.currency', string='幣別',
@@ -242,9 +255,37 @@ class SupervisionProject(models.Model):
             base = project.original_duration or project.contract_duration or 0
             project.total_approved_duration = base + (project.extension_duration or 0)
 
+    def _contract_top_tasks(self):
+        """計入契約金額的頂層工項（啟用中、沒有上層、不是預備單價項目）。"""
+        self.ensure_one()
+        return self.task_ids.filtered(
+            lambda t: t.active and not t.parent_id
+            and not t.exclude_from_contract_amount)
+
+    def _contract_amount_from_tasks(self):
+        """照工項算出來的契約金額：頂層工項合計＋不經工項的契約金額調整。
+
+        沒有可加總的工項、也沒有調整額時回傳 None（沒有東西可算，契約金額只能是手填的）。
+        """
+        self.ensure_one()
+        top_tasks = self._contract_top_tasks()
+        adjustment = self.contract_amount_adjustment or 0.0
+        if top_tasks:
+            return sum(t.planned_amount for t in top_tasks) + adjustment
+        if adjustment:
+            # 無工項但有調整額：契約金額即為調整額（純上限金額維護的專案）
+            return adjustment
+        return None
+
+    def _contract_amount_differs(self, amount, other):
+        """兩個金額在幣別的最小單位下是否不同。"""
+        self.ensure_one()
+        currency = self.currency_id or self.env.company.currency_id
+        return currency.compare_amounts(amount or 0.0, other or 0.0) != 0
+
     @api.depends('task_ids.planned_amount', 'task_ids.active', 'task_ids.parent_id',
                  'task_ids.exclude_from_contract_amount',
-                 'contract_amount_adjustment')
+                 'contract_amount_adjustment', 'contract_amount_manual')
     def _compute_contract_amount(self):
         """從工項計算契約金額 + 不經工項的契約金額調整。
 
@@ -256,40 +297,54 @@ class SupervisionProject(models.Model):
           選用，但不計入契約金額（預約式議價新增的單價項目不該推高契約總額）。
         ・contract_amount_adjustment：契約變更單「發包工程費調整金額」的累計，
           用於「工項完全不動、只追加契約金額」的變更（見變更設計詳細表的追加/追減欄）。
+
+        兩種情況保留現值、不做任何事：
+        ・contract_amount_manual（手動輸入）：使用者填的金額為準，工項再怎麼變都不覆蓋。
+        ・無工項也無調整：沒有東西可算，保留手填的值。
         """
         for project in self:
-            top_tasks = project.task_ids.filtered(
-                lambda t: t.active and not t.parent_id
-                and not t.exclude_from_contract_amount)
-            adjustment = project.contract_amount_adjustment or 0.0
-            if top_tasks:
-                project.contract_amount = (
-                    sum(t.planned_amount for t in top_tasks) + adjustment)
-                # 首次計算時，如果沒有原始金額則設定
-                if not project.original_contract_amount:
-                    project.original_contract_amount = project.contract_amount
-            elif adjustment:
-                # 無工項但有調整額：契約金額即為調整額（純上限金額維護的專案）
-                project.contract_amount = adjustment
-            # 無工項也無調整：保留手動輸入的值（不做任何事）
+            if project.contract_amount_manual:
+                continue
+            amount = project._contract_amount_from_tasks()
+            if amount is None:
+                continue
+            project.contract_amount = amount
+            # 首次由工項算出金額時，如果沒有原始金額則設定
+            if project._contract_top_tasks() and not project.original_contract_amount:
+                project.original_contract_amount = amount
 
     def _inverse_contract_amount(self):
-        """只允許在特定條件下手動設定"""
+        """手動輸入契約金額：任何狀態、有沒有工項都可以改（2026-11-20 回復原版，清單 PJ-10）。
+
+        填的金額和工項算出來的不一樣 → 記成手動輸入，compute 之後不再覆蓋；
+        填的剛好等於工項合計 → 不算手動（前台存檔會把沒改的金額原樣送回來，不能因此被記成手動）。
+        沒有工項也沒有調整額時不記旗標：之後匯入工項，照舊改由工項合計帶入。
+        """
         for project in self:
-            # 檢查是否允許手動修改
-            if project.task_count > 0:
-                raise UserError(
-                    '已匯入工項，契約金額自動從工項計算，無法手動修改！\n'
-                    f'當前工項總額：{project.contract_amount:,.0f}\n'
-                    '若要在不變動工項的情況下追加/追減契約金額，'
-                    '請開立契約變更單並填寫「發包工程費調整金額」。'
-                )
-            if project.state != 'draft':
-                raise UserError(
-                    '只有未開始階段可以手動設定契約金額！\n'
-                    f'當前狀態：{dict(self._fields["state"].selection)[project.state]}'
-                )
-            # 如果通過檢查，Odoo 會自動寫入
+            amount = project._contract_amount_from_tasks()
+            if amount is None:
+                continue
+            project.contract_amount_manual = project._contract_amount_differs(
+                project.contract_amount, amount)
+
+    @api.onchange('contract_amount')
+    def _onchange_contract_amount_manual_flag(self):
+        """表單上一改金額就把「手動輸入」勾起來，讓使用者存檔前就看得到。存檔時以 inverse 為準。"""
+        for project in self:
+            amount = project._contract_amount_from_tasks()
+            if amount is not None:
+                project.contract_amount_manual = project._contract_amount_differs(
+                    project.contract_amount, amount)
+
+    @api.onchange('contract_amount_manual')
+    def _onchange_contract_amount_manual_off(self):
+        """取消勾選「手動輸入」：表單上的金額立刻改回工項合計。"""
+        for project in self:
+            if project.contract_amount_manual:
+                continue
+            amount = project._contract_amount_from_tasks()
+            if amount is not None:
+                project.contract_amount = amount
 
     # === 實際日期 ===
     actual_start_date = fields.Date(string='實際開工日', tracking=True)
@@ -706,7 +761,9 @@ class SupervisionProject(models.Model):
                 raise ValidationError('這個工程還沒有任何契約工項，請先匯入或建立契約工項再開始施工')
 
             # 凍結原始契約金額、完工日、工期
-            if not project.original_contract_amount:
+            # 契約金額是手動輸入的：原始契約金額記手動輸入的金額。先前由工項合計自動記下的值不算數，
+            # 留著的話一開工「累計變更金額（現行 − 原始）」就多出一筆手改的差額（清單 PJ-10）。
+            if project.contract_amount_manual or not project.original_contract_amount:
                 project.original_contract_amount = project.contract_amount or 0.0
             if not project.original_contract_end_date and project.contract_end_date:
                 project.original_contract_end_date = project.contract_end_date

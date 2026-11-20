@@ -10,7 +10,7 @@
 
 from lxml import etree
 
-from odoo.tests import TransactionCase, tagged
+from odoo.tests import Form, TransactionCase, tagged
 
 
 @tagged('post_install', '-at_install', 'construction_supervision_base')
@@ -84,3 +84,130 @@ class TestEagleParityInputChecks(TransactionCase):
         task.write({'planned_qty': -5.0, 'unit_price': -10.0})
         self.env.flush_all()
         self.assertEqual((task.planned_qty, task.unit_price), (-5.0, -10.0))
+
+
+TASK_QTY = 100.0
+TASK_PRICE = 10.0
+TASK_SUM = TASK_QTY * TASK_PRICE          # 工項合計
+MANUAL_AMOUNT = 8500000.0                 # 手填的契約金額（開口合約的上限金額）
+PROJECT_FORM = 'construction_supervision_base.view_supervision_project_form'
+
+
+@tagged('post_install', '-at_install', 'construction_supervision_base')
+class TestEagleParityContractAmountManual(TransactionCase):
+    """PJ-10：契約金額有工項之後、開工之後都可以手改。
+
+    舊系統的發包金額是獨立欄位，隨時可改（components/resource/m_contract/Contract.vue 的 contract.budget）。
+    修改前：有工項時寫契約金額 → UserError「已匯入工項，契約金額自動從工項計算，無法手動修改！」；
+    開工後、沒有工項時寫 → UserError「只有未開始階段可以手動設定契約金額！」；後台表單開工後這一格唯讀。
+
+    手改的金額和工項合計不一樣 → 記成「手動輸入」，之後工項再變也不覆蓋；取消勾選就改回工項合計。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.project = cls.env['project.project'].create({
+            'name': '回復原版契約金額', 'code': 'EP-AMOUNT', 'project_type': 'reservation'})
+        cls.task = cls.env['project.task'].create({
+            'name': '回復原版契約金額工項', 'project_id': cls.project.id,
+            'unit': 'M', 'planned_qty': TASK_QTY, 'unit_price': TASK_PRICE})
+        cls.env.flush_all()
+
+    def _state(self, project=None):
+        """(契約金額, 是否手動輸入)，先 flush 讓待算的 compute 跑完。"""
+        project = project or self.project
+        self.env.flush_all()
+        project.invalidate_recordset()
+        return project.contract_amount, project.contract_amount_manual
+
+    def test_amount_follows_tasks_until_edited(self):
+        """守門：沒有人手改之前，契約金額照舊跟著工項合計走。"""
+        self.assertEqual(self._state(), (TASK_SUM, False))
+        self.task.planned_qty = TASK_QTY * 2
+        self.assertEqual(self._state(), (TASK_SUM * 2, False))
+
+    def test_manual_amount_with_tasks(self):
+        """有工項也能手改契約金額，改完記成手動輸入。"""
+        self.project.write({'contract_amount': MANUAL_AMOUNT})
+        self.assertEqual(self._state(), (MANUAL_AMOUNT, True))
+
+    def test_manual_amount_kept_when_tasks_change(self):
+        """手改之後工項數量變了、又加了工項，契約金額都不能被蓋回工項合計。"""
+        self.project.write({'contract_amount': MANUAL_AMOUNT})
+        self.task.planned_qty = TASK_QTY * 2
+        self.assertEqual(self._state(), (MANUAL_AMOUNT, True))
+        self.env['project.task'].create({
+            'name': '回復原版後來加的工項', 'project_id': self.project.id,
+            'unit': 'M', 'planned_qty': TASK_QTY, 'unit_price': TASK_PRICE})
+        self.assertEqual(self._state(), (MANUAL_AMOUNT, True))
+
+    def test_untick_manual_goes_back_to_task_sum(self):
+        """取消勾選「契約金額手動輸入」→ 改回當下的工項合計。"""
+        self.project.write({'contract_amount': MANUAL_AMOUNT})
+        self.task.planned_qty = TASK_QTY * 2
+        self.assertEqual(self._state(), (MANUAL_AMOUNT, True))
+        self.project.write({'contract_amount_manual': False})
+        self.assertEqual(self._state(), (TASK_SUM * 2, False))
+
+    def test_amount_equal_to_task_sum_is_not_manual(self):
+        """填的數字剛好等於工項合計不算手動（前台存檔會把沒改的金額原樣送回來）。"""
+        self.project.write({'contract_amount': TASK_SUM})
+        self.assertEqual(self._state(), (TASK_SUM, False))
+        self.task.planned_qty = TASK_QTY * 2
+        self.assertEqual(self._state(), (TASK_SUM * 2, False), '沒被記成手動，所以還是跟著工項走')
+
+    def test_manual_amount_after_start(self):
+        """已開工也能手改契約金額。"""
+        self.project.action_approve()
+        self.assertEqual(self.project.state, 'construction')
+        self.project.write({'contract_amount': MANUAL_AMOUNT})
+        self.assertEqual(self._state(), (MANUAL_AMOUNT, True))
+
+    def test_start_freezes_manual_amount_as_original(self):
+        """開工前手改過金額：開工時原始契約金額要記手改的金額，不是先前工項合計自動記下的值。"""
+        self.env.flush_all()
+        self.assertEqual(self.project.original_contract_amount, TASK_SUM, '前提：工項合計已被自動記成原始金額')
+        self.project.write({'contract_amount': MANUAL_AMOUNT})
+        self.project.action_approve()
+        self.assertEqual(self.project.original_contract_amount, MANUAL_AMOUNT)
+
+    def test_start_keeps_original_when_amount_not_manual(self):
+        """守門：沒有手改的工程，開工時已經有的原始契約金額照舊不動。"""
+        self.env.flush_all()
+        self.project.original_contract_amount = TASK_SUM * 3     # 例如匯入時就帶進來的原始金額
+        self.project.action_approve()
+        self.assertEqual(self.project.original_contract_amount, TASK_SUM * 3)
+
+    def test_started_project_without_tasks_accepts_amount(self):
+        """已開工、沒有工項：也能手填契約金額；之後有了工項，照舊改由工項合計帶入。"""
+        project = self.env['project.project'].create({
+            'name': '回復原版契約金額（無工項）', 'code': 'EP-AMOUNT-NOTASK',
+            'project_type': 'reservation', 'state': 'construction'})
+        project.write({'contract_amount': MANUAL_AMOUNT})
+        self.assertEqual(self._state(project), (MANUAL_AMOUNT, False),
+                         '沒有工項可比，手填的值就是契約金額，不必記成手動')
+        self.env['project.task'].create({
+            'name': '回復原版後來匯入的工項', 'project_id': project.id,
+            'unit': 'M', 'planned_qty': TASK_QTY, 'unit_price': TASK_PRICE})
+        self.assertEqual(self._state(project), (TASK_SUM, False))
+
+    def test_backend_form_edit_and_untick_after_start(self):
+        """後台表單：開工後這一格能改；一改就看得到「手動輸入」勾起來，取消勾選金額立刻改回工項合計。"""
+        self.project.action_approve()
+        with Form(self.project, view=PROJECT_FORM) as form:
+            form.contract_amount = MANUAL_AMOUNT
+            self.assertTrue(form.contract_amount_manual, '改了金額，表單上就要勾起「手動輸入」')
+        self.assertEqual(self._state(), (MANUAL_AMOUNT, True))
+        with Form(self.project, view=PROJECT_FORM) as form:
+            form.contract_amount_manual = False
+            self.assertEqual(form.contract_amount, TASK_SUM, '取消勾選，表單上的金額要改回工項合計')
+        self.assertEqual(self._state(), (TASK_SUM, False))
+
+    def test_form_field_not_readonly(self):
+        arch = etree.fromstring(self.env.ref(PROJECT_FORM).arch)
+        amount = arch.xpath("//field[@name='contract_amount']")
+        self.assertTrue(amount)
+        self.assertEqual(amount[0].get('readonly') or '', '', '契約金額在表單上不該再依狀態唯讀')
+        self.assertTrue(arch.xpath("//field[@name='contract_amount_manual']"),
+                        '表單上要看得到「契約金額手動輸入」，才有辦法取消')

@@ -281,9 +281,13 @@
                                  多半在施工中才回頭補登，鎖住等於填不了 -->
                             <field name="award_date"/>
                             <field name="contract_sign_date"/>
+                            <!-- 2026-11-20 回復原版（清單 PJ-10）：契約金額任何狀態都能手改。
+                                 手改成和工項合計不一樣的數字時，下面的「契約金額手動輸入」會勾起來，
+                                 之後金額不再跟著工項變動；取消勾選就改回工項合計。 -->
                             <field name="contract_amount"
-                                   readonly="state not in ('draft', 'correction')"
-                                   placeholder="未匯入工項前可手動輸入"/>
+                                   placeholder="由契約工項合計帶入，也可以手動輸入"/>
+                            <field name="contract_amount_manual"
+                                   invisible="not contract_amount_manual"/>
                             <!-- 契約金額調整：由契約變更單的「發包工程費調整金額」累加。
                                  沒有調整過的專案（絕大多數一般式）看不到這一欄。 -->
                             <field name="contract_amount_adjustment" readonly="1"
