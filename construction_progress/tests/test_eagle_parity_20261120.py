@@ -109,3 +109,34 @@ class TestEagleParityScheduleInput(TransactionCase):
             'employee_id': employee.id, 'log_date': self.d0 + timedelta(days=15)})
         self.assertTrue(sheet.progress_line_id)
         self.assertGreater(sheet.daily_planned_progress, 0.0)
+
+
+@tagged('post_install', '-at_install', 'construction_progress')
+class TestEagleParityActivate(TransactionCase):
+    """PG-04、PG-12：啟用進度表時不再檢查「區間要從開工日排到完工日、中間不能有空檔」，
+    也不再因為累計展延是負數而拒絕啟用。舊系統「自訂」模式可以任意排區間，儲存時不檢查涵蓋範圍。"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.d0 = fields.Date.today() - timedelta(days=30)
+        cls.project = cls.env['project.project'].create({
+            'name': '回復原版啟用進度表', 'code': 'EP-PG-A', 'project_type': 'general', 'state': 'draft',
+            'company_id': cls.env.company.id,
+            'contract_start_date': cls.d0, 'contract_end_date': cls.d0 + timedelta(days=59)})
+        cls.schedule = cls.env['progress.schedule'].create({'project_id': cls.project.id, 'change_date': cls.d0})
+        Line = cls.env['progress.schedule.line']
+        # 第 5～14 天、第 30～39 天：沒有從開工日開始、沒有排到完工日、中間有空檔
+        Line.create({'schedule_id': cls.schedule.id, 'sequence': 10, 'planned_progress': 40.0,
+                     'date_start': cls.d0 + timedelta(days=5), 'date_end': cls.d0 + timedelta(days=14)})
+        Line.create({'schedule_id': cls.schedule.id, 'sequence': 20, 'planned_progress': 60.0,
+                     'date_start': cls.d0 + timedelta(days=30), 'date_end': cls.d0 + timedelta(days=39)})
+
+    def test_activate_with_gaps_and_partial_coverage(self):
+        self.schedule._do_activate()
+        self.assertEqual(self.schedule.state, 'active')
+
+    def test_activate_with_negative_cumulative_extension(self):
+        self.schedule.write({'current_extension': -3})
+        self.schedule._do_activate()
+        self.assertEqual(self.schedule.state, 'active')

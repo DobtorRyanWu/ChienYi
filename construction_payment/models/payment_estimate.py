@@ -392,8 +392,10 @@ class PaymentEstimate(models.Model):
 
     def _check_not_before_approved(self, project, estimate_date, exclude=None, action='新增'):
         """日期早於任何一張已核定或已歸檔的估驗就擋。只跟已核定的比、不跟草稿比
-        （啟用進度表依週期預先建好的草稿，中間要臨時插一期照樣可以）；同一天照舊可以。"""
-        if not project or not estimate_date:
+        （啟用進度表依週期預先建好的草稿，中間要臨時插一期照樣可以）；同一天照舊可以。
+
+        2026-11-20 回復原版（1118 會議）：只檢查一般式。舊系統只有一般式會比對估驗日期，預約式的日期欄沒有任何檢查。"""
+        if not project or not estimate_date or project.project_type != 'general':
             return
         domain = [('project_id', '=', project.id), ('state', 'in', self.APPROVED_STATES),
                   ('estimate_date', '>', estimate_date)]

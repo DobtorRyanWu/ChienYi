@@ -848,16 +848,10 @@ class ProgressSchedule(models.Model):
         """實際執行啟用（由 wizard 呼叫）"""
         self.ensure_one()
 
-        # 【安全防護】累計展延不可短於原合約工期（允許跨版本修正減少，但不可為負）
+        # 2026-11-20 回復原版（1118 會議）：啟用時不再檢查兩件事——舊系統儲存進度表只檢查「變更時間有填、預定進度不能全部是 0」：
+        #   - 累計工期展延不可為負數
+        #   - 進度區間要從開工日排到調整後完工日、中間不能有空檔、不能超出（_check_lines_cover_period，已刪）
         current_project_extension = self.project_id.extension_duration or 0
-        if self.duration_extension < 0:
-            raise UserError(
-                f'無法啟用：本進度表的累計工期展延（{self.duration_extension} 天）為負數，'
-                f'工期不可短於原合約工期。'
-            )
-
-        # 區間日期在精靈確認時一律重檢（程式直接叫精靈的匯入 7b 也會檢查到）
-        self._check_lines_cover_period()
 
         # 將同專案其他進度表歸檔
         other_schedules = self.search([
@@ -923,37 +917,6 @@ class ProgressSchedule(models.Model):
             logs_after_effective._compute_daily_planned_progress()
             logs_after_effective._compute_has_progress_change()
             logs_after_effective._compute_changed_planned_progress()
-
-    def _check_lines_cover_period(self):
-        """啟用前檢查進度區間——第一段從開工日起、最後一段到調整後完工日、
-        段與段之間沒有空檔、全部落在開工日～調整後完工日之間。不符就擋並說明哪一段。"""
-        self.ensure_one()
-        start, end = self.start_date, self.adjusted_end_date
-        lines = self.line_ids.filtered(lambda l: l.date_start and l.date_end).sorted('date_start')
-        problems = []
-        if not start or not end:
-            problems.append('工程的契約開工日或本版調整後完工日是空的')
-        if not lines:
-            problems.append('沒有填好起訖日的進度區間')
-        if not problems:
-            first, last = lines[0], lines[-1]
-            if first.date_start != start:
-                problems.append('第一個區間（%s）沒有從開工日 %s 開始' % (first.period_display, start))
-            if max(lines.mapped('date_end')) != end:
-                problems.append('最後一個區間（%s）沒有到調整後完工日 %s' % (last.period_display, end))
-            for prev, cur in zip(lines[:-1], lines[1:]):
-                if cur.date_start > prev.date_end + timedelta(days=1):
-                    problems.append('區間 %s 與 %s 之間有空檔（%s ～ %s 沒有區間）' % (
-                        prev.period_display, cur.period_display,
-                        prev.date_end + timedelta(days=1), cur.date_start - timedelta(days=1)))
-            for l in lines:
-                if l.date_start < start or l.date_end > end:
-                    problems.append('區間 %s 超出開工日 %s ～ 調整後完工日 %s' % (l.period_display, start, end))
-        if problems:
-            raise ValidationError(
-                '進度表「%s」的進度區間跟工期對不起來，不能啟用：\n%s\n'
-                '請調整進度區間（或用「產生進度區間」重排）後再啟用。' % (
-                    self.display_name, '\n'.join('- ' + p for p in problems)))
 
     def _resequence_lines(self):
         """切割前整理：依 date_start 排序後以 10 為步長重設 sequence，確保有足夠間距插入新行"""
