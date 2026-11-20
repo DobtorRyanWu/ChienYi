@@ -432,7 +432,12 @@ class ConstructionRelease(models.Model):
         user = self.env.user
         if not release_ids or user._is_public():
             return False
-        self.sudo().browse(release_ids).write({'read_user_ids': [(4, user.id)]})
+        # 只認「已發布且有公告內容」的版本（跟 get_startup_notices／_published_announcements 同一條件）：
+        # 呼叫端給的 id 不限範圍時，受限帳號可把自己加進任意（含草稿）版本的已讀名單，並改動它的 write_uid（R2 low）
+        releases = self.sudo().search([
+            ('id', 'in', list(release_ids)), ('state', '=', 'published'), ('announce_title', '!=', False),
+        ])
+        releases.write({'read_user_ids': [(4, user.id)]})
         return True
 
     @api.model
