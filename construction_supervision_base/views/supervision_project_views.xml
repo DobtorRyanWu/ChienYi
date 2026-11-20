@@ -13,7 +13,7 @@
                     <!-- 狀態按鈕 -->
                     <button name="action_approve" string="開始施工"
                             type="object" class="oe_highlight"
-                            invisible="state != 'draft' or not all_init_done"/>
+                            invisible="state != 'draft'"/>
                     <button name="action_complete" string="竣工"
                             type="object" class="oe_highlight"
                             invisible="state != 'construction'"/>

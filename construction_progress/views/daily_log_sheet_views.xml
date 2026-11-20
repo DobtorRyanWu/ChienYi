@@ -65,8 +65,8 @@
                     <!-- 提示訊息 -->
                     <div class="alert alert-info" role="alert" 
                         invisible="active_progress_schedule_id">
-                        <strong>提示：</strong> 該工程尚未建立進度表，
-                        請先至「進度管理 > 進度表」建立並啟用進度表。
+                        <strong>提示：</strong> 該工程沒有使用中的進度表，本日預定進度以 0 計；
+                        需要預定進度時，再到「進度管理 > 進度表」建立並啟用。
                     </div>
                 </page>
             </xpath>

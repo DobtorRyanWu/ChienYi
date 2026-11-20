@@ -3,7 +3,6 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
 
 from odoo import models, fields, api
-from odoo.exceptions import ValidationError
 
 
 class DailyLogSheet(models.Model):
@@ -284,17 +283,8 @@ class DailyLogSheet(models.Model):
     # Constraints
     # -------------------------------------------------------------------------
 
-    @api.constrains('supervision_project_id', 'log_date')
-    def _check_progress_schedule_exists(self):
-        """約束：建立日誌前必須先有進度表"""
-        for sheet in self:
-            # 只在新建且有專案時檢查
-            if sheet.supervision_project_id and sheet.log_date and not sheet.active_progress_schedule_id:
-                raise ValidationError(
-                    f'工程案件「{sheet.supervision_project_id.name}」尚未建立進度表！\n\n'
-                    f'請先至「進度管理 > 進度表」建立並啟用該工程的進度表，'
-                    f'才能填寫施工日誌。'
-                )
+    # 2026-11-20 回復原版（1118 會議 A2）：拿掉「建立日誌前必須先有使用中的進度表」。
+    # 開口合約（預約式）沒有預定進度表；沒有進度表時本日預定進度算 0、同步實際進度那段會直接略過。
 
     # -------------------------------------------------------------------------
     # Write Method - Feedback to Progress Module

@@ -700,29 +700,12 @@ class SupervisionProject(models.Model):
         for project in self:
             if project.state != 'draft':
                 raise UserError('只有未開始狀態可以開始施工')
-            if not project.contract_start_date:
-                raise ValidationError('請先設定契約開工日')
+            # 2026-11-20 回復原版（1118 會議）：拿掉「要先有契約開工日」「六項初始化不可未完成」兩個前置條件。
+            # 舊系統開工只是切換狀態、沒有前置條件；初始化精靈留著當引導，不再擋開工。
             # 沒有契約工項不能開始施工（開工＝契約定案，前台日誌、通報單明細的「未開始不能用」以此為前提）
             if not self.env['project.task'].with_context(active_test=False).search_count(
                     [('project_id', '=', project.id)], limit=1):
                 raise ValidationError('這個工程還沒有任何契約工項，請先匯入或建立契約工項再開始施工')
-
-            # 檢查初始化設定是否都已完成（不可有 pending）
-            init_fields = {
-                '人機管理': project.init_equipment_status,
-                '自主檢查': project.init_inspection_status,
-                '編號前綴設定': project.init_prefix_status,
-                '檢試驗設定': project.init_test_status,
-                '樣板': project.init_template_status,
-                '進度表': project.init_schedule_status,
-            }
-            pending_items = [name for name, status in init_fields.items()
-                             if status == 'pending']
-            if pending_items:
-                raise UserError(
-                    f'以下初始化設定尚未完成：{", ".join(pending_items)}\n'
-                    '請完成設定或標記為「不適用」後才能開始施工。'
-                )
 
             # 凍結原始契約金額、完工日、工期
             if not project.original_contract_amount:
