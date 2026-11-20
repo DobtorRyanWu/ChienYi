@@ -17,6 +17,40 @@ class DailyLogSheet(models.Model):
     """
     _inherit = 'daily.log.sheet'
 
+    # 開工前改契約日期時，判斷「從沒填過的空白日誌」用。
+    # 不列欄位清單（列了會漏新加的欄）：凡是使用者能填的欄位（存資料庫、不是計算、不是關聯到
+    # 工程／填表人／公司這些系統帶的值）跟新建一張空白日誌的預設值比，子表一列都不能有。
+    _BLANK_SYSTEM_FIELDS = frozenset({
+        'supervision_project_id', 'employee_id', 'company_id', 'log_date', 'state',
+        'user_id', 'project_id', 'department_id',
+    })
+
+    def _is_untouched_blank(self):
+        """這張日誌是不是「進度表啟用時建好、之後從沒填過」的空白日誌"""
+        self.ensure_one()
+        if self.state != 'draft':
+            return False
+        defaults = None
+        for name, field in self._fields.items():
+            if (not field.store or field.compute or field.related or field.automatic
+                    or name in models.MAGIC_COLUMNS or name in self._BLANK_SYSTEM_FIELDS
+                    or name.startswith(('message_', 'activity_', 'rating_', 'website_message'))):
+                continue
+            value = self[name]
+            if field.type in ('one2many', 'many2many'):
+                if value:
+                    return False
+                continue
+            if defaults is None:
+                defaults = self.default_get(list(self._fields))
+            default = defaults.get(name, False)
+            if field.type == 'many2one':
+                if value.id != (default or False):
+                    return False
+            elif (value or False) != (default or False):
+                return False
+        return True
+
     # === 進度狀況欄位 ===
     
     # 本日預定進度（從進度表自動計算）

@@ -42,15 +42,34 @@ class ReservationDefectImprovement(models.Model):
         string='所屬通報單',
         required=True,
         ondelete='cascade',
-        # 退單（作廢）的通報單不出現在下拉；已經掛上去的不受影響
-        domain="[('state', '!=', 'cancelled')]",
+        # 只列這個工程、沒退單（作廢）的通報單；已經掛上去的不受影響
+        domain="[('state', '!=', 'cancelled'), ('project_id', '=', project_id)]",
         tracking=True)
 
+    # 2026-11-20：先選工程、再選通報單。原本 related 通報單；改成一般欄位（資料庫同一欄，
+    # 既有值不變）。只給通報單時由 create／write 用通報單的工程補上（匯入步驟 11 只寫通報單）。
     project_id = fields.Many2one(
         'project.project',
         string='所屬工程',
-        related='slip_id.project_id',
-        store=True)
+        required=True,
+        index=True,
+        tracking=True,
+        domain="[('project_type', '=', 'reservation')]")
+
+    @api.onchange('project_id')
+    def _onchange_project_clear_slip(self):
+        """換工程時清掉已選的通報單"""
+        if self.slip_id and self.slip_id.project_id != self.project_id:
+            self.slip_id = False
+
+    @api.constrains('slip_id', 'project_id')
+    def _check_slip_in_project(self):
+        """通報單要屬於這個工程"""
+        for rec in self:
+            if rec.slip_id and rec.project_id and rec.slip_id.project_id != rec.project_id:
+                raise ValidationError(
+                    f'通報單「{rec.slip_id.display_name}」不屬於工程「{rec.project_id.display_name}」，'
+                    f'請選這個工程的通報單。')
 
     company_id = fields.Many2one(
         'res.company',
@@ -236,6 +255,11 @@ class ReservationDefectImprovement(models.Model):
             if self.filtered(lambda r: r.state and r.state != 'draft'):
                 raise UserError('缺失已送出，缺失說明、類別、嚴重度等定義欄位不可再修改')
 
+        # 只換通報單、沒給工程 → 用通報單的工程補上
+        if vals.get('slip_id') and 'project_id' not in vals:
+            vals = dict(vals, project_id=self.env['reservation.notification.slip'].browse(
+                vals['slip_id']).sudo().project_id.id)
+
         result = super().write(vals)
 
         # 若修改影響編號的欄位，觸發重新計算
@@ -261,7 +285,8 @@ class ReservationDefectImprovement(models.Model):
         for record in self:
             if record.state not in ('draft',):
                 raise UserError('只有草稿狀態的缺失可以刪除')
-        self.photo_ids.unlink()
+        # 刪整張單據時照片照刪（照片管理動作帶進來的 context 不算）
+        self.photo_ids.with_context(photo_manager_delete=False).unlink()
         return super().unlink()
 
     # === 約束 ===

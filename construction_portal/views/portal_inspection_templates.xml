@@ -133,8 +133,8 @@
                         </span>
                     </div>
 
-                    <!-- 完成檢查：draft → inspected。與 /inspect 路由同一把尺（_require_write＋現場人員限本人：res.users._portal_can_edit_record，S2） -->
-                    <t t-if="inspection.state == 'draft' and request.env.user._portal_can_edit_record(inspection)">
+                    <!-- 完成檢查：draft → inspected。與 /inspect 路由同一把尺（_require_write＝res.users._portal_can_write；2026-11-20 拿掉現場人員限本人） -->
+                    <t t-if="inspection.state == 'draft' and request.env.user._portal_can_write()">
                         <t t-if="error_message">
                             <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
                                 <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>

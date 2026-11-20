@@ -304,9 +304,13 @@ class TestPortalApprovalButtons(PortalDashCase):
             if state != 'draft':
                 slip.sudo().write({'state': state})
             cls.slips[state] = slip
+        # 2026-11-20：日誌日期不能早於工程的契約開工日 → 鎖住的那張要在開工日之後，先把開工日往前移
+        locked_day = date.today() - timedelta(days=LOCKED_LOG_AGE_DAYS)
+        if cls.pa.contract_start_date and cls.pa.contract_start_date > locked_day:
+            cls.pa.sudo().write({'contract_start_date': locked_day})
         cls.locked_log = env['daily.log.sheet'].create({
             'supervision_project_id': cls.pa.id, 'employee_id': cls.employee.id,
-            'log_date': date.today() - timedelta(days=LOCKED_LOG_AGE_DAYS),
+            'log_date': locked_day,
             'contractor_company_id': cls.co_a.id})
 
     # 每項：(說明, 路由, 參數, 按鈕要出現的網址／類別片段（同一個 <a> 或 <form> 標籤內全部出現才算）, 營造方是否應該看得到)

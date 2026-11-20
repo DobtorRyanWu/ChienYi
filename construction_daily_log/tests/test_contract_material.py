@@ -112,10 +112,11 @@ class TestContractMaterial(TransactionCase):
         s2.unlink()
         self.assertEqual(self._row(s3, item).cumulative_qty, 40.0)
 
-        # 改日誌日期：把 s3 搬到 s1 前面
-        s3.write({'log_date': self.today - timedelta(days=5)})
-        self.assertEqual(self._row(s3, item).cumulative_qty, 30.0)
-        self.assertEqual(self._row(s1, item).cumulative_qty, 40.0)
+        # 改日誌日期：2026-11-20 起日誌建立後不能改日期（填錯刪掉重建），累計不動
+        with self.assertRaises(UserError):
+            s3.write({'log_date': self.today - timedelta(days=5)})
+        self.assertEqual(self._row(s3, item).cumulative_qty, 40.0)
+        self.assertEqual(self._row(s1, item).cumulative_qty, 10.0)
 
     # d ------------------------------------------------------------------
     def test_d_unlinked_rows_are_never_touched(self):
@@ -128,7 +129,8 @@ class TestContractMaterial(TransactionCase):
         self.assertEqual(manual.cumulative_qty, 999.0)
         self._row(s1, item).write({'daily_qty': 10.0})
         self._row(s2, item).write({'daily_qty': 20.0})
-        s1.write({'log_date': self.today - timedelta(days=4)})
+        # 原本這裡改 s1 的日期觸發重算；2026-11-20 起日誌不能改日期，改刪一張日誌觸發同一個重算
+        self._sheet(3).unlink()
         self.assertEqual(manual.cumulative_qty, 999.0)
         manual.write({'daily_qty': 7.0})
         self.assertEqual(manual.cumulative_qty, 999.0)

@@ -509,13 +509,16 @@ class TestRolePhoneMatrix(RolePhoneCase):
         self.assertGreaterEqual(checked, len(users) * 10, '前提：真的比到了入口與路由兩欄都有的能力')
 
     def test_field_user_only_own_record(self):
-        """S2 fix1-R：現場人員只能改自己建的（畫面與路由同一個判斷）：別人建的看不到「完成檢查」、送了也不放行、狀態不變；
-        本人建的看得到、做得到。老闆／主管兩種都做得到（反證：這支測試量得到「放行」）。"""
+        """（2026-11-20，原 S2 fix1-R 反過來）：「現場人員只能改自己建的」拿掉——別人建的、本人建的
+        「完成檢查」都看得到、做得到（畫面與路由同一個判斷）。老闆／主管照樣做得到。"""
         for user in self.field_users:
             other = self._attempt(lambda u=user: self._cap_insp_inspect(u))
             own = self._attempt(lambda u=user: self._cap_insp_inspect_own(u))
-            self.assertEqual(other, {'entry': False, 'route': False, 'write': False}, f'{user.login}：別人建的')
+            self.assertEqual(other, {'entry': True, 'route': True, 'write': True}, f'{user.login}：別人建的')
             self.assertEqual(own, {'entry': True, 'route': True, 'write': True}, f'{user.login}：本人建的')
+            # 別人（系統）建的施工日誌，現場人員也改得了
+            log_row = self._attempt(lambda u=user: self._cap_log_update(u))
+            self.assertEqual(log_row['write'], True, f'{user.login}：別人建的日誌改得了 {log_row}')
         boss = self.new[(SIDE_SUPERVISION, LEVEL_BOSS)]
         self.assertEqual(self._attempt(lambda: self._cap_insp_inspect(boss)), {'entry': True, 'route': True, 'write': True})
 

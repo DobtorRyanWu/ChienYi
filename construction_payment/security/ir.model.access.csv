@@ -56,3 +56,4 @@ access_payment_estimate_extra_line_leader,payment.estimate.extra.line.leader,mod
 access_payment_estimate_extra_line_user_portal,payment.estimate.extra.line.user.portal,model_payment_estimate_extra_line,construction_supervision_base.group_portal_user,1,0,0,0
 access_payment_estimate_extra_line_viewer,payment.estimate.extra.line.viewer,model_payment_estimate_extra_line,construction_supervision_base.group_portal_viewer,1,0,0,0
 access_estimate_extra_item_wizard_user,estimate.extra.item.wizard.user,model_estimate_extra_item_wizard,base.group_user,1,1,1,1
+access_payment_estimate_approve_confirm_user,payment.estimate.approve.confirm.user,model_payment_estimate_approve_confirm,base.group_user,1,1,1,1

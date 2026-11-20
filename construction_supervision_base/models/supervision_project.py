@@ -4,6 +4,11 @@ from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 from datetime import timedelta, datetime
 
+# 系統路徑寫契約日期時帶這個 context（進度表啟用寫回展延後的完工日），開工後的契約日期鎖放行。
+# 只給程式用，畫面與前台都不會帶。
+CONTRACT_DATES_SYSTEM_WRITE = 'contract_dates_system_write'
+CONTRACT_DATE_FIELDS = ('contract_start_date', 'contract_end_date')
+
 
 class SupervisionProject(models.Model):
     """
@@ -157,6 +162,15 @@ class SupervisionProject(models.Model):
         string='預定契約完工日',
         tracking=True,
         help='最新調整後完工日，隨進度表啟用自動更新',
+    )
+    # 第一次啟用進度表時記下（construction_progress 的 _do_activate 寫）。
+    # 使用中那一版還能退回草稿，退回後光看進度表狀態看不出啟用過，所以另記一欄。
+    progress_ever_activated = fields.Boolean(
+        string='進度表啟用過',
+        readonly=True,
+        copy=False,
+        help='第一次啟用進度表時由系統記下。開始施工後，啟用過的工程不能再手動改'
+             '契約開工日與預定契約完工日（預定完工日只能經由進度表展延改變）。',
     )
     original_contract_end_date = fields.Date(
         string='原始契約完工日',
@@ -643,6 +657,43 @@ class SupervisionProject(models.Model):
          '契約完工日必須晚於或等於開工日！'),
     ]
 
+    # === 開工後（而且進度表啟用過）契約日期不能手動改 ===
+    def _contract_date_changes(self, vals):
+        """回傳這次寫入真的會改到契約日期的工程（值沒變的不算，重跑匯入時常見）"""
+        keys = [k for k in CONTRACT_DATE_FIELDS if k in vals]
+        if not keys:
+            return self.browse()
+        changed = self.browse()
+        for project in self:
+            for k in keys:
+                if fields.Date.to_date(vals[k]) != project[k]:
+                    changed |= project
+                    break
+        return changed
+
+    def _check_contract_dates_editable(self, vals):
+        """開始施工後、進度表啟用過的工程：契約開工日與預定契約完工日不能手動改。
+
+        後台表單、提出更正（state=correction）、前台工程資訊都走 write()，在這裡一起擋；
+        沒有解開的方法（跟舊系統一樣），開工後才發現日期錯只能由系統管理者在資料庫處理。
+        進度表啟用時寫回展延後的完工日是正規路徑，帶 CONTRACT_DATES_SYSTEM_WRITE 放行。
+        """
+        if self.env.context.get(CONTRACT_DATES_SYSTEM_WRITE):
+            return
+        locked = self._contract_date_changes(vals).filtered(
+            lambda p: p.state != 'draft' and p.progress_ever_activated)
+        if locked:
+            raise UserError(
+                '以下工程已開始施工且進度表啟用過，契約開工日與預定契約完工日不能再手動修改：\n'
+                + '\n'.join('- %s' % (p.display_name,) for p in locked)
+                + '\n預定契約完工日只能經由進度表展延（建立新版本、填核准展延工期後啟用）改變。'
+            )
+
+    def write(self, vals):
+        if any(k in vals for k in CONTRACT_DATE_FIELDS):
+            self._check_contract_dates_editable(vals)
+        return super().write(vals)
+
     # === 狀態動作 ===
     def action_approve(self):
         """開始施工"""
@@ -651,6 +702,10 @@ class SupervisionProject(models.Model):
                 raise UserError('只有未開始狀態可以開始施工')
             if not project.contract_start_date:
                 raise ValidationError('請先設定契約開工日')
+            # 沒有契約工項不能開始施工（開工＝契約定案，前台日誌、通報單明細的「未開始不能用」以此為前提）
+            if not self.env['project.task'].with_context(active_test=False).search_count(
+                    [('project_id', '=', project.id)], limit=1):
+                raise ValidationError('這個工程還沒有任何契約工項，請先匯入或建立契約工項再開始施工')
 
             # 檢查初始化設定是否都已完成（不可有 pending）
             init_fields = {
@@ -928,7 +983,8 @@ class SupervisionProject(models.Model):
             ('project_id', 'in', self.ids)
         ])
         if tasks:
-            tasks.unlink()
+            # 整個工程要刪：同工程的單據對這些工項的引用（檢試驗項目的關聯契約工項等）不算阻擋
+            tasks.with_context(unlinking_project_ids=self.ids).unlink()
         return super().unlink()
 
     def action_submit_correction(self):

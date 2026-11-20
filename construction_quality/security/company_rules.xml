@@ -21,7 +21,7 @@
             <field name="model_id" ref="model_general_self_inspection_measure_line"/>
             <field name="domain_force">[('inspection_id.project_id.company_id', 'in', company_ids)]</field>
         </record>
-        <!-- 沿通報單（必填）：project_id 是 slip_id.project_id 的 stored related——寫後檢查盯 slip_id、project_id 本身不能直接寫 -->
+        <!-- 預約式缺失、自主檢查：2026-11-20 起 project_id 是一般欄位（必填、要跟通報單同一個工程），寫後檢查盯 project_id -->
         <record id="rule_company_global_reservation_defect_improvement" model="ir.rule">
             <field name="name">預約式缺失 - 公司隔離（全域，S4）</field>
             <field name="model_id" ref="model_reservation_defect_improvement"/>

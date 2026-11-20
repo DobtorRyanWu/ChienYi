@@ -299,7 +299,10 @@ class TestDashboardDeadlines(DashIndicatorCase):
         Estimate = self.env[ESTIMATE_MODEL]
 
         def estimate(day):
-            est = Estimate.create({'project_id': self.pa.id, 'estimate_date': day})
+            # 2026-11-20：新增日期早於已核定期別的估驗會被擋（夾具已有 11-03 核定的那張）；
+            # 這支測的是儀表板依月份彙總，不是核定順序，所以先建、再補日期、直接標核定
+            est = Estimate.create({'project_id': self.pa.id})
+            est.write({'estimate_date': day})
             self.env['payment.estimate.line'].create({
                 'estimate_id': est.id, 'task_id': self.task.id, 'estimate_qty': 1.0, 'unit_price': 100.0})
             est.sudo().write({'state': 'approved'})

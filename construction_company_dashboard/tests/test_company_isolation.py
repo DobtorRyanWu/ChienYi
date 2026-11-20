@@ -244,10 +244,9 @@ REPARENT_CELLS = (
     ('general.self.inspection', 'project_id', TARGET_PROJECT),
     ('general.self.inspection.item', 'inspection_id', 'general.self.inspection'),
     ('general.self.inspection.measure.line', 'inspection_id', 'general.self.inspection'),
+    # 2026-11-20：預約式缺失／自主檢查的 project_id 改成一般欄位，公司規則只看它；slip_id 不再是規則用到的欄位
     ('reservation.defect.improvement', 'project_id', TARGET_PROJECT),
-    ('reservation.defect.improvement', 'slip_id', 'reservation.notification.slip'),
     ('reservation.self.inspection', 'project_id', TARGET_PROJECT),
-    ('reservation.self.inspection', 'slip_id', 'reservation.notification.slip'),
     ('reservation.self.inspection.item', 'inspection_id', 'reservation.self.inspection'),
     ('reservation.self.inspection.measure.line', 'inspection_id', 'reservation.self.inspection'),
     ('reservation.notification.slip', 'project_id', TARGET_PROJECT),
@@ -292,8 +291,11 @@ SPECIAL_CELLS = frozenset({
 })
 # related 欄位（company_id＝工程的公司、非契約工項明細的 project_id＝估驗的工程；S4 的 project_id＝父單／來源的工程）
 # 非 sudo 不能直接寫：訊息片段（測試獨立寫出）與格數（上游說有幾格就要有幾格，M-C）：S3 8 格＋S4 7 格＋S5 2 格
+# －2（2026-11-20）：預約式自主檢查、缺失改善的 project_id 改成一般欄位（先選工程再選通報單），不再是 related；
+# 跟通報單對不上由模型約束擋、改到別家公司的工程由寫後檢查擋（REPARENT_CELLS 照舊列著這兩格）
+# 合計 8＋7＋2－2＝15（2026-11-20 合併 origin：本機 S5 那邊是 17、origin 那邊是 13）
 RELATED_FIELD_HINT = '不能直接改'
-RELATED_CELL_COUNT = 17
+RELATED_CELL_COUNT = 15
 # 寫後檢查表上「拿掉也不會有行為測試變紅」的兩格（還有第二道防線，A2）
 BACKSTOP_CELLS = frozenset({
     ('reservation.notification.slip.suspension', 'slip_id'),
@@ -795,6 +797,13 @@ class TestCompanyIsolation(RoleMatrixCase):
             return self.s4_reservation[self._fixture_company(project)]
         return project
 
+    def _free_change_order_slot(self, project):
+        """2026-11-20：同一工程同時只能有一張辦理中的變更單。測試要再建或改掛之前，
+        先把夾具裡那個工程辦理中的變更單標成已駁回（只動測試交易裡的資料）。"""
+        self.env['contract.change.order'].sudo().search([
+            ('project_id', '=', project.id),
+            ('state', 'in', ('draft', 'submitted', 'reviewing', 'approved'))]).write({'state': 'rejected'})
+
     def _iso_one(self, model, project):
         """夾具裡掛在 project 的一筆（id 最小的，固定）。"""
         project = self._iso_project(model, project)
@@ -900,6 +909,7 @@ class TestCompanyIsolation(RoleMatrixCase):
         """建立者清空自己的估驗／變更單的工程 → 也被拒（清了同事就看不到）。"""
         env = self._env_of(self.sa_a)
         today = fields.Date.today()
+        self._free_change_order_slot(self.p_iso_a)
         own = {
             'payment.estimate': env['payment.estimate'].create({'estimate_date': today, 'project_id': self.p_iso_a.id}),
             'contract.change.order': env['contract.change.order'].create({'project_id': self.p_iso_a.id}),
@@ -944,6 +954,7 @@ class TestCompanyIsolation(RoleMatrixCase):
     def test_legit_change_wizard_sets_project_on_blank_order(self):
         """契約變更精靈：本人先存工程空白的變更單，精靈替它設工程（只調發包工程費、不動工項）。"""
         env = self._env_of(self.sa_a)
+        self._free_change_order_slot(self.p_iso_a)
         order = env['contract.change.order'].create({})
         wizard = env['contract.change.wizard'].create({
             'change_order_id': order.id, 'project_id': self.p_iso_a.id, 'lump_adjust_amount': LUMP_ADJUST_AMOUNT})
@@ -956,6 +967,7 @@ class TestCompanyIsolation(RoleMatrixCase):
         env = self._env_of(self.sa_a)
         same_company = self.p_b
         self.assertEqual(self._fixture_company(same_company), self.co_iso_a, '夾具：同公司的另一個工程')
+        self._free_change_order_slot(same_company)
         for model, field, kind in REPARENT_CELLS:
             # S3 fix1 的 5 格（fix2 補的格不在這裡：related 欄位本來就不能直接寫，其餘另有唯一鍵等與本題無關的條件）
             if kind != TARGET_PROJECT or model not in SAME_COMPANY_REPARENT_MODELS:

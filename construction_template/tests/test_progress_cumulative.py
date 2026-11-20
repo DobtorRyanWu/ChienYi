@@ -54,6 +54,17 @@ class TestProgressCumulative(TransactionCase):
         cls.employee = cls.env['hr.employee'].create(
             {'name': '累計進度測試員工', 'company_id': company.id})
 
+    def with_import_exception(self):
+        """前台匯入補傳的同日例外（construction_daily_log 的 DAILY_LOG_IMPORT_ALLOW_SAME_DAY）"""
+        outer = self
+
+        class _Wrap:
+            def _sheet(self, day, **vals):
+                return outer.env['daily.log.sheet'].with_context(daily_log_import_allow_same_day=True).create(
+                    dict({'supervision_project_id': outer.project.id, 'company_id': outer.env.company.id,
+                          'employee_id': outer.employee.id, 'log_date': day}, **vals))
+        return _Wrap()
+
     def _sheet(self, day, **vals):
         return self.env['daily.log.sheet'].create(dict({
             'supervision_project_id': self.project.id,
@@ -105,11 +116,12 @@ class TestProgressCumulative(TransactionCase):
         self.assertEqual(progress.actual_cumulative_on(self.project, legacy.log_date, sheet=legacy), 40.0)
 
     def test_legacy_reprint_is_its_own_value_with_several_logs_that_day(self):
-        # 同案同日可以多人各一張（唯一性含員工）：重印某一張要印它自己的值，不是 id 最大那張的（r1 審查 F2）
+        # 同案同日有多張：2026-11-20 起只剩「前台匯入補傳」這條例外做得出來（一般存檔同一天只能一張）。
+        # 重印某一張要印它自己的值，不是 id 最大那張的（r1 審查 F2）
         other = self.env['hr.employee'].create({'name': '同日另一位', 'company_id': self.env.company.id})
         day = self.d0 + timedelta(days=3)
         a = self._sheet(day, actual_progress=58.06, state='locked')
-        b = self._sheet(day, actual_progress=45.60, state='locked', employee_id=other.id)
+        b = self.with_import_exception()._sheet(day, actual_progress=45.60, state='locked', employee_id=other.id)
         self.assertGreater(b.id, a.id)
         self.assertEqual(progress.actual_cumulative_on(self.project, day, sheet=a), 58.06)
         self.assertEqual(progress.actual_cumulative_on(self.project, day, sheet=b), 45.60)

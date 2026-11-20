@@ -1119,16 +1119,14 @@ class InspectionRoutesMixin:
     @http.route(['/construction/inspection/<int:inspection_id>/inspect'],
                 type='http', auth='user', website=True, methods=['POST'])
     def portal_inspection_inspect(self, inspection_id, **post):
-        """自主檢查：完成檢查（draft → inspected）。建立者本人或老闆/主管可執行。"""
+        """自主檢查：完成檢查（draft → inspected）。有寫入權限的人都可執行（2026-11-20 拿掉「限建立者本人」）。"""
         try:
             insp = self._document_check_access('general.self.inspection', inspection_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
-        # 先擋唯讀角色（合約 §3.6、§13-8）：_require_owner_or_manager 只限制現場人員，
-        # 定期閱覽者與營造廠主管（後台唯讀）原本都會穿過去、直接改狀態
+        # 擋唯讀角色（合約 §3.6、§13-8）：定期閱覽者與營造廠主管（後台唯讀）不能改狀態
         self._require_write(_('權限不足：閱覽角色不可完成檢查'))
         try:
-            self._require_owner_or_manager(insp)
             insp.action_inspect()
         except (AccessError, UserError, ValidationError) as e:
             return request.redirect(_portal_flash_url(

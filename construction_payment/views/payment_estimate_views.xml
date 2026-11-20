@@ -40,12 +40,15 @@
                             class="btn-primary"
                             icon="fa-download"
                             invisible="state != 'draft' or line_ids"/>
+                    <!-- 預約式工程沒有明細也能提出（整期沒有通報單） -->
+                    <field name="project_type" invisible="1"/>
                     <button name="action_submit_estimate"
                             string="提出估驗"
                             type="object"
                             class="btn-primary"
-                            invisible="state != 'draft' or not line_ids"/>
-                    <button name="action_approve"
+                            invisible="state != 'draft' or (not line_ids and project_type != 'reservation')"/>
+                    <!-- 畫面上的核定先檢查超量（有超量跳確認）；系統內部的 action_approve 不變 -->
+                    <button name="action_approve_with_check"
                             string="核定"
                             type="object"
                             class="btn-success"
@@ -122,7 +125,10 @@
                             <field name="line_ids" nolabel="1">
                                 <list string="估驗計價表" editable="bottom"
                                       create="false" delete="false"
-                                      decoration-bold="is_summary_item">
+                                      decoration-bold="is_summary_item"
+                                      decoration-danger="is_over_qty">
+                                    <!-- 累計超過可估驗數量或契約數量 → 整列紅字（不擋） -->
+                                    <field name="is_over_qty" column_invisible="1"/>
                                     <field name="is_summary_item" column_invisible="1"/>
                                     <field name="description"/>
                                     <field name="parent_item_name"/>

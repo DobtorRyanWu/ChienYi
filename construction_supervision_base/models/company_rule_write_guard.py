@@ -117,8 +117,10 @@ COMPANY_RULE_FIELDS = {
     'general.self.inspection': frozenset({'project_id'}),
     'general.self.inspection.item': frozenset({'inspection_id'}),
     'general.self.inspection.measure.line': frozenset({'inspection_id'}),
-    'reservation.defect.improvement': frozenset({'project_id', 'slip_id'}),
-    'reservation.self.inspection': frozenset({'project_id', 'slip_id'}),
+    # 2026-11-20：這兩個的 project_id 改成一般欄位（先選工程再選通報單），規則只看它；
+    # 只換 slip_id 時模型會用通報單的工程補上 project_id，照樣被寫後檢查盯到
+    'reservation.defect.improvement': frozenset({'project_id'}),
+    'reservation.self.inspection': frozenset({'project_id'}),
     'reservation.self.inspection.item': frozenset({'inspection_id'}),
     'reservation.self.inspection.measure.line': frozenset({'inspection_id'}),
     'reservation.notification.slip': frozenset({'project_id'}),

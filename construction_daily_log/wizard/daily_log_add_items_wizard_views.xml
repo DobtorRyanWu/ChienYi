@@ -27,7 +27,7 @@
                     <!-- 分頁一：契約工項 -->
                     <page string="契約工項" name="contract_items">
                         <field name="selected_task_ids" nolabel="1"
-                               domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True)]"
+                               domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True), '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0), ('is_lump_sum', '=', False)]"
                                options="{'no_create': True, 'no_open': True}"
                                context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}">
                             <list>
@@ -87,7 +87,7 @@
                 <notebook>
                     <page string="契約工項" name="contract_items">
                         <field name="selected_task_ids" nolabel="1"
-                               domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True)]"
+                               domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True), '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0), ('is_lump_sum', '=', False)]"
                                options="{'no_create': True, 'no_open': True}"
                                context="{'list_view_ref': 'construction_supervision_base.view_task_tree_supervision_full', 'search_view_ref': 'construction_supervision_base.view_task_search_supervision'}">
                             <list>

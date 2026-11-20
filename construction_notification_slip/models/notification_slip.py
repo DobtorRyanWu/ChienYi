@@ -722,14 +722,12 @@ class ReservationNotificationSlip(models.Model):
             # 讓「可不可以填」與上面算出來的金額永遠一致。
             # （即使這裡判斷錯，存檔時 write() 仍會以真實資料為準把值導回 compute，
             #   資料不會壞，只是欄位一時可編輯而已。）
-            line.is_manual_amount = bool(
-                not kids and (line.is_summary_line or line.task_id.tax_misc_rate
-                              or not line.unit_price))
+            manual_kind = line._manual_kind()   # 與 _compute_is_manual_amount 同一個判斷（含「式」）
+            line.is_manual_amount = bool(not kids and manual_kind)
             if kids:
                 line.planned_amount = sum(kids.mapped('planned_amount'))
                 line.actual_amount = sum(kids.mapped('actual_amount'))
-            elif (line.is_summary_line or line.task_id.tax_misc_rate
-                    or not line.unit_price):
+            elif manual_kind:
                 # 手填列：只有「剛剛失去所有子列」才歸零，其餘一律不動
                 origin = line._origin
                 if origin and origin.child_line_ids:
@@ -756,10 +754,28 @@ class ReservationNotificationSlip(models.Model):
                 added += len(Line._create_lines_for_tasks(slip, tasks))
         return added
 
+    def _recompute_rate_lines(self):
+        """本單沒有標手動金額的比例項，依比例 × 本單基數重算預估、實際金額。
+
+        依契約順序算（比例項的基數只指向排在前面的工項，前面的比例項先算完）。
+        寫入帶 _AUTO_CTX：不會被當成手改、也不會再觸發一次重算。"""
+        Line = self.env['reservation.notification.slip.line']
+        for slip in self.exists():
+            rate_lines = slip.detail_line_ids.filtered(
+                lambda l: l.is_rate_line and not l.is_amount_manual and not l.child_line_ids
+            ).sorted(lambda l: (l.task_id.sequence, l.id))
+            for line in rate_lines:
+                planned, actual = line._rate_amounts()
+                if (round(line.planned_amount or 0.0, 2), round(line.actual_amount or 0.0, 2)) != (planned, actual):
+                    line.with_context(**{Line._AUTO_CTX: True}).write(
+                        {'planned_amount': planned, 'actual_amount': actual})
+
     # === Wizard 動作 ===
     def action_open_add_lines_wizard(self):
         """開啟加入工項 Wizard"""
         self.ensure_one()
+        # 工程未開始不能加契約工項（按鈕也擋，不要等選完才報錯）
+        self.env['reservation.notification.slip.line']._check_project_started(self)
         return {
             'type': 'ir.actions.act_window',
             'name': '加入工項',

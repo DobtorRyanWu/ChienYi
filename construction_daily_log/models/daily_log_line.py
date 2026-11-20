@@ -89,8 +89,11 @@ class DailyLogLine(models.Model):
         'project.task',
         string='施工項目',
         required=False,  # 自填項目(entry_type='extra')不需契約工項
-        domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True)]",
-        help='契約工項類型才需選擇；只能選最細項工項（無子項的工項）',
+        # 比例項（稅什費等，tax_misc_rate）、整包項（is_lump_sum）也不列——完成金額照基數比例自動算，
+        # 填數量用不到、只會被誤選
+        domain="[('project_id', '=', project_id), ('is_summary_item', '=', False), ('active', '=', True),"
+               " '|', ('tax_misc_rate', '=', False), ('tax_misc_rate', '=', 0), ('is_lump_sum', '=', False)]",
+        help='契約工項類型才需選擇；只能選最細項工項（無子項的工項），不含比例項與整包項',
     )
 
     # task_id 與 work_item_id 等義（皆 project.task）；保留為 related 供既有 view 欄位解析。
@@ -357,6 +360,21 @@ class DailyLogLine(models.Model):
     # -------------------------------------------------------------------------
     # Constraint Methods
     # -------------------------------------------------------------------------
+
+    @api.constrains('work_item_id')
+    def _check_not_rate_or_lump_item(self):
+        """2026-11-20：日誌明細不能選比例項（稅什費、自主品管費等）與整包項。
+
+        只在新增明細、或改明細的工項時檢查（@api.constrains 只看 work_item_id）：
+        已經存在的舊列（正式庫匯入歷史資料時可能有）改備註、數量、鎖定解鎖都不受影響。
+        一般有單價的「式」工項不受影響。"""
+        for line in self:
+            task = line.work_item_id
+            if task and (task.tax_misc_rate or task.is_lump_sum):
+                kind = '比例項（稅什費等）' if task.tax_misc_rate else '整包項'
+                raise ValidationError(
+                    f'工項「{task.display_item_no or task.item_no or ""} {task.name}」是{kind}，'
+                    f'完成金額照基數比例自動算，不能填在施工日誌明細。')
 
     @api.constrains('work_item_id')
     def _check_is_leaf_item(self):

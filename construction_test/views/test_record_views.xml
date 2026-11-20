@@ -75,6 +75,10 @@
                     <field name="processing_status" widget="statusbar"
                            statusbar_visible="not_started,in_progress,completed"/>
                 </header>
+                <!-- 沒有對應工項照樣能存，但要提醒 -->
+                <div class="alert alert-warning mb-0" role="alert" invisible="task_id or not id">
+                    ⚠ 這筆沒有對應工項，不會算進累計進場量與應檢次數
+                </div>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
                         <button class="oe_stat_button" icon="fa-paperclip"
@@ -260,6 +264,10 @@
                 <filter string="檢驗完成" name="completed"
                         domain="[('processing_status', '=', 'completed')]"/>
                 
+                <!-- 沒有對應工項（不會算進累計進場量與應檢次數），方便找出來補 -->
+                <separator/>
+                <filter string="沒有對應工項" name="no_task" domain="[('task_id', '=', False)]"/>
+
                 <!-- 建立來源篩選 -->
                 <separator/>
                 <filter string="系統自動建立" name="auto_created"

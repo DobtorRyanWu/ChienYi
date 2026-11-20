@@ -114,7 +114,7 @@
                                         <list editable="bottom">
                                             <field name="sequence" widget="handle"/>
                                             <field name="name"/>
-                                            <field name="check_standard"/>
+                                            <field name="check_standard" required="1"/>
                                             <field name="note"/>
                                         </list>
                                     </field>
@@ -134,7 +134,7 @@
                                     <field name="stage_id"
                                            domain="[('type_id', '=', parent.id)]"
                                            options="{'no_create': True, 'no_open': True}"/>
-                                    <field name="check_standard"/>
+                                    <field name="check_standard" required="1"/>
                                     <field name="reverse_question" optional="hide"/>
                                     <field name="note"/>
                                 </list>

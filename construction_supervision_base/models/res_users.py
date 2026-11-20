@@ -529,18 +529,9 @@ class ResUsers(models.Model):
         return bool(self._is_supervision_side() or self._portal_can_manage()
                     or self._portal_role_level() in PORTAL_WRITE_LEVELS)
 
-    def _portal_owns_or_may_edit(self, record):
-        """「現場人員只能改自己建立的單據」**全系統只有這一份**（S2 fix1-R）：不是現場人員、或沒有紀錄（新建，例：匯入時當天還沒有日誌）、
-        或紀錄是本人建立的 → True。前台路由 _require_owner_or_manager 與模板（經 _portal_can_edit_record）都呼叫它。
-        create_uid 是上傳／建立的人（前台以 sudo 建立，sudo 不換人）。"""
-        self.ensure_one()
-        return not self._portal_is_field_only() or not record or record.sudo().create_uid == self
-
-    def _portal_can_edit_record(self, record):
-        """能不能改這一張單據＝能寫入（_portal_can_write），而且通過「現場人員只能改自己建的」（_portal_owns_or_may_edit）：
-        前台 _require_write＋_require_owner_or_manager 兩道的組合；模板的按鈕呼叫它。"""
-        self.ensure_one()
-        return self._portal_can_write() and self._portal_owns_or_may_edit(record)
+    # 2026-11-20：「現場人員只能改自己建的」（_portal_owns_or_may_edit、_portal_can_edit_record）
+    # 已拿掉——施工日誌一工程一天一張、系統先建好空白日誌；自主檢查舊系統本來就沒有這條。
+    # 照片「只能刪自己上傳的」是另一條（_portal_can_delete_others_photos），不受影響。
 
     def _portal_can_delete_others_photos(self):
         """刪別人上傳的照片：管理權或監造方後台人員（其餘只能刪自己上傳的）。"""

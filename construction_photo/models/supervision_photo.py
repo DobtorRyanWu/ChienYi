@@ -717,7 +717,25 @@ class SupervisionPhoto(models.Model):
             self.filtered(lambda r: r.description).action_auto_tag_from_description()
         return res
 
+    # 2026-11-20：後台「照片管理」不能刪「來自單據」的照片，要回那張單據刪。
+    # 只擋「從照片管理刪」這條路：照片管理的選單動作帶 PHOTO_MANAGER_DELETE，看到它才檢查來源。
+    # 🔴 不可以在 unlink 一律擋——單據自己的刪照片、刪整張單據、刪整個工程，以及匯入的
+    #    「內嵌照片_移除.py」、正式站刪舊匯入工程的腳本都直接刪照片，一律擋會讓它們失敗。
+    PHOTO_MANAGER_DELETE = 'photo_manager_delete'
+    DOCUMENT_SOURCES = ('inspection', 'defect', 'test', 'estimate', 'notification')
+
     def unlink(self):
+        if self.env.context.get(self.PHOTO_MANAGER_DELETE):
+            from_doc = self.filtered(lambda p: p.source_model in self.DOCUMENT_SOURCES)
+            if from_doc:
+                labels = dict(self._fields['source_model'].selection)
+                kinds = sorted({labels.get(p.source_model) for p in from_doc})
+                raise UserError(
+                    '有 %d 張照片來自單據（%s），不能從照片管理刪除；請回到那張單據刪照片。\n'
+                    '（每日照片、工程告示牌等其他照片照舊可以在這裡刪）' % (len(from_doc), '、'.join(kinds)))
+        return self._unlink_photos()
+
+    def _unlink_photos(self):
         """刪除照片；連帶回收沒人再引用的附件。
 
         照片資料表收斂後，這裡大幅簡化了。收斂前全庫有 3 個指向 ir_attachment

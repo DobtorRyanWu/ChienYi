@@ -3,6 +3,8 @@
 from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 
+from .general_self_inspection import _check_type_change_without_items
+
 
 class ReservationSelfInspection(models.Model):
     """
@@ -21,20 +23,58 @@ class ReservationSelfInspection(models.Model):
     _rec_name = 'sub_project_name'   # 以分項工程名稱顯示，較易辨識是哪張檢查單
 
     # === 通報單關聯 ===
+    # 2026-11-20：先選工程、再選這個工程的通報單。工程原本是 related 通報單、不能選；
+    # 改成一般欄位（資料庫同一欄，既有值不變）。只給通報單、沒給工程（程式寫入，例：匯入步驟 10）
+    # 時，create／write 用通報單的工程補上。
     slip_id = fields.Many2one(
         'reservation.notification.slip',
         string='所屬通報單',
         required=True,
         ondelete='cascade',
-        # 退單（作廢）的通報單不出現在下拉；已經掛上去的不受影響
-        domain="[('state', '!=', 'cancelled')]",
+        # 只列這個工程、沒退單（作廢）的通報單；已經掛上去的不受影響
+        domain="[('state', '!=', 'cancelled'), ('project_id', '=', project_id)]",
         tracking=True)
 
     project_id = fields.Many2one(
         'project.project',
         string='所屬工程',
-        related='slip_id.project_id',
-        store=True)
+        required=True,
+        index=True,
+        tracking=True,
+        domain="[('project_type', '=', 'reservation')]")
+
+    @api.onchange('project_id')
+    def _onchange_project_clear_slip(self):
+        """換工程時清掉已選的通報單"""
+        if self.slip_id and self.slip_id.project_id != self.project_id:
+            self.slip_id = False
+
+    @api.constrains('slip_id', 'project_id')
+    def _check_slip_in_project(self):
+        """通報單要屬於這個工程"""
+        for rec in self:
+            if rec.slip_id and rec.project_id and rec.slip_id.project_id != rec.project_id:
+                raise ValidationError(
+                    f'通報單「{rec.slip_id.display_name}」不屬於工程「{rec.project_id.display_name}」，'
+                    f'請選這個工程的通報單。')
+
+    @api.model
+    def _fill_project_from_slip(self, vals):
+        """只給通報單、沒給工程時，用通報單的工程補上（匯入只寫通報單）"""
+        if vals.get('slip_id') and not vals.get('project_id'):
+            vals['project_id'] = self.env['reservation.notification.slip'].browse(
+                vals['slip_id']).sudo().project_id.id
+        return vals
+
+    def write(self, vals):
+        if vals.get('slip_id') and 'project_id' not in vals:
+            vals = self._fill_project_from_slip(dict(vals))
+        if 'inspection_type_id' not in vals:
+            return super().write(vals)
+        before = {rec.id: rec.inspection_type_id for rec in self}
+        res = super().write(vals)
+        _check_type_change_without_items(self, before)   # 有項目不能換類型
+        return res
 
     company_id = fields.Many2one(
         'res.company',
@@ -334,8 +374,9 @@ class ReservationSelfInspection(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
+            self._fill_project_from_slip(vals)   # 只給通報單時自動補工程
             if not vals.get('inspection_no') or vals.get('inspection_no') == '/':
-                # 工程是通報單的 related 欄位，vals 只會帶 slip_id
+                # 取號看通報單的工程（2026-11-20 起工程可選，但必須跟通報單同一個）
                 slip = self.env['reservation.notification.slip'].browse(vals.get('slip_id'))
                 vals['inspection_no'] = self.env['ir.sequence']._next_by_code_for_project(
                     'reservation.self.inspection', slip.sudo().project_id) or '/'

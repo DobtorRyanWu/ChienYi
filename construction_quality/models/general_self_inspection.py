@@ -4,6 +4,18 @@ from odoo import models, fields, api, Command
 from odoo.exceptions import UserError, ValidationError
 
 
+def _check_type_change_without_items(records, before):
+    """兩式共用：檢查單已經有檢查項目時不能換檢查類型（舊系統整包換掉會蓋掉已填的結果）。
+
+    在 write 之後檢查：表單上同一次存檔「先刪光項目、再換類型」要放行，所以看的是寫完後還有沒有項目。
+    before＝{id: 寫入前的檢查類型}。"""
+    for rec in records:
+        if rec.inspection_type_id != before.get(rec.id) and rec.checklist_ids:
+            raise UserError(
+                f'檢查單「{rec.display_name}」已經有 {len(rec.checklist_ids)} 個檢查項目，不能換檢查類型。\n'
+                f'要換類型，請先清掉檢查項目再換（換好可按「載入預設項目」帶入新類型的項目）。')
+
+
 class GeneralSelfInspection(models.Model):
     """
     一般式自主檢查
@@ -362,7 +374,15 @@ class GeneralSelfInspection(models.Model):
                 if user:
                     vals['responsible_user_id'] = user.id
         return super().create(vals_list)
-    
+
+    def write(self, vals):
+        if 'inspection_type_id' not in vals:
+            return super().write(vals)
+        before = {rec.id: rec.inspection_type_id for rec in self}
+        res = super().write(vals)
+        _check_type_change_without_items(self, before)
+        return res
+
     # 照片收斂後不再需要 _get_photo_sync_config()（沒有「同步」這件事），
     # 也不再需要 related_photo_ids 反查 —— photo_ids 本身就是 supervision.photo。
     related_photo_count = fields.Integer(

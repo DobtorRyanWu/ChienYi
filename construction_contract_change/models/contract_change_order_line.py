@@ -2,6 +2,7 @@
 
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
+from odoo.tools import float_is_zero
 
 
 class ContractChangeOrderLine(models.Model):
@@ -638,6 +639,50 @@ class ContractChangeOrderLine(models.Model):
             ('change_order_id', '=', self.change_order_id.id),
             ('parent_line_id', '=', self.id),
         ]))
+
+    @api.constrains('change_type', 'unit', 'new_unit_price', 'is_new_group', 'is_new_lump_sum',
+                    'is_summary_line', 'is_tax_misc_line')
+    def _check_add_unit_and_price(self):
+        """新增工項（不是新群組）單位必填；不是整包項、比例項的一般工項新單價不能是 0。
+        數量照舊可以是 0（預約式議價新增的預備單價項目數量本來就是 0）。"""
+        for line in self:
+            if line.change_type != 'add' or line.is_new_group or line.is_summary_line:
+                continue
+            label = f'[{line.item_no or ""}] {line.item_name or ""}'.strip()
+            if not (line.unit or '').strip():
+                raise ValidationError(f'新增工項 {label} 必須填寫單位！')
+            if (not line.is_new_lump_sum and not line.is_tax_misc_line
+                    and float_is_zero(line.new_unit_price or 0.0, precision_digits=2)):
+                raise ValidationError(
+                    f'新增工項 {label} 的新單價不能是 0！\n'
+                    f'（整包費用項請勾「新增為整包費用項」改填新金額；稅什費等比例項不受這條限制）')
+
+    def _task_usage_for_delete(self, task):
+        """工項有沒有施工日誌完成數量、估驗數量或估驗金額（任何一種都算有紀錄）"""
+        reasons = []
+        if 'daily.log.line' in self.env:
+            n = self.env['daily.log.line'].sudo().search_count(
+                [('task_id', '=', task.id), ('daily_qty', '!=', 0)])
+            if n:
+                reasons.append(f'施工日誌完成數量 {n} 筆')
+        if 'payment.estimate.line' in self.env:
+            n = self.env['payment.estimate.line'].sudo().search_count(
+                [('task_id', '=', task.id), '|', ('estimate_qty', '!=', 0), ('estimate_amount', '!=', 0)])
+            if n:
+                reasons.append(f'估驗數量或金額 {n} 筆')
+        return reasons
+
+    @api.constrains('change_type', 'task_id')
+    def _check_delete_has_no_records(self):
+        """已有完成數量或估驗數量、金額的工項不能選「刪除」，請改用「歸零」"""
+        for line in self:
+            if line.change_type != 'delete' or not line.task_id:
+                continue
+            reasons = line._task_usage_for_delete(line.task_id)
+            if reasons:
+                raise ValidationError(
+                    f'工項 [{line.task_id.item_no}] {line.task_id.name} 已有紀錄（{"、".join(reasons)}），'
+                    f'不能刪除；合約縮減請改用「歸零」。')
 
     @api.constrains('new_qty', 'new_unit_price')
     def _check_positive_values(self):

@@ -1031,10 +1031,30 @@ class ContractChangeOrder(models.Model):
         n = existing_count + 1
         return f"{self.project_id.code}-CHG-{n:02d}"
 
+    # 同一工程同一時間只能有一張「還沒套用、也沒駁回」的變更單（照舊系統）
+    OPEN_STATES = ('draft', 'submitted', 'reviewing', 'approved')
+
+    def _check_single_open_order(self):
+        for order in self:
+            if not order.project_id or order.state not in self.OPEN_STATES:
+                continue
+            other = self.sudo().search([
+                ('project_id', '=', order.project_id.id),
+                ('state', 'in', self.OPEN_STATES),
+                ('id', '!=', order.id),
+            ], limit=1)
+            if other:
+                states = dict(self._fields['state'].selection)
+                raise ValidationError(
+                    f'工程「{order.project_id.display_name}」還有一張辦理中的變更單'
+                    f'「{other.name}」（{states.get(other.state)}），一次只能辦一張。\n'
+                    f'請先把它套用或駁回（不要的草稿可以刪掉），再建新的變更單。')
+
     @api.model_create_multi
     def create(self, vals_list):
         # 先建立記錄取得 id，再依工程編號產生變更編號
         records = super().create(vals_list)
+        records._check_single_open_order()
         for record in records:
             if record.name == '/' and record.project_id:
                 record.name = record._generate_change_order_name()
@@ -1055,6 +1075,9 @@ class ContractChangeOrder(models.Model):
             deltas = {r.id: new_lump - (r.lump_adjust_amount or 0.0) for r in self}
 
         result = super().write(vals)
+        if 'project_id' in vals or 'state' in vals:
+            # 改工程、或已駁回的單退回草稿，也不能讓同一工程同時有兩張辦理中的單
+            self._check_single_open_order()
 
         for record in self:
             if deltas.get(record.id):

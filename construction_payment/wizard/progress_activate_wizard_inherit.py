@@ -124,8 +124,16 @@ class ProgressActivateWizardPayment(models.TransientModel):
             tracking_disable=True,
         )
 
+        # 早於最後一張已核定（或已歸檔）估驗的期別不建（建了也核定不了，而且新增本身會被擋）
+        approved_dates = [d for d in self.env['payment.estimate'].search([
+            ('project_id', '=', project.id), ('state', 'in', ('approved', 'archived')),
+        ]).mapped('estimate_date') if d]
+        last_approved = max(approved_dates) if approved_dates else False
+
         for est_date in periods:
             if est_date in existing_dates:
+                continue
+            if last_approved and est_date < last_approved:
                 continue
 
             # 建立估驗計價單（estimate_no 和 name 由 create 自動計算）

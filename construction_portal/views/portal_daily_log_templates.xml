@@ -520,8 +520,13 @@
                             <label class="form-label" style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2);">
                                 日誌日期 <span style="color: var(--wb-red);">*</span>
                             </label>
-                            <input type="date" name="log_date" class="form-control"
-                                   t-att-value="(log and log.log_date.isoformat()) or today" required="required"/>
+                            <!-- 日誌建立後不能改日期 → 編輯時只顯示、不送出 -->
+                            <t t-if="log">
+                                <div class="form-control" style="background: var(--wb-s2, transparent);" t-esc="log.log_date.isoformat()"/>
+                                <small style="color: var(--wb-t3);">日誌建立後不能改日期；日期填錯請刪掉重建</small>
+                            </t>
+                            <input t-else="" type="date" name="log_date" class="form-control"
+                                   t-att-value="today" required="required"/>
                         </div>
 
                         <!-- 天氣（加 emoji）-->
