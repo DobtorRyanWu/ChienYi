@@ -356,11 +356,7 @@ class SupervisionReviewApplication(models.Model):
                 pass
         return super().create(vals_list)
 
-    def unlink(self):
-        for record in self:
-            if record.state == 'done':
-                raise UserError('已完成的送審記錄不可刪除，請先重設為編輯中')
-        return super().unlink()
+    # 2026-11-20 回復原版（1118 會議）：拿掉「已完成的送審記錄不可刪除」——舊系統的送審沒有狀態，刪除不擋。
 
     def copy(self, default=None):
         default = dict(default or {})

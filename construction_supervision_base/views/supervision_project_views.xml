@@ -250,23 +250,21 @@
                         </h1>
                         <label for="name"/>
                         <h2>
-                            <field name="name" placeholder="輸入工程名稱"
-                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="name" placeholder="輸入工程名稱"/>
                         </h2>
                     </div>
                     <group>
                         <group string="基本資訊" name="basic_info">
+                            <!-- 2026-11-20 回復原版（1118 會議）：工程名稱、年份、主辦機關、地點、監造單位、契約編號、
+                                 實際日期、座標開工後不再唯讀——舊系統這些欄位隨時可改。
+                                 工程類型維持開工後唯讀（舊系統建立後就不能改類型）；契約金額、契約開工／完工日另有規則。 -->
                             <field name="project_type" widget="radio"
                                    readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="year"
-                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="authority_name"
-                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="year"/>
+                            <field name="authority_name"/>
                             <field name="authority_contact_name"/>
-                            <field name="location"
-                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="management_company_name"
-                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="location"/>
+                            <field name="management_company_name"/>
                             <!-- 與管理公司成對，所以放在基本資訊而不是契約資訊。
                                  不加 readonly：是管制表表頭要印的資料，常在施工中才補登 -->
                             <field name="contractor_company_name"
@@ -278,8 +276,7 @@
                                    domain="[('active', '=', True)]"/>
                         </group>
                         <group string="契約資訊" name="contract_info">
-                            <field name="contract_no"
-                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="contract_no"/>
                             <!-- 得標／訂約日期刻意不加 readonly：是管制表表頭要印的資料，
                                  多半在施工中才回頭補登，鎖住等於填不了 -->
                             <field name="award_date"/>
@@ -311,10 +308,8 @@
                     </group>
                     <group>
                         <group string="實際日期" name="actual_dates">
-                            <field name="actual_start_date"
-                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                            <field name="actual_end_date"
-                                   readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                            <field name="actual_start_date"/>
+                            <field name="actual_end_date"/>
                             <field name="actual_duration"/>
                         </group>
                     </group>
@@ -323,14 +318,11 @@
                         <page string="工程位置" name="location">
                             <group>
                                 <group>
-                                    <field name="location_detail"
-                                           readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                                    <field name="location_detail"/>
                                 </group>
                                 <group>
-                                    <field name="latitude"
-                                           readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
-                                    <field name="longitude"
-                                           readonly="state in ('construction', 'completion', 'acceptance', 'closed', 'suspended', 'terminated')"/>
+                                    <field name="latitude"/>
+                                    <field name="longitude"/>
                                 </group>
                             </group>
                         </page>

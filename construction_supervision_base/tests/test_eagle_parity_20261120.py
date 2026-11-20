@@ -44,3 +44,20 @@ class TestEagleParityStart(TransactionCase):
         buttons = arch.xpath("//button[@name='action_approve']")
         self.assertEqual(len(buttons), 1, '表單上要有一顆開始施工按鈕')
         self.assertNotIn('all_init_done', buttons[0].get('invisible') or '')
+
+    def test_basic_fields_not_readonly_after_start(self):
+        """PJ-09：開工後工程名稱、年份、主辦機關、地點、契約編號、實際日期、座標在表單上不再唯讀。
+
+        工程類型維持開工後唯讀（舊系統建立後就不能改類型）；契約開工／完工日另有規則（PJ-08）。"""
+        arch = etree.fromstring(self.env.ref('construction_supervision_base.view_supervision_project_form').arch)
+
+        def readonly_of(name):
+            nodes = arch.xpath("//field[@name='%s']" % name)
+            self.assertTrue(nodes, name)
+            return nodes[0].get('readonly') or ''
+
+        for name in ('name', 'year', 'authority_name', 'location', 'management_company_name', 'contract_no',
+                     'actual_start_date', 'actual_end_date', 'location_detail', 'latitude', 'longitude'):
+            self.assertEqual(readonly_of(name), '', '%s 開工後不該唯讀' % name)
+        for name in ('project_type', 'contract_start_date', 'contract_end_date'):
+            self.assertIn("'construction'", readonly_of(name), '%s 開工後仍要唯讀' % name)

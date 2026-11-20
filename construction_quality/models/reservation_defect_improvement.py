@@ -270,21 +270,14 @@ class ReservationDefectImprovement(models.Model):
         return result
 
     def unlink(self):
-        """刪除缺失前，先擋非草稿狀態，再用 ORM 刪掉照片行。
+        """刪除缺失前，先用 ORM 刪掉照片行。
 
-        狀態保護：與一般式 general_defect_improvement.unlink() 同一規則。
-        少了它的話，前台對已驗證／結案缺失的「單張照片不可刪」形同虛設 ——
-        使用者可以直接把整張缺失連同照片一起刪掉繞過去。
-        檢查必須在 photo_ids.unlink() 之前，否則照片會先被刪才報錯（交易雖會
-        rollback，但語意混亂且會誤導除錯）。
+        2026-11-20 回復原版（1118 會議）：拿掉「只有草稿狀態的缺失可以刪除」——舊系統刪缺失不看狀態。
 
         照片行的 defect_improvement_id 是 ondelete='cascade'，PostgreSQL 會直接
         砍掉照片行、不會呼叫照片行的 Python unlink()，導致「順便刪 supervision.photo
         + 欄位附件」那條邏輯不會跑，留下孤兒照片與孤兒 filestore 檔案。
         """
-        for record in self:
-            if record.state not in ('draft',):
-                raise UserError('只有草稿狀態的缺失可以刪除')
         # 刪整張單據時照片照刪（照片管理動作帶進來的 context 不算）
         self.photo_ids.with_context(photo_manager_delete=False).unlink()
         return super().unlink()

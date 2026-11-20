@@ -260,9 +260,7 @@ class GeneralDefectImprovement(models.Model):
         return result
 
     def unlink(self):
-        for record in self:
-            if record.state not in ('draft',):
-                raise UserError('只有草稿狀態的缺失可以刪除')
+        # 2026-11-20 回復原版（1118 會議）：拿掉「只有草稿狀態的缺失可以刪除」——舊系統刪缺失不看狀態。
         # 照片行的 defect_improvement_id 是 ondelete='cascade'，PostgreSQL 會直接
         # 砍掉照片行、**不會**呼叫照片行的 Python unlink()，導致上面那套
         # 「順便刪 supervision.photo + 欄位附件」整條不會跑，留下照片管理裡看得到、

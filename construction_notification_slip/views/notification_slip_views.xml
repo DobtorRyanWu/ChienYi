@@ -72,8 +72,8 @@
                                    options="{'no_create': True}"/>
                             <field name="slip_number" readonly="1"/>
                             <field name="slip_no" readonly="state != 'draft'"/>
-                            <field name="location" readonly="state in ('closed', 'cancelled')"/>
-                            <field name="location_detail" readonly="state in ('closed', 'cancelled')"
+                            <field name="location" readonly="state == 'cancelled'"/>
+                            <field name="location_detail" readonly="state == 'cancelled'"
                                    placeholder="可逐行填寫多個施工地點（會印在通報單上）"/>
                             <!-- 通報單照片若沒有 GPS EXIF，會沿用這組座標 -->
                             <!-- 兩個欄位並排時只靠 placeholder 分辨不出前後是經度還緯度，
@@ -81,10 +81,10 @@
                             <label for="latitude" string="施工地點座標"/>
                             <div class="o_row">
                                 <span class="o_form_label me-1">緯度：</span>
-                                <field name="latitude" readonly="state in ('closed', 'cancelled')"
+                                <field name="latitude" readonly="state == 'cancelled'"
                                        placeholder="25.123456"/>
                                 <span class="o_form_label ms-3 me-1">經度：</span>
-                                <field name="longitude" readonly="state in ('closed', 'cancelled')"
+                                <field name="longitude" readonly="state == 'cancelled'"
                                        placeholder="121.123456"/>
                             </div>
                         </group>
@@ -139,14 +139,16 @@
                         </group>
                     </group>
 
+                    <!-- 2026-11-20 回復原版（1118 會議）：已結案後明細與施工地點不再唯讀（舊系統通報單欄位隨時可改）；
+                         退單後唯讀是退單功能的一部分，維持。 -->
                     <!-- 施工詳細表頁籤 -->
                     <notebook>
                         <page string="施工詳細表" name="detail_lines">
                             <button name="action_open_add_lines_wizard" string="加入工項"
                                     type="object" class="btn-primary mb-2"
-                                    invisible="state in ('closed', 'cancelled')"/>
+                                    invisible="state == 'cancelled'"/>
                             <field name="detail_line_ids"
-                                   readonly="state in ('closed', 'cancelled')">
+                                   readonly="state == 'cancelled'">
                                 <!-- 彙總（小計）列以粗體標示；金額欄只有「無子列的彙總項
                                      或無單價項」可以手填，其餘一律唯讀（子列加總或數量×單價）。
                                      列表的 sum 刻意不放在金額欄——小計列與明細列並存，
