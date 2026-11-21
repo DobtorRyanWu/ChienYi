@@ -70,8 +70,10 @@ class ReservationNotificationSlip(models.Model):
         'res.company', string='公司',
         related='project_id.company_id', store=True)
 
+    # 2026-11-22 回復原版（清單 NS-16）：工程地點不必填——舊系統新增通報單不檢查任何欄位
+    # （前端 AppointmentSheetList.vue 的 addSheet）
     location = fields.Char(
-        string='工程地點', required=True,
+        string='工程地點',
         help='本次通報單的施工地點')
 
     location_detail = fields.Text(
@@ -283,7 +285,11 @@ class ReservationNotificationSlip(models.Model):
         ('slip_number_unique', 'UNIQUE(slip_number)', '通報單編號必須唯一！'),
         ('project_slip_no_active_unique', '',
          '同一工程的通報單次不可重複（已退單的通報單不算）！'),
-        # 2026-11-20 回復原版（1118 會議）：拿掉 planned_dates_check（預定完工日不早於開工日）——舊系統不比對日期先後
+        # 2026-11-22 加回（使用者決定，清單 NS-07）：11-20 曾照 1118 會議拿掉；舊系統 150 張通報單裡只有 2 張
+        # 竣工早於開工（都像年份打錯），留著當防呆。日期都不必填，兩個都填了才比，開口契約還不知道日期就留空。
+        ('planned_dates_check',
+         'CHECK(planned_end_date IS NULL OR planned_start_date IS NULL OR planned_end_date >= planned_start_date)',
+         '預定完工日必須晚於或等於開工日！'),
     ]
 
     def init(self):
@@ -299,8 +305,8 @@ class ReservationNotificationSlip(models.Model):
     @api.depends('slip_no', 'location')
     def _compute_name(self):
         for rec in self:
-            location_str = rec.location or ''
-            rec.name = f'第{rec.slip_no}次通報單 - {location_str}'
+            # 地點可以不填（NS-16）：沒填就不接「 - 地點」
+            rec.name = f'第{rec.slip_no}次通報單' + (f' - {rec.location}' if rec.location else '')
 
     @api.depends('planned_start_date', 'planned_duration')
     def _compute_planned_end_date(self):
@@ -405,7 +411,13 @@ class ReservationNotificationSlip(models.Model):
             self.planned_end_date = self.planned_start_date + timedelta(days=self.planned_duration - 1)
 
     # === 約束驗證 ===
-    # 2026-11-20 回復原版（1118 會議）：拿掉「實際竣工日必須晚於或等於實際開工日」——舊系統不比對日期先後
+    # 2026-11-22 加回（使用者決定，清單 NS-07），理由同上面的 planned_dates_check
+    @api.constrains('actual_start_date', 'actual_end_date')
+    def _check_actual_dates(self):
+        for rec in self:
+            if rec.actual_start_date and rec.actual_end_date:
+                if rec.actual_end_date < rec.actual_start_date:
+                    raise ValidationError('實際竣工日必須晚於或等於實際開工日')
 
     @api.constrains('project_id')
     def _check_project_type(self):
@@ -477,7 +489,7 @@ class ReservationNotificationSlip(models.Model):
                     ) % (
                         rec.slip_number,
                         rec.planned_start_date or '未設定',
-                        rec.location,
+                        rec.location or '未設定',
                     ),
                     partner_ids=partner.ids,
                     message_type='notification',

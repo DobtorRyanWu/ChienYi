@@ -8,8 +8,12 @@
 
 from datetime import timedelta
 
+from psycopg2 import IntegrityError
+
 from odoo import fields
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 
 @tagged('post_install', '-at_install', 'construction_progress')
@@ -51,8 +55,11 @@ class TestEagleParityDailyLog(TransactionCase):
 
 @tagged('post_install', '-at_install', 'construction_progress')
 class TestEagleParityScheduleInput(TransactionCase):
-    """PG-03、PG-05、PG-06、PG-07、PG-12：舊系統儲存進度表只檢查「變更時間有填、預定進度不能全部是 0」
-    （前端 views/PC/Schedule.vue addSchedule），其他都不檢查。"""
+    """舊系統儲存進度表只檢查「變更時間有填、預定進度不能全部是 0」（前端 views/PC/Schedule.vue addSchedule）。
+    2026-11-20 照 1118 會議把新系統多的檢查全部拿掉；2026-11-22 使用者對照鈺鈞的意見表逐條決定後：
+      維持拿掉：加總超過 100%（PG-03）、區間超出工期（PG-05）、單一區間超過 100% 或負數（PG-07 的後兩項）
+      加回：結束日不早於開始日（PG-07）、累計展延不可負（PG-12）
+      放寬加回：區間不重疊（PG-06），上一段結束日＝下一段開始日不算重疊"""
 
     @classmethod
     def setUpClass(cls):
@@ -70,20 +77,46 @@ class TestEagleParityScheduleInput(TransactionCase):
             'date_start': self.d0 + timedelta(days=start_offset),
             'date_end': self.d0 + timedelta(days=end_offset), 'planned_progress': planned})
 
-    def test_overlapping_and_out_of_range_lines_allowed(self):
-        self._line(0, 19, 30.0, 10)
-        self._line(10, 29, 30.0, 20)                 # 跟上一段重疊
+    def test_out_of_range_lines_allowed(self):
+        """PG-05：區間早於開工日、晚於完工日不擋。"""
         self._line(-5, -1, 5.0, 30)                  # 早於開工日
         self._line(55, 70, 5.0, 40)                  # 晚於完工日
         self.env.flush_all()
+        self.assertEqual(len(self.schedule.line_ids), 2)
+
+    def test_lines_sharing_boundary_day_allowed(self):
+        """PG-06：上一段結束日＝下一段開始日不算重疊（舊系統 2021 年的工程每月一段都這樣填）；
+        開始日＝結束日、落在交界日上的校正列也不算。"""
+        self._line(0, 19, 30.0, 10)
+        self._line(19, 39, 30.0, 20)                 # 第 19 天同時是上一段的結束、這一段的開始
+        self._line(39, 39, 0.0, 30)                  # 單日列落在交界日
+        self._line(39, 59, 40.0, 40)
+        self.env.flush_all()
         self.assertEqual(len(self.schedule.line_ids), 4)
 
-    def test_line_end_before_start_over_100_and_negative_allowed(self):
-        backwards = self._line(9, 0, 10.0, 10)       # 結束日早於開始日
-        over = self._line(10, 19, 150.0, 20)         # 單一區間超過 100%
-        negative = self._line(20, 29, -10.0, 30)     # 負數（沒有啟用校正）
+    def test_truly_overlapping_lines_blocked(self):
+        """PG-06：真的重疊（共用超過一個交界日）要擋，新增與修改都一樣。"""
+        first = self._line(0, 19, 30.0, 10)
+        with self.assertRaises(ValidationError):
+            self._line(10, 29, 30.0, 20)             # 第 10～19 天重疊
+        with self.assertRaises(ValidationError):
+            self._line(5, 5, 0.0, 30)                # 單日列落在別的區間中間
+        second = self._line(20, 39, 30.0, 20)
+        with self.assertRaises(ValidationError):
+            second.write({'date_start': first.date_start + timedelta(days=18)})
+
+    def test_line_end_before_start_blocked(self):
+        """PG-07：結束日早於開始日要擋；同一天不擋。"""
+        self._line(5, 5, 10.0, 10)
+        with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'):
+            self._line(19, 10, 10.0, 20)
+            self.env.flush_all()                     # 資料庫層的 CHECK 約束在 flush 時才會擋
+
+    def test_line_over_100_and_negative_allowed(self):
+        """PG-07 的後兩項維持拿掉：單一區間超過 100%、負數（沒有啟用校正）都存得進去。"""
+        over = self._line(10, 19, 150.0, 20)
+        negative = self._line(20, 29, -10.0, 30)
         self.env.flush_all()
-        self.assertLess(backwards.date_end, backwards.date_start)
         self.assertEqual((over.planned_progress, negative.planned_progress), (150.0, -10.0))
 
     def test_activate_wizard_opens_when_total_over_100(self):
@@ -92,15 +125,17 @@ class TestEagleParityScheduleInput(TransactionCase):
         action = self.schedule.action_activate()
         self.assertEqual(action.get('type'), 'ir.actions.act_window', '總和超過 100% 也要開得出啟用視窗')
 
-    def test_negative_cumulative_extension_allowed(self):
-        self.schedule.write({'current_extension': -5})
-        self.env.flush_all()
-        self.assertLess(self.schedule.duration_extension, 0)
+    def test_negative_cumulative_extension_blocked(self):
+        """PG-12：累計展延不可為負數；0 與正數照常。"""
+        self.schedule.write({'current_extension': 5})
+        self.schedule.write({'current_extension': 0})
+        with self.assertRaises(ValidationError):
+            self.schedule.write({'current_extension': -5})
 
-    def test_daily_log_on_overlapping_schedule_does_not_crash(self):
-        """區間重疊時，日誌找「本日所屬區間」與本日預定進度不能出錯。"""
-        self._line(0, 19, 30.0, 10)
-        self._line(10, 29, 30.0, 20)
+    def test_daily_log_on_boundary_day_does_not_crash(self):
+        """兩段共用交界日時，那一天的日誌找「本日所屬區間」與本日預定進度不能出錯。"""
+        self._line(0, 15, 30.0, 10)
+        self._line(15, 29, 30.0, 20)
         self.schedule.write({'state': 'active'})
         self.project.write({'state': 'construction'})
         employee = self.env['hr.employee'].create({'name': '回復原版進度員工', 'company_id': self.env.company.id})
@@ -113,8 +148,9 @@ class TestEagleParityScheduleInput(TransactionCase):
 
 @tagged('post_install', '-at_install', 'construction_progress')
 class TestEagleParityActivate(TransactionCase):
-    """PG-04、PG-12：啟用進度表時不再檢查「區間要從開工日排到完工日、中間不能有空檔」，
-    也不再因為累計展延是負數而拒絕啟用。舊系統「自訂」模式可以任意排區間，儲存時不檢查涵蓋範圍。"""
+    """PG-04：啟用進度表時不再檢查「區間要從開工日排到完工日、中間不能有空檔」。
+    舊系統「自訂」模式可以任意排區間，儲存時不檢查涵蓋範圍。
+    PG-12（累計展延是負數不能啟用）2026-11-22 使用者決定加回。"""
 
     @classmethod
     def setUpClass(cls):
@@ -136,7 +172,14 @@ class TestEagleParityActivate(TransactionCase):
         self.schedule._do_activate()
         self.assertEqual(self.schedule.state, 'active')
 
-    def test_activate_with_negative_cumulative_extension(self):
-        self.schedule.write({'current_extension': -3})
-        self.schedule._do_activate()
-        self.assertEqual(self.schedule.state, 'active')
+    def test_activate_with_negative_cumulative_extension_blocked(self):
+        """存檔時就會擋負數；這裡用 SQL 直接寫，模擬 11-20～11-22 之間已經存進去的負數，啟用時也要擋。"""
+        self.env.flush_all()
+        self.env.cr.execute(
+            'UPDATE progress_schedule SET current_extension = -3, duration_extension = -3 WHERE id = %s',
+            (self.schedule.id,))
+        self.schedule.invalidate_recordset()
+        self.assertLess(self.schedule.duration_extension, 0, '前提：累計展延是負數')
+        with self.assertRaises(UserError):
+            self.schedule._do_activate()
+        self.assertNotEqual(self.schedule.state, 'active')

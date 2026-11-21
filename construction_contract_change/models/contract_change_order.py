@@ -860,6 +860,7 @@ class ContractChangeOrder(models.Model):
                     % '、'.join(l.item_name or '?' for l in pending))
 
         # ── 修改/歸零/刪除（與新增無相依，順序無關）─────────────────
+        name_unit_notes = []          # 名稱、單位有改的工項（清單 CC-10），套用後記在討論區
         for line in self.line_ids:
             if line.change_type == 'modify' and line.task_id:
                 # 凍結原始契約數量（僅第一次變更時）
@@ -887,6 +888,13 @@ class ContractChangeOrder(models.Model):
                     pass
                 else:
                     task_vals['unit_price'] = line.new_unit_price
+                # 2026-11-22 回復原版（清單 CC-10，鈺鈞補列）：明細上改過的名稱、單位一併寫回工項——
+                # 舊系統契約變更是整份工項換新版，名稱、單位跟著新版走。
+                # 只在真的不同時才寫（前後空白不算）；空白不寫（工項的名稱、單位都是必填）。
+                renamed = self._name_unit_changes(line)
+                task_vals.update(renamed['vals'])
+                if renamed['note']:
+                    name_unit_notes.append(renamed['note'])
                 line.task_id.write(task_vals)
                 # 建立版本記錄
                 next_version = max(line.task_id.version_ids.mapped('version') or [0]) + 1
@@ -939,6 +947,30 @@ class ContractChangeOrder(models.Model):
         # 重編後保證「父 < 子孫 < 下一兄弟」，徹底消除跨彙總項撞號。
         if self.project_id and self.project_id:
             ProjectTask._resequence_project_sequence(self.project_id.id)
+
+        # 名稱、單位有改的工項記在變更單的討論區（工項上不留舊名稱，之後要查只能看這裡）
+        if name_unit_notes:
+            self.message_post(body=Markup('套用變更時一併更新了工項的名稱或單位：<br/>%s')
+                              % Markup('<br/>').join(name_unit_notes))
+
+    @staticmethod
+    def _name_unit_changes(line):
+        """「修改」明細上的名稱、單位跟工項現在的值不同時，回傳要寫回工項的值與一行說明。
+
+        已建立的日誌、估驗、通報單明細的工項名稱是連結到工項的，寫回後會跟著顯示新名稱。"""
+        task = line.task_id
+        vals, parts = {}, []
+        new_name, new_unit = (line.item_name or '').strip(), (line.unit or '').strip()
+        if new_name and new_name != (task.name or '').strip():
+            vals['name'] = new_name
+            parts.append('名稱「%s」→「%s」' % (task.name or '', new_name))
+        if new_unit and new_unit != (task.unit or '').strip():
+            vals['unit'] = new_unit
+            parts.append('單位「%s」→「%s」' % (task.unit or '', new_unit))
+        note = ''
+        if parts:
+            note = '[%s] %s' % (task.display_item_no or task.item_no or '', '；'.join(parts))
+        return {'vals': vals, 'note': note}
 
     def _create_added_task(self, line, parent_id):
         """建立一筆新增工項 task（parent_id 已由拓樸解析：既有彙總項或本次新建群組）。

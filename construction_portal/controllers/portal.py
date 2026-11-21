@@ -1177,6 +1177,12 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         if _in('authority_contact_name'):
             vals['authority_contact_name'] = (post.get('authority_contact_name') or '').strip()
 
+        # 2026-11-22（清單 PJ-17、PJ-18）：後台工程表單的兩個文字欄，前台也能填（自由輸入，開工後也能改）
+        if _in('management_company_name'):
+            vals['management_company_name'] = _s('management_company_name') or False
+        if _in('contractor_company_name'):
+            vals['contractor_company_name'] = _s('contractor_company_name') or False
+
         if _in('company_id'):
             vals['company_id'] = _to_int('company_id') or project.company_id.id
 
@@ -1197,7 +1203,23 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
             notes = post.get('notes')
             vals['notes'] = notes if notes else False
 
-        # 2026-11-20 回復原版：不再預檢「契約完工日不得早於開工日」（後台的檢查同一天拿掉，舊系統沒有）
+        # ---- 預檢日期一致性 ----
+        # 2026-11-22 加回（使用者決定，清單 PJ-12；後台的資料庫約束同一天加回）。
+        # 若使用者只更新其中一個日期，要跟既有值比對
+        eff_start = (
+            vals['contract_start_date']
+            if 'contract_start_date' in vals
+            else project.contract_start_date
+        )
+        eff_end = (
+            vals['contract_end_date']
+            if 'contract_end_date' in vals
+            else project.contract_end_date
+        )
+        if eff_start and eff_end and eff_end < eff_start:
+            return request.redirect(
+                f'/construction/{project_id}/edit?error=date_invalid'
+            )
 
         # ---- 寫入 ----
         # F（S2）：sudo 寫入前驗證公司、承攬廠商、使用者 id 都在可選值內（與編輯頁下拉同一份），不合就 AccessError

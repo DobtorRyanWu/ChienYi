@@ -119,8 +119,8 @@
                                     <field name="actual_result" optional="show"/>
                                     <!-- 結果欄位不是「合格／缺失／無此項目」時，填「勾選」、檢查結果由它換算（self_inspection_mark.py） -->
                                     <field name="mark" column_invisible="parent.result_layout == 'standard'"/>
+                                    <!-- 2026-11-22 回復原版（清單 QI-15）：檢查成果不必填，可以先存檔之後再填（舊系統不必填、預設空白） -->
                                     <field name="check_result"
-                                           required="parent.result_layout == 'standard'"
                                            readonly="parent.result_layout != 'standard'"
                                            decoration-success="check_result == 'pass'"
                                            decoration-danger="check_result == 'defect'"

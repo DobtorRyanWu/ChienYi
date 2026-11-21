@@ -461,11 +461,13 @@ class ReservationSelfInspectionItem(models.Model):
         string='實際檢查情形')
 
     # === 檢查結果 ===
+    # 2026-11-22 回復原版（清單 QI-15）：不再預設「檢查合格」——舊系統預設空白；預設合格會讓沒檢查到的項目被當成合格。
+    # 非標準樣式（是／否、是／不足／否）的結果照舊由勾選換算（self_inspection_mark.py）。
     check_result = fields.Selection([
         ('pass', '檢查合格'),
         ('defect', '有缺失需改正'),
         ('na', '無此項目'),
-    ], string='檢查成果', default='pass')
+    ], string='檢查成果')
 
     # === 備註 ===
     note = fields.Text(string='備註')

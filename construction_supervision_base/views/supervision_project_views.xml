@@ -246,7 +246,8 @@
                     <div class="oe_title">
                         <label for="code"/>
                         <h1>
-                            <field name="code" readonly="state != 'draft'"/>
+                            <!-- 2026-11-22 回復原版（清單 PJ-16）：開工後也能改工程編號（舊系統隨時可改；前台老闆、主管本來就能改）。不可重複照舊。 -->
+                            <field name="code"/>
                         </h1>
                         <label for="name"/>
                         <h2>

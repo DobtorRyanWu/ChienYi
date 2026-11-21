@@ -194,8 +194,9 @@ class DefectRoutesMixin:
                         })
                         continue
 
-                    # 2026-11-20 回復原版：期限早於發現日照原檔的值寫入（模型的日期先後檢查同一天拿掉；
-                    # 以前這裡會把期限悄悄改成發現日）
+                    # deadline 不可早於 found_date（model 有 constraint；2026-11-22 隨清單 DF-11 一起加回）
+                    if deadline and found_date and deadline < found_date:
+                        deadline = found_date
 
                     # 狀態：若有確認完成改善日期 → closed；否則 notified。
                     # 不用 draft —— general 的防竄改邏輯以離開草稿為界，

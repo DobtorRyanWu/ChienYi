@@ -8,8 +8,11 @@
 """
 from lxml import etree
 
-from odoo.exceptions import UserError
+from psycopg2 import IntegrityError
+
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests.common import TransactionCase, tagged
+from odoo.tools import mute_logger
 
 FORM_XMLID = 'construction_notification_slip.view_reservation_notification_slip_form'
 # 已結案後照舊系統還能改的欄位（NS-14）
@@ -58,9 +61,13 @@ class TestEagleParitySlipFlow(TransactionCase):
         self.assertTrue(slip.actual_end_date, '結案時仍要記下實際竣工日')
 
 
+SECOND_SLIP_NO = 2
+
+
 @tagged('post_install', '-at_install', 'construction_notification_slip')
 class TestEagleParitySlipInput(TransactionCase):
-    """NS-07、NS-12：日期先後、數量與單價正負不再檢查。"""
+    """NS-12：數量與單價正負不再檢查。NS-07（日期先後）2026-11-22 使用者決定加回。
+    NS-16：工程地點不必填（2026-11-22）。"""
 
     @classmethod
     def setUpClass(cls):
@@ -74,13 +81,30 @@ class TestEagleParitySlipInput(TransactionCase):
         cls.slip = cls.env['reservation.notification.slip'].create({
             'project_id': cls.project.id, 'location': '回復原版測試地點'})
 
-    def test_end_dates_before_start_dates_allowed(self):
-        self.slip.write({'planned_start_date': '2026-06-10', 'planned_end_date': '2026-06-01',
-                         'actual_start_date': '2026-06-10', 'actual_end_date': '2026-06-05'})
-        self.env.flush_all()          # 預定日期是資料庫層的 CHECK 約束，flush 才會擋
-        self.slip.invalidate_recordset()
-        self.assertLess(self.slip.planned_end_date, self.slip.planned_start_date)
-        self.assertLess(self.slip.actual_end_date, self.slip.actual_start_date)
+    def test_dates_left_blank_or_in_order_accepted(self):
+        """NS-07：開口契約還不知道日期時留空不擋；只填一個、或同一天也不擋。"""
+        self.assertFalse(self.slip.planned_start_date or self.slip.actual_start_date, '前提：日期都還沒填')
+        self.slip.write({'planned_end_date': '2026-06-01', 'actual_end_date': '2026-06-05'})
+        self.env.flush_all()
+        self.slip.write({'planned_start_date': '2026-06-01', 'actual_start_date': '2026-06-05'})
+        self.env.flush_all()
+
+    def test_planned_end_before_start_blocked(self):
+        with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'):
+            self.slip.write({'planned_start_date': '2026-06-10', 'planned_end_date': '2026-06-01'})
+            self.env.flush_all()          # 預定日期是資料庫層的 CHECK 約束，flush 才會擋
+
+    def test_actual_end_before_start_blocked(self):
+        with self.assertRaises(ValidationError):
+            self.slip.write({'actual_start_date': '2026-06-10', 'actual_end_date': '2026-06-05'})
+
+    def test_location_not_required(self):
+        """NS-16：不填工程地點也能建通報單；名稱不留尾巴，確認時的通知不印 False。"""
+        slip = self.env['reservation.notification.slip'].create({
+            'project_id': self.project.id, 'slip_no': SECOND_SLIP_NO})    # 同工程的通報單次不可重複
+        self.assertFalse(slip.location)
+        self.assertEqual(slip.name, '第%s次通報單' % slip.slip_no)
+        self.assertFalse(self.env['reservation.notification.slip']._fields['location'].required)
 
     def test_negative_line_qty_and_price_allowed(self):
         line = self.env['reservation.notification.slip.line'].create({

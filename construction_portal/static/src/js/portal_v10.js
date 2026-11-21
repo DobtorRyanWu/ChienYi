@@ -1240,7 +1240,7 @@
 
                         // 隱藏欄位
                         html += '<input type="hidden" name="checklist_item_id_' + itemIdx + '" value="' + item.id + '"/>';
-                        html += '<input type="hidden" name="checklist_result_' + itemIdx + '" value="' + (marks ? '' : 'pass') + '" class="checklist-result-hidden"/>';
+                        html += '<input type="hidden" name="checklist_result_' + itemIdx + '" value="" class="checklist-result-hidden"/>';   // 2026-11-22（清單 QI-15）：不預先帶「合格」，沒選就是空白
 
                         // 三按鈕 toggle
                         html += '<div class="insp-check-group">';
@@ -1249,7 +1249,7 @@
                                 html += '<button type="button" class="insp-check-btn" data-mark="' + escHtml(m.value) + '" data-result="' + escHtml(m.result) + '" data-idx="' + itemIdx + '">' + escHtml(m.label) + '</button>';
                             });
                         } else {
-                            html += '<button type="button" class="insp-check-btn active" data-result="pass" data-idx="' + itemIdx + '">合格</button>';
+                            html += '<button type="button" class="insp-check-btn" data-result="pass" data-idx="' + itemIdx + '">合格</button>';
                             html += '<button type="button" class="insp-check-btn" data-result="defect" data-idx="' + itemIdx + '">有缺失</button>';
                             html += '<button type="button" class="insp-check-btn" data-result="na" data-idx="' + itemIdx + '">無此項</button>';
                         }

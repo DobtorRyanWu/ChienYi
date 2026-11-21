@@ -170,7 +170,10 @@
                                     <field name="change_type"
                                            required="not is_summary_line and not is_tax_misc_line"/>
                                     <!-- 2. 工項名稱 -->
-                                    <field name="item_name" string="工項名稱" readonly="1"/>
+                                    <!-- 2026-11-22 回復原版（清單 CC-10）：「修改」的既有工項也能改名稱，套用變更時寫回工項。
+                                         歸零、刪除、彙總項不寫回，所以維持唯讀。 -->
+                                    <field name="item_name" string="工項名稱"
+                                           readonly="change_type not in ('add', 'modify')"/>
                                     <field name="task_id" column_invisible="1"/>
                                     <!-- 3. 父工項（合併欄）：既有彙總項 或 本次新增群組，單欄顯示/編輯 -->
                                     <field name="parent_kind"
@@ -375,7 +378,7 @@
                 <!-- item_no 隱藏，供新增工項必填驗證使用 -->
                 <field name="item_no" column_invisible="1" required="change_type == 'add'"/>
                 <field name="item_name" required="1"
-                       readonly="change_type != 'add'"/>
+                       readonly="change_type not in ('add', 'modify')"/>
                 <field name="unit"/>
                 <field name="original_qty" readonly="1"/>
                 <field name="original_unit_price" readonly="1"/>

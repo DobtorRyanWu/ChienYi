@@ -8,6 +8,7 @@
 from datetime import timedelta
 
 from odoo import fields
+from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -126,19 +127,28 @@ class TestEagleParityInspect(TransactionCase):
 
 @tagged('post_install', '-at_install', 'construction_quality')
 class TestEagleParityDefectDates(EagleParityDefectCase):
-    """DF-11：缺失的期限、通知日、發現日彼此不再比對先後（舊系統日期欄位各存各的）。"""
+    """DF-11（2026-11-22 使用者決定加回）：期限不能早於發現日或通知日、通知日不能早於發現日；
+    同一天、或其中一個日期沒填不擋。"""
 
-    def test_general_dates_in_any_order(self):
-        defect = self._general(found_date=self.today, deadline=self.today - timedelta(days=3),
-                               notification_date=self.today - timedelta(days=5))
-        self.env.flush_all()
-        self.assertLess(defect.deadline, defect.found_date)
-        self.assertLess(defect.notification_date, defect.found_date)
+    def test_general_deadline_before_found_date_blocked(self):
+        with self.assertRaises(ValidationError):
+            self._general(found_date=self.today, deadline=self.today - timedelta(days=3))
 
-    def test_reservation_deadline_before_notification(self):
-        defect = self._reservation(deadline=self.today - timedelta(days=3))
+    def test_general_notification_before_found_date_blocked(self):
+        with self.assertRaises(ValidationError):
+            self._general(found_date=self.today, notification_date=self.today - timedelta(days=5))
+
+    def test_reservation_deadline_before_notification_blocked(self):
+        with self.assertRaises(ValidationError):
+            self._reservation(deadline=self.today - timedelta(days=3))
+
+    def test_same_day_or_blank_dates_accepted(self):
+        general = self._general(found_date=self.today, deadline=self.today, notification_date=self.today)
+        reservation = self._reservation(deadline=self.today)
+        no_deadline = self._reservation(deadline=False)
         self.env.flush_all()
-        self.assertLess(defect.deadline, defect.notification_date)
+        self.assertEqual((general.deadline, reservation.deadline, no_deadline.deadline),
+                         (self.today, self.today, False))
 
 
 @tagged('post_install', '-at_install', 'construction_quality')

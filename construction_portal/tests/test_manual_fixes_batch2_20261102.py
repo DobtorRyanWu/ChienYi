@@ -286,16 +286,16 @@ class TestPortalManualFixesBatch2(TransactionCase):
         self.assertEqual(str(defect.deadline), '2030-01-01')
         self.assertIn('error=', loc)
 
-    def test_p10_deadline_before_found_date_is_accepted(self):
-        """2026-11-20 回復原版：期限早於發現日期不再被退回（舊系統日期欄位彼此不比對）。
-        這支原本測的是相反的事（會被退回並回訊息）；「失敗時不留下改到一半的資料」改由下一支測。"""
+    def test_p10_rejected_deadline_is_message_and_rolled_back(self):
+        """期限早於發現日期：回訊息不 500，也不留下改到一半的資料。
+        （這條檢查 2026-11-20 曾拿掉、2026-11-22 使用者決定加回，清單 DF-11。）"""
         defect = self._general_defect(state='draft', found_date='2026-06-01')
         _v, loc = self._drive(
             self.leader, self.ctrl.portal_defect_notify, defect.id, deadline='2026-01-01')
         self.env.invalidate_all()
-        self.assertNotIn('error=', loc)
-        self.assertEqual(defect.state, 'notified')
-        self.assertEqual(str(defect.deadline), '2026-01-01')
+        self.assertEqual(defect.state, 'draft')
+        self.assertFalse(defect.deadline)
+        self.assertIn('error=', loc)
 
     def test_p10_failed_notify_is_message_and_rolled_back(self):
         """通知那一步失敗：回訊息不 500，也不留下改到一半的期限（期限與通知同進退）。"""

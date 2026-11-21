@@ -794,11 +794,19 @@
                             <span class="cy-info-value"><t t-esc="project.authority_name or '-'"/></span>
                         </div>
                         <div class="cy-info-row">
+                            <span class="cy-info-label">管理公司</span>
+                            <span class="cy-info-value"><t t-esc="project.management_company_name or '-'"/></span>
+                        </div>
+                        <div class="cy-info-row">
+                            <span class="cy-info-label">營造廠商</span>
+                            <span class="cy-info-value"><t t-esc="project.contractor_company_name or '-'"/></span>
+                        </div>
+                        <div class="cy-info-row">
                             <span class="cy-info-label">監造單位</span>
                             <span class="cy-info-value"><t t-esc="project.company_id.name or '-'"/></span>
                         </div>
                         <div class="cy-info-row">
-                            <span class="cy-info-label">承包廠商</span>
+                            <span class="cy-info-label">承包廠商帳號</span>
                             <span class="cy-info-value">
                                 <t t-if="project.contractor_company_ids">
                                     <t t-esc="'、'.join(project.contractor_company_ids.mapped('name'))"/>
@@ -1174,8 +1182,8 @@
                                 <input type="text" name="owner_org" class="form-control" placeholder="輸入業主機關名稱"/>
                             </div>
                             <div style="margin-bottom: 14px;">
-                                <label class="form-label" style="font-weight: 600;">承包廠商</label>
-                                <input type="text" name="contractor" class="form-control" placeholder="輸入承包廠商名稱"/>
+                                <label class="form-label" style="font-weight: 600;">營造廠商</label>
+                                <input type="text" name="contractor" class="form-control" placeholder="輸入營造廠商名稱"/>
                             </div>
                             <div style="margin-bottom: 14px;">
                                 <label class="form-label" style="font-weight: 600;">管理公司</label>
@@ -1261,6 +1269,11 @@
 
                 <div class="cy-content">
                     <!-- 錯誤提示 -->
+                    <t t-if="error == 'date_invalid'">
+                        <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(239,68,68,0.12); color: var(--wb-red); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
+                            <i class="fa fa-exclamation-triangle"/> 契約完工日不得早於開工日
+                        </div>
+                    </t>
                     <t t-if="error == 'save_failed'">
                         <div style="margin-bottom: 14px; padding: 10px 14px; background: rgba(239,68,68,0.12); color: var(--wb-red); border-radius: 8px; font-size: 0.9rem; font-weight: 600;">
                             <i class="fa fa-exclamation-triangle"/> 儲存失敗，請檢查欄位內容
@@ -1418,8 +1431,18 @@
                         <!-- ========== 相關單位 ========== -->
                         <div class="cy-section-title">相關單位</div>
                         <div class="cy-info-section" style="padding: 14px 16px;">
+                            <!-- 2026-11-22（清單 PJ-17、PJ-18）：補上後台工程表單的兩個文字欄（管理公司、營造廠商），
+                                 自由輸入、開工後也能改；下面兩個選單管的是帳號看得到哪些工程，改名以免跟文字欄混淆 -->
                             <div style="margin-bottom: 14px;">
-                                <label class="form-label" style="font-weight: 600;">管理公司（監造）<span style="color: var(--wb-red);">*</span></label>
+                                <label class="form-label" style="font-weight: 600;">管理公司</label>
+                                <input type="text" name="management_company_name" class="form-control"
+                                       t-att-value="project.management_company_name or ''"
+                                       placeholder="設計監造單位名稱（自由輸入）"/>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">監造公司帳號歸屬 <span style="color: var(--wb-red);">*</span></label>
+                                <div style="color: var(--wb-t3); font-size: 0.85rem; margin-bottom: 6px;">決定這個工程的資料歸哪一家監造公司；跟上面的管理公司名稱分開。</div>
                                 <select name="company_id" class="form-select"
                                         t-att-disabled="'disabled' if locked_after_start else None">
                                     <t t-foreach="supervision_companies" t-as="c">
@@ -1460,7 +1483,15 @@
                             </div>
 
                             <div style="margin-bottom: 14px;">
-                                <label class="form-label" style="font-weight: 600;">承包廠商（可複選）</label>
+                                <label class="form-label" style="font-weight: 600;">營造廠商</label>
+                                <input type="text" name="contractor_company_name" class="form-control"
+                                       t-att-value="project.contractor_company_name or ''"
+                                       placeholder="例：○○營造股份有限公司（自由輸入）"/>
+                            </div>
+
+                            <div style="margin-bottom: 14px;">
+                                <label class="form-label" style="font-weight: 600;">承包廠商帳號（可複選）</label>
+                                <div style="color: var(--wb-t3); font-size: 0.85rem; margin-bottom: 6px;">勾選的公司，它的營造廠帳號才看得到這個工程；跟上面的營造廠商名稱分開。</div>
                                 <div style="max-height: 220px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 8px; background: rgba(0,0,0,0.12);">
                                     <t t-if="contractor_companies">
                                         <t t-foreach="contractor_companies" t-as="c">

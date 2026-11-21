@@ -78,7 +78,8 @@
                         </group>
                         <group string="送審日期">
                             <field name="expected_review_date"/>
-                            <field name="final_review_date" readonly="id == False"/>
+                            <!-- 2026-11-22 回復原版（清單 RV-06）：新建、還沒存檔時也能填最終審查日期（舊系統新增與編輯同一個視窗） -->
+                            <field name="final_review_date"/>
                             <field name="review_delay_days" readonly="1"/>
                         </group>
                     </group>

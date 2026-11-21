@@ -26,6 +26,8 @@ BOSS = 'construction_supervision_base.group_portal_subscriber'    # 老闆：未
 CONTRACT_START = date(2026, 1, 5)
 CONTRACT_END = date(2026, 3, 30)
 NEGATIVE_EXTENSION_DAYS = -3
+PORTAL_MANAGEMENT_NAME = '回復原版管理公司名稱'
+PORTAL_CONTRACTOR_NAME = '回復原版營造廠商名稱'
 NEGATIVE_DAILY_QTY = -2.5
 
 
@@ -101,12 +103,13 @@ class TestEagleParityPortalFollowUp(TransactionCase):
     後台那六包拿掉的限制，前台另外寫了一份的有這幾處，逐條對一個「修改前會失敗」的案例：
     * PJ-09 工程資訊編輯只開放未開始的工程 → 開工後也能編輯（工程類型、契約日期、展延、管理公司照後台維持鎖住）
     * PJ-10 契約金額有工項或開工後不能改 → 可以手改（使用者 2026-11-20 追加）
-    * PJ-12 存檔前預檢「契約完工日不得早於開工日」→ 不檢查
-    * PG-12 工期展延天數不可為負數 → 可以
+    * PJ-12 存檔前預檢「契約完工日不得早於開工日」→ 2026-11-22 使用者決定加回
+    * PG-12 工期展延天數不可為負數 → 2026-11-22 使用者決定加回
+    * PJ-17、PJ-18 前台編輯頁補上後台的「管理公司」「營造廠商」兩個文字欄（2026-11-22）
     * DL-14 日誌工項清單不列整包項 → 列（比例項照舊不列）
     * DL-16 今日數量輸入框 min="0" → 拿掉，負數存得進去
     * DF-01 「通知改善」的期限欄必填 → 可不填
-    * DF-11 缺失匯入時期限早於發現日會被改成發現日 → 照原檔的值
+    * DF-11 缺失匯入時期限早於發現日會被改成發現日 → 2026-11-22 跟著模型的日期先後檢查一起加回
     """
 
     @classmethod
@@ -251,26 +254,58 @@ class TestEagleParityPortalFollowUp(TransactionCase):
         self.assertIn('目前是手動輸入的金額', html)
 
     # ---- PJ-12：不再預檢契約日期先後 ----------------------------------
-    def test_draft_update_accepts_end_before_start(self):
+    def test_draft_update_rejects_end_before_start(self):
+        """PJ-12（2026-11-22 加回）：完工日早於開工日退回並說明，不寫入；同一天照常存。"""
         project = self.draft
         _vals, loc = self._drive(self.ctrl.portal_construction_project_update, project.id, user=self.boss,
                                  contract_start_date='2026-12-31', contract_end_date='2026-01-01')
-        self.assertIn('message=updated', loc, '完工日早於開工日也要存得進去（修改前：error=date_invalid）')
+        self.assertIn('error=date_invalid', loc)
+        self.assertEqual((project.contract_start_date, project.contract_end_date), (CONTRACT_START, CONTRACT_END))
+        vals, html = self._drive(self.ctrl.portal_construction_project_edit, project.id, user=self.boss,
+                                 error='date_invalid')
+        self.assertIsNotNone(vals, html)
+        self.assertIn('契約完工日不得早於開工日', html, '退回後編輯頁要說明原因')
+        _vals, loc = self._drive(self.ctrl.portal_construction_project_update, project.id, user=self.boss,
+                                 contract_start_date='2026-12-31', contract_end_date='2026-12-31')
+        self.assertIn('message=updated', loc)
         self.assertEqual((project.contract_start_date, project.contract_end_date),
-                         (date(2026, 12, 31), date(2026, 1, 1)))
+                         (date(2026, 12, 31), date(2026, 12, 31)))
 
-    # ---- PG-12：展延天數可以是負數 ------------------------------------
-    def test_schedule_extend_accepts_negative_days(self):
+    # ---- PJ-17、PJ-18：管理公司、營造廠商文字欄 ------------------------
+    def test_edit_page_has_company_name_text_fields(self):
+        """已開工的工程：兩個文字欄在編輯頁上、沒有停用，存得進去，工程資訊頁看得到。"""
+        project = self.started
+        vals, html = self._drive(self.ctrl.portal_construction_project_edit, project.id)
+        self.assertIsNotNone(vals, html)
+        for name in ('management_company_name', 'contractor_company_name'):
+            element = self._tag(html, r'<input[^>]*name="%s"[^>]*>' % name)
+            self.assertIsNotNone(element, f'編輯頁找不到 {name}')
+            self.assertNotIn('disabled', element, f'{name} 開工後也要能改')
+        company_before = project.company_id
+        _vals, loc = self._drive(self.ctrl.portal_construction_project_update, project.id,
+                                 management_company_name=PORTAL_MANAGEMENT_NAME,
+                                 contractor_company_name=PORTAL_CONTRACTOR_NAME)
+        self.assertIn('message=updated', loc)
+        self.assertEqual((project.management_company_name, project.contractor_company_name),
+                         (PORTAL_MANAGEMENT_NAME, PORTAL_CONTRACTOR_NAME))
+        self.assertEqual(project.company_id, company_before, '文字欄不能動到帳號歸屬的公司')
+        vals, html = self._drive(self.ctrl.portal_construction_project_info, project.id)
+        self.assertIsNotNone(vals, html)
+        self.assertIn(PORTAL_MANAGEMENT_NAME, html)
+        self.assertIn(PORTAL_CONTRACTOR_NAME, html)
+
+    # ---- PG-12：展延天數不可為負數（2026-11-22 加回）-------------------
+    def test_schedule_extend_rejects_negative_days(self):
         schedule = self.env['progress.schedule'].create({
             'project_id': self.started.id, 'change_date': fields.Date.today()})
         self.assertEqual(schedule.state, 'draft', '前提')
         vals, html = self._drive(self.ctrl.portal_schedule_extend_page, self.started.id)
         self.assertIsNotNone(vals, html)
-        self.assertNotIn('min=', self._tag(html, r'<input[^>]*name="current_extension"[^>]*>'))
+        self.assertIn('min="0"', self._tag(html, r'<input[^>]*name="current_extension"[^>]*>'))
         _vals, loc = self._drive(self.ctrl.portal_schedule_extend_submit, self.started.id, schedule.id,
                                  current_extension=str(NEGATIVE_EXTENSION_DAYS))
-        self.assertIn('success=1', loc, '負的展延天數要收（修改前：error=negative）')
-        self.assertEqual(schedule.current_extension, NEGATIVE_EXTENSION_DAYS)
+        self.assertIn('error=negative', loc)
+        self.assertEqual(schedule.current_extension, 0, '負的展延天數不能寫進去')
 
     # ---- DL-14、DL-16：整包項可以填日誌、今日數量可以是負數 -----------
     def test_new_log_form_lists_lump_item_without_qty_floor(self):
@@ -310,8 +345,8 @@ class TestEagleParityPortalFollowUp(TransactionCase):
         self.assertNotIn('error=', loc)
         self.assertEqual((defect.state, defect.deadline), ('notified', False))
 
-    # ---- DF-11：缺失匯入照原檔的期限 ----------------------------------
-    def test_defect_import_keeps_deadline_before_found_date(self):
+    # ---- DF-11：缺失匯入時期限早於發現日（2026-11-22 加回原本的做法）---
+    def test_defect_import_moves_deadline_to_found_date(self):
         found, deadline = date(2026, 5, 10), date(2026, 5, 1)
         rows = [{'register_no': 'EP-R-1', 'description': '回復原版匯入缺失（期限早於發現日）',
                  'found_date': found, 'deadline': deadline, 'improvement_date': None,
@@ -326,8 +361,8 @@ class TestEagleParityPortalFollowUp(TransactionCase):
         defect = self.env['general.defect.improvement'].search(
             [('project_id', '=', self.started.id), ('defect_description', '=', rows[0]['description'])])
         self.assertEqual(len(defect), 1)
-        self.assertEqual((defect.found_date, defect.deadline), (found, deadline),
-                         '期限要照原檔（修改前會被改成發現日）')
+        self.assertEqual((defect.found_date, defect.deadline), (found, found),
+                         '模型不收期限早於發現日，匯入時把期限改成發現日，這一列才匯得進來')
 
 
 @tagged('post_install', '-at_install', 'construction_portal')

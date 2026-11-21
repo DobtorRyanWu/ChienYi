@@ -114,10 +114,11 @@ def _posted_measure_lines(post, allowed_block_ids):
     return commands
 
 
-def _posted_item_result(inspection, posted, default='pass'):
+def _posted_item_result(inspection, posted, default=False):
     """前台送出的單題結果 → 寫進檢查項目的值。
 
-    標準樣式（合格／缺失／無此項目）送的是 check_result，沒送用 default（與原本相同）；
+    標準樣式（合格／缺失／無此項目）送的是 check_result，沒送就是空白（2026-11-22 回復原版，清單 QI-15：
+    原本沒送當成合格，沒檢查到的項目會被記成合格；舊系統預設空白）；
     其他樣式送的是勾選值 mark——不在這個樣式的選項裡、或沒勾，一律當沒勾，
     檢查結果由 construction_quality 的 self.inspection.item.mark.mixin 換算（紀錄型沒勾也算通過）。
     """

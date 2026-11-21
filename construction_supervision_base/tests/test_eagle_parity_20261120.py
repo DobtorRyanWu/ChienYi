@@ -10,7 +10,10 @@
 
 from lxml import etree
 
+from psycopg2 import IntegrityError
+
 from odoo.tests import Form, TransactionCase, tagged
+from odoo.tools import mute_logger
 
 
 @tagged('post_install', '-at_install', 'construction_supervision_base')
@@ -62,10 +65,23 @@ class TestEagleParityStart(TransactionCase):
         for name in ('project_type', 'contract_start_date', 'contract_end_date'):
             self.assertIn("'construction'", readonly_of(name), '%s 開工後仍要唯讀' % name)
 
+    def test_project_code_editable_after_start(self):
+        """PJ-16（2026-11-22）：開工後後台也能改工程編號——舊系統工程編號隨時可改，前台老闆、主管本來就不看狀態。"""
+        arch = etree.fromstring(self.env.ref('construction_supervision_base.view_supervision_project_form').arch)
+        code = arch.xpath("//div[contains(@class, 'oe_title')]//field[@name='code']")
+        self.assertEqual(len(code), 1)
+        self.assertFalse(code[0].get('readonly'), '工程編號不該再因為開工而唯讀')
+        project = self._project('EP-CODE', contract_start_date='2026-01-01')
+        project.action_approve()
+        with Form(project, 'construction_supervision_base.view_supervision_project_form') as form:
+            form.code = 'EP-CODE-2'
+        self.assertEqual(project.code, 'EP-CODE-2')
+
 
 @tagged('post_install', '-at_install', 'construction_supervision_base')
 class TestEagleParityInputChecks(TransactionCase):
-    """PJ-12、CT-02：日期先後、數量與單價正負不再檢查（舊系統前後端都沒有比對）。"""
+    """CT-02：契約數量與單價正負不再檢查（舊系統前後端都沒有比對）。
+    PJ-12（契約完工日不早於開工日）2026-11-22 使用者決定加回，當防呆。"""
 
     @classmethod
     def setUpClass(cls):
@@ -73,11 +89,15 @@ class TestEagleParityInputChecks(TransactionCase):
         cls.project = cls.env['project.project'].create({
             'name': '回復原版輸入值', 'code': 'EP-INPUT', 'project_type': 'general'})
 
-    def test_contract_end_before_start_allowed(self):
-        self.project.write({'contract_start_date': '2026-03-01', 'contract_end_date': '2026-02-01'})
-        self.env.flush_all()          # 資料庫層的 CHECK 約束在 flush 時才會擋
-        self.project.invalidate_recordset()
-        self.assertLess(self.project.contract_end_date, self.project.contract_start_date)
+    def test_contract_end_before_start_blocked(self):
+        """PJ-12：完工日早於開工日要擋；同一天、或只填其中一個日期不擋。"""
+        self.project.write({'contract_start_date': '2026-03-01', 'contract_end_date': '2026-03-01'})
+        self.env.flush_all()
+        self.project.write({'contract_start_date': False, 'contract_end_date': '2026-02-01'})
+        self.env.flush_all()
+        with self.assertRaises(IntegrityError), mute_logger('odoo.sql_db'):
+            self.project.write({'contract_start_date': '2026-03-01', 'contract_end_date': '2026-02-01'})
+            self.env.flush_all()          # 資料庫層的 CHECK 約束在 flush 時才會擋
 
     def test_negative_contract_qty_and_price_allowed(self):
         task = self.env['project.task'].create({'name': '回復原版負數工項', 'project_id': self.project.id})

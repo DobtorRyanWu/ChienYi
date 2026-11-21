@@ -509,7 +509,10 @@ class MiscRoutesMixin:
         except (TypeError, ValueError):
             return request.redirect(
                 f'/construction/{project_id}/schedule/extend?error=invalid_value')
-        # 2026-11-20 回復原版：展延天數不再擋負數（後台同一天拿掉，舊系統沒有這個檢查）
+        # 2026-11-22 加回（使用者決定，清單 PG-12；後台的檢查同一天加回）
+        if current_extension < 0:
+            return request.redirect(
+                f'/construction/{project_id}/schedule/extend?error=negative')
 
         try:
             # savepoint：寫天數與補區間是一組動作，後者失敗時天數要一併退回，

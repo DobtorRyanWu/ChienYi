@@ -3,7 +3,7 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class ProgressScheduleLine(models.Model):
@@ -255,15 +255,42 @@ class ProgressScheduleLine(models.Model):
     )
 
     # === 輸入值檢查 ===
-    # 2026-11-20 回復原版（1118 會議）：這裡原本有五條檢查，全部拿掉——舊系統儲存進度表只檢查
-    # 「變更時間有填、預定進度不能全部是 0」（views/PC/Schedule.vue addSchedule），其餘不比對：
-    #   - 資料庫 CHECK date_check（結束日不早於開始日）、planned_progress_max（預定進度不超過 100%）
-    #   - _check_planned_progress（預定進度不可為負，校正視窗除外）
-    #   - _check_date_in_project_range（區間不可早於開工日、晚於調整後完工日）
-    #   - _check_no_overlap（區間不重疊）
-    # 區間重疊時，日誌的「本日所屬區間」取第一筆符合的（daily_log_sheet._compute_progress_line 的 limit=1）。
+    # 2026-11-20 回復原版（1118 會議）：這裡原本有五條檢查，當時全部拿掉——舊系統儲存進度表只檢查
+    # 「變更時間有填、預定進度不能全部是 0」（views/PC/Schedule.vue addSchedule），其餘不比對。
+    # 2026-11-22 使用者對照鈺鈞的意見表逐條決定後，現況是：
+    #   加回    date_check（結束日不早於開始日，清單 PG-07）：舊資料 50 個版本只擋到打錯與測試的 4 個
+    #   放寬加回 _check_no_overlap（區間不重疊，清單 PG-06）：上一段結束日＝下一段開始日不算重疊
+    #   維持拿掉 planned_progress_max（單一區間不超過 100%）、_check_planned_progress（預定進度不可為負）、
+    #           _check_date_in_project_range（區間不可早於開工日、晚於調整後完工日）
+    # 交界日同一天時，日誌的「本日所屬區間」取第一筆符合的（daily_log_sheet._compute_progress_line 的 limit=1）。
     # actual_progress 一直沒有界限：它是施工日誌 daily_actual_progress 的加總，只能經同步寫入
     # （見 create() 與 write() 的 allow_sync_progress 閘門）。
+    _sql_constraints = [
+        ('date_check', 'CHECK(date_end >= date_start)',
+         '結束日期必須晚於或等於開始日期'),
+    ]
+
+    @api.constrains('date_start', 'date_end', 'schedule_id')
+    def _check_no_overlap(self):
+        """同一張進度表的區間不可重疊。
+
+        只共用一個交界日（上一段結束日＝下一段開始日）不算重疊：舊系統 2021 年的工程每月一段都這樣填，
+        原本的判定（含交界日）會把它們擋掉，所以兩邊都用嚴格的大於／小於。"""
+        for line in self:
+            if not line.schedule_id or not line.date_start or not line.date_end:
+                continue
+
+            overlapping = self.search([
+                ('schedule_id', '=', line.schedule_id.id),
+                ('id', '!=', line.id),
+                ('date_start', '<', line.date_end),
+                ('date_end', '>', line.date_start),
+            ], limit=1)
+
+            if overlapping:
+                raise ValidationError(
+                    f'區間日期 ({line.period_display}) 與其他區間 ({overlapping.period_display}) 重疊'
+                )
 
     # =========================================================================
     # 動作方法

@@ -93,8 +93,12 @@ class TestPortalInspectionResultLayout(TransactionCase):
         insp, (a, _b) = self._create(self.t_rec, self.rec_items, ['defect', 'yes'])
         self.assertEqual((a.mark, a.check_result), (False, 'pass'))
 
-    def test_standard_layout_unchanged(self):
+    def test_standard_layout_blank_when_not_chosen(self):
+        """2026-11-22 回復原版（清單 QI-15）：標準樣式沒選就是空白，不再當成合格（修改前：沒送＝合格）。"""
         insp, (a,) = self._create(self.t_std, self.std_items, [None])
-        self.assertEqual((a.mark, a.check_result), (False, 'pass'))      # 原本就是沒送＝合格
+        self.assertEqual((a.mark, a.check_result), (False, False))
+        self.assertNotEqual(insp.overall_result, 'pass', '有項目還沒有結果，綜合結果不能是合格')
         insp2, (b,) = self._create(self.t_std, self.std_items, ['defect'])
         self.assertEqual(b.check_result, 'defect')
+        insp3, (c,) = self._create(self.t_std, self.std_items, ['pass'])
+        self.assertEqual((c.check_result, insp3.overall_result), ('pass', 'pass'))
