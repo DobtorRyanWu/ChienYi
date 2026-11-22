@@ -365,11 +365,16 @@ class TestContractorScopePortal(TransactionCase):
         self.assertFalse(photo.exists(), '監造方主管照常刪得掉')
 
     def test_reservation_inspection_create_under_slip_is_own(self):
-        """在通報單底下建自主檢查：建出來歸 A，B 看不到。"""
+        """在通報單底下建自主檢查：建出來歸 A，B 看不到。
+
+        2026-11-23：建立路由在 40401f18（全工區）改成收 project_id＋slip_choice（通報單 id 或「全工區」），
+        不再收 slip_id；這裡跟著送新的參數，驗的事情不變。
+        """
         slip = self._slip()
         slip.sudo().write({'state': 'in_progress'})
         loc = self._location(self.field_a, self.ctrl.portal_construction_reservation_inspection_create,
-                             slip_id=str(slip.id), inspection_type_id=str(self.itype.id))
+                             project_id=str(self.r.id), slip_choice=str(slip.id),
+                             inspection_type_id=str(self.itype.id))
         new = self.env['reservation.self.inspection'].search([('slip_id', '=', slip.id)])
         self.assertEqual(len(new), 1, loc)
         self.assertEqual(new.contractor_company_id, self.co_a)
