@@ -28,6 +28,7 @@ from .portal_utils import (
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
     _portal_flash_url, _portal_flash_code, _portal_error_message,
     _haversine_km,
+    SLIP_CHOICE_WHOLE_SITE, _reservation_slip_options, _parse_slip_choice,
 )
 
 
@@ -370,6 +371,14 @@ class InspectionRoutesMixin:
         except (AccessError, MissingError):
             return request.redirect('/my')
 
+        # 預約式工程的自主檢查在 reservation.self.inspection（2026-11-22）：
+        # 底部導覽、首頁都連到這裡，以前會列一般式的（預約式工程永遠是空的）、「新增」也開一般式表單
+        if project.project_type == 'reservation':
+            target = f'/construction/{project.id}/reservation-inspections'
+            if str(kw.get('slip_id') or '').isdigit():
+                target += f"?slip_id={int(kw['slip_id'])}"
+            return request.redirect(target)
+
         Inspection = request.env['general.self.inspection']
         domain = [('project_id', '=', project.id)]
 
@@ -596,6 +605,8 @@ class InspectionRoutesMixin:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
+        if project.project_type == 'reservation':   # 預約式走自己的表單（選通報單或全工區）
+            return request.redirect(f'/construction/{project.id}/reservation-inspection/new')
 
         InspType = request.env['self.inspection.type'].sudo()
         # 只顯示全域樣板 + 當前專案專屬樣板（避免撈到別專案的設定）
@@ -819,7 +830,12 @@ class InspectionRoutesMixin:
         Inspection = request.env['reservation.self.inspection']
         domain = [('project_id', '=', project.id)]
         slip_filter = kw.get('slip_id')
-        if slip_filter:
+        # 全工區篩選（2026-11-22）：跟通報單篩選二擇一
+        whole_site_filter = kw.get('whole_site') == '1'
+        if whole_site_filter:
+            slip_filter = None
+            domain.append(('is_whole_site', '=', True))
+        elif slip_filter:
             try:
                 domain.append(('slip_id', '=', int(slip_filter)))
             except ValueError:
@@ -831,7 +847,8 @@ class InspectionRoutesMixin:
             total=inspection_count,
             page=page,
             step=self._items_per_page,
-            url_args={'slip_id': slip_filter} if slip_filter else None,
+            url_args=({'whole_site': '1'} if whole_site_filter
+                      else {'slip_id': slip_filter} if slip_filter else None),
         )
 
         inspections = Inspection.search(
@@ -855,6 +872,7 @@ class InspectionRoutesMixin:
             'default_url': f'/construction/{project_id}/reservation-inspections',
             'slip_list': slip_list,
             'slip_filter': slip_filter,
+            'whole_site_filter': whole_site_filter,
             'page_name': 'construction_reservation_inspections',
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
@@ -864,25 +882,30 @@ class InspectionRoutesMixin:
     @http.route(['/construction/<int:project_id>/reservation-inspection/new'],
                 type='http', auth='user', website=True)
     def portal_construction_reservation_inspection_new(self, project_id, slip_id=None, **kw):
-        """預約式檢查新增表單(必須帶 slip_id)"""
+        """預約式檢查新增表單。
+
+        2026-11-22：「所屬通報單」改成表單上的下拉（這個工程可以掛的通報單＋「全工區」二擇一）。
+        從通報單詳情頁進來（帶 slip_id）就預選那一張；從自主檢查清單進來不帶。
+        """
         try:
             project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
-
-        if not slip_id:
-            return request.redirect(f'/construction/{project_id}/slips')
+        if project.project_type != 'reservation':
+            return request.redirect(f'/construction/{project.id}/inspection/new')
 
         Slip = request.env['reservation.notification.slip']
-        slip = Slip.search([
-            ('id', '=', int(slip_id)),
-            ('project_id', '=', project.id),
-        ], limit=1)
-        if not slip:
-            return request.redirect(f'/construction/{project_id}/slips')
-        if slip.state == 'cancelled':
-            return request.redirect(
-                f'/construction/{project_id}/slip/{slip.id}?error=slip_cancelled')
+        slip = Slip
+        if slip_id:
+            slip = Slip.search([
+                ('id', '=', int(slip_id) if str(slip_id).isdigit() else 0),
+                ('project_id', '=', project.id),
+            ], limit=1)
+            if not slip:
+                return request.redirect(f'/construction/{project_id}/slips')
+            if slip.state == 'cancelled':
+                return request.redirect(
+                    f'/construction/{project_id}/slip/{slip.id}?error=slip_cancelled')
 
         InspType = request.env['self.inspection.type'].sudo()
         # 只顯示全域樣板 + 當前專案專屬樣板（避免撈到別專案的設定）
@@ -898,6 +921,10 @@ class InspectionRoutesMixin:
         values = {
             'project': project,
             'slip': slip,
+            'slip_options': _reservation_slip_options(
+                request.env, project, 'reservation.self.inspection'),
+            'slip_choice_whole_site': SLIP_CHOICE_WHOLE_SITE,
+            'error_message': _portal_error_message(request.params.get('error')),
             'inspection_types': inspection_types,
             'timing_map_json': timing_map_json,
             'measure_map_json': measure_map_json,
@@ -912,34 +939,36 @@ class InspectionRoutesMixin:
     @http.route(['/construction/reservation-inspection/create'],
                 type='http', auth='user', website=True, methods=['POST'], csrf=True)
     def portal_construction_reservation_inspection_create(self, **post):
-        """建立預約式自主檢查"""
-        slip_id = int(post.get('slip_id', 0))
-        if not slip_id:
-            return request.redirect('/my')
-
-        Slip = request.env['reservation.notification.slip'].sudo()
-        slip = Slip.browse(slip_id)
-        if not slip.exists():
-            return request.redirect('/my')
+        """建立預約式自主檢查（2026-11-22：所屬通報單或全工區，表單下拉 slip_choice 二擇一）"""
         try:
-            project = self._document_check_access('project.project', slip.project_id.id)
+            project_id = int(post.get('project_id') or 0)
+        except ValueError:
+            project_id = 0
+        try:
+            project = self._document_check_access('project.project', project_id)
         except (AccessError, MissingError):
             return request.redirect('/my')
-        if slip.state == 'cancelled':
-            # 模型 _check_slip_state 也會擋，但那會是 500；這裡先導回詳情頁
-            return request.redirect(
-                f'/construction/{project.id}/slip/{slip.id}?error=slip_cancelled')
+        if project.project_type != 'reservation':
+            return request.redirect('/my')
+        new_url = f'/construction/{project.id}/reservation-inspection/new'
+        choice = _parse_slip_choice(request.env, project, post.get('slip_choice'),
+                                    'reservation.self.inspection')
+        if choice is None:
+            # 沒選、選了別的工程的、退單或草稿的通報單（模型也會擋，但那會是 500）
+            return request.redirect(f'{new_url}?error=slip_choice')
+        slip, is_whole_site = choice
 
         # H1：建立預約式自主檢查限現場人員以上，閱覽角色不可寫入
         self._require_write(_('權限不足：閱覽角色不可建立自主檢查'))
 
         type_id = self._posted_visible_type_id(post)
         if type_id is None:               # 送了看不到的樣板（竄改的表單）：不建立
-            return request.redirect(
-                f'/construction/{project.id}/slip/{slip.id}?error=inspection_type')
+            return request.redirect(f'{new_url}?error=inspection_type')
 
         vals = {
-            'slip_id': slip.id,
+            'project_id': project.id,
+            'slip_id': slip.id or False,
+            'is_whole_site': is_whole_site,
             'inspection_type_id': type_id,
             'sub_project_name': post.get('sub_project_name', ''),
             'inspection_date': post.get('inspection_date') or date.today().isoformat(),

@@ -7,3 +7,4 @@ from . import test_low_fixes_20261116  # 11-16 六件 low：逾期通知作者
 from . import test_number_by_project_company  # 自主檢查／通報單單號依工程所屬公司取號（2026-11-16）
 from . import test_number_backfill  # 「/」自主檢查依工程公司、依檢查日期補號（6.10.3，2026-11-16）
 from . import test_inspection_library_hook  # 樣板庫載入：建得出來、重跑不重複（6.12.0）
+from . import test_whole_site  # 預約式自主檢查「全工區」跟通報單二擇一（6.14.0，2026-11-22）

@@ -344,7 +344,10 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         today = date.today()
         badges = {}
         try:
-            badges['insp'] = request.env['general.self.inspection'].search_count([
+            # 預約式工程的檢查在 reservation.self.inspection（2026-11-22：以前一律數一般式，預約式永遠 0）
+            insp_model = ('reservation.self.inspection' if project.project_type == 'reservation'
+                          else 'general.self.inspection')
+            badges['insp'] = request.env[insp_model].search_count([
                 ('project_id', '=', project.id),
                 ('state', '=', 'draft'),
             ])

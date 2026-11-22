@@ -82,6 +82,10 @@
                             <div class="cy-defect-card-meta">
                                 <t t-if="d.defect_location">📍 <t t-esc="d.defect_location"/></t>
                                 <t t-if="d.found_date"> · <t t-esc="d.found_date"/></t>
+                                <t t-if="d._name == 'reservation.defect.improvement'">
+                                    <t t-if="d.is_whole_site"> · 全工區</t>
+                                    <t t-elif="d.slip_id"> · <t t-esc="d.slip_id.slip_number or d.slip_id.name"/></t>
+                                </t>
                                 <t t-if="d.is_overdue">
                                     <span style="color: var(--wb-red); font-weight: 700;"> · ⚠ 逾期 <t t-esc="d.overdue_days"/> 天</span>
                                 </t>
@@ -185,6 +189,17 @@
                     <!-- 缺失資訊 -->
                     <div class="cy-section-title">缺失資訊</div>
                     <div class="cy-info-section">
+                        <!-- 預約式：所屬通報單或全工區（2026-11-22） -->
+                        <div class="cy-info-row" t-if="defect._name == 'reservation.defect.improvement'">
+                            <span class="cy-info-label">所屬通報單</span>
+                            <span class="cy-info-value">
+                                <t t-if="defect.is_whole_site">全工區</t>
+                                <a t-elif="defect.slip_id" t-attf-href="/construction/#{project.id}/slip/#{defect.slip_id.id}">
+                                    <t t-esc="defect.slip_id.slip_number or defect.slip_id.name"/>
+                                </a>
+                                <t t-else="">-</t>
+                            </span>
+                        </div>
                         <div class="cy-info-row">
                             <span class="cy-info-label">缺失類型</span>
                             <span class="cy-info-value"><t t-esc="type_selection.get(defect.defect_category, '-')"/></span>
@@ -496,6 +511,22 @@
 
                         <div class="cy-card" style="margin-bottom: 14px;">
                             <div class="cy-card-body">
+                                <!-- 預約式：所屬通報單或「全工區」二擇一（2026-11-22）：一個下拉只能選一個 -->
+                                <div t-if="slip_options is not False" style="margin-bottom: 14px;">
+                                    <label class="form-label" style="font-size: 0.9rem; font-weight: 600;">
+                                        所屬通報單 <span style="color: var(--wb-red);">*</span>
+                                    </label>
+                                    <select name="slip_choice" class="form-select" required="required">
+                                        <option value="">-- 選擇 --</option>
+                                        <t t-foreach="slip_options" t-as="so">
+                                            <option t-att-value="so.id"><t t-esc="so.slip_number or so.name"/></option>
+                                        </t>
+                                        <option t-att-value="slip_choice_whole_site">全工區（不掛通報單）</option>
+                                    </select>
+                                    <div style="font-size: 0.75rem; color: var(--wb-t3); margin-top: 4px;">
+                                        這張缺失不屬於某一張通報單、是整個工區的，請選「全工區」
+                                    </div>
+                                </div>
                                 <!-- 缺失說明 -->
                                 <div style="margin-bottom: 14px;">
                                     <div style="font-size: 0.9rem; font-weight: 600; color: var(--wb-t2); margin-bottom: 8px;">

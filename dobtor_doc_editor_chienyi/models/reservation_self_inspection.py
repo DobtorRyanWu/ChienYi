@@ -58,7 +58,9 @@ class ReservationSelfInspection(models.Model):
             'record_model': self._name,
             'record_name': self.display_name or '',
             'project_name': self.project_id.name if self.project_id else '',
-            'slip_no': (self.slip_id.slip_number
+            # 全工區（construction_quality 18.0.6.14.0）沒有通報單：通報單那一格寫「全工區」
+            'slip_no': ('全工區' if self.is_whole_site
+                        else self.slip_id.slip_number
                         if self.slip_id and 'slip_number' in self.slip_id._fields
                         else ''),
             'inspection_no': self.inspection_no or '',

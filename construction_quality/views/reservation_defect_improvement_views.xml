@@ -9,6 +9,7 @@
             <list decoration-danger="is_overdue" decoration-muted="state == 'closed'">
                 <field name="record_no"/>
                 <field name="slip_id"/>
+                <field name="is_whole_site" optional="show"/>
                 <field name="project_id"/>
                 <field name="source_type"/>
                 <field name="defect_category"/>
@@ -95,7 +96,11 @@
                         <group string="通報單資訊">
                             <!-- 先選工程，再選這個工程的通報單 -->
                             <field name="project_id" options="{'no_create': True}"/>
-                            <field name="slip_id" required="1" options="{'no_create': True}"/>
+                            <!-- 全工區跟通報單二擇一（模型 _check_whole_site_or_slip 擋）：
+                                 勾全工區就不掛通報單；不勾就一定要選一張 -->
+                            <field name="is_whole_site"/>
+                            <field name="slip_id" options="{'no_create': True}"
+                                   invisible="is_whole_site" required="not is_whole_site"/>
                             <field name="record_type" invisible="1"/>
                             <field name="company_id" invisible="1"/>
                         </group>
@@ -335,6 +340,12 @@
                 <filter string="已逾期" name="is_overdue"
                         domain="[('is_overdue', '=', True)]"/>
                 <separator/>
+                <!-- 全工區（2026-11-22）：不屬於某一張通報單的缺失 -->
+                <filter string="全工區" name="whole_site"
+                        domain="[('is_whole_site', '=', True)]"/>
+                <filter string="掛通報單" name="has_slip"
+                        domain="[('is_whole_site', '=', False)]"/>
+                <separator/>
                 <filter string="施工檢查" name="construction"
                         domain="[('check_type', '=', 'construction')]"/>
                 <filter string="安衛環境" name="safety_env"
@@ -414,7 +425,7 @@
         <field name="context">{
             'default_record_type': 'supervision',
             'search_default_group_project': 1,
-            'search_default_group_slip': 1
+            'search_default_group_slip': 2
         }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
@@ -436,7 +447,7 @@
         <field name="context">{
             'default_record_type': 'contractor',
             'search_default_group_project': 1,
-            'search_default_group_slip': 1
+            'search_default_group_slip': 2
         }</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
@@ -492,7 +503,7 @@
         <field name="res_model">reservation.defect.improvement</field>
         <field name="view_mode">list,kanban,form</field>
         <field name="search_view_id" ref="view_reservation_defect_improvement_search"/>
-        <field name="context">{'search_default_group_project': 1, 'search_default_group_slip': 1}</field>
+        <field name="context">{'search_default_group_project': 1, 'search_default_group_slip': 2}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 建立第一筆缺失改善記錄

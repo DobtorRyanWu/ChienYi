@@ -26,14 +26,21 @@ class ReservationSelfInspection(models.Model):
     # 2026-11-20：先選工程、再選這個工程的通報單。工程原本是 related 通報單、不能選；
     # 改成一般欄位（資料庫同一欄，既有值不變）。只給通報單、沒給工程（程式寫入，例：匯入步驟 10）
     # 時，create／write 用通報單的工程補上。
+    # 2026-11-22（6.14.0）：通報單不再是欄位必填，改成跟「全工區」二擇一（_check_whole_site_or_slip）：
+    # 勾全工區＝不掛通報單；不勾＝照舊一定要選一張；兩個都有、兩個都沒有都擋。
     slip_id = fields.Many2one(
         'reservation.notification.slip',
         string='所屬通報單',
-        required=True,
         ondelete='cascade',
         # 只列這個工程、沒退單（作廢）的通報單；已經掛上去的不受影響
         domain="[('state', '!=', 'cancelled'), ('project_id', '=', project_id)]",
         tracking=True)
+
+    is_whole_site = fields.Boolean(
+        string='全工區',
+        default=False,
+        tracking=True,
+        help='這張檢查不屬於某一張通報單、是整個工區的；勾了就不掛通報單')
 
     project_id = fields.Many2one(
         'project.project',
@@ -48,6 +55,27 @@ class ReservationSelfInspection(models.Model):
         """換工程時清掉已選的通報單"""
         if self.slip_id and self.slip_id.project_id != self.project_id:
             self.slip_id = False
+
+    @api.onchange('is_whole_site')
+    def _onchange_whole_site_clear_slip(self):
+        """勾全工區時清掉已選的通報單（二擇一），
+        並跟選通報單時一樣，由工程帶入預設「自主檢查負責人」（存檔時 create 也會帶，這裡是讓畫面上馬上看到）"""
+        if self.is_whole_site:
+            self.slip_id = False
+            if self.project_id:
+                self.responsible_user_id = self.project_id._get_activity_user('inspection')
+
+    @api.constrains('is_whole_site', 'slip_id')
+    def _check_whole_site_or_slip(self):
+        """「全工區」和「所屬通報單」只能二擇一"""
+        for rec in self:
+            if rec.is_whole_site and rec.slip_id:
+                raise ValidationError(
+                    '「全工區」和「所屬通報單」只能選一個：'
+                    '勾了全工區就不掛通報單，要掛通報單請取消全工區。')
+            if not rec.is_whole_site and not rec.slip_id:
+                raise ValidationError(
+                    '請選一張所屬通報單；這張檢查不屬於某一張通報單的話，請勾「全工區」。')
 
     @api.constrains('slip_id', 'project_id')
     def _check_slip_in_project(self):
@@ -375,16 +403,16 @@ class ReservationSelfInspection(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             self._fill_project_from_slip(vals)   # 只給通報單時自動補工程
+            # 工程：有通報單看通報單的工程（必須同一個）；全工區沒有通報單，看本筆的工程
+            slip = self.env['reservation.notification.slip'].browse(vals.get('slip_id'))
+            project = (slip.sudo().project_id if slip
+                       else self.env['project.project'].browse(vals.get('project_id')).sudo())
             if not vals.get('inspection_no') or vals.get('inspection_no') == '/':
-                # 取號看通報單的工程（2026-11-20 起工程可選，但必須跟通報單同一個）
-                slip = self.env['reservation.notification.slip'].browse(vals.get('slip_id'))
                 vals['inspection_no'] = self.env['ir.sequence']._next_by_code_for_project(
-                    'reservation.self.inspection', slip.sudo().project_id) or '/'
-            # 未指定負責人時，由工程案件(經通報單)的「自主檢查負責人」帶入
-            if not vals.get('responsible_user_id') and vals.get('slip_id'):
-                project = self.env['reservation.notification.slip'].browse(
-                    vals['slip_id']).project_id
-                user = project._get_activity_user('inspection') if project else False
+                    'reservation.self.inspection', project) or '/'
+            # 未指定負責人時，由工程案件的「自主檢查負責人」帶入
+            if not vals.get('responsible_user_id') and project:
+                user = project._get_activity_user('inspection')
                 if user:
                     vals['responsible_user_id'] = user.id
         return super().create(vals_list)
