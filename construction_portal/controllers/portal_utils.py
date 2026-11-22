@@ -47,7 +47,44 @@ PORTAL_ERROR_MESSAGES = {
     'invalid_date': '日期格式不正確，請重新選擇日期。',
     # 前台新增、匯入日誌不能用在「未開始」的工程（後台的工程下拉本來就不列未開始的）
     'project_not_started': '這個工程還沒開始施工，不能新增或匯入施工日誌。',
+    # 預約式自主檢查／缺失：「所屬通報單」下拉沒選、或選的通報單不能用（2026-11-22）
+    'slip_choice': '請選一張所屬通報單，或選「全工區」。',
 }
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 預約式自主檢查／缺失：「所屬通報單」或「全工區」二擇一（2026-11-22）
+# ─────────────────────────────────────────────────────────────────────
+# 前台用一個下拉：每一張可以掛的通報單＋最後一個「全工區」。一個下拉只能選一個，
+# 所以「兩個都有」在畫面上不會發生；模型 _check_whole_site_or_slip 仍是最後一道。
+SLIP_CHOICE_WHOLE_SITE = 'whole_site'
+# 可以掛的通報單：自主檢查不能掛草稿與退單（construction_reservation _check_slip_state），
+# 缺失只不能掛退單（_check_slip_not_cancelled）
+_SLIP_BLOCKED_STATES = {
+    'reservation.self.inspection': ('draft', 'cancelled'),
+    'reservation.defect.improvement': ('cancelled',),
+}
+
+
+def _reservation_slip_options(env, project, model):
+    """這個工程可以掛的通報單（下拉選項），依通報單次排。"""
+    return env['reservation.notification.slip'].search([
+        ('project_id', '=', project.id),
+        ('state', 'not in', _SLIP_BLOCKED_STATES[model]),
+    ], order='slip_no, id')
+
+
+def _parse_slip_choice(env, project, value, model):
+    """前台下拉的值 → (slip, is_whole_site)；沒選、或選的通報單不屬於這個工程／不能掛 → None。"""
+    value = (value or '').strip()
+    if value == SLIP_CHOICE_WHOLE_SITE:
+        return env['reservation.notification.slip'], True
+    try:
+        slip_id = int(value)
+    except ValueError:
+        return None
+    slip = _reservation_slip_options(env, project, model).filtered(lambda s: s.id == slip_id)
+    return (slip, False) if slip else None
 
 
 def _portal_flash_code(text):

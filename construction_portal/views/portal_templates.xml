@@ -1100,7 +1100,7 @@
             </a>
             <!-- 自主檢查 -->
             <a t-attf-href="/construction/#{project.id}/inspections"
-               t-attf-class="cy-nav-item #{page_name in ('construction_inspections', 'construction_inspection_new', 'construction_inspection_detail') and 'active' or ''}">
+               t-attf-class="cy-nav-item #{page_name in ('construction_inspections', 'construction_inspection_new', 'construction_inspection_detail', 'construction_reservation_inspections', 'construction_reservation_inspection_new', 'construction_reservation_inspection_detail') and 'active' or ''}">
                 <span class="cy-nav-emoji">🔍</span>
                 <span>自主檢查</span>
                 <t t-if="nav_badges and nav_badges.get('insp')">

@@ -9,6 +9,7 @@
             <list decoration-danger="has_defect" decoration-muted="state == 'confirmed'">
                 <field name="inspection_no"/>
                 <field name="slip_id"/>
+                <field name="is_whole_site" optional="show"/>
                 <field name="project_id"/>
                 <field name="inspection_type_id"/>
                 <field name="sub_project_name"/>
@@ -70,7 +71,11 @@
                         <group string="通報單資訊">
                             <!-- 先選工程，再選這個工程的通報單 -->
                             <field name="project_id" options="{'no_create': True}"/>
-                            <field name="slip_id" options="{'no_create': True, 'no_open': True}"/>
+                            <!-- 全工區跟通報單二擇一（模型 _check_whole_site_or_slip 擋）：
+                                 勾全工區就不掛通報單；不勾就一定要選一張 -->
+                            <field name="is_whole_site"/>
+                            <field name="slip_id" options="{'no_create': True, 'no_open': True}"
+                                   invisible="is_whole_site" required="not is_whole_site"/>
                             <field name="company_id" invisible="1"/>
                         </group>
                         <group string="檢查資訊">
@@ -214,6 +219,12 @@
                         domain="[('overall_result', '=', 'pass')]"/>
                 <filter string="不合格" name="unqualified"
                         domain="[('overall_result', '=', 'fail')]"/>
+                <separator/>
+                <!-- 全工區（2026-11-22）：不屬於某一張通報單的檢查 -->
+                <filter string="全工區" name="whole_site"
+                        domain="[('is_whole_site', '=', True)]"/>
+                <filter string="掛通報單" name="has_slip"
+                        domain="[('is_whole_site', '=', False)]"/>
                 <separator/>
                 <group expand="0" string="群組" name="groupby">
                     <filter string="通報單" name="group_slip"

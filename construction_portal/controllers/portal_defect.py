@@ -21,6 +21,7 @@ from .portal_utils import (
     _defect_save_photos, _portal_delete_photo, _portal_photo_to_supervision,
     _portal_flash_url, _portal_flash_code, _portal_error_message,
     _haversine_km, resolve_record_type,
+    SLIP_CHOICE_WHOLE_SITE, _reservation_slip_options, _parse_slip_choice,
 )
 
 # M4-a 抽檔時漏了 _logger（只定義在 portal.py），導致三條匯入路由 POST 一進入
@@ -231,6 +232,10 @@ class DefectRoutesMixin:
                         'deadline': deadline or False,
                         'state': state,
                     }
+                    if Defect._name == 'reservation.defect.improvement':
+                        # 預約式：來源（彙總表）沒有「第幾通」→ 先預設全工區（2026-11-22 使用者裁示；
+                        # 以前不帶通報單，每一列都建失敗）
+                        vals['is_whole_site'] = True
                     if row.get('note'):
                         vals['note'] = row['note']
                     if row.get('category_inferred'):
@@ -572,6 +577,9 @@ class DefectRoutesMixin:
                             'notification_date': found_date,
                             'state': state,
                         }
+                        if Defect._name == 'reservation.defect.improvement':
+                            # 預約式：來源（缺失單 docx）沒有「第幾通」→ 先預設全工區（2026-11-22 使用者裁示）
+                            vals['is_whole_site'] = True
                         if row.get('location'):
                             vals['defect_location'] = row['location']
                         if improvement:
@@ -617,7 +625,11 @@ class DefectRoutesMixin:
             'open': {'label': _('待處理'), 'domain': [('state', 'not in', ['verified', 'closed'])]},
             'closed': {'label': _('已結案'), 'domain': [('state', 'in', ['verified', 'closed'])]},
         }
-        if not filterby:
+        if project.project_type == 'reservation':
+            # 全工區（2026-11-22）：不屬於某一張通報單的缺失
+            searchbar_filters['whole_site'] = {
+                'label': _('全工區'), 'domain': [('is_whole_site', '=', True)]}
+        if not filterby or filterby not in searchbar_filters:
             filterby = 'all'
         domain = AND([domain, searchbar_filters[filterby]['domain']])
 
@@ -670,6 +682,11 @@ class DefectRoutesMixin:
             'project': project,
             'type_options': type_options,
             'source_options': source_options,
+            # 預約式：所屬通報單或「全工區」二擇一（2026-11-22；以前前台沒送通報單、預約式建不起來）
+            'slip_options': (_reservation_slip_options(
+                request.env, project, 'reservation.defect.improvement')
+                if project.project_type == 'reservation' else False),
+            'slip_choice_whole_site': SLIP_CHOICE_WHOLE_SITE,
             'page_name': 'construction_defect_new',
             'today': date.today().isoformat(),
             'day_count': self._get_project_day_count(project),
@@ -717,6 +734,13 @@ class DefectRoutesMixin:
             'found_date': found_date,
             'deadline': deadline,
         }
+
+        if model == 'reservation.defect.improvement':
+            choice = _parse_slip_choice(request.env, project, post.get('slip_choice'), model)
+            if choice is None:
+                return request.redirect(
+                    f'/construction/{project_id}/defect/new?error=slip_choice')
+            vals.update(slip_id=choice[0].id or False, is_whole_site=choice[1])
 
         Defect = request.env[model].sudo()
         defect = Defect.create(vals)

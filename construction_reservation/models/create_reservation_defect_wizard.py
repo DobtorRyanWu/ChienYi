@@ -62,7 +62,10 @@ class CreateReservationDefectWizard(models.TransientModel):
         created = self.env['reservation.defect.improvement']
         for item in defect_items:
             defect = self.env['reservation.defect.improvement'].create({
-                'slip_id': inspection.slip_id.id,
+                # 全工區的檢查（沒有通報單）建出來的缺失也是全工區（2026-11-22）
+                'project_id': inspection.project_id.id,
+                'slip_id': inspection.slip_id.id or False,
+                'is_whole_site': inspection.is_whole_site,
                 'record_type': self.record_type,
                 'check_type': 'construction',
                 'defect_category': 'workmanship',

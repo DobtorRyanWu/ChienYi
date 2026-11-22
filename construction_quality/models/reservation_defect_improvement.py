@@ -37,14 +37,39 @@ class ReservationDefectImprovement(models.Model):
     _order = 'notification_date desc, id desc'
 
     # === 通報單關聯 ===
+    # 2026-11-22（6.14.0）：通報單不再是欄位必填，改成跟「全工區」二擇一（_check_whole_site_or_slip），
+    # 與預約式自主檢查同一套。
     slip_id = fields.Many2one(
         'reservation.notification.slip',
         string='所屬通報單',
-        required=True,
         ondelete='cascade',
         # 只列這個工程、沒退單（作廢）的通報單；已經掛上去的不受影響
         domain="[('state', '!=', 'cancelled'), ('project_id', '=', project_id)]",
         tracking=True)
+
+    is_whole_site = fields.Boolean(
+        string='全工區',
+        default=False,
+        tracking=True,
+        help='這張缺失不屬於某一張通報單、是整個工區的；勾了就不掛通報單')
+
+    @api.onchange('is_whole_site')
+    def _onchange_whole_site_clear_slip(self):
+        """勾全工區時清掉已選的通報單（二擇一）"""
+        if self.is_whole_site:
+            self.slip_id = False
+
+    @api.constrains('is_whole_site', 'slip_id')
+    def _check_whole_site_or_slip(self):
+        """「全工區」和「所屬通報單」只能二擇一"""
+        for rec in self:
+            if rec.is_whole_site and rec.slip_id:
+                raise ValidationError(
+                    '「全工區」和「所屬通報單」只能選一個：'
+                    '勾了全工區就不掛通報單，要掛通報單請取消全工區。')
+            if not rec.is_whole_site and not rec.slip_id:
+                raise ValidationError(
+                    '請選一張所屬通報單；這張缺失不屬於某一張通報單的話，請勾「全工區」。')
 
     # 2026-11-20：先選工程、再選通報單。原本 related 通報單；改成一般欄位（資料庫同一欄，
     # 既有值不變）。只給通報單時由 create／write 用通報單的工程補上（匯入步驟 11 只寫通報單）。

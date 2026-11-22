@@ -8,3 +8,4 @@ from . import test_number_by_project_company  # 自主檢查／通報單單號�
 from . import test_number_backfill  # 「/」自主檢查依工程公司、依檢查日期補號（6.10.3，2026-11-16）
 from . import test_inspection_library_hook  # 樣板庫載入：建得出來、重跑不重複（6.12.0）
 from . import test_eagle_parity_20261120  # 回復原版：缺失與自主檢查舊系統沒有的限制（1118 會議，2026-11-20）
+from . import test_whole_site  # 預約式自主檢查「全工區」跟通報單二擇一（6.14.0，2026-11-22）

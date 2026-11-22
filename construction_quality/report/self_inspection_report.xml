@@ -329,7 +329,10 @@
                         <tr>
                             <td style="background-color: #f5f5f5; font-weight: bold;">通報單</td>
                             <td colspan="3">
-                                <t t-esc="inspection.slip_id.name"/> (<t t-esc="inspection.slip_id.slip_number"/>)
+                                <t t-if="inspection.is_whole_site">全工區</t>
+                                <t t-else="">
+                                    <t t-esc="inspection.slip_id.name"/> (<t t-esc="inspection.slip_id.slip_number"/>)
+                                </t>
                             </td>
                         </tr>
                         <tr>

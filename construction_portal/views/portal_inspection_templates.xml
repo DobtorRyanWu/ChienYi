@@ -512,11 +512,19 @@
                 <div class="cy-content">
                     <h4 style="font-weight: 700; margin-bottom: 12px;">預約式自主檢查</h4>
 
-                    <!-- 通報單篩選 chips -->
-                    <t t-if="slip_list">
+                    <!-- 新增（2026-11-22）：表單上選所屬通報單或「全工區」 -->
+                    <a t-attf-href="/construction/#{project.id}/reservation-inspection/new"
+                       class="cy-btn-gradient-full amber" style="text-decoration: none; display: block; margin-bottom: 12px;">
+                        + 新增檢查
+                    </a>
+
+                    <!-- 通報單篩選 chips（＋全工區） -->
+                    <t t-if="slip_list or whole_site_filter">
                         <div class="cy-filter-pills" style="margin-bottom: 12px;">
                             <a t-attf-href="/construction/#{project.id}/reservation-inspections"
-                               t-attf-class="cy-filter-pill #{not slip_filter and 'active' or ''}">全部</a>
+                               t-attf-class="cy-filter-pill #{not slip_filter and not whole_site_filter and 'active' or ''}">全部</a>
+                            <a t-attf-href="/construction/#{project.id}/reservation-inspections?whole_site=1"
+                               t-attf-class="cy-filter-pill #{whole_site_filter and 'active' or ''}">全工區</a>
                             <t t-foreach="slip_list" t-as="s">
                                 <a t-attf-href="/construction/#{project.id}/reservation-inspections?slip_id=#{s.id}"
                                    t-attf-class="cy-filter-pill #{slip_filter and int(slip_filter) == s.id and 'active' or ''}">
@@ -530,9 +538,6 @@
                         <div class="cy-empty">
                             <i class="fa fa-clipboard-check"/>
                             <div class="cy-empty-text">尚無預約式檢查</div>
-                            <div style="font-size: 0.85rem; color: var(--wb-t3); margin-top: 4px;">
-                                請從通報單詳情頁新增
-                            </div>
                         </div>
                     </t>
 
@@ -551,6 +556,9 @@
                                 </div>
                                 <div t-if="insp.slip_id" style="font-size: 0.8rem; color: var(--wb-blue); margin-top: 4px;">
                                     <i class="fa fa-link"/> <t t-esc="insp.slip_id.slip_number or insp.slip_id.name"/>
+                                </div>
+                                <div t-elif="insp.is_whole_site" style="font-size: 0.8rem; color: var(--wb-blue); margin-top: 4px;">
+                                    <i class="fa fa-map-o"/> 全工區
                                 </div>
                             </div>
                         </a>
@@ -578,19 +586,43 @@
                 <t t-call="construction_portal.portal_v10_header"/>
                 <div class="cy-breadcrumb">
                     <a t-attf-href="/construction/#{project.id}" class="cy-breadcrumb-item">首頁</a>
-                    <a t-attf-href="/construction/#{project.id}/slip/#{slip.id}" class="cy-breadcrumb-item">通報單</a>
+                    <a t-if="slip" t-attf-href="/construction/#{project.id}/slip/#{slip.id}" class="cy-breadcrumb-item">通報單</a>
+                    <a t-else="" t-attf-href="/construction/#{project.id}/reservation-inspections" class="cy-breadcrumb-item">預約式檢查</a>
                     <span class="cy-breadcrumb-item active">新增檢查</span>
                 </div>
 
                 <div class="cy-content">
-                    <h4 style="font-weight: 700; margin-bottom: 4px;">新增預約式檢查</h4>
-                    <div style="font-size: 0.85rem; color: var(--wb-t3); margin-bottom: 16px;">
-                        所屬通報單:<strong><t t-esc="slip.slip_number or slip.name"/></strong>
-                    </div>
+                    <h4 style="font-weight: 700; margin-bottom: 16px;">新增預約式檢查</h4>
+
+                    <t t-if="error_message">
+                        <div class="cy-event-card cy-event-urgent" style="margin-bottom: 12px;">
+                            <span class="cy-event-icon" style="color: var(--wb-red);"><i class="fa fa-times-circle"/></span>
+                            <div class="cy-event-body"><div class="cy-event-desc"><t t-esc="error_message"/></div></div>
+                        </div>
+                    </t>
 
                     <form action="/construction/reservation-inspection/create" method="post" enctype="multipart/form-data">
                         <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-                        <input type="hidden" name="slip_id" t-att-value="slip.id"/>
+                        <input type="hidden" name="project_id" t-att-value="project.id"/>
+
+                        <!-- 所屬通報單或「全工區」二擇一（2026-11-22）：一個下拉只能選一個 -->
+                        <div style="margin-bottom: 16px;">
+                            <label class="form-label" style="font-size: 0.9rem; font-weight: 600;">
+                                所屬通報單 <span style="color: var(--wb-red);">*</span>
+                            </label>
+                            <select name="slip_choice" class="form-select" required="required">
+                                <option value="">-- 選擇 --</option>
+                                <t t-foreach="slip_options" t-as="so">
+                                    <option t-att-value="so.id" t-att-selected="slip and so.id == slip.id and 'selected' or None">
+                                        <t t-esc="so.slip_number or so.name"/>
+                                    </option>
+                                </t>
+                                <option t-att-value="slip_choice_whole_site">全工區（不掛通報單）</option>
+                            </select>
+                            <div style="font-size: 0.75rem; color: var(--wb-t3); margin-top: 4px;">
+                                這張檢查不屬於某一張通報單、是整個工區的，請選「全工區」
+                            </div>
+                        </div>
 
                         <div style="margin-bottom: 16px;">
                             <label class="form-label" style="font-size: 0.9rem; font-weight: 600;">
@@ -757,7 +789,9 @@
                         <div class="cy-info-row">
                             <span class="cy-info-label">通報單號</span>
                             <span class="cy-info-value">
-                                <a t-attf-href="/construction/#{project.id}/slip/#{slip.id}">
+                                <!-- 全工區沒有通報單（2.32.0） -->
+                                <t t-if="inspection.is_whole_site">全工區</t>
+                                <a t-else="" t-attf-href="/construction/#{project.id}/slip/#{slip.id}">
                                     <t t-esc="slip.slip_number or slip.name"/>
                                 </a>
                             </span>
