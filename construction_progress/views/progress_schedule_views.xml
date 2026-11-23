@@ -83,6 +83,8 @@
                                    readonly="state != 'draft'"
                                    options="{'no_create': True}"/>
                             <field name="version" readonly="1"/>
+                            <field name="copied_from_id" readonly="1" invisible="not copied_from_id"
+                                   options="{'no_open': True}"/>
                             <field name="change_date"
                                    readonly="state != 'draft'"/>
                             <field name="calculation_mode"
@@ -143,6 +145,7 @@
                             <field name="line_ids" nolabel="1"
                                    context="{'default_schedule_id': id}">
                                 <list string="進度明細" editable="bottom"
+                                      decoration-bf="is_change_day_row"
                                       decoration-success="variance_status == 'ahead'"
                                       decoration-warning="variance_status == 'on_track'"
                                       decoration-danger="variance_status == 'delayed'">
@@ -157,7 +160,7 @@
                                            column_invisible="parent.calculation_mode != 'custom'"/>
                                     <field name="period_days" string="天數" readonly="1"/>
                                     <field name="planned_progress"
-                                           readonly="parent.state != 'draft'"
+                                           readonly="parent.state != 'draft' or is_change_day_row"
                                            sum="預定進度合計"/>
                                     <field name="cumulative_planned" readonly="1"/>
                                     <field name="actual_progress"
@@ -172,6 +175,7 @@
                                     <field name="synced_from_log" readonly="1" widget="boolean"/>
                                     <field name="notes"/>
                                     <field name="schedule_state" column_invisible="1"/>
+                                    <field name="is_change_day_row" column_invisible="1"/>
                                 </list>
                             </field>
                         </page>
@@ -183,41 +187,30 @@
                                        placeholder="請說明本版本進度表的變更原因..."/>
                             </group>
                         </page>
-                        <page string="計畫基準校正" name="plan_correction"
+                        <page string="變更日進度" name="plan_correction"
                               invisible="version == 1">
-                            <div class="alert alert-warning" role="alert"
-                                 invisible="not needs_plan_correction">
-                                <strong>⚠️ 計畫倒退校正模式</strong>：此版本進度表包含負值過渡區間，用於修正因契約展延後新版計畫基準低於舊版的情況。
-                                啟用後，過渡區間的「預定進度」可為負數，累計曲線將從校正後目標重新計算。
+                            <div class="alert alert-info" role="alert" invisible="not change_day_applicable">
+                                變更日（上面的「變更時間」）在進度明細裡獨立成一列。
+                                兩格都可以不填：<strong>預定空白＝當天照原本的值</strong>（不往下掉；用「建立新版本」建的＝變更前的值）；
+                                <strong>實際空白＝照施工日誌加總</strong>（展延、契約金額沒變時就是這樣）。
+                                填了，變更日那一列馬上照新的數字算，進度曲線那一天會畫出變更前、變更後兩個點。
                             </div>
-                            <group string="校正設定">
-                                <group>
-                                    <field name="needs_plan_correction"
-                                           readonly="state != 'draft'"/>
-                                    <field name="correction_date"
-                                           readonly="state != 'draft'"
-                                           invisible="not needs_plan_correction"
-                                           required="needs_plan_correction"/>
-                                    <field name="correction_target_cumulative"
-                                           readonly="state != 'draft'"
-                                           invisible="not needs_plan_correction"
-                                           required="needs_plan_correction"/>
-                                </group>
-                                <group invisible="not needs_plan_correction">
-                                    <field name="correction_period_start"/>
-                                    <field name="correction_period_end"/>
+                            <div class="alert alert-secondary" role="alert" invisible="change_day_applicable">
+                                變更日不晚於第一段的開始日（還沒開工就改版、整張重排），不切分、沒有變更日那一列。
+                            </div>
+                            <group invisible="not change_day_applicable">
+                                <group string="累計預定進度">
                                     <field name="correction_pre_cumulative"/>
-                                    <field name="plan_correction_offset"
-                                           widget="float"
-                                           decoration-danger="plan_correction_offset &lt; 0"/>
+                                    <field name="correction_target_cumulative"
+                                           readonly="state != 'draft'"/>
+                                </group>
+                                <group string="累計實際進度">
+                                    <field name="change_pre_actual"/>
+                                    <field name="correction_target_actual"
+                                           readonly="state not in ('draft', 'active')"/>
                                 </group>
                             </group>
-                            <div invisible="not needs_plan_correction or not correction_period_start">
-                                <button name="action_apply_correction" type="object"
-                                        string="套用校正至過渡區間" class="btn-warning"
-                                        invisible="state != 'draft'"
-                                        confirm="確定要套用校正？系統將把過渡區間切割為子區間（基準日前 / 基準日當天 / 基準日後），並將基準日之後的所有區間預定進度歸零。此操作不可還原。"/>
-                            </div>
+                            <field name="change_day_applicable" invisible="1"/>
                         </page>
                         <page string="備註" name="notes">
                             <field name="notes"

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- noupdate：排程開關由各站決定。沒有 noupdate 時，每次 -u 都把這裡寫死的 active 蓋回去。 -->
+    <data noupdate="1">
+
+    <!-- 2026-11-24：進度表存的「目前累計預定／實際」是到今天的值（清單的超前／落後篩選、分組要用），
+         日期一過就舊了 → 每天重算使用中的進度表。首頁的數字不存、讀的時候現算，不靠這支。 -->
+    <record id="ir_cron_refresh_current_progress" model="ir.cron">
+        <field name="name">進度表 - 每天重算使用中進度表到今天的累計進度</field>
+        <field name="model_id" search="[('model', '=', 'progress.schedule')]"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_refresh_current_progress()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+    </record>
+    </data>
+</odoo>

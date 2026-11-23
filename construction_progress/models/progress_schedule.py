@@ -10,6 +10,9 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.addons.construction_supervision_base.models.supervision_project import (
     CONTRACT_DATES_SYSTEM_WRITE,
 )
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
+
+from .progress_calc import SKIP_CHANGE_DAY, ProgressCalc, line_key, owned_days
 
 # 「工程僅存的進度表不能刪」的例外：整個工程要刪掉的維護腳本才帶（畫面、前台都不會帶）
 ALLOW_DELETE_LAST_SCHEDULE = 'allow_delete_last_progress_schedule'
@@ -295,39 +298,38 @@ class ProgressSchedule(models.Model):
     ], string='目前進度狀態', compute='_compute_current_progress', store=True)
 
     @api.depends('line_ids.cumulative_planned', 'line_ids.cumulative_actual',
-                 'line_ids.date_start', 'line_ids.date_end')
+                 'line_ids.date_start', 'line_ids.date_end', 'line_ids.planned_progress',
+                 'line_ids.actual_progress', 'line_ids.actual_correction_target')
     def _compute_current_progress(self):
-        """計算目前進度（含進行中區間）"""
-        today = fields.Date.today()
-        for rec in self:
-            # 優先：找今日所在的進行中區間
-            current_period = rec.line_ids.filtered(
-                lambda l: l.date_start and l.date_end and
-                          l.date_start <= today <= l.date_end
-            )
-            if current_period:
-                line = current_period[0]
-                rec.current_cumulative_planned = line.cumulative_planned
-                rec.current_cumulative_actual = line.cumulative_actual
-                rec.current_variance = line.variance
-                rec.current_variance_status = line.variance_status
-            else:
-                # 退回：找最接近今日且已完成的區間
-                applicable_lines = rec.line_ids.filtered(
-                    lambda l: l.date_end and l.date_end <= today
-                ).sorted(key=lambda l: l.date_end, reverse=True)
+        """這一版進度表到今天（台灣日期，含當天）的累計預定／實際（共用算法 progress_calc）。
 
-                if applicable_lines:
-                    current_line = applicable_lines[0]
-                    rec.current_cumulative_planned = current_line.cumulative_planned
-                    rec.current_cumulative_actual = current_line.cumulative_actual
-                    rec.current_variance = current_line.variance
-                    rec.current_variance_status = current_line.variance_status
-                else:
-                    rec.current_cumulative_planned = 0.0
-                    rec.current_cumulative_actual = 0.0
-                    rec.current_variance = 0.0
-                    rec.current_variance_status = 'on_track'
+        2026-11-24 以前取「今天所在那一段」的累計＝那一段結束時的預定（段落中間一定看起來落後）。
+        這幾個欄位要存（清單的超前／落後篩選、分組要用），日期一過就舊了 → 每天排程重算使用中的進度表
+        （_cron_refresh_current_progress）。"""
+        today = local_today()
+        for rec in self:
+            if not rec.project_id or not rec.line_ids:
+                rec.current_cumulative_planned = 0.0
+                rec.current_cumulative_actual = 0.0
+                rec.current_variance = 0.0
+                rec.current_variance_status = 'on_track'
+                continue
+            calc = ProgressCalc(rec.project_id, max_version=rec.version, include_schedule=rec)
+            planned = calc.planned_in(rec, today) or 0.0
+            actual = calc.actual(today) or 0.0
+            variance = round(actual, 2) - round(planned, 2)
+            rec.current_cumulative_planned = planned
+            rec.current_cumulative_actual = actual
+            rec.current_variance = variance
+            rec.current_variance_status = (
+                'ahead' if variance > 1 else 'delayed' if variance < -1 else 'on_track')
+
+    @api.model
+    def _cron_refresh_current_progress(self):
+        """每天重算使用中進度表「到今天」的累計（存起來的值過了一天就舊了）"""
+        schedules = self.sudo().search([('state', '=', 'active')])
+        schedules._compute_current_progress()
+        return True
 
     # === 版本資訊 ===
     is_latest_version = fields.Boolean(
@@ -368,121 +370,260 @@ class ProgressSchedule(models.Model):
     # === 備註 ===
     notes = fields.Html(string='備註說明')
 
-    # === 計畫倒退校正 ===
-    needs_plan_correction = fields.Boolean(
-        string='需要計畫基準校正',
-        default=False,
+    # === 變更日進度（2026-11-24 改；原「計畫倒退校正」） ===
+    # 照舊系統（EAGLE 進度表的一天區間＋日誌的「變更後進度」）：進度表一換版，變更日那一天在明細裡獨立成一列
+    # （開始日＝結束日＝變更日，不跟前後段共用那一天），這一列放「變更後累計預定／實際進度」。兩格都可以不填：
+    #   預定空白 → 當天照變更前的值（不往下掉、曲線沒有垂直線）；實際空白 → 照施工日誌加總。
+    # 拿掉的：「需要計畫基準校正」開關（原本用途＝只在校正區間准許負數，2026-11-20 起每一段都可以負數）、
+    #   「校正基準日」（直接用變更日；以前兩個日期的說明互相矛盾）、「套用校正」按鈕（現在填了就馬上算）。
+    # 自動切分＋變更日以後歸零只在「建立新版本」「改變更日期」（與「從前一版本複製」）做；匯入、手動建的版本
+    #   （沒有 copied_from_id）不會被自動切分、歸零，只有填了兩格才會切出變更日那一列。
+    # 內部欄位名稱不改（correction_target_*），只改畫面上的名字。
+    copied_from_id = fields.Many2one(
+        'progress.schedule',
+        string='從哪一版建立',
         copy=False,
-        help='啟用後允許進度表在過渡區間使用負值，修正因版本切換造成的計畫倒退問題',
-    )
-    correction_date = fields.Date(
-        string='校正基準日',
-        copy=False,
-        help='計畫倒退的發生日（通常為新版進度表生效日，即本版 change_date）',
-    )
-    correction_period_start = fields.Date(
-        string='校正區間開始日',
-        copy=False,
-        compute='_compute_correction_period',
-        store=True,
         readonly=True,
-        help='包含校正基準日的明細區間開始日（系統自動偵測）',
-    )
-    correction_period_end = fields.Date(
-        string='校正區間結束日',
-        copy=False,
-        compute='_compute_correction_period',
-        store=True,
-        readonly=True,
-        help='包含校正基準日的明細區間結束日（系統自動偵測）',
+        ondelete='set null',
+        help='用「建立新版本」或「從前一版本複製」建的版本才有：改變更日期時照新日期從這一版重新切分。'
+             '沒有的版本（匯入、手動建的）不會自動切分、歸零。',
     )
     correction_pre_cumulative = fields.Float(
-        string='校正前累計預定進度 (%)',
-        copy=False,
-        compute='_compute_correction_pre_cumulative',
-        store=True,
-        readonly=True,
+        string='變更前累計預定進度 (%)',
+        compute='_compute_change_before',
         digits=(5, 2),
-        help='校正區間開始前的累計預定進度（即前一區間的 cumulative_planned）',
+        help='前面幾版進度表到變更日當天（含）的累計預定進度。「變更後累計預定進度」空白就照這個數字。',
+    )
+    change_pre_actual = fields.Float(
+        string='變更前累計實際進度 (%)',
+        compute='_compute_change_before',
+        digits=(5, 2),
+        help='到變更日當天（含）的累計實際進度（照施工日誌加總、不算這一版的調整）。',
     )
     correction_target_cumulative = fields.Float(
-        string='校正後目標累計進度 (%)',
+        # 內部名稱沿用「校正」；畫面上叫「變更後累計預定進度」
+        string='變更後累計預定進度 (%)',
         copy=False,
         digits=(5, 2),
-        help='使用者設定：到校正基準日當天（含當天）應達到的累計預定進度目標',
+        help='變更日當天（含）照新計畫的累計預定進度。可以不填：空白＝當天照原本的值（不往下掉）——'
+             '「建立新版本」建的照前一版那一天的值（變更前的值）；匯入、手動建的照這一版自己那一天的份額。'
+             '變更日那一列的預定進度由系統算＝這個數字 − 前一天的累計。',
     )
-    plan_correction_offset = fields.Float(
-        string='校正增量 (%)',
+    correction_target_actual = fields.Float(
+        string='變更後累計實際進度 (%)',
         copy=False,
-        compute='_compute_plan_correction_offset',
-        store=True,
-        readonly=True,
         digits=(5, 2),
-        help='校正後目標累計進度 - 校正前累計預定進度 = 過渡區間的 planned_progress（可為負數）',
+        help='契約金額改了、已完成的比例要重新換算時填：變更日當天（含）的累計實際進度應該是多少。'
+             '系統在變更日那一列放一筆調整，讓累計剛好等於這個數字；施工日誌一筆都不改，舊版保留原本的數字。'
+             '可以不填：0 或空白＝不調整，照施工日誌加總（展延、契約金額沒變時就是這樣）。',
+    )
+    change_day_applicable = fields.Boolean(
+        string='有變更日那一列',
+        compute='_compute_change_day_applicable',
+        help='第 1 版、或變更日不晚於第一段開始日（還沒開工就改版、整張重排）→ 不切分、沒有變更日那一列。',
     )
     effective_change_date = fields.Date(
         string='實際生效日',
         compute='_compute_effective_change_date',
         store=True,
         readonly=True,
-        help='進度計畫實際生效的日期：啟用計畫基準校正時為校正基準日，否則為變更時間。'
+        help='＝變更時間（2026-11-24 起；以前有計畫倒退校正時是校正基準日）。'
              '供施工日誌以此為界切換舊版/新版進度值。',
     )
 
-    @api.depends('change_date', 'correction_date', 'needs_plan_correction')
+    @api.depends('change_date')
     def _compute_effective_change_date(self):
-        """實際生效日：有校正時用 correction_date，否則用 change_date"""
         for rec in self:
-            if rec.needs_plan_correction and rec.correction_date:
-                rec.effective_change_date = rec.correction_date
-            else:
-                rec.effective_change_date = rec.change_date
+            rec.effective_change_date = rec.change_date
 
-    @api.depends('needs_plan_correction', 'correction_date',
-                 'line_ids.date_start', 'line_ids.date_end')
-    def _compute_correction_period(self):
-        """根據 correction_date 找到對應的明細區間"""
+    @api.depends('version', 'change_date', 'line_ids.date_start')
+    def _compute_change_day_applicable(self):
         for rec in self:
-            if not rec.needs_plan_correction or not rec.correction_date or not rec.line_ids:
-                rec.correction_period_start = False
-                rec.correction_period_end = False
+            rec.change_day_applicable = rec._change_day_applicable()
+
+    def _change_day_applicable(self):
+        """第 2 版以後、變更日晚於第一段開始日 → 變更日在明細裡獨立成一列。"""
+        self.ensure_one()
+        starts = [d for d in self.line_ids.mapped('date_start') if d]
+        return bool((self.version or 0) > 1 and self.change_date and starts and self.change_date > min(starts))
+
+    @api.depends('project_id', 'version', 'change_date')
+    def _compute_change_before(self):
+        for rec in self:
+            planned = actual = 0.0
+            if rec.project_id and rec.change_date and (rec.version or 0) > 1:
+                calc = ProgressCalc(rec.project_id, max_version=rec.version - 1)
+                planned = calc.planned(rec.change_date) or 0.0
+                actual = calc.actual(rec.change_date) or 0.0
+            rec.correction_pre_cumulative = planned
+            rec.change_pre_actual = actual
+
+    def _change_day_line(self, day=None):
+        """變更日那一列：系統切出來的那一列一天（開始日＝結束日＝變更日，split_row）。"""
+        self.ensure_one()
+        day = day or self.change_date
+        if not day:
+            return self.env['progress.schedule.line']
+        return self.line_ids.filtered(lambda l: l.split_row and l.date_start == day and l.date_end == day)[:1]
+
+    def _wants_change_day(self):
+        """啟用、填兩格時要不要切出變更日那一列：「建立新版本」建的，或填了兩格之一。
+        匯入、手動建、兩格都空、也沒改過變更日期 → 不動明細。"""
+        self.ensure_one()
+        return bool(self.copied_from_id or self.correction_target_cumulative or self.correction_target_actual)
+
+    def _split_at_change_day(self, zero_after=False):
+        """變更日在明細裡獨立成一列：包含變更日的段切成「變更日以前／變更日那一列／變更日以後」。
+        兩段共用變更日（上一段結束日＝下一段開始日＝變更日）兩段都切；變更日落在兩段中間的空檔 → 放一列在空檔。
+        預定照這一段自己的日子（交界日算前一段）比例分，照累計四捨五入（切開前後到每一天的累計都不變）；
+        那一列記下這一天本來的份額（split_share）與從哪一段切出來（split_origin_id），之後改日期才併得回去。
+        zero_after＝True（建立新版本、改變更日期、從前一版本複製）→ 變更日以後各段歸零、日期分段留著，照新計畫重填。
+        切完各段的實際進度照日誌重算（以前要等到啟用或有日誌存檔，表上的實際進度才會對）。"""
+        self.ensure_one()
+        if self.state != 'draft' or not self._change_day_applicable():
+            return
+        me = self.with_context(**{SKIP_CHANGE_DAY: True})
+        Line = me.env['progress.schedule.line']
+        d = self.change_date
+        one = timedelta(days=1)
+        lines = me.line_ids.filtered(lambda l: l.date_start and l.date_end)
+        row = me._change_day_line()
+        owned = owned_days(lines)
+        day_share = 0.0
+        origin = Line
+        for line in lines.sorted(line_key):
+            if line == row or not (line.date_start <= d <= line.date_end):
                 continue
-            transition = rec.line_ids.filtered(
-                lambda l: l.date_start and l.date_end
-                and l.date_start <= rec.correction_date <= l.date_end
-            )
-            if transition:
-                t = transition[0]
-                rec.correction_period_start = t.date_start
-                rec.correction_period_end = t.date_end
+            days = owned.get(line.id) or []
+            amount = line.planned_progress or 0.0
+            n = len(days)
+            if n:
+                before_amt = round(amount * sum(1 for x in days if x < d) / n, 2)
+                upto = round(amount * sum(1 for x in days if x <= d) / n, 2)
+                share = round(upto - before_amt, 2)
+                after_amt = round(amount - upto, 2)
             else:
-                rec.correction_period_start = False
-                rec.correction_period_end = False
+                before_amt, share, after_amt = 0.0, 0.0, amount
+            day_share += share
+            line_end = line.date_end
+            if line.date_start < d:
+                line.write({'date_end': d - one, 'planned_progress': before_amt})
+                if line_end > d:
+                    Line.create({'schedule_id': self.id, 'date_start': d + one, 'date_end': line_end,
+                                 'planned_progress': after_amt, 'notes': line.notes})
+                if d in days:
+                    origin = line
+            elif line_end > d:
+                line.write({'date_start': d + one, 'planned_progress': after_amt})
+                if d in days:
+                    origin = line
+            else:
+                # 變更日本來就有一條單日列（例：一天一段的進度表）：併進變更日那一列
+                day_share += after_amt
+                line.unlink()
+        if not row:
+            day_share = round(day_share, 2)
+            row = Line.create({'schedule_id': self.id, 'date_start': d, 'date_end': d,
+                               'planned_progress': day_share, 'split_row': True, 'split_share': day_share,
+                               'split_origin_id': origin.id if origin else False})
+        if zero_after:
+            me.line_ids.filtered(lambda l: l.date_start and l.date_start > d).write({'planned_progress': 0.0})
+        me._resequence_lines()
+        self._sync_actual_all_lines()
 
-    @api.depends('needs_plan_correction', 'correction_period_start',
-                 'line_ids.planned_progress', 'line_ids.date_end')
-    def _compute_correction_pre_cumulative(self):
-        """校正前累計 = 校正區間開始日之前所有明細的 planned_progress 總和"""
+    def _unsplit_change_day(self, day):
+        """把某一天切出來的那一列併回去（匯入、手動建的版本改變更日期時用）：這一天本來的份額加回它是從哪一段
+        切出來的那一段（那一段不在了 → 前一天結束的那一段、再不然隔天開始的那一段）；那一列填過的調整不留。"""
+        self.ensure_one()
+        row = self._change_day_line(day)
+        if not row:
+            return False
+        me = self.with_context(**{SKIP_CHANGE_DAY: True})
+        one = timedelta(days=1)
+        share = round(row.split_share or 0.0, 2)
+        lines = me.line_ids - row
+        origin = row.split_origin_id
+        if not (origin and origin in lines and (origin.date_end == day - one or origin.date_start == day + one)):
+            origin = (lines.filtered(lambda l: l.date_end == day - one)[:1]
+                      or lines.filtered(lambda l: l.date_start == day + one)[:1])
+        row.with_context(**{SKIP_CHANGE_DAY: True}).unlink()
+        if origin:
+            vals = {'planned_progress': round((origin.planned_progress or 0.0) + share, 2)}
+            vals['date_end' if origin.date_end == day - one else 'date_start'] = day
+            origin.write(vals)
+        elif share:
+            me.env['progress.schedule.line'].create({
+                'schedule_id': self.id, 'date_start': day, 'date_end': day, 'planned_progress': share})
+        self._sync_actual_all_lines()
+        return True
+
+    def _refresh_change_day_line(self, split=True):
+        """變更日那一列的數字照兩格重算。
+        預定：填了＝這個數字 − 前一天的累計；空白＝當天照原本的值 ——「建立新版本」建的照前一版的值（變更前的值）、
+        匯入或手動建的照這一版自己這一天本來的份額（不替它補平，它自己的明細就是新的計畫）。
+        實際：變更後累計實際進度（空白＝0＝照日誌加總）。預定與切分只動草稿，實際草稿與使用中都會。"""
         for rec in self:
-            if not rec.needs_plan_correction or not rec.correction_period_start or not rec.line_ids:
-                rec.correction_pre_cumulative = 0.0
+            if rec.state not in ('draft', 'active') or not rec._change_day_applicable():
                 continue
-            pre_lines = rec.line_ids.filtered(
-                lambda l: l.date_end and l.date_end < rec.correction_period_start
-            )
-            rec.correction_pre_cumulative = sum(pre_lines.mapped('planned_progress'))
+            draft = rec.state == 'draft'
+            row = rec._change_day_line()
+            if split and draft and (row or rec._wants_change_day()):
+                rec._split_at_change_day()
+                row = rec._change_day_line()
+            if not row:
+                continue
+            d = rec.change_date
+            vals = {}
+            if draft:
+                calc = ProgressCalc(rec.project_id, max_version=rec.version - 1)
+                before = calc.planned_in(rec, d - timedelta(days=1)) or 0.0
+                amount = None
+                if rec.correction_target_cumulative:
+                    amount = round(rec.correction_target_cumulative - before, 2)
+                elif rec.copied_from_id:
+                    prev = calc.planned(d)
+                    if prev is not None:
+                        amount = round(prev - before, 2)
+                if amount is None:
+                    amount = round(row.split_share or 0.0, 2)
+                if abs((row.planned_progress or 0.0) - amount) >= 0.005:
+                    vals['planned_progress'] = amount
+            actual = rec.correction_target_actual or 0.0
+            if abs((row.actual_correction_target or 0.0) - actual) >= 0.005:
+                vals['actual_correction_target'] = actual
+            if vals:
+                row.with_context(**{SKIP_CHANGE_DAY: True}).write(vals)
+                if 'actual_correction_target' in vals:
+                    rec._sync_actual_all_lines()
 
-    @api.depends('needs_plan_correction', 'correction_target_cumulative',
-                 'correction_pre_cumulative')
-    def _compute_plan_correction_offset(self):
-        """校正增量 = 目標累計 - 校正前累計"""
-        for rec in self:
-            if rec.needs_plan_correction and rec.correction_target_cumulative:
-                rec.plan_correction_offset = (
-                    rec.correction_target_cumulative - rec.correction_pre_cumulative
-                )
-            else:
-                rec.plan_correction_offset = 0.0
+    def _rebuild_from_source(self):
+        """改了變更日期（「建立新版本」建的）：照新日期從建立這一版的那一版重新切分（變更日以後歸零）。"""
+        self.ensure_one()
+        src = self.copied_from_id
+        if not src or not src.line_ids:
+            return
+        me = self.with_context(**{SKIP_CHANGE_DAY: True})
+        me.line_ids.unlink()
+        for line in src.line_ids:
+            line.with_context(**{SKIP_CHANGE_DAY: True}).copy({'schedule_id': self.id})
+        self.invalidate_recordset(['line_ids'])
+        self._split_at_change_day(zero_after=True)
+        self.message_post(
+            body=f'變更日期改成 {self.change_date}：已照第 {src.version} 版重新切分進度明細，'
+                 f'變更日以後的預定進度已清成 0，請照新計畫重填。',
+            message_type='notification',
+        )
+
+    @api.onchange('change_date')
+    def _onchange_change_date_resplit(self):
+        origin = self._origin
+        if (self.copied_from_id and self.state == 'draft' and origin and origin.id and origin.change_date
+                and self.change_date and self.change_date != origin.change_date):
+            return {'warning': {
+                'title': '改變更日期',
+                'message': '儲存後會照新的變更日期，從第 %s 版重新切分進度明細；'
+                           '變更日以後已經填的預定進度會清成 0，要重填。' % self.copied_from_id.version,
+            }}
 
     # === 名稱計算 ===
     @api.depends('project_id', 'version')
@@ -799,20 +940,26 @@ class ProgressSchedule(models.Model):
         if not previous_schedule.line_ids:
             raise UserError(f'v{previous_schedule.version} 版本沒有進度明細')
         
-        # 複製明細（只複製預定進度，實際進度從 0 開始）
+        # 複製明細（只複製預定進度，實際進度從 0 開始；之前那幾次變更日的實際調整照樣帶過來）
+        Line = self.env['progress.schedule.line'].with_context(**{SKIP_CHANGE_DAY: True})
         for line in previous_schedule.line_ids:
-            self.env['progress.schedule.line'].create({
+            Line.create({
                 'schedule_id': self.id,
                 'sequence': line.sequence,
                 'date_start': line.date_start,
                 'date_end': line.date_end,
                 'planned_progress': line.planned_progress,
                 'actual_progress': 0.0,  # 實際進度重新開始
+                'actual_correction_target': line.actual_correction_target,
                 'notes': line.notes,
             })
         
         # 失效快取並重新載入
         self.invalidate_recordset(['line_ids', 'line_count'])
+        # 2026-11-24：跟「建立新版本」一樣，變更日獨立成一列、變更日以後歸零
+        self.with_context(**{SKIP_CHANGE_DAY: True}).write({'copied_from_id': previous_schedule.id})
+        self._split_at_change_day(zero_after=True)
+        self._refresh_change_day_line(split=False)
         
         # 記錄操作
         self.message_post(
@@ -858,6 +1005,8 @@ class ProgressSchedule(models.Model):
     def _do_activate(self):
         """實際執行啟用（由 wizard 呼叫）"""
         self.ensure_one()
+        # 變更日那一列照最新的兩格、明細重算一次（2026-11-24；匯入、手動建、兩格都空的版本不動）
+        self._refresh_change_day_line()
 
         # 2026-11-20 回復原版（1118 會議）：啟用時不再檢查「進度區間要從開工日排到調整後完工日、中間不能有空檔、
         # 不能超出」（_check_lines_cover_period，已刪）——舊系統儲存進度表只檢查「變更時間有填、預定進度不能全部是 0」。
@@ -900,10 +1049,7 @@ class ProgressSchedule(models.Model):
         )
 
         # ── 觸發相關施工日誌重算 ──────────────────────────────────────────
-        # 以 effective_change_date 為觸發起點：
-        #   - 無校正：effective_change_date = change_date
-        #   - 有校正：effective_change_date = correction_date（早於 change_date）
-        # 使用 effective_date 確保 correction_date ~ change_date 之間的日誌也能被更新
+        # 以 effective_change_date（＝change_date，2026-11-24 起）為觸發起點
         effective_date = self.effective_change_date or self.change_date
 
         # 1. effective_date 當天的日誌：重算進度變更標記（本日預定仍用舊版）
@@ -921,7 +1067,6 @@ class ProgressSchedule(models.Model):
             # （effective_change_date < log_date 嚴格小於，v2 不符合當天）
 
         # 2. effective_date 之後的日誌：切換到新版進度表，並重算所有進度欄位
-        #    包含 correction_date ~ change_date 之間原本被漏掉的歷史日誌
         logs_after_effective = self.env['daily.log.sheet'].search([
             ('supervision_project_id', '=', self.project_id.id),
             ('log_date', '>', effective_date),
@@ -934,158 +1079,22 @@ class ProgressSchedule(models.Model):
             logs_after_effective._compute_has_progress_change()
             logs_after_effective._compute_changed_planned_progress()
 
+        # 3. 這一版每一段的實際進度從施工日誌重算（2026-11-24）。
+        #    新版是從舊版複製的，實際進度從 0 開始（copy=False）；以前啟用時不重算，
+        #    只有之後有日誌存檔的那幾段會同步 → 前台首頁的工程進度掉成只算部分段（實測 60% 掉到 25%），
+        #    要有人按「同步所有明細」才回來。
+        self._sync_actual_all_lines()
+        self._compute_current_progress()
+
     def _resequence_lines(self):
-        """切割前整理：依 date_start 排序後以 10 為步長重設 sequence，確保有足夠間距插入新行"""
-        for idx, line in enumerate(self.line_ids.sorted('date_start')):
+        """切割前整理：依開始日排序後以 10 為步長重設 sequence，確保有足夠間距插入新行。
+
+        2026-11-24：開始日一樣（交界日上的單日列與從交界日開始的那一段）再照結束日、原本的序號排，
+        單日列排前面，結果才固定。"""
+        for idx, line in enumerate(self.line_ids.sorted(
+                lambda l: (l.date_start or fields.Date.today(), l.date_end or fields.Date.today(),
+                           l.sequence, l.id))):
             line.sequence = (idx + 1) * 10
-
-    def action_apply_correction(self):
-        """套用計畫倒退校正：將過渡區間切割為 3 個子區間（基準日前 / 基準日當天 / 基準日後）"""
-        self.ensure_one()
-        if not self.needs_plan_correction:
-            raise UserError('請先啟用「需要計畫基準校正」')
-        if not self.correction_date:
-            raise UserError('請設定「校正基準日」')
-        if not self.correction_period_start:
-            raise ValidationError(
-                '找不到包含校正基準日的進度明細區間，請先產生進度區間再套用校正'
-            )
-        if not self.correction_target_cumulative:
-            raise UserError('請填寫「校正後目標累計進度」')
-        if self.state != 'draft':
-            raise UserError('只有草稿狀態可以套用校正')
-
-        # 找過渡行
-        transition = self.line_ids.filtered(
-            lambda l: l.date_start and l.date_end
-            and l.date_start <= self.correction_date <= l.date_end
-        )
-        if not transition:
-            raise ValidationError('找不到包含校正基準日的過渡區間明細行')
-
-        t = transition[0]
-        period_start     = t.date_start
-        period_end       = t.date_end
-        original_planned = t.planned_progress
-        total_days       = (period_end - period_start).days + 1
-        correction_date  = self.correction_date
-
-        # 判斷子區間是否存在
-        has_part1 = correction_date > period_start
-        has_part3 = correction_date < period_end
-
-        # 計算各子區間的 planned_progress
-        if has_part1:
-            part1_days    = (correction_date - timedelta(days=1) - period_start).days + 1
-            part1_planned = round(original_planned * part1_days / total_days, 2)
-        else:
-            part1_planned = 0.0
-
-        # Part 2 吸收差值，使累計恰好等於 correction_target_cumulative
-        part2_planned = round(
-            self.correction_target_cumulative - self.correction_pre_cumulative - part1_planned, 2
-        )
-
-        # 整理序列空間，確保有足夠間距
-        self._resequence_lines()
-        prev_seq = max(
-            (l.sequence for l in self.line_ids if l.date_end and l.date_end < period_start),
-            default=0,
-        )
-
-        # 收集關聯日誌（切割後重新連結用）
-        linked_logs = self.env['daily.log.sheet'].search([
-            ('progress_line_id', '=', t.id)
-        ])
-
-        # 先刪除原始過渡行，避免新子區間建立時觸發日期重疊驗證
-        t.unlink()
-
-        # 建立子區間
-        ScheduleLine = self.env['progress.schedule.line']
-        base_vals = {
-            'schedule_id': self.id,
-            'project_id':  self.project_id.id,
-            'company_id':  self.company_id.id,
-            'from_plan_correction': True,   # 標記為校正過渡明細（含可能為負的 Part2）
-        }
-        part1_line = part2_line = part3_line = None
-
-        if has_part1:
-            part1_line = ScheduleLine.create({**base_vals,
-                'date_start':       period_start,
-                'date_end':         correction_date - timedelta(days=1),
-                'planned_progress': part1_planned,
-                'sequence':         prev_seq + 1,
-            })
-        part2_line = ScheduleLine.create({**base_vals,
-            'date_start':       correction_date,
-            'date_end':         correction_date,
-            'planned_progress': part2_planned,
-            'sequence':         prev_seq + 2,
-        })
-        if has_part3:
-            part3_line = ScheduleLine.create({**base_vals,
-                'date_start':       correction_date + timedelta(days=1),
-                'date_end':         period_end,
-                'planned_progress': 0.0,
-                'sequence':         prev_seq + 3,
-            })
-
-        # 重新連結關聯日誌到對應子區間
-        for log in linked_logs:
-            if log.log_date < correction_date and part1_line:
-                log.progress_line_id = part1_line.id
-            elif log.log_date == correction_date:
-                log.progress_line_id = part2_line.id
-            elif part3_line:
-                log.progress_line_id = part3_line.id
-
-        # 歸零基準日之後的所有區間（等待新版填入）
-        post_lines = self.line_ids.filtered(
-            lambda l: l.date_start and l.date_start > correction_date
-        )
-        post_lines.write({'planned_progress': 0.0})
-
-        # 重算各子區間的 actual_progress（若日誌已有資料）
-        for line in filter(None, [part1_line, part2_line, part3_line]):
-            line.action_sync_from_daily_log()
-
-        # Chatter 訊息
-        parts_info = []
-        if part1_line:
-            parts_info.append(
-                f'Part1（{period_start}～{correction_date - timedelta(days=1)}）'
-                f'：{part1_planned:+.2f}%'
-            )
-        parts_info.append(
-            f'Part2（{correction_date}）：{part2_planned:+.2f}%'
-        )
-        if part3_line:
-            parts_info.append(
-                f'Part3（{correction_date + timedelta(days=1)}～{period_end}）：0.00%'
-            )
-        if post_lines:
-            parts_info.append(f'基準日後 {len(post_lines)} 個區間已歸零')
-
-        self.message_post(
-            body=(
-                f'✅ 計畫基準校正已套用：'
-                f'校正前累計 {self.correction_pre_cumulative:.2f}%，'
-                f'目標累計 {self.correction_target_cumulative:.2f}%。'
-                f'過渡區間切割結果：{" / ".join(parts_info)}'
-            ),
-            message_type='notification',
-        )
-
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': self._name,
-            'res_id': self.id,
-            'view_mode': 'form',
-            'target': 'current',
-            'context': dict(self.env.context),
-        }
 
     def action_archive(self):
         """歸檔"""
@@ -1109,37 +1118,44 @@ class ProgressSchedule(models.Model):
         return True
 
     def action_create_new_version(self):
-        """建立新版本"""
+        """建立新版本：先跳視窗問變更日期（一定要填，不預設今天；2026-11-24）"""
         self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '建立新版本',
+            'res_model': 'progress.new.version.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_schedule_id': self.id},
+        }
 
-        # 取得同專案最大版本號
+    def _create_new_version(self, change_date, change_reason=False):
+        """從這一版複製出新版本：變更日在明細裡獨立成一列、變更日以後各段歸零（日期分段留著）。回傳新版本。"""
+        self.ensure_one()
+        if not change_date:
+            raise UserError('請填變更日期')
         max_version = max(self.search([
             ('project_id', '=', self.project_id.id)
         ]).mapped('version') or [0])
-
-        # 複製進度表
-        new_schedule = self.copy({
+        new = self.with_context(**{SKIP_CHANGE_DAY: True}).copy({
             'version': max_version + 1,
-            'change_date': fields.Date.today(),
+            'change_date': change_date,
             'state': 'draft',
-            'change_reason': False,
+            'change_reason': change_reason or False,
+            'copied_from_id': self.id,
         })
-
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'progress.schedule',
-            'res_id': new_schedule.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
+        new = self.env['progress.schedule'].browse(new.id)
+        new._split_at_change_day(zero_after=True)
+        new._refresh_change_day_line(split=False)
+        return new
 
     def action_sync_all_lines_from_daily_log(self):
-        """同步所有明細的實際進度（從施工日誌）"""
+        """同步所有明細的實際進度（從施工日誌；整張一次重算，共用算法）"""
         self.ensure_one()
-        synced_count = 0
-        for line in self.line_ids:
-            if line.action_sync_from_daily_log():
-                synced_count += 1
+        self._sync_actual_all_lines()
+        self._compute_current_progress()
+        synced_count = len(self.line_ids.filtered(
+            lambda l: l.date_start and l.date_end and (l.actual_correction_target or l._daily_logs())))
 
         return {
             'type': 'ir.actions.client',
@@ -1210,11 +1226,64 @@ class ProgressSchedule(models.Model):
         return records
 
     def write(self, vals):
+        old_dates = {rec.id: rec.change_date for rec in self} if 'change_date' in vals else {}
         res = super().write(vals)
         # 改動 version 或 project_id 會影響同工程誰是最新版，重算兄弟記錄
         if 'version' in vals or 'project_id' in vals:
             self._recompute_latest_for_projects(self.mapped('project_id').ids)
+        if self.env.context.get(SKIP_CHANGE_DAY):
+            return res
+        # 改了變更日期（草稿）：新的變更日馬上獨立成一列（2026-11-24 使用者：不要等填了兩格才獨立）。
+        # 「建立新版本」建的 → 照新日期從原本那一版重新切分（變更日以後歸零）；
+        # 匯入、手動建的（1.15.0 以前建的新版本也是）→ 舊日期那一列併回原本那一段、在新日期切一列，其他明細不動
+        if 'change_date' in vals:
+            for rec in self:
+                old = old_dates.get(rec.id)
+                if rec.state != 'draft' or not old or old == rec.change_date:
+                    continue
+                if rec.copied_from_id:
+                    rec._rebuild_from_source()
+                else:
+                    rec._unsplit_change_day(old)
+                    rec._split_at_change_day()
+        # 填了、改了、清空了兩格（或改了變更日期）→ 變更日那一列馬上照新的數字算
+        if {'change_date', 'correction_target_cumulative', 'correction_target_actual'} & set(vals):
+            if 'correction_target_actual' in vals:
+                for rec in self:
+                    if (rec.state == 'active' and rec.correction_target_actual and rec._change_day_applicable()
+                            and not rec._change_day_line()):
+                        raise UserError(
+                            '這一版的進度明細沒有變更日（%s）那一列（匯入或手動建的），'
+                            '請先「重設草稿」再填，系統才會切出那一列。' % rec.change_date)
+            self._refresh_change_day_line()
         return res
+
+    def _sync_actual_all_lines(self):
+        """整張進度表的實際進度照共用算法重算（progress_calc）。
+
+        每一段的累計實際＝到這一段結束日（含）的累計實際（照日期加總所有日誌、草稿也算；基準點＝變更後累計
+        實際進度、舊系統匯入的累計值）；每一段的實際進度＝自己的累計 − 前一段的累計（照日期排），所以：
+        - 交界日只算在前一段、空檔日子的日誌算進下一段、開工前的日誌算進第一段；
+        - 變更日那一列自然是負的調整（例：20 − 37.5 ＝ −17.5），累計剛好等於填的「變更後累計實際進度」；
+        - 只用這一版（含）以前的進度表的調整——舊版自己的數字不受之後變更的調整影響。
+        先四捨五入到小數兩位再相減，各段相加才會剛好等於累計。"""
+        now = fields.Datetime.now()
+        for schedule in self:
+            if not schedule.project_id:
+                continue
+            calc = ProgressCalc(schedule.project_id, max_version=schedule.version, include_schedule=schedule)
+            prev = 0.0
+            for line in schedule.line_ids.filtered(lambda l: l.date_start and l.date_end).sorted(line_key):
+                cum = round(calc.actual(line.date_end) or 0.0, 2)
+                value = round(cum - prev, 2)
+                prev = cum
+                if line.synced_from_log and abs((line.actual_progress or 0.0) - value) < 0.005:
+                    continue
+                line.with_context(allow_sync_progress=True).write({
+                    'actual_progress': value,
+                    'synced_from_log': True,
+                    'last_sync_date': now,
+                })
 
     def unlink(self):
         """只允許刪除草稿狀態的進度表"""

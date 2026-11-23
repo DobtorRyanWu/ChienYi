@@ -3,12 +3,14 @@
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
 from odoo.addons.construction_supervision_base.utils.local_date import local_today
+
+from .progress_calc import ProgressCalc, effective_date, line_key
 
 _logger = logging.getLogger(__name__)
 
@@ -75,27 +77,23 @@ class SupervisionProjectProgress(models.Model):
                 project.daily_actual_progress = 0.0
                 continue
             
-            # 找到今日所在的進度區間
+            # 找到今日所在的進度區間（交界日取照日期排前面的那一段）
             current_line = project.active_schedule_id.line_ids.filtered(
-                lambda l: l.date_start and l.date_end and 
+                lambda l: l.date_start and l.date_end and
                          l.date_start <= today <= l.date_end
-            )
-            
+            ).sorted(line_key)
+
             if current_line:
                 line = current_line[0]
-                
-                # 計算本日預定進度（當日份額）
-                total_days = (line.date_end - line.date_start).days + 1
-                daily_rate = line.planned_progress / total_days
-                project.daily_planned_progress = daily_rate
-                
-                # 查找今日的施工日誌（daily.log.sheet 無 'done' 狀態，
-                # 權威狀態為 draft/filled/auto_locked/locked；
-                # 取「已填寫以上」才計入本日實際進度，草稿不計）
+
+                # 本日預定進度（當日份額）＝這一段的預定 ÷ 這一段自己的日子（跟累計同一套，progress_calc）
+                days = line._owned_day_count()
+                project.daily_planned_progress = line.planned_progress / days if days else 0.0
+
+                # 今日的施工日誌（2026-11-24 起草稿也算，跟累計實際進度同一套）
                 today_log = DailyLogSheet.search([
                     ('supervision_project_id', '=', project.id),
                     ('log_date', '=', today),
-                    ('state', 'in', ['filled', 'auto_locked', 'locked']),
                 ], limit=1)
                 
                 if today_log:
@@ -205,15 +203,30 @@ class SupervisionProjectProgress(models.Model):
                  'active_schedule_id.current_cumulative_actual',
                  'active_schedule_id.current_variance')
     def _compute_schedule_progress(self):
+        """首頁的累計預定／實際＝到今天（台灣日期，含當天）、共用算法（progress_calc）。不存，讀的時候現算。
+
+        2026-11-24 以前讀使用中進度表存的「今天所在那一段的累計」：預定是那一段結束時的值、
+        過了一天不會重算。"""
+        today = local_today()
         for project in self:
             if project.active_schedule_id:
-                project.schedule_cumulative_planned = project.active_schedule_id.current_cumulative_planned
-                project.schedule_cumulative_actual = project.active_schedule_id.current_cumulative_actual
-                project.schedule_variance = project.active_schedule_id.current_variance
+                planned, actual = project._progress_cumulative_on(today)
+                project.schedule_cumulative_planned = planned or 0.0
+                project.schedule_cumulative_actual = actual or 0.0
+                project.schedule_variance = round(actual or 0.0, 2) - round(planned or 0.0, 2)
             else:
                 project.schedule_cumulative_planned = 0.0
                 project.schedule_cumulative_actual = 0.0
                 project.schedule_variance = 0.0
+
+    def _progress_cumulative_on(self, day, before=False, calc=None):
+        """到 day（含）的 (累計預定, 累計實際)，所有地方共用（progress_calc；沒有資料的一邊是 None）。
+
+        :param before: 契約變更當天要「變更前」的數字（只有進度曲線用）
+        """
+        self.ensure_one()
+        calc = calc or ProgressCalc(self)
+        return calc.planned(day, before=before), calc.actual(day, before=before)
 
     @api.depends('active_schedule_id')
     def _compute_progress_chart(self):
@@ -275,206 +288,81 @@ class SupervisionProjectProgress(models.Model):
             'target': 'current',
         }
 
-    def _interpolate_progress(self, target_date, lines, period_start):
-        """
-        線性內插法計算指定日期的進度（今天之後的實際進度回傳 None：還沒發生，圖上不畫）
-
-        Args:
-            target_date: 目標日期
-            lines: 排序後的進度明細（已按 date_end 排序）
-            period_start: 版本期間開始日期
-
-        Returns:
-            (planned_progress, actual_progress) 元組；actual_progress 在今天之後為 None
-        """
-        planned, actual = self._interpolate_cumulative(target_date, lines, period_start)
-        if target_date > local_today():
-            # 未來區間的累計實際值是 0，內插下去曲線會掉到 0
-            actual = None
-        return (planned, actual)
-
-    def _interpolate_cumulative(self, target_date, lines, period_start):
-        """線性內插累計值（不處理未來日期）"""
-        # 找到目標日期所在的區間
-        prev_cumulative_planned = 0.0
-        prev_cumulative_actual = 0.0
-        current_line = None
-
-        for line in lines:
-            if line.date_start and line.date_end:
-                # 如果目標日期在這個區間內
-                if line.date_start <= target_date <= line.date_end:
-                    current_line = line
-                    break
-                # 如果目標日期在這個區間之後，記錄前一個區間的累計值
-                elif target_date > line.date_end:
-                    prev_cumulative_planned = line.cumulative_planned
-                    prev_cumulative_actual = line.cumulative_actual
-
-        # 如果沒找到區間（目標日期在最後一個區間之後或第一個區間之前）
-        if not current_line:
-            # 目標日期在第一個區間之前
-            if target_date < lines[0].date_start if lines and lines[0].date_start else False:
-                return (0.0, 0.0)
-            # 目標日期在最後一個區間之後
-            return (prev_cumulative_planned, prev_cumulative_actual)
-
-        # 線性內插計算
-        date_range = (current_line.date_end - current_line.date_start).days
-        if date_range == 0:
-            # 單日區間，直接返回累計值
-            return (current_line.cumulative_planned, current_line.cumulative_actual)
-
-        # 計算目標日期在區間中的比例
-        days_elapsed = (target_date - current_line.date_start).days
-        ratio = days_elapsed / date_range
-
-        # 內插計算
-        planned = prev_cumulative_planned + (current_line.cumulative_planned - prev_cumulative_planned) * ratio
-        actual = prev_cumulative_actual + (current_line.cumulative_actual - prev_cumulative_actual) * ratio
-
-        return (planned, actual)
-
     def get_progress_chart_data(self):
         """
-        獲取跨版本進度圖表數據（使用線性內插法）
+        跨版本進度圖表數據：每一天都照共用算法（progress_calc）算，跟首頁、進度報告、印出來的日報是同一個數字。
 
         返回格式：{
-            'dates': ['2024-01-01', '2024-01-08', ...],
-            'planned': [10, 20, 30, ...],
-            'actual': [8, 18, 28, ...],
+            'dates': ['2024-01-01', ...],      # 每一天一個點；契約變更（新版生效）那一天兩個點：變更前、變更後
+            'planned': [10, 20, ...],          # 累計預定
+            'actual': [8, 18, ..., None],      # 累計實際；今天之後是 None（還沒發生，圖上不畫）
+            'versions': [1, 1, 2, ...],        # 每個點用哪一版進度表（變更那一天：變更前的點＝舊版、變更後＝新版）
+            'point_types': ['key', 'normal', ...],
             'today': '2024-01-15',
-            'version_changes': [...]
+            'version_changes': [...],
         }
 
-        核心邏輯：
-        - 使用線性內插法計算區間內每一天的進度
-        - v1: 開工日 → v2啟用日當天
-        - v2: v2啟用日 → v3啟用日當天
-        - 在版本更迭的那一天，會同時存在兩個點（v1 內插值 + v2 內插值）
+        2026-11-24 以前段內用直線內插：實際進度不是照日誌（今天 11% 畫成 7.44%）、交界日的日誌在發生前一天
+        就畫出來、預定少算一天。契約變更那一天照舊畫兩個點（使用者：那一天要看到一條垂直線，同一天看得到
+        變更前與變更後的百分比）。
         """
-        from datetime import timedelta
-
         self.ensure_one()
         # 「今天」＝台灣日期（公司儀表板合約 §1-6、§5.3）
         today = local_today()
-
-        if not self.schedule_ids:
-            return {
-                'dates': [],
-                'planned': [],
-                'actual': [],
-                'versions': [],
-                'today': today.isoformat(),
-                'version_changes': [],
-            }
-
+        empty = {
+            'dates': [],
+            'planned': [],
+            'actual': [],
+            'versions': [],
+            'point_types': [],
+            'today': today.isoformat(),
+            'version_changes': [],
+        }
         # 草稿版本還沒啟用，不進圖表；已歸檔版本是歷史基準，照舊保留
-        all_schedules = self.schedule_ids.filtered(
-            lambda s: s.state != 'draft').sorted('version')
-        if not all_schedules:
-            return {
-                'dates': [],
-                'planned': [],
-                'actual': [],
-                'versions': [],
-                'today': today.isoformat(),
-                'version_changes': [],
-            }
+        schedules = self.schedule_ids.filtered(lambda s: s.state != 'draft' and s.line_ids).sorted('version')
+        if not schedules:
+            return empty
 
-        # === 步驟 1：確定每個版本的有效期間 ===
-        # 使用 effective_change_date（有校正時 = correction_date，否則 = change_date）
-        # 確保計畫基準校正的轉折點反映在圖表上
-        version_periods = []
-        for idx, schedule in enumerate(all_schedules):
-            if not schedule.line_ids:
-                continue
+        calc = ProgressCalc(self)
+        lines = schedules.mapped('line_ids').filtered(lambda l: l.date_start and l.date_end)
+        if not lines:
+            return empty
+        # 圖表範圍：第一版的開工日（區間可以早於開工日、晚於完工日：照區間延伸）到最後一版的完工日
+        starts = [d for d in [schedules[0].start_date] + lines.mapped('date_start') if d]
+        ends = [d for d in [schedules[-1].adjusted_end_date] + lines.mapped('date_end') if d]
+        start_date, end_date = min(starts), max(ends)
 
-            # 開始日期
-            if idx == 0:
-                start_date = schedule.start_date
-            else:
-                start_date = schedule.effective_change_date or schedule.change_date
-
-            # 結束日期
-            if idx < len(all_schedules) - 1:
-                next_schedule = all_schedules[idx + 1]
-                next_boundary = next_schedule.effective_change_date or next_schedule.change_date
-                end_date = next_boundary if next_boundary else schedule.adjusted_end_date
-            else:
-                end_date = schedule.adjusted_end_date
-
-            version_periods.append({
-                'schedule': schedule,
-                'start_date': start_date,
-                'end_date': end_date,
-                'version': schedule.version,
-            })
-
-        # === 步驟 2：使用線性內插法生成每一天的數據點 ===
-        data_points = []
         version_changes = []
+        change_days = set()
+        for schedule in schedules[1:]:
+            boundary = effective_date(schedule)
+            version_changes.append({
+                'date': boundary.isoformat() if boundary else None,
+                'version': schedule.version,
+                'reason': schedule.change_reason or f'進度表版本 v{schedule.version}',
+                'change_orders': self._progress_readable_change_order_names(schedule),
+            })
+            if boundary:
+                change_days.add(boundary)
 
-        for period in version_periods:
-            schedule = period['schedule']
-            start_date = period['start_date']
-            end_date = period['end_date']
-            version = period['version']
+        key_dates = {start_date, end_date, today} | change_days
+        dates, planned, actual, versions, point_types = [], [], [], [], []
 
-            if not start_date or not end_date:
-                continue
+        def add(day, before):
+            day_planned, day_actual = self._progress_cumulative_on(day, before=before, calc=calc)
+            governing = calc.governing(day, before=before)
+            dates.append(day.isoformat())
+            planned.append(round(day_planned or 0.0, 2))
+            actual.append(None if day > today else round(day_actual or 0.0, 2))
+            versions.append(governing.version if governing else None)
+            point_types.append('key' if day in key_dates else 'normal')
 
-            # 記錄版本變更點（使用 effective_change_date，有校正時指向 correction_date）
-            if version > 1:
-                boundary = schedule.effective_change_date or schedule.change_date
-                version_changes.append({
-                    'date': boundary.isoformat() if boundary else None,
-                    'version': version,
-                    'reason': schedule.change_reason or f'進度表版本 v{version}',
-                    'change_orders': self._progress_readable_change_order_names(schedule),
-                })
-
-            # 排序明細行
-            sorted_lines = schedule.line_ids.sorted('date_end')
-
-            # 只收集版本層級的關鍵日期（移除區間起訖日，減少圓點擁擠）
-            key_dates = set()
-            key_dates.add(start_date)  # 版本開始日
-            key_dates.add(end_date)    # 版本結束日
-
-            # 今日（如果在範圍內）
-            if start_date <= today <= end_date:
-                key_dates.add(today)
-
-            # 生成該版本有效期間內的每一天數據（使用內插法）
-            current_date = start_date
-            while current_date <= end_date:
-                planned, actual = self._interpolate_progress(current_date, sorted_lines, start_date)
-
-                # 判斷是否為關鍵點
-                is_key_point = current_date in key_dates
-
-                data_points.append({
-                    'date': current_date,
-                    'planned': planned,
-                    'actual': actual,
-                    'version': version,
-                    'is_key': is_key_point,
-                })
-                current_date += timedelta(days=1)
-
-        # === 步驟 3：排序並提取最終數據 ===
-        data_points.sort(key=lambda x: (x['date'], x['version']))
-
-        # 直接使用 ISO 日期格式（供 Chart.js 時間軸使用）
-        dates = [point['date'].isoformat() for point in data_points]
-        planned = [round(point['planned'], 2) for point in data_points]
-        # 今天之後的實際值為 None（前端 Chart.js 對 null 不畫點）
-        actual = [None if point['actual'] is None else round(point['actual'], 2)
-                  for point in data_points]
-        point_types = ['key' if point['is_key'] else 'normal' for point in data_points]
-        # 每個點屬於哪一版（版本更迭那天有兩個點）；給「今天的累計值」取最新版用
-        versions = [point['version'] for point in data_points]
+        day = start_date
+        while day <= end_date:
+            if day in change_days:
+                add(day, before=True)      # 變更前
+            add(day, before=False)
+            day += timedelta(days=1)
 
         return {
             'dates': dates,

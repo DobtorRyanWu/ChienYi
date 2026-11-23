@@ -23,6 +23,13 @@
                         <field name="new_log_count_preview" readonly="1"/>
                     </group>
                 </group>
+                <field name="zero_after_change" invisible="1"/>
+                <div class="alert alert-warning" role="alert"
+                     invisible="not zero_after_change">
+                    <strong>是否遺漏填寫？</strong>
+                    變更日以後的區間，預定進度全部是 0。建立新版本時這幾段會清成 0，要照新的預定進度表重填；
+                    確定不用填的話照樣可以啟用。
+                </div>
                 <div class="alert alert-info" role="alert"
                      invisible="existing_log_count == 0">
                     <strong>提示：</strong>

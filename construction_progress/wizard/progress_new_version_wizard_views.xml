@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="progress_new_version_wizard_form" model="ir.ui.view">
+        <field name="name">progress.new.version.wizard.form</field>
+        <field name="model">progress.new.version.wizard</field>
+        <field name="arch" type="xml">
+            <form string="建立新版本">
+                <group>
+                    <field name="schedule_id" readonly="1"/>
+                    <field name="change_date"/>
+                    <field name="change_reason" placeholder="例：第 1 次契約變更、第 2 次工期檢討…"/>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    新版會從這一版複製進度明細：變更日期那一天獨立成一列，那一天以後各段的預定進度清成 0，
+                    請照新的預定進度表重填。變更日當天的累計預定／實際進度在「變更日進度」頁籤填（可以不填）。
+                </div>
+                <footer>
+                    <button string="建立" type="object" name="action_confirm" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

@@ -101,8 +101,8 @@ class TestBatch2Progress(TransactionCase):
     def test_new_version_of_schedule_with_actual_progress(self):
         v1 = self._schedule(PLANNED_V1, state='active', actual_first=ACTUAL_FIRST)
         self.assertEqual(v1.line_ids.sorted('sequence')[0].actual_progress, ACTUAL_FIRST)
-        action = v1.action_create_new_version()
-        v2 = self.env['progress.schedule'].browse(action['res_id'])
+        # 1.15.0 起建立新版本先問變更日期；變更日＝第一段開始日（整張重排）→ 不切分，明細照原本複製
+        v2 = v1._create_new_version(min(v1.line_ids.mapped('date_start')))
         self.assertEqual((v2.version, v2.state), (2, 'draft'))
         self.assertEqual(len(v2.line_ids), len(v1.line_ids), '新版本要帶預定進度明細')
         self.assertEqual(v2.line_ids.mapped('actual_progress'), [0.0] * len(v2.line_ids),

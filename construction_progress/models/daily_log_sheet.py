@@ -4,6 +4,8 @@
 
 from odoo import models, fields, api
 
+from .progress_calc import line_key
+
 
 class DailyLogSheet(models.Model):
     """
@@ -154,18 +156,17 @@ class DailyLogSheet(models.Model):
         """
         找到 log_date 當天「生效」的進度表（日期感知版）
 
-        使用 effective_change_date（實際生效日）作為邊界：
-        - 無校正版本：effective_change_date = change_date
-        - 有校正版本：effective_change_date = correction_date
+        使用 effective_change_date（實際生效日）作為邊界：2026-11-24 起＝change_date
+        （以前有計畫倒退校正時是校正基準日，那個日期已經拿掉）
 
         規則：
         - 優先找 effective_change_date < log_date（嚴格小於）的最新版
           → 確保在 effective_change_date 當天仍使用舊版（「本日預定進度」顯示舊值）
         - 若無（工程第一天），退後找 effective_change_date = log_date 的最舊版
 
-        範例（v2 有校正，change_date=5/15，correction_date=5/22）：
-          5/21 以前 → v1（v2.effective = 5/22，不滿足 < 5/21）
-          5/22      → v1（v2.effective = 5/22，不滿足嚴格小於）
+        範例（v2 變更日 5/22）：
+          5/21 以前 → v1
+          5/22      → v1（v2.effective = 5/22，不滿足嚴格小於；「變更後本日預定」另外從 v2 取）
           5/23 以後 → v2（v2.effective = 5/22 < 5/23）
         """
         for sheet in self:
@@ -198,27 +199,30 @@ class DailyLogSheet(models.Model):
                 sheet.progress_line_id = False
                 continue
 
-            # 找包含本日的區間
+            # 找包含本日的區間；兩段共用交界日時取照日期排前面的那一段（2026-11-24 起照日期，
+            # 跟累計的算法 progress_calc 同一段；以前照序號）
             line = self.env['progress.schedule.line'].search([
                 ('schedule_id', '=', sheet.base_progress_schedule_id.id),
                 ('date_start', '<=', sheet.log_date),
                 ('date_end', '>=', sheet.log_date),
-            ], limit=1)
+            ], order='date_start, date_end, sequence, id', limit=1)
 
             sheet.progress_line_id = line
 
     @api.depends('progress_line_id', 'progress_line_id.planned_progress',
-                 'progress_line_id.date_start', 'progress_line_id.date_end')
+                 'progress_line_id.date_start', 'progress_line_id.date_end',
+                 'progress_line_id.schedule_id.line_ids.date_start',
+                 'progress_line_id.schedule_id.line_ids.date_end')
     def _compute_daily_planned_progress(self):
-        """計算本日預定進度（當日份額）"""
+        """本日預定進度（當日份額）＝這一段的預定 ÷ 這一段自己的日子
+        （交界日算在前一段，後一段分到它剩下的日子；2026-11-24 起跟累計同一套）"""
         for sheet in self:
             if not sheet.progress_line_id:
                 sheet.daily_planned_progress = 0.0
                 continue
-
             line = sheet.progress_line_id
-            total_days = (line.date_end - line.date_start).days + 1
-            sheet.daily_planned_progress = line.planned_progress / total_days if total_days > 0 else 0.0
+            days = line._owned_day_count()
+            sheet.daily_planned_progress = line.planned_progress / days if days > 0 else 0.0
 
     @api.depends('supervision_project_id', 'log_date')
     def _compute_has_progress_change(self):
@@ -250,17 +254,15 @@ class DailyLogSheet(models.Model):
             if not new_schedule:
                 sheet.changed_planned_progress = 0.0
                 continue
-            # 找包含當天的進度區間（校正切割後 Part2 是單天區間，total_days=1）
+            # 找包含當天的進度區間（變更日在新版是獨立的一天）；交界日取照日期排前面的那一段
             line = new_schedule.line_ids.filtered(
                 lambda l: l.date_start and l.date_end
                           and l.date_start <= sheet.log_date <= l.date_end
-            )
+            ).sorted(line_key)
             if line:
                 l = line[0]
-                total_days = (l.date_end - l.date_start).days + 1
-                sheet.changed_planned_progress = (
-                    l.planned_progress / total_days if total_days > 0 else 0.0
-                )
+                days = l._owned_day_count()
+                sheet.changed_planned_progress = l.planned_progress / days if days > 0 else 0.0
             else:
                 sheet.changed_planned_progress = 0.0
 
@@ -290,14 +292,31 @@ class DailyLogSheet(models.Model):
     # Write Method - Feedback to Progress Module
     # -------------------------------------------------------------------------
 
-    # 改了會影響進度表同步結果的欄位：本日進度、狀態（同步只算已填寫／自動鎖定／已鎖定）、日期（換區間）
-    _PROGRESS_SYNC_FIELDS = ('daily_actual_progress', 'state', 'log_date')
+    # 改了會影響累計實際進度的欄位：本日進度、舊系統匯入的累計值、日期（2026-11-24 起草稿也算，
+    # 狀態不再影響數字，但照舊觸發一次同步）
+    _PROGRESS_SYNC_FIELDS = ('daily_actual_progress', 'actual_progress', 'state', 'log_date')
+
+    def _progress_schedules_to_sync(self, extra_lines=None):
+        """要重算的進度表：這幾張日誌所屬工程的每一版（使用中、已歸檔、草稿）。
+
+        每一版的明細都照日期加總所有日誌（progress_calc，只差用到哪幾版的調整），所以任何一篇日誌改了，
+        每一版的數字都可能變。2026-11-24（1.15.2）以前只重算「這一天所屬那一版」＋使用中那一版 →
+        三版以上時夾在中間的舊版、變更日之後的日子（屬於新版）對舊版、還沒啟用的草稿，明細都停在舊數字。"""
+        Schedule = self.env['progress.schedule'].sudo()
+        schedules = Schedule
+        if extra_lines:
+            schedules |= extra_lines.sudo().mapped('schedule_id')
+        projects = self.mapped('supervision_project_id')
+        if projects:
+            schedules |= Schedule.search([('project_id', 'in', projects.ids)])
+        return schedules
 
     @api.model_create_multi
     def create(self, vals_list):
         sheets = super().create(vals_list)
-        sheets.filtered(lambda s: s.daily_actual_progress and s.progress_line_id) \
-            .mapped('progress_line_id')._sync_actual_from_daily_logs()
+        changed = sheets.filtered(lambda s: s.daily_actual_progress or s.actual_progress)
+        if changed:
+            changed._progress_schedules_to_sync(changed.mapped('progress_line_id'))._sync_actual_all_lines()
         return sheets
 
     def write(self, vals):
@@ -309,18 +328,30 @@ class DailyLogSheet(models.Model):
         """
         watch = any(f in vals for f in self._PROGRESS_SYNC_FIELDS)
         if watch:
-            before = {s.id: (s.daily_actual_progress, s.state, s.progress_line_id) for s in self}
+            def snapshot(s):
+                return (s.daily_actual_progress, s.actual_progress, s.state, s.progress_line_id, s.log_date)
+            before = {s.id: snapshot(s) for s in self}
 
         res = super().write(vals)
 
         if watch:
-            lines = self.env['progress.schedule.line']
-            for sheet in self:
-                old_daily, old_state, old_line = before[sheet.id]
-                if (sheet.daily_actual_progress, sheet.state, sheet.progress_line_id) != (old_daily, old_state, old_line):
-                    lines |= old_line | sheet.progress_line_id
-            lines._sync_actual_from_daily_logs()
+            changed = self.filtered(lambda s: snapshot(s) != before[s.id])
+            if changed:
+                lines = self.env['progress.schedule.line']
+                for sheet in changed:
+                    lines |= before[sheet.id][3] | sheet.progress_line_id
+                changed._progress_schedules_to_sync(lines)._sync_actual_all_lines()
 
+        return res
+
+    def unlink(self):
+        """刪掉有填進度的日誌 → 這個工程每一版進度表的實際進度重算（2026-11-24 以前刪日誌哪一版都不重算）。"""
+        had = self.filtered(lambda s: s.daily_actual_progress or s.actual_progress)
+        projects = had.mapped('supervision_project_id')
+        res = super().unlink()
+        if projects:
+            self.env['progress.schedule'].sudo().search(
+                [('project_id', 'in', projects.ids)])._sync_actual_all_lines()
         return res
     
     # -------------------------------------------------------------------------

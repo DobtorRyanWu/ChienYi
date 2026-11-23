@@ -57,6 +57,22 @@ class ProgressActivateWizard(models.TransientModel):
         compute='_compute_log_counts',
     )
 
+    zero_after_change = fields.Boolean(
+        string='變更日以後全部是 0',
+        compute='_compute_zero_after_change',
+        help='這一版有變更日那一列，變更日以後的區間預定進度全部是 0：可能忘了照新計畫重填（只提醒、照樣可以啟用）。',
+    )
+
+    @api.depends('schedule_id')
+    def _compute_zero_after_change(self):
+        for wiz in self:
+            schedule = wiz.schedule_id
+            after = schedule.line_ids.filtered(
+                lambda l: l.date_start and schedule.change_date and l.date_start > schedule.change_date)
+            wiz.zero_after_change = bool(
+                schedule and schedule._change_day_applicable() and after
+                and not any(after.mapped('planned_progress')))
+
     @api.depends('start_date', 'end_date')
     def _compute_log_counts(self):
         for wiz in self:

@@ -245,8 +245,19 @@ class GeneralProgressReport(models.Model):
             })
 
     def _sync_cumulative_progress(self):
-        """從啟用中進度表取得 period_end 所在區間的累計進度"""
+        """到報告期間結束日（含）的累計預定／實際進度。
+
+        2026-11-24 起用進度模組的共用算法（project._progress_cumulative_on，construction_progress 18.0.1.14.0）：
+        跟首頁、進度曲線、印出來的日報同一個數字。以前取「期間結束日所在那一段」的累計：預定是那一段結束時的值、
+        實際含期間結束日之後的日誌（事後重新同步舊報告數字會變），期間結束日在空檔裡就不更新。"""
         if not self.project_id or not self.period_end:
+            return
+        if hasattr(self.project_id, '_progress_cumulative_on'):
+            if not self.env['progress.schedule'].search_count([
+                    ('project_id', '=', self.project_id.id), ('state', 'in', ('active', 'archived'))]):
+                return
+            planned, actual = self.project_id._progress_cumulative_on(self.period_end)
+            self.write({'planned_progress': planned or 0.0, 'actual_progress': actual or 0.0})
             return
 
         # 不看 is_latest_version：有新版草稿時最新版是草稿，會查不到使用中的那張。

@@ -44,10 +44,22 @@ class TestProgressReportSync(TransactionCase):
             'project_id': self.project.id,
             'period_start': self.d0, 'period_end': self.d0 + timedelta(days=LINE_DAYS - 1)})
 
+    def _log_first_interval(self):
+        """2026-11-24 起累計實際進度照施工日誌算（construction_progress 18.0.1.14.0 共用算法），
+        不再讀進度區間上存的值 → 用一篇日誌提供第一段的實際進度（以前在區間上直接寫 actual_progress）。"""
+        if 'daily.log.sheet' not in self.env or '_progress_cumulative_on' not in dir(self.project):
+            return
+        employee = self.env['hr.employee'].create({'name': '進度報告同步測試員工', 'company_id': self.env.company.id})
+        self.env['daily.log.sheet'].create({
+            'supervision_project_id': self.project.id, 'company_id': self.env.company.id,
+            'employee_id': employee.id, 'log_date': self.d0 + timedelta(days=2),
+            'daily_actual_progress': ACTUAL_FIRST})
+
     def test_sync_uses_active_when_newer_draft_exists(self):
         v1 = self._schedule('active', PLANNED, actual_first=ACTUAL_FIRST)
         self._schedule('draft', (50.0, 90.0))          # v2 草稿 → v2 才是 is_latest_version
         self.assertFalse(v1.is_latest_version, '測試前提：使用中的 v1 不是最新版')
+        self._log_first_interval()
         report = self._report()
         report._sync_cumulative_progress()
         self.assertEqual(report.planned_progress, PLANNED[0])
@@ -56,6 +68,7 @@ class TestProgressReportSync(TransactionCase):
     def test_sync_takes_highest_active_version(self):
         self._schedule('archived', (30.0, 60.0), actual_first=1.0)
         self._schedule('active', PLANNED, actual_first=ACTUAL_FIRST)
+        self._log_first_interval()
         report = self._report()
         report._sync_cumulative_progress()
         self.assertEqual((report.planned_progress, report.actual_progress), (PLANNED[0], ACTUAL_FIRST))

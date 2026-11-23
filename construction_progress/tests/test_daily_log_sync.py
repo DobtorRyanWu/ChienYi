@@ -40,8 +40,10 @@ class TestDailyLogSync(TransactionCase):
             'employee_id': self.employee.id, 'log_date': day}, **vals))
 
     def test_state_change_syncs(self):
-        sheet = self._sheet(self.d0 + timedelta(days=1), daily_actual_progress=1.5)    # 草稿：同步不算
-        self.assertEqual(self.l1.actual_progress, 0.0)
+        # 2026-11-24 使用者定：累計實際進度草稿也算（跟印出來的日報同一套；同事拿掉 14 天鎖定後草稿滿 14 天
+        # 自動變已填寫，不算的話首頁最多慢兩週）。以前這裡是 0.0（草稿不算）。
+        sheet = self._sheet(self.d0 + timedelta(days=1), daily_actual_progress=1.5)    # 草稿：也算
+        self.assertEqual(self.l1.actual_progress, 1.5)
         sheet.write({'state': 'filled'})                                               # 只改狀態
         self.assertEqual(self.l1.actual_progress, 1.5)
         sheet.write({'state': 'auto_locked'})
