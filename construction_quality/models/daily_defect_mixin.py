@@ -118,9 +118,8 @@ class ConstructionDailyDefectMixin(models.AbstractModel):
         ('other', '其他'),
     ], string='責任歸屬', tracking=True)
 
-    improvement_progress = fields.Integer(
-        string='改善進度 (%)',
-        default=0)
+    # 2026-11-24：「改善進度 (%)」（improvement_progress）整個拿掉——鈺鈞：通報單品質管理頁籤裡缺失改善紀錄的欄位，用不到；
+    # 使用者決定連資料庫欄位一起刪（模組升級時 Odoo 會把一般式、預約式兩張缺失表的這一欄刪掉）。
 
     # === 單位資訊 ===
     discovery_unit = fields.Char(

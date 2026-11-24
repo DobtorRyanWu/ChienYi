@@ -43,9 +43,8 @@
         <field name="model">reservation.defect.improvement</field>
         <field name="inherit_id" ref="construction_quality.view_reservation_defect_improvement_tree"/>
         <field name="arch" type="xml">
-            <!-- 在 state 前加入改善進度、複查狀態等延伸欄位 -->
+            <!-- 在 state 前加入複查狀態等延伸欄位（改善進度 2026-11-24 拿掉） -->
             <xpath expr="//field[@name='state']" position="before">
-                <field name="improvement_progress" widget="progressbar" optional="show"/>
                 <field name="recheck_result" optional="hide" widget="badge"
                        decoration-success="recheck_result == 'pass'"
                        decoration-danger="recheck_result == 'fail'"
@@ -81,25 +80,7 @@
         </field>
     </record>
 
-    <!-- 預約式缺失改善 Kanban 視圖擴展 -->
-    <record id="view_reservation_defect_improvement_kanban_reservation" model="ir.ui.view">
-        <field name="name">reservation.defect.improvement.kanban.reservation</field>
-        <field name="model">reservation.defect.improvement</field>
-        <field name="inherit_id" ref="construction_quality.view_reservation_defect_improvement_kanban"/>
-        <field name="arch" type="xml">
-            <xpath expr="//field[@name='state']" position="after">
-                <field name="improvement_progress"/>
-            </xpath>
-            <xpath expr="//div[@class='o_kanban_record_body']" position="inside">
-                <div class="progress mt-1" style="height: 5px;">
-                    <div class="progress-bar" role="progressbar"
-                         t-attf-style="width: #{record.improvement_progress.raw_value}%"
-                         t-att-aria-valuenow="record.improvement_progress.raw_value"
-                         aria-valuemin="0" aria-valuemax="100">
-                    </div>
-                </div>
-            </xpath>
-        </field>
-    </record>
+    <!-- 預約式缺失改善 Kanban 視圖擴展（view_reservation_defect_improvement_kanban_reservation）2026-11-24 拿掉：
+         它只加了改善進度的進度條，欄位拿掉之後沒有內容；升級時 Odoo 會把資料庫裡這筆畫面一起刪掉 -->
 
 </odoo>

@@ -13,6 +13,9 @@ from odoo.tests.common import TransactionCase, tagged
 
 FORM_XMLID = 'construction_reservation.view_reservation_notification_slip_form_reservation'
 CREATE_BUTTONS = ('action_create_self_inspection', 'action_create_defect_improvement')
+# 2026-11-24 拿掉的欄位「改善進度 (%)」：定義在缺失的共用 mixin，一般式、預約式兩張缺失表都有
+REMOVED_FIELD = 'improvement_progress'
+DEFECT_MODELS = ('reservation.defect.improvement', 'general.defect.improvement')
 
 
 @tagged('post_install', '-at_install', 'construction_reservation')
@@ -71,14 +74,31 @@ class TestEagleParityReservationDates(TransactionCase):
             'inspection_date': '2026-05-01'})
         self.assertTrue(insp.exists())
 
-    def test_defect_notification_before_slip_start_and_progress_out_of_range_allowed(self):
+    def test_defect_notification_before_slip_start_allowed(self):
         defect = self.env['reservation.defect.improvement'].create({
             'slip_id': self.slip.id, 'record_type': 'supervision', 'check_type': 'construction',
             'defect_category': 'workmanship', 'defect_description': '回復原版預約式缺失',
             'notification_date': '2026-05-01'})
-        defect.write({'improvement_progress': 150})
-        self.env.flush_all()
-        self.assertEqual(defect.improvement_progress, 150)
+        self.assertTrue(defect.exists())
+
+    def test_improvement_progress_removed_and_reopen_still_works(self):
+        """2026-11-24：「改善進度 (%)」整個拿掉（鈺鈞：用不到；原本只測它不限 0～100）。
+        兩張缺失表都沒有這個欄位、資料庫也沒有這一欄；預約式缺失重新開啟照舊清掉複查資料、不報錯
+        （以前重新開啟會順便把改善進度寫回 0）。"""
+        for model in DEFECT_MODELS:
+            if model in self.env:
+                self.assertNotIn(REMOVED_FIELD, self.env[model]._fields, model)
+        self.env.cr.execute(
+            'SELECT table_name FROM information_schema.columns WHERE column_name = %s AND table_name IN %s',
+            [REMOVED_FIELD, tuple(model.replace('.', '_') for model in DEFECT_MODELS)])
+        self.assertEqual(self.env.cr.fetchall(), [], '資料庫的欄位也要刪掉')
+        defect = self.env['reservation.defect.improvement'].create({
+            'slip_id': self.slip.id, 'record_type': 'supervision', 'check_type': 'construction',
+            'defect_category': 'workmanship', 'defect_description': '回復原版預約式缺失（重新開啟）',
+            'notification_date': '2026-06-02'})
+        defect.sudo().write({'state': 'closed', 'recheck_date': '2026-06-10', 'recheck_note': '複查說明'})
+        defect.action_reopen()
+        self.assertEqual((defect.state, defect.recheck_date, defect.recheck_note), ('improving', False, False))
 
 
 @tagged('post_install', '-at_install', 'construction_reservation')

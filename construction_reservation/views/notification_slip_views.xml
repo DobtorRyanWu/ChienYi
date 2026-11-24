@@ -106,7 +106,6 @@
                             <field name="notification_date"/>
                             <field name="deadline"/>
                             <field name="is_overdue" column_invisible="1"/>
-                            <field name="improvement_progress" widget="progressbar" optional="show"/>
                             <field name="state" widget="badge"
                                    decoration-info="state == 'draft'"
                                    decoration-warning="state in ('notified', 'improving')"

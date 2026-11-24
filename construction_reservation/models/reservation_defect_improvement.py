@@ -104,12 +104,12 @@ class ReservationDefectImprovementReservation(models.Model):
                 'recheck_date': False,
                 'recheck_result': False,
                 'recheck_note': False,
-                'improvement_progress': 0,
             })
         return super().action_reopen()
 
     # === 約束驗證 ===
     # 2026-11-20 回復原版（1118 會議）：拿掉「改善進度必須在 0-100 之間」——舊系統沒有範圍檢查
+    # 2026-11-24：改善進度欄位本身也拿掉了（construction_quality 6.20.0），重新開啟不再把它寫回 0
 
     @api.constrains('slip_id')
     def _check_slip_not_cancelled(self):
