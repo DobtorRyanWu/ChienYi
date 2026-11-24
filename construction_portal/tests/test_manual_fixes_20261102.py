@@ -8,7 +8,9 @@
 - P17 同一天已有日誌再新增：導回新增頁帶提示，不留下半成品、不跳錯誤頁。
 """
 
-from datetime import timedelta
+from datetime import date, timedelta
+
+from freezegun import freeze_time
 
 from odoo import fields
 from odoo.addons.website.tools import MockRequest
@@ -16,10 +18,15 @@ from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, tagged
 
 from odoo.addons.construction_portal.controllers.portal import ConstructionPortal
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
 from odoo.addons.construction_portal.tests.dash_fixtures import (
     contractor_project_vals, contractor_user_vals, make_contractor)
 
 FIELD = 'construction_supervision_base.group_portal_user'   # 現場人員
+# 台灣週一 01:00＝UTC 週日 17:00：台灣已經是新的一週，容器的 UTC 日期還在上一週
+# （2026-11-23 01:00 test_p2c 實際失敗的時間點）
+TAIWAN_MONDAY_1AM_UTC = '2026-11-22 17:00:00'
+TAIWAN_MONDAY = date(2026, 11, 23)
 PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
 
@@ -139,7 +146,9 @@ class TestPortalManualFixes(TransactionCase):
     # P2' ---------------------------------------------------------------
     def _make_schedule(self):
         self._assert_task_unreadable()
-        today = fields.Date.today()
+        # 「本週」照台灣日期（頁面用 local_today()）；fields.Date.today() 是容器的 UTC 日期，
+        # 台灣週一 0～8 點會落在上一週
+        today = local_today()
         week_start = today - timedelta(days=today.weekday())
         sched = self.env['construction.weekly.schedule'].create({
             'supervision_project_id': self.project.id,
@@ -164,6 +173,19 @@ class TestPortalManualFixes(TransactionCase):
             self.worker, self.ctrl.portal_construction_project_detail, self.project.id)
         self.assertIsNotNone(vals, html)
         self.assertIn('MF 本週目標工項', vals['week_target'])
+
+    @freeze_time(TAIWAN_MONDAY_1AM_UTC)
+    def test_p2d_week_target_on_taiwan_monday_before_8am(self):
+        """台灣週一 0～8 點：日誌清單、工程首頁的「本週目標」要是台灣這一週的排程，不是 UTC 還停著的上一週。"""
+        self.assertEqual((local_today(), fields.Date.today()), (TAIWAN_MONDAY, TAIWAN_MONDAY - timedelta(days=1)),
+                         '前提：台灣已經週一、UTC 還在週日')
+        sched = self._make_schedule()
+        self.assertEqual(sched.week_start, TAIWAN_MONDAY, '排程是台灣這一週的')
+        for label, method in (('日誌清單', self.ctrl.portal_construction_daily_logs),
+                              ('工程首頁', self.ctrl.portal_construction_project_detail)):
+            vals, html = self._drive(self.worker, method, self.project.id)
+            self.assertIsNotNone(vals, f'{label}：{html}')
+            self.assertIn('MF 本週目標工項', vals['week_target'], label)
 
     # P17 ---------------------------------------------------------------
     def test_p17_duplicate_day_redirects_back_with_error(self):

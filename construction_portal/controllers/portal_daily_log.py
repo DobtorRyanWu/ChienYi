@@ -13,6 +13,7 @@ from odoo.addons.portal.controllers.portal import pager as portal_pager
 from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
 from odoo.addons.construction_daily_log.models.daily_log_material import MAX_MATERIAL_DAILY_QTY
 from odoo.addons.construction_daily_log.models.daily_log_sheet import DAILY_LOG_IMPORT_ALLOW_SAME_DAY
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
 from werkzeug.exceptions import NotFound
@@ -197,7 +198,9 @@ class DailyLogRoutesMixin:
         )
 
         # Alert 資料（本週目標 + 待處理缺失 + 待完成檢查）
-        today = date.today()
+        # 台灣日期（與工程首頁同一個來源）：date.today() 是容器的 UTC 日期，台灣週一 0～8 點還在上一週，
+        # 「本週目標」與本週日曆會顯示上週的（2026-11-24；回歸 test_p2d_week_target_on_taiwan_monday_before_8am）
+        today = local_today()
         week_start_dt = today - timedelta(days=today.weekday())
         week_target = ''
         week_range = f'{week_start_dt.strftime("%Y/%m/%d")} — {(week_start_dt + timedelta(days=6)).strftime("%m/%d")}'

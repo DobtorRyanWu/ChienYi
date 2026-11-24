@@ -19,7 +19,9 @@ from odoo.tests import tagged
 
 from ..models.dashboard_charts import MAX_CHART_CATEGORIES, MONTHLY_DEFAULT_MONTHS, OTHER_KEY
 from ..models.method_gate import DASHBOARD_METHODS, gate_verdict
-from .test_dashboard_indicators import FOUND_DATE, FROZEN_NOW, DashIndicatorCase
+from .test_dashboard_indicators import (
+    FOUND_DATE, FROZEN_NOW, PA_ACTUAL_TODAY, PA_PLANNED_TODAY, DashIndicatorCase,
+)
 from .test_scope_rules import require_totp
 
 GENERAL = 'general.self.inspection'
@@ -198,7 +200,7 @@ class TestDashboardCharts(DashIndicatorCase):
         by_key = {series['key']: series['values'][index] for series in data['series']}
         pa = self.pa.with_user(self.sup)
         self.assertEqual(by_key, {'planned': round(pa.dash_progress_planned, 2), 'actual': round(pa.dash_progress_actual, 2)})
-        self.assertEqual(by_key, {'planned': 10.0, 'actual': 5.0})
+        self.assertEqual(by_key, {'planned': PA_PLANNED_TODAY, 'actual': PA_ACTUAL_TODAY})
         self.assertIsNone(data['total'], '百分比不能加總')
         self.assertEqual(data['unit'], '%')
         # 落後最多的排前面（差＝實際－預定，由小到大）

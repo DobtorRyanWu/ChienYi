@@ -36,6 +36,13 @@ PNG_B64 = base64.b64encode(
     b'\x00\x00\x00\rIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82')
 FROZEN_NOW = '2026-11-05 04:00:00'      # UTC；台灣 2026-11-05 12:00（週四，工作天）
 TODAY = date(2026, 11, 5)
+# PA 今天（11/5）的累計進度，手算；規則在 construction_progress/models/progress_calc.py 檔頭（2026-11-24 起的共用算法）：
+# 預定＝第一段（11/2～11/4）10 ＋ 第二段（11/5～11/14，共 10 天）20 × 1/10（今天是第二段第 1 天、當天算進去）＝12
+# 實際＝施工日誌的本日實際進度照日期加總＝11/4 那一張填的 5（進度表明細上直接寫的數字不算）
+PA_LOG_PROGRESS = 5.0
+PA_PLANNED_TODAY = 12.0
+PA_ACTUAL_TODAY = PA_LOG_PROGRESS
+PA_VARIANCE_TODAY = -7.0
 FOUND_DATE = date(2026, 10, 1)       # 缺失發現日（期限不得早於它）
 # 會出現在使用者輸入欄位裡的記號：SVG 裡一個都不能有
 USER_MARK = 'DASHMARK'
@@ -87,7 +94,8 @@ class DashIndicatorCase(TransactionCase):
                                    scope=cls.co_a)
         cls.plain = cls._user('dashb_plain', ['base.group_user'], cls.co_s)
 
-        # 進度表：PA 兩個區間，今天是第二區間第一天 → 今天的累計預定 10、實際 5（內插比例 0）；日誌要先有進度表
+        # 進度表：PA 兩個區間，今天是第二區間第一天 → 今天的累計預定 12、實際 5（手算見檔頭 PA_PLANNED_TODAY）；
+        # 日誌要先有進度表。明細第 4 個數字（實際）只是建檔時的值：實際進度一律照日誌算，日誌存檔會把它重算
         cls.pa_schedule = cls._schedule(cls.pa, [(date(2026, 11, 2), date(2026, 11, 4), 10.0, 5.0),
                                                  (date(2026, 11, 5), date(2026, 11, 14), 20.0, 0.0)],
                                         reason=EVIL_NAME)
@@ -96,7 +104,7 @@ class DashIndicatorCase(TransactionCase):
         cls.log_today = Log.create({'supervision_project_id': cls.pa.id, 'employee_id': cls.employee.id,
                                     'log_date': TODAY})
         Log.create({'supervision_project_id': cls.pa.id, 'employee_id': cls.employee.id,
-                    'log_date': date(2026, 11, 4)})
+                    'log_date': date(2026, 11, 4), 'daily_actual_progress': PA_LOG_PROGRESS})
 
         # 照片：PA 今天 8 張（含台灣 00:00、07:59、08:00 三個邊界）＋台灣昨天 23:59 一張＋今天封存一張
         cls.pa_today_photos = env['supervision.photo']
@@ -430,11 +438,11 @@ class TestDashboardIndicators(DashIndicatorCase):
 
     @freeze_time(FROZEN_NOW)
     def test_progress_values_and_summary_same_numbers(self):
-        """進度：今天的累計預定 10、實際 5（手算）；單一工程頁的進度摘要與卡片同一份數字，且不寫入進度表。"""
+        """進度：今天的累計預定 12、實際 5（手算，見檔頭 PA_PLANNED_TODAY）；單一工程頁的進度摘要與卡片同一份數字，且不寫入進度表。"""
         pa = self._as(self.sup, self.pa)
         self.assertTrue(pa.dash_has_schedule)
         self.assertEqual((pa.dash_progress_planned, pa.dash_progress_actual, pa.dash_progress_variance),
-                         (10.0, 5.0, -5.0))
+                         (PA_PLANNED_TODAY, PA_ACTUAL_TODAY, PA_VARIANCE_TODAY))
         # 已存的 current_* 值故意弄成別的：摘要不可讀它，也不可呼叫會寫回的 compute
         self.env.flush_all()
         self.env.cr.execute('UPDATE progress_schedule SET current_cumulative_planned = 77 WHERE id = %s',
@@ -442,7 +450,7 @@ class TestDashboardIndicators(DashIndicatorCase):
         self.pa_schedule.invalidate_recordset(['current_cumulative_planned'])
         summary = self._as(self.sup, self.pa)._dashboard_progress_summary()
         self.assertEqual((summary['cumulative_planned'], summary['cumulative_actual'], summary['variance']),
-                         (10.0, 5.0, -5.0))
+                         (PA_PLANNED_TODAY, PA_ACTUAL_TODAY, PA_VARIANCE_TODAY))
         self.assertEqual(summary['variance_status'], 'delayed')
         self.env.flush_all()
         self.env.cr.execute('SELECT current_cumulative_planned FROM progress_schedule WHERE id = %s',
