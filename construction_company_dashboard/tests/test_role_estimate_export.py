@@ -5,7 +5,10 @@
 （construction_template/views/payment_estimate_export_views.xml）。規格：
 1. 只能匯出讀得到的估驗：範圍外的 id（RPC 直接帶）在任何套印、寫入之前就拒（payment_estimate.py）；
 2. 角色帳號只准那四種樣板類型；
-3. 以本人身分套印：多營造廠共用的工程上，營造方的估驗照片只有自家的、累計實際進度只算自家的日誌；
+3. 以本人身分套印：多營造廠共用的工程上，營造方的估驗照片只有自家的；
+   累計實際進度是全工程一個數字、誰印都一樣（2026-11-24 使用者決定，配合 73c5514a 的共用算法
+   construction_progress/models/progress_calc.py；11-10 原本定的是只算本人讀得到的日誌）——
+   別家營造廠的日誌本身（哪一天、填多少）照舊讀不到；
 4. 不改業務資料：匯出檔不掛在估驗上、只刪自己先前匯出的同名檔——別人上傳到估驗上、剛好同名的附件不會被刪；
    樣板使用次數＋1 是唯一的寫入（允許的副作用，這裡明確斷言）；
 5. xlsx 不走試算表預覽，直接下載；四份都真的下載下來、打開檔案比對夾具的值。
@@ -45,7 +48,8 @@ PROJECT_NAME = 'ROLE-EX 匯出測試工程'
 TASK_NAME = 'ROLE-EX 工項甲'
 PHOTO_A = 'ROLE-EX 照片甲'
 PHOTO_B = 'ROLE-EX 照片乙'
-# 本日實際進度（%）：A、B 各一張日誌；營造方只讀得到 A 的，累計＝A；監造方讀得到兩張，累計＝A＋B
+# 本日實際進度（%）：A、B 各一張日誌；印出來的累計＝A＋B（全工程一個數字，四個角色都一樣）；
+# 日誌本身營造方只讀得到 A 那一張、監造方兩張都讀得到
 PROGRESS_A = 3.17
 PROGRESS_B = 5.29
 ESTIMATE_QTY = 2.0
@@ -243,10 +247,9 @@ class TestRoleEstimateExportHttp(HttpCase):
                     self.assertEqual(PHOTO_B in text, not contractor_side,
                                      f'{label}：別家營造廠（B）的照片只有監造方看得到')
                 if template_type == 'estimate_progress_report':
-                    expected = PROGRESS_A if contractor_side else PROGRESS_A + PROGRESS_B
-                    other = PROGRESS_A + PROGRESS_B if contractor_side else PROGRESS_A
-                    self.assertIn('%.2f' % expected, text, f'{label}：累計實際進度＝讀得到的日誌')
-                    self.assertNotIn('%.2f' % other, text, f'{label}：累計實際進度不含讀不到的日誌')
+                    self.assertIn('%.2f' % (PROGRESS_A + PROGRESS_B), text,
+                                  f'{label}：累計實際進度＝全工程的日誌加總（誰印都一樣）')
+                    self.assertNotIn('%.2f' % PROGRESS_A, text, f'{label}：不是只算 A 那一張')
                 # 匯出檔：本人擁有、不掛在單據上、帶匯出標記；別的角色帳號下載不到
                 attachment_id = int(action['url'].split('/web/content/')[1].split('?')[0])
                 attachment = self.env['ir.attachment'].sudo().browse(attachment_id)
@@ -263,6 +266,27 @@ class TestRoleEstimateExportHttp(HttpCase):
         after = self._usage()
         self.assertEqual(sum(after[t] - usage[t] for t in BUTTON_TYPES), exports, '樣板使用次數每匯出一次＋1')
         self.assertEqual(after[HIDDEN_TYPE], usage[HIDDEN_TYPE])
+
+    # ── 3：累計實際進度全工程一個數字，別家的日誌本身照舊讀不到 ──────────────
+    def test_progress_one_number_other_contractor_logs_hidden(self):
+        """2026-11-24 使用者決定：共用工程上，營造方算出來的累計實際進度跟監造方同一個數字；
+        看得到的只有這個加總，別家營造廠的日誌（哪一天、填多少）以本人身分照舊讀不到。"""
+        today = fields.Date.today()
+        scope = [('supervision_project_id', '=', self.p_shared.id)]
+        Sheet = self.env['daily.log.sheet']
+        self.assertEqual(sorted(Sheet.sudo().search(scope).mapped('daily_actual_progress')),
+                         [PROGRESS_A, PROGRESS_B], '前提：共用工程上 A、B 各一張日誌')
+        for user in self.roles:
+            contractor_side = user in self.contractor_roles
+            _planned, actual = self.p_shared.with_user(user)._progress_cumulative_on(today)
+            self.assertAlmostEqual(actual, PROGRESS_A + PROGRESS_B, places=2,
+                                   msg=f'{user.login}：累計實際進度是全工程的加總')
+            readable = Sheet.with_user(user).search(scope)
+            self.assertEqual(sorted(readable.mapped('daily_actual_progress')),
+                             [PROGRESS_A] if contractor_side else [PROGRESS_A, PROGRESS_B],
+                             f'{user.login}：讀得到的日誌（營造方只有自家那一張）')
+            if contractor_side:
+                self.assertEqual(readable.contractor_company_id, self.co_a, f'{user.login}：只有 A 的')
 
     # ── 1：範圍外的估驗；2：其他樣板類型 ──────────────────────────────
     def test_out_of_scope_and_other_types_rejected(self):
