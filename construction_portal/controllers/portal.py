@@ -344,13 +344,13 @@ class ConstructionPortal(DefectRoutesMixin, InspectionRoutesMixin, PhotoRoutesMi
         """
         if not project.contract_start_date:
             return 0
-        end_date = project.actual_end_date or date.today()
+        end_date = project.actual_end_date or local_today()
         delta = (end_date - project.contract_start_date).days
         return max(delta + 1, 0) if end_date >= project.contract_start_date else 0
 
     def _get_nav_badges(self, project):
         """計算底部導航 badge 數字（檢查/缺失/日誌）"""
-        today = date.today()
+        today = local_today()
         badges = {}
         try:
             # 預約式工程的檢查在 reservation.self.inspection（2026-11-22：以前一律數一般式，預約式永遠 0）

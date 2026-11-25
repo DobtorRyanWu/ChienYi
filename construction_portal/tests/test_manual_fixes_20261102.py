@@ -187,6 +187,36 @@ class TestPortalManualFixes(TransactionCase):
             self.assertIsNotNone(vals, f'{label}：{html}')
             self.assertIn('MF 本週目標工項', vals['week_target'], label)
 
+    @freeze_time(TAIWAN_MONDAY_1AM_UTC)
+    def test_p2e_today_is_taiwan_date_before_8am(self):
+        """台灣 0～8 點：前台的 DAY 天數、底部徽章、新增頁的預設日期、沒帶日期就送出的單，
+        都要用台灣的今天，不是容器還停在前一天的 UTC 日期（2026-11-25 示範站凌晨 2 點實際看到預設日期是前一天）。"""
+        self.assertEqual((local_today(), fields.Date.today()), (TAIWAN_MONDAY, TAIWAN_MONDAY - timedelta(days=1)),
+                         '前提：台灣已經週一、UTC 還在週日')
+        today_iso = TAIWAN_MONDAY.isoformat()
+        # DAY 天數：今天開工就是第 1 天（用 UTC 日期會算成還沒開工的 0）
+        self.project.contract_start_date = TAIWAN_MONDAY
+        self.assertEqual(self.ctrl._get_project_day_count(self.project), 1)
+        # 底部徽章的未填日誌數：這一週到今天只有週一 1 個工作天（用 UTC 日期會數成上一週的 5 天）
+        self.env.flush_all()
+        self.env.invalidate_all()
+        with MockRequest(self.env(user=self.worker)):
+            badges = self.ctrl._get_nav_badges(self.project)
+        self.assertEqual(badges['log'], 1)
+        # 三個新增頁的預設日期
+        for label, method in (('新增日誌', self.ctrl.portal_construction_daily_log_new),
+                              ('新增缺失', self.ctrl.portal_construction_defect_new),
+                              ('新增自主檢查', self.ctrl.portal_construction_inspection_new)):
+            vals, html = self._drive(self.worker, method, self.project.id)
+            self.assertIsNotNone(vals, f'{label}：{html}')
+            self.assertEqual(vals['today'], today_iso, label)
+        # 沒帶日期就送出：日誌存成台灣的今天
+        vals, location = self._drive(
+            self.worker, self.ctrl.portal_construction_daily_log_create, project_id=str(self.project.id))
+        self.assertIsNone(vals)
+        logs = self.env['daily.log.sheet'].search([('supervision_project_id', '=', self.project.id)])
+        self.assertEqual(logs.mapped('log_date'), [TAIWAN_MONDAY], location)
+
     # P17 ---------------------------------------------------------------
     def test_p17_duplicate_day_redirects_back_with_error(self):
         self._sheet()

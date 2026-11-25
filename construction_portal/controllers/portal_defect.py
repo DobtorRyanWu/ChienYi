@@ -12,6 +12,7 @@ from odoo.addons.portal.controllers.portal import pager as portal_pager
 from odoo.addons.construction_quality.models.defect_constants import CATEGORY_TO_CHECK_TYPE
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
 from werkzeug.exceptions import NotFound
 
 from .portal_utils import (
@@ -688,7 +689,7 @@ class DefectRoutesMixin:
                 if project.project_type == 'reservation' else False),
             'slip_choice_whole_site': SLIP_CHOICE_WHOLE_SITE,
             'page_name': 'construction_defect_new',
-            'today': date.today().isoformat(),
+            'today': local_today().isoformat(),
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
             'error_message': _portal_error_message(request.params.get('error')),
@@ -715,7 +716,7 @@ class DefectRoutesMixin:
         # 且錯誤文字不該經網址。壞了就導回新增頁，帶固定代碼，畫面由對照表顯示。
         try:
             found_date = (fields.Date.to_date(post.get('found_date') or '')
-                          or date.today())
+                          or local_today())
             deadline = fields.Date.to_date(post.get('deadline') or '') or False
         except (ValueError, TypeError):
             return request.redirect(

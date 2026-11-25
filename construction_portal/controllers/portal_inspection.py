@@ -14,6 +14,7 @@ from odoo.addons.construction_quality.models.self_inspection_mark import (
     LAYOUT_MARKS, STANDARD, result_for_mark)
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.osv.expression import AND
+from odoo.addons.construction_supervision_base.utils.local_date import local_today
 from werkzeug.exceptions import NotFound
 
 # 這三支 mixin 都是從 portal.py 抽出來的，_logger 沒跟著搬過來——
@@ -629,7 +630,7 @@ class InspectionRoutesMixin:
             'measure_map_json': measure_map_json,
             'photo_categories': photo_categories,
             'page_name': 'construction_inspection_new',
-            'today': date.today().isoformat(),
+            'today': local_today().isoformat(),
         }
 
         return request.render('construction_portal.portal_construction_inspection_form', values)
@@ -656,7 +657,7 @@ class InspectionRoutesMixin:
         vals = {
             'project_id': project_id,
             'inspection_type_id': type_id,
-            'inspection_date': post.get('inspection_date') or date.today().isoformat(),
+            'inspection_date': post.get('inspection_date') or local_today().isoformat(),
             'inspection_location': post.get('inspection_location', ''),
             'inspection_timing_ids': _posted_timing_ids(post),
             'sub_project_name': post.get('sub_project_name', ''),
@@ -931,7 +932,7 @@ class InspectionRoutesMixin:
             'measure_map_json': measure_map_json,
             'photo_categories': photo_categories,
             'page_name': 'construction_reservation_inspection_new',
-            'today': date.today().isoformat(),
+            'today': local_today().isoformat(),
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
         }
@@ -972,7 +973,7 @@ class InspectionRoutesMixin:
             'is_whole_site': is_whole_site,
             'inspection_type_id': type_id,
             'sub_project_name': post.get('sub_project_name', ''),
-            'inspection_date': post.get('inspection_date') or date.today().isoformat(),
+            'inspection_date': post.get('inspection_date') or local_today().isoformat(),
             'inspection_location': post.get('inspection_location', ''),
             'inspection_timing_ids': _posted_timing_ids(post),
             'note': post.get('note', ''),

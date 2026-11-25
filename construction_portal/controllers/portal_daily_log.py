@@ -198,7 +198,7 @@ class DailyLogRoutesMixin:
         )
 
         # Alert 資料（本週目標 + 待處理缺失 + 待完成檢查）
-        # 台灣日期（與工程首頁同一個來源）：date.today() 是容器的 UTC 日期，台灣週一 0～8 點還在上一週，
+        # 台灣日期（與工程首頁同一個來源）：local_today() 是容器的 UTC 日期，台灣週一 0～8 點還在上一週，
         # 「本週目標」與本週日曆會顯示上週的（2026-11-24；回歸 test_p2d_week_target_on_taiwan_monday_before_8am）
         today = local_today()
         week_start_dt = today - timedelta(days=today.weekday())
@@ -672,7 +672,7 @@ class DailyLogRoutesMixin:
             'form_materials': self._daily_log_form_materials(project),
             'form_action': '/construction/daily-log/create',
             'page_name': 'construction_daily_log_new',
-            'today': date.today().isoformat(),
+            'today': local_today().isoformat(),
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
         }
@@ -817,7 +817,7 @@ class DailyLogRoutesMixin:
         # 基本欄位
         vals = {
             'supervision_project_id': project.id,
-            'log_date': post.get('log_date') or date.today().isoformat(),
+            'log_date': post.get('log_date') or local_today().isoformat(),
             'weather_am': post.get('weather_am') or False,
             'weather_pm': post.get('weather_pm') or False,
             'work_summary': post.get('work_summary', ''),
@@ -974,7 +974,7 @@ class DailyLogRoutesMixin:
             'form_materials': self._daily_log_form_materials(project, log),
             'form_action': f'/construction/{project_id}/daily-log/{log.id}/update',
             'page_name': 'construction_daily_log_edit',
-            'today': log.log_date.isoformat() if log.log_date else date.today().isoformat(),
+            'today': log.log_date.isoformat() if log.log_date else local_today().isoformat(),
             'day_count': self._get_project_day_count(project),
             'nav_badges': self._get_nav_badges(project),
         }
