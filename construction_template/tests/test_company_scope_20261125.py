@@ -3,8 +3,9 @@
 
 H1：_check_company_allowed 原本只要 vals 帶 company_id 就檢查，不比新舊值——RPC 或匯入帶「沒改的」company_id
     （例：專案層級樣板的 company_id 與工程公司不同，可見範圍看工程的公司），會被誤擋。改成只檢查值真的有變的記錄。
-H2：action_duplicate 複製專案層級樣板時，副本（沒有工程的公司層級樣板）原本歸「目前選的公司」，
-    應該歸工程的公司；沒有工程的樣板照 3.16.1（S5 審查 F1）歸複製的人目前的公司，不可改回去。
+H2（查證後不改）：複製專案層級樣板時，副本（沒有工程的公司層級樣板）歸「目前選的公司」。審查曾建議改成歸工程的公司，
+    但唯一鍵 unique_default_type_company（同類型、同公司、非預設只能一份）讓副本一定撞到原樣板自己——
+    dev 實測真的專案層級樣板兩種情況都 UniqueViolation。所以維持歸目前選的公司（3.16.1，S5 審查 F1），這裡鎖住。
 """
 from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase, tagged
@@ -70,16 +71,16 @@ class TestTemplateCompanyScope(TransactionCase):
         with self.assertRaises(ValidationError), self.cr.savepoint():
             both.write({'company_id': self.co_b.id})
 
-    # ═══ H2 ═══════════════════════════════════════════════════════════
-    def test_h2_duplicate_project_template_belongs_to_project_company(self):
-        """複製工程 B 的專案層級樣板時，目前選的公司是 A：副本歸工程的公司 B（修前歸 A）。"""
-        # 原樣板的 company_id 故意設成第三家：同類型、同公司、非預設只能有一份（unique_default_type_company），
-        # 副本歸工程的公司 B 才不會撞到原樣板
-        template = self._template(project_id=self.proj_b.id, company_id=self.co_c.id)
+    # ═══ H2（維持原行為）═════════════════════════════════════════════
+    def test_h2_duplicate_project_template_goes_to_current_company(self):
+        """工程 B 的專案層級樣板（樣板公司＝工程公司 B，實際資料都是這樣），目前選的公司是 A：
+        複製要成功，副本是公司層級、歸目前選的公司 A。
+        改成「歸工程的公司」的話副本會撞到原樣板自己的唯一鍵（同類型、同公司、非預設），複製直接失敗。"""
+        template = self._template(project_id=self.proj_b.id, company_id=self.co_b.id)
         action = self._as(template, self.user_ab).action_duplicate()
         copy = self.env['document.template'].browse(action['res_id'])
         self.assertFalse(copy.project_id, '前提：副本沒有工程（公司層級）')
-        self.assertEqual(copy.company_id, self.co_b)
+        self.assertEqual(copy.company_id, self.co_a)
 
     def test_h2_duplicate_without_project_belongs_to_current_company(self):
         """3.16.1（S5 審查 F1）要保留：沒有工程的樣板，副本歸複製的人目前的公司。"""

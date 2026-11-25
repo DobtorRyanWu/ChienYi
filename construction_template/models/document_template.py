@@ -802,9 +802,11 @@ class DocumentTemplate(models.Model):
         # 沒有工程的副本是「公司層級」樣板，歸複製的人目前的公司（S5 審查 F1，2026-11-19）：公司層級只有樣板自己的公司
         # 看得到（security/company_rules.xml）。沿用原樣板的公司的話，複製別家公司的系統預設會得到一份自己讀不到的樣板、
         # 建立時被規則拒絕——系統預設都掛在主公司，其他公司的人複製來改正是最常見的用法
-        # W5 H2（2026-11-25）：複製的是專案層級樣板（原樣板有工程）時，副本歸工程的公司，不是目前選的公司
+        # 原樣板有工程（專案層級）時也一樣歸目前選的公司，不歸工程的公司（W5 H2，2026-11-25 查證後不改）：
+        # 專案層級樣板的公司就是工程的公司，副本若也歸它，會撞 unique_default_type_company（同類型、同公司、非預設只能一份）
+        # ——撞到的就是原樣板自己，複製一定失敗（dev 實測）。回歸：tests/test_company_scope_20261125.py
         if not default.get('project_id', self.project_id.id):
-            default.setdefault('company_id', self.project_id.company_id.id or self.env.company.id)
+            default.setdefault('company_id', self.env.company.id)
         return super().copy(default)
 
     def name_get(self):
