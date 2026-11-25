@@ -26,6 +26,9 @@
                 <group string="前台角色（外部使用者）" name="portal_role_group">
                     <field name="portal_role"
                            help="設定後此帳號會成為 Portal（入口網站）外部使用者；留空則維持一般使用者。"/>
+                    <!-- 只有前台帳號有意義（定期閱覽者、參觀帳號到期自動停用）；要延長或提前結束就改這一欄 -->
+                    <field name="share" invisible="1"/>
+                    <field name="portal_valid_until" invisible="not share and not portal_role"/>
                 </group>
                 <group string="組織身分" name="org_identity">
                     <field name="is_supervision_org"/>

@@ -182,6 +182,21 @@ class TestDashboardPage(DashIndicatorCase):
         self.assertNotIn(self.test_done.id, [row['id'] for row in data['rows']], '檢驗完成的不算待補')
         self.assertEqual({row['standard'] for row in data['rows']}, {'DASHB 抗壓'})
 
+    # ── ⑥-0 公司合計每一項帶自己的 key ───────────────────────────────────────
+    def test_kpi_entries_carry_their_own_key(self):
+        """前端點合計數字時用 entry.key 呼叫 action_dash_drilldown（overview.js onKpiClick、overview.xml 的分項選單）。
+        2026-11-25：entry 沒有 key，點任何一個數字都是「操作無效：不認得的儀表板指標：None」。"""
+        Project = self._as(self.sup, self.env['project.project'])
+        kpis = Project.get_dash_company_kpis()['kpis']
+        self.assertTrue(kpis)
+        for key, entry in kpis.items():
+            self.assertEqual(entry.get('key'), key)
+        # 照前端的呼叫方式下鑽：只有一個資料來源時帶 parts[0].model
+        entry = kpis['construction_project']
+        self.assertEqual(entry['status'], 'ok')
+        action = Project.action_dash_drilldown(entry['key'], entry['parts'][0]['model'])
+        self.assertEqual(action['res_model'], 'project.project')
+
     # ── ⑥ 公司合計 log_filled ───────────────────────────────────────────────
     @freeze_time(FROZEN_NOW)
     @require_totp   # S2 fix2-Z：驗「強制兩步驟驗證時」（DASH_REQUIRE_TOTP 預設 False）

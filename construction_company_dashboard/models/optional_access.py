@@ -6,8 +6,9 @@ security/ir.model.access.csv 只能引用本模組依賴範圍內的模型；白
 這種模型改在每次安裝／升級本模組時（data 的 security/optional_access.xml 呼叫），依 registry 有沒有這個模型建立 ACL：
 帶本模組的 xmlid → 升級時保留、移除本模組時一併刪除；那個模組沒裝就不建。
 
-已知限制：那個模組比本模組晚裝時，要再升級本模組一次才會補上
-（沒補時該帳號讀那張表＝ACL 拒，畫面會報無權限，不會靜默變空）。
+那個模組比本模組晚裝時：靠下面 ir.model.data._process_end 的覆寫補上——核心在每次模組安裝／升級流程的最後
+呼叫它，這時所有模組都載入完了。2026-11-25 以前沒有這一段，要等下次升級本模組才補；示範站與正式站都是
+公文模組（construction_office）後裝，營造廠主管與後台角色帳號的公文、行事曆因此整個無權限。
 """
 from odoo import api, models
 
@@ -68,3 +69,15 @@ class IrModelAccess(models.Model):
         if not data_list:
             return self.browse()
         return self.sudo()._load_records(data_list, update=True)
+
+
+class IrModelData(models.Model):
+    _inherit = 'ir.model.data'
+
+    @api.model
+    def _process_end(self, modules):
+        """任何模組安裝／升級完都把選裝模組的讀取 ACL 補齊（見檔頭）。可重跑：已經有的只會照同樣的值再寫一次。"""
+        result = super()._process_end(modules)
+        if modules:
+            self.env['ir.model.access']._dash_sync_optional_manager_access()
+        return result

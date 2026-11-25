@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- 參觀帳號（淞源 C11）：後台「系統設定 > 基礎設定 > 參觀帳號」 -->
+    <!-- 參觀帳號（淞源 C11）：後台「系統設定 > 參觀帳號」 -->
 
     <record id="view_visit_grant_list" model="ir.ui.view">
         <field name="name">construction.visit.grant.list</field>
@@ -124,7 +124,9 @@
         <field name="target">new</field>
     </record>
 
-    <menuitem id="menu_visit_root" name="參觀帳號" parent="construction_supervision_base.menu_basic_config" sequence="80"/>
+    <!-- 直接掛在「系統設定」底下：原本掛的「基礎設定」被選單設定檔（construction_menu_profile MENUS_OFF）整支關掉，
+         後台找不到入口、只能打網址（2026-11-25 寫說明書時查到）。不要再掛回被關掉的上層。 -->
+    <menuitem id="menu_visit_root" name="參觀帳號" parent="construction_supervision_base.menu_system_config_root" sequence="45"/>
     <menuitem id="menu_visit_account_wizard" name="開參觀帳號" parent="menu_visit_root"
               action="action_visit_account_wizard" sequence="10"/>
     <menuitem id="menu_visit_grant" name="已開的參觀帳號" parent="menu_visit_root"

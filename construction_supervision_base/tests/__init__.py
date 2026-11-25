@@ -9,3 +9,4 @@ from . import test_relational_input_guard  # 呼叫端給的關聯 id 不能拿�
 from . import test_item_no_backfill_migration  # 空 item_no 依專案補號、NOT NULL 設得上去（6.7.4，2026-11-16）
 from . import test_sequence_by_project_company  # 單號依工程所屬公司取號（2026-11-16）
 from . import test_eagle_parity_20261120  # 回復原版：開工不再要求初始化與契約開工日（1118 會議，2026-11-20）
+from . import test_manual_fixes_20261125  # 工程管理者建得了帳號、使用者表單改得到帳號有效期（2026-11-25）

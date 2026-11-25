@@ -21,7 +21,9 @@
         <record id="group_engineering_manager" model="res.groups">
             <field name="name">工程管理者</field>
             <field name="category_id" ref="construction_supervision_base.module_category_supervision_special"/>
-            <field name="implied_ids" eval="[(4, ref('construction_supervision_base.group_operator')), (4, ref('base.group_system'))]"/>
+            <!-- base.group_partner_manager（聯絡人建立）：建使用者會連帶建一筆聯絡人，沒有這個群組就建不了帳號
+                 （2026-11-25 實測：只勾工程管理者的帳號按「新增使用者」被拒「無權限建立 Contact」） -->
+            <field name="implied_ids" eval="[(4, ref('construction_supervision_base.group_operator')), (4, ref('base.group_system')), (4, ref('base.group_partner_manager'))]"/>
             <field name="comment">代操作員的全部權限，加上系統設定：升級模組、改系統設定、管理帳號（工程師）。</field>
         </record>
 

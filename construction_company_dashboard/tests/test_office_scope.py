@@ -17,6 +17,7 @@ DOC_MODEL = 'construction.official.doc'
 OFFICE_MENU = 'construction_office.menu_official_doc'
 MANAGER_ACL = 'construction_company_dashboard.access_cm_official_doc'
 ROLE_ACL = 'construction_company_dashboard.access_role_official_doc'
+NO_SUCH_MODULE = 'dash_test_no_such_module'
 
 
 @tagged('post_install', '-at_install', 'construction_company_dashboard')
@@ -96,6 +97,19 @@ class TestOfficeScope(RoleMatrixCase):
             self.assertTrue(acl, f'{xmlid} 要由 _dash_sync_optional_manager_access 建好')
             self.assertEqual((acl.model_id.model, acl.perm_read, acl.perm_write, acl.perm_create, acl.perm_unlink),
                              (DOC_MODEL, True, False, False, False))
+
+    def test_read_acl_comes_back_when_office_is_installed_later(self):
+        """公文模組比本模組晚裝的庫：模組安裝的收尾（核心 _process_end）就要把讀取 ACL 補上，不必等下次升級本模組。
+        2026-11-25：示範站與正式站都是公文後裝，角色帳號的公文與行事曆整個無權限。"""
+        (self.env.ref(MANAGER_ACL) | self.env.ref(ROLE_ACL)).unlink()     # 回到「公文剛裝好、ACL 還沒建」的樣子
+        with self.assertRaises(AccessError):
+            self._seen(self.sb)
+        # 模組名稱用一個不存在的：核心的 _process_end 會刪掉「這次沒載入」的模組資料，不能拿真的模組名稱來叫
+        self.env['ir.model.data']._process_end([NO_SUCH_MODULE])
+        for xmlid in (MANAGER_ACL, ROLE_ACL):
+            self.assertTrue(self.env.ref(xmlid, raise_if_not_found=False), xmlid)
+        self.assertEqual(self._seen(self.sb), self.d_s_shared | self.d_s_pa | self.d_s_none)
+        self.assertEqual(self._seen(self.mgr_a), self.d_a_shared | self.d_a_pa | self.d_a_none | self.d_a_draft)
 
     def test_role_accounts_see_office_menu(self):
         menu = self.env.ref(OFFICE_MENU)

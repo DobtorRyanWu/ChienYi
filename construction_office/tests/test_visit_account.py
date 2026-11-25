@@ -214,6 +214,23 @@ class TestVisitAccountModel(VisitFixture, TransactionCase):
                 Wizard.create({'name': '天數', 'login': 'visit-days-%s' % days, 'days': days,
                                'project_ids': [(6, 0, self.p1.ids)]})
 
+    def test_visit_menus_are_reachable_from_backend(self):
+        """後台管理者的選單裡找得到「開參觀帳號」「已開的參觀帳號」（每一層上層都要是啟用的）。
+        2026-11-25：原本掛在「系統設定 > 基礎設定」底下，那一層被選單設定檔關掉，兩個選單都看不到、只能打網址。"""
+        staff = self._staff('visit_menu_staff')
+        # 照網頁畫選單的方式：從最上層一層一層往下走得到的才算（ir.ui.menu._visible_menu_ids 不看上層有沒有被停用，
+        # 上層停用的選單它照樣回傳，畫面上卻沒有入口）
+        menus = self.env['ir.ui.menu'].with_user(staff).load_menus(False)
+        reachable, todo = set(), list(menus['root']['children'])
+        while todo:
+            menu_id = todo.pop()
+            if menu_id not in reachable:
+                reachable.add(menu_id)
+                todo.extend(menus[menu_id]['children'])
+        for xmlid in ('construction_office.menu_visit_account_wizard', 'construction_office.menu_visit_grant'):
+            menu = self.env.ref(xmlid)
+            self.assertIn(menu.id, reachable, '%s 要點得到（上層：%s）' % (xmlid, menu.parent_id.complete_name))
+
     def test_wizard_password_is_not_left_on_the_wizard_record(self):
         """密碼只在「建立」的回傳畫面出現一次，不存進精靈紀錄（淞源權限審查 low #2）：
         精靈是暫存紀錄，核心沒有「只有建立者讀得到」的規則，存在欄位上的話，系統清掉它之前別的管理員讀得到。"""

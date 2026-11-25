@@ -602,7 +602,7 @@ class ProjectProject(models.Model):
         """公司合計（合約 §5.1）：各項直接 search_count(_dash_domain(key))，以看的人的權限、active_test=False。
 
         回傳 {'today', 'computed_at', 'blocked_reason', 'blocked_message', 'kpis': {key: {
-            'label', 'status'（ok／no_access／no_calendar／error／not_applicable）, 'message',
+            'key', 'label', 'status'（ok／no_access／no_calendar／error／not_applicable）, 'message',
             'count', 'amount'（只有估驗兩項）, 'parts': [{'model', 'label', 'count'}]}}}
         count＝各 parts 的 count 加總；下鑽用 action_dash_drilldown(key, model_name)。
         """
@@ -616,7 +616,9 @@ class ProjectProject(models.Model):
         supervision_like = not user._dash_is_contractor_side() and not user._dash_is_console_reader()
         kpis = {}
         for key in KPI_KEYS:
-            entry = {'label': KPI_LABELS[key], 'status': STATUS_OK, 'message': False,
+            # key：前端點數字下鑽時拿它呼叫 action_dash_drilldown（卡片上第二個數字的指標和卡片不是同一個，
+            # 例「待改缺失」卡上的「其中逾期」，所以每一項要自己帶）
+            entry = {'key': key, 'label': KPI_LABELS[key], 'status': STATUS_OK, 'message': False,
                      'count': None, 'amount': None, 'parts': []}
             if blocked:
                 entry.update(status=STATUS_NO_ACCESS, message=BLOCKED_MESSAGES[blocked])
