@@ -531,13 +531,19 @@ class DocDocument(models.Model):
         return super().write(vals)
 
     def _store_content_as_attachment(self, html):
-        """將大文件內容存入 ir.attachment。"""
+        """將大文件內容存入 ir.attachment。
+
+        附件以 sudo 建立／更新：前台（營造方）協作者對 ir.attachment 沒有權限，不 sudo 的話超過門檻的文件存不了
+        （2026-11-25，I1）。所以這裡一定先確認呼叫者對「這份文件」有寫入權（含記錄規則），沒有就直接 AccessError；
+        附件只掛在這份文件上（res_model／res_id 固定），呼叫者不能指定別的目標。
+        """
         self.ensure_one()
+        self.check_access('write')
         data = base64.b64encode(html.encode('utf-8'))
         if self.content_attachment_id:
-            self.content_attachment_id.write({'datas': data})
+            self.content_attachment_id.sudo().write({'datas': data})
             return self.content_attachment_id
-        return self.env['ir.attachment'].create({
+        return self.env['ir.attachment'].sudo().create({
             'name': f'doc_content_{self.id}.html',
             'type': 'binary',
             'datas': data,
@@ -549,7 +555,8 @@ class DocDocument(models.Model):
         """統一取得 HTML 內容（自動判斷來源）。"""
         self.ensure_one()
         if self.is_large_document and self.content_attachment_id:
-            return base64.b64decode(self.content_attachment_id.datas).decode('utf-8')
+            # 能讀到這份文件（上面讀 is_large_document 已過權限）就能讀它的內容附件；前台帳號對附件本身沒有權限
+            return base64.b64decode(self.content_attachment_id.sudo().datas).decode('utf-8')
         return self.content_html or ''
 
     # ─── L2-v2 工具方法：alias 自動生成 + 掃描轉換 ─────────────────────

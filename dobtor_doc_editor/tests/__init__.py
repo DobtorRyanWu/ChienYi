@@ -20,3 +20,4 @@ from . import test_internal_expression_sandbox  # 預覽別名與套印 docx 改
 from . import test_render_field_groups  # 匯出沙箱要守欄位 groups（TOTP 金鑰）
 from . import test_export_log_portal  # 前台帳號讀不到匯出紀錄（2026-11-16）
 from . import test_doc_sanitizer  # 文件內容不能帶會執行的 HTML／canvas 區塊（doc.sanitizer 失效修補，2026-11-17）
+from . import test_followups_20261125  # 大文件附件權限（I1）、版本備註（I2）（2026-11-25）
