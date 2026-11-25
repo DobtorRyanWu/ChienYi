@@ -38,7 +38,8 @@
             <field name="perm_unlink" eval="False"/>
         </record>
         <!-- 行事曆事項（淞源 C7）：和公文同一套——全域看所屬公司；前台成員看自己參與工程的，
-             另外「自己是權責人」的一定看得到（沒掛工程、或不是那個工程的成員也一樣）；前台老闆看所屬公司範圍內全部。 -->
+             另外「自己是權責人」的一定看得到（沒掛工程、或不是那個工程的成員也一樣）；前台老闆看所屬公司範圍內全部
+             （和公文同一個方法 user._office_portal_doc_company_ids：監造方不看營造廠的事項；W5 F-x1，2026-11-25，原本是 (1=1)）。 -->
         <record id="calendar_event_company_rule" model="ir.rule">
             <field name="name">行事曆事項：所屬公司在允許公司內（全域）</field>
             <field name="model_id" ref="model_construction_calendar_event"/>
@@ -57,7 +58,7 @@
         <record id="calendar_event_portal_boss_rule" model="ir.rule">
             <field name="name">Portal老闆: 行事曆事項 - 所屬公司範圍內全部</field>
             <field name="model_id" ref="model_construction_calendar_event"/>
-            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="domain_force">[('company_id', 'in', user._office_portal_doc_company_ids(company_ids))]</field>
             <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
             <field name="perm_read" eval="True"/>
             <field name="perm_write" eval="False"/>

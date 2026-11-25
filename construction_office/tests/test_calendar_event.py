@@ -10,7 +10,7 @@ from odoo import fields
 from odoo.exceptions import AccessError, ValidationError
 from odoo.tests import tagged
 
-from .common import OfficeCase
+from .common import BOSS, OfficeCase
 
 EVENT_MODEL = 'construction.calendar.event'
 
@@ -79,6 +79,18 @@ class TestCalendarEvent(OfficeCase):
         a_event = self._event('營造 A 的事', self.co_a, self.p1)
         self.assertEqual(self._visible(self.sup_field, s_event | a_event), s_event)
         self.assertEqual(self._visible(self.sup_boss, s_event | a_event), s_event)
+
+    def test_supervision_boss_with_contractor_in_allowed_companies(self):
+        """W5 F-x1：監造方前台老闆的允許公司裡有營造廠時，仍看不到那家營造廠的事項（和公文同一套，
+        903ee09／low #5）。修前老闆規則是 (1=1)，營造 A 的事項看得到。後台人員不受影響。"""
+        boss = self._user('office_sup_boss_sa', [BOSS], self.co_s, self.co_s | self.co_a, supervision=True)
+        s_event = self._event('監造的事', self.co_s, self.p1)
+        a_event = self._event('營造 A 在工程一的事', self.co_a, self.p1)
+        a_common = self._event('營造 A 公司共通的事', self.co_a)
+        events = s_event | a_event | a_common
+        self.env.flush_all()
+        self.assertEqual(self._visible(boss, events), s_event, '老闆：營造 A 的事項一件都看不到')
+        self.assertEqual(self._visible(self.staff, events), events, '後台人員：允許公司內照舊都看得到')
 
     def test_contractor_portal_sees_only_own_company(self):
         if not self.dashboard_installed:
