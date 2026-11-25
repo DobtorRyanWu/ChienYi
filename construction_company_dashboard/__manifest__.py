@@ -47,6 +47,7 @@
     #        get_dash_company_kpis 每一項補上自己的 key（前端下鑽用 entry.key）。②公文、送審管制這類選裝模組
     #        比本模組晚裝的庫，營造廠主管與後台角色帳號沒有那幾張表的讀取 ACL（公文、行事曆整個無權限）——
     #        改成任何模組安裝／升級收尾都補一次（optional_access.py 覆寫 ir.model.data._process_end）。
+    #        ③總覽頁自己設麵包屑名稱（別頁返回或重新整理後，點數字開的清單上一層顯示「未命名的」）。
     "version": "18.0.2.9.3",
     "category": "Construction/Supervision",
     "summary": "公司儀表板：營造廠主管（唯讀）／監造主管／千溢內部各看各的；營造廠歸屬、工作天、指標",

@@ -31,6 +31,7 @@ REMOVED_XMLIDS = ('action_company_dashboard', 'view_company_dashboard_kanban', '
 REMOVED_VIEW_NAME = 'project.project.kanban.company.dashboard'
 JS_DIR = os.path.join('static', 'src')
 JS_COMMON = os.path.join(JS_DIR, 'dashboard_page', 'dash_common.js')
+PAGE_JS_FILES = ('overview.js', 'project.js', 'charts.js', 'map.js')   # 四個頁面元件
 # orm.call("model" 或 常數, "method"：常數要能在同一檔的 const X = "…" 解出來
 ORM_CALL = re.compile(r'orm\.call\(\s*([A-Za-z_][\w.]*|"[^"]+")\s*,\s*"([^"]+)"')
 CONST_STRING = re.compile(r'(?:export\s+)?const\s+([A-Z_][A-Z0-9_]*)\s*=\s*"([^"]+)"')
@@ -181,6 +182,15 @@ class TestDashboardPage(DashIndicatorCase):
         self.assertEqual((data['count'], len(data['rows'])), (PA_PENDING_TESTS, PA_PENDING_TESTS))
         self.assertNotIn(self.test_done.id, [row['id'] for row in data['rows']], '檢驗完成的不算待補')
         self.assertEqual({row['standard'] for row in data['rows']}, {'DASHB 抗壓'})
+
+    # ── ①-1 四頁都自己設麵包屑名稱 ─────────────────────────────────────────
+    def test_every_page_sets_its_breadcrumb_name(self):
+        """不是從選單進來的頁面（別頁返回、直接開網址、重新整理）沒有名稱，往下開的清單麵包屑會顯示「未命名的」。
+        2026-11-25：統計圖表、標案地圖、單一工程都有設，只有總覽漏了。"""
+        page_dir = os.path.join(get_module_path(MODULE), JS_DIR, 'dashboard_page')
+        for filename in PAGE_JS_FILES:
+            with open(os.path.join(page_dir, filename), encoding='utf-8') as handle:
+                self.assertIn('setDisplayName(', handle.read(), filename)
 
     # ── ⑥-0 公司合計每一項帶自己的 key ───────────────────────────────────────
     def test_kpi_entries_carry_their_own_key(self):

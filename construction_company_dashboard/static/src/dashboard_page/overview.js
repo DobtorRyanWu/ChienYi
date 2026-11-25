@@ -41,6 +41,11 @@ export class CompanyDashboardOverview extends Component {
         this.monthly = useState({ loading: true, data: null, error: false });
         this.calendar = useState({ loading: true, data: null, error: false });
         this.pageSize = DASH_PAGE_SIZE;
+        // 不是從選單進來時（別頁按「返回總覽」、直接開網址、重新整理），這一頁沒有名稱：
+        // 從這裡點數字開清單，麵包屑的上一層會顯示「未命名的」。其他三頁同樣自己設名稱
+        if (this.env.config && typeof this.env.config.setDisplayName === "function") {
+            this.env.config.setDisplayName("公司儀表板");
+        }
         onWillStart(async () => {
             this.labels = await loadSelectionLabels(this.orm);
             await Promise.all([this.loadKpis(), this.loadRows(), this.loadDeadlines(), this.loadMonthly(),
