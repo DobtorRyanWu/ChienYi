@@ -59,3 +59,5 @@ from . import test_dashboard_charts
 from . import test_dashboard_deadlines
 # 淞源 C6（2026-11-13）：標案地圖的定位與外部標案——誰能定位、自動定位只送地點文字、受限帳號拿不到
 from . import test_map_extras
+# W5 A3（2026-11-25）：公文、行事曆事項的所屬公司寫後檢查（沒裝 construction_office 就略過）
+from . import test_office_write_guard_20261125

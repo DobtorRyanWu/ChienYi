@@ -161,6 +161,10 @@ COMPANY_RULE_FIELDS = {
 # test_tender_write_guard_fields_match_its_rules 從資料庫的規則推出來比。
 COMPANY_OWNED_RULE_FIELDS = {
     'construction.external.tender': frozenset({'company_id'}),
+    # W5 A3（2026-11-25）：公文、行事曆事項（construction_office）同樣是「所屬公司在允許公司內」的全域規則。
+    # 沒裝 construction_office 的庫沒有這兩個模型，write 只用 .get(self._name) 查表，表上多列不會出錯
+    'construction.official.doc': frozenset({'company_id'}),
+    'construction.calendar.event': frozenset({'company_id'}),
 }
 # 模型 → 「這筆有沒有工程」的路徑：規則對工程空白放行建立者的那三個模型（#2 估驗、#8 變更單、#9 變更明細）
 PROJECT_PATHS = {
