@@ -110,6 +110,25 @@ class TestLargeDocumentSave(TransactionCase):
         with self.assertRaises(AccessError):
             doc.get_content_html()
 
+    # ── I1 補審（2026-11-25）：複製大文件，副本要有自己的內容附件 ──
+    def test_i1_copy_of_large_document_gets_own_attachment(self):
+        """副本原本指到原文件的內容附件：前台協作者開副本被拒、改原文件會連副本一起變。"""
+        self.doc.with_user(self.portal).write({'content_html': OVERSIZE_HTML})
+        self.doc.invalidate_recordset()
+        origin_attachment = self.doc.content_attachment_id
+        copy = self.doc.copy({'name': '大文件（副本）'})
+        copy.write({'collaborator_ids': [(6, 0, [self.portal.id])]})
+        copy.invalidate_recordset()
+        self.assertTrue(copy.content_attachment_id, '副本要有內容附件')
+        self.assertNotEqual(copy.content_attachment_id, origin_attachment, '副本不可共用原文件的內容附件')
+        self.assertEqual(copy.content_attachment_id.res_id, copy.id)
+        # 前台協作者讀得到副本（編輯器打得開）
+        self.assertEqual(copy.with_user(self.portal).get_content_html(), OVERSIZE_HTML)
+        # 原文件再改，副本內容不變
+        self.doc.write({'content_html': OVERSIZE_HTML + '<p>原文件再改</p>'})
+        copy.invalidate_recordset()
+        self.assertEqual(copy.get_content_html(), OVERSIZE_HTML)
+
     # ── I2 ──
     def test_i2_version_list_returns_label(self):
         # 版本由內部編輯者存（前台受限帳號連在 chatter 留訊息都被擋，見公司儀表板 restricted_mail）；

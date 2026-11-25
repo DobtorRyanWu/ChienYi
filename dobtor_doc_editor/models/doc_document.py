@@ -378,6 +378,7 @@ class DocDocument(models.Model):
         'ir.attachment',
         string='內容附件（大文件）',
         ondelete='set null',
+        copy=False,     # 副本不共用原文件的內容附件，由 copy() 另存一份
     )
     is_large_document = fields.Boolean(string='大文件', default=False)
 
@@ -553,6 +554,24 @@ class DocDocument(models.Model):
             'res_model': 'doc.document',
             'res_id': self.id,
         })
+
+    def copy(self, default=None):
+        """複製文件：大文件的內容附件不共用，副本另存一份自己的。
+
+        content_attachment_id 是 copy=False。副本如果沿用原文件的附件，那個附件不算副本自己的（_own_content_attachment）：
+        前台協作者開副本會被拒，改原文件會連副本一起變，刪原文件副本就沒內容
+        （2026-11-25 補審的重現，回歸：tests/test_followups_20261125.py 的 test_i1_copy_of_large_document_gets_own_attachment）。
+        """
+        copies = super().copy(default)
+        if 'content_html' in (default or {}):
+            return copies       # 呼叫端自己指定了副本的內容，照它的
+        for origin, new in zip(self, copies):
+            html = origin.get_content_html() if origin.is_large_document else ''
+            if html:
+                attachment = new._store_content_as_attachment(html)
+                # 跟 write() 存大文件同一種寫法：跳過本類別的 write（前台帳號不能直接改這兩個欄位）
+                super(DocDocument, new).write({'is_large_document': True, 'content_attachment_id': attachment.id})
+        return copies
 
     def _own_content_attachment(self):
         """這份文件自己的內容附件（sudo）；content_attachment_id 指到的附件不是掛在這份文件上的，回空。
