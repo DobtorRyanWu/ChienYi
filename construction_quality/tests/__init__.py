@@ -10,3 +10,4 @@ from . import test_inspection_library_hook  # 樣板庫載入：建得出來、�
 from . import test_eagle_parity_20261120  # 回復原版：缺失與自主檢查舊系統沒有的限制（1118 會議，2026-11-20）
 from . import test_whole_site  # 預約式自主檢查「全工區」跟通報單二擇一（6.14.0，2026-11-22）
 from . import test_followups_20261125  # W5 乙組 E2-2 勾選換算、E2-5 報表印實際勾選（2026-11-25）
+from . import test_result_layout_in_use  # W5 E2-7：用過的檢查類型不能改結果欄位（2026-11-25）

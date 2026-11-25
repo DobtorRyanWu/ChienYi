@@ -207,6 +207,22 @@ class SelfInspectionType(models.Model):
             },
         }
 
+    def write(self, vals):
+        # 2026-11-25（W5 E2-7）：已經有檢查單用到的類型不能改「結果欄位」。
+        # 其他設定（項目、標準、量測句型）在檢查單上是建立當下的快照，改類型不影響舊單；結果欄位不是——
+        # 檢查單讀的是類型「現在」的設定，改了之後舊單的勾選不在新樣式的選項裡、檢查結果也不會重算，
+        # 列印時那一列整列空白。值沒變不擋（種子工具、匯入會把原值寫回來）。
+        if 'result_layout' in vals:
+            new_layout = vals['result_layout'] or STANDARD
+            for rec in self.filtered(lambda r: (r.result_layout or STANDARD) != new_layout):
+                count = rec._used_inspection_count()
+                if count:
+                    raise UserError(
+                        '檢查類型「%s」已經有 %s 張自主檢查用到，不能改「結果欄位」'
+                        '（舊檢查的勾選與檢查結果不會跟著換算）。\n\n'
+                        '要用不同的結果欄位，請複製一個新的檢查類型。' % (rec.name, count))
+        return super().write(vals)
+
     @api.ondelete(at_uninstall=False)
     def _unlink_except_used_by_inspections(self):
         """已經有檢查紀錄用這個類型時不可刪除。
