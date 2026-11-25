@@ -107,7 +107,12 @@
                         </group>
                         <group string="檢查結果">
                             <field name="actual_result"/>
-                            <field name="check_result" widget="radio"/>
+                            <!-- 結果欄位不是「合格／缺失／無此項目」時，檢查結果由勾選換算（與一般式清單同一條件）；
+                                 獨立表單沒有 parent，改用項目自己的 result_layout（2026-11-25，E2-3） -->
+                            <field name="result_layout" invisible="1"/>
+                            <field name="mark" invisible="result_layout == 'standard'"/>
+                            <field name="check_result" widget="radio"
+                                   readonly="result_layout != 'standard'"/>
                             <field name="note"/>
                         </group>
                     </group>
