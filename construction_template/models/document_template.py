@@ -764,6 +764,18 @@ class DocumentTemplate(models.Model):
         # 如果更新了樣板檔案，自動更新版本說明
         if 'attachment_id' in vals and vals['attachment_id']:
             vals.setdefault('version_notes', f'檔案已於 {fields.Datetime.now()} 更新')
+        # W5 H1（2026-11-25）：_check_company_allowed 只要 vals 帶 company_id 就檢查、不比新舊值；
+        # RPC 或匯入帶「沒改的」company_id 會被誤擋。值沒變的記錄把 company_id 拿掉再寫，真的有變的照舊檢查
+        if 'company_id' in vals and self and not self.env.su:
+            target = vals['company_id'] or False
+            unchanged = self.filtered(lambda r: r.company_id.id == target)
+            if unchanged:
+                rest = {key: value for key, value in vals.items() if key != 'company_id'}
+                if rest:
+                    unchanged.write(rest)
+                self -= unchanged
+                if not self:
+                    return True
         return super().write(vals)
 
     # 2026-11-20：系統預設樣板不能刪（後台、前台都走這裡）；換內容照樣可以。
@@ -790,8 +802,9 @@ class DocumentTemplate(models.Model):
         # 沒有工程的副本是「公司層級」樣板，歸複製的人目前的公司（S5 審查 F1，2026-11-19）：公司層級只有樣板自己的公司
         # 看得到（security/company_rules.xml）。沿用原樣板的公司的話，複製別家公司的系統預設會得到一份自己讀不到的樣板、
         # 建立時被規則拒絕——系統預設都掛在主公司，其他公司的人複製來改正是最常見的用法
+        # W5 H2（2026-11-25）：複製的是專案層級樣板（原樣板有工程）時，副本歸工程的公司，不是目前選的公司
         if not default.get('project_id', self.project_id.id):
-            default.setdefault('company_id', self.env.company.id)
+            default.setdefault('company_id', self.project_id.company_id.id or self.env.company.id)
         return super().copy(default)
 
     def name_get(self):

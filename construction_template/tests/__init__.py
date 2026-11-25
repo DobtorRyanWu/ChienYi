@@ -29,3 +29,4 @@ from . import test_daily_log_c1_inspections  # 營造版日誌第一聯：當天
 from . import test_field_mapping
 from . import test_daily_log_c1_wrap_text  # 11-16：第一聯其他多行文字欄換行
 from . import test_progress_actual_correction  # 11-24：印的累計實際進度照「校正後累計實際進度」
+from . import test_company_scope_20261125  # W5 H1／H2：樣板公司檢查只看真的有變的、複製專案層級樣板歸工程的公司（2026-11-25）
