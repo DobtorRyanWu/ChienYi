@@ -451,6 +451,9 @@ class ReservationSelfInspectionItem(models.Model):
         store=True,
         readonly=True,
         index=True)
+    # 獨立 form 沒有 parent.result_layout 可用（清單用 parent.result_layout 做唯讀），
+    # 勾選樣式時 check_result 由勾選換算、不可直接改（construction_reservation 的獨立表單用，2026-11-25）
+    result_layout = fields.Selection(related='inspection_type_id.result_layout', string='結果欄位')
 
     # === 查驗段落 ===
     stage_id = fields.Many2one(

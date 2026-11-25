@@ -84,13 +84,17 @@ class SelfInspectionItemMarkMixin(models.AbstractModel):
         return super().create(vals_list)
 
     def write(self, vals):
-        if 'mark' not in vals:
+        # 改勾選、或改對應的題目（反向題會影響換算）都要重算（2026-11-25，E2-2：原本只看 mark，改題目不重算）
+        if 'mark' not in vals and 'type_item_id' not in vals:
             return super().write(vals)
-        # 不同張檢查可能是不同類型：逐筆換算
+        # 不同張檢查可能是不同類型：逐筆換算；題目與勾選都以「寫入後」的值為準
         for item in self:
             item_vals = dict(vals)
-            result = result_for_mark(item.inspection_id.inspection_type_id.result_layout, vals['mark'],
-                                     item.type_item_id.reverse_question)
+            type_item = (self.env['self.inspection.type.item'].browse(vals['type_item_id'])
+                         if 'type_item_id' in vals else item.type_item_id)
+            result = result_for_mark(item.inspection_id.inspection_type_id.result_layout,
+                                     vals['mark'] if 'mark' in vals else item.mark,
+                                     type_item.reverse_question)
             if result is not None:
                 item_vals['check_result'] = result
             super(SelfInspectionItemMarkMixin, item).write(item_vals)
