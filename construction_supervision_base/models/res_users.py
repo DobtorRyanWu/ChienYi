@@ -647,22 +647,23 @@ class ResUsers(models.Model):
         的群組（客服、Bypass HTML Field Sanitize、Mail Template Editor…）全部殘留，
         而且那些群組多半在 debug 才看得到的區塊，一般畫面上移不掉。
 
-        移除範圍 ＝ 工程管理者 ＋ 設定 ＋ 設定帶進來的全部群組，
+        移除範圍 ＝ 工程管理者 ＋ 它帶進來的全部群組（設定、設定再帶進來的、聯絡人建立），
         但保留「代操作員會帶的」以及「此帳號其他群組會帶的」。
         ⚠️ Odoo 分不出某群組是「單獨勾的」還是「被帶進來的」：若此帳號另外被單獨
-        指派了客服等群組，而它剛好也是設定會帶的，會一併移除，需要時再手動加回。
+        指派了客服、聯絡人建立等群組，而它剛好也是工程管理者會帶的，會一併移除，需要時再手動加回。
         """
         if not self.env.user.has_group('base.group_system'):
             raise AccessError('只有具備「設定」權限的帳號可以執行降級。')
         manager = self.env.ref(MANAGER_GROUP_XMLID)
         operator = self.env.ref(OPERATOR_GROUP_XMLID)
-        system = self.env.ref('base.group_system')
         for user in self:
             if user.id == SUPERUSER_ID or user == self.env.user:
                 raise UserError('不能降級自己（或系統內建的超級使用者），以免失去管理權而無法復原。')
             if manager not in user.groups_id:
                 raise UserError('「%s」目前不是工程管理者，不需要降級。' % user.name)
-            granted = manager | system | system.trans_implied_ids
+            # 工程管理者帶進來的全部：設定、設定再帶的、聯絡人建立（2026-11-25 起工程管理者也隱含它）。
+            # 代操作員本來就帶的那些也在裡面，由下面的 keep 留住
+            granted = manager | manager.trans_implied_ids
             others = user.groups_id - granted
             keep = operator | operator.trans_implied_ids | others | others.trans_implied_ids
             to_remove = (user.groups_id & granted) - keep

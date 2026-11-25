@@ -14,6 +14,9 @@ from odoo.tests.common import TransactionCase, tagged
 from ..models.res_users import PORTAL_LEVEL_OBSERVER
 
 MANAGER = 'construction_supervision_base.group_engineering_manager'
+OPERATOR = 'construction_supervision_base.group_operator'
+SETTINGS = 'base.group_system'
+CONTACT_CREATION = 'base.group_partner_manager'
 VALID_UNTIL_FIELD = 'portal_valid_until'
 EXTEND_DAYS = 30
 
@@ -42,6 +45,15 @@ class TestManualFixes20261125(TransactionCase):
         internal = self.env['res.users'].with_user(self.manager).with_context(no_reset_password=True).create({
             'name': 'M1125 內部帳號', 'login': 'm1125_internal'})
         self.assertFalse(internal.sudo().share)
+
+    def test_downgrade_takes_back_what_manager_brought(self):
+        """降級為代操作員：工程管理者帶進來的「設定」「聯絡人建立」一起收回，只剩代操作員。"""
+        self.assertTrue(self.manager.has_group(CONTACT_CREATION), '前提：工程管理者帶「聯絡人建立」')
+        self.manager.with_user(self.env.ref('base.user_admin')).action_downgrade_to_operator()
+        self.manager.invalidate_recordset()
+        self.assertTrue(self.manager.has_group(OPERATOR))
+        for xmlid in (MANAGER, SETTINGS, CONTACT_CREATION):
+            self.assertFalse(self.manager.has_group(xmlid), xmlid)
 
     def test_user_form_can_change_account_valid_until(self):
         """修前：使用者表單沒有這一欄（全系統沒有任何畫面改得到它）。"""
