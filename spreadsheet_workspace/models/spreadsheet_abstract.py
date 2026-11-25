@@ -26,6 +26,12 @@ class SpreadsheetAbstract(models.AbstractModel):
             [('model', '=', self._name), ('res_id', '=', self.id)], order='id',
         )
 
+    def _workspace_revisions_of_self(self):
+        """這批記錄所有的協作操作列（sudo：呼叫端已先過刪除權限，且前台帳號讀不到操作列）。"""
+        return self.env['spreadsheet.oca.revision'].sudo().search(
+            [('model', '=', self._name), ('res_id', 'in', self.ids)],
+        )
+
     def _workspace_binary_from_raw(self, raw):
         """底稿 dict → spreadsheet_binary_data 的值（編碼方式同 OCA 的 _inverse_spreadsheet_raw）。
 

@@ -61,3 +61,10 @@ class SpreadsheetWorkspaceTemplate(models.Model):
         """用編輯器開啟模板：沒有寫入權的人是唯讀預覽，管理員則可直接修改模板。"""
         self.ensure_one()
         return self.open_spreadsheet()
+
+    def unlink(self):
+        # 同試算表：刪模板時清掉它的協作操作列（2026-11-25，D4）
+        revisions = self._workspace_revisions_of_self()
+        result = super().unlink()
+        revisions.unlink()
+        return result

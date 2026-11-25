@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class SpreadsheetWorkspaceFolder(models.Model):
@@ -43,6 +44,18 @@ class SpreadsheetWorkspaceFolder(models.Model):
         string='試算表數',
         compute='_compute_spreadsheet_count',
     )
+
+    @api.constrains('company_id')
+    def _check_company_allowed(self):
+        """改掛公司也要擋：全域規則只查寫入前的舊值，可以把自己公司的資料夾改掛到別家（2026-11-25，D2）。
+        留空（所有公司共用）不限；sudo（系統程式、資料修正）不檢查。"""
+        if self.env.su:
+            return
+        allowed = self.env.user.company_ids
+        for folder in self:
+            if folder.company_id and folder.company_id not in allowed:
+                # 不顯示公司名稱：使用者讀不到那家公司，顯示名稱本身會再丟存取錯誤
+                raise ValidationError('不能把資料夾改掛到你沒有權限的公司。')
 
     @api.depends('name', 'parent_id')
     def _compute_display_name(self):

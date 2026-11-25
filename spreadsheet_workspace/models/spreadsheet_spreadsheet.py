@@ -12,8 +12,6 @@ AUTO_VERSION_KEEP = 20
 AUTO_VERSION_MERGE_MINUTES = 10
 AUTO_VERSION_MESSAGE = '自動儲存'
 BLANK_SPREADSHEET_NAME = '未命名試算表'
-# 有這個 context 就不自動存版本（批次匯入、資料修正腳本用）
-SKIP_AUTO_VERSION_KEY = 'spreadsheet_workspace_skip_auto_version'
 # 底稿裡這個鍵只是協作序號，內容沒變它也可能變，算雜湊時排除
 RAW_REVISION_KEY = 'revisionId'
 
@@ -131,7 +129,8 @@ class SpreadsheetSpreadsheet(models.Model):
     def action_promote_to_template(self):
         """另存為模板：把目前內容複製成一份模板，開啟該模板的表單。"""
         self.ensure_one()
-        self.check_access('read')
+        # 要有寫入權：只能讀的人（唯讀者）不可把別人的表複製成模板
+        self.check_access('write')
         raw, _revisions = self._workspace_content_snapshot()
         template = self.env['spreadsheet.workspace.template'].create({
             'name': self.name,
@@ -239,9 +238,19 @@ class SpreadsheetSpreadsheet(models.Model):
     def write(self, vals):
         res = super().write(vals)
         # 編輯器存檔就是 write({'spreadsheet_raw': …})；這時 OCA 已把未合併操作清掉、內容都在底稿裡。
+        # 直接寫 spreadsheet_binary_data（反向欄位的實際儲存處）一樣要留版本；
+        # 先前的 context 旗標可跳過自動版本，2026-11-25 拿掉（專案內沒有程式使用它）。
+        # 編輯器存檔會經反向欄位再寫一次 binary，第二次內容雜湊相同，_workspace_auto_version 會跳過，不會多一筆。
         # 寫入權在上面的 super().write() 已經檢查過，所以版本列用 sudo 建
         # （前台帳號也會走到這裡存檔，它們對版本模型沒有任何權限）。
-        if 'spreadsheet_raw' in vals and not self.env.context.get(SKIP_AUTO_VERSION_KEY):
+        if 'spreadsheet_raw' in vals or 'spreadsheet_binary_data' in vals:
             for spreadsheet in self:
                 spreadsheet._workspace_auto_version()
         return res
+
+    def unlink(self):
+        # 協作操作列的 res_id 是整數、沒有連帶刪除：刪表後清掉它的操作列，不留孤兒（2026-11-25，D4）
+        revisions = self._workspace_revisions_of_self()
+        result = super().unlink()
+        revisions.unlink()
+        return result

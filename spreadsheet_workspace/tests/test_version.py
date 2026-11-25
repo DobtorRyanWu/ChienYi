@@ -11,7 +11,6 @@ from odoo.addons.spreadsheet_workspace.models.spreadsheet_spreadsheet import (
     AUTO_VERSION_KEEP,
     AUTO_VERSION_MERGE_MINUTES,
     AUTO_VERSION_MESSAGE,
-    SKIP_AUTO_VERSION_KEY,
 )
 
 from .common import WorkspaceCommon
@@ -146,14 +145,11 @@ class TestWorkspaceVersion(WorkspaceCommon):
         newest = 'auto-%d' % (AUTO_VERSION_KEEP + EXTRA_AUTO_VERSIONS - 1)
         self.assertEqual(self._a1(json.loads(autos[0].snapshot_raw)), newest, '留下來的要是最近的')
 
-    def test_skip_context_and_non_content_write(self):
+    def test_non_content_write(self):
+        # 跳過用的 context 旗標已拿掉（2026-11-25，D1），旗標不再有作用的測試在 test_followups_20261125
         sheet = self._shared_sheet()
         sheet.with_user(self.owner).write({'name': '只改名'})
         self.assertFalse(self._versions(sheet), '沒動到內容的寫入不該存版本')
-        sheet.with_user(self.owner).with_context(**{SKIP_AUTO_VERSION_KEY: True}).write({
-            'spreadsheet_raw': self._raw('批次匯入'),
-        })
-        self.assertFalse(self._versions(sheet))
 
     def test_portal_owner_save_still_works(self):
         """前台編輯器（dobtor_spreadsheet_editor）用前台帳號直接 write；它對版本模型沒有任何權限。"""
@@ -165,15 +161,13 @@ class TestWorkspaceVersion(WorkspaceCommon):
         if not access.check('spreadsheet.spreadsheet', 'write', raise_exception=False):
             self.skipTest('前台帳號對試算表沒有寫入權（dobtor_spreadsheet_editor 沒裝），這條路不存在')
         sheet = self.Sheet.sudo().create({'name': '前台的表', 'owner_id': portal.id})
-        # 先確認「不存版本」時前台存檔本來就會成功，這樣下面失敗才能算在自動存版本頭上
         try:
-            with self.cr.savepoint():
-                sheet.with_user(portal).with_context(**{SKIP_AUTO_VERSION_KEY: True}).write({
-                    'spreadsheet_raw': self._raw('基準'),
-                })
+            sheet.with_user(portal).write({'spreadsheet_raw': self._raw('前台存檔')})
         except AccessError as error:
+            # 版本列一律 sudo 建；被擋的若是版本模型，是存版本的錯；否則是前台本來就不能存（範圍外）
+            if 'spreadsheet.workspace.version' in str(error):
+                self.fail('前台存檔被版本模型擋下：%s' % error)
             self.skipTest('前台存檔在沒有本模組的情況下就已經失敗（範圍外）：%s' % error)
-        sheet.with_user(portal).write({'spreadsheet_raw': self._raw('前台存檔')})
         versions = self._versions(sheet)
         self.assertEqual(len(versions), 1)
         self.assertEqual(versions.user_id, portal)
