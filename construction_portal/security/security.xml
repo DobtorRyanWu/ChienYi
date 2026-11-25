@@ -675,7 +675,8 @@
     <record id="self_inspection_type_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 檢查類型 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_self_inspection_type"/>
-        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="domain_force">['|', ('project_id', '=', False),
+            ('project_id.company_id', 'in', company_ids)]</field>
         <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
@@ -703,7 +704,8 @@
     <record id="self_inspection_type_item_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 檢查類型項目 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_self_inspection_type_item"/>
-        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="domain_force">['|', ('type_id.project_id', '=', False),
+            ('type_id.project_id.company_id', 'in', company_ids)]</field>
         <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
@@ -727,7 +729,8 @@
     <record id="self_inspection_type_stage_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 檢查類型段落 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_self_inspection_type_stage"/>
-        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="domain_force">['|', ('type_id.project_id', '=', False),
+            ('type_id.project_id.company_id', 'in', company_ids)]</field>
         <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
@@ -751,7 +754,8 @@
     <record id="self_inspection_type_timing_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 檢查類型檢查時機 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_self_inspection_type_timing"/>
-        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="domain_force">['|', ('type_id.project_id', '=', False),
+            ('type_id.project_id.company_id', 'in', company_ids)]</field>
         <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>
@@ -775,7 +779,8 @@
     <record id="self_inspection_type_measure_portal_boss_rule" model="ir.rule">
         <field name="name">Portal老闆: 檢查類型量測區塊 - 公司範圍</field>
         <field name="model_id" ref="construction_quality.model_self_inspection_type_measure"/>
-        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="domain_force">['|', ('type_id.project_id', '=', False),
+            ('type_id.project_id.company_id', 'in', company_ids)]</field>
         <field name="groups" eval="[(4, ref('construction_supervision_base.group_portal_subscriber'))]"/>
         <field name="perm_read" eval="True"/>
         <field name="perm_write" eval="False"/>

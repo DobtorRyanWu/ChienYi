@@ -34,3 +34,5 @@ from . import test_low_fixes_20261116  # 11-16 六件 low：展延送出 savepoi
 from . import test_inspection_create_type_scope  # 建立自主檢查時 POST 的樣板 id 要過可見性（2026-11-16）
 from . import test_photo_nearby_route  # 附近照片路由缺 import math（2026-11-16）
 from . import test_eagle_parity_20261120  # 回復原版：開口合約沒有進度表的前台情境（1118 會議，2026-11-20）
+from . import test_boss_type_rule_domain_20261125  # 前台老闆樣板規則 domain（2026-11-25 W5 A1）
+from . import test_w5_portal_20261125  # W5 甲組：預約式檢查結果對應鍵、JS 段落名稱跳脫（2026-11-25）

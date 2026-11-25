@@ -131,6 +131,28 @@ def _posted_item_result(inspection, posted, default=False):
     return {'mark': posted if posted in allowed else False}
 
 
+def _apply_posted_checklist(inspection, post):
+    """預約式建立：把 POST 的 checklist_result_N／checklist_actual_N 寫到對應的檢查項目。
+
+    對應鍵是 checklist_item_id_N（樣板項目 id）→ 檢查項目的 type_item_id，與一般式同一個鍵。
+    （原本依 checklist_ids 的位置對，前端依段落分群編號，兩邊順序不同時結果會寫到錯的題目。）
+    """
+    layout_free = inspection.inspection_type_id.result_layout not in (False, 'standard')
+    idx = 0
+    while True:
+        item_id_str = post.get(f'checklist_item_id_{idx}')
+        if item_id_str is None:
+            break
+        posted = post.get(f'checklist_result_{idx}')
+        actual_result = post.get(f'checklist_actual_{idx}', '')
+        if item_id_str and (posted or layout_free):
+            item = inspection.sudo().checklist_ids.filtered(
+                lambda l: l.type_item_id.id == int(item_id_str))
+            if item:
+                item.write(dict(_posted_item_result(inspection, posted), actual_result=actual_result))
+        idx += 1
+
+
 def _posted_timing_ids(post):
     """表單送回的勾選框 → Many2many 寫入指令。
 
@@ -995,14 +1017,9 @@ class InspectionRoutesMixin:
         except Exception:
             pass
 
-        # 套用 POST 帶來的 checklist 結果(對應預載項目順序)
-        if inspection.checklist_ids:
-            items = list(inspection.checklist_ids)
-            for idx, item in enumerate(items):
-                posted = post.get(f'checklist_result_{idx}')
-                actual_result = post.get(f'checklist_actual_{idx}', '')
-                if posted or inspection.inspection_type_id.result_layout not in (False, 'standard'):
-                    item.write(dict(_posted_item_result(inspection, posted), actual_result=actual_result))
+        # 套用 POST 帶來的 checklist 結果（以 checklist_item_id_N＝樣板項目 id 對應，
+        # 與一般式同一個鍵；不依位置，前端依段落分群編號、順序可能與 checklist_ids 不同）
+        _apply_posted_checklist(inspection, post)
 
         # 處理上傳照片（同一般式，見上方說明）
         meta = _post_photo_meta(post)

@@ -1226,7 +1226,7 @@
                 var itemIdx = 0;
 
                 stages.forEach(function (stage) {
-                    html += '<div style="font-size: 0.85rem; font-weight: 700; color: var(--wb-amber); margin: 12px 0 8px;">' + stage.label + '</div>';
+                    html += '<div style="font-size: 0.85rem; font-weight: 700; color: var(--wb-amber); margin: 12px 0 8px;">' + escHtml(stage.label) + '</div>';
 
                     items.forEach(function (item) {
                         if (item.stage_id !== stage.key) return;
