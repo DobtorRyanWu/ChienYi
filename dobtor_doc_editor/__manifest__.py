@@ -14,7 +14,7 @@
     #        migration 只清既有文件裡含可執行內容的那幾份（前台協作者原本可存入在內部人員瀏覽器執行的內容）
     # 2.4.10: 超過 500KB 的大文件，前台（營造方）協作者存不了（建 ir.attachment 被權限擋）：附件改用 sudo 建立／讀取，
     #        建立前先確認呼叫者對該份文件有寫入權（check_access('write')，含記錄規則）。不需要 migration。
-    'version': '18.0.2.4.10',
+    'version': '18.0.2.4.11',
     'summary': 'Google Docs 等級的 native Odoo 文件編輯器',
     'description': """
 Dobtor Doc Editor v2.1

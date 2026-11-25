@@ -535,14 +535,17 @@ class DocDocument(models.Model):
 
         附件以 sudo 建立／更新：前台（營造方）協作者對 ir.attachment 沒有權限，不 sudo 的話超過門檻的文件存不了
         （2026-11-25，I1）。所以這裡一定先確認呼叫者對「這份文件」有寫入權（含記錄規則），沒有就直接 AccessError；
-        附件只掛在這份文件上（res_model／res_id 固定），呼叫者不能指定別的目標。
+        附件只掛在這份文件上（res_model／res_id 固定）；sudo 只用在這份文件自己的內容附件上（_own_content_attachment），
+        content_attachment_id 被指到別的附件時不覆寫它、另建一份。
         """
         self.ensure_one()
         self.check_access('write')
         data = base64.b64encode(html.encode('utf-8'))
-        if self.content_attachment_id:
-            self.content_attachment_id.sudo().write({'datas': data})
-            return self.content_attachment_id
+        own = self._own_content_attachment()
+        if own:
+            own.write({'datas': data})
+            return own
+        # 沒有內容附件，或欄位指到的不是這份文件自己的附件：另建一份，不動原本指到的那個
         return self.env['ir.attachment'].sudo().create({
             'name': f'doc_content_{self.id}.html',
             'type': 'binary',
@@ -551,12 +554,32 @@ class DocDocument(models.Model):
             'res_id': self.id,
         })
 
+    def _own_content_attachment(self):
+        """這份文件自己的內容附件（sudo）；content_attachment_id 指到的附件不是掛在這份文件上的，回空。
+
+        content_attachment_id 只擋前台帳號改（PORTAL_PROTECTED_FIELDS），內部編輯者寫得到。不核對歸屬就 sudo 的話，
+        把欄位指到別的附件再存大文件／讀內容，等於用 sudo 覆寫或讀出那個附件（2026-11-25 審查的重現，
+        回歸：tests/test_followups_20261125.py 的 test_i1_foreign_attachment_*）。
+        """
+        self.ensure_one()
+        Attachment = self.env['ir.attachment'].sudo()
+        if not self.content_attachment_id:
+            return Attachment
+        # 用搜尋比對歸屬、不去讀那個附件的欄位：sudo 讀進快取的值，同一個請求裡之後非 sudo 存取就不再檢查權限
+        return Attachment.search([('id', '=', self.content_attachment_id.id),
+                                  ('res_model', '=', self._name), ('res_id', '=', self.id)])
+
     def get_content_html(self):
         """統一取得 HTML 內容（自動判斷來源）。"""
         self.ensure_one()
         if self.is_large_document and self.content_attachment_id:
-            # 能讀到這份文件（上面讀 is_large_document 已過權限）就能讀它的內容附件；前台帳號對附件本身沒有權限
-            return base64.b64decode(self.content_attachment_id.sudo().datas).decode('utf-8')
+            # 能讀到這份文件（上面讀 is_large_document 已過權限）就能讀它自己的內容附件；前台帳號對附件本身沒有權限。
+            # 欄位指到的不是這份文件自己的附件時，照呼叫者自己的權限讀（讀不到就 AccessError），不 sudo
+            attachment = self._own_content_attachment()
+            if not attachment:
+                attachment = self.content_attachment_id
+                attachment.check('read')    # 明確檢查：欄位值可能已在快取裡，直接取 datas 不會再過權限
+            return base64.b64decode(attachment.datas).decode('utf-8')
         return self.content_html or ''
 
     # ─── L2-v2 工具方法：alias 自動生成 + 掃描轉換 ─────────────────────

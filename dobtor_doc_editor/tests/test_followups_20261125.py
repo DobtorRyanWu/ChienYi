@@ -6,6 +6,8 @@ I1 超過 CONTENT_SIZE_THRESHOLD 的內容要建 ir.attachment；前台協作者
 I2 版本備註（label）：版本清單 get_version_list 有回 label，版本面板（doc_version_panel.xml）有印；
    這裡只鎖住「清單回得出備註」，受限帳號看不到 chatter 的問題交回主對話決定（不在本檔處理）。
 """
+import base64
+
 from odoo.exceptions import AccessError
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
@@ -73,6 +75,40 @@ class TestLargeDocumentSave(TransactionCase):
         with self.assertRaises(AccessError):
             self.doc.with_user(self.stranger)._store_content_as_attachment(OVERSIZE_HTML)
         self.assertFalse(self.doc.content_attachment_id)
+
+    # ── I1 審查（2026-11-25）：sudo 只能用在這份文件自己的內容附件上 ──
+    def _victim_attachment(self):
+        """掛在內部編輯者讀不到的記錄上的附件（系統參數只有系統管理者讀得到）"""
+        param = self.env['ir.config_parameter'].sudo().search([], limit=1)
+        return self.env['ir.attachment'].sudo().create({
+            'name': 'secret.txt', 'type': 'binary', 'datas': base64.b64encode('機密內容'.encode()),
+            'res_model': 'ir.config_parameter', 'res_id': param.id})
+
+    def test_i1_foreign_attachment_is_not_overwritten_via_sudo(self):
+        """content_attachment_id 內部帳號寫得到：把它指到別的附件再存大文件，不可以用 sudo 覆寫那個附件。"""
+        victim = self._victim_attachment()
+        with self.assertRaises(AccessError):                       # 基準：直接寫那個附件本來就被拒
+            victim.with_user(self.internal).write({'datas': base64.b64encode(b'x')})
+        doc = self.env['doc.document'].with_user(self.internal).create({'name': '指到別的附件'})
+        doc.write({'content_attachment_id': victim.id})
+        doc.write({'content_html': OVERSIZE_HTML})
+        victim.invalidate_recordset()
+        self.assertEqual(base64.b64decode(victim.datas).decode(), '機密內容', '別的附件不可被覆寫')
+        doc.invalidate_recordset()
+        self.assertNotEqual(doc.sudo().content_attachment_id, victim, '大文件要另建自己的內容附件')
+        self.assertEqual(doc.sudo().content_attachment_id.res_id, doc.id)
+        self.assertEqual(doc.get_content_html(), OVERSIZE_HTML)
+
+    def test_i1_foreign_attachment_is_not_read_via_sudo(self):
+        """把 content_attachment_id 指到自己讀不到的附件，不可以經 get_content_html 用 sudo 讀出來。"""
+        victim = self._victim_attachment()
+        with self.assertRaises(AccessError):                       # 基準：直接讀那個附件本來就被拒
+            victim.with_user(self.internal).read(['datas'])
+        doc = self.env['doc.document'].with_user(self.internal).create({'name': '指到別的附件（讀）'})
+        doc.write({'content_attachment_id': victim.id, 'is_large_document': True})
+        doc.invalidate_recordset()
+        with self.assertRaises(AccessError):
+            doc.get_content_html()
 
     # ── I2 ──
     def test_i2_version_list_returns_label(self):
