@@ -58,10 +58,19 @@ const PIE_MAX_SLICES = 6;           // 圓餅最多幾塊（含「其他」）�
 const RADAR_MIN_CATEGORIES = 3;
 const HORIZONTAL_LABEL_LENGTH = 6;  // 類別名稱超過這個字數，柱狀圖改成橫條（名稱才排得下）
 const HORIZONTAL_CATEGORY_COUNT = 8;
-const TITLE_FONT_SIZE = 16;
-const SUBTITLE_FONT_SIZE = 12;
-const TICK_FONT_SIZE = 12;
+// 字級（2026-11-25 會議：圖上的字太小，貼進簡報看不到）。畫面上用這組；下載的圖另外照簡報尺寸重畫（見 onDownload）
+const TITLE_FONT_SIZE = 20;
+const SUBTITLE_FONT_SIZE = 14;
+const TICK_FONT_SIZE = 15;
+const LEGEND_BOX_SIZE = 14;
 const VALUE_LABEL_OFFSET = 6;
+const LAYOUT_PADDING_RIGHT = 44;    // 橫條圖柱子尾端的數字要有位置
+const LABEL_WRAP_CHARS = 10;        // 類別名稱超過這個字數就折行（柱狀、雷達；圓餅的名稱寫在圖例，不折）
+// 下載的圖：固定 16:9，直接貼進簡報整頁寬；字級是畫面的 EXPORT_SCALE 倍（1600 寬的圖縮到投影片寬度後，字仍大於內文字級）
+const EXPORT_WIDTH = 1600;
+const EXPORT_HEIGHT = 900;
+const EXPORT_SCALE = 1.6;
+const SCREEN_SCALE = 1;
 const OTHER_KEY = "other";
 const OTHER_LABEL = "其他";
 const EXPORT_PREFIX = "統計圖表";
@@ -95,15 +104,15 @@ const barValueLabelPlugin = {
         const horizontal = chart.options.indexAxis === "y";
         ctx.save();
         ctx.fillStyle = INK_COLOR;
-        ctx.font = `${TICK_FONT_SIZE}px sans-serif`;
+        ctx.font = `${options.fontSize}px sans-serif`;
         ctx.textBaseline = horizontal ? "middle" : "bottom";
         ctx.textAlign = horizontal ? "left" : "center";
         meta.data.forEach((bar, index) => {
             const text = options.format(chart.data.datasets[0].data[index]);
             if (horizontal) {
-                ctx.fillText(text, bar.x + VALUE_LABEL_OFFSET, bar.y);
+                ctx.fillText(text, bar.x + options.offset, bar.y);
             } else {
-                ctx.fillText(text, bar.x, bar.y - VALUE_LABEL_OFFSET / 2);
+                ctx.fillText(text, bar.x, bar.y - options.offset / 2);
             }
         });
         ctx.restore();
@@ -392,19 +401,46 @@ export class CompanyDashboardCharts extends Component {
         }
     }
 
+    /** 目前這張圖的倍率：畫面上 1 倍，下載時 EXPORT_SCALE 倍（字級、柱寬、間距一起放大） */
+    get scale() {
+        return this.exportScale || SCREEN_SCALE;
+    }
+
+    px(size) {
+        return Math.round(size * this.scale);
+    }
+
+    /** 類別名稱太長就折行（Chart.js 的標籤給陣列＝多行） */
+    wrapLabel(label) {
+        const text = String(label);
+        if (text.length <= LABEL_WRAP_CHARS) {
+            return text;
+        }
+        // 各行字數平均分（11 個字折成 6＋5，不要 10＋1 剩一個字）
+        const lineCount = Math.ceil(text.length / LABEL_WRAP_CHARS);
+        const perLine = Math.ceil(text.length / lineCount);
+        const lines = [];
+        for (let start = 0; start < text.length; start += perLine) {
+            lines.push(text.slice(start, start + perLine));
+        }
+        return lines;
+    }
+
     get baseOptions() {
         return {
             responsive: true,
             maintainAspectRatio: false,
             animation: false,
             color: INK_COLOR,
-            layout: { padding: { top: 4, right: 36, bottom: 4, left: 4 } },
+            layout: { padding: { top: this.px(4), right: this.px(LAYOUT_PADDING_RIGHT), bottom: this.px(4), left: this.px(4) } },
             plugins: {
                 title: { display: true, text: this.data.label, color: INK_COLOR, align: "start",
-                         font: { size: TITLE_FONT_SIZE, weight: "bold" }, padding: { bottom: 2 } },
+                         font: { size: this.px(TITLE_FONT_SIZE), weight: "bold" }, padding: { bottom: this.px(2) } },
                 subtitle: { display: true, text: this.subtitle, color: MUTE_COLOR, align: "start",
-                            font: { size: SUBTITLE_FONT_SIZE }, padding: { bottom: 14 } },
-                legend: { display: false, position: "bottom", labels: { color: INK_COLOR, boxWidth: 12, boxHeight: 12 } },
+                            font: { size: this.px(SUBTITLE_FONT_SIZE) }, padding: { bottom: this.px(14) } },
+                legend: { display: false, position: "bottom",
+                          labels: { color: INK_COLOR, boxWidth: this.px(LEGEND_BOX_SIZE), boxHeight: this.px(LEGEND_BOX_SIZE),
+                                    padding: this.px(12), font: { size: this.px(TICK_FONT_SIZE) } } },
                 tooltip: { callbacks: {} },
             },
         };
@@ -420,8 +456,8 @@ export class CompanyDashboardCharts extends Component {
             label: item.label,
             data: item.values,
             backgroundColor: single ? this.barColors(categories) : seriesColors[index],
-            maxBarThickness: BAR_MAX_THICKNESS,
-            borderRadius: BAR_RADIUS,
+            maxBarThickness: this.px(BAR_MAX_THICKNESS),
+            borderRadius: this.px(BAR_RADIUS),
             borderSkipped: "start",
             borderWidth: 0,
         }));
@@ -430,24 +466,26 @@ export class CompanyDashboardCharts extends Component {
             beginAtZero: true,
             grid: { color: GRID_COLOR, drawTicks: false },
             border: { display: false },
-            ticks: { color: MUTE_COLOR, font: { size: TICK_FONT_SIZE }, precision: 0,
+            ticks: { color: MUTE_COLOR, font: { size: this.px(TICK_FONT_SIZE) }, precision: 0,
                      callback: (value) => (unit === PERCENT_UNIT ? `${value}%` : formatQty(value)) },
         };
         const categoryAxis = {
             grid: { display: false },
             border: { color: GRID_COLOR },
-            ticks: { color: INK_COLOR, font: { size: TICK_FONT_SIZE }, autoSkip: false },
+            ticks: { color: INK_COLOR, font: { size: this.px(TICK_FONT_SIZE) }, autoSkip: false },
         };
         options.indexAxis = horizontal ? "y" : "x";
         options.scales = horizontal ? { x: valueAxis, y: categoryAxis } : { x: categoryAxis, y: valueAxis };
         options.plugins.legend.display = !single;
         options.plugins.dashBarValueLabel = {
             enabled: single,
+            fontSize: this.px(TICK_FONT_SIZE),
+            offset: this.px(VALUE_LABEL_OFFSET),
             format: (value) => (unit === PERCENT_UNIT ? `${formatQty(value)}%` : formatQty(value)),
         };
         options.plugins.tooltip.callbacks.label = (context) =>
             `${context.dataset.label}：${formatQty(context.parsed[horizontal ? "x" : "y"])} ${unit}`;
-        return { type: "bar", data: { labels: categories.map((category) => category.label), datasets }, options,
+        return { type: "bar", data: { labels: categories.map((category) => this.wrapLabel(category.label)), datasets }, options,
                  plugins: [whiteBackgroundPlugin, barValueLabelPlugin] };
     }
 
@@ -513,8 +551,8 @@ export class CompanyDashboardCharts extends Component {
                 beginAtZero: true,
                 grid: { color: GRID_COLOR },
                 angleLines: { color: GRID_COLOR },
-                pointLabels: { color: INK_COLOR, font: { size: TICK_FONT_SIZE } },
-                ticks: { color: MUTE_COLOR, backdropColor: SURFACE_COLOR, precision: 0 },
+                pointLabels: { color: INK_COLOR, font: { size: this.px(TICK_FONT_SIZE) } },
+                ticks: { color: MUTE_COLOR, backdropColor: SURFACE_COLOR, precision: 0, font: { size: this.px(SUBTITLE_FONT_SIZE) } },
             },
         };
         options.plugins.tooltip.callbacks.label = (context) =>
@@ -522,14 +560,14 @@ export class CompanyDashboardCharts extends Component {
         return {
             type: "radar",
             data: {
-                labels: categories.map((category) => category.label),
+                labels: categories.map((category) => this.wrapLabel(category.label)),
                 datasets: series.map((item, index) => ({
                     label: item.label,
                     data: item.values,
                     borderColor: colors[index],
                     backgroundColor: colors[index] + AREA_ALPHA_HEX,
-                    borderWidth: LINE_WIDTH,
-                    pointRadius: POINT_RADIUS,
+                    borderWidth: this.px(LINE_WIDTH),
+                    pointRadius: this.px(POINT_RADIUS),
                     pointBackgroundColor: colors[index],
                     pointBorderColor: SURFACE_COLOR,
                     pointBorderWidth: LINE_WIDTH,
@@ -546,10 +584,34 @@ export class CompanyDashboardCharts extends Component {
         if (!canvas || !this.hasValues || !window.Chart) {
             return;
         }
-        const type = this.effectiveChartType;
+        this.chart = new window.Chart(canvas.getContext("2d"), this.buildConfig());
+    }
+
+    buildConfig() {
         const builders = { [CHART_BAR]: () => this.buildBarConfig(), [CHART_PIE]: () => this.buildPieConfig(),
                            [CHART_RADAR]: () => this.buildRadarConfig() };
-        this.chart = new window.Chart(canvas.getContext("2d"), builders[type]());
+        return builders[this.effectiveChartType]();
+    }
+
+    /** 下載用的圖：不拿畫面上那張（尺寸跟著視窗、字是螢幕字級），另外在固定 16:9 的畫布上用放大的字重畫一張 */
+    exportImage() {
+        const canvas = document.createElement("canvas");
+        canvas.width = EXPORT_WIDTH;
+        canvas.height = EXPORT_HEIGHT;
+        this.exportScale = EXPORT_SCALE;
+        let exportChart = null;
+        try {
+            const config = this.buildConfig();
+            config.options.responsive = false;
+            config.options.devicePixelRatio = 1;
+            exportChart = new window.Chart(canvas.getContext("2d"), config);
+            return exportChart.toBase64Image("image/png", 1);
+        } finally {
+            this.exportScale = null;
+            if (exportChart) {
+                exportChart.destroy();
+            }
+        }
     }
 
     // ── 下載圖片 ────────────────────────────────────────────────────────
@@ -558,7 +620,7 @@ export class CompanyDashboardCharts extends Component {
             return;
         }
         const link = document.createElement("a");
-        link.href = this.chart.toBase64Image("image/png", 1);
+        link.href = this.exportImage();
         link.download = `${EXPORT_PREFIX}_${this.data.label}_${isoDate(new Date())}.png`;
         document.body.appendChild(link);
         link.click();
