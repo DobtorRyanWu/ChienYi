@@ -56,7 +56,10 @@ try:
     check('範圍含自有模組', 'construction_payment' in names and 'construction_release' in names)
     check('範圍含第三方（非 construction_ 前綴）',
           all(n in names for n in ('dobtor_doc_editor', 'base_geoengine', 'spreadsheet_oca', 'web_leaflet_lib')))
-    check('範圍含未安裝的模組（web_responsive）', 'web_responsive' in names)
+    # 拿這個庫裡「在範圍內、但沒安裝」的任一個模組來驗，不寫死名字
+    # （原本寫死 web_responsive；它 2026-11-27 從 repo 刪掉了：和平台模組撞名、也沒有任何庫在用）
+    uninstalled = Module.search([('name', 'in', names), ('state', '=', 'uninstalled')], order='name', limit=1)
+    check('範圍含未安裝的模組', bool(uninstalled), uninstalled.name or '這個庫找不到範圍內未安裝的模組，這一項沒驗到')
     check('範圍不含 Odoo 內建（base／mail／project）', not {'base', 'mail', 'project'} & set(names), names[:5])
 
     # ---------- 版號解析 ----------

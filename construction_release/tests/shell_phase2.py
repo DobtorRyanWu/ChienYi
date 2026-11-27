@@ -131,8 +131,12 @@ try:
           and r1.confirm_user_id == admin and r1.confirm_datetime)
     names = custom_module_names()
     ml = r1.manifest_line_ids
+    # 拿這個庫裡「在範圍內、但沒安裝」的任一個模組來驗，不寫死名字（原本寫死 web_responsive，2026-11-27 已從 repo 刪掉）
+    uninstalled = Module.search([('name', 'in', names), ('state', '=', 'uninstalled')], order='name', limit=1)
+    check('這個庫有範圍內未安裝的模組可以驗', bool(uninstalled), uninstalled.name or '找不到，下面兩項沒驗到')
     check('版本清單＝自有＋第三方全部模組（含未安裝）＋ Odoo 本體一行',
-          len(ml) == len(names) + 1 and 'web_responsive' in ml.mapped('module_name'), (len(ml), len(names)))
+          len(ml) == len(names) + 1 and bool(uninstalled) and uninstalled.name in ml.mapped('module_name'),
+          (len(ml), len(names), uninstalled.name))
     core = ml.filtered('is_core')
     check('Odoo 本體一行＝odoo.release.version', core.version == release.version, core.version)
     pl = ml.filtered(lambda l: l.module_name == 'construction_payment')
@@ -181,8 +185,8 @@ try:
     check('本庫目前狀態 → 相符', dep_ok.result == 'match' and not dep_ok.mismatch_count and not dep_ok.half_count,
           [(l.module_name, l.expected, l.actual, l.result) for l in bad][:5])
     check('部署紀錄記下資料庫名稱與檢查人', dep_ok.db_name == env.cr.dbname and dep_ok.user_id == admin)
-    nl = dep_ok.line_ids.filtered(lambda l: l.module_name == 'web_responsive')
-    check('未安裝的模組 → 本庫未安裝（不算問題）', nl.result == 'not_installed')
+    nl = dep_ok.line_ids.filtered(lambda l: l.module_name == uninstalled.name)
+    check('未安裝的模組 → 本庫未安裝（不算問題）', len(nl) == 1 and nl.result == 'not_installed', (uninstalled.name, nl.mapped('result')))
 
     # 故意製造：一個版號不符、一個升到一半、一個清單沒有
     with env.cr.savepoint() as sp:
