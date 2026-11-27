@@ -2,6 +2,8 @@
 # Copyright 2024-2025 Engineering Supervision System
 # License LGPL-3.0 or later (https://www.gnu.org/licenses/lgpl).
 
+from markupsafe import Markup
+
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -422,31 +424,68 @@ class ProgressScheduleLine(models.Model):
         return records
 
     def _refresh_schedule_change_day(self, schedules=None):
-        """明細改了（新增、改預定或日期、刪除）→ 變更日那一列照兩格重算（只算數字，不切分；2026-11-24）。"""
+        """明細改了（新增、改預定或日期、刪除）→ 變更日那一列照兩格重算（只算數字，不切分；2026-11-24）。
+        2026-11-27 起使用中那一版也算（使用中可以直接改每一期的預定）。"""
         if self.env.context.get(SKIP_CHANGE_DAY):
             return
         schedules = (schedules if schedules is not None else self.mapped('schedule_id')).exists()
-        schedules.filtered(lambda s: s.state == 'draft')._refresh_change_day_line(split=False)
+        schedules.filtered(lambda s: s.state in ('draft', 'active'))._refresh_change_day_line(split=False)
+
+    def _period_label(self):
+        """活動紀錄用：「第 15 期 11/30～12/06」（期數照日期排；跨年寫年份）"""
+        self.ensure_one()
+        lines = self.schedule_id.line_ids.filtered(lambda l: l.date_start and l.date_end).sorted(line_key)
+        number = (list(lines).index(self) + 1) if self in lines else 0
+        if self.date_start and self.date_end:
+            fmt = '%Y/%m/%d' if self.date_start.year != self.date_end.year else '%m/%d'
+            period = f'{self.date_start.strftime(fmt)}～{self.date_end.strftime(fmt)}'
+        else:
+            period = ''
+        return (f'第 {number} 期 ' if number else '') + period
 
     def write(self, vals):
-        """寫入時檢查狀態"""
+        """寫入時檢查狀態。
+
+        2026-11-27（使用者定，照舊系統「改在用的那一張」）：使用中那一版可以直接改每一期的預定進度，存檔就生效；
+        變更日那一列除外（那一列照「變更日進度」的「變更後累計預定進度」算）。每一期的日期、新增、刪除照舊只有草稿能改；
+        已歸檔的不能改。使用中改了預定 → 進度表的活動紀錄寫一筆（例：第 15 期 11/30～12/06 預定 19.75 → 18.00）。"""
         # 禁止直接修改 actual_progress
         if 'actual_progress' in vals and not self.env.context.get('allow_sync_progress'):
             raise UserError('實際進度只能透過「從日誌同步進度」功能更新，不可手動修改。')
-        
+
         # 如果是修改進度資料，檢查進度表狀態
         progress_fields = {'planned_progress', 'date_start', 'date_end'}
+        internal = self.env.context.get(SKIP_CHANGE_DAY)
+        logs = []
         if progress_fields & set(vals.keys()):
             for line in self:
-                # 使用中的進度表不能修改預定進度和日期
-                if line.schedule_state == 'active':
-                    raise UserError('使用中的進度表不可修改預定進度和日期')
-                elif line.schedule_state == 'archived':
+                if line.schedule_state == 'archived':
                     raise UserError('已歸檔的進度表不可修改')
+                if line.schedule_state != 'active':
+                    continue
+                if {'date_start', 'date_end'} & set(vals):
+                    raise UserError('使用中的進度表不可修改區間日期（要改日期請先「重設草稿」）')
+                if 'planned_progress' in vals and not internal:
+                    if line.is_change_day_row:
+                        raise UserError(
+                            '變更日那一列的預定進度由「變更日進度」頁籤的「變更後累計預定進度」算出來，'
+                            '要改請改那一格。')
+                    old = round(line.planned_progress or 0.0, 2)
+                    new = round(vals['planned_progress'] or 0.0, 2)
+                    if abs(old - new) >= 0.005:
+                        logs.append((line, f'{line._period_label()} 預定 {old:.2f} → {new:.2f}'))
 
         res = super().write(vals)
         if progress_fields & set(vals.keys()):
             self._refresh_schedule_change_day()
+        by_schedule = {}
+        for line, text in logs:
+            by_schedule.setdefault(line.schedule_id, []).append(text)
+        for schedule, texts in by_schedule.items():
+            schedule.message_post(
+                body=Markup('<br/>').join(['使用中改了預定進度：'] + texts),
+                message_type='notification',
+            )
         return res
 
     def unlink(self):

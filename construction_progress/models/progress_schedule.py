@@ -4,8 +4,11 @@
 
 from datetime import timedelta
 
+from markupsafe import Markup
+
 from odoo import api, fields, models, Command
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import html2plaintext
 
 from odoo.addons.construction_supervision_base.models.supervision_project import (
     CONTRACT_DATES_SYSTEM_WRITE,
@@ -62,6 +65,7 @@ class ProgressSchedule(models.Model):
     )
     change_reason = fields.Text(
         string='變更原因',
+        tracking=True,   # 2026-11-27：使用中那一版也能改，改了在活動紀錄留舊值 → 新值
         help='記錄本版本進度表變更的原因（如：契約變更、設計變更、施工方法調整、業主要求、天候因素等）',
     )
 
@@ -368,7 +372,11 @@ class ProgressSchedule(models.Model):
     ], string='狀態', default='draft', tracking=True, index=True)
 
     # === 備註 ===
+    # Html 欄位 Odoo 的欄位追蹤記不到 → write() 自己寫一筆活動紀錄（改前／改後的文字，2026-11-27）
     notes = fields.Html(string='備註說明')
+
+    # 畫面用（不存）：開工後已歸檔的版本不顯示「重設草稿」（按了一定被擋，2026-11-27）
+    project_state = fields.Selection(related='project_id.state', string='工程狀態', tracking=False)
 
     # === 變更日進度（2026-11-24 改；原「計畫倒退校正」） ===
     # 照舊系統（EAGLE 進度表的一天區間＋日誌的「變更後進度」）：進度表一換版，變更日那一天在明細裡獨立成一列
@@ -405,6 +413,7 @@ class ProgressSchedule(models.Model):
         string='變更後累計預定進度 (%)',
         copy=False,
         digits=(5, 2),
+        tracking=True,   # 2026-11-27：使用中那一版也能改
         help='變更日當天（含）照新計畫的累計預定進度。可以不填：空白＝當天照原本的值（不往下掉）——'
              '「建立新版本」建的照前一版那一天的值（變更前的值）；匯入、手動建的照這一版自己那一天的份額。'
              '變更日那一列的預定進度由系統算＝這個數字 − 前一天的累計。',
@@ -413,6 +422,7 @@ class ProgressSchedule(models.Model):
         string='變更後累計實際進度 (%)',
         copy=False,
         digits=(5, 2),
+        tracking=True,
         help='契約金額改了、已完成的比例要重新換算時填：變更日當天（含）的累計實際進度應該是多少。'
              '系統在變更日那一列放一筆調整，讓累計剛好等於這個數字；施工日誌一筆都不改，舊版保留原本的數字。'
              '可以不填：0 或空白＝不調整，照施工日誌加總（展延、契約金額沒變時就是這樣）。',
@@ -561,7 +571,8 @@ class ProgressSchedule(models.Model):
         """變更日那一列的數字照兩格重算。
         預定：填了＝這個數字 − 前一天的累計；空白＝當天照原本的值 ——「建立新版本」建的照前一版的值（變更前的值）、
         匯入或手動建的照這一版自己這一天本來的份額（不替它補平，它自己的明細就是新的計畫）。
-        實際：變更後累計實際進度（空白＝0＝照日誌加總）。預定與切分只動草稿，實際草稿與使用中都會。"""
+        實際：變更後累計實際進度（空白＝0＝照日誌加總）。切分只動草稿；預定與實際草稿與使用中都會
+        （2026-11-27 起使用中那一版可以直接改每一期的預定與「變更後累計預定進度」，存檔就生效）。"""
         for rec in self:
             if rec.state not in ('draft', 'active') or not rec._change_day_applicable():
                 continue
@@ -574,27 +585,27 @@ class ProgressSchedule(models.Model):
                 continue
             d = rec.change_date
             vals = {}
-            if draft:
-                calc = ProgressCalc(rec.project_id, max_version=rec.version - 1)
-                before = calc.planned_in(rec, d - timedelta(days=1)) or 0.0
-                amount = None
-                if rec.correction_target_cumulative:
-                    amount = round(rec.correction_target_cumulative - before, 2)
-                elif rec.copied_from_id:
-                    prev = calc.planned(d)
-                    if prev is not None:
-                        amount = round(prev - before, 2)
-                if amount is None:
-                    amount = round(row.split_share or 0.0, 2)
-                if abs((row.planned_progress or 0.0) - amount) >= 0.005:
-                    vals['planned_progress'] = amount
+            calc = ProgressCalc(rec.project_id, max_version=rec.version - 1)
+            before = calc.planned_in(rec, d - timedelta(days=1)) or 0.0
+            amount = None
+            if rec.correction_target_cumulative:
+                amount = round(rec.correction_target_cumulative - before, 2)
+            elif rec.copied_from_id:
+                prev = calc.planned(d)
+                if prev is not None:
+                    amount = round(prev - before, 2)
+            if amount is None:
+                amount = round(row.split_share or 0.0, 2)
+            if abs((row.planned_progress or 0.0) - amount) >= 0.005:
+                vals['planned_progress'] = amount
             actual = rec.correction_target_actual or 0.0
             if abs((row.actual_correction_target or 0.0) - actual) >= 0.005:
                 vals['actual_correction_target'] = actual
             if vals:
                 row.with_context(**{SKIP_CHANGE_DAY: True}).write(vals)
                 if 'actual_correction_target' in vals:
-                    rec._sync_actual_all_lines()
+                    # 這一版的調整也算進之後的版本（含草稿）→ 這個工程每一版都重算
+                    self.search([('project_id', '=', rec.project_id.id)])._sync_actual_all_lines()
 
     def _rebuild_from_source(self):
         """改了變更日期（「建立新版本」建的）：照新日期從建立這一版的那一版重新切分（變更日以後歸零）。"""
@@ -1049,35 +1060,10 @@ class ProgressSchedule(models.Model):
         )
 
         # ── 觸發相關施工日誌重算 ──────────────────────────────────────────
-        # 以 effective_change_date（＝change_date，2026-11-24 起）為觸發起點
-        effective_date = self.effective_change_date or self.change_date
-
-        # 1. effective_date 當天的日誌：重算進度變更標記（本日預定仍用舊版）
-        # 生效日當天及之後的日誌一律重算衍生進度欄位（含已鎖定的歷史日誌）——這些是依
-        # 核定計畫推導的衍生值，更新它們不算竄改使用者輸入；鎖定守門已放行衍生欄位寫入。
-        logs_on_effective = self.env['daily.log.sheet'].search([
-            ('supervision_project_id', '=', self.project_id.id),
-            ('log_date', '=', effective_date),
-        ])
-        if logs_on_effective:
-            logs_on_effective._compute_active_progress_schedule()
-            logs_on_effective._compute_has_progress_change()
-            logs_on_effective._compute_changed_planned_progress()
-            # base_progress_schedule_id 在 effective_date 當天仍返回舊版，不需重算
-            # （effective_change_date < log_date 嚴格小於，v2 不符合當天）
-
-        # 2. effective_date 之後的日誌：切換到新版進度表，並重算所有進度欄位
-        logs_after_effective = self.env['daily.log.sheet'].search([
-            ('supervision_project_id', '=', self.project_id.id),
-            ('log_date', '>', effective_date),
-        ])
-        if logs_after_effective:
-            logs_after_effective._compute_active_progress_schedule()
-            logs_after_effective._compute_base_progress_schedule()
-            logs_after_effective._compute_progress_line()
-            logs_after_effective._compute_daily_planned_progress()
-            logs_after_effective._compute_has_progress_change()
-            logs_after_effective._compute_changed_planned_progress()
+        # 變更日當天與之後的日誌：「有無進度變更」「本日預定用哪一版」「本日預定進度」全部重算（含已鎖定的歷史日誌；
+        # 這些是照進度表推出來的值，不算改使用者填的東西）。2026-11-27 以前當天不重算「用哪一版」——
+        # 重設草稿、改了變更日期再啟用時，新的那一天留著舊算法的數字。
+        self._resync_daily_logs(self.effective_change_date or self.change_date)
 
         # 3. 這一版每一段的實際進度從施工日誌重算（2026-11-24）。
         #    新版是從舊版複製的，實際進度從 0 開始（copy=False）；以前啟用時不重算，
@@ -1085,6 +1071,30 @@ class ProgressSchedule(models.Model):
         #    要有人按「同步所有明細」才回來。
         self._sync_actual_all_lines()
         self._compute_current_progress()
+
+    # 施工日誌上照進度表推出來的欄位（存起來的計算欄；進度表換版、重設草稿、改變更日期時要重算）
+    _LOG_DERIVED_FIELDS = ('base_progress_schedule_id', 'progress_line_id', 'daily_planned_progress',
+                           'has_progress_change', 'changed_planned_progress')
+
+    def _resync_daily_logs(self, date_from):
+        """這個工程 date_from（含）以後的施工日誌：「有無進度變更」「本日預定用哪一版」「本日所屬區間」
+        「本日預定進度」重算；「目前進度表」每一張都重算。（2026-11-27，使用者定：改變更日期、重設草稿、啟用時，
+        新、舊兩天以後的日誌都要重算 —— 以前重設草稿不重算、啟用時當天不重算用哪一版。）
+
+        用 ORM 重算（add_to_compute），不經過日誌的 write()：不碰使用者填的欄位、已鎖定的日誌照樣更新。"""
+        Sheet = self.env['daily.log.sheet'].sudo()
+        for project in self.mapped('project_id'):
+            all_logs = Sheet.search([('supervision_project_id', '=', project.id)])
+            if not all_logs:
+                continue
+            self.env.add_to_compute(Sheet._fields['active_progress_schedule_id'], all_logs)
+            if date_from:
+                logs = all_logs.filtered(lambda s: s.log_date and s.log_date >= date_from)
+            else:
+                logs = all_logs
+            for fname in self._LOG_DERIVED_FIELDS:
+                self.env.add_to_compute(Sheet._fields[fname], logs)
+            all_logs.flush_recordset(['active_progress_schedule_id', *self._LOG_DERIVED_FIELDS])
 
     def _resequence_lines(self):
         """切割前整理：依開始日排序後以 10 為步長重設 sequence，確保有足夠間距插入新行。
@@ -1104,8 +1114,7 @@ class ProgressSchedule(models.Model):
             rec.write({'state': 'archived'})
         return True
 
-    def action_reset_draft(self):
-        """重設為草稿"""
+    def _check_can_reset_draft(self):
         for rec in self:
             if rec.state not in ('active', 'archived'):
                 raise UserError('只有使用中或已歸檔狀態可以重設為草稿')
@@ -1114,7 +1123,69 @@ class ProgressSchedule(models.Model):
                 raise UserError(
                     '工程已開始施工，已歸檔的舊版進度表（第%s版）不能退回草稿。\n'
                     '要拿舊版內容修改，請在這一版按「建立新版本」複製一份。' % rec.version)
+
+    def _reset_handover(self):
+        """使用中那一版重設草稿時，接手的前一版（已歸檔、版本比它小的最新一版）。沒有回空的。"""
+        self.ensure_one()
+        if self.state != 'active':
+            return self.browse()
+        return self.search([
+            ('project_id', '=', self.project_id.id),
+            ('state', '=', 'archived'),
+            ('version', '<', self.version),
+        ], order='version desc', limit=1)
+
+    def _reset_draft_message(self):
+        """按「重設草稿」之前的提醒（2026-11-27 使用者定的字）"""
+        self.ensure_one()
+        prev = self._reset_handover()
+        if prev:
+            return '重設後先回到第 %s 版，改好請重新啟用。' % prev.version
+        if self.state == 'active':
+            return '重設後這個工程暫時沒有使用中的進度表，改好請重新啟用。'
+        return '重設後這一版回到草稿，改好請重新啟用。'
+
+    def action_reset_draft(self):
+        """重設為草稿：先跳提醒（重設後回到第幾版），確定了才做（_do_reset_draft）。"""
+        self.ensure_one()
+        self._check_can_reset_draft()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': '重設草稿',
+            'res_model': 'progress.reset.draft.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_schedule_id': self.id},
+        }
+
+    def _do_reset_draft(self):
+        """重設為草稿。
+
+        2026-11-27（使用者定，照舊系統「刪掉最後一張＝前一張接手、展延改回」）：使用中那一版重設時，前一版自動改回
+        使用中、工程的預定完工日與累計展延改回前一版的 → 不會有「沒有使用中的進度表」的空窗；再啟用時照舊把它歸檔。
+        這一版變更日當天與之後的日誌改回前一版的算法（有無進度變更、本日預定）。"""
+        self._check_can_reset_draft()
+        for rec in self:
+            prev = rec._reset_handover()
+            day = rec.effective_change_date or rec.change_date
             rec.write({'state': 'draft'})
+            if prev:
+                prev.write({'state': 'active'})
+                update_vals = {}
+                if (prev.duration_extension or 0) != (rec.project_id.extension_duration or 0):
+                    update_vals['extension_duration'] = prev.duration_extension or 0
+                if prev.adjusted_end_date and prev.adjusted_end_date != rec.project_id.contract_end_date:
+                    update_vals['contract_end_date'] = prev.adjusted_end_date
+                if update_vals:
+                    rec.project_id.with_context(**{CONTRACT_DATES_SYSTEM_WRITE: True}).write(update_vals)
+                prev.message_post(
+                    body='第 %s 版重設草稿，這一版改回使用中（工程的預定完工日與累計展延改回這一版的）。' % rec.version,
+                    message_type='notification')
+                prev._compute_current_progress()
+            rec.message_post(
+                body='已重設為草稿。' + ('第 %s 版改回使用中，改好請重新啟用。' % prev.version if prev else ''),
+                message_type='notification')
+            rec._resync_daily_logs(day)
         return True
 
     def action_create_new_version(self):
@@ -1227,7 +1298,17 @@ class ProgressSchedule(models.Model):
 
     def write(self, vals):
         old_dates = {rec.id: rec.change_date for rec in self} if 'change_date' in vals else {}
+        # 備註是 Html，Odoo 的欄位追蹤記不到 → 自己留改前／改後（2026-11-27：使用中那一版也能改，要留痕）
+        old_notes = {rec.id: rec.notes for rec in self} if 'notes' in vals else {}
         res = super().write(vals)
+        for rec in self:
+            if rec.id in old_notes:
+                before = html2plaintext(old_notes[rec.id] or '').strip()
+                after = html2plaintext(rec.notes or '').strip()
+                if before != after:
+                    rec.message_post(
+                        body=Markup('改了備註：<br/>改前：%s<br/>改後：%s') % (before or '（空白）', after or '（空白）'),
+                        message_type='notification')
         # 改動 version 或 project_id 會影響同工程誰是最新版，重算兄弟記錄
         if 'version' in vals or 'project_id' in vals:
             self._recompute_latest_for_projects(self.mapped('project_id').ids)
@@ -1239,7 +1320,11 @@ class ProgressSchedule(models.Model):
         if 'change_date' in vals:
             for rec in self:
                 old = old_dates.get(rec.id)
-                if rec.state != 'draft' or not old or old == rec.change_date:
+                if not old or old == rec.change_date:
+                    continue
+                if rec.state != 'draft':
+                    # 使用中、已歸檔的變更日期畫面上不能改（資料修正程式才會走到這裡）：新、舊兩天以後的日誌照新的日期重算
+                    rec._resync_daily_logs(min(old, rec.change_date))
                     continue
                 if rec.copied_from_id:
                     rec._rebuild_from_source()
@@ -1248,9 +1333,11 @@ class ProgressSchedule(models.Model):
                     rec._split_at_change_day()
         # 填了、改了、清空了兩格（或改了變更日期）→ 變更日那一列馬上照新的數字算
         if {'change_date', 'correction_target_cumulative', 'correction_target_actual'} & set(vals):
-            if 'correction_target_actual' in vals:
+            for field in ('correction_target_cumulative', 'correction_target_actual'):
+                if field not in vals:
+                    continue
                 for rec in self:
-                    if (rec.state == 'active' and rec.correction_target_actual and rec._change_day_applicable()
+                    if (rec.state == 'active' and rec[field] and rec._change_day_applicable()
                             and not rec._change_day_line()):
                         raise UserError(
                             '這一版的進度明細沒有變更日（%s）那一列（匯入或手動建的），'

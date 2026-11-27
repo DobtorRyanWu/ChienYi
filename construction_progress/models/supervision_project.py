@@ -300,7 +300,18 @@ class SupervisionProjectProgress(models.Model):
             'point_types': ['key', 'normal', ...],
             'today': '2024-01-15',
             'version_changes': [...],
+            'actual_points': [8, None, ..., 18],  # 畫線用：只有累計實際有變的日子有值，其他 None（點跟點連直線）
+            'axis_start': '2024-01-01', 'axis_end': '2024-06-30',  # 時間軸範圍
+            'show_today': True,                # 畫不畫「今日」線
         }
+
+        2026-11-27（使用者定）：
+        - 實際進度線只把累計真的有變的日子當點、點跟點連直線（以前每一天一個點、沿用最後一個 → 階梯）。
+          只改圖：首頁、日報、報告照舊沿用最後一個（'actual' 每一天的值不變，提示框照它顯示）。
+          填了 0 的日子累計沒變 → 不當點；契約變更那天變更前、變更後不同 → 兩個點都留（垂直線）；
+          最後一個有值的點照舊（畫到今天或完工日）。
+        - 時間軸不再一律畫到今天（以前「今日」線會把軸撐開）：已完工（有實際完工日）畫到預定完工日與
+          實際完工日較晚的那天、不畫今日線；沒完工畫到預定完工日與今天較晚的那天、照樣畫今日線。
 
         2026-11-24 以前段內用直線內插：實際進度不是照日誌（今天 11% 畫成 7.44%）、交界日的日誌在發生前一天
         就畫出來、預定少算一天。契約變更那一天照舊畫兩個點（使用者：那一天要看到一條垂直線，同一天看得到
@@ -317,6 +328,10 @@ class SupervisionProjectProgress(models.Model):
             'point_types': [],
             'today': today.isoformat(),
             'version_changes': [],
+            'actual_points': [],
+            'axis_start': None,
+            'axis_end': None,
+            'show_today': False,
         }
         # 草稿版本還沒啟用，不進圖表；已歸檔版本是歷史基準，照舊保留
         schedules = self.schedule_ids.filtered(lambda s: s.state != 'draft' and s.line_ids).sorted('version')
@@ -364,6 +379,11 @@ class SupervisionProjectProgress(models.Model):
             add(day, before=False)
             day += timedelta(days=1)
 
+        # 時間軸範圍（2026-11-27）
+        completed = self.actual_end_date
+        axis_end = max(end_date, completed) if completed else max(end_date, today)
+        show_today = not completed and start_date <= today <= axis_end
+
         return {
             'dates': dates,
             'planned': planned,
@@ -372,7 +392,29 @@ class SupervisionProjectProgress(models.Model):
             'point_types': point_types,
             'today': today.isoformat(),
             'version_changes': version_changes,
+            'actual_points': self._progress_chart_actual_points(dates, actual),
+            'axis_start': start_date.isoformat(),
+            'axis_end': axis_end.isoformat(),
+            'show_today': show_today,
         }
+
+    @api.model
+    def _progress_chart_actual_points(self, dates, actual):
+        """進度圖實際進度線要畫的點（2026-11-27）：累計跟前一個點不同的日子才當點，其他 None（圖上點跟點連直線）。
+        第一個、最後一個有值的點一定留；同一天兩個點（契約變更的變更前／變更後）不同 → 兩個都留（垂直線）。"""
+        points = [None] * len(actual)
+        filled = [i for i, value in enumerate(actual) if value is not None]
+        if not filled:
+            return points
+        first, last = filled[0], filled[-1]
+        for i in filled:
+            value = actual[i]
+            prev = actual[i - 1] if i > 0 else None
+            if i in (first, last) or prev is None or abs(value - prev) >= 0.005:
+                points[i] = value
+                if i > 0 and prev is not None and dates[i - 1] == dates[i]:
+                    points[i - 1] = prev
+        return points
 
     def _progress_readable_change_order_names(self, schedule):
         """進度表對應的變更單名稱，只列看的人讀得到的（公司儀表板合約 §5.3）。

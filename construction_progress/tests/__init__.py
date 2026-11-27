@@ -9,3 +9,4 @@ from . import test_boundary_correction_20261124  # 交界日只算一次、校�
 from . import test_progress_unified_20261124  # 累計進度統一成一套算法：首頁、進度表、報告、曲線同一個數字（2026-11-24）
 from . import test_change_day_20261124  # 1.15.0「變更日進度」：建立新版本先問變更日期、變更日獨立一列、兩格可以不填（2026-11-24）
 from . import test_log_resync_all_versions_20261124  # 1.15.2 日誌改了、刪了，每一版進度表都跟著重算（2026-11-24）
+from . import test_change_day_display_20261127  # 1.16.0 變更日顯示、使用中可改、重設草稿前一版接手、進度圖（2026-11-27）

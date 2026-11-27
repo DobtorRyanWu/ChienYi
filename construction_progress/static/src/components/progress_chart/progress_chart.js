@@ -76,8 +76,8 @@ export class ProgressChartWidget extends Component {
         // 準備標註（annotations）- 使用日期值（供時間軸使用）
         const annotations = {};
 
-        // 1. 今日標記線
-        if (data.today) {
+        // 1. 今日標記線（2026-11-27：已完工不畫；時間軸範圍由伺服器給 axis_start／axis_end，今日線不再把軸撐開）
+        if (data.today && data.show_today !== false) {
             annotations.todayLine = {
                 type: "line",
                 xMin: data.today,
@@ -138,9 +138,12 @@ export class ProgressChartWidget extends Component {
             x: date,
             y: data.planned[i],
         }));
+        // 實際進度線只畫累計有變的日子（actual_points，其他是 null），點跟點連直線（2026-11-27）；
+        // 提示框照每一天的值（data.actual，跟首頁、日報同一個數字）
+        const actualSeries = data.actual_points && data.actual_points.length ? data.actual_points : data.actual;
         const actualData = data.dates.map((date, i) => ({
             x: date,
-            y: data.actual[i],
+            y: actualSeries[i],
         }));
 
         this.chart = new Chart(ctx, {
@@ -176,7 +179,8 @@ export class ProgressChartWidget extends Component {
                             return type === 'key' ? 4 : 0;
                         },
                         pointHoverRadius: 6,
-                        tension: 0.1,
+                        tension: 0,
+                        spanGaps: true,
                         fill: false,
                     },
                 ],
@@ -239,6 +243,14 @@ export class ProgressChartWidget extends Component {
                                     change => change.date === dateStr
                                 );
 
+                                // 這一天不是實際進度線上的點 → 提示框補上這一天的累計實際（沿用最後一次的數字）
+                                const extra = [];
+                                const idx = context[0].dataIndex;
+                                const hasActual = context.some(item => item.datasetIndex === 1);
+                                if (!hasActual && data.actual && data.actual[idx] !== null && data.actual[idx] !== undefined) {
+                                    extra.push(`累計實際進度 (%): ${Number(data.actual[idx]).toFixed(2)}%`);
+                                }
+
                                 if (versionChange) {
                                     const info = [
                                         '',
@@ -250,9 +262,9 @@ export class ProgressChartWidget extends Component {
                                         info.push(`契約變更：${versionChange.change_orders.join(', ')}`);
                                     }
 
-                                    return info;
+                                    return extra.concat(info);
                                 }
-                                return [];
+                                return extra;
                             },
                         },
                     },
@@ -286,6 +298,8 @@ export class ProgressChartWidget extends Component {
                 scales: {
                     x: {
                         type: 'time',  // 使用時間軸（相同日期的點會重疊，形成垂直線）
+                        min: data.axis_start || undefined,
+                        max: data.axis_end || undefined,
                         display: true,
                         title: {
                             display: true,

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 2026-11-27：重設草稿之前的提醒（使用中那一版重設後，前一版自動接手） -->
+    <record id="progress_reset_draft_wizard_form" model="ir.ui.view">
+        <field name="name">progress.reset.draft.wizard.form</field>
+        <field name="model">progress.reset.draft.wizard</field>
+        <field name="arch" type="xml">
+            <form string="重設草稿">
+                <field name="schedule_id" invisible="1"/>
+                <div class="alert alert-warning" role="alert">
+                    <field name="message" readonly="1" nolabel="1"/>
+                </div>
+                <footer>
+                    <button string="重設草稿" type="object" name="action_confirm" class="btn-primary"/>
+                    <button string="取消" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

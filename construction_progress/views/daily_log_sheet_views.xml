@@ -26,9 +26,17 @@
                             <field name="progress_line_id" invisible="1"/>
                             
                             <!-- 進度資訊 -->
-                            <field name="daily_planned_progress" 
+                            <!-- 2026-11-27：變更那天（某一版進度表的變更日期）預定那一格改叫「原定本日預定進度」
+                                 （換版前那一版原本預定這一天的量），下面多兩格變更後的累計；一般日子照舊 -->
+                            <field name="daily_planned_progress"
                                 string="本日預定進度(%)"
-                                readonly="1"/>
+                                readonly="1"
+                                invisible="has_progress_change"/>
+                            <field name="daily_planned_progress"
+                                string="原定本日預定進度(%)"
+                                readonly="1"
+                                invisible="not has_progress_change"
+                                help="換版前的進度表，原本預定這一天要做多少（只算這一天）。"/>
                             <field name="daily_actual_progress"
                                 string="本日實際進度(%)"
                                 readonly="state != 'draft'"/>
@@ -37,16 +45,18 @@
                                 readonly="1"
                                 digits="[10, 4]"/>
 
-                            <!-- 有無進度變更 -->
-                            <field name="has_progress_change" 
+                            <!-- 有無進度變更：照進度表的變更日期自動勾，不能手動改 -->
+                            <field name="has_progress_change"
                                 string="有無進度變更"
-                                readonly="state != 'draft'"/>
-                            
-                            <!-- 變更後的預定進度（當有進度變更時顯示） -->
-                            <field name="changed_planned_progress"
-                                string="變更後的預定進度(%)"
-                                invisible="not has_progress_change"
-                                readonly="state != 'draft'"/>
+                                readonly="1"/>
+
+                            <!-- 變更那天：變更後的累計預定／實際（跟進度圖同一套算法） -->
+                            <field name="change_cumulative_planned"
+                                string="變更後累計預定進度(%)"
+                                invisible="not has_progress_change"/>
+                            <field name="change_cumulative_actual"
+                                string="變更後累計實際進度(%)"
+                                invisible="not has_progress_change"/>
                         </group>
                     </group>
                     
@@ -58,7 +68,7 @@
                                 type="object"
                                 class="btn-secondary"
                                 icon="fa-line-chart"
-                                invisible="not active_progress_schedule_id"/>
+                                invisible="not active_progress_schedule_id and not has_progress_change"/>
                         </group>
                     </group>
                     

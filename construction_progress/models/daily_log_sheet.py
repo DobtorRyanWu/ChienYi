@@ -4,7 +4,7 @@
 
 from odoo import models, fields, api
 
-from .progress_calc import line_key
+from .progress_calc import ProgressCalc, line_key
 
 
 class DailyLogSheet(models.Model):
@@ -103,23 +103,38 @@ class DailyLogSheet(models.Model):
     )
     
     # 有無進度變更（覆寫 construction_daily_log 的定義，改為 compute+store）
-    # 語意：當天是否有新版進度表被啟用，與 daily_actual_progress 無關
+    # 語意：這一天是不是某一版進度表的「變更日期」（第 1 版不算、草稿不算），與 daily_actual_progress 無關。
+    # 2026-11-27（使用者定）：不能手動勾 —— 以前可以手動改，勾錯天只改那張日誌、進度表與圖都不變，頁面跟圖對不上；
+    # 第 1 版的變更日期＝開工日，以前也會被勾。由進度表啟用、重設草稿、改變更日期時重算（progress.schedule）。
     has_progress_change = fields.Boolean(
         string='有進度變更',
         compute='_compute_has_progress_change',
         store=True,
-        readonly=False,  # 允許使用者手動覆寫
-        help='當天有新版進度表被啟用時自動為 True',
+        help='自動勾，代表這一天是某一版進度表的「變更日期」（第 1 版不算），不能手動改。',
     )
 
-    # 變更後預定進度（覆寫，改為 compute+store，自動從新版進度表取得）
+    # 變更後本日預定進度（只留資料，畫面不顯示；2026-11-27 起變更那天改顯示「變更後累計預定／實際進度」）
     changed_planned_progress = fields.Float(
         string='變更後本日預定進度(%)',
         compute='_compute_changed_planned_progress',
         store=True,
-        readonly=False,  # 允許使用者手動覆寫
         digits=(5, 2),
         help='新版進度表對應當天的預定進度（每日份額）',
+    )
+
+    # 變更那天顯示的兩格累計（不存資料庫；跟進度圖、首頁同一套算法 progress_calc，2026-11-27）
+    change_cumulative_planned = fields.Float(
+        string='變更後累計預定進度(%)',
+        compute='_compute_change_cumulative',
+        digits=(5, 2),
+        help='換版後，累計到這一天應該完成多少。要改請到那一版進度表的「變更日進度」頁籤'
+             '（使用中那一版可以直接改，已歸檔的不能改）。',
+    )
+    change_cumulative_actual = fields.Float(
+        string='變更後累計實際進度(%)',
+        compute='_compute_change_cumulative',
+        digits=(5, 2),
+        help='換版後，累計到這一天實際完成多少。要改的地方同上。',
     )
 
     # 本日進度參考值（由施工明細推算）
@@ -224,19 +239,56 @@ class DailyLogSheet(models.Model):
             days = line._owned_day_count()
             sheet.daily_planned_progress = line.planned_progress / days if days > 0 else 0.0
 
+    def _change_schedules_by_project(self):
+        """{工程 id: 那個工程的「換版」進度表（使用中、已歸檔，照版本排，不含第一版）}"""
+        result = {}
+        Schedule = self.env['progress.schedule'].sudo()
+        for project in self.mapped('supervision_project_id'):
+            schedules = Schedule.search([
+                ('project_id', '=', project.id),
+                ('state', 'in', ('active', 'archived')),
+            ], order='version asc')
+            result[project.id] = schedules[1:]
+        return result
+
+    def _change_day_schedule(self):
+        """這一天換上的那一版進度表（這一天是它的變更日期；第 1 版、草稿不算）。沒有回空的。"""
+        self.ensure_one()
+        Schedule = self.env['progress.schedule']
+        if not self.supervision_project_id or not self.log_date:
+            return Schedule
+        changes = self._change_schedules_by_project().get(self.supervision_project_id.id) or Schedule
+        hit = changes.filtered(lambda s: (s.effective_change_date or s.change_date) == self.log_date)
+        return hit.sorted('version')[-1:] if hit else Schedule
+
     @api.depends('supervision_project_id', 'log_date')
     def _compute_has_progress_change(self):
-        """偵測當天是否有新版進度表在此日生效（使用 effective_change_date 統一判斷）"""
+        """這一天是不是某一版進度表的變更日期（使用中、已歸檔；第 1 版不算 —— 它的變更日期＝開工日，不是換版）。
+        跟進度圖的換版日（progress_calc.change_days，也是不含第一版）同一套。"""
+        changes = self._change_schedules_by_project()
         for sheet in self:
             if not sheet.supervision_project_id or not sheet.log_date:
                 sheet.has_progress_change = False
                 continue
-            changed = self.env['progress.schedule'].search_count([
-                ('project_id', '=', sheet.supervision_project_id.id),
-                ('effective_change_date', '=', sheet.log_date),
-                ('state', 'in', ('active', 'archived')),
-            ])
-            sheet.has_progress_change = bool(changed)
+            days = {s.effective_change_date or s.change_date
+                    for s in changes.get(sheet.supervision_project_id.id) or []}
+            sheet.has_progress_change = sheet.log_date in days
+
+    @api.depends('supervision_project_id', 'log_date', 'has_progress_change')
+    def _compute_change_cumulative(self):
+        """變更那天：換版後到這一天（含）的累計預定／實際（跟進度圖「變更後」那個點同一個數字）。一般日子 0、不顯示。"""
+        calcs = {}
+        for sheet in self:
+            planned = actual = 0.0
+            project = sheet.supervision_project_id
+            if sheet.has_progress_change and project and sheet.log_date:
+                calc = calcs.get(project.id)
+                if calc is None:
+                    calc = calcs[project.id] = ProgressCalc(project)
+                planned = calc.planned(sheet.log_date) or 0.0
+                actual = calc.actual(sheet.log_date) or 0.0
+            sheet.change_cumulative_planned = planned
+            sheet.change_cumulative_actual = actual
 
     @api.depends('supervision_project_id', 'log_date', 'has_progress_change')
     def _compute_changed_planned_progress(self):
@@ -359,9 +411,11 @@ class DailyLogSheet(models.Model):
     # -------------------------------------------------------------------------
     
     def action_view_progress_schedule(self):
-        """查看對應的進度表"""
+        """查看對應的進度表：變更那天開那一天換上的那一版（2026-11-27），其他日子開使用中那一版。"""
         self.ensure_one()
-        if not self.active_progress_schedule_id:
+        schedule = (self._change_day_schedule() if self.has_progress_change else False) \
+            or self.active_progress_schedule_id
+        if not schedule:
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
@@ -377,7 +431,7 @@ class DailyLogSheet(models.Model):
             'type': 'ir.actions.act_window',
             'name': '進度表',
             'res_model': 'progress.schedule',
-            'res_id': self.active_progress_schedule_id.id,
+            'res_id': schedule.id,
             'view_mode': 'form',
             'target': 'current',
         }

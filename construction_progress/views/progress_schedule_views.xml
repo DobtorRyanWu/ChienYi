@@ -46,9 +46,10 @@
                     <button name="action_archive" type="object"
                             string="歸檔" class="btn-secondary"
                             invisible="state != 'active'"/>
+                    <!-- 2026-11-27：開工後已歸檔的版本不顯示（按了一定被擋）；按了先跳提醒「重設後先回到第 N 版」 -->
                     <button name="action_reset_draft" type="object"
                             string="重設草稿"
-                            invisible="state not in ('active', 'archived')"/>
+                            invisible="state not in ('active', 'archived') or (state == 'archived' and project_state != 'draft')"/>
                     <button name="action_create_new_version" type="object"
                             string="建立新版本" class="btn-secondary"
                             invisible="state != 'active'"
@@ -103,6 +104,7 @@
                             <field name="company_id" invisible="1"/>
                             <!-- 隱藏欄位：供按鈕 invisible 條件使用 -->
                             <field name="lines_cover_adjusted_end" invisible="1"/>
+                            <field name="project_state" invisible="1"/>
                         </group>
                         <group string="工期資訊">
                             <field name="start_date"/>
@@ -142,8 +144,10 @@
 
                     <notebook>
                         <page string="進度明細" name="lines">
+                            <!-- 2026-11-27：使用中那一版可以改每一期的預定（變更日那一列除外），新增／刪除期別照舊只有草稿 -->
                             <field name="line_ids" nolabel="1"
-                                   context="{'default_schedule_id': id}">
+                                   context="{'default_schedule_id': id}"
+                                   options="{'create': [('state', '=', 'draft')], 'delete': [('state', '=', 'draft')]}">
                                 <list string="進度明細" editable="bottom"
                                       decoration-bf="is_change_day_row"
                                       decoration-success="variance_status == 'ahead'"
@@ -160,7 +164,7 @@
                                            column_invisible="parent.calculation_mode != 'custom'"/>
                                     <field name="period_days" string="天數" readonly="1"/>
                                     <field name="planned_progress"
-                                           readonly="parent.state != 'draft' or is_change_day_row"
+                                           readonly="parent.state not in ('draft', 'active') or is_change_day_row"
                                            sum="預定進度合計"/>
                                     <field name="cumulative_planned" readonly="1"/>
                                     <field name="actual_progress"
@@ -183,7 +187,7 @@
                               invisible="version == 1">
                             <group>
                                 <field name="change_reason"
-                                       readonly="state != 'draft'"
+                                       readonly="state not in ('draft', 'active')"
                                        placeholder="請說明本版本進度表的變更原因..."/>
                             </group>
                         </page>
@@ -194,6 +198,7 @@
                                 兩格都可以不填：<strong>預定空白＝當天照原本的值</strong>（不往下掉；用「建立新版本」建的＝變更前的值）；
                                 <strong>實際空白＝照施工日誌加總</strong>（展延、契約金額沒變時就是這樣）。
                                 填了，變更日那一列馬上照新的數字算，進度曲線那一天會畫出變更前、變更後兩個點。
+                                使用中那一版也可以直接改，存檔就生效（右邊活動紀錄會留下改前、改後）；已歸檔的不能改。
                             </div>
                             <div class="alert alert-secondary" role="alert" invisible="change_day_applicable">
                                 變更日不晚於第一段的開始日（還沒開工就改版、整張重排），不切分、沒有變更日那一列。
@@ -202,7 +207,7 @@
                                 <group string="累計預定進度">
                                     <field name="correction_pre_cumulative"/>
                                     <field name="correction_target_cumulative"
-                                           readonly="state != 'draft'"/>
+                                           readonly="state not in ('draft', 'active')"/>
                                 </group>
                                 <group string="累計實際進度">
                                     <field name="change_pre_actual"/>
